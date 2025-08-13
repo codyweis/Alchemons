@@ -3,6 +3,7 @@ import 'package:flame/game.dart';
 import 'package:alchemons/models/trophy_slot.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/games/scene_game.dart';
+import 'package:flutter/services.dart';
 
 class ScenePage extends StatefulWidget {
   final SceneDefinition scene;
@@ -20,6 +21,10 @@ class _ScenePageState extends State<ScenePage> {
   void initState() {
     super.initState();
 
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     // Create the generic SceneGame with the provided scene definition
     _game = SceneGame(scene: widget.scene);
 
@@ -32,6 +37,15 @@ class _ScenePageState extends State<ScenePage> {
       );
     };
     print("leaving initState in scene page");
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    super.dispose();
   }
 
   @override
@@ -98,7 +112,7 @@ class _CreatureSheet extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.asset(
-              'assets/images/${slot.spritePath}',
+              'assets/images/${slot.imagePath}',
               height: 120,
               fit: BoxFit.contain,
             ),

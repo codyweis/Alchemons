@@ -10,6 +10,7 @@ class TrophySlot {
   final String spritePath; // static sprite (or silhouette)
   final String displayName;
   final String rarity;
+  final String imagePath;
 
   // NEW: which parallax strip should this live on?
   final SceneLayer anchor;
@@ -36,6 +37,7 @@ class TrophySlot {
     this.frameWidth,
     this.frameHeight,
     this.stepTime,
+    required this.imagePath,
   });
 }
 
@@ -54,6 +56,7 @@ extension TrophySlotCopy on TrophySlot {
     double? frameWidth,
     double? frameHeight,
     double? stepTime,
+    String? imagePath,
   }) {
     return TrophySlot(
       id: id ?? this.id,
@@ -69,6 +72,7 @@ extension TrophySlotCopy on TrophySlot {
       frameWidth: frameWidth ?? this.frameWidth,
       frameHeight: frameHeight ?? this.frameHeight,
       stepTime: stepTime ?? this.stepTime,
+      imagePath: imagePath ?? this.imagePath,
     );
   }
 }

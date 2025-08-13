@@ -101,14 +101,6 @@ class _CreaturesScreenState extends State<CreaturesScreen>
               child: Column(
                 children: [
                   _buildHeader(),
-                  IconButton(
-                    icon: const Icon(Icons.map_rounded),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const MapScreen()),
-                      );
-                    },
-                  ),
 
                   _buildFiltersAndSort(),
                   _buildStatsRow(gameState),
@@ -267,7 +259,7 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.9),
           borderRadius: BorderRadius.circular(10),
@@ -289,6 +281,7 @@ class _CreaturesScreenState extends State<CreaturesScreen>
                 ),
               ),
             ),
+            const SizedBox(width: 10),
             const Expanded(
               child: Text(
                 'Creature Collection',
@@ -300,7 +293,16 @@ class _CreaturesScreenState extends State<CreaturesScreen>
                 textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(width: 40),
+
+            IconButton(
+              color: Colors.amber,
+              icon: const Icon(Icons.map_rounded),
+              onPressed: () {
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const MapScreen()));
+              },
+            ),
           ],
         ),
       ),

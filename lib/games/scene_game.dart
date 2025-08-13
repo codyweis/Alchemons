@@ -36,6 +36,8 @@ class SceneGame extends FlameGame with ScaleDetector {
   // Viewport height in root space
   double _Vh = 0;
 
+  final Map<String, TrophyComponent> _slotComps = {};
+
   SceneGame({required this.scene});
 
   @override
@@ -192,6 +194,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     for (final l in _layers.values) {
       buildForLayer(l);
     }
+    _repositionSlots();
   }
 
   void _recomputeMaxCamBounds() {
@@ -244,7 +247,9 @@ class SceneGame extends FlameGame with ScaleDetector {
       final layer = _layers[slot.anchor];
       if (layer == null) continue;
 
-      final x = slot.normalizedPos.dx * scene.worldWidth;
+      // position against the base art width, not the entire tiled strip
+      final baseW = layer.tileWidth > 0 ? layer.tileWidth : scene.worldWidth;
+      final x = slot.normalizedPos.dx * baseW;
       final y = slot.normalizedPos.dy * _Vh;
 
       final sizeVec = (slot.frameWidth != null && slot.frameHeight != null)
@@ -253,18 +258,32 @@ class SceneGame extends FlameGame with ScaleDetector {
               (min(size.x, size.y) * 0.12).clamp(72.0, 144.0).toDouble(),
             );
 
-      layer.container.add(
-        TrophyComponent(
-          slot: slot,
-          parallaxFactor: scene.layers
-              .firstWhere((l) => l.id == slot.anchor)
-              .parallaxFactor,
-          position: Vector2(x, y),
-          size: sizeVec,
-          onTapUnlocked: () => onShowDetails?.call(slot),
-          onTapLocked: () => onShowDetails?.call(slot),
-        ),
+      final comp = TrophyComponent(
+        slot: slot,
+        parallaxFactor: scene.layers
+            .firstWhere((l) => l.id == slot.anchor)
+            .parallaxFactor,
+        position: Vector2(x, y),
+        size: sizeVec,
+        onTapUnlocked: () => onShowDetails?.call(slot),
+        onTapLocked: () => onShowDetails?.call(slot),
       );
+
+      layer.container.add(comp);
+      _slotComps[slot.id] = comp;
+    }
+  }
+
+  void _repositionSlots() {
+    for (final slot in scene.slots) {
+      final layer = _layers[slot.anchor];
+      final comp = _slotComps[slot.id];
+      if (layer == null || comp == null) continue;
+
+      final baseW = layer.tileWidth > 0 ? layer.tileWidth : scene.worldWidth;
+      final x = slot.normalizedPos.dx * baseW;
+      final y = slot.normalizedPos.dy * _Vh;
+      comp.position.setValues(x, y);
     }
   }
 }
@@ -391,6 +410,8 @@ class _FiniteLayer {
   final PositionComponent container;
   final List<SpriteComponent> _tiles = [];
   Vector2 _tileSize = Vector2.zero();
+  double get tileWidth => _tileSize.x;
+  double get tileHeight => _tileSize.y;
   double totalWidth = 0.0;
 
   void buildOrUpdate(Vector2 tileSize, int tilesNeeded) {

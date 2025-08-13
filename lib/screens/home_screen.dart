@@ -548,7 +548,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               GestureDetector(
                 onTap: () {
                   final gameDataService = context.read<GameDataService>();
-                  gameDataService.markMultipleDiscovered(['CR005', 'CR006']);
+                  gameDataService.markMultipleDiscovered(['CR046', 'CR006']);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: const Text('Test creatures unlocked!'),
