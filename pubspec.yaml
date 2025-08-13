@@ -1,0 +1,38 @@
+name: alchemons
+description: "A new Flutter project."
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.0-138.0.dev
+
+dependencies:
+  flutter:
+    sdk: flutter
+  drift: ^2.28.1
+  path_provider: ^2.1.5
+  json_annotation: ^4.9.0
+  drift_flutter: ^0.2.5
+  provider: ^6.1.5
+  flame: ^1.30.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  drift_dev: ^2.28.1
+  build_runner: ^2.6.0
+  json_serializable: ^6.10.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/images/backgrounds/
+    - assets/images/backgrounds/scenes/
+    - assets/images/backgrounds/scenes/volcano/
+    - assets/images/creatures/
+    - assets/images/creatures/uncommon/
+    - assets/images/creatures/rare/
+    - assets/images/ui/
+    - assets/data/

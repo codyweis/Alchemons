@@ -1,0 +1,984 @@
+{
+  "creatures": [
+    {
+      "id": "CR001",
+      "name": "FireMane",
+      "types": ["Fire"],
+      "rarity": "Uncommon",
+      "description": "Born from the heart of simmering volcanoes, the **FireMane** is a creature whose very essence crackles with untamed flame. Its magnificent mane burns with an eternal fire, casting dancing shadows wherever it roams. Though uncommon, catching a glimpse of a FireMane is like witnessing a living ember, a testament to the raw, passionate power of the Fire realm.",
+      "image": "assets/images/creatures/uncommon/CR001_firemane.gif",
+      "mutationFamily": "Mane",
+      "breeding": {
+        "parents": [["Fire"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR002",
+      "name": "WaterMane",
+      "types": ["Water"],
+      "rarity": "Uncommon",
+      "description": "The **WaterMane** emerges from the deepest, most serene ocean currents, its flowing mane a cascade of shimmering liquid. This uncommon creature moves with the silent grace of a ripple, embodying the adaptive and endless nature of water. It's said that where a WaterMane swims, the tides themselves are calmed.",
+      "image": "assets/images/creatures/rare/CR002_watermane.gif",
+      "mutationFamily": "Mane",
+      "breeding": {
+        "parents": [["Water"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR003",
+      "name": "EarthMane",
+      "types": ["Earth"],
+      "rarity": "Uncommon",
+      "description": "Deep within ancient caverns and beneath mighty mountains, the **EarthMane** awakens. Its rugged mane is woven from ancient roots and precious minerals, giving it an unyielding presence. This uncommon creature is a steadfast guardian of the land, its very steps causing the earth to tremble with quiet power.",
+      "image": "assets/images/creatures/common/CR003_earthmane.gif",
+      "mutationFamily": "Mane",
+      "breeding": {
+        "parents": [["Earth"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR004",
+      "name": "AirMane",
+      "types": ["Air"],
+      "rarity": "Uncommon",
+      "description": "Whispers on the wind carry tales of the **AirMane**, an uncommon creature as elusive as a breeze. Its translucent mane billows with invisible currents, allowing it to glide effortlessly through the highest peaks and deepest valleys. To encounter an AirMane is to feel the spirit of freedom itself pass by.",
+      "image": "assets/images/creatures/uncommon/CR004_airmane.gif",
+      "mutationFamily": "Mane",
+      "breeding": {
+        "parents": [["Air"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR005",
+      "name": "SteamMane",
+      "types": ["Steam"],
+      "rarity": "Uncommon",
+      "description": "Where scorching geysers meet cool mists, the **SteamMane** manifests. Its ethereal mane constantly shifts, a swirling veil of vapor that can obscure or reveal its presence in an instant. This uncommon creature is a living paradox, embodying both the fiery passion and the cooling calm of its elemental origins.",
+      "image": "assets/images/creatures/common/CR005_steammane.gif",
+      "mutationFamily": "Mane",
+      "breeding": {
+        "parents": [["Fire", "Water"], ["Steam"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR006",
+      "name": "IceMane",
+      "types": ["Ice"],
+      "rarity": "Uncommon",
+      "description": "From the heart of blizzards and the depths of frozen tundras, the **IceMane** emerges. Its mane is a shimmering cascade of frost and ice, catching the light in a thousand splintered reflections. This uncommon creature moves with a chilling grace, leaving behind trails of hoarfrost, a testament to its mastery over the frozen realm. It is a rare sight, a true child of the winter's embrace.",
+      "image": "assets/images/creatures/uncommon/CR006_icemane.gif",
+      "mutationFamily": "Mane",
+      "breeding": {
+        "parents": [["Air", "Water"], ["Ice"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      },
+      "special_breeding": {
+        "required_parents": [["CR002", "CR004"]],
+        "required_parent_names": [["WaterMane", "AirMane"]],
+        "notes": "Only breedable from these exact creatures."
+      }
+    },
+    {
+      "id": "CR007",
+      "name": "SpiritMane",
+      "types": ["Spirit"],
+      "rarity": "Rare",
+      "description": "The **SpiritMane** is a creature of pure ethereal energy, a rare sight rumored to dwell in places where the veil between worlds is thin. Its mane pulses with ghostly light, a silent beacon guiding lost souls or, some say, beckoning them further into the unknown. To gaze upon a SpiritMane is to glimpse the very essence of the beyond.",
+      "image": "assets/images/creatures/rare/CR007_spiritmane.gif",
+      "mutationFamily": "Mane",
+      "breeding": {
+        "parents": [["Ice", "Plant"], ["Spirit"]],
+        "odds": {
+          "hybrid": 25,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR008",
+      "name": "CrystalMane",
+      "types": ["Crystal"],
+      "rarity": "Rare",
+      "description": "Forged in the heart of ancient geode caverns, the **CrystalMane** is a rare and breathtaking spectacle. Its mane is not fur, but countless shimmering crystals that refract light into dazzling, ephemeral rainbows. Each movement sends a cascade of colors dancing across the environment, a true marvel born from the earth's deepest magic.",
+      "image": "assets/images/creatures/rare/CR008_crystalmane.gif",
+      "mutationFamily": "Mane",
+      "spriteData": {
+        "frameWidth": 500,
+        "frameHeight": 500,
+        "totalFrames": 5,
+        "frameDurationMs": 142
+      },
+      "breeding": {
+        "parents": [["Steam", "Earth"], ["Crystal"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR009",
+      "name": "FireLet",
+      "types": ["Fire"],
+      "rarity": "Common",
+      "description": "A mischievous flicker of flame in the wild, the **FireLet** is a common yet enchanting creature. These small beings dart through ember-strewn forests, their tiny forms glowing like living coals. They often leave trails of warmth and a faint scent of ash in their playful wake.",
+      "image": "assets/images/creatures/common/CR009_firelet.gif",
+      "mutationFamily": "Let",
+      "breeding": {
+        "parents": [["Fire"]],
+        "odds": {
+          "hybrid": 70,
+          "parent1": 15,
+          "parent2": 15,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR010",
+      "name": "WaterLet",
+      "types": ["Water"],
+      "rarity": "Common",
+      "description": "Among the lily pads and babbling brooks, the **WaterLet** makes its home. This common creature is a tiny droplet of life, playfully splashing and darting through clear waters. Its movements are as fluid as the streams it inhabits, a miniature embodiment of the joyous flow of nature.",
+      "image": "assets/images/creatures/common/CR010_waterlet.gif",
+      "mutationFamily": "Let",
+      "breeding": {
+        "parents": [["Water"]],
+        "odds": {
+          "hybrid": 70,
+          "parent1": 15,
+          "parent2": 15,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR011",
+      "name": "EarthLet",
+      "types": ["Earth"],
+      "rarity": "Common",
+      "description": "The **EarthLet** is a humble but hearty creature, commonly found scuttling among the roots of ancient trees or burrowing through soft soil. Its tiny form is a miniature echo of the sturdy earth, unwavering and grounded, often carrying a faint scent of damp soil and growing things.",
+      "image": "assets/images/creatures/common/CR011_earthlet.gif",
+      "mutationFamily": "Let",
+      "breeding": {
+        "parents": [["Earth"]],
+        "odds": {
+          "hybrid": 70,
+          "parent1": 15,
+          "parent2": 15,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR012",
+      "name": "AirLet",
+      "types": ["Air"],
+      "rarity": "Common",
+      "description": "Catch a glimpse of the playful **AirLet** as it dances on unseen currents, a common sight in open fields and mountain breezes. These creatures are as light as a feather, often mistaken for stray leaves caught in a gust. They embody the carefree spirit of the open sky, flitting with boundless energy.",
+      "image": "assets/images/creatures/common/CR012_airlet.gif",
+      "mutationFamily": "Let",
+      "breeding": {
+        "parents": [["Air"]],
+        "odds": {
+          "hybrid": 70,
+          "parent1": 15,
+          "parent2": 15,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR013",
+      "name": "SteamBack",
+      "types": ["Steam"],
+      "rarity": "Uncommon",
+      "description": "The **SteamBack** is an uncommon creature cloaked in its own misty aura. Its armored back plates are constantly alive with the gentle hiss of condensing vapor, and when threatened, it can release sudden, blinding bursts of steam. Witnessing its defensive display is like watching a living cloud unfurl its storm.",
+      "image": "assets/images/creatures/uncommon/CR013_steamback.gif",
+      "mutationFamily": "Back",
+      "breeding": {
+        "parents": [["Water", "Air"], ["Steam"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR014",
+      "name": "CrystalBack",
+      "types": ["Crystal"],
+      "rarity": "Uncommon",
+      "description": "Emerging from crystalline grottos, the **CrystalBack** carries a magnificent ridge of sparkling formations upon its spine. Each facet shimmers with a contained magical energy, glowing softly in the deepest darkness. This uncommon creature is a living jewel, a testament to the earth's hidden splendors.",
+      "image": "assets/images/creatures/uncommon/CR014_crystalback.gif",
+      "mutationFamily": "Back",
+      "breeding": {
+        "parents": [["Steam", "Earth"], ["Crystal"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR015",
+      "name": "PlantBack",
+      "types": ["Plant"],
+      "rarity": "Uncommon",
+      "description": "The **PlantBack** is a creature of the deep woods, its spine adorned with a vibrant array of leaves, mosses, and even small blossoms. This uncommon being blends seamlessly with its environment, a living piece of the forest itself. It moves with a quiet rustle, a subtle guardian of the wild, leaving behind a fresh, earthy scent.",
+      "image": "assets/images/creatures/uncommon/CR015_plantback.gif",
+      "mutationFamily": "Back",
+      "breeding": {
+        "parents": [["Storm", "Earth"], ["Plant"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR016",
+      "name": "LightningBack",
+      "types": ["Lightning"],
+      "rarity": "Uncommon",
+      "description": "A flash of light in the storm, the **LightningBack** is an uncommon creature that carries the very essence of a tempest upon its spine. Miniature electrical arcs dance across its back, crackling softly as it moves. When agitated, these sparks can erupt into blinding flashes, a startling display of raw, volatile power.",
+      "image": "assets/images/creatures/uncommon/CR016_lightningback.gif",
+      "mutationFamily": "Back",
+      "breeding": {
+        "parents": [["Air", "Fire"], ["Lightning"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR017",
+      "name": "FireBack",
+      "types": ["Fire"],
+      "rarity": "Uncommon",
+      "description": "From volcanic ridges and cinder deserts, the **FireBack** emerges. Its tough hide is adorned with prominent, glowing ridges that flicker with internal flames, especially when the creature is agitated. This uncommon beast leaves a lingering warmth in its wake, a living forge traversing the landscape.",
+      "image": "assets/images/creatures/uncommon/CR017_fireback.gif",
+      "mutationFamily": "Back",
+      "breeding": {
+        "parents": [["Fire"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR018",
+      "name": "LavaPip",
+      "types": ["Lava"],
+      "rarity": "Common",
+      "description": "A miniature marvel of molten earth, the **LavaPip** is a common sight near simmering vents and cooled lava flows. Its tiny, rocky shell often hides a core that glows with internal heat, making it surprisingly warm to the touch. These little creatures embody the volatile yet grounding essence of the earth's fiery heart.",
+      "image": "assets/images/creatures/common/CR018_lavapip.gif",
+      "mutationFamily": "Pip",
+      "breeding": {
+        "parents": [["Fire", "Earth"], ["Lava"]],
+        "odds": {
+          "hybrid": 70,
+          "parent1": 15,
+          "parent2": 15,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR019",
+      "name": "LightningPip",
+      "types": ["Lightning"],
+      "rarity": "Common",
+      "description": "With every scurrying movement, the **LightningPip** crackles with faint, harmless sparks. This common creature is a tiny living battery, often found zipping across stormy plains or through the static charge of dry air. Its presence can make the hairs on your arm stand up, a playful buzz of elemental energy.",
+      "image": "assets/images/creatures/common/CR019_lightningpip.gif",
+      "mutationFamily": "Pip",
+      "breeding": {
+        "parents": [["Air", "Fire"], ["Lightning"]],
+        "odds": {
+          "hybrid": 70,
+          "parent1": 15,
+          "parent2": 15,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR020",
+      "name": "IcePip",
+      "types": ["Ice"],
+      "rarity": "Common",
+      "description": "Don't let its small size fool you, the **IcePip** carries a surprising chill wherever it goes. This common creature is often found in the frosty reaches, its body glistening with a perpetual layer of rime. It loves to slide across frozen surfaces, leaving tiny, shimmering trails of ice in its mischievous path.",
+      "image": "assets/images/creatures/common/CR020_icepip.gif",
+      "mutationFamily": "Pip",
+      "breeding": {
+        "parents": [["Air", "Water"], ["Ice"]],
+        "odds": {
+          "hybrid": 70,
+          "parent1": 15,
+          "parent2": 15,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR021",
+      "name": "DustPip",
+      "types": ["Dust"],
+      "rarity": "Common",
+      "description": "The **DustPip** is a humble resident of arid plains and ancient ruins, a common creature that leaves a faint, swirling cloud of fine particles in its wake. It seems to embody the very essence of forgotten time, its tiny form carrying whispers of long-lost civilizations in every gust it kicks up.",
+      "image": "assets/images/creatures/common/CR021_dustpip.gif",
+      "mutationFamily": "Pip",
+      "breeding": {
+        "parents": [["Air", "Earth"], ["Dust"]],
+        "odds": {
+          "hybrid": 70,
+          "parent1": 15,
+          "parent2": 15,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR022",
+      "name": "StormClaw",
+      "types": ["Storm"],
+      "rarity": "Rare",
+      "description": "When the skies darken and the winds howl, the **StormClaw** descends. This rare and fearsome creature possesses talons that crackle with harnessed lightning and can summon localized gusts with a single swipe. Its roars echo with the rumble of thunder, a living embodiment of nature's fury unleashed.",
+      "image": "assets/images/creatures/rare/CR022_stormclaw.gif",
+      "mutationFamily": "Claw",
+      "breeding": {
+        "parents": [["Lightning", "Water"], ["Storm"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR023",
+      "name": "PlantClaw",
+      "types": ["Plant"],
+      "rarity": "Rare",
+      "description": "Deep in the heart of untamed forests, the **PlantClaw** silently stalks. Its formidable claws are not just sharp, but are interwoven with thorny vines and sharp, woody protrusions, allowing it to cleave through dense foliage as easily as it can grapple its prey. This rare creature is a living force of nature, protecting its verdant domain with every thorny swipe.",
+      "image": "assets/images/creatures/rare/CR023_plantclaw.gif",
+      "mutationFamily": "Claw",
+      "breeding": {
+        "parents": [["Mud", "Earth"], ["Plant"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR024",
+      "name": "MudClaw",
+      "types": ["Mud"],
+      "rarity": "Rare",
+      "description": "From the murky depths of swamps and bogs, the **MudClaw** emerges, its powerful claws coated in thick, viscous sludge. This rare creature is a master of its environment, able to move through soft earth with surprising speed, leaving deep, churning furrows in its wake. It's a primal force, a living testament to the earth's raw, untamed elements.",
+      "image": "assets/images/creatures/rare/CR024_mudclaw.gif",
+      "mutationFamily": "Claw",
+      "breeding": {
+        "parents": [["Water", "Earth"], ["Mud"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR025",
+      "name": "LavaClaw",
+      "types": ["Lava"],
+      "rarity": "Rare",
+      "description": "Forged in the crucible of active volcanoes, the **LavaClaw** is a rare and formidable beast. Its massive talons glow with an internal molten heat, leaving scorch marks on any surface they touch. When it strikes, the air shimmers with intense warmth, and the ground itself seems to sigh under the weight of its fiery power.",
+      "image": "assets/images/creatures/rare/CR025_lavaclaw.gif",
+      "mutationFamily": "Claw",
+      "breeding": {
+        "parents": [["Lava", "Water"], ["Lava"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR026",
+      "name": "EarthHorn",
+      "types": ["Earth"],
+      "rarity": "Rare",
+      "description": "The **EarthHorn** is a rare and magnificent creature, its very presence commanding the respect of the land. Its colossal horns are not bone, but solid, ancient stone, capable of shattering boulders and reshaping the earth with astounding force. It is a living mountain, slow to anger but devastating when provoked.",
+      "image": "assets/images/creatures/rare/CR026_earthhorn.gif",
+      "mutationFamily": "Horn",
+      "breeding": {
+        "parents": [["Earth"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      },
+      "special_breeding": {
+        "required_parents": [["CR003"]],
+        "required_parent_names": [["EarthMane"]],
+        "notes": "Only breedable from these exact creatures."
+      }
+    },
+    {
+      "id": "CR027",
+      "name": "IceHorn",
+      "types": ["Ice"],
+      "rarity": "Rare",
+      "description": "A chilling beauty, the **IceHorn** is a rare creature whose grand horns are sculpted from pure, glistening ice. They are not merely cold to the touch, but radiate an intense frigidity, capable of freezing anything they graze. To stand before an IceHorn is to feel the biting embrace of the harshest winter, an awe-inspiring force of frozen power.",
+      "image": "assets/images/creatures/rare/CR027_icehorn.gif",
+      "mutationFamily": "Horn",
+      "breeding": {
+        "parents": [["Water"], ["Air"], ["Ice"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      },
+      "special_breeding": {
+        "required_parents": [["CR003"]],
+        "required_parent_names": [["IceMane"]],
+        "notes": "Only breedable from these exact creatures."
+      }
+    },
+    {
+      "id": "CR028",
+      "name": "CrystalHorn",
+      "types": ["Crystal"],
+      "rarity": "Rare",
+      "description": "The **CrystalHorn** is a magnificent and rare sight, its horns composed of countless faceted crystals that shimmer with internal light. As it moves, these luminous horns refract ambient light into breathtaking displays of color, like a living kaleidoscope. It is a creature born of geological wonders and pure arcane energy, a true marvel of the mineral kingdom.",
+      "image": "assets/images/creatures/rare/CR028_crystalhorn.gif",
+      "mutationFamily": "Horn",
+      "breeding": {
+        "parents": [["Crystal"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      },
+      "guaranteed_breeding": [["CR027", "CR026"]],
+      "special_breeding": {
+        "required_parents": [["CR027", "CR026"]],
+        "required_parent_names": [["IceHorn", "EarthHorn"]],
+        "notes": "Only breedable from these exact creatures."
+      }
+    },
+    {
+      "id": "CR029",
+      "name": "ShadowCrest",
+      "types": ["Shadow"],
+      "rarity": "Mythic",
+      "description": "From the deepest, most unfathomable abysses of night, the **ShadowCrest** emerges. This mythic creature bears a crest that seems to actively absorb light, creating a localized pocket of profound darkness around it. To encounter a ShadowCrest is to feel the creeping chill of absolute void, a majestic and terrifying master of obscurity.",
+      "image": "assets/images/creatures/mythic/CR029_shadowcrest.gif",
+      "mutationFamily": "Crest",
+      "breeding": {
+        "parents": [["Lava", "Dust"], ["Shadow"]],
+        "odds": {
+          "hybrid": 10,
+          "parent1": 10,
+          "parent2": 10,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR030",
+      "name": "LightCrest",
+      "types": ["Light"],
+      "rarity": "Mythic",
+      "description": "Born from the first rays of dawn and the purest celestial energies, the **LightCrest** is a mythic beacon in the world. Its magnificent crest blazes with an inner radiance, capable of banishing even the deepest shadows. To witness a LightCrest is to feel an uplifting warmth and hope, a living manifestation of pure, unadulterated brilliance.",
+      "image": "assets/images/creatures/mythic/CR030_lightcrest.gif",
+      "mutationFamily": "Crest",
+      "breeding": {
+        "parents": [["Crystal", "Lightning"], ["Light"]],
+        "odds": {
+          "hybrid": 10,
+          "parent1": 10,
+          "parent2": 10,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR031",
+      "name": "ChaosCrest",
+      "types": ["Chaos"],
+      "rarity": "Mythic",
+      "description": "The **ChaosCrest** is a terrifying and wondrous mythic creature, its swirling crest a maelstrom of unpredictable energies. It constantly shifts in form and color, reflecting the raw, untamed power of the Chaos realm. To confront a ChaosCrest is to face the very essence of unpredictability, a living paradox of order and disorder.",
+      "image": "assets/images/creatures/mythic/CR031_chaoscrest.gif",
+      "mutationFamily": "Crest",
+      "breeding": {
+        "parents": [["Shadow", "Light"], ["Chaos"]],
+        "odds": {
+          "hybrid": 10,
+          "parent1": 10,
+          "parent2": 10,
+          "mutation": 1
+        }
+      },
+      "special_breeding": {
+        "required_parents": [["CR029", "CR030"]],
+        "required_parent_names": [["ShadowCrest", "LightCrest"]],
+        "notes": "Only breedable from these exact creatures."
+      }
+    },
+    {
+      "id": "CR032",
+      "name": "FireWing",
+      "types": ["Fire"],
+      "rarity": "Mythic",
+      "description": "Soaring through skies tinged with twilight, the **FireWing** is a mythic creature whose magnificent wings are living infernos. Each beat sends scorching embers raining down, and its flight path leaves a trail of smoldering air. To witness a FireWing is to behold a phoenix in motion, a symbol of fiery power and eternal renewal.",
+      "image": "assets/images/creatures/mythic/CR032_firewing.gif",
+      "mutationFamily": "Wing",
+      "breeding": {
+        "parents": [["Fire", "Spirit"]],
+        "odds": {
+          "hybrid": 5,
+          "parent1": 50,
+          "parent2": 50,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR033",
+      "name": "WaterWing",
+      "types": ["Water"],
+      "rarity": "Mythic",
+      "description": "The **WaterWing** is a mythic marvel of the skies and seas. Its sweeping wings are not feathered, but composed of flowing, iridescent water, leaving trails of fine mist and rainbows in its wake. It moves with the grace of ocean currents, able to dive into the deepest trenches and then ascend to the highest clouds, a master of both fluidity and freedom.",
+      "image": "assets/images/creatures/mythic/CR033_waterwing.gif",
+      "mutationFamily": "Wing",
+      "breeding": {
+        "parents": [["Fire", "Ice"], ["Water"]],
+        "odds": {
+          "hybrid": 10,
+          "parent1": 40,
+          "parent2": 40,
+          "mutation": 1
+        }
+      },
+      "special_breeding": {
+        "required_parents": [["CR032", "CR027"]],
+        "required_parent_names": [["FireWing", "IceHorn"]],
+        "notes": "Only breedable from these exact creatures."
+      }
+    },
+    {
+      "id": "CR034",
+      "name": "SpiritWing",
+      "types": ["Spirit"],
+      "rarity": "Mythic",
+      "description": "The **SpiritWing** is a creature of pure, ethereal grace, a mythic being that glides through the air with silent, shimmering wings. These wings appear almost translucent, flickering with ghostly light, hinting at their connection to the realm between worlds. It moves like a whisper on the wind, leaving behind a profound sense of awe and mystery.",
+      "image": "assets/images/creatures/mythic/CR034_spiritwing.gif",
+      "mutationFamily": "Wing",
+      "breeding": {
+        "parents": [["Spirit"]],
+        "odds": {
+          "hybrid": 5,
+          "parent1": 50,
+          "parent2": 50,
+          "mutation": 1
+        }
+      },
+      "special_breeding": {
+        "required_parents": [["CR032"]],
+        "required_parent_names": [["FireWing"]],
+        "notes": "Only breedable from these exact creatures."
+      }
+    },
+    {
+      "id": "CR035",
+      "name": "BloodWing",
+      "types": ["Blood"],
+      "rarity": "Mythic",
+      "description": "A dark and primal force in the skies, the **BloodWing** is a mythic creature whose crimson wings beat with the very pulse of life itself. Some say its movements can stir ancient instincts, and that where it flies, the land itself becomes invigorated. It's a terrifyingly beautiful sight, a testament to the raw, untamed vitality of the Blood realm.",
+      "image": "assets/images/creatures/mythic/CR035_bloodwing.gif",
+      "mutationFamily": "Wing",
+      "breeding": {
+        "parents": [["Poison", "Spirit"]],
+        "odds": {
+          "hybrid": 5,
+          "parent1": 50,
+          "parent2": 50,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR036",
+      "name": "BloodLing",
+      "types": ["Blood"],
+      "rarity": "Legendary",
+      "description": "The **BloodLing** is a legendary hunter, a wingless beast that prowls the ancient lands, pulsing with an undeniable, primal life essence. Its very presence is said to quicken the heartbeat and stir the wild spirit. Though it lacks wings, its swift, earth-bound movements are driven by an instinctual connection to the raw vitality of the world.",
+      "image": "assets/images/creatures/legendary/CR036_bloodling.gif",
+      "mutationFamily": "Ling",
+      "breeding": {
+        "parents": [["Blood"]],
+        "odds": {
+          "hybrid": 1,
+          "parent1": 50,
+          "parent2": 50,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR037",
+      "name": "VoidLing",
+      "types": ["Void"],
+      "rarity": "Legendary",
+      "description": "From the very fabric of nothingness, the **VoidLing** emerges. This legendary creature is an eerie, silent entity that seems to consume the light and sound around it, creating small pockets of utter emptiness. Its movements are unsettlingly fluid, a ghostly drift that reminds all who witness it of the vast, consuming unknown.",
+      "image": "assets/images/creatures/legendary/CR037_voidling.gif",
+      "mutationFamily": "Ling",
+      "breeding": {
+        "parents": [["Void"]],
+        "odds": {
+          "hybrid": 1,
+          "parent1": 50,
+          "parent2": 50,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR038",
+      "name": "DreamLing",
+      "types": ["Dream"],
+      "rarity": "Legendary",
+      "description": "The **DreamLing** is a legendary being, born from the deepest slumber and the subconscious whispers of ancient minds. It drifts through the world, subtly influencing thoughts and weaving the tapestries of reality with threads of fantasy. To encounter a DreamLing is to step into a waking dream, where logic bends and imagination reigns supreme.",
+      "image": "assets/images/creatures/legendary/CR038_dreamling.gif",
+      "mutationFamily": "Ling",
+      "breeding": {
+        "parents": [["Dream"]],
+        "odds": {
+          "hybrid": 1,
+          "parent1": 50,
+          "parent2": 50,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR039",
+      "name": "ArcaneLing",
+      "types": ["Arcane"],
+      "rarity": "Legendary",
+      "description": "Crackling with raw, untamed magical energy, the **ArcaneLing** is a legendary mystery. This creature radiates an aura of chaotic power, its form shimmering with unpredictable bursts of light and shadow. It is a living conduit of the Arcane, a force of magic unbound by conventional rules, capable of both incredible creation and terrifying destruction.",
+      "image": "assets/images/creatures/legendary/CR039_arcaneling.gif",
+      "mutationFamily": "Ling",
+      "breeding": {
+        "parents": [["Arcane"]],
+        "odds": {
+          "hybrid": 1,
+          "parent1": 50,
+          "parent2": 50,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR040",
+      "name": "PoisonIte",
+      "types": ["Poison"],
+      "rarity": "Rare",
+      "description": "The **PoisonIte** is a rare and dangerous beauty, its crystalline body shimmering with a vibrant, unsettling hue. Each facet of its form seems to radiate a subtle, venomous energy, capable of wilting plants and corroding stone. It moves with a deceptive grace, a silent harbinger of decay and toxic power.",
+      "image": "assets/images/creatures/rare/CR040_poisonite.gif",
+      "mutationFamily": "Ite",
+      "breeding": {
+        "parents": [["Fire", "Dust"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR041",
+      "name": "DustIte",
+      "types": ["Dust"],
+      "rarity": "Rare",
+      "description": "A living whirlwind of ancient minerals, the **DustIte** is a rare creature whose body is a constant, swirling cyclone of sandy shards. It carries the essence of forgotten deserts and eroded mountains, each grain a whisper of ages past. Its movement creates a faint, dry breeze, a testament to the enduring power of the earth's most fragmented forms.",
+      "image": "assets/images/creatures/rare/CR041_dustite.gif",
+      "mutationFamily": "Ite",
+      "breeding": {
+        "parents": [["Earth", "Air"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR042",
+      "name": "EarthIte",
+      "types": ["Earth"],
+      "rarity": "Rare",
+      "description": "The **EarthIte** is a rare testament to the unyielding strength of the land. Its crystalline hide is as tough and impenetrable as bedrock, yet it shimmers with a deep, internal glow. This creature embodies resilience, a silent guardian that withstands the tests of time and elements with stoic power.",
+      "image": "assets/images/creatures/rare/CR042_earthite.gif",
+      "mutationFamily": "Ite",
+      "breeding": {
+        "parents": [["Earth"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR043",
+      "name": "AirIte",
+      "types": ["Air"],
+      "rarity": "Rare",
+      "description": "The **AirIte** is a rare and captivating creature, its translucent crystalline form shimmering like heat haze on a summer's day. It doesn't walk, but drifts, refracting the very air around it into dazzling, ethereal auras. To witness an AirIte is to see the wind given crystalline form, a beautiful dance of light and invisible currents.",
+      "image": "assets/images/creatures/rare/CR043_airite.gif",
+      "mutationFamily": "Ite",
+      "breeding": {
+        "parents": [["Air"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 35,
+          "parent2": 35,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR044",
+      "name": "LavaBack",
+      "types": ["Lava"],
+      "rarity": "Uncommon",
+      "description": "Beneath a hardened, obsidian-like shell, the **LavaBack** harbors a molten core. This uncommon creature's tough back glows with the heat of magma, occasionally letting slip plumes of superheated steam. It's a living furnace, leaving scorched earth in its wake, a formidable presence where fire meets stone.",
+      "image": "assets/images/creatures/rare/CR044_lavaback.gif",
+      "mutationFamily": "Ite",
+      "breeding": {
+        "parents": [["Earth", "Fire"]],
+        "odds": {
+          "hybrid": 50,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    },
+    {
+      "id": "CR045",
+      "name": "LightMane",
+      "types": ["Light"],
+      "rarity": "Rare",
+      "description": "The **LightMane** is a rare creature that embodies the essence of dawn. Its mane glows with a soft, golden light, illuminating the darkest corners of the world. This majestic being is often seen at the break of day, its presence heralding new beginnings and hope. The LightMane's gentle radiance can heal and inspire, making it a beloved guardian of the light.",
+      "image": "assets/images/creatures/rare/CR045_lightmane_spritesheet.gif",
+      "mutationFamily": "Mane",
+      "spriteData": {
+        "frameWidth": 500,
+        "frameHeight": 750,
+        "totalFrames": 4,
+        "frameDurationMs": 142
+      },
+      "breeding": {
+        "parents": [["Crystal", "Spirit"]],
+        "odds": {
+          "hybrid": 30,
+          "parent1": 25,
+          "parent2": 25,
+          "mutation": 1
+        }
+      }
+    }
+  ],
+  "types": [
+    {
+      "id": "T001",
+      "name": "Air",
+      "description": "Swift and elusive, masters of the skies."
+    },
+    {
+      "id": "T002",
+      "name": "Arcane",
+      "description": "Masters of raw magical energy, unpredictable and potent."
+    },
+    {
+      "id": "T003",
+      "name": "Ascended",
+      "description": "Transcendent beings of ultimate power."
+    },
+    {
+      "id": "T004",
+      "name": "Blood",
+      "description": "Vital and primal, tied to the essence of life."
+    },
+    {
+      "id": "T005",
+      "name": "Chaos",
+      "description": "Agents of disorder and unpredictability."
+    },
+    {
+      "id": "T006",
+      "name": "Crystal",
+      "description": "Creatures of gem and mineral, glittering with magic."
+    },
+    {
+      "id": "T007",
+      "name": "Dream",
+      "description": "Shapers of imagination and fantasy."
+    },
+    {
+      "id": "T008",
+      "name": "Dust",
+      "description": "Ancient and weathered, whispering tales of forgotten lands."
+    },
+    {
+      "id": "T009",
+      "name": "Earth",
+      "description": "Solid and enduring, protectors of the land."
+    },
+    {
+      "id": "T010",
+      "name": "Fire",
+      "description": "Born from the heart of flames, they embody passion and destruction."
+    },
+    {
+      "id": "T011",
+      "name": "Ice",
+      "description": "Cold as the frozen peaks, beautiful and deadly."
+    },
+    {
+      "id": "T012",
+      "name": "Lava",
+      "description": "Molten and fierce, a fusion of fire and rock."
+    },
+    {
+      "id": "T013",
+      "name": "Light",
+      "description": "Radiant and pure, banishers of the night."
+    },
+    {
+      "id": "T014",
+      "name": "Lightning",
+      "description": "Charged with energy, striking with blinding speed."
+    },
+    {
+      "id": "T016",
+      "name": "Mud",
+      "description": "Earth and water melded into sluggish yet persistent beings."
+    },
+    {
+      "id": "T017",
+      "name": "Plant",
+      "description": "Life-bearers of the forests, blooming with nature’s magic."
+    },
+    {
+      "id": "T018",
+      "name": "Poison",
+      "description": "Venomous and toxic, masters of silent death."
+    },
+    {
+      "id": "T019",
+      "name": "Shadow",
+      "description": "Dwellers of darkness, unseen and ominous."
+    },
+    {
+      "id": "T020",
+      "name": "Spirit",
+      "description": "Ethereal and mysterious, bound to the realm between worlds."
+    },
+    {
+      "id": "T021",
+      "name": "Steam",
+      "description": "Shifting clouds of heat and vapor, unpredictable in form."
+    },
+    {
+      "id": "T022",
+      "name": "Storm",
+      "description": "Tempestuous forces of nature, rulers of the sky’s fury."
+    },
+    {
+      "id": "T023",
+      "name": "Time",
+      "description": "Keepers and manipulators of the eternal flow."
+    },
+    {
+      "id": "T024",
+      "name": "Void",
+      "description": "From the nothingness, they consume all."
+    },
+    {
+      "id": "T025",
+      "name": "Water",
+      "description": "Flowing and adaptive, they command the seas and rivers."
+    }
+  ]
+}
