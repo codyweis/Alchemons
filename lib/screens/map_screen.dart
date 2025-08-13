@@ -1,3 +1,4 @@
+import 'package:alchemons/models/trophy_slot.dart';
 import 'package:alchemons/screens/scenes/volcano_scene.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -50,20 +51,37 @@ class MapScreen extends StatelessWidget {
         .toSet();
 
     final content =
-        <({String id, double x, double y, String displayName, String rarity})>[
+        <
+          ({
+            String id,
+            double x,
+            double y,
+            String displayName,
+            String rarity,
+            AnchorLayer layer,
+            double? frameWidth,
+            double? frameHeight,
+          })
+        >[
           (
             id: 'CR045',
             x: 0.20,
-            y: 0.65,
+            y: 0.7,
             displayName: 'LightMane',
             rarity: 'Rare',
+            layer: AnchorLayer.layer2,
+            frameWidth: 30,
+            frameHeight: 30,
           ),
           (
-            id: 'CR008',
+            id: 'CR005',
             x: 0.58,
-            y: 0.55,
-            displayName: 'CrystalMane',
-            rarity: 'Rare',
+            y: 0.8,
+            displayName: 'SteamMane',
+            rarity: 'UnCommon',
+            layer: AnchorLayer.layer1,
+            frameWidth: 100,
+            frameHeight: 100,
           ),
         ];
 
@@ -71,7 +89,7 @@ class MapScreen extends StatelessWidget {
       final isUnlocked = discovered.contains(c.id);
       // Build your existing asset path shape:
       final spritePath =
-          'creatures/${c.rarity.toLowerCase()}/${c.id}_${c.displayName.toLowerCase()}.png';
+          'creatures/${c.rarity.toLowerCase()}/${c.id}_${c.displayName.toLowerCase()}_spritesheet.png';
       return TrophySlot(
         id: c.id,
         normalizedPos: Offset(c.x, c.y),
@@ -79,6 +97,11 @@ class MapScreen extends StatelessWidget {
         spritePath: isUnlocked ? spritePath : 'ui/wood_texture.jpg',
         displayName: c.displayName,
         rarity: c.rarity,
+        sheetColumns: 2,
+        anchor: c.layer,
+        frameHeight: c.frameHeight,
+        frameWidth: c.frameWidth,
+        sheetRows: 2,
       );
     }).toList();
   }

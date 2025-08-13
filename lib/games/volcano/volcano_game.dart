@@ -1,84 +1,110 @@
 import 'dart:math';
-import 'package:alchemons/screens/scenes/volcano_scene.dart';
+import 'package:alchemons/models/trophy_slot.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
-class VolcanoGame extends FlameGame with PanDetector {
+class VolcanoGame extends FlameGame with ScaleDetector {
   VolcanoGame({required this.slots});
 
   final List<TrophySlot> slots;
   void Function(TrophySlot slot)? onShowDetails;
 
-  // How far you *intend* to allow scrolling, in world units.
-  // The clouds layer will be built large enough to cover this,
-  // and the actual scroll end is derived from its built width.
-  final Vector2 worldSize = Vector2(20000, 10000);
-
-  // Camera early-construct to avoid late-init on resize
+  // --- World & camera ---
+  final Vector2 worldSize = Vector2(1000, 1000);
   final CameraComponent cam = CameraComponent();
 
-  // Parallax parent (constructed up-front)
+  // Parallax root
   final PositionComponent layersRoot = PositionComponent()..priority = -200;
 
-  // Half-speed scroll
-  double scrollSensitivity = 0.5;
+  // Camera state
+  double _cameraX = 0;
+  double _cameraY = 0;
+  double _maxCamX = 0;
+  double _maxCamY = 0;
 
-  // Optional overall parallax art scale (before fitting to screen height)
+  // Smooth zoom state
+  double _targetZoom = 1.0; // where we want to be
+  final double minZoom = 1.0; // don't zoom out past default
+  final double maxZoom = 2.0;
+  final double zoomEase = 15.0; // bigger = snappier; 8–16 feels good
+
+  // Pan feel
+  double scrollSensitivity = 0.25;
+
+  // Scene scale (pre-fit)
   double sceneScale = 1.0;
 
-  // Camera X in world units
-  double _cameraX = 0;
-
-  // Actual max camera X computed from the clouds width
-  double _maxCamX = 0;
-
-  // Screen helpers (world units == logical pixels at zoom=1)
+  // Screen helpers
   double get _screenW => size.x;
   double get _screenH => size.y;
 
-  // Parallax factors (0 = static, 1 = camera speed)
+  // Parallax factors
   static const double _fSky = 0.0;
-  static const double _fClouds = 0.2; // longest layer; defines scroll end
+  static const double _fClouds = 0.05;
+  static const double _fForeground = 0.2;
   static const double _fBackHills = 0.4;
-  static const double _fHills = 0.8;
-  static const double _fForeground = 0.9;
+  static const double _fHills = 1.0;
 
-  // Extra width per layer (multiplying one tile). Tunable.
+  // Width multipliers (one tile)
   static const double _wSky = 1.0;
-  static const double _wClouds = 1.2;
-  static const double _wBackHills = 1.5;
-  static const double _wHills = 2.0;
-  static const double _wForeground = 2.5;
+  static const double _wClouds = 1.0;
+  static const double _wBackHills = 1.0;
+  static const double _wHills = 1.0;
+  static const double _wForeground = 1.0;
 
-  // Layers are nullable until onLoad wires them up
+  // Layers
   _FiniteLayer? _skyLayer;
   _FiniteLayer? _cloudsLayer;
   _FiniteLayer? _backHillsLayer;
   _FiniteLayer? _hillsLayer;
   _FiniteLayer? _foregroundLayer;
 
+  double _Vh = 0; // viewport height in root-space
+
+  _FiniteLayer? _layerFor(AnchorLayer a) => switch (a) {
+    AnchorLayer.layer1 => _hillsLayer,
+    AnchorLayer.layer2 => _backHillsLayer,
+    AnchorLayer.layer3 => _cloudsLayer,
+    AnchorLayer.layer4 => _skyLayer,
+  };
+
+  double _pfFor(AnchorLayer a) => switch (a) {
+    AnchorLayer.layer1 => _fHills,
+    AnchorLayer.layer2 => _fBackHills,
+    AnchorLayer.layer3 => _fClouds,
+    AnchorLayer.layer4 => _fSky,
+  };
+
+  double? _pinchStartZoom;
+
   @override
   Future<void> onLoad() async {
-    await images.loadAll([
-      'backgrounds/scenes/volcano/sky.png',
-      'backgrounds/scenes/volcano/clouds.png',
-      'backgrounds/scenes/volcano/backhills.png',
-      'backgrounds/scenes/volcano/hills.png',
-      'backgrounds/scenes/volcano/foreground.png',
-      ...slots.map((s) => s.spritePath),
-    ]);
+    try {
+      await images.loadAll(
+        {
+          'backgrounds/scenes/volcano/sky.png',
+          'backgrounds/scenes/volcano/clouds.png',
+          'backgrounds/scenes/volcano/backhills.png',
+          'backgrounds/scenes/volcano/hills.png',
+          'backgrounds/scenes/volcano/foreground.png',
+          'ui/wood_texture.jpg',
+          ...slots.where((s) => s.spritePath != null).map((s) => s.spritePath!),
+        }.toList(),
+      );
+    } catch (e) {
+      print('Error loading images: $e');
+    }
 
     final world = World()..priority = 0;
     add(world);
 
-    // Parallax root affected by camera
     layersRoot.scale = Vector2.all(sceneScale);
     world.add(layersRoot);
 
-    // Build layers (tiling decided during layout)
+    // Build layers
     _skyLayer = _FiniteLayer(
       layersRoot,
       Sprite(images.fromCache('backgrounds/scenes/volcano/sky.png')),
@@ -122,25 +148,92 @@ class VolcanoGame extends FlameGame with PanDetector {
       ..viewfinder.zoom = 1.0
       ..priority = 100;
     add(cam);
+    _targetZoom = 1.0; // default
 
-    // Trophies
-    _addTrophySlots(world);
-
-    // Layout + start position
+    // Layout + start
     _layoutLayersForScreen();
+    _recomputeMaxCamX(); // initial clamp
     _cameraX = 0;
+    _cameraY = 0;
+
+    _addTrophySlots();
+
     cam.viewfinder.position = Vector2(_screenW / 2, _screenH / 2);
+    _applyCamera();
     _updateParallaxLayers();
   }
 
   @override
-  void onGameResize(Vector2 canvasSize) {
-    super.onGameResize(canvasSize);
-    _layoutLayersForScreen();
-    if (cam.isMounted) {
-      _cameraX = _cameraX.clamp(0, _maxCamX);
-      cam.viewfinder.position = Vector2(_cameraX + _screenW / 2, _screenH / 2);
+  void onScaleStart(ScaleStartInfo info) {
+    _pinchStartZoom = cam.viewfinder.zoom;
+  }
+
+  @override
+  void onScaleUpdate(ScaleUpdateInfo info) {
+    // Smooth zoom
+    final start = _pinchStartZoom ?? cam.viewfinder.zoom;
+    final globalScale = info.scale.global.x;
+    _targetZoom = (start * globalScale).clamp(minZoom, maxZoom).toDouble();
+
+    // Horizontal pan (always allowed)
+    final dx = info.delta.global.x;
+    if (dx != 0) {
+      final desiredX =
+          _cameraX - (dx / cam.viewfinder.zoom) * scrollSensitivity;
+      _cameraX = desiredX.clamp(0.0, _maxCamX);
     }
+
+    // Vertical pan (only when zoomed in)
+
+    if (_targetZoom > minZoom) {
+      final dy = info.delta.global.y;
+      if (dy != 0) {
+        final desiredY =
+            _cameraY - (dy * cam.viewfinder.zoom) * scrollSensitivity;
+        _cameraY = desiredY.clamp(0.0, _maxCamY);
+      }
+    }
+  }
+
+  @override
+  void onScaleEnd(ScaleEndInfo info) {
+    _pinchStartZoom = null;
+  }
+
+  void _applyCamera() {
+    final vwWorld = _screenW / cam.viewfinder.zoom;
+    final vhWorld = _screenH / cam.viewfinder.zoom;
+    cam.viewfinder.position = Vector2(
+      _cameraX + vwWorld / 2,
+      _cameraY + vhWorld / 2,
+    );
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    final z = cam.viewfinder.zoom;
+    if ((z - _targetZoom).abs() > 0.0005) {
+      final isZoomingOut = _targetZoom < z;
+      final ease = isZoomingOut ? 35.0 : zoomEase; // faster when zooming out
+      final t = 1 - pow(1 / (1 + ease), dt).toDouble();
+      cam.viewfinder.zoom = z + (_targetZoom - z) * t;
+      _recomputeMaxCamX();
+      _cameraX = _cameraX.clamp(0.0, _maxCamX);
+      _cameraY = _cameraY.clamp(0.0, _maxCamY);
+    }
+    _applyCamera();
+    _updateParallaxLayers();
+  }
+
+  @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    _layoutLayersForScreen();
+    _recomputeMaxCamX();
+    _cameraX = _cameraX.clamp(0.0, _maxCamX);
+    _cameraY = _cameraY.clamp(0.0, _maxCamY);
+    _applyCamera();
     _updateParallaxLayers();
   }
 
@@ -148,64 +241,72 @@ class VolcanoGame extends FlameGame with PanDetector {
     if (_cloudsLayer == null) return;
 
     final invRootScale = 1.0 / layersRoot.scale.x;
-    final Vr = _screenW * invRootScale; // viewport width in root-space
-    final Vh = _screenH * invRootScale; // viewport height in root-space
-    final targetTravel = max(
-      0.0,
-      worldSize.x - _screenW,
-    ); // desired camera travel
+    final Vr = _screenW * invRootScale;
+    final Vh = _screenH * invRootScale;
+    _Vh = Vh;
 
-    // Helper: compute per-sprite tile size when fitted by height
+    final double worldMaxCamX = max(0.0, worldSize.x - _screenW);
+
     Vector2 heightFitTile(Sprite s) {
       final imgW = s.image.width.toDouble();
       final imgH = s.image.height.toDouble();
       final scale = Vh / imgH;
-      return Vector2(imgW * scale, imgH * scale); // root-space
+      return Vector2(imgW * scale, imgH * scale);
     }
 
-    // 1) Build clouds wide enough to cover desired travel:
-    final cloudsTile = heightFitTile(_cloudsLayer!.sprite);
-    final cloudsTileW = cloudsTile.x * _cloudsLayer!.widthMul;
-    final cloudsRequiredW =
-        Vr + _fClouds * targetTravel; // root-space width needed
-    final cloudsTilesNeeded = max(
-      2,
-      (cloudsRequiredW / max(1e-6, cloudsTileW)).ceil(),
-    );
-    _cloudsLayer!.buildOrUpdate(
-      Vector2(cloudsTileW, cloudsTile.y),
-      cloudsTilesNeeded,
-    );
-
-    // From clouds final width, derive actual max camera X (finite end)
-    final cloudsTotalW = _cloudsLayer!.totalWidth; // root-space
-    _maxCamX = max(
-      0.0,
-      (cloudsTotalW - Vr) / max(1e-6, _fClouds),
-    ); // back to world units
-
-    // 2) Build the rest wide enough for *their* drift over maxCamX
-    void layoutOther(_FiniteLayer? layer) {
+    void buildForTarget(_FiniteLayer? layer) {
       if (layer == null) return;
       final t = heightFitTile(layer.sprite);
       final tileW = t.x * layer.widthMul;
-      final requiredW =
-          Vr + layer.parallaxFactor * _maxCamX; // root-space coverage
-      final tilesNeeded = max(2, (requiredW / max(1e-6, tileW)).ceil());
-      layer.buildOrUpdate(Vector2(tileW, t.y), tilesNeeded);
+      final requiredW = Vr + layer.parallaxFactor * worldMaxCamX;
+      final tiles = max(3, (requiredW / max(1e-6, tileW)).ceil() + 2);
+      layer.buildOrUpdate(Vector2(tileW, t.y), tiles);
     }
 
-    layoutOther(_skyLayer);
-    layoutOther(_backHillsLayer);
-    layoutOther(_hillsLayer);
-    layoutOther(_foregroundLayer);
+    buildForTarget(_skyLayer);
+    buildForTarget(_cloudsLayer);
+    buildForTarget(_backHillsLayer);
+    buildForTarget(_hillsLayer);
+    buildForTarget(_foregroundLayer);
+  }
+
+  void _recomputeMaxCamX() {
+    final invRootAndZoom = 1.0 / (layersRoot.scale.x * cam.viewfinder.zoom);
+    final Vr = _screenW * invRootAndZoom;
+    final Vh = _screenH * invRootAndZoom;
+
+    double layerMaxCamX(_FiniteLayer? layer, double pf) {
+      if (layer == null) return double.infinity;
+      final totalW = layer.totalWidth;
+      final exposed = totalW - Vr;
+      if (pf == 0.0) return exposed >= -1e-3 ? double.infinity : 0.0;
+      return max(0.0, exposed / pf);
+    }
+
+    // Horizontal clamp
+    final worldMaxCamX = max(
+      0.0,
+      worldSize.x - (_screenW / cam.viewfinder.zoom),
+    );
+    final limits = <double>[
+      worldMaxCamX,
+      layerMaxCamX(_skyLayer, _fSky),
+      layerMaxCamX(_cloudsLayer, _fClouds),
+      layerMaxCamX(_backHillsLayer, _fBackHills),
+      layerMaxCamX(_hillsLayer, _fHills),
+      layerMaxCamX(_foregroundLayer, _fForeground),
+    ];
+    _maxCamX = limits.reduce(min);
+
+    // Vertical clamp — use actual world height (_Vh) instead of worldSize.y
+    final contentHeight =
+        _Vh; // Or _Vh if your world height = viewport height at zoom=1
+    _maxCamY = max(0.0, contentHeight - Vh);
   }
 
   void _updateParallaxLayers() {
-    // Each layer clamps inside [-(totalWidth - Vr), 0]
-    final invRootScale = 1.0 / layersRoot.scale.x;
-    final Vr = _screenW * invRootScale;
-
+    final invRootAndZoom = 1.0 / (layersRoot.scale.x * cam.viewfinder.zoom);
+    final Vr = _screenW * invRootAndZoom;
     _skyLayer?.updateOffsetClamped(_cameraX, Vr);
     _cloudsLayer?.updateOffsetClamped(_cameraX, Vr);
     _backHillsLayer?.updateOffsetClamped(_cameraX, Vr);
@@ -213,88 +314,106 @@ class VolcanoGame extends FlameGame with PanDetector {
     _foregroundLayer?.updateOffsetClamped(_cameraX, Vr);
   }
 
-  void _addTrophySlots(World world) {
+  void _addTrophySlots() {
     for (final slot in slots) {
-      final worldPos = Vector2(
-        slot.normalizedPos.dx * worldSize.x,
-        _screenH / 2,
-      );
+      final layer = _layerFor(slot.anchor);
+      if (layer == null) continue;
 
-      world.add(
+      final x = slot.normalizedPos.dx * worldSize.x;
+      final y = slot.normalizedPos.dy * _Vh;
+
+      // If explicit frameWidth/Height set, use those; else use default proportional size
+      final sizeVec = (slot.frameWidth != null && slot.frameHeight != null)
+          ? Vector2(slot.frameWidth!, slot.frameHeight!)
+          : Vector2.all(
+              (min(_screenW, _screenH) * 0.12).clamp(72.0, 144.0).toDouble(),
+            );
+
+      layer.container.add(
         TrophyComponent(
           slot: slot,
-          position: worldPos,
-          size: Vector2(120, 120),
+          parallaxFactor: _pfFor(slot.anchor),
+          position: Vector2(x, y),
+          size: sizeVec,
           onTapUnlocked: () => onShowDetails?.call(slot),
           onTapLocked: () => onShowDetails?.call(slot),
         ),
       );
     }
   }
-
-  // --- Pan handling (half speed, clamped to end) ---
-  @override
-  void onPanUpdate(DragUpdateInfo info) {
-    final deltaX = info.delta.global.x;
-
-    final desired = _cameraX - deltaX * scrollSensitivity;
-    _cameraX = desired.clamp(0.0, _maxCamX);
-
-    cam.viewfinder.position = Vector2(_cameraX + _screenW / 2, _screenH / 2);
-    _updateParallaxLayers();
-  }
-
-  @override
-  void onPanEnd(DragEndInfo info) {
-    // no inertia
-  }
 }
 
-// --- Trophy Component (unchanged) ---
-class TrophyComponent extends SpriteComponent
+// --- Trophy Component (spritesheet lives at spritePath; cols/rows REQUIRED) ---
+class TrophyComponent extends PositionComponent
     with TapCallbacks, HasGameRef<VolcanoGame> {
   final TrophySlot slot;
   final VoidCallback onTapUnlocked;
   final VoidCallback onTapLocked;
+  final double parallaxFactor;
 
   TrophyComponent({
     required this.slot,
     required this.onTapUnlocked,
     required this.onTapLocked,
+    required this.parallaxFactor,
     required super.position,
-    required super.size,
-  }) : super(anchor: Anchor.center, priority: 10);
+    required Vector2 size,
+  }) : super(anchor: Anchor.center, priority: 10) {
+    this.size = size;
+  }
 
   @override
   Future<void> onLoad() async {
-    sprite = Sprite(gameRef.images.fromCache(slot.spritePath));
+    if (slot.spritePath == null) return;
+    final image = gameRef.images.fromCache(slot.spritePath!);
+
+    final cols = slot.sheetColumns ?? 1;
+    final rows = slot.sheetRows ?? 1;
+    final fw = image.width / cols;
+    final fh = image.height / rows;
+
+    // --- Scaling logic ---
+    double scaleFactor;
+    if (size.x > 0 && size.y > 0) {
+      // Use width as reference for scale, so height matches proportionally
+      scaleFactor = size.x / fw;
+    } else {
+      scaleFactor = 1.0; // natural size
+    }
+
+    final finalSize = Vector2(fw * scaleFactor, fh * scaleFactor);
+    final center = finalSize / 2;
 
     if (slot.isUnlocked) {
-      add(
-        OpacityEffect.to(
-          0.9,
-          EffectController(
-            duration: 1.5,
-            reverseDuration: 1.5,
-            alternate: true,
-            infinite: true,
-          ),
-        ),
+      final data = SpriteAnimationData.sequenced(
+        amount: cols * rows,
+        amountPerRow: cols,
+        textureSize: Vector2(fw, fh),
+        stepTime: slot.stepTime ?? 0.12,
+        loop: true,
       );
 
       add(
-        ScaleEffect.to(
-          Vector2.all(1.05),
-          EffectController(
-            duration: 2.5,
-            reverseDuration: 2.5,
-            alternate: true,
-            infinite: true,
-          ),
-        ),
+        SpriteAnimationComponent.fromFrameData(image, data)
+          ..anchor = Anchor.center
+          ..position = center
+          ..size = finalSize
+          ..priority = 10,
       );
     } else {
-      paint = Paint()..color = Colors.white.withOpacity(0.6);
+      add(
+        SpriteComponent(
+          sprite: Sprite(
+            image,
+            srcPosition: Vector2.zero(),
+            srcSize: Vector2(fw, fh),
+          ),
+          anchor: Anchor.center,
+          position: center,
+          size: finalSize,
+          priority: 10,
+        )..paint = (Paint()..color = Colors.white.withOpacity(0.6)),
+      );
     }
   }
 
@@ -309,19 +428,24 @@ class TrophyComponent extends SpriteComponent
       ),
     );
 
+    // Smooth camera nudge toward this slot
     final screenW = gameRef.size.x;
-    final targetX = (position.x - screenW / 2).clamp(0.0, gameRef._maxCamX);
-    gameRef._cameraX = targetX;
-    gameRef.cam.viewfinder.position = Vector2(
-      gameRef._cameraX + screenW / 2,
-      gameRef.size.y / 2,
+    final slotX = position.x; // local-in-layer X
+    final desiredCameraX = (slotX - screenW / 2) / (1 + parallaxFactor);
+    final clamped = desiredCameraX.clamp(0.0, gameRef._maxCamX);
+    gameRef._cameraX = clamped.toDouble();
+
+    // Center using game update's parallax sync
+    gameRef.cam.viewfinder.add(
+      MoveEffect.to(
+        Vector2(gameRef._cameraX + (gameRef.size.x / 2), gameRef.size.y / 2),
+        EffectController(duration: 0.5, curve: Curves.easeOut),
+      ),
     );
-    gameRef._updateParallaxLayers();
   }
 }
 
 /// Finite (non-wrapping) tiled parallax layer.
-/// Builds N tiles wide and clamps offset so edges line up at the ends.
 class _FiniteLayer {
   _FiniteLayer(
     this.parent,
@@ -340,20 +464,22 @@ class _FiniteLayer {
   final double widthMul;
 
   final PositionComponent container;
-
   final List<SpriteComponent> _tiles = [];
   Vector2 _tileSize = Vector2.zero();
-  double totalWidth = 0.0; // root-space
+  double totalWidth = 0.0;
 
   void buildOrUpdate(Vector2 tileSize, int tilesNeeded) {
+    final sameSize = (_tileSize - tileSize).length2 < 1e-6;
+    if (sameSize && _tiles.length == tilesNeeded && container.isMounted) {
+      return;
+    }
+
     _tileSize = tileSize;
-    totalWidth = tileSize.x * tilesNeeded;
 
     if (!container.isMounted) {
       parent.add(container);
     }
 
-    // Match tile count
     while (_tiles.length < tilesNeeded) {
       final tile = SpriteComponent(
         sprite: sprite,
@@ -368,23 +494,22 @@ class _FiniteLayer {
       _tiles.removeLast().removeFromParent();
     }
 
-    // Lay out side-by-side
     for (var i = 0; i < _tiles.length; i++) {
-      _tiles[i].size = tileSize.clone();
-      _tiles[i].position = Vector2(i * tileSize.x, 0);
+      final t = _tiles[i];
+      if (!sameSize) t.size = tileSize.clone();
+      t.position = Vector2(i * tileSize.x, 0);
     }
 
+    totalWidth = _tiles.isEmpty
+        ? 0
+        : (_tiles.length - 1) * tileSize.x + tileSize.x;
     container.position = Vector2.zero();
   }
 
   void updateOffsetClamped(double cameraX, double viewportWidthRootSpace) {
-    // Desired offset for this parallax factor
     final raw = -(cameraX * parallaxFactor);
-    // Clamp so we never expose beyond the edges
     final minX = -(max(0.0, totalWidth - viewportWidthRootSpace));
     final clamped = raw.clamp(minX, 0.0);
     container.position = Vector2(clamped, 0);
   }
-
-  double get totalWidthRoot => totalWidth;
 }

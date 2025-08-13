@@ -1,26 +1,8 @@
 import 'dart:ui';
 import 'package:alchemons/games/volcano/volcano_game.dart';
+import 'package:alchemons/models/trophy_slot.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
-
-// Data we pass from Flutter to Flame
-class TrophySlot {
-  final String id;
-  final Offset normalizedPos; // 0..1 in each axis
-  final bool isUnlocked;
-  final String spritePath; // creature art or silhouette
-  final String displayName;
-  final String rarity;
-
-  const TrophySlot({
-    required this.id,
-    required this.normalizedPos,
-    required this.isUnlocked,
-    required this.spritePath,
-    required this.displayName,
-    required this.rarity,
-  });
-}
 
 class VolcanoScenePage extends StatefulWidget {
   final List<TrophySlot> slots;
@@ -112,7 +94,7 @@ class _CreatureSheet extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.asset(
-              slot.spritePath,
+              'assets/images/${slot.spritePath}',
               height: 120,
               fit: BoxFit.contain,
             ),
