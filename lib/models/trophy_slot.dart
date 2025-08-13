@@ -1,7 +1,7 @@
 // models/trophy_slot.dart (or wherever yours lives)
 import 'dart:ui';
 
-enum AnchorLayer { layer1, layer2, layer3, layer4 }
+import 'package:alchemons/models/scenes/scene_definition.dart';
 
 class TrophySlot {
   final String id;
@@ -12,7 +12,7 @@ class TrophySlot {
   final String rarity;
 
   // NEW: which parallax strip should this live on?
-  final AnchorLayer anchor;
+  final SceneLayer anchor;
 
   // NEW: optional spritesheet (if set, we show an animation instead of spritePath)
   final String? spriteSheetPath; // e.g. 'creatures/anim/lightmane_sheet.png'
@@ -29,7 +29,7 @@ class TrophySlot {
     required this.spritePath,
     required this.displayName,
     required this.rarity,
-    this.anchor = AnchorLayer.layer1,
+    this.anchor = SceneLayer.layer1,
     this.spriteSheetPath,
     this.sheetColumns,
     this.sheetRows,
@@ -37,4 +37,38 @@ class TrophySlot {
     this.frameHeight,
     this.stepTime,
   });
+}
+
+extension TrophySlotCopy on TrophySlot {
+  TrophySlot copyWith({
+    String? id,
+    Offset? normalizedPos,
+    bool? isUnlocked,
+    String? spritePath,
+    String? displayName,
+    String? rarity,
+    SceneLayer? anchor,
+    String? spriteSheetPath,
+    int? sheetColumns,
+    int? sheetRows,
+    double? frameWidth,
+    double? frameHeight,
+    double? stepTime,
+  }) {
+    return TrophySlot(
+      id: id ?? this.id,
+      normalizedPos: normalizedPos ?? this.normalizedPos,
+      isUnlocked: isUnlocked ?? this.isUnlocked,
+      spritePath: spritePath ?? this.spritePath,
+      displayName: displayName ?? this.displayName,
+      rarity: rarity ?? this.rarity,
+      anchor: anchor ?? this.anchor,
+      spriteSheetPath: spriteSheetPath ?? this.spriteSheetPath,
+      sheetColumns: sheetColumns ?? this.sheetColumns,
+      sheetRows: sheetRows ?? this.sheetRows,
+      frameWidth: frameWidth ?? this.frameWidth,
+      frameHeight: frameHeight ?? this.frameHeight,
+      stepTime: stepTime ?? this.stepTime,
+    );
+  }
 }

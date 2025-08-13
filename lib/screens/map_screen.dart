@@ -1,5 +1,8 @@
+// lib/screens/map_screen.dart
+import 'package:alchemons/models/scenes/scene_definition.dart';
+import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/trophy_slot.dart';
-import 'package:alchemons/screens/scenes/volcano_scene.dart';
+import 'package:alchemons/screens/scenes/scene_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_providers.dart';
@@ -20,90 +23,42 @@ class MapScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           _BiomeCard(
-            title: 'Volcano',
-            icon: Icons.volcano_rounded,
-            onTap: () async {
-              // Pull unlocked creatures from your game state
+            title: 'Valley',
+            icon: Icons.sunny,
+            onTap: () {
               final gameState = context.read<GameStateNotifier>();
-
-              // Build slots for this scene from your data model.
-              // In a real game, these would come from content files.
-              final slots = _buildVolcanoSlotsFromGame(gameState);
+              final scene = _deriveSceneWithUnlocks(
+                base: valleyScene,
+                unlockedIds: gameState.discoveredCreatures
+                    .map((e) => (e['creature']).id as String)
+                    .toSet(),
+                lockedPlaceholder: 'ui/wood_texture.jpg',
+              );
 
               Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => VolcanoScenePage(slots: slots),
-                ),
+                MaterialPageRoute(builder: (_) => ScenePage(scene: scene)),
               );
             },
           ),
-          // Add more biomes later…
         ],
       ),
     );
   }
 
-  List<TrophySlot> _buildVolcanoSlotsFromGame(GameStateNotifier state) {
-    // Example: fixed slot positions (normalized 0..1). Map to your real creatures.
-    // Pick some IDs that exist in your data (adjust to match yours).
-    final discovered = state.discoveredCreatures
-        .map((e) => (e['creature']).id as String)
-        .toSet();
-
-    final content =
-        <
-          ({
-            String id,
-            double x,
-            double y,
-            String displayName,
-            String rarity,
-            AnchorLayer layer,
-            double? frameWidth,
-            double? frameHeight,
-          })
-        >[
-          (
-            id: 'CR045',
-            x: 0.20,
-            y: 0.7,
-            displayName: 'LightMane',
-            rarity: 'Rare',
-            layer: AnchorLayer.layer2,
-            frameWidth: 30,
-            frameHeight: 30,
-          ),
-          (
-            id: 'CR005',
-            x: 0.58,
-            y: 0.8,
-            displayName: 'SteamMane',
-            rarity: 'UnCommon',
-            layer: AnchorLayer.layer1,
-            frameWidth: 100,
-            frameHeight: 100,
-          ),
-        ];
-
-    return content.map((c) {
-      final isUnlocked = discovered.contains(c.id);
-      // Build your existing asset path shape:
-      final spritePath =
-          'creatures/${c.rarity.toLowerCase()}/${c.id}_${c.displayName.toLowerCase()}_spritesheet.png';
-      return TrophySlot(
-        id: c.id,
-        normalizedPos: Offset(c.x, c.y),
-        isUnlocked: isUnlocked,
-        spritePath: isUnlocked ? spritePath : 'ui/wood_texture.jpg',
-        displayName: c.displayName,
-        rarity: c.rarity,
-        sheetColumns: 2,
-        anchor: c.layer,
-        frameHeight: c.frameHeight,
-        frameWidth: c.frameWidth,
-        sheetRows: 2,
+  SceneDefinition _deriveSceneWithUnlocks({
+    required SceneDefinition base,
+    required Set<String> unlockedIds,
+    required String lockedPlaceholder,
+  }) {
+    final updatedSlots = base.slots.map((s) {
+      final unlocked = unlockedIds.contains(s.id);
+      return s.copyWith(
+        isUnlocked: unlocked,
+        spritePath: unlocked ? s.spritePath : lockedPlaceholder,
       );
     }).toList();
+
+    return base.copyWith(slots: updatedSlots);
   }
 }
 

@@ -1,26 +1,29 @@
-import 'dart:ui';
-import 'package:alchemons/games/volcano/volcano_game.dart';
-import 'package:alchemons/models/trophy_slot.dart';
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flame/game.dart';
+import 'package:alchemons/models/trophy_slot.dart';
+import 'package:alchemons/models/scenes/scene_definition.dart';
+import 'package:alchemons/games/scene_game.dart';
 
-class VolcanoScenePage extends StatefulWidget {
-  final List<TrophySlot> slots;
-  const VolcanoScenePage({super.key, required this.slots});
+class ScenePage extends StatefulWidget {
+  final SceneDefinition scene;
+
+  const ScenePage({super.key, required this.scene});
 
   @override
-  State<VolcanoScenePage> createState() => _VolcanoScenePageState();
+  State<ScenePage> createState() => _ScenePageState();
 }
 
-class _VolcanoScenePageState extends State<VolcanoScenePage> {
-  late VolcanoGame _game;
+class _ScenePageState extends State<ScenePage> {
+  late SceneGame _game;
 
   @override
   void initState() {
     super.initState();
-    _game = VolcanoGame(slots: widget.slots);
 
-    // Hook: when Flame asks to show details, use an overlay
+    // Create the generic SceneGame with the provided scene definition
+    _game = SceneGame(scene: widget.scene);
+
+    // Hook up the slot details overlay
     _game.onShowDetails = (slot) {
       showModalBottomSheet(
         context: context,
@@ -28,6 +31,7 @@ class _VolcanoScenePageState extends State<VolcanoScenePage> {
         builder: (_) => _CreatureSheet(slot: slot),
       );
     };
+    print("leaving initState in scene page");
   }
 
   @override
