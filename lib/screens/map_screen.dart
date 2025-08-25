@@ -1,5 +1,6 @@
 // lib/screens/map_screen.dart
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/screens/party_picker.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_access_service.dart';
@@ -218,22 +219,40 @@ class MapScreen extends StatelessWidget {
           ),
 
           const SizedBox(height: 12),
-          _ExpeditionCard(
-            title: 'Crystal Cave Depths',
-            subtitle: 'Rare Crystal & Rock Type Creatures',
-            description:
-                'Deep underground caverns where rare crystal creatures dwell. Challenging breeding opportunities with elusive rock and gem-type mons.',
-            difficulty: 'Advanced',
-            expectedRewards: [
-              'Crystal Offspring',
-              'Rare Gems',
-              'Advanced Breeding XP',
-            ],
-            icon: Icons.diamond_rounded,
-            statusColor: Colors.purple,
-            onTap: () =>
-                _showUnavailable(context, 'Cave system under exploration'),
-            isAvailable: false,
+          // --- Volcano Expedition (volcano) ---
+          FutureBuilder<bool>(
+            future: access.canEnter('volcano'),
+            builder: (context, snap) {
+              final available = snap.data ?? true;
+
+              return Stack(
+                children: [
+                  _ExpeditionCard(
+                    title: 'Volcano Breeding Ground',
+                    subtitle: 'Rare Fire & Earth Creatures',
+                    description:
+                        'A fiery volcanic landscape home to some of the rarest fire and earth-type creatures. Suitable for experienced breeders.',
+                    difficulty: 'Advanced',
+                    expectedRewards: const [
+                      'Volcanic Offspring',
+                      'Rare Minerals',
+                      'Advanced Breeding XP',
+                    ],
+                    icon: Icons.whatshot_rounded,
+                    statusColor: Colors.red,
+                    isAvailable: available,
+                    onTap: () =>
+                        _onExpeditionTap(context, 'volcano', volcanoScene),
+                  ),
+                  if (!available)
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: CountdownBadge(remaining: access.timeUntilReset),
+                    ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 12),
           _ExpeditionCard(
