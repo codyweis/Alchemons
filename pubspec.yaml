@@ -32,6 +32,7 @@ flutter:
     - assets/images/backgrounds/
     - assets/images/backgrounds/scenes/
     - assets/images/backgrounds/scenes/valley/
+    - assets/images/backgrounds/scenes/volcano/
     - assets/images/creatures/
     - assets/images/creatures/uncommon/
     - assets/images/creatures/rare/

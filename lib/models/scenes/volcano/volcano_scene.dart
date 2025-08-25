@@ -4,18 +4,18 @@ import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 
 final volcanoScene = SceneDefinition(
-  worldWidth: 3000,
+  worldWidth: 1425,
   worldHeight: 850,
   layers: [
-    LayerDefinition(
-      id: SceneLayer.layer1,
-      imagePath: 'backgrounds/scenes/volcano/sky.png',
-      parallaxFactor: 0.0,
-      widthMul: 1.0,
-    ),
+    // LayerDefinition(
+    //   id: SceneLayer.layer1,
+    //   imagePath: 'backgrounds/scenes/volcano/sky.png',
+    //   parallaxFactor: 0.0,
+    //   widthMul: 1.0,
+    // ),
     LayerDefinition(
       id: SceneLayer.layer2,
-      imagePath: 'backgrounds/scenes/volcano/volcano.png',
+      imagePath: 'backgrounds/scenes/volcano/background.png',
       parallaxFactor: 0.1,
       widthMul: 1.0,
     ),
