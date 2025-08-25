@@ -1,5 +1,6 @@
 // lib/screens/map_screen.dart
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/screens/party_picker.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -255,22 +256,39 @@ class MapScreen extends StatelessWidget {
             },
           ),
           const SizedBox(height: 12),
-          _ExpeditionCard(
-            title: 'Desert Mirage Oasis',
-            subtitle: 'Legendary Fire & Sun Creatures',
-            description:
-                'Scorching desert oasis where legendary fire-type creatures gather. Only the most skilled breeders can handle these powerful wild mons.',
-            difficulty: 'Expert',
-            expectedRewards: [
-              'Legendary Offspring',
-              'Solar Crystals',
-              'Master Breeding XP',
-            ],
-            icon: Icons.wb_sunny_rounded,
-            statusColor: Colors.orange,
-            onTap: () =>
-                _showUnavailable(context, 'Oasis location being tracked'),
-            isAvailable: false,
+          // --- Swamp Expedition (swamp) --- //
+          FutureBuilder<bool>(
+            future: access.canEnter('swamp'),
+            builder: (context, snap) {
+              final available = snap.data ?? true;
+
+              return Stack(
+                children: [
+                  _ExpeditionCard(
+                    title: 'Swamp Breeding Ground',
+                    subtitle: 'Uncommon & Rare Water Creatures',
+                    description:
+                        'Misty swamp habitat teeming with unique water-type creatures. Ideal for intermediate breeders.',
+                    difficulty: 'Intermediate',
+                    expectedRewards: const [
+                      'Swamp Offspring',
+                      'Rare Herbs',
+                      'Intermediate Breeding XP',
+                    ],
+                    icon: Icons.water_rounded,
+                    statusColor: Colors.blue,
+                    isAvailable: available,
+                    onTap: () => _onExpeditionTap(context, 'swamp', swampScene),
+                  ),
+                  if (!available)
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: CountdownBadge(remaining: access.timeUntilReset),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),
