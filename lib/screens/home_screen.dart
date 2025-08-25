@@ -1,11 +1,21 @@
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
-import 'package:alchemons/services/game_data_service.dart';
+import 'package:alchemons/screens/faction_picker.dart';
+import 'package:alchemons/screens/feeding_screen.dart';
+import 'package:alchemons/screens/map_screen.dart';
+import 'package:alchemons/screens/profile_screen.dart';
+import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/test/dev_seeder.dart';
+import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_providers.dart';
 import '../models/creature.dart';
-import 'breed_screen.dart';
+import 'breed/breed_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,47 +27,76 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _breathingController;
   late AnimationController _rotationController;
-  late AnimationController _sparkleController;
 
-  // Track which creatures to display in the showcase (store creature IDs)
   List<String> _featuredCreatureIds = [];
 
   @override
   void initState() {
     super.initState();
 
-    // Breathing animation for creatures
     _breathingController = AnimationController(
       duration: const Duration(seconds: 3),
       vsync: this,
     )..repeat(reverse: true);
 
-    // Rotation animation for magical elements
     _rotationController = AnimationController(
       duration: const Duration(seconds: 20),
       vsync: this,
     )..repeat();
 
-    // Sparkle animation
-    _sparkleController = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    )..repeat();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _initializeRepository();
+
+      final factionSvc = context.read<FactionService>();
+      final picked = await factionSvc.loadId();
+
+      if (!mounted) return;
+      setState(() {});
+
+      if (picked == null) {
+        final selected = await showDialog<FactionId>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const FactionPickerDialog(),
+        );
+        if (selected != null) {
+          await factionSvc.setId(selected);
+          if (!mounted) return;
+          setState(() {}); // <- repaint after choosing
+        }
+        await factionSvc.ensureAirExtraSlotUnlocked();
+      }
+    });
   }
 
   @override
   void dispose() {
     _breathingController.dispose();
     _rotationController.dispose();
-    _sparkleController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeRepository() async {
+    try {
+      final repository = context.read<CreatureRepository>();
+      await repository.loadCreatures();
+    } catch (e) {
+      print('Error loading creature repository: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load specimen database: $e'),
+          backgroundColor: Colors.red.shade600,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
   }
 
   void _initializeFeaturedCreatures(
     List<Map<String, dynamic>> discoveredCreatures,
   ) {
     if (_featuredCreatureIds.isEmpty && discoveredCreatures.isNotEmpty) {
-      // Initialize with first 3 creatures (or less if fewer available)
       _featuredCreatureIds = discoveredCreatures
           .take(3)
           .map((data) => (data['creature'] as Creature).id)
@@ -66,7 +105,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _showCreatureSelector(List<Map<String, dynamic>> availableCreatures) {
-    // Create a local copy of the featured creatures for the modal
     List<String> tempFeaturedIds = List.from(_featuredCreatureIds);
 
     showModalBottomSheet(
@@ -77,49 +115,53 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           return Container(
             height: 500,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.blue.shade50,
-                  Colors.purple.shade50,
-                  Colors.pink.shade50,
-                ],
-              ),
+              color: Colors.white.withOpacity(0.95),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(25),
-                topRight: Radius.circular(25),
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
+              border: Border.all(color: Colors.indigo.shade200, width: 2),
             ),
             child: Column(
               children: [
                 Container(
-                  margin: const EdgeInsets.all(20),
+                  margin: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      Text(
-                        'Choose Your Featured Creatures',
-                        style: TextStyle(
-                          color: Colors.purple.shade700,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.science_rounded,
+                            color: Colors.indigo.shade600,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Configure Display Specimens',
+                            style: TextStyle(
+                              color: Colors.indigo.shade700,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
+                          horizontal: 8,
+                          vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.purple.shade100,
-                          borderRadius: BorderRadius.circular(15),
+                          color: Colors.indigo.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.indigo.shade200),
                         ),
                         child: Text(
                           'Selected: ${tempFeaturedIds.length}/3',
                           style: TextStyle(
-                            color: Colors.purple.shade600,
-                            fontSize: 14,
+                            color: Colors.indigo.shade600,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -129,14 +171,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
                 Expanded(
                   child: GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     physics: const BouncingScrollPhysics(),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 4,
-                          childAspectRatio: 0.85,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
+                          childAspectRatio: 0.9,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
                         ),
                     itemCount: availableCreatures.length,
                     itemBuilder: (context, index) {
@@ -148,23 +190,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         onTap: () {
                           setModalState(() {
                             if (isSelected) {
-                              // Remove from selection
                               tempFeaturedIds.remove(creature.id);
                             } else {
-                              // Add to selection
                               if (tempFeaturedIds.length < 3) {
                                 tempFeaturedIds.add(creature.id);
                               } else {
-                                // Show feedback when trying to add more than 3
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: const Text(
-                                      'Maximum 3 creatures can be featured! Remove one first.',
+                                      'Maximum 3 specimens allowed. Remove one first.',
                                     ),
-                                    backgroundColor: Colors.orange.shade400,
+                                    backgroundColor: Colors.orange.shade600,
                                     duration: const Duration(seconds: 2),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
                                 );
@@ -176,139 +215,121 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           duration: const Duration(milliseconds: 200),
                           curve: Curves.easeInOut,
                           decoration: BoxDecoration(
-                            // Always maintain the gradient based on creature type
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                _getTypeColor(
-                                  creature.types.first,
-                                ).withOpacity(0.4),
-                                _getTypeColor(
-                                  creature.types.first,
-                                ).withOpacity(0.1),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(15),
+                            color: Colors.white.withOpacity(0.9),
+                            borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isSelected
-                                  ? Colors.purple.shade400
+                                  ? Colors.indigo.shade600
                                   : _getTypeColor(
                                       creature.types.first,
-                                    ).withOpacity(0.6),
-                              width: isSelected ? 3 : 2,
+                                    ).withOpacity(0.5),
+                              width: isSelected ? 2 : 1,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isSelected
+                                    ? Colors.indigo.shade200
+                                    : _getTypeColor(
+                                        creature.types.first,
+                                      ).withOpacity(0.1),
+                                blurRadius: isSelected ? 6 : 2,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
                           ),
                           child: Stack(
                             children: [
-                              // Main creature content
                               Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Container(
+                                    height: 50,
+                                    width: 100,
                                     decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(15),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: _getTypeColor(
-                                            creature.types.first,
-                                          ).withOpacity(0.3),
-                                          blurRadius: 5,
-                                          spreadRadius: 1,
-                                        ),
-                                      ],
+                                      color: _getTypeColor(
+                                        creature.types.first,
+                                      ).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
                                     ),
-                                    height: 65,
-                                    width: 65,
                                     child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(6),
                                       child: Image.asset(
-                                        'assets/images/creatures/${creature.rarity.toLowerCase()}/${creature.id.toUpperCase()}_${creature.name.toLowerCase()}.png',
-                                        width: 60,
-                                        height: 60,
-                                        fit: BoxFit.fitHeight,
+                                        'assets/images/${creature.image}',
+                                        fit: BoxFit.fitWidth,
                                         errorBuilder:
                                             (context, error, stackTrace) {
-                                              return Container(
-                                                width: 40,
-                                                height: 40,
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white
-                                                      .withOpacity(0.9),
-                                                  shape: BoxShape.circle,
+                                              return Icon(
+                                                _getCreatureIcon(
+                                                  creature.types.first,
                                                 ),
-                                                child: Icon(
-                                                  _getCreatureIcon(
-                                                    creature.types.first,
-                                                  ),
-                                                  color: _getTypeColor(
-                                                    creature.types.first,
-                                                  ),
-                                                  size: 20,
+                                                color: _getTypeColor(
+                                                  creature.types.first,
                                                 ),
+                                                size: 20,
                                               );
                                             },
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    creature.name,
+                                    style: TextStyle(
+                                      color: Colors.indigo.shade700,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ],
                               ),
-
-                              // Selection indicator
-                              if (isSelected)
+                              if (isSelected) ...[
                                 Positioned(
-                                  top: 5,
-                                  right: 5,
+                                  top: 3,
+                                  right: 3,
                                   child: Container(
-                                    width: 20,
-                                    height: 20,
+                                    width: 16,
+                                    height: 16,
                                     decoration: BoxDecoration(
-                                      color: Colors.purple.shade400,
+                                      color: Colors.indigo.shade600,
                                       shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.purple.shade300,
-                                          blurRadius: 4,
-                                          spreadRadius: 1,
-                                        ),
-                                      ],
                                     ),
                                     child: const Icon(
                                       Icons.check,
                                       color: Colors.white,
-                                      size: 14,
+                                      size: 12,
                                     ),
                                   ),
                                 ),
-
-                              // Selection number indicator
-                              if (isSelected)
                                 Positioned(
-                                  top: 5,
-                                  left: 5,
+                                  top: 3,
+                                  left: 3,
                                   child: Container(
-                                    width: 18,
-                                    height: 18,
+                                    width: 14,
+                                    height: 14,
                                     decoration: BoxDecoration(
                                       color: Colors.white,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: Colors.purple.shade400,
-                                        width: 2,
+                                        color: Colors.indigo.shade600,
+                                        width: 1,
                                       ),
                                     ),
                                     child: Center(
                                       child: Text(
                                         '${tempFeaturedIds.indexOf(creature.id) + 1}',
                                         style: TextStyle(
-                                          color: Colors.purple.shade700,
-                                          fontSize: 10,
+                                          color: Colors.indigo.shade700,
+                                          fontSize: 8,
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
+                              ],
                             ],
                           ),
                         ),
@@ -317,10 +338,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
                 Container(
-                  margin: const EdgeInsets.all(20),
+                  margin: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      // Clear all button
                       if (tempFeaturedIds.isNotEmpty)
                         Expanded(
                           child: GestureDetector(
@@ -331,45 +351,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
+                                horizontal: 16,
+                                vertical: 8,
                               ),
-                              margin: const EdgeInsets.only(right: 10),
+                              margin: const EdgeInsets.only(right: 8),
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.grey.shade400,
-                                    Colors.grey.shade500,
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.shade300,
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
+                                color: Colors.grey.shade600,
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Text(
                                 'Clear All',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
                             ),
                           ),
                         ),
-
-                      // Done button
                       Expanded(
                         flex: tempFeaturedIds.isNotEmpty ? 1 : 2,
                         child: GestureDetector(
                           onTap: () {
-                            // Update the main widget's state when done
                             setState(() {
                               _featuredCreatureIds = List.from(tempFeaturedIds);
                             });
@@ -377,31 +382,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 30,
-                              vertical: 12,
+                              horizontal: 20,
+                              vertical: 8,
                             ),
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.purple.shade400,
-                                  Colors.pink.shade400,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.purple.shade300,
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
+                              color: Colors.indigo.shade600,
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Text(
-                              'Done',
+                              'Apply Changes',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -424,35 +417,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Scaffold(
       body: Stack(
         children: [
-          // Animated background with parallax effect
           _buildBackgroundLayers(),
-
-          // Main content
           SafeArea(
             child: Column(
               children: [
-                // Enhanced header with animations
                 _buildEnhancedHeader(),
-
-                // Main content area with improved layout
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Column(
                         children: [
-                          const SizedBox(height: 20),
-
-                          // Featured creatures display with enhanced animations
+                          const SizedBox(height: 16),
                           _buildFeaturedCreatures(),
-
-                          const SizedBox(height: 30),
-
-                          // Stats cards
-                          _buildStatsCards(),
-
-                          const SizedBox(height: 100), // Space for bottom nav
+                          const SizedBox(height: 20),
+                          _buildNavigationBubbles(),
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),
@@ -461,12 +442,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ],
             ),
           ),
-
-          // Floating particles/sparkles
-          _buildFloatingParticles(),
-
-          // Enhanced bottom navigation
-          _buildEnhancedBottomNav(),
         ],
       ),
     );
@@ -475,7 +450,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildBackgroundLayers() {
     return Stack(
       children: [
-        // Main background with soft gradient
         Positioned.fill(
           child: Container(
             decoration: BoxDecoration(
@@ -484,15 +458,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 end: Alignment.bottomCenter,
                 colors: [
                   Colors.blue.shade50,
+                  Colors.indigo.shade50,
                   Colors.purple.shade50,
-                  Colors.pink.shade50,
                 ],
               ),
             ),
           ),
         ),
-
-        // Animated overlay for depth
         Positioned.fill(
           child: AnimatedBuilder(
             animation: _rotationController,
@@ -503,8 +475,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     center: Alignment.topRight,
                     radius: 1.5,
                     colors: [
-                      Colors.purple.withOpacity(
-                        0.1 * (_rotationController.value),
+                      Colors.indigo.withOpacity(
+                        0.05 * (_rotationController.value),
                       ),
                       Colors.transparent,
                     ],
@@ -520,113 +492,110 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildEnhancedHeader() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withOpacity(0.9),
-              Colors.purple.shade50.withOpacity(0.9),
-            ],
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.indigo.shade200, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.shade100,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.purple.shade200,
-              blurRadius: 15,
-              spreadRadius: 2,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            if (!kReleaseMode)
-              GestureDetector(
-                onTap: () {
-                  final gameDataService = context.read<GameDataService>();
-                  gameDataService.markMultipleDiscovered(['CR046', 'CR006']);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Test creatures unlocked!'),
-                      backgroundColor: Colors.purple.shade300,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+        ],
+      ),
+      child: Row(
+        children: [
+          if (!kReleaseMode)
+            GestureDetector(
+              onTap: () {
+                final db = context.read<AlchemonsDatabase>();
+                DevSeeder(db).createTwoTestEggs();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Test specimens initialized'),
+                    backgroundColor: Colors.green.shade600,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade100,
-                    shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    Icons.bug_report_rounded,
-                    color: Colors.red.shade600,
-                    size: 20,
-                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(6),
                 ),
-              ),
-
-            // Settings button
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.purple.shade100,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.settings_rounded,
-                color: Colors.purple.shade600,
-                size: 20,
-              ),
-            ),
-
-            // Title
-            const Expanded(
-              child: Text(
-                'Alchemons',
-                style: TextStyle(
-                  color: Color(0xFF6B46C1),
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-
-            // Level indicator
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.purple.shade400, Colors.pink.shade400],
-                ),
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.purple.shade300,
-                    blurRadius: 8,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: const Text(
-                'LV 8',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+                child: Icon(
+                  Icons.bug_report_rounded,
+                  color: Colors.red.shade600,
+                  size: 16,
                 ),
               ),
             ),
-          ],
-        ),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.indigo.shade50,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              Icons.settings_rounded,
+              color: Colors.indigo.shade600,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 16),
+          GestureDetector(
+            onTap: () async {
+              final selected = await showDialog<FactionId>(
+                context: context,
+                builder: (_) => const FactionPickerDialog(),
+              );
+              if (selected != null) {
+                await context.read<FactionService>().setId(selected);
+                if (mounted) setState(() {});
+              }
+            },
+            child: Builder(
+              builder: (context) {
+                final svc = context.read<FactionService>();
+                final f = svc.current;
+                if (f == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: _factionChip(f),
+                );
+              },
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Alchemons',
+                  style: TextStyle(
+                    color: Colors.indigo.shade800,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  'Advanced biological research facility',
+                  style: TextStyle(
+                    color: Colors.indigo.shade600,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -638,23 +607,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _initializeFeaturedCreatures(discoveredCreatures);
 
         return Container(
-          padding: const EdgeInsets.all(15),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0.9),
-                Colors.blue.shade50.withOpacity(0.9),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(25),
+            color: Colors.white.withOpacity(0.95),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.indigo.shade200, width: 2),
             boxShadow: [
               BoxShadow(
-                color: Colors.blue.shade200,
-                blurRadius: 15,
-                spreadRadius: 2,
-                offset: const Offset(0, 5),
+                color: Colors.indigo.shade100,
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -666,6 +628,54 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _factionChip(FactionId f) {
+    IconData icon;
+    Color color;
+    switch (f) {
+      case FactionId.fire:
+        icon = Icons.local_fire_department_rounded;
+        color = Colors.red;
+        break;
+      case FactionId.water:
+        icon = Icons.water_drop_rounded;
+        color = Colors.blue;
+        break;
+      case FactionId.air:
+        icon = Icons.air_rounded;
+        color = Colors.cyan;
+        break;
+      case FactionId.earth:
+        icon = Icons.terrain_rounded;
+        color = Colors.brown;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3), width: 2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            // Capitalize nicely
+            f.name[0].toUpperCase() + f.name.substring(1),
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -674,43 +684,39 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           animation: _breathingController,
           builder: (context, child) {
             return Transform.scale(
-              scale: 1.0 + (_breathingController.value * 0.1),
+              scale: 1.0 + (_breathingController.value * 0.05),
               child: Container(
-                width: 80,
-                height: 80,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.purple.withOpacity(0.5),
-                      Colors.purple.withOpacity(0.1),
-                    ],
-                  ),
+                  color: Colors.indigo.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.indigo.shade200, width: 2),
                 ),
                 child: Icon(
-                  Icons.auto_awesome_rounded,
-                  size: 40,
-                  color: Colors.purple.shade400,
+                  Icons.science_rounded,
+                  size: 28,
+                  color: Colors.indigo.shade600,
                 ),
               ),
             );
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Text(
-          'Begin Your Journey!',
+          'Research Laboratory Active',
           style: TextStyle(
-            color: Colors.purple.shade700,
-            fontSize: 20,
+            color: Colors.indigo.shade700,
+            fontSize: 16,
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
-          'Discover creatures through breeding\nand exploration',
+          'Begin specimen collection through\ngenetic synthesis and field research',
           style: TextStyle(
-            color: Colors.purple.shade500,
-            fontSize: 14,
+            color: Colors.indigo.shade600,
+            fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
           textAlign: TextAlign.center,
@@ -720,7 +726,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildCreatureShowcase(List<Map<String, dynamic>> creatures) {
-    // Get the featured creatures based on selected IDs
     final featuredCreatures = _featuredCreatureIds
         .map(
           (id) => creatures.firstWhere(
@@ -731,7 +736,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         .where((data) => data.isNotEmpty)
         .toList();
 
-    // If we don't have enough featured creatures, fill with first available
     while (featuredCreatures.length < 3 &&
         featuredCreatures.length < creatures.length) {
       final nextCreature = creatures.firstWhere(
@@ -752,40 +756,56 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Showcase',
-              style: TextStyle(
-                color: Colors.purple.shade700,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
+            Row(
+              children: [
+                Icon(
+                  Icons.view_module_rounded,
+                  color: Colors.indigo.shade600,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Active Specimens',
+                  style: TextStyle(
+                    color: Colors.indigo.shade700,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
             GestureDetector(
               onTap: () => _showCreatureSelector(creatures),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.purple.shade300, Colors.pink.shade300],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.indigo.shade600,
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text(
-                  'Change',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.edit_rounded,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'Configure',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: featuredCreatures.asMap().entries.map((entry) {
@@ -802,25 +822,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         if (featuredCreatures.length < 3)
           Padding(
-            padding: const EdgeInsets.only(top: 20),
+            padding: const EdgeInsets.only(top: 16),
             child: GestureDetector(
               onTap: () => _showCreatureSelector(creatures),
               child: Container(
-                width: 80,
-                height: 80,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Colors.purple.shade300,
+                    color: Colors.indigo.shade300,
                     width: 2,
                     style: BorderStyle.solid,
                   ),
-                  color: Colors.purple.shade50,
+                  color: Colors.indigo.shade50,
                 ),
                 child: Icon(
                   Icons.add_rounded,
-                  color: Colors.purple.shade400,
-                  size: 30,
+                  color: Colors.indigo.shade600,
+                  size: 24,
                 ),
               ),
             ),
@@ -838,31 +858,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       animation: _breathingController,
       builder: (context, child) {
         return Transform.translate(
-          offset: Offset(0, -5 * _breathingController.value),
+          offset: Offset(0, -2 * _breathingController.value),
           child: GestureDetector(
             onTap: () {
-              // Show creature details or navigate to creature details
               showDialog(
                 context: context,
                 builder: (context) => Dialog(
                   backgroundColor: Colors.transparent,
                   child: Container(
-                    padding: const EdgeInsets.all(25),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white.withOpacity(0.95),
-                          Colors.purple.shade50.withOpacity(0.95),
-                        ],
+                      color: Colors.white.withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.indigo.shade200,
+                        width: 2,
                       ),
-                      borderRadius: BorderRadius.circular(25),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color.fromARGB(255, 255, 255, 255),
-                          blurRadius: 20,
-                          spreadRadius: 5,
+                          color: Colors.indigo.shade200,
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
@@ -870,68 +886,84 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(15),
-                          child: Image.asset(
-                            creature.image,
-                            width: 200,
-                            height: 200,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 100,
-                                height: 100,
-                                decoration: BoxDecoration(
-                                  color: glowColor.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(15),
-                                ),
-                                child: Icon(
-                                  _getCreatureIcon(creature.types.first),
-                                  color: glowColor,
-                                  size: 50,
-                                ),
-                              );
-                            },
+                          borderRadius: BorderRadius.circular(12),
+                          child: SizedBox(
+                            width: 160,
+                            height: 160,
+                            child: creature.spriteData != null
+                                ? CreatureSprite(
+                                    spritePath:
+                                        creature.spriteData!.spriteSheetPath,
+                                    totalFrames:
+                                        creature.spriteData!.totalFrames,
+                                    frameSize: Vector2(
+                                      creature.spriteData!.frameWidth * 1.0,
+                                      creature.spriteData!.frameHeight * 1.0,
+                                    ),
+                                    rows: creature.spriteData!.rows,
+                                    stepTime:
+                                        (creature.spriteData!.frameDurationMs /
+                                        1000.0),
+                                  )
+                                : Container(
+                                    color: glowColor.withOpacity(0.1),
+                                    child: Icon(
+                                      _getCreatureIcon(creature.types.first),
+                                      color: glowColor,
+                                      size: 40,
+                                    ),
+                                  ),
                           ),
                         ),
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 12),
                         Text(
                           creature.name,
                           style: TextStyle(
-                            color: Colors.purple.shade700,
-                            fontSize: 18,
+                            color: Colors.indigo.shade700,
+                            fontSize: 16,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        Text(
-                          creature.types.first,
-                          style: TextStyle(
-                            color: glowColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: glowColor.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: glowColor.withOpacity(0.5),
+                            ),
+                          ),
+                          child: Text(
+                            creature.types.first,
+                            style: TextStyle(
+                              color: glowColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 12),
                         GestureDetector(
                           onTap: () => Navigator.pop(context),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 8,
+                              horizontal: 16,
+                              vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.purple.shade400,
-                                  Colors.pink.shade400,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(15),
+                              color: Colors.indigo.shade600,
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Text(
                               'Close',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,
+                                fontSize: 12,
                               ),
                             ),
                           ),
@@ -943,49 +975,39 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               );
             },
             child: Container(
-              width: 75,
-              height: 75,
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    glowColor.withOpacity(0.3),
-                    glowColor.withOpacity(0.1),
-                  ],
-                ),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: glowColor.withOpacity(0.5), width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: glowColor.withOpacity(0.4),
-                    blurRadius: 15,
-                    spreadRadius: 3,
+                    color: glowColor.withOpacity(0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: Container(
-                margin: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.9),
-                  border: Border.all(
-                    color: glowColor.withOpacity(0.5),
-                    width: 2,
-                  ),
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/images/creatures/${creature.rarity.toLowerCase()}/${creature.id.toUpperCase()}_${creature.name.toLowerCase()}.gif',
-                    width: 69,
-                    height: 69,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Icon(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: creature.spriteData != null
+                    ? CreatureSprite(
+                        spritePath: creature.spriteData!.spriteSheetPath,
+                        rows: creature.spriteData!.rows,
+                        totalFrames: creature.spriteData!.totalFrames,
+                        frameSize: Vector2(
+                          creature.spriteData!.frameWidth * 1.0,
+                          creature.spriteData!.frameHeight * 1.0,
+                        ),
+                        stepTime:
+                            (creature.spriteData!.frameDurationMs / 1000.0),
+                      )
+                    : Icon(
                         _getCreatureIcon(creature.types.first),
-                        size: 35,
+                        size: 28,
                         color: glowColor,
-                      );
-                    },
-                  ),
-                ),
+                      ),
               ),
             ),
           ),
@@ -994,33 +1016,102 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildStatsCards() {
+  Widget _buildNavigationBubbles() {
     return Consumer<GameStateNotifier>(
       builder: (context, gameState, child) {
         final total = gameState.creatures.length;
-        final discovered = gameState.discoveredCreatures.length;
+        final collectionPercent = (total > 0)
+            ? ((gameState.discoveredCreatures.length / total) * 100).round()
+            : 0;
 
-        final percent = (total > 0) ? ((discovered / total) * 100).round() : 0;
-        return Row(
+        return Column(
           children: [
-            Expanded(
-              child: _buildStatCard(
-                'Discovered',
-                '${gameState.discoveredCreatures.length}',
-                '${gameState.creatures.length}',
-                Icons.pets_rounded,
-                Colors.green,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavigationBubble(
+                  'Database',
+                  Icons.storage_rounded,
+                  Colors.blue.shade600,
+                  '$collectionPercent%',
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CreaturesScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _buildNavigationBubble(
+                  'Breed',
+                  Icons.merge_type_rounded,
+                  Colors.purple.shade600,
+                  'Lab',
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const BreedScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _buildNavigationBubble(
+                  'Enhancement',
+                  Icons.science_outlined,
+                  Colors.teal.shade600,
+                  'Lab',
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const FeedingScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildStatCard(
-                'Collection',
-                '$percent%',
-                'Complete',
-                Icons.bookmark_rounded,
-                Colors.blue,
-              ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavigationBubble(
+                  'Resources',
+                  Icons.inventory_rounded,
+                  Colors.green.shade600,
+                  'Store',
+                  () {
+                    print('Navigate to Resources');
+                  },
+                ),
+                _buildNavigationBubble(
+                  'Field Work',
+                  Icons.explore_rounded,
+                  Colors.orange.shade600,
+                  'Explore',
+                  () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MapScreen()),
+                    );
+                  },
+                ),
+                _buildNavigationBubble(
+                  'Profile',
+                  Icons.person_rounded,
+                  Colors.indigo.shade600,
+                  'Data',
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfileScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         );
@@ -1028,203 +1119,55 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildStatCard(
+  Widget _buildNavigationBubble(
     String title,
-    String value,
-    String subtitle,
     IconData icon,
     Color color,
+    String subtitle,
+    VoidCallback onTap,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white.withOpacity(0.9), color.withOpacity(0.1)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.2),
-            blurRadius: 10,
-            spreadRadius: 1,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: TextStyle(
-                  color: Colors.purple.shade600,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.purple.shade700,
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          Text(
-            subtitle,
-            style: TextStyle(
-              color: Colors.purple.shade500,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFloatingParticles() {
-    return AnimatedBuilder(
-      animation: _sparkleController,
-      builder: (context, child) {
-        return Stack(
-          children: List.generate(5, (index) {
-            final progress = (_sparkleController.value + index * 0.2) % 1.0;
-            final x =
-                50.0 + (MediaQuery.of(context).size.width - 100) * progress;
-            final y = 100.0 + 200 * (index / 5);
-
-            return Positioned(
-              left: x,
-              top: y,
-              child: Opacity(
-                opacity: (1.0 - progress) * 0.6,
-                child: Container(
-                  width: 4,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.purple.shade300,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.purple.shade300.withOpacity(0.5),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        );
-      },
-    );
-  }
-
-  Widget _buildEnhancedBottomNav() {
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
+    return GestureDetector(
+      onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.all(10),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+        width: 100,
+        height: 100,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withOpacity(0.9),
-              Colors.purple.shade50.withOpacity(0.9),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
+          color: Colors.white.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3), width: 2),
           boxShadow: [
             BoxShadow(
-              color: Colors.purple.shade200,
-              blurRadius: 15,
-              spreadRadius: 2,
-              offset: const Offset(0, -2),
+              color: color.withOpacity(0.1),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildNavItem('Breed', Icons.science_rounded, 0),
-            _buildNavItem('Creatures', Icons.pets_rounded, 1),
-            _buildNavItem('Shop', Icons.store_rounded, 2),
-            _buildNavItem('Explore', Icons.explore_rounded, 3),
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                color: Colors.indigo.shade700,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (subtitle.isNotEmpty) ...[
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(String label, IconData icon, int index) {
-    return GestureDetector(
-      onTap: () {
-        // Navigate to different screens
-        switch (index) {
-          case 0:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const BreedScreen()),
-            );
-            break;
-          case 1:
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const CreaturesScreen()),
-            );
-            break;
-          case 2:
-            print('Navigate to Shop');
-            break;
-          case 3:
-            print('Navigate to Wilderness');
-            break;
-        }
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.purple.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: Colors.purple.shade600, size: 24),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.purple.shade600,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1312,32 +1255,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return Colors.purple.shade300;
       case 'Plant':
         return Colors.green.shade400;
-      case 'Storm':
-        return Colors.indigo.shade400;
-      case 'Magma':
-        return Colors.red.shade600;
       case 'Poison':
         return Colors.green.shade600;
       case 'Spirit':
         return Colors.teal.shade400;
-      case 'Shadow':
+      case 'Dark':
         return Colors.grey.shade700;
       case 'Light':
         return Colors.yellow.shade300;
       case 'Blood':
         return Colors.red.shade700;
-      case 'Dream':
-        return Colors.purple.shade200;
-      case 'Arcane':
-        return Colors.purple.shade400;
-      case 'Chaos':
-        return Colors.red.shade300;
-      case 'Time':
-        return Colors.blue.shade300;
-      case 'Void':
-        return Colors.grey.shade800;
-      case 'Ascended':
-        return Colors.amber.shade400;
       default:
         return Colors.purple.shade400;
     }

@@ -1,10 +1,60 @@
 // providers/app_providers.dart
+import 'package:alchemons/helpers/breeding_config_loaders.dart';
+import 'package:alchemons/helpers/genetics_loader.dart';
+import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/services/breeding_config.dart';
+import 'package:alchemons/providers/selected_party.dart';
+import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/stamina_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../database/alchemons_db.dart';
 import '../services/game_data_service.dart';
 import '../services/creature_repository.dart';
 import '../services/breeding_engine.dart';
+
+/// Load all static data catalogs together
+Future<CatalogData> _loadAllCatalogs() async {
+  final results = await Future.wait([
+    loadElementRecipes(),
+    loadSpecialRules(),
+    loadFamilyRecipes(),
+    loadNatures().then((_) => true), // Convert void to bool
+    GeneticsCatalog.load().then((_) => true), // Convert void to bool
+  ]);
+
+  debugPrint(
+    '[AppProviders] All catalogs loaded (genetics=${GeneticsCatalog.all.length})',
+  );
+
+  return CatalogData(
+    elementRecipes: results[0] as ElementRecipeConfig,
+    specialRules: results[1] as SpecialRulesConfig,
+    familyRecipes: results[2] as FamilyRecipeConfig,
+    naturesLoaded: results[3] as bool,
+    geneticsLoaded: results[4] as bool,
+  );
+}
+
+/// Container for all loaded catalog data
+class CatalogData {
+  final ElementRecipeConfig elementRecipes;
+  final SpecialRulesConfig specialRules;
+  final FamilyRecipeConfig familyRecipes;
+  final bool naturesLoaded;
+  final bool geneticsLoaded;
+
+  const CatalogData({
+    required this.elementRecipes,
+    required this.specialRules,
+    required this.familyRecipes,
+    required this.naturesLoaded,
+    required this.geneticsLoaded,
+  });
+
+  bool get isFullyLoaded => naturesLoaded && geneticsLoaded;
+}
 
 class AppProviders extends StatelessWidget {
   final AlchemonsDatabase db;
@@ -29,18 +79,58 @@ class AppProviders extends StatelessWidget {
         Provider<GameDataService>.value(value: gameDataService),
 
         // Creature repository provider
-        Provider<CreatureRepository>(create: (context) => CreatureRepository()),
+        Provider<CreatureRepository>(create: (_) => CreatureRepository()),
 
-        // Breeding engine provider
-        ProxyProvider<CreatureRepository, BreedingEngine>(
-          update: (context, repository, breedingEngine) {
-            return BreedingEngine(repository);
+        ChangeNotifierProvider<SelectedPartyNotifier>(
+          create: (_) => SelectedPartyNotifier(),
+        ),
+
+        // Stamina service provider
+        Provider<StaminaService>(
+          create: (ctx) => StaminaService(ctx.read<AlchemonsDatabase>()),
+        ),
+
+        Provider<FactionService>(
+          create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
+        ),
+
+        // Single loader for all catalogs
+        FutureProvider<CatalogData?>(
+          create: (_) => _loadAllCatalogs(),
+          initialData: null,
+        ),
+
+        // Breeding tuning knobs
+        Provider<BreedingTuning>(
+          create: (_) => const BreedingTuning(
+            variantChanceCross: 1,
+            parentRepeatChance: 20,
+            variantChanceOnPure: 5,
+            variantBlockedTypes: {"Blood"},
+          ),
+        ),
+
+        ProxyProvider2<CatalogData?, CreatureRepository, BreedingEngine?>(
+          update: (context, catalogData, repo, previous) {
+            if (catalogData == null || !catalogData.isFullyLoaded) {
+              return null; // Wait for catalogs to load
+            }
+
+            final tuning = context.read<BreedingTuning>();
+            return BreedingEngine(
+              repo,
+              elementRecipes: catalogData.elementRecipes,
+              familyRecipes: catalogData.familyRecipes,
+              specialRules: catalogData.specialRules,
+              tuning: tuning,
+              logToConsole: true,
+            );
           },
         ),
 
         // Game state provider for reactive UI updates
         ChangeNotifierProvider<GameStateNotifier>(
-          create: (context) => GameStateNotifier(gameDataService),
+          create: (_) => GameStateNotifier(gameDataService),
         ),
       ],
       child: child,
@@ -48,7 +138,7 @@ class AppProviders extends StatelessWidget {
   }
 }
 
-// Game state notifier for reactive updates
+/// Game state notifier for reactive updates
 class GameStateNotifier extends ChangeNotifier {
   final GameDataService _gameDataService;
   List<Map<String, dynamic>> _creatures = [];
@@ -87,7 +177,6 @@ class GameStateNotifier extends ChangeNotifier {
   Future<void> markDiscovered(String creatureId) async {
     try {
       await _gameDataService.markDiscovered(creatureId);
-      // Refresh the creature list
       await _loadCreatures();
     } catch (e) {
       _error = e.toString();

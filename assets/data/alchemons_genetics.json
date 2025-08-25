@@ -1,0 +1,32 @@
+{
+  "meta": { "notes": "Visual genetics for Alchemons using programmatic effects only", "version": "1.2" },
+  "genetics": {
+    "size": {
+      "category": "physical",
+      "inheritance": "blended",
+      "mutation_chance": 0.08,
+      "variants": [
+        { "id": "tiny",   "name": "Tiny",   "dominance": 1, "effect": { "scale": 0.75 }, "description": "Adorably miniature" },
+        { "id": "small",  "name": "Small",  "dominance": 3, "effect": { "scale": 0.90 }, "description": "Petite and compact" },
+        { "id": "normal", "name": "Normal", "dominance": 6, "effect": { "scale": 1.00 }, "description": "Standard size" },
+        { "id": "large",  "name": "Large",  "dominance": 3, "effect": { "scale": 1.15 }, "description": "Impressively big" },
+        { "id": "giant",  "name": "Giant",  "dominance": 1, "effect": { "scale": 1.30 }, "description": "Magnificently huge" }
+      ]
+    },
+    "tinting": {
+      "category": "coloration",
+      "inheritance": "weighted",
+      "mutation_chance": 0.10,
+      "variants": [
+        { "id": "normal",  "name": "Normal",  "dominance": 6, "effect": { "hue_shift": 0,  "saturation": 1.0, "brightness": 1.0 },  "description": "Natural coloring" },
+        { "id": "warm",    "name": "Warm",    "dominance": 2, "effect": { "hue_shift": 15, "saturation": 1.1, "brightness": 1.05 }, "description": "Warmer, reddish tones" },
+        { "id": "cool",    "name": "Cool",    "dominance": 2, "effect": { "hue_shift": -15,"saturation": 1.1, "brightness": 1.05 }, "description": "Cooler, bluish tones" },
+        { "id": "vibrant", "name": "Vibrant", "dominance": 2, "effect": { "hue_shift": 0,  "saturation": 1.4, "brightness": 1.1 },  "description": "Intensely saturated colors" },
+        { "id": "pale",    "name": "Pale",    "dominance": 2, "effect": { "hue_shift": 0,  "saturation": 0.6, "brightness": 1.2 },  "description": "Soft, muted coloring" }
+      ]
+    }
+  },
+  "breeding_effects": {
+    "size": { "fertility_bonus": { "tiny": -5, "giant": -10 } }
+  }
+}

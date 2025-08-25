@@ -1,0 +1,145 @@
+{
+  "recipes": {
+    "Fire": {
+      "Fire": 100
+    },
+    "Water": {
+      "Water": 100
+    },
+    "Earth": {
+      "Earth": 100
+    },
+    "Air": {
+      "Air": 100
+    },
+    "Steam": {
+      "Steam": 100
+    },
+    "Lava": {
+      "Lava": 100
+    },
+    "Lightning": {
+      "Lightning": 100
+    },
+    "Mud": {
+      "Mud": 100
+    },
+    "Ice": {
+      "Ice": 100
+    },
+    "Dust": {
+      "Dust": 100
+    },
+    "Crystal": {
+      "Crystal": 100
+    },
+    "Plant": {
+      "Plant": 100
+    },
+    "Poison": {
+      "Poison": 100
+    },
+    "Spirit": {
+      "Spirit": 100
+    },
+    "Dark": {
+      "Dark": 100
+    },
+    "Light": {
+      "Light": 100
+    },
+    "Blood": {
+      "Blood": 100
+    },
+    "Fire+Water": {
+      "Steam": 70,
+      "Fire": 15,
+      "Water": 15
+    },
+    "Earth+Fire": {
+      "Lava": 70,
+      "Fire": 15,
+      "Earth": 15
+    },
+    "Earth+Water": {
+      "Mud": 70,
+      "Water": 15,
+      "Earth": 15
+    },
+    "Air+Water": {
+      "Ice": 70,
+      "Air": 15,
+      "Water": 15
+    },
+    "Air+Earth": {
+      "Dust": 70,
+      "Air": 15,
+      "Earth": 15
+    },
+    "Air+Fire": {
+      "Lightning": 70,
+      "Air": 15,
+      "Fire": 15
+    },
+    "Fire+Ice": {
+      "Water": 70,
+      "Fire": 15,
+      "Ice": 15
+    },
+    "Crystal+Spirit": {
+      "Light": 60,
+      "Crystal": 20,
+      "Spirit": 20
+    },
+    "Poison+Spirit": {
+      "Dark": 60,
+      "Poison": 20,
+      "Spirit": 20
+    },
+    "Dark+Light": {
+      "Blood": 20,
+      "Light": 40,
+      "Dark": 40
+    },
+    "Lava+Water": {
+      "Poison": 70,
+      "Water": 15,
+      "Lava": 15
+    },
+    "Air+Poison": {
+      "Spirit": 60,
+      "Air": 20,
+      "Poison": 20
+    },
+    "Dark+Plant": {
+      "Poison": 60,
+      "Plant": 20,
+      "Dark": 20
+    },
+    "Earth+Lightning": {
+      "Crystal": 60,
+      "Earth": 20,
+      "Lightning": 20
+    },
+    "Spirit+Water": {
+      "Ice": 60,
+      "Spirit": 20,
+      "Water": 20
+    },
+    "Air+Spirit": {
+      "Lightning": 60,
+      "Spirit": 20,
+      "Air": 20
+    },
+    "Earth+Spirit": {
+      "Crystal": 60,
+      "Spirit": 20,
+      "Earth": 20
+    },
+    "Fire+Spirit": {
+      "Steam": 60,
+      "Spirit": 20,
+      "Fire": 20
+    }
+  }
+}

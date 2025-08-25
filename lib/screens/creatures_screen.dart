@@ -1,4 +1,7 @@
+import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/map_screen.dart';
+import 'package:alchemons/widgets/creature_dialog.dart';
+import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_providers.dart';
@@ -14,13 +17,13 @@ class CreaturesScreen extends StatefulWidget {
 class _CreaturesScreenState extends State<CreaturesScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _shimmerController;
-  String _selectedFilter = 'All';
-  String _selectedSort = 'Name';
+  String _selectedFilter = 'Catalogued';
+  String _selectedSort = 'Acquisition Order';
 
   final List<String> _filterOptions = [
     'All',
-    'Discovered',
-    'Undiscovered',
+    'Catalogued',
+    'Unknown',
     'Fire',
     'Water',
     'Earth',
@@ -33,26 +36,18 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     'Dust',
     'Crystal',
     'Plant',
-    'Storm',
-    'Magma',
     'Poison',
     'Spirit',
-    'Shadow',
+    'Dark',
     'Light',
     'Blood',
-    'Dream',
-    'Arcane',
-    'Chaos',
-    'Time',
-    'Void',
-    'Ascended',
   ];
 
   final List<String> _sortOptions = [
     'Name',
-    'Rarity',
+    'Classification',
     'Type',
-    'Discovery Order',
+    'Acquisition Order',
   ];
 
   @override
@@ -92,8 +87,8 @@ class _CreaturesScreenState extends State<CreaturesScreen>
                 end: Alignment.bottomCenter,
                 colors: [
                   Colors.blue.shade50,
+                  Colors.indigo.shade50,
                   Colors.purple.shade50,
-                  Colors.pink.shade50,
                 ],
               ),
             ),
@@ -101,7 +96,6 @@ class _CreaturesScreenState extends State<CreaturesScreen>
               child: Column(
                 children: [
                   _buildHeader(),
-
                   _buildFiltersAndSort(),
                   _buildStatsRow(gameState),
                   Expanded(child: _buildCreatureGrid(filteredCreatures)),
@@ -123,8 +117,8 @@ class _CreaturesScreenState extends State<CreaturesScreen>
             end: Alignment.bottomCenter,
             colors: [
               Colors.blue.shade50,
+              Colors.indigo.shade50,
               Colors.purple.shade50,
-              Colors.pink.shade50,
             ],
           ),
         ),
@@ -133,31 +127,31 @@ class _CreaturesScreenState extends State<CreaturesScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.purple.shade200,
-                      blurRadius: 20,
-                      spreadRadius: 5,
+                      color: Colors.indigo.shade100,
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: CircularProgressIndicator(
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.purple.shade300,
+                    Colors.indigo.shade600,
                   ),
                   strokeWidth: 3,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               Text(
-                'Loading creature collection...',
+                'Loading specimen database...',
                 style: TextStyle(
-                  color: Colors.purple.shade600,
-                  fontSize: 16,
+                  color: Colors.indigo.shade700,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -177,23 +171,23 @@ class _CreaturesScreenState extends State<CreaturesScreen>
             end: Alignment.bottomCenter,
             colors: [
               Colors.blue.shade50,
+              Colors.indigo.shade50,
               Colors.purple.shade50,
-              Colors.pink.shade50,
             ],
           ),
         ),
         child: Center(
           child: Container(
-            padding: const EdgeInsets.all(30),
+            padding: const EdgeInsets.all(24),
             margin: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.95),
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.pink.shade200,
-                  blurRadius: 20,
-                  spreadRadius: 5,
+                  color: Colors.red.shade100,
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -201,50 +195,50 @@ class _CreaturesScreenState extends State<CreaturesScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(15),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.pink.shade50,
-                    shape: BoxShape.circle,
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    Icons.sentiment_dissatisfied_rounded,
-                    color: Colors.pink.shade400,
-                    size: 48,
+                    Icons.error_outline_rounded,
+                    color: Colors.red.shade500,
+                    size: 32,
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Text(
-                  'Oops! Something went wrong',
+                  'Database Connection Error',
                   style: TextStyle(
-                    color: Colors.purple.shade700,
-                    fontSize: 18,
+                    color: Colors.red.shade700,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Text(
                   gameState.error!,
-                  style: TextStyle(color: Colors.purple.shade500, fontSize: 14),
+                  style: TextStyle(color: Colors.red.shade600, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => gameState.refresh(),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple.shade300,
+                    backgroundColor: Colors.indigo.shade600,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    elevation: 5,
+                    elevation: 2,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 30,
-                      vertical: 15,
+                      horizontal: 20,
+                      vertical: 10,
                     ),
                   ),
                   child: const Text(
-                    'Try Again',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    'Retry Connection',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
                   ),
                 ),
               ],
@@ -257,61 +251,69 @@ class _CreaturesScreenState extends State<CreaturesScreen>
 
   Widget _buildHeader() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.purple.shade100,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  color: Colors.purple.shade600,
-                  size: 24,
-                ),
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.indigo.shade200, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.shade100,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.indigo.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.indigo.shade600,
+                size: 20,
               ),
             ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                'Creature Collection',
-                style: TextStyle(
-                  color: Color(0xFF6B46C1),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Alchemon Database',
+                  style: TextStyle(
+                    color: Colors.indigo.shade800,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
+                Text(
+                  'Biological specimen cataloguing system',
+                  style: TextStyle(
+                    color: Colors.indigo.shade600,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
-
-            IconButton(
-              color: Colors.amber,
-              icon: const Icon(Icons.map_rounded),
-              onPressed: () {
-                Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => const MapScreen()));
-              },
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildFiltersAndSort() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
           Expanded(
@@ -323,7 +325,7 @@ class _CreaturesScreenState extends State<CreaturesScreen>
               Icons.filter_list_rounded,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: _buildDropdown(
               'Sort: $_selectedSort',
@@ -346,25 +348,27 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     IconData icon,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color.fromARGB(255, 255, 255, 255).withOpacity(0.9),
-            const Color.fromARGB(255, 235, 245, 255).withOpacity(0.9),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.purple.shade200, width: 2),
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.indigo.shade200, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.shade100.withOpacity(0.5),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selectedValue,
-          icon: Icon(icon, color: Colors.purple.shade500, size: 18),
+          icon: Icon(icon, color: Colors.indigo.shade600, size: 16),
           dropdownColor: Colors.white,
           style: TextStyle(
-            color: Colors.purple.shade700,
-            fontSize: 12,
+            color: Colors.indigo.shade700,
+            fontSize: 11,
             fontWeight: FontWeight.w600,
           ),
           onChanged: onChanged,
@@ -374,8 +378,8 @@ class _CreaturesScreenState extends State<CreaturesScreen>
               child: Text(
                 value,
                 style: TextStyle(
-                  color: Colors.purple.shade700,
-                  fontSize: 12,
+                  color: Colors.indigo.shade700,
+                  fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -392,25 +396,17 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     final percentage = total > 0 ? ((discovered / total) * 100).round() : 0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.9),
-            Colors.blue.shade50.withOpacity(0.9),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.blue.shade200, width: 2),
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.indigo.shade200, width: 2),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.shade200,
-            blurRadius: 10,
-            spreadRadius: 1,
-            offset: const Offset(0, 3),
+            color: Colors.indigo.shade100,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -418,17 +414,22 @@ class _CreaturesScreenState extends State<CreaturesScreen>
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _buildStatItem(
-            'Discovered',
+            'Catalogued',
             '$discovered',
-            Icons.visibility_rounded,
-            Colors.green,
+            Icons.inventory_rounded,
+            Colors.green.shade600,
           ),
-          _buildStatItem('Total', '$total', Icons.pets_rounded, Colors.blue),
           _buildStatItem(
-            'Complete',
+            'Total',
+            '$total',
+            Icons.biotech_rounded,
+            Colors.blue.shade600,
+          ),
+          _buildStatItem(
+            'Progress',
             '$percentage%',
-            Icons.star_rounded,
-            Colors.orange,
+            Icons.analytics_rounded,
+            Colors.orange.shade600,
           ),
         ],
       ),
@@ -444,27 +445,27 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: color, size: 20),
+          child: Icon(icon, color: color, size: 16),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Text(
           value,
           style: TextStyle(
-            color: Colors.purple.shade700,
-            fontSize: 16,
+            color: Colors.indigo.shade700,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
           ),
         ),
         Text(
           label,
           style: TextStyle(
-            color: Colors.purple.shade500,
-            fontSize: 10,
+            color: Colors.indigo.shade600,
+            fontSize: 9,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -474,14 +475,14 @@ class _CreaturesScreenState extends State<CreaturesScreen>
 
   Widget _buildCreatureGrid(List<Map<String, dynamic>> creatures) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GridView.builder(
         physics: const BouncingScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
-          childAspectRatio: 0.85,
-          crossAxisSpacing: 5,
-          mainAxisSpacing: 5,
+          childAspectRatio: 0.9,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
         ),
         itemCount: creatures.length,
         itemBuilder: (context, index) {
@@ -490,7 +491,13 @@ class _CreaturesScreenState extends State<CreaturesScreen>
           final isDiscovered = creatureData['player'].discovered == true;
 
           return GestureDetector(
-            onTap: () => _showCreatureDetails(creature, isDiscovered),
+            onTap: () {
+              if (isDiscovered) {
+                _showInstancesSheet(creature);
+              } else {
+                _showCreatureDetails(creature, isDiscovered);
+              }
+            },
             child: _buildCreatureCard(creature, isDiscovered),
           );
         },
@@ -501,7 +508,6 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   Widget _buildCreatureCard(Creature creature, bool isDiscovered) {
     return Consumer<GameStateNotifier>(
       builder: (context, gameState, child) {
-        // Get variants for this creature
         final variants = gameState.discoveredCreatures.where((data) {
           final variantCreature = data['creature'] as Creature;
           return variantCreature.rarity == 'Variant' &&
@@ -512,44 +518,47 @@ class _CreaturesScreenState extends State<CreaturesScreen>
           decoration: BoxDecoration(
             color: isDiscovered
                 ? Colors.white.withOpacity(0.95)
-                : Colors.grey.shade200.withOpacity(0.95),
-            borderRadius: BorderRadius.circular(20),
+                : Colors.grey.shade100.withOpacity(0.95),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isDiscovered
-                  ? _getTypeColor(creature.types.first).withOpacity(0.6)
+                  ? _getTypeColor(creature.types.first).withOpacity(0.5)
                   : Colors.grey.shade400,
               width: 2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: isDiscovered
+                    ? _getTypeColor(creature.types.first).withOpacity(0.1)
+                    : Colors.grey.shade200,
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Stack(
-            clipBehavior: Clip.none, // Allow overflow for the badge
+            clipBehavior: Clip.none,
             children: [
-              // Main content column
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Simple creature image (no swiping)
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.all(2.0), // Reduced from 12.0
+                      padding: const EdgeInsets.all(6),
                       child: isDiscovered
                           ? _buildCreatureImage(creature)
                           : _buildSilhouetteImage(creature),
                     ),
                   ),
-
-                  // Creature name
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                    ), // Reduced from 8
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(
-                      isDiscovered ? creature.name : '???',
+                      isDiscovered ? creature.name : 'Unknown',
                       style: TextStyle(
                         color: isDiscovered
-                            ? Colors.purple.shade700
+                            ? Colors.indigo.shade700
                             : Colors.grey.shade600,
-                        fontSize: 11, // Slightly smaller from 12
+                        fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),
                       textAlign: TextAlign.center,
@@ -557,55 +566,47 @@ class _CreaturesScreenState extends State<CreaturesScreen>
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-
-                  // Rarity indicator
                   Container(
-                    margin: const EdgeInsets.only(
-                      top: 4,
-                      bottom: 8,
-                    ), // Reduced margins
+                    margin: const EdgeInsets.only(top: 3, bottom: 6),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
+                      horizontal: 4,
                       vertical: 2,
-                    ), // Reduced padding
+                    ),
                     decoration: BoxDecoration(
                       color: isDiscovered
                           ? _getRarityColor(creature.rarity).withOpacity(0.8)
                           : Colors.grey.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      isDiscovered ? creature.rarity : '???',
+                      isDiscovered ? creature.rarity : 'Class ?',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 7, // Slightly smaller from 8
+                        fontSize: 7,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ],
               ),
-              // Variant count indicator positioned at the very edge
               if (variants.isNotEmpty && isDiscovered)
                 Positioned(
-                  top: -1, // Negative value to push it to the edge
-                  right: -1, // Negative value to push it to the edge
+                  top: -2,
+                  right: -2,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 3,
+                      horizontal: 4,
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors
-                          .amber
-                          .shade600, // Solid color instead of gradient
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white, width: 2),
+                      color: Colors.orange.shade600,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white, width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 3,
+                          offset: const Offset(0, 1),
                         ),
                       ],
                     ),
@@ -613,7 +614,7 @@ class _CreaturesScreenState extends State<CreaturesScreen>
                       '+${variants.length}',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 8,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -631,34 +632,29 @@ class _CreaturesScreenState extends State<CreaturesScreen>
       height: 100,
       width: 100,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: _getTypeColor(creature.types.first).withOpacity(0.3),
-            blurRadius: 5,
-            spreadRadius: 1,
+            color: _getTypeColor(creature.types.first).withOpacity(0.2),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(8),
         child: Image.asset(
           'assets/images/creatures/${creature.rarity.toLowerCase()}/${creature.id.toUpperCase()}_${creature.name.toLowerCase()}.png',
           fit: BoxFit.fitHeight,
           errorBuilder: (context, error, stackTrace) {
             return Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    _getTypeColor(creature.types.first).withOpacity(0.3),
-                    _getTypeColor(creature.types.first).withOpacity(0.1),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(15),
+                color: _getTypeColor(creature.types.first).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 _getTypeIcon(creature.types.first),
-                size: 40,
+                size: 32,
                 color: _getTypeColor(creature.types.first),
               ),
             );
@@ -673,11 +669,14 @@ class _CreaturesScreenState extends State<CreaturesScreen>
       animation: _shimmerController,
       builder: (context, child) {
         return Container(
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(15)),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Center(
             child: Icon(
               Icons.help_outline_rounded,
-              size: 40,
+              size: 32,
               color: Colors.grey.shade500,
             ),
           ),
@@ -687,10 +686,35 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   }
 
   void _showCreatureDetails(Creature creature, bool isDiscovered) {
-    showDialog(
+    CreatureDetailsDialog.show(context, creature, isDiscovered);
+  }
+
+  void _showInstancesSheet(Creature species) {
+    showModalBottomSheet(
       context: context,
-      builder: (context) =>
-          CreatureDetailsDialog(creature: creature, isDiscovered: isDiscovered),
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        return InstancesSheet(
+          species: species,
+          onTap: (inst) {
+            Navigator.of(context).pop();
+            _openDetailsForInstance(species, inst);
+          },
+        );
+      },
+    );
+  }
+
+  void _openDetailsForInstance(Creature species, CreatureInstance inst) {
+    CreatureDetailsDialog.show(
+      context,
+      species,
+      true,
+      instanceId: inst.instanceId,
     );
   }
 
@@ -704,9 +728,9 @@ class _CreaturesScreenState extends State<CreaturesScreen>
       switch (_selectedFilter) {
         case 'All':
           return true;
-        case 'Discovered':
+        case 'Catalogued':
           return isDiscovered;
-        case 'Undiscovered':
+        case 'Unknown':
           return !isDiscovered;
         default:
           return creature.types.contains(_selectedFilter);
@@ -720,13 +744,13 @@ class _CreaturesScreenState extends State<CreaturesScreen>
       switch (_selectedSort) {
         case 'Name':
           return creatureA.name.compareTo(creatureB.name);
-        case 'Rarity':
+        case 'Classification':
           return _getRarityOrder(
             creatureA.rarity,
           ).compareTo(_getRarityOrder(creatureB.rarity));
         case 'Type':
           return creatureA.types.first.compareTo(creatureB.types.first);
-        case 'Discovery Order':
+        case 'Acquisition Order':
           final discoveredA = a['player'].discovered == true;
           final discoveredB = b['player'].discovered == true;
           if (discoveredA && !discoveredB) return -1;
@@ -752,8 +776,6 @@ class _CreaturesScreenState extends State<CreaturesScreen>
         return 3;
       case 'legendary':
         return 4;
-      case 'ascended':
-        return 5;
       default:
         return 0;
     }
@@ -771,8 +793,6 @@ class _CreaturesScreenState extends State<CreaturesScreen>
         return Colors.purple.shade600;
       case 'legendary':
         return Colors.orange.shade600;
-      case 'ascended':
-        return Colors.pink.shade600;
       default:
         return Colors.purple.shade600;
     }
@@ -804,32 +824,16 @@ class _CreaturesScreenState extends State<CreaturesScreen>
         return Colors.purple.shade300;
       case 'Plant':
         return Colors.green.shade400;
-      case 'Storm':
-        return Colors.indigo.shade400;
-      case 'Magma':
-        return Colors.red.shade600;
       case 'Poison':
         return Colors.green.shade600;
       case 'Spirit':
         return Colors.teal.shade400;
-      case 'Shadow':
+      case 'Dark':
         return Colors.grey.shade700;
       case 'Light':
         return Colors.yellow.shade300;
       case 'Blood':
         return Colors.red.shade700;
-      case 'Dream':
-        return Colors.purple.shade200;
-      case 'Arcane':
-        return Colors.purple.shade400;
-      case 'Chaos':
-        return Colors.red.shade300;
-      case 'Time':
-        return Colors.blue.shade300;
-      case 'Void':
-        return Colors.grey.shade800;
-      case 'Ascended':
-        return Colors.amber.shade400;
       default:
         return Colors.purple.shade400;
     }
@@ -861,767 +865,16 @@ class _CreaturesScreenState extends State<CreaturesScreen>
         return Icons.diamond_rounded;
       case 'Plant':
         return Icons.eco_rounded;
-      case 'Storm':
-        return Icons.thunderstorm_rounded;
-      case 'Magma':
-        return Icons.whatshot_rounded;
       case 'Poison':
         return Icons.dangerous_rounded;
       case 'Spirit':
         return Icons.auto_awesome_rounded;
-      case 'Shadow':
+      case 'Dark':
         return Icons.nights_stay_rounded;
       case 'Light':
         return Icons.wb_sunny_rounded;
       case 'Blood':
         return Icons.bloodtype_rounded;
-      case 'Dream':
-        return Icons.bedtime_rounded;
-      case 'Arcane':
-        return Icons.auto_fix_high_rounded;
-      case 'Chaos':
-        return Icons.scatter_plot_rounded;
-      case 'Time':
-        return Icons.schedule_rounded;
-      case 'Void':
-        return Icons.blur_circular_rounded;
-      case 'Ascended':
-        return Icons.star_rounded;
-      default:
-        return Icons.pets_rounded;
-    }
-  }
-}
-
-class CreatureDetailsDialog extends StatefulWidget {
-  final Creature creature;
-  final bool isDiscovered;
-
-  const CreatureDetailsDialog({
-    super.key,
-    required this.creature,
-    required this.isDiscovered,
-  });
-
-  @override
-  State<CreatureDetailsDialog> createState() => _CreatureDetailsDialogState();
-}
-
-class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  int _currentImageIndex = 0;
-  late PageController _pageController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(
-      length: widget.isDiscovered ? 3 : 1,
-      vsync: this,
-    );
-    _pageController = PageController(viewportFraction: 1.0);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: EdgeInsets.all(10),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: MediaQuery.of(context).size.width * 1,
-        height: MediaQuery.of(context).size.height * 0.8,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withOpacity(0.95),
-              Colors.purple.shade50.withOpacity(0.95),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.purple.shade300, width: 3),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.purple.shade300,
-              blurRadius: 20,
-              spreadRadius: 5,
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            _buildDialogHeader(),
-            if (widget.isDiscovered) _buildTabBar(),
-            Expanded(
-              child: widget.isDiscovered
-                  ? TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildOverviewTab(),
-                        _buildStatsTab(),
-                        _buildDiscoveryTab(),
-                      ],
-                    )
-                  : _buildUnknownTab(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDialogHeader() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              widget.isDiscovered ? widget.creature.name : 'Unknown Creature',
-              style: TextStyle(
-                color: Colors.purple.shade700,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.purple.shade100,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.close_rounded,
-                color: Colors.purple.shade600,
-                size: 24,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabBar() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.shade200,
-            blurRadius: 10,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicator: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.purple.shade300, Colors.pink.shade300],
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerColor: Colors.transparent,
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.purple.shade400,
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-        tabs: const [
-          Tab(icon: Icon(Icons.info_rounded, size: 18), text: 'Overview'),
-          Tab(icon: Icon(Icons.bar_chart_rounded, size: 18), text: 'Stats'),
-          Tab(icon: Icon(Icons.history_rounded, size: 18), text: 'Discovery'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSwipeableCreatureDisplay(
-    List<Map<String, dynamic>> allVersions,
-  ) {
-    return Column(
-      children: [
-        // Main swipeable image area
-        Container(
-          height: 200,
-          width: 200,
-          child: Stack(
-            children: [
-              PageView.builder(
-                controller: _pageController,
-                itemCount: allVersions.length,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentImageIndex = index;
-                  });
-                },
-                itemBuilder: (context, index) {
-                  final versionData = allVersions[index];
-                  final creature = versionData['creature'] as Creature;
-                  final isVariant = versionData['isVariant'] as bool;
-
-                  return Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _getTypeColor(creature.types.first),
-                        width: 3,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(17),
-                      child: Stack(
-                        children: [
-                          // Creature image
-                          Image.asset(
-                            'assets/images/creatures/${creature.rarity.toLowerCase()}/${creature.id.toUpperCase()}_${creature.name.toLowerCase()}.gif',
-                            fit: BoxFit.cover,
-                            width: 200,
-                            height: 200,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      _getTypeColor(
-                                        creature.types.first,
-                                      ).withOpacity(0.3),
-                                      _getTypeColor(
-                                        creature.types.first,
-                                      ).withOpacity(0.1),
-                                    ],
-                                  ),
-                                ),
-                                child: Icon(
-                                  _getTypeIcon(creature.types.first),
-                                  size: 80,
-                                  color: _getTypeColor(creature.types.first),
-                                ),
-                              );
-                            },
-                          ),
-
-                          // Variant type indicator
-                          if (isVariant)
-                            Positioned(
-                              top: 10,
-                              right: 10,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      _getTypeColor(creature.types.last),
-                                      _getTypeColor(
-                                        creature.types.last,
-                                      ).withOpacity(0.8),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 2,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      _getTypeIcon(creature.types.last),
-                                      color: Colors.white,
-                                      size: 12,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      creature.types.last.toUpperCase(),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Current creature name and info
-        Text(
-          allVersions[_currentImageIndex]['creature'].name,
-          style: TextStyle(
-            color: Colors.purple.shade700,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-          textAlign: TextAlign.center,
-        ),
-
-        // Type display
-        Text(
-          allVersions[_currentImageIndex]['creature'].types.join(' + '),
-          style: TextStyle(
-            color: _getTypeColor(
-              allVersions[_currentImageIndex]['creature'].types.first,
-            ),
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-          textAlign: TextAlign.center,
-        ),
-
-        const SizedBox(height: 8),
-
-        // Page indicators (if more than one version)
-        if (allVersions.length > 1)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              allVersions.length,
-              (index) => GestureDetector(
-                onTap: () {
-                  _pageController.animateToPage(
-                    index,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                },
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _currentImageIndex == index
-                        ? Colors.purple.shade600
-                        : Colors.purple.shade300,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        // Swipe instruction (if variants exist)
-        if (allVersions.length > 1)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              '← Swipe to see variants →',
-              style: TextStyle(
-                color: Colors.purple.shade500,
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildOverviewTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          // Swipeable creature images (base + variants)
-          Consumer<GameStateNotifier>(
-            builder: (context, gameState, child) {
-              // Get variants for this creature
-              final variants = gameState.discoveredCreatures.where((data) {
-                final creature = data['creature'] as Creature;
-                return creature.rarity == 'Variant' &&
-                    creature.id.startsWith('${widget.creature.id}_');
-              }).toList();
-
-              // Create list of all versions (base + variants)
-              final allVersions = [
-                {'creature': widget.creature, 'isVariant': false},
-                ...variants.map(
-                  (v) => {'creature': v['creature'], 'isVariant': true},
-                ),
-              ];
-
-              return _buildSwipeableCreatureDisplay(allVersions);
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          // Creature info
-          _buildInfoCard(
-            'Types',
-            widget.creature.types.join(', '),
-            Icons.category_rounded,
-          ),
-          _buildInfoCard('Rarity', widget.creature.rarity, Icons.star_rounded),
-          if (widget.creature.description.isNotEmpty)
-            _buildInfoCard(
-              'Description',
-              widget.creature.description,
-              Icons.description_rounded,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsTab() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          _buildStatRow('Breeding Tier', '${widget.creature.rarity}'),
-          if (widget.creature.specialBreeding != null)
-            _buildInfoCard(
-              'Special Breeding',
-              widget.creature.specialBreeding!.requiredParentNames.join(', '),
-              Icons.science_rounded,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDiscoveryTab() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.purple.shade50,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.celebration_rounded,
-              color: Colors.purple.shade400,
-              size: 64,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Discovery Method',
-            style: TextStyle(
-              color: Colors.purple.shade700,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'This adorable creature was discovered through your magical adventures!',
-            style: TextStyle(
-              color: Colors.purple.shade500,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUnknownTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.help_outline_rounded,
-              color: Colors.grey.shade500,
-              size: 64,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Unknown Creature',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Discover this creature through\nbreeding or exploration!',
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoCard(String title, String content, IconData icon) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.9),
-            Colors.purple.shade50.withOpacity(0.9),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.purple.shade200, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.shade100,
-            blurRadius: 5,
-            spreadRadius: 1,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.purple.shade100,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: Colors.purple.shade600, size: 16),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: TextStyle(
-                  color: Colors.purple.shade700,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            content,
-            style: TextStyle(
-              color: Colors.purple.shade600,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatRow(String label, String value) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.9),
-            Colors.purple.shade50.withOpacity(0.9),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.purple.shade200, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.shade100,
-            blurRadius: 5,
-            spreadRadius: 1,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.purple.shade700,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.purple.shade600,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getTypeColor(String type) {
-    switch (type) {
-      case 'Fire':
-        return Colors.red.shade400;
-      case 'Water':
-        return Colors.blue.shade400;
-      case 'Earth':
-        return Colors.brown.shade400;
-      case 'Air':
-        return Colors.cyan.shade400;
-      case 'Steam':
-        return Colors.grey.shade400;
-      case 'Lava':
-        return Colors.deepOrange.shade400;
-      case 'Lightning':
-        return Colors.yellow.shade600;
-      case 'Mud':
-        return Colors.brown.shade300;
-      case 'Ice':
-        return Colors.lightBlue.shade400;
-      case 'Dust':
-        return Colors.brown.shade200;
-      case 'Crystal':
-        return Colors.purple.shade300;
-      case 'Plant':
-        return Colors.green.shade400;
-      case 'Storm':
-        return Colors.indigo.shade400;
-      case 'Magma':
-        return Colors.red.shade600;
-      case 'Poison':
-        return Colors.green.shade600;
-      case 'Spirit':
-        return Colors.teal.shade400;
-      case 'Shadow':
-        return Colors.grey.shade700;
-      case 'Light':
-        return Colors.yellow.shade300;
-      case 'Blood':
-        return Colors.red.shade700;
-      case 'Dream':
-        return Colors.purple.shade200;
-      case 'Arcane':
-        return Colors.purple.shade400;
-      case 'Chaos':
-        return Colors.red.shade300;
-      case 'Time':
-        return Colors.blue.shade300;
-      case 'Void':
-        return Colors.grey.shade800;
-      case 'Ascended':
-        return Colors.amber.shade400;
-      default:
-        return Colors.purple.shade400;
-    }
-  }
-
-  IconData _getTypeIcon(String type) {
-    switch (type) {
-      case 'Fire':
-        return Icons.local_fire_department_rounded;
-      case 'Water':
-        return Icons.water_drop_rounded;
-      case 'Earth':
-        return Icons.terrain_rounded;
-      case 'Air':
-        return Icons.air_rounded;
-      case 'Steam':
-        return Icons.cloud_rounded;
-      case 'Lava':
-        return Icons.volcano_rounded;
-      case 'Lightning':
-        return Icons.flash_on_rounded;
-      case 'Mud':
-        return Icons.layers_rounded;
-      case 'Ice':
-        return Icons.ac_unit_rounded;
-      case 'Dust':
-        return Icons.grain_rounded;
-      case 'Crystal':
-        return Icons.diamond_rounded;
-      case 'Plant':
-        return Icons.eco_rounded;
-      case 'Storm':
-        return Icons.thunderstorm_rounded;
-      case 'Magma':
-        return Icons.whatshot_rounded;
-      case 'Poison':
-        return Icons.dangerous_rounded;
-      case 'Spirit':
-        return Icons.auto_awesome_rounded;
-      case 'Shadow':
-        return Icons.nights_stay_rounded;
-      case 'Light':
-        return Icons.wb_sunny_rounded;
-      case 'Blood':
-        return Icons.bloodtype_rounded;
-      case 'Dream':
-        return Icons.bedtime_rounded;
-      case 'Arcane':
-        return Icons.auto_fix_high_rounded;
-      case 'Chaos':
-        return Icons.scatter_plot_rounded;
-      case 'Time':
-        return Icons.schedule_rounded;
-      case 'Void':
-        return Icons.blur_circular_rounded;
-      case 'Ascended':
-        return Icons.star_rounded;
       default:
         return Icons.pets_rounded;
     }

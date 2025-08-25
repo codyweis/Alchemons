@@ -1,0 +1,74 @@
+{
+  "natures": [
+    {
+      "id": "Metabolic",
+      "dominance": 1,
+      "effect": { "stamina_extra": 1 }
+    },
+    {
+      "id": "Reproductive",
+      "dominance": 1,
+      "effect": { "stamina_breeding_cost_mult": 0.5 }
+    },
+    {
+      "id": "Ecophysiological",
+      "dominance": 1,
+      "effect": { "stamina_wilderness_drain_mult": 0.75 }
+    },
+    {
+      "id": "Sympatric",
+      "dominance": 1,
+      "effect": { "breed_same_species_chance_mult": 0.70 }
+    },
+    {
+      "id": "Conspecific",
+      "dominance": 1,
+      "effect": { "breed_same_species_chance_mult": 1.30 }
+    },
+    {
+      "id": "Homotypic",
+      "dominance": 1,
+      "effect": { "breed_same_type_chance_mult": 1.25 }
+    },
+    {
+      "id": "Heterotypic",
+      "dominance": 1,
+      "effect": { "breed_same_type_chance_mult": 0.75 }
+    },
+    {
+      "id": "Precocial",
+      "dominance": 1,
+      "effect": { "egg_hatch_time_mult": 0.80 }
+    },
+    {
+      "id": "Neuroadaptive",
+      "dominance": 1,
+      "effect": { "xp_gain_mult": 1.15 }
+    },
+    {
+      "id": "Homeostatic",
+      "dominance": 2,
+      "effect": {}
+    },
+    {
+      "id": "Placidal",
+      "dominance": 2,
+      "effect": {}
+    },
+    {
+      "id": "Dormant",
+      "dominance": 2,
+      "effect": {}
+    },
+    {
+      "id": "Apathetic",
+      "dominance": 2,
+      "effect": {}
+    },
+    {
+      "id": "Nullic",
+      "dominance": 2,
+      "effect": {}
+    }
+  ]
+}

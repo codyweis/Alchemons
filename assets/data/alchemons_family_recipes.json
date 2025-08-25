@@ -1,0 +1,19 @@
+{
+  "recipes": {
+    "let+let":   { "back": 20, "let": 80 },
+
+    "back+let":  { "mane": 80, "back": 10, "let": 10 },
+    "back+back": { "mane": 30, "back": 70 },
+    "back+pip":  { "back": 20, "pip": 20, "claw": 60 },
+
+    "claw+let":  { "pip": 60, "claw": 20, "let": 20 },
+
+    "mane+let":  { "pip": 70, "mane": 30 },
+    "mane+back": { "horn": 70, "mane": 30 },
+    "mane+mane": { "horn": 10, "pip": 10, "mane": 80 },
+
+    "horn+mane": { "crest": 50, "horn": 25, "mane": 25 },
+    
+    "crest+mane": { "wing": 50, "crest": 25, "mane": 25 }
+  }
+}

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:drift/drift.dart';
 import 'package:flutter/services.dart';
 import '../models/creature.dart';
 import '../database/alchemons_db.dart';
@@ -123,5 +124,30 @@ class CreatureRepository {
     if (db != null) {
       await _loadDiscoveredVariants();
     }
+  }
+}
+
+extension NatureRepo on CreatureRepository {
+  // wire to DB
+  Future<String?> getNatureFor(String creatureId) async {
+    final db = dbOrThrow();
+    final row = await db.getCreature(creatureId);
+    return row?.natureId;
+  }
+
+  Future<void> setNatureFor(String creatureId, String natureId) async {
+    final db = dbOrThrow();
+    await db.addOrUpdateCreature(
+      PlayerCreaturesCompanion(
+        id: Value(creatureId),
+        discovered: const Value(true),
+        natureId: Value(natureId),
+      ),
+    );
+  }
+
+  AlchemonsDatabase dbOrThrow() {
+    if (db == null) throw Exception('DB not attached to CreatureRepository');
+    return db!;
   }
 }

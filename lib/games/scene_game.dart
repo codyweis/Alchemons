@@ -1,21 +1,55 @@
 import 'dart:math';
+import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/genetics.dart';
+import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
-import 'package:alchemons/models/trophy_slot.dart';
+import 'package:alchemons/services/encounter_service.dart';
+import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
-class SceneGame extends FlameGame with ScaleDetector {
-  bool _initialized = false;
+/// Resolve a Flame SpriteAnimationComponent for a species,
+/// sized to `desiredSize`. Return null to fall back to a blob.
+typedef SpeciesSpriteResolver =
+    Future<SpriteAnimationComponent?> Function(
+      String speciesId,
+      Vector2 desiredSize,
+    );
 
-  void Function(TrophySlot slot)? onShowDetails;
+/// Resolve a fully hydrated Creature (genes/nature/prismatic) for a spawn.
+typedef WildVisualResolver =
+    Future<Creature?> Function(String speciesId, EncounterRarity rarity);
+
+class SceneGame extends FlameGame with ScaleDetector {
+  SceneGame({required this.scene});
+
   final SceneDefinition scene;
   final CameraComponent cam = CameraComponent();
 
+  // Injected at runtime
+  EncounterService? encounters;
+  void attachEncounters(EncounterService svc) => encounters = svc;
+
+  SpeciesSpriteResolver? speciesSpriteResolver;
+  WildVisualResolver? wildVisualResolver;
+  void Function(EncounterRoll roll)? onEncounter;
+  void Function(String speciesId, Creature? hydrated)? onStartEncounter;
+
+  // Internal
+  bool _initialized = false;
+  final Random _rng = Random();
+
   final Map<SceneLayer, _FiniteLayer> _layers = {};
   final PositionComponent layersRoot = PositionComponent()..priority = -200;
+
+  // Spawn-point anchors (id -> tiny component we can position at)
+  final Map<String, PositionComponent> _spawnPointComps = {};
+
+  // Active wild mon (at most one)
+  WildMonComponent? _activeWild;
 
   // Camera state
   double _cameraX = 0;
@@ -36,28 +70,16 @@ class SceneGame extends FlameGame with ScaleDetector {
   // Viewport height in root space
   double _Vh = 0;
 
-  final Map<String, TrophyComponent> _slotComps = {};
-
-  SceneGame({required this.scene});
-
   @override
   Future<void> onLoad() async {
-    print("we here");
-    // Load all layer and slot images
-    await images.loadAll(
-      {
-        ...scene.layers.map((l) => l.imagePath),
-        ...scene.slots
-            .where((s) => s.spritePath != null)
-            .map((s) => s.spritePath!),
-      }.toList(),
-    );
+    // Load only layer images now (trophies removed)
+    await images.loadAll(scene.layers.map((l) => l.imagePath).toList());
 
     final world = World()..priority = 0;
     add(world);
     world.add(layersRoot);
 
-    // Build layers
+    // Build parallax layers
     for (final layerDef in scene.layers) {
       final sprite = Sprite(images.fromCache(layerDef.imagePath));
       final layer = _FiniteLayer(
@@ -84,15 +106,76 @@ class SceneGame extends FlameGame with ScaleDetector {
     _recomputeMaxCamBounds();
 
     _initialized = true;
-
     _cameraX = 0;
     _cameraY = 0;
 
-    _addTrophySlots();
+    _addSpawnPoints();
 
     cam.viewfinder.position = Vector2(size.x / 2, size.y / 2);
     _applyCamera();
     _updateParallaxLayers();
+
+    _spawnOneWildInstant();
+  }
+
+  // -------- Spawns --------
+  void _addSpawnPoints() {
+    for (final p in scene.spawnPoints) {
+      if (!p.enabled) continue;
+      final layer = _layers[p.anchor];
+      if (layer == null) continue;
+
+      final baseW = layer.tileWidth > 0 ? layer.tileWidth : scene.worldWidth;
+      final x = p.normalizedPos.dx * baseW;
+      final y = p.normalizedPos.dy * _Vh;
+
+      final anchor = PositionComponent(
+        position: Vector2(x, y),
+        size: Vector2.all(1), // just a marker
+        priority: 10,
+        anchor: Anchor.center,
+      );
+
+      layer.container.add(anchor);
+      _spawnPointComps[p.id] = anchor;
+    }
+  }
+
+  void _spawnOneWildInstant() async {
+    final svc = encounters;
+    if (svc == null || scene.spawnPoints.isEmpty) return;
+
+    final sp = scene.spawnPoints[_rng.nextInt(scene.spawnPoints.length)];
+    final roll = svc.roll(spawnId: sp.id);
+    onEncounter?.call(roll);
+
+    final anchor = _spawnPointComps[sp.id];
+    if (anchor == null) return;
+
+    Creature? hydrated;
+    if (wildVisualResolver != null) {
+      hydrated = await wildVisualResolver!(roll.speciesId, roll.rarity);
+    }
+
+    _activeWild?.removeFromParent();
+    _activeWild =
+        WildMonComponent(
+            hydrated: hydrated,
+            speciesId: roll.speciesId,
+            rarityLabel: roll.rarity.name,
+            desiredSize: Vector2(100, 100),
+            onTap: () => onStartEncounter?.call(roll.speciesId, hydrated),
+            resolver: speciesSpriteResolver,
+          )
+          ..anchor = Anchor.center
+          ..position = Vector2.zero(); // ⟵ centered on the anchor
+    // ⟵ attach to the anchor, not the layer container
+    anchor.add(_activeWild!);
+  }
+
+  void clearWild() {
+    _activeWild?.removeFromParent();
+    _activeWild = null;
   }
 
   // ---------- Gesture Handling ----------
@@ -107,11 +190,9 @@ class SceneGame extends FlameGame with ScaleDetector {
     final globalScale = info.scale.global.x;
     _targetZoom = (start * globalScale).clamp(minZoom, maxZoom);
 
-    // Adjust scroll sensitivity dynamically
     final zoomFactor = cam.viewfinder.zoom;
     final effectiveScroll = scrollSensitivity * zoomFactor;
 
-    // Horizontal pan
     final dx = info.delta.global.x;
     if (dx != 0) {
       _cameraX = (_cameraX - (dx / zoomFactor) * effectiveScroll).clamp(
@@ -120,7 +201,6 @@ class SceneGame extends FlameGame with ScaleDetector {
       );
     }
 
-    // Vertical pan only when zoomed in
     if (_targetZoom > minZoom) {
       final dy = info.delta.global.y;
       if (dy != 0) {
@@ -194,7 +274,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     for (final l in _layers.values) {
       buildForLayer(l);
     }
-    _repositionSlots();
+    _repositionSpawnPoints();
   }
 
   void _recomputeMaxCamBounds() {
@@ -214,13 +294,13 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     for (final ld in scene.layers) {
       final fl = _layers[ld.id];
-      if (fl == null) continue; // not built yet (first resize before onLoad)
+      if (fl == null) continue;
       limits.add(layerMaxCamX(fl, ld.parallaxFactor));
     }
 
     _maxCamX = limits.isEmpty ? 0.0 : limits.reduce(min);
 
-    final contentHeight = (_Vh == 0) ? size.y : _Vh; // safe default pre-onLoad
+    final contentHeight = (_Vh == 0) ? size.y : _Vh;
     _maxCamY = max(0.0, contentHeight - Vh);
   }
 
@@ -241,155 +321,213 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
   }
 
-  // ---------- Slots ----------
-  void _addTrophySlots() {
-    for (final slot in scene.slots) {
-      final layer = _layers[slot.anchor];
-      if (layer == null) continue;
-
-      // position against the base art width, not the entire tiled strip
-      final baseW = layer.tileWidth > 0 ? layer.tileWidth : scene.worldWidth;
-      final x = slot.normalizedPos.dx * baseW;
-      final y = slot.normalizedPos.dy * _Vh;
-
-      final sizeVec = (slot.frameWidth != null && slot.frameHeight != null)
-          ? Vector2(slot.frameWidth!, slot.frameHeight!)
-          : Vector2.all(
-              (min(size.x, size.y) * 0.12).clamp(72.0, 144.0).toDouble(),
-            );
-
-      final comp = TrophyComponent(
-        slot: slot,
-        parallaxFactor: scene.layers
-            .firstWhere((l) => l.id == slot.anchor)
-            .parallaxFactor,
-        position: Vector2(x, y),
-        size: sizeVec,
-        onTapUnlocked: () => onShowDetails?.call(slot),
-        onTapLocked: () => onShowDetails?.call(slot),
-      );
-
-      layer.container.add(comp);
-      _slotComps[slot.id] = comp;
-    }
-  }
-
-  void _repositionSlots() {
-    for (final slot in scene.slots) {
-      final layer = _layers[slot.anchor];
-      final comp = _slotComps[slot.id];
+  void _repositionSpawnPoints() {
+    for (final p in scene.spawnPoints) {
+      final layer = _layers[p.anchor];
+      final comp = _spawnPointComps[p.id];
       if (layer == null || comp == null) continue;
 
       final baseW = layer.tileWidth > 0 ? layer.tileWidth : scene.worldWidth;
-      final x = slot.normalizedPos.dx * baseW;
-      final y = slot.normalizedPos.dy * _Vh;
+      final x = p.normalizedPos.dx * baseW;
+      final y = p.normalizedPos.dy * _Vh;
       comp.position.setValues(x, y);
     }
   }
 }
 
-// --- Trophy Component (spritesheet lives at spritePath; cols/rows REQUIRED) ---
-class TrophyComponent extends PositionComponent
+// ------------------------------------------------------------
+// WildMonComponent: shows a single wild mon at a spawn point.
+// If a hydrated Creature is provided, builds animation from it;
+// else asks resolver; else draws a blob.
+// ------------------------------------------------------------
+class WildMonComponent extends PositionComponent
     with TapCallbacks, HasGameRef<SceneGame> {
-  final TrophySlot slot;
-  final VoidCallback onTapUnlocked;
-  final VoidCallback onTapLocked;
-  final double parallaxFactor;
+  final String speciesId;
+  final String rarityLabel;
+  final VoidCallback onTap;
+  final Vector2 desiredSize;
 
-  TrophyComponent({
-    required this.slot,
-    required this.onTapUnlocked,
-    required this.onTapLocked,
-    required this.parallaxFactor,
-    required super.position,
-    required Vector2 size,
-  }) : super(anchor: Anchor.center, priority: 10) {
-    this.size = size;
-  }
+  final Creature? hydrated; // hydrated visual state
+  final SpeciesSpriteResolver? resolver;
+
+  WildMonComponent({
+    required this.speciesId,
+    required this.rarityLabel,
+    required this.onTap,
+    required this.desiredSize,
+    this.hydrated,
+    this.resolver,
+    Vector2? position,
+  }) : super(
+         position: position ?? Vector2.zero(),
+         anchor: Anchor.center,
+         priority: 20,
+       );
 
   @override
   Future<void> onLoad() async {
-    if (slot.spritePath == null) return;
-    final image = gameRef.images.fromCache(slot.spritePath!);
+    size = desiredSize;
 
-    final cols = slot.sheetColumns ?? 1;
-    final rows = slot.sheetRows ?? 1;
-    final fw = image.width / cols;
-    final fh = image.height / rows;
+    // 1) Hydrated Creature → build from spriteData (scales by size gene)
+    if (hydrated?.spriteData != null) {
+      final sd = hydrated!.spriteData!;
+      final scale = () {
+        switch (hydrated!.genetics?.get('size')) {
+          case 'tiny':
+            return 0.75;
+          case 'small':
+            return 0.90;
+          case 'large':
+            return 1.15;
+          case 'giant':
+            return 1.30;
+          default:
+            return 1.0;
+        }
+      }();
 
-    // --- Scaling logic ---
-    double scaleFactor;
-    if (size.x > 0 && size.y > 0) {
-      // Use width as reference for scale, so height matches proportionally
-      scaleFactor = size.x / fw;
-    } else {
-      scaleFactor = 1.0; // natural size
-    }
+      final hue = () {
+        switch (hydrated!.genetics?.get('tinting')) {
+          case 'warm':
+            return 15.0;
+          case 'cool':
+            return -15.0;
+          default:
+            return 0.0;
+        }
+      }();
 
-    final finalSize = Vector2(fw * scaleFactor, fh * scaleFactor);
-    final center = finalSize / 2;
+      final sat = () {
+        switch (hydrated!.genetics?.get('tinting')) {
+          case 'warm':
+          case 'cool':
+            return 1.1;
+          case 'vibrant':
+            return 1.4;
+          case 'pale':
+            return 0.6;
+          default:
+            return 1.0;
+        }
+      }();
 
-    if (slot.isUnlocked) {
-      final data = SpriteAnimationData.sequenced(
-        amount: cols * rows,
-        amountPerRow: cols,
-        textureSize: Vector2(fw, fh),
-        stepTime: slot.stepTime ?? 0.12,
-        loop: true,
-      );
+      final bri = () {
+        switch (hydrated!.genetics?.get('tinting')) {
+          case 'warm':
+          case 'cool':
+            return 1.05;
+          case 'vibrant':
+            return 1.1;
+          case 'pale':
+            return 1.2;
+          default:
+            return 1.0;
+        }
+      }();
 
       add(
-        SpriteAnimationComponent.fromFrameData(image, data)
+        CreatureSpriteComponent(
+            spritePath: sd.spriteSheetPath,
+            totalFrames: sd.totalFrames,
+            rows: sd.rows,
+            frameSize: Vector2(
+              sd.frameWidth.toDouble(),
+              sd.frameHeight.toDouble(),
+            ),
+            stepTime: sd.frameDurationMs / 1000.0,
+            scaleFactor: scale,
+            saturation: sat,
+            brightness: bri,
+            baseHueShift: hue,
+            isPrismatic: hydrated!.isPrismaticSkin == true,
+            desiredSize: size, // keep same bounding box you already picked
+          )
           ..anchor = Anchor.center
-          ..position = center
-          ..size = finalSize
-          ..priority = 10,
+          ..position = size / 2,
       );
-    } else {
-      add(
-        SpriteComponent(
-          sprite: Sprite(
-            image,
-            srcPosition: Vector2.zero(),
-            srcSize: Vector2(fw, fh),
-          ),
-          anchor: Anchor.center,
-          position: center,
-          size: finalSize,
-          priority: 10,
-        )..paint = (Paint()..color = Colors.white.withOpacity(0.6)),
-      );
+      _addTapPulse();
+      return;
     }
+
+    // 2) Try resolver (species → SpriteAnimationComponent)
+    if (resolver != null) {
+      final comp = await resolver!.call(speciesId, size);
+      if (comp != null) {
+        comp
+          ..anchor = Anchor.center
+          ..position = size / 2
+          ..priority = 20;
+        add(comp);
+        _addTapPulse();
+        return;
+      }
+    }
+
+    // 3) Fallback: simple blob + label
+    final circle = CircleComponent(
+      radius: size.x * 0.4,
+      anchor: Anchor.center,
+      position: size / 2,
+      paint: Paint()..color = Colors.amber.withOpacity(0.9),
+      priority: 20,
+    );
+    add(circle);
+    add(
+      TextComponent(
+        text: speciesId,
+        anchor: Anchor.center,
+        position: size / 2,
+        priority: 21,
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+    _addTapPulse();
+  }
+
+  // Size-only mapping (same values you use in the widget side)
+  double _scaleFromGenes(Genetics? g) {
+    switch (g?.get('size')) {
+      case 'tiny':
+        return 0.75;
+      case 'small':
+        return 0.9;
+      case 'large':
+        return 1.15;
+      case 'giant':
+        return 1.3;
+      default:
+        return 1.0;
+    }
+  }
+
+  void _addTapPulse() {
+    add(
+      ScaleEffect.to(
+        Vector2.all(1.05),
+        EffectController(
+          duration: 0.5,
+          reverseDuration: 0.5,
+          infinite: true,
+          curve: Curves.easeInOut,
+          alternate: true,
+        ),
+      ),
+    );
   }
 
   @override
-  void onTapDown(TapDownEvent event) {
-    slot.isUnlocked ? onTapUnlocked() : onTapLocked();
-
-    add(
-      ScaleEffect.to(
-        Vector2.all(1.2),
-        EffectController(duration: 0.1, reverseDuration: 0.1),
-      ),
-    );
-
-    // Smooth camera nudge toward this slot
-    final screenW = gameRef.size.x;
-    final slotX = position.x; // local-in-layer X
-    final desiredCameraX = (slotX - screenW / 2) / (1 + parallaxFactor);
-    final clamped = desiredCameraX.clamp(0.0, gameRef._maxCamX);
-    gameRef._cameraX = clamped.toDouble();
-
-    // Center using game update's parallax sync
-    gameRef.cam.viewfinder.add(
-      MoveEffect.to(
-        Vector2(gameRef._cameraX + (gameRef.size.x / 2), gameRef.size.y / 2),
-        EffectController(duration: 0.5, curve: Curves.easeOut),
-      ),
-    );
-  }
+  void onTapDown(TapDownEvent event) => onTap();
 }
 
+// ------------------------------------------------------------
+// Minimal finite parallax layer helper (unchanged).
+// ------------------------------------------------------------
 class _FiniteLayer {
   _FiniteLayer(
     this.parent,
@@ -421,10 +559,7 @@ class _FiniteLayer {
     }
 
     _tileSize = tileSize;
-
-    if (!container.isMounted) {
-      parent.add(container);
-    }
+    if (!container.isMounted) parent.add(container);
 
     while (_tiles.length < tilesNeeded) {
       final tile = SpriteComponent(

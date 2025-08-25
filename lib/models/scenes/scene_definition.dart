@@ -1,4 +1,5 @@
-import 'package:alchemons/models/trophy_slot.dart';
+// lib/models/scenes/scene_definition.dart
+import 'package:alchemons/models/scenes/spawn_point.dart';
 
 enum SceneLayer { layer1, layer2, layer3, layer4, layer5 }
 
@@ -6,14 +7,28 @@ class SceneDefinition {
   final double worldWidth;
   final double worldHeight;
   final List<LayerDefinition> layers;
-  final List<TrophySlot> slots;
+  final List<SpawnPoint> spawnPoints; // ← only this
 
-  SceneDefinition({
+  const SceneDefinition({
     required this.worldWidth,
     required this.worldHeight,
     required this.layers,
-    required this.slots,
+    this.spawnPoints = const [],
   });
+
+  SceneDefinition copyWith({
+    double? worldWidth,
+    double? worldHeight,
+    List<LayerDefinition>? layers,
+    List<SpawnPoint>? spawnPoints,
+  }) {
+    return SceneDefinition(
+      worldWidth: worldWidth ?? this.worldWidth,
+      worldHeight: worldHeight ?? this.worldHeight,
+      layers: layers ?? this.layers,
+      spawnPoints: spawnPoints ?? this.spawnPoints,
+    );
+  }
 }
 
 class LayerDefinition {
@@ -22,21 +37,10 @@ class LayerDefinition {
   final double parallaxFactor;
   final double widthMul;
 
-  LayerDefinition({
+  const LayerDefinition({
     required this.id,
     required this.imagePath,
     required this.parallaxFactor,
     this.widthMul = 1.0,
   });
-}
-
-extension SceneDefinitionCopy on SceneDefinition {
-  SceneDefinition copyWith({List<TrophySlot>? slots}) {
-    return SceneDefinition(
-      worldWidth: worldWidth,
-      worldHeight: worldHeight,
-      layers: layers,
-      slots: slots ?? this.slots,
-    );
-  }
 }

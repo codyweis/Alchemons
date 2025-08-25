@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:alchemons/models/scenes/scene_definition.dart';
-import 'package:alchemons/models/trophy_slot.dart';
+import 'package:alchemons/models/scenes/spawn_point.dart';
 
 final valleyScene = SceneDefinition(
   worldWidth: 1000,
@@ -38,34 +38,16 @@ final valleyScene = SceneDefinition(
       widthMul: 1.0,
     ),
   ],
-  slots: [
-    TrophySlot(
-      id: 'CR045',
-      normalizedPos: const Offset(0.4, 0.65),
-      isUnlocked: true,
-      spritePath: 'creatures/rare/CR045_lightmane_spritesheet.png',
-      displayName: 'LightMane',
-      rarity: 'Rare',
+  spawnPoints: const [
+    SpawnPoint(
+      id: 'SP_valley_01',
+      normalizedPos: Offset(0.40, 0.65),
       anchor: SceneLayer.layer3,
-      frameWidth: 35,
-      frameHeight: 35,
-      sheetColumns: 2,
-      sheetRows: 2,
-      imagePath: 'creatures/rare/CR045_lightmane.png',
     ),
-    TrophySlot(
-      id: 'CR046',
-      normalizedPos: const Offset(0.58, 0.8),
-      isUnlocked: true,
-      spritePath: 'creatures/rare/CR046_darkmane_spritesheet.png',
-      displayName: 'DarkMane',
-      rarity: 'Rare',
+    SpawnPoint(
+      id: 'SP_valley_02',
+      normalizedPos: Offset(0.58, 0.80),
       anchor: SceneLayer.layer4,
-      frameWidth: 80,
-      frameHeight: 80,
-      sheetColumns: 2,
-      sheetRows: 3,
-      imagePath: 'creatures/rare/CR046_darkmane.png',
     ),
   ],
 );

@@ -1,0 +1,14 @@
+{
+  "guaranteedPairs": {
+    "MAN11+WNG16": [ { "resultId": "CRE16", "chance": 100 } ],
+    "HOR06+CLA07": [
+      { "resultId": "MAN07", "chance": 30 },
+      { "resultId": "PIP07", "chance": 20 }
+    ]
+  },
+  "requiredTypesByCreatureId": {
+    "CRE16": ["Light", "Crystal"],
+    "WNG01": ["Fire"],
+    "LET17": ["Blood"]
+  }
+}
