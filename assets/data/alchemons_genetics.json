@@ -8,7 +8,7 @@
       "variants": [
         { "id": "tiny",   "name": "Tiny",   "dominance": 1, "effect": { "scale": 0.75 }, "description": "Adorably miniature" },
         { "id": "small",  "name": "Small",  "dominance": 3, "effect": { "scale": 0.90 }, "description": "Petite and compact" },
-        { "id": "normal", "name": "Normal", "dominance": 6, "effect": { "scale": 1.00 }, "description": "Standard size" },
+        { "id": "normal", "name": "Normal", "dominance": 6, "effect": { "scale": 1.00 }, "description": "Standard" },
         { "id": "large",  "name": "Large",  "dominance": 3, "effect": { "scale": 1.15 }, "description": "Impressively big" },
         { "id": "giant",  "name": "Giant",  "dominance": 1, "effect": { "scale": 1.30 }, "description": "Magnificently huge" }
       ]
@@ -18,11 +18,48 @@
       "inheritance": "weighted",
       "mutation_chance": 0.10,
       "variants": [
-        { "id": "normal",  "name": "Normal",  "dominance": 6, "effect": { "hue_shift": 0,  "saturation": 1.0, "brightness": 1.0 },  "description": "Natural coloring" },
-        { "id": "warm",    "name": "Warm",    "dominance": 2, "effect": { "hue_shift": 15, "saturation": 1.1, "brightness": 1.05 }, "description": "Warmer, reddish tones" },
-        { "id": "cool",    "name": "Cool",    "dominance": 2, "effect": { "hue_shift": -15,"saturation": 1.1, "brightness": 1.05 }, "description": "Cooler, bluish tones" },
-        { "id": "vibrant", "name": "Vibrant", "dominance": 2, "effect": { "hue_shift": 0,  "saturation": 1.4, "brightness": 1.1 },  "description": "Intensely saturated colors" },
-        { "id": "pale",    "name": "Pale",    "dominance": 2, "effect": { "hue_shift": 0,  "saturation": 0.6, "brightness": 1.2 },  "description": "Soft, muted coloring" }
+        { 
+          "id": "normal",  
+          "name": "Normal",  
+          "dominance": 6, 
+          "effect": { "hue_shift": 0,  "saturation": 1.0, "brightness": 1.0 },  
+          "description": "Balanced and natural coloration" 
+        },
+        { 
+          "id": "warm",    
+          "name": "Thermal",    
+          "dominance": 2, 
+          "effect": { "hue_shift": 15, "saturation": 1.1, "brightness": 1.05 }, 
+          "description": "Radiant amber and crimson hues, favored by warm types" 
+        },
+        { 
+          "id": "cool",    
+          "name": "Cryogenic",    
+          "dominance": 2, 
+          "effect": { "hue_shift": -15,"saturation": 1.1, "brightness": 1.05 }, 
+          "description": "Crystalline azure and frost tones, preferred by cool types" 
+        },
+        { 
+          "id": "vibrant", 
+          "name": "Saturated", 
+          "dominance": 2, 
+          "effect": { "hue_shift": 0,  "saturation": 1.4, "brightness": 1.1 },  
+          "description": "Vivid chromatic intensity, especially common in vibrant types" 
+        },
+        { 
+          "id": "pale",    
+          "name": "Diminished",    
+          "dominance": 2, 
+          "effect": { "hue_shift": 0,  "saturation": 0.6, "brightness": 1.2 },  
+          "description": "Ethereal faded tones with soft luminescence, found across many elemental types" 
+        },
+        { 
+          "id": "albino",  
+          "name": "Albino",  
+          "dominance": 1, 
+          "effect": { "hue_shift": 0,  "saturation": 0.2, "brightness": 1.35 }, 
+          "description": "Complete absence of pigmentation." 
+        }
       ]
     }
   },

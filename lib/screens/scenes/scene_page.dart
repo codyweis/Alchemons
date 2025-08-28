@@ -113,17 +113,8 @@ class _ScenePageState extends State<ScenePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<GameStateNotifier, CatalogData?>(
-      builder: (context, gameState, catalogData, _) {
-        // Wait until catalogs & repo are ready (same pattern as BreedScreen)
-        if (catalogData == null ||
-            !catalogData.isFullyLoaded ||
-            gameState.isLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
+    return Consumer<GameStateNotifier>(
+      builder: (context, gameState, _) {
         // Hook the resolver ONCE, now that catalogs are ready
         if (!_resolverHooked) {
           final repo = context.read<CreatureRepository>();

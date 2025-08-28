@@ -42,6 +42,7 @@ class CreatureInstanceService {
     bool isPrismaticSkin = false,
     String? nickname,
     int level = 1,
+    String? likelihoodAnalysisJson,
   }) async {
     try {
       final canAdd = await _db.canAddInstance(baseId, cap: speciesCap);
@@ -62,6 +63,7 @@ class CreatureInstanceService {
         genetics: genetics,
         parentage: parentage,
         createdAtUtc: DateTime.now().toUtc(),
+        likelihoodAnalysisJson: likelihoodAnalysisJson,
       );
 
       return InstanceFinalizeResult(

@@ -75,12 +75,8 @@ class _BreedScreenState extends State<BreedScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<GameStateNotifier, CatalogData?>(
-      builder: (context, gameState, catalogData, child) {
-        if (catalogData == null || !catalogData.isFullyLoaded) {
-          return _buildLoadingScreen('Initializing genetics laboratory...');
-        }
-
+    return Consumer<GameStateNotifier>(
+      builder: (context, gameState, child) {
         if (gameState.isLoading) {
           return _buildLoadingScreen('Loading specimen database...');
         }

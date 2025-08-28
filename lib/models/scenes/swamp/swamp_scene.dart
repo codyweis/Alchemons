@@ -2,10 +2,11 @@ import 'dart:ui';
 
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
+import 'package:flame/components.dart';
 
 final swampScene = SceneDefinition(
-  worldWidth: 3000,
-  worldHeight: 1000,
+  worldWidth: 1000,
+  worldHeight: 1500,
   layers: [
     LayerDefinition(
       id: SceneLayer.layer1,
@@ -22,32 +23,34 @@ final swampScene = SceneDefinition(
     LayerDefinition(
       id: SceneLayer.layer3,
       imagePath: 'backgrounds/scenes/swamp/backtrees.png',
-      parallaxFactor: 0.35,
+      parallaxFactor: 0.2,
       widthMul: 1.0,
     ),
     LayerDefinition(
       id: SceneLayer.layer4,
       imagePath: 'backgrounds/scenes/swamp/fronttrees.png',
-      parallaxFactor: .8,
+      parallaxFactor: .5,
       widthMul: 1.0,
     ),
     LayerDefinition(
       id: SceneLayer.layer5,
       imagePath: 'backgrounds/scenes/swamp/foreground.png',
-      parallaxFactor: 0.3,
+      parallaxFactor: 1,
       widthMul: 1.0,
     ),
   ],
-  spawnPoints: const [
+  spawnPoints: [
     SpawnPoint(
       id: 'SP_swamp_01',
-      normalizedPos: Offset(0.40, 0.65),
-      anchor: SceneLayer.layer3,
+      normalizedPos: const Offset(0.50, 0.65),
+      anchor: SceneLayer.layer5,
+      size: Vector2(80, 80),
     ),
     SpawnPoint(
       id: 'SP_swamp_02',
-      normalizedPos: Offset(0.58, 0.80),
-      anchor: SceneLayer.layer4,
+      normalizedPos: const Offset(0.35, 0.30),
+      anchor: SceneLayer.layer3,
+      size: Vector2(80, 80),
     ),
   ],
 );

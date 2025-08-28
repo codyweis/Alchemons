@@ -6,13 +6,13 @@ double scaleFromGenes(Genetics? g) {
     case 'tiny':
       return 0.75;
     case 'small':
-      return 0.9;
+      return 0.90;
     case 'large':
       return 1.15;
     case 'giant':
-      return 1.3;
+      return 1.30;
     default:
-      return 1.0;
+      return 1.00;
   }
 }
 
@@ -20,13 +20,15 @@ double satFromGenes(Genetics? g) {
   switch (g?.get('tinting')) {
     case 'warm':
     case 'cool':
-      return 1.1;
+      return 1.10;
     case 'vibrant':
-      return 1.4;
+      return 1.40;
     case 'pale':
-      return 0.6;
+      return 0.60;
+    case 'albino':
+      return 0.0; // UPDATED: completely desaturated (will be overridden by albino matrix)
     default:
-      return 1.0;
+      return 1.00;
   }
 }
 
@@ -36,11 +38,13 @@ double briFromGenes(Genetics? g) {
     case 'cool':
       return 1.05;
     case 'vibrant':
-      return 1.1;
+      return 1.10;
     case 'pale':
-      return 1.2;
+      return 1.20;
+    case 'albino':
+      return 1.45; // UPDATED: brighter for more white appearance
     default:
-      return 1.0;
+      return 1.00;
   }
 }
 
@@ -50,6 +54,8 @@ double hueFromGenes(Genetics? g) {
       return 15;
     case 'cool':
       return -15;
+    case 'albino':
+      return 0; // Will be ignored anyway due to albino flag
     default:
       return 0;
   }
@@ -61,6 +67,7 @@ const Map<String, String> tintLabels = {
   'cool': 'Cryogenic',
   'vibrant': 'Saturated',
   'pale': 'Diminished',
+  'albino': 'Albino',
 };
 
 const Map<String, String> sizeLabels = {
@@ -85,4 +92,5 @@ const Map<String, IconData> tintIcons = {
   'cool': Icons.ac_unit_outlined,
   'vibrant': Icons.auto_awesome,
   'pale': Icons.blur_on,
+  'albino': Icons.brightness_high_outlined,
 };

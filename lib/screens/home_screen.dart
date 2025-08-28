@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _rotationController;
 
   List<String> _featuredCreatureIds = [];
+  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -45,13 +46,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     )..repeat();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _initializeApp();
+    });
+  }
+
+  @override
+  void dispose() {
+    _breathingController.dispose();
+    _rotationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      // Initialize creature repository
       await _initializeRepository();
 
+      // Handle faction selection
       final factionSvc = context.read<FactionService>();
       final picked = await factionSvc.loadId();
 
       if (!mounted) return;
-      setState(() {});
 
       if (picked == null) {
         final selected = await showDialog<FactionId>(
@@ -62,18 +77,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (selected != null) {
           await factionSvc.setId(selected);
           if (!mounted) return;
-          setState(() {}); // <- repaint after choosing
         }
         await factionSvc.ensureAirExtraSlotUnlocked();
       }
-    });
-  }
 
-  @override
-  void dispose() {
-    _breathingController.dispose();
-    _rotationController.dispose();
-    super.dispose();
+      setState(() {
+        _isInitialized = true;
+      });
+    } catch (e) {
+      print('Error during app initialization: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to initialize app: $e'),
+          backgroundColor: Colors.red.shade600,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
   }
 
   Future<void> _initializeRepository() async {
@@ -414,38 +435,201 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          _buildBackgroundLayers(),
-          SafeArea(
-            child: Column(
-              children: [
-                _buildEnhancedHeader(),
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 16),
-                          _buildFeaturedCreatures(),
-                          const SizedBox(height: 20),
-                          _buildNavigationBubbles(),
-                          const SizedBox(height: 20),
-                        ],
+    return Consumer2<GameStateNotifier, CatalogData?>(
+      builder: (context, gameState, catalogData, child) {
+        // Show loading if catalog or app isn't initialized
+        if (catalogData == null ||
+            !catalogData.isFullyLoaded ||
+            !_isInitialized) {
+          return _buildLoadingScreen('Initializing research facility...');
+        }
+
+        if (gameState.isLoading) {
+          return _buildLoadingScreen('Loading specimen database...');
+        }
+
+        if (gameState.error != null) {
+          return _buildErrorScreen(gameState.error!, gameState.refresh);
+        }
+
+        return Scaffold(
+          body: Stack(
+            children: [
+              _buildBackgroundLayers(),
+              SafeArea(
+                child: Column(
+                  children: [
+                    _buildEnhancedHeader(),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 16),
+                              _buildFeaturedCreatures(),
+                              const SizedBox(height: 20),
+                              _buildNavigationBubbles(),
+                              const SizedBox(height: 20),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLoadingScreen(String message) {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.blue.shade50,
+              Colors.indigo.shade50,
+              Colors.purple.shade50,
+            ],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.indigo.shade100,
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Colors.indigo.shade600,
+                  ),
+                  strokeWidth: 3,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                message,
+                style: TextStyle(
+                  color: Colors.indigo.shade700,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorScreen(String error, VoidCallback onRetry) {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.blue.shade50,
+              Colors.indigo.shade50,
+              Colors.purple.shade50,
+            ],
+          ),
+        ),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            margin: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.95),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.red.shade100,
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.red.shade500,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'System Error Detected',
+                  style: TextStyle(
+                    color: Colors.red.shade700,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  error,
+                  style: TextStyle(color: Colors.red.shade600, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: onRetry,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo.shade600,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 2,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
+                  ),
+                  child: const Text(
+                    'Retry Connection',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
+
+  // ... rest of your existing methods remain the same ...
+  // (I'm keeping the rest of the methods unchanged to avoid repetition)
 
   Widget _buildBackgroundLayers() {
     return Stack(

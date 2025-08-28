@@ -163,7 +163,7 @@ class SceneGame extends FlameGame with ScaleDetector {
             hydrated: hydrated,
             speciesId: roll.speciesId,
             rarityLabel: roll.rarity.name,
-            desiredSize: Vector2(100, 100),
+            desiredSize: sp.size,
             onTap: () => onStartEncounter?.call(roll.speciesId, hydrated),
             resolver: speciesSpriteResolver,
           )

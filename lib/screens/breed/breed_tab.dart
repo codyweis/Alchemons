@@ -5,6 +5,7 @@ import 'package:alchemons/screens/feeding_screen.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -390,6 +391,29 @@ class _BreedingTabState extends State<BreedingTab> {
         return;
       }
 
+      final resultWithJustification = breedingEngine
+          .breedInstancesWithJustification(selectedParent1!, selectedParent2!);
+
+      if (!resultWithJustification.success ||
+          resultWithJustification.result.creature == null) {
+        _showToast(
+          'Genetic incompatibility detected',
+          icon: Icons.warning_rounded,
+          color: Colors.orange.shade600,
+        );
+        return;
+      }
+
+      // Store justification data
+      String? analysisJson;
+      if (resultWithJustification.justification != null) {
+        analysisJson = jsonEncode(
+          resultWithJustification.justification!.toJson(),
+        );
+      }
+
+      final offspring = resultWithJustification.result.creature!;
+
       final hasFireParent =
           repo
                   .getCreatureById(selectedParent1!.baseId)
@@ -407,7 +431,6 @@ class _BreedingTabState extends State<BreedingTab> {
         perk2: firePerk2,
       );
 
-      final offspring = breedingResult.creature!;
       final rarityKey = offspring.rarity.toLowerCase();
       final baseHatchDelay =
           BreedConstants.rarityHatchTimes[rarityKey] ??
@@ -426,6 +449,7 @@ class _BreedingTabState extends State<BreedingTab> {
         'genetics': offspring.genetics?.variants ?? <String, String>{},
         'parentage': offspring.parentage?.toJson(),
         'isPrismaticSkin': offspring.isPrismaticSkin,
+        'likelihoodAnalysis': analysisJson,
       };
       final payloadJson = jsonEncode(payload);
 

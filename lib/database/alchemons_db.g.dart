@@ -1560,6 +1560,17 @@ class $CreatureInstancesTable extends CreatureInstances
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _likelihoodAnalysisJsonMeta =
+      const VerificationMeta('likelihoodAnalysisJson');
+  @override
+  late final GeneratedColumn<String> likelihoodAnalysisJson =
+      GeneratedColumn<String>(
+        'likelihood_analysis_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _staminaMaxMeta = const VerificationMeta(
     'staminaMax',
   );
@@ -1620,6 +1631,7 @@ class $CreatureInstancesTable extends CreatureInstances
     natureId,
     parentageJson,
     geneticsJson,
+    likelihoodAnalysisJson,
     staminaMax,
     staminaBars,
     staminaLastUtcMs,
@@ -1707,6 +1719,15 @@ class $CreatureInstancesTable extends CreatureInstances
         ),
       );
     }
+    if (data.containsKey('likelihood_analysis_json')) {
+      context.handle(
+        _likelihoodAnalysisJsonMeta,
+        likelihoodAnalysisJson.isAcceptableOrUnknown(
+          data['likelihood_analysis_json']!,
+          _likelihoodAnalysisJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('stamina_max')) {
       context.handle(
         _staminaMaxMeta,
@@ -1789,6 +1810,10 @@ class $CreatureInstancesTable extends CreatureInstances
         DriftSqlType.string,
         data['${effectivePrefix}genetics_json'],
       ),
+      likelihoodAnalysisJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}likelihood_analysis_json'],
+      ),
       staminaMax: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}stamina_max'],
@@ -1826,6 +1851,7 @@ class CreatureInstance extends DataClass
   final String? natureId;
   final String? parentageJson;
   final String? geneticsJson;
+  final String? likelihoodAnalysisJson;
   final int staminaMax;
   final int staminaBars;
   final int staminaLastUtcMs;
@@ -1841,6 +1867,7 @@ class CreatureInstance extends DataClass
     this.natureId,
     this.parentageJson,
     this.geneticsJson,
+    this.likelihoodAnalysisJson,
     required this.staminaMax,
     required this.staminaBars,
     required this.staminaLastUtcMs,
@@ -1866,6 +1893,11 @@ class CreatureInstance extends DataClass
     }
     if (!nullToAbsent || geneticsJson != null) {
       map['genetics_json'] = Variable<String>(geneticsJson);
+    }
+    if (!nullToAbsent || likelihoodAnalysisJson != null) {
+      map['likelihood_analysis_json'] = Variable<String>(
+        likelihoodAnalysisJson,
+      );
     }
     map['stamina_max'] = Variable<int>(staminaMax);
     map['stamina_bars'] = Variable<int>(staminaBars);
@@ -1894,6 +1926,9 @@ class CreatureInstance extends DataClass
       geneticsJson: geneticsJson == null && nullToAbsent
           ? const Value.absent()
           : Value(geneticsJson),
+      likelihoodAnalysisJson: likelihoodAnalysisJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(likelihoodAnalysisJson),
       staminaMax: Value(staminaMax),
       staminaBars: Value(staminaBars),
       staminaLastUtcMs: Value(staminaLastUtcMs),
@@ -1917,6 +1952,9 @@ class CreatureInstance extends DataClass
       natureId: serializer.fromJson<String?>(json['natureId']),
       parentageJson: serializer.fromJson<String?>(json['parentageJson']),
       geneticsJson: serializer.fromJson<String?>(json['geneticsJson']),
+      likelihoodAnalysisJson: serializer.fromJson<String?>(
+        json['likelihoodAnalysisJson'],
+      ),
       staminaMax: serializer.fromJson<int>(json['staminaMax']),
       staminaBars: serializer.fromJson<int>(json['staminaBars']),
       staminaLastUtcMs: serializer.fromJson<int>(json['staminaLastUtcMs']),
@@ -1937,6 +1975,9 @@ class CreatureInstance extends DataClass
       'natureId': serializer.toJson<String?>(natureId),
       'parentageJson': serializer.toJson<String?>(parentageJson),
       'geneticsJson': serializer.toJson<String?>(geneticsJson),
+      'likelihoodAnalysisJson': serializer.toJson<String?>(
+        likelihoodAnalysisJson,
+      ),
       'staminaMax': serializer.toJson<int>(staminaMax),
       'staminaBars': serializer.toJson<int>(staminaBars),
       'staminaLastUtcMs': serializer.toJson<int>(staminaLastUtcMs),
@@ -1955,6 +1996,7 @@ class CreatureInstance extends DataClass
     Value<String?> natureId = const Value.absent(),
     Value<String?> parentageJson = const Value.absent(),
     Value<String?> geneticsJson = const Value.absent(),
+    Value<String?> likelihoodAnalysisJson = const Value.absent(),
     int? staminaMax,
     int? staminaBars,
     int? staminaLastUtcMs,
@@ -1972,6 +2014,9 @@ class CreatureInstance extends DataClass
         ? parentageJson.value
         : this.parentageJson,
     geneticsJson: geneticsJson.present ? geneticsJson.value : this.geneticsJson,
+    likelihoodAnalysisJson: likelihoodAnalysisJson.present
+        ? likelihoodAnalysisJson.value
+        : this.likelihoodAnalysisJson,
     staminaMax: staminaMax ?? this.staminaMax,
     staminaBars: staminaBars ?? this.staminaBars,
     staminaLastUtcMs: staminaLastUtcMs ?? this.staminaLastUtcMs,
@@ -1997,6 +2042,9 @@ class CreatureInstance extends DataClass
       geneticsJson: data.geneticsJson.present
           ? data.geneticsJson.value
           : this.geneticsJson,
+      likelihoodAnalysisJson: data.likelihoodAnalysisJson.present
+          ? data.likelihoodAnalysisJson.value
+          : this.likelihoodAnalysisJson,
       staminaMax: data.staminaMax.present
           ? data.staminaMax.value
           : this.staminaMax,
@@ -2025,6 +2073,7 @@ class CreatureInstance extends DataClass
           ..write('natureId: $natureId, ')
           ..write('parentageJson: $parentageJson, ')
           ..write('geneticsJson: $geneticsJson, ')
+          ..write('likelihoodAnalysisJson: $likelihoodAnalysisJson, ')
           ..write('staminaMax: $staminaMax, ')
           ..write('staminaBars: $staminaBars, ')
           ..write('staminaLastUtcMs: $staminaLastUtcMs, ')
@@ -2045,6 +2094,7 @@ class CreatureInstance extends DataClass
     natureId,
     parentageJson,
     geneticsJson,
+    likelihoodAnalysisJson,
     staminaMax,
     staminaBars,
     staminaLastUtcMs,
@@ -2064,6 +2114,7 @@ class CreatureInstance extends DataClass
           other.natureId == this.natureId &&
           other.parentageJson == this.parentageJson &&
           other.geneticsJson == this.geneticsJson &&
+          other.likelihoodAnalysisJson == this.likelihoodAnalysisJson &&
           other.staminaMax == this.staminaMax &&
           other.staminaBars == this.staminaBars &&
           other.staminaLastUtcMs == this.staminaLastUtcMs &&
@@ -2081,6 +2132,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
   final Value<String?> natureId;
   final Value<String?> parentageJson;
   final Value<String?> geneticsJson;
+  final Value<String?> likelihoodAnalysisJson;
   final Value<int> staminaMax;
   final Value<int> staminaBars;
   final Value<int> staminaLastUtcMs;
@@ -2097,6 +2149,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.natureId = const Value.absent(),
     this.parentageJson = const Value.absent(),
     this.geneticsJson = const Value.absent(),
+    this.likelihoodAnalysisJson = const Value.absent(),
     this.staminaMax = const Value.absent(),
     this.staminaBars = const Value.absent(),
     this.staminaLastUtcMs = const Value.absent(),
@@ -2114,6 +2167,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.natureId = const Value.absent(),
     this.parentageJson = const Value.absent(),
     this.geneticsJson = const Value.absent(),
+    this.likelihoodAnalysisJson = const Value.absent(),
     this.staminaMax = const Value.absent(),
     this.staminaBars = const Value.absent(),
     this.staminaLastUtcMs = const Value.absent(),
@@ -2132,6 +2186,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Expression<String>? natureId,
     Expression<String>? parentageJson,
     Expression<String>? geneticsJson,
+    Expression<String>? likelihoodAnalysisJson,
     Expression<int>? staminaMax,
     Expression<int>? staminaBars,
     Expression<int>? staminaLastUtcMs,
@@ -2149,6 +2204,8 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       if (natureId != null) 'nature_id': natureId,
       if (parentageJson != null) 'parentage_json': parentageJson,
       if (geneticsJson != null) 'genetics_json': geneticsJson,
+      if (likelihoodAnalysisJson != null)
+        'likelihood_analysis_json': likelihoodAnalysisJson,
       if (staminaMax != null) 'stamina_max': staminaMax,
       if (staminaBars != null) 'stamina_bars': staminaBars,
       if (staminaLastUtcMs != null) 'stamina_last_utc_ms': staminaLastUtcMs,
@@ -2168,6 +2225,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Value<String?>? natureId,
     Value<String?>? parentageJson,
     Value<String?>? geneticsJson,
+    Value<String?>? likelihoodAnalysisJson,
     Value<int>? staminaMax,
     Value<int>? staminaBars,
     Value<int>? staminaLastUtcMs,
@@ -2185,6 +2243,8 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       natureId: natureId ?? this.natureId,
       parentageJson: parentageJson ?? this.parentageJson,
       geneticsJson: geneticsJson ?? this.geneticsJson,
+      likelihoodAnalysisJson:
+          likelihoodAnalysisJson ?? this.likelihoodAnalysisJson,
       staminaMax: staminaMax ?? this.staminaMax,
       staminaBars: staminaBars ?? this.staminaBars,
       staminaLastUtcMs: staminaLastUtcMs ?? this.staminaLastUtcMs,
@@ -2226,6 +2286,11 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     if (geneticsJson.present) {
       map['genetics_json'] = Variable<String>(geneticsJson.value);
     }
+    if (likelihoodAnalysisJson.present) {
+      map['likelihood_analysis_json'] = Variable<String>(
+        likelihoodAnalysisJson.value,
+      );
+    }
     if (staminaMax.present) {
       map['stamina_max'] = Variable<int>(staminaMax.value);
     }
@@ -2257,6 +2322,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
           ..write('natureId: $natureId, ')
           ..write('parentageJson: $parentageJson, ')
           ..write('geneticsJson: $geneticsJson, ')
+          ..write('likelihoodAnalysisJson: $likelihoodAnalysisJson, ')
           ..write('staminaMax: $staminaMax, ')
           ..write('staminaBars: $staminaBars, ')
           ..write('staminaLastUtcMs: $staminaLastUtcMs, ')
@@ -3493,6 +3559,7 @@ typedef $$CreatureInstancesTableCreateCompanionBuilder =
       Value<String?> natureId,
       Value<String?> parentageJson,
       Value<String?> geneticsJson,
+      Value<String?> likelihoodAnalysisJson,
       Value<int> staminaMax,
       Value<int> staminaBars,
       Value<int> staminaLastUtcMs,
@@ -3511,6 +3578,7 @@ typedef $$CreatureInstancesTableUpdateCompanionBuilder =
       Value<String?> natureId,
       Value<String?> parentageJson,
       Value<String?> geneticsJson,
+      Value<String?> likelihoodAnalysisJson,
       Value<int> staminaMax,
       Value<int> staminaBars,
       Value<int> staminaLastUtcMs,
@@ -3574,6 +3642,11 @@ class $$CreatureInstancesTableFilterComposer
 
   ColumnFilters<String> get geneticsJson => $composableBuilder(
     column: $table.geneticsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get likelihoodAnalysisJson => $composableBuilder(
+    column: $table.likelihoodAnalysisJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3657,6 +3730,11 @@ class $$CreatureInstancesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get likelihoodAnalysisJson => $composableBuilder(
+    column: $table.likelihoodAnalysisJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get staminaMax => $composableBuilder(
     column: $table.staminaMax,
     builder: (column) => ColumnOrderings(column),
@@ -3722,6 +3800,11 @@ class $$CreatureInstancesTableAnnotationComposer
 
   GeneratedColumn<String> get geneticsJson => $composableBuilder(
     column: $table.geneticsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get likelihoodAnalysisJson => $composableBuilder(
+    column: $table.likelihoodAnalysisJson,
     builder: (column) => column,
   );
 
@@ -3796,6 +3879,7 @@ class $$CreatureInstancesTableTableManager
                 Value<String?> natureId = const Value.absent(),
                 Value<String?> parentageJson = const Value.absent(),
                 Value<String?> geneticsJson = const Value.absent(),
+                Value<String?> likelihoodAnalysisJson = const Value.absent(),
                 Value<int> staminaMax = const Value.absent(),
                 Value<int> staminaBars = const Value.absent(),
                 Value<int> staminaLastUtcMs = const Value.absent(),
@@ -3812,6 +3896,7 @@ class $$CreatureInstancesTableTableManager
                 natureId: natureId,
                 parentageJson: parentageJson,
                 geneticsJson: geneticsJson,
+                likelihoodAnalysisJson: likelihoodAnalysisJson,
                 staminaMax: staminaMax,
                 staminaBars: staminaBars,
                 staminaLastUtcMs: staminaLastUtcMs,
@@ -3830,6 +3915,7 @@ class $$CreatureInstancesTableTableManager
                 Value<String?> natureId = const Value.absent(),
                 Value<String?> parentageJson = const Value.absent(),
                 Value<String?> geneticsJson = const Value.absent(),
+                Value<String?> likelihoodAnalysisJson = const Value.absent(),
                 Value<int> staminaMax = const Value.absent(),
                 Value<int> staminaBars = const Value.absent(),
                 Value<int> staminaLastUtcMs = const Value.absent(),
@@ -3846,6 +3932,7 @@ class $$CreatureInstancesTableTableManager
                 natureId: natureId,
                 parentageJson: parentageJson,
                 geneticsJson: geneticsJson,
+                likelihoodAnalysisJson: likelihoodAnalysisJson,
                 staminaMax: staminaMax,
                 staminaBars: staminaBars,
                 staminaLastUtcMs: staminaLastUtcMs,

@@ -6,6 +6,7 @@ import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -110,6 +111,7 @@ class AppProviders extends StatelessWidget {
           ),
         ),
 
+        // Breeding engine - waits for catalogs to load
         ProxyProvider2<CatalogData?, CreatureRepository, BreedingEngine?>(
           update: (context, catalogData, repo, previous) {
             if (catalogData == null || !catalogData.isFullyLoaded) {
@@ -124,6 +126,28 @@ class AppProviders extends StatelessWidget {
               specialRules: catalogData.specialRules,
               tuning: tuning,
               logToConsole: true,
+            );
+          },
+        ),
+
+        // Breeding likelihood analyzer - reuses same catalog data
+        ProxyProvider2<
+          CatalogData?,
+          CreatureRepository,
+          BreedingLikelihoodAnalyzer?
+        >(
+          update: (context, catalogData, repo, previous) {
+            if (catalogData == null || !catalogData.isFullyLoaded) {
+              return null; // Wait for catalogs to load
+            }
+
+            final tuning = context.read<BreedingTuning>();
+            return BreedingLikelihoodAnalyzer(
+              repository: repo,
+              elementRecipes: catalogData.elementRecipes,
+              familyRecipes: catalogData.familyRecipes,
+              specialRules: catalogData.specialRules,
+              tuning: tuning,
             );
           },
         ),

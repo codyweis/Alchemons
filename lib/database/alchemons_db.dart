@@ -34,7 +34,7 @@ class Eggs extends Table {
   TextColumn get resultCreatureId => text()(); // CRxxx (baseId)
   TextColumn get rarity => text()(); // "Common", ...
   TextColumn get bonusVariantId => text().nullable()();
-  IntColumn get remainingMs => integer()(); // doesn’t tick while queued
+  IntColumn get remainingMs => integer()(); // doesn't tick while queued
   TextColumn get payloadJson => text().nullable()();
   @override
   Set<Column> get primaryKey => {eggId};
@@ -64,6 +64,9 @@ class CreatureInstances extends Table {
   TextColumn get natureId => text().nullable()();
   TextColumn get parentageJson => text().nullable()();
   TextColumn get geneticsJson => text().nullable()();
+
+  // Breeding analysis (NEW)
+  TextColumn get likelihoodAnalysisJson => text().nullable()();
 
   // Stamina (NEW)
   IntColumn get staminaMax => integer().withDefault(const Constant(3))();
@@ -103,7 +106,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9; // Incremented for new column
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -230,6 +233,13 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
           [nowMs],
         );
       }
+      // NEW: v9 - Add likelihood analysis column
+      if (from < 9) {
+        await m.addColumn(
+          creatureInstances,
+          creatureInstances.likelihoodAnalysisJson,
+        );
+      }
     },
   );
 
@@ -350,7 +360,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     required String resultCreatureId,
     String? bonusVariantId,
     required String rarity,
-    required Duration remaining, // snapshot; doesn’t tick while queued
+    required Duration remaining, // snapshot; doesn't tick while queued
     String? payloadJson, // NEW
   }) async {
     await into(eggs).insertOnConflictUpdate(
@@ -421,6 +431,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     String? natureId,
     Map<String, dynamic>? parentage,
     Map<String, String>? genetics,
+    String? likelihoodAnalysisJson, // NEW
     DateTime? createdAtUtc,
     int? staminaMax, // ← NEW (optional override)
     int? staminaBars, // ← NEW (optional override)
@@ -442,6 +453,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
         natureId: Value(natureId),
         parentageJson: Value(parentage == null ? null : jsonEncode(parentage)),
         geneticsJson: Value(genetics == null ? null : jsonEncode(genetics)),
+        likelihoodAnalysisJson: Value(likelihoodAnalysisJson), // NEW
         staminaMax: Value(maxBars),
         staminaBars: Value(curBars),
         staminaLastUtcMs: Value(nowMs),
@@ -470,6 +482,19 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
       CreatureInstancesCompanion(
         staminaBars: Value(staminaBars),
         staminaLastUtcMs: Value(staminaLastUtcMs),
+      ),
+    );
+  }
+
+  Future<void> updateLikelihoodAnalysis({
+    required String instanceId,
+    String? likelihoodAnalysisJson,
+  }) async {
+    await (update(
+      creatureInstances,
+    )..where((t) => t.instanceId.equals(instanceId))).write(
+      CreatureInstancesCompanion(
+        likelihoodAnalysisJson: Value(likelihoodAnalysisJson),
       ),
     );
   }

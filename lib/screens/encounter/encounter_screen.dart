@@ -11,6 +11,8 @@ import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'package:flame/components.dart';
@@ -634,6 +636,11 @@ class _EncounterPageState extends State<EncounterPage>
         _snack('Could not load partner.');
         return;
       }
+      final creatureOfInst = repo.getCreatureById(inst.baseId);
+      if (creatureOfInst == null) {
+        _snack('Could not load partner creature.');
+        return;
+      }
 
       final can = await stamina.canBreed(inst.instanceId);
       if (!can) {
@@ -658,6 +665,15 @@ class _EncounterPageState extends State<EncounterPage>
         perk2: firePerk2,
       );
 
+      // Use the justification system for wild breeding
+      final analyzer = BreedingLikelihoodAnalyzer(
+        repository: repo,
+        elementRecipes: engine.elementRecipes,
+        familyRecipes: engine.familyRecipes,
+        specialRules: engine.specialRules,
+        tuning: engine.tuning,
+      );
+
       final result = engine.breedInstanceWithCreature(inst, wild);
       if (!result.success || result.creature == null) {
         closeSpinnerIfOpen();
@@ -666,6 +682,13 @@ class _EncounterPageState extends State<EncounterPage>
       }
 
       final baby = result.creature!;
+
+      // Generate justification for the wild breeding
+      final justification = analyzer.justifyBreedingResult(
+        creatureOfInst,
+        wild,
+        baby,
+      );
 
       final rarityKey = baby.rarity.toLowerCase();
       final baseHatch =
@@ -683,6 +706,7 @@ class _EncounterPageState extends State<EncounterPage>
         'genetics': baby.genetics?.variants ?? <String, String>{},
         'parentage': baby.parentage?.toJson(),
         'isPrismaticSkin': baby.isPrismaticSkin,
+        'likelihoodAnalysis': jsonEncode(justification.toJson()),
       };
       final payloadJson = jsonEncode(payload);
       final eggId = 'egg_${DateTime.now().millisecondsSinceEpoch}';
@@ -1018,7 +1042,7 @@ class _OneSpriteGame extends FlameGame {
   @override
   Future<void> onLoad() async {
     final box = Vector2(size.x, size.y);
-    final scale = _scaleFromGenes(genetics);
+    final scale = scaleFromGenes(genetics);
 
     add(
       CreatureSpriteComponent(
@@ -1028,69 +1052,15 @@ class _OneSpriteGame extends FlameGame {
           frameSize: frameSize,
           stepTime: stepTime,
           scaleFactor: scale,
-          saturation: _satFromGenes(genetics),
-          brightness: _briFromGenes(genetics),
-          baseHueShift: _hueFromGenes(genetics),
+          saturation: satFromGenes(genetics),
+          brightness: briFromGenes(genetics),
+          baseHueShift: hueFromGenes(genetics),
           isPrismatic: prismatic,
           desiredSize: box,
         )
         ..anchor = Anchor.center
         ..position = box / 2,
     );
-  }
-
-  double _scaleFromGenes(Genetics? g) {
-    switch (g?.get('size')) {
-      case 'tiny':
-        return 0.75;
-      case 'small':
-        return 0.9;
-      case 'large':
-        return 1.15;
-      case 'giant':
-        return 1.3;
-      default:
-        return 1.0;
-    }
-  }
-
-  double _satFromGenes(Genetics? g) {
-    switch (g?.get('tinting')) {
-      case 'vibrant':
-        return 1.4;
-      case 'pale':
-        return 0.6;
-      case 'warm':
-      case 'cool':
-        return 1.1;
-      default:
-        return 1.0;
-    }
-  }
-
-  double _briFromGenes(Genetics? g) {
-    switch (g?.get('tinting')) {
-      case 'vibrant':
-        return 1.1;
-      case 'pale':
-        return 1.2;
-      case 'warm':
-      case 'cool':
-        return 1.05;
-      default:
-        return 1.0;
-    }
-  }
-
-  double _hueFromGenes(Genetics? g) {
-    switch (g?.get('tinting')) {
-      case 'warm':
-        return 15.0;
-      case 'cool':
-        return -15.0;
-      default:
-        return 0.0;
-    }
   }
 }
 

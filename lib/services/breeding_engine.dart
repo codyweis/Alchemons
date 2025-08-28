@@ -10,7 +10,6 @@
 // - repo: CreatureRepository (loaded with base creatures + discovered variants)
 // - db rows: alchemons_db.dart as `db` (for CreatureInstance only)
 
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:alchemons/utils/nature_utils.dart';
@@ -54,7 +53,7 @@ extension WildBreed on BreedingEngine {
       nature: (a.natureId != null)
           ? NatureCatalog.byId(a.natureId!)
           : baseA.nature,
-      isPrismaticSkin: a.isPrismaticSkin || (baseA.isPrismaticSkin ?? false),
+      isPrismaticSkin: a.isPrismaticSkin || (baseA.isPrismaticSkin),
     );
 
     // Snapshots
@@ -122,7 +121,7 @@ class BreedingEngine {
       nature: (a.natureId != null)
           ? NatureCatalog.byId(a.natureId!)
           : base1.nature,
-      isPrismaticSkin: a.isPrismaticSkin || (base1.isPrismaticSkin ?? false),
+      isPrismaticSkin: a.isPrismaticSkin || (base1.isPrismaticSkin),
     );
 
     final p2 = base2.copyWith(
@@ -130,7 +129,7 @@ class BreedingEngine {
       nature: (b.natureId != null)
           ? NatureCatalog.byId(b.natureId!)
           : base2.nature,
-      isPrismaticSkin: b.isPrismaticSkin || (base2.isPrismaticSkin ?? false),
+      isPrismaticSkin: b.isPrismaticSkin || (base2.isPrismaticSkin),
     );
 
     final snapA = ParentSnapshotFactory.fromDbInstance(a, repository);
@@ -223,7 +222,6 @@ class BreedingEngine {
       _log('[Breeding] Step2: no cross-variant or roll failed.');
     }
 
-    // 3) Parent-repeat chance
     // 3) Parent-repeat chance (same-species bias via nature)
     final basePr = tuning.parentRepeatChance; // existing % from your tuning
     final prMult = combinedNatureMult(p1, p2, 'breed_same_species_chance_mult');
@@ -436,6 +434,50 @@ class BreedingEngine {
     // Fresh roll from catalog (optionally exclude parents for variety)
     // return NatureCatalogWeighted.weightedRandom(rng, excludeIds: parents.map((n)=>n.id).toSet());
     return NatureCatalogWeighted.weightedRandom(rng);
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // Patterning (weighted + recombination bonus) and Albino (dominant + sticky)
+  // ───────────────────────────────────────────────────────────
+
+  String _inheritPatterning(
+    GeneTrack track,
+    GeneVariant p1Var,
+    GeneVariant p2Var,
+    Random rng, {
+    required bool didMutate,
+  }) {
+    // Same-variant stickiness (70%)
+    if (p1Var.id == p2Var.id && rng.nextDouble() < 0.70) {
+      return p1Var.id;
+    }
+
+    // Recombination: spots + stripes has an extra direct roll to checkered
+    final pair = {p1Var.id, p2Var.id};
+    if (pair.contains('spots') && pair.contains('stripes')) {
+      // ~15% shot at checkered before normal weighting
+      if (rng.nextDouble() < 0.15) return 'checkered';
+    }
+
+    // Normal dominance-weighted pick
+    String picked = _weightedPickByDominance(track, rng).id;
+
+    // Mutation: try to jump to a non-parent pattern; bias toward checkered
+    if (didMutate) {
+      final pool = track.variants
+          .map((v) => v.id)
+          .where((id) => id != p1Var.id && id != p2Var.id)
+          .toList();
+      if (pool.isNotEmpty) {
+        if (pool.contains('checkered') && rng.nextDouble() < 0.40) {
+          picked = 'checkered';
+        } else {
+          picked = pool[rng.nextInt(pool.length)];
+        }
+      }
+    }
+
+    return picked;
   }
 
   // ───────────────────────────────────────────────────────────
@@ -701,10 +743,20 @@ class BreedingEngine {
               final pool = track.variants
                   .where((v) => v.id != 'normal')
                   .toList();
-              if (pool.isNotEmpty) prelim = pool[rng.nextInt(pool.length)].id;
+              if (pool.isNotEmpty) {
+                prelim = pool[rng.nextInt(pool.length)].id;
+              }
             }
 
             resultId = prelim;
+          } else if (track.key == 'patterning') {
+            resultId = _inheritPatterning(
+              track,
+              p1Var,
+              p2Var,
+              rng,
+              didMutate: didMutate,
+            );
           } else {
             // Other weighted traits (no elemental bias, but keep same-variant stickiness)
             String prelim = stick

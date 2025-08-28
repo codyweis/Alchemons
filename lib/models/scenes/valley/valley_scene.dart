@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
+import 'package:flame/components.dart';
 
 final valleyScene = SceneDefinition(
   worldWidth: 1000,
@@ -38,16 +39,18 @@ final valleyScene = SceneDefinition(
       widthMul: 1.0,
     ),
   ],
-  spawnPoints: const [
+  spawnPoints: [
     SpawnPoint(
       id: 'SP_valley_01',
-      normalizedPos: Offset(0.40, 0.65),
+      normalizedPos: const Offset(0.40, 0.65),
       anchor: SceneLayer.layer3,
+      size: Vector2(80, 80),
     ),
     SpawnPoint(
       id: 'SP_valley_02',
-      normalizedPos: Offset(0.58, 0.80),
+      normalizedPos: const Offset(0.58, 0.80),
       anchor: SceneLayer.layer4,
+      size: Vector2(80, 80),
     ),
   ],
 );

@@ -1,9 +1,10 @@
+// lib/widgets/creature_sprite.dart
 import 'dart:math' as math;
 
-import 'package:flame/components.dart';
-import 'package:flame/flame.dart';
-import 'package:flame/widgets.dart';
+import 'package:flame/components.dart' show Vector2;
+import 'package:flame/flame.dart' show Flame;
 import 'package:flame/sprite.dart';
+import 'package:flame/widgets.dart';
 import 'package:flutter/material.dart';
 
 class CreatureSprite extends StatefulWidget {
@@ -15,11 +16,11 @@ class CreatureSprite extends StatefulWidget {
 
   // Genetics-based modifiers
   final double scale; // from size genetics (e.g. 0.75, 1.0, 1.3)
-  final Color? tint; // from tinting genetics (applied as ColorFilter)
-  final double saturation;
-  final double brightness;
-  final double hueShift; // in degrees, for static hue shifts
-  final bool isPrismatic; // for animated rainbow cycling
+  final double saturation; // S
+  final double brightness; // V
+  final double hueShift; // degrees
+  final bool isPrismatic; // animated hue cycle
+  final Color? tint; // optional extra tint (usually null)
 
   const CreatureSprite({
     super.key,
@@ -29,11 +30,11 @@ class CreatureSprite extends StatefulWidget {
     required this.frameSize,
     required this.stepTime,
     this.scale = 1.0,
-    this.tint,
     this.saturation = 1.0,
     this.brightness = 1.0,
     this.hueShift = 0.0,
     this.isPrismatic = false,
+    this.tint,
   });
 
   @override
@@ -42,6 +43,9 @@ class CreatureSprite extends StatefulWidget {
 
 class _CreatureSpriteState extends State<CreatureSprite>
     with SingleTickerProviderStateMixin {
+  // Helper to detect albino based on brightness value
+  bool get _isAlbino => widget.brightness == 1.45;
+
   AnimationController? _hueController;
   SpriteAnimation? _spriteAnimation;
   SpriteAnimationTicker? _spriteTicker;
@@ -49,7 +53,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
   @override
   void initState() {
     super.initState();
-
+    // Start prismatic animation if enabled (prismatic trumps albino)
     if (widget.isPrismatic) {
       _hueController = AnimationController(
         duration: const Duration(seconds: 8),
@@ -63,7 +67,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
   void didUpdateWidget(covariant CreatureSprite oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Swap prismatic animation on/off when toggled
+    // toggle prismatic hue cycling (prismatic trumps albino)
     if (widget.isPrismatic != oldWidget.isPrismatic) {
       _hueController?.dispose();
       _hueController = null;
@@ -73,20 +77,18 @@ class _CreatureSpriteState extends State<CreatureSprite>
           vsync: this,
         )..repeat();
       }
-      setState(() {}); // rebuild to reflect change
+      setState(() {});
     }
 
-    // Reload animation if sprite sheet / frames changed
-    final pathChanged = widget.spritePath != oldWidget.spritePath;
-    final framesChanged =
+    // reload animation if sprite config changed
+    final baseChanged =
+        widget.spritePath != oldWidget.spritePath ||
         widget.totalFrames != oldWidget.totalFrames ||
         widget.rows != oldWidget.rows ||
         widget.frameSize != oldWidget.frameSize ||
         widget.stepTime != oldWidget.stepTime;
 
-    if (pathChanged || framesChanged) {
-      _loadAnimation();
-    }
+    if (baseChanged) _loadAnimation();
   }
 
   @override
@@ -98,11 +100,14 @@ class _CreatureSpriteState extends State<CreatureSprite>
 
   @override
   Widget build(BuildContext context) {
+    if (_spriteAnimation == null) return const _LoadingIndicator();
+
+    // Prismatic trumps everything - even albino
     if (widget.isPrismatic && _hueController != null) {
       return AnimatedBuilder(
         animation: _hueController!,
-        builder: (context, child) {
-          final currentHue = _hueController!.value * 360;
+        builder: (_, __) {
+          final currentHue = (_hueController!.value * 360.0);
           return _buildSprite(dynamicHueShift: currentHue);
         },
       );
@@ -112,18 +117,51 @@ class _CreatureSpriteState extends State<CreatureSprite>
   }
 
   Widget _buildSprite({double dynamicHueShift = 0.0}) {
-    if (_spriteAnimation == null) return const _LoadingIndicator();
-
-    final normalizedHue =
-        ((widget.hueShift + dynamicHueShift) % 360 + 360) % 360;
-
     Widget sprite = SpriteAnimationWidget(
       animation: _spriteAnimation!,
       anchor: Anchor.center,
       animationTicker: _spriteTicker!,
     );
 
-    sprite = _applyColorEffects(sprite, normalizedHue);
+    // Prismatic trumps albino - only use albino processing if not prismatic
+    if (_isAlbino && !widget.isPrismatic) {
+      // For albino: apply desaturation matrix to convert to grayscale,
+      // then brighten without any hue shifts
+      sprite = ColorFiltered(
+        colorFilter: ColorFilter.matrix(_albinoMatrix(widget.brightness)),
+        child: sprite,
+      );
+    } else {
+      // Normal color processing for non-albino creatures or prismatic creatures
+      final normalizedHue =
+          ((widget.hueShift + dynamicHueShift) % 360 + 360) % 360;
+
+      // apply S, V first
+      if (widget.saturation != 1.0 || widget.brightness != 1.0) {
+        sprite = ColorFiltered(
+          colorFilter: ColorFilter.matrix(
+            _brightnessSaturationMatrix(widget.brightness, widget.saturation),
+          ),
+          child: sprite,
+        );
+      }
+
+      // then hue rotation
+      if (normalizedHue != 0) {
+        sprite = ColorFiltered(
+          colorFilter: ColorFilter.matrix(_hueRotationMatrix(normalizedHue)),
+          child: sprite,
+        );
+      }
+    }
+
+    // optional overall tint (rarely needed, skip for non-prismatic albino)
+    if (widget.tint != null && !(_isAlbino && !widget.isPrismatic)) {
+      sprite = ColorFiltered(
+        colorFilter: ColorFilter.mode(widget.tint!, BlendMode.modulate),
+        child: sprite,
+      );
+    }
 
     return Transform.scale(
       scale: widget.scale,
@@ -133,45 +171,13 @@ class _CreatureSpriteState extends State<CreatureSprite>
     );
   }
 
-  Widget _applyColorEffects(Widget sprite, double hueShiftDegrees) {
-    Widget result = sprite;
-
-    // Apply brightness and saturation first
-    if (widget.saturation != 1.0 || widget.brightness != 1.0) {
-      final matrix = _createBrightnessSaturationMatrix(
-        widget.brightness,
-        widget.saturation,
-      );
-      result = ColorFiltered(
-        colorFilter: ColorFilter.matrix(matrix),
-        child: result,
-      );
-    }
-
-    if (hueShiftDegrees != 0) {
-      final hueMatrix = _createHueRotationMatrix(hueShiftDegrees);
-      result = ColorFiltered(
-        colorFilter: ColorFilter.matrix(hueMatrix),
-        child: result,
-      );
-    }
-
-    // Apply tint if specified
-    if (widget.tint != null) {
-      result = ColorFiltered(
-        colorFilter: ColorFilter.mode(widget.tint!, BlendMode.modulate),
-        child: result,
-      );
-    }
-
-    return result;
-  }
-
-  void _loadAnimation() async {
+  Future<void> _loadAnimation() async {
     final image = await Flame.images.load(widget.spritePath);
+
+    // columns per row on the sheet
     final cols = (widget.totalFrames + widget.rows - 1) ~/ widget.rows;
 
-    final animation = SpriteAnimation.fromFrameData(
+    final anim = SpriteAnimation.fromFrameData(
       image,
       SpriteAnimationData.sequenced(
         amount: widget.totalFrames,
@@ -183,63 +189,90 @@ class _CreatureSpriteState extends State<CreatureSprite>
     );
 
     setState(() {
-      _spriteAnimation = animation;
-      _spriteTicker = animation.createTicker();
+      _spriteAnimation = anim;
+      _spriteTicker = anim.createTicker();
     });
   }
 
-  List<double> _createBrightnessSaturationMatrix(
+  // ── color math helpers ────────────────────────────────────
+
+  List<double> _brightnessSaturationMatrix(
     double brightness,
     double saturation,
   ) {
-    final r = brightness;
-    final g = brightness;
-    final b = brightness;
-    final s = saturation;
-
+    final r = brightness, g = brightness, b = brightness, s = saturation;
     return <double>[
       s * r,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
+      0,
+      0,
+      0,
+      0,
+      0,
       s * g,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
+      0,
+      0,
+      0,
+      0,
+      0,
       s * b,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      1.0,
-      0.0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
     ];
   }
 
-  List<double> _createHueRotationMatrix(double degrees) {
-    final radians = degrees * (math.pi / 180);
-    final cos = math.cos(radians);
-    final sin = math.sin(radians);
+  List<double> _hueRotationMatrix(double degrees) {
+    final radians = degrees * (math.pi / 180.0);
+    final c = math.cos(radians), s = math.sin(radians);
+    return <double>[
+      0.213 + c * 0.787 - s * 0.213,
+      0.715 - c * 0.715 - s * 0.715,
+      0.072 - c * 0.072 + s * 0.928,
+      0,
+      0,
+      0.213 - c * 0.213 + s * 0.143,
+      0.715 + c * 0.285 + s * 0.140,
+      0.072 - c * 0.072 - s * 0.283,
+      0,
+      0,
+      0.213 - c * 0.213 - s * 0.787,
+      0.715 - c * 0.715 + s * 0.715,
+      0.072 + c * 0.928 + s * 0.072,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+    ];
+  }
 
-    return [
-      0.213 + cos * 0.787 - sin * 0.213,
-      0.715 - cos * 0.715 - sin * 0.715,
-      0.072 - cos * 0.072 + sin * 0.928,
+  // Albino matrix that desaturates to grayscale and applies brightness
+  List<double> _albinoMatrix(double brightness) {
+    // Luminance coefficients for RGB -> grayscale conversion
+    const double rLum = 0.299;
+    const double gLum = 0.587;
+    const double bLum = 0.114;
+
+    return <double>[
+      rLum * brightness,
+      gLum * brightness,
+      bLum * brightness,
       0,
       0,
-      0.213 - cos * 0.213 + sin * 0.143,
-      0.715 + cos * 0.285 + sin * 0.140,
-      0.072 - cos * 0.072 - sin * 0.283,
+      rLum * brightness,
+      gLum * brightness,
+      bLum * brightness,
       0,
       0,
-      0.213 - cos * 0.213 - sin * 0.787,
-      0.715 - cos * 0.715 + sin * 0.715,
-      0.072 + cos * 0.928 + sin * 0.072,
+      rLum * brightness,
+      gLum * brightness,
+      bLum * brightness,
       0,
       0,
       0,
@@ -261,112 +294,6 @@ class _LoadingIndicator extends StatelessWidget {
         dimension: 16,
         child: CircularProgressIndicator(strokeWidth: 2),
       ),
-    );
-  }
-}
-
-// Helper class to convert genetics JSON to sprite parameters
-class GeneticsEffects {
-  final double scale;
-  final Color? tint;
-  final double saturation;
-  final double brightness;
-  final double hueShift;
-  final bool isPrismatic;
-
-  const GeneticsEffects({
-    this.scale = 1.0,
-    this.tint,
-    this.saturation = 1.0,
-    this.brightness = 1.0,
-    this.hueShift = 0.0,
-    this.isPrismatic = false,
-  });
-
-  factory GeneticsEffects.fromGenes(Map<String, dynamic> genes) {
-    double scale = 1.0;
-    if (genes.containsKey('size')) {
-      switch (genes['size']) {
-        case 'tiny':
-          scale = 0.75;
-          break;
-        case 'small':
-          scale = 0.9;
-          break;
-        case 'large':
-          scale = 1.15;
-          break;
-        case 'giant':
-          scale = 1.3;
-          break;
-        default:
-          scale = 1.0;
-      }
-    }
-
-    double saturation = 1.0;
-    double brightness = 1.0;
-    double hueShift = 0.0;
-    // IMPORTANT: prismatic not handled here anymore
-    if (genes.containsKey('tinting')) {
-      switch (genes['tinting']) {
-        case 'warm':
-          hueShift = 15;
-          saturation = 1.1;
-          brightness = 1.05;
-          break;
-        case 'cool':
-          hueShift = -15;
-          saturation = 1.1;
-          brightness = 1.05;
-          break;
-        case 'vibrant':
-          saturation = 1.4;
-          brightness = 1.1;
-          break;
-        case 'pale':
-          saturation = 0.6;
-          brightness = 1.2;
-          break;
-        // 'normal' or anything else -> defaults
-      }
-    }
-
-    return GeneticsEffects(
-      scale: scale,
-      saturation: saturation,
-      brightness: brightness,
-      hueShift: hueShift,
-      isPrismatic: false, // <- always false here
-    );
-  }
-}
-
-// Extension to make it easy to use with your existing creature data
-extension CreatureSpriteBuilder on Map<String, dynamic> {
-  Widget buildGeneticSprite({
-    required String spritePath,
-    required int totalFrames,
-    required int rows,
-    required Vector2 frameSize,
-    double stepTime = 0.2,
-    bool isPrismatic = false,
-  }) {
-    final genetics = this['genetics'] as Map<String, dynamic>? ?? {};
-    final effects = GeneticsEffects.fromGenes(genetics);
-
-    return CreatureSprite(
-      spritePath: spritePath,
-      totalFrames: totalFrames,
-      rows: rows,
-      frameSize: frameSize,
-      stepTime: stepTime,
-      scale: effects.scale,
-      tint: effects.tint,
-      saturation: effects.saturation,
-      brightness: effects.brightness,
-      hueShift: effects.hueShift,
-      isPrismatic: isPrismatic,
     );
   }
 }

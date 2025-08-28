@@ -851,6 +851,7 @@ class _NurseryTabState extends State<NurseryTab> {
       genetics: genetics,
       parentage: payload['parentage'] as Map<String, dynamic>?,
       isPrismaticSkin: payload['isPrismaticSkin'] as bool? ?? false,
+      likelihoodAnalysisJson: payload['likelihoodAnalysis'] as String?,
     );
 
     if (!mounted) return;
