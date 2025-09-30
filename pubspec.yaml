@@ -16,6 +16,7 @@ dependencies:
   provider: ^6.1.5
   flame: ^1.30.1
   uuid: ^4.5.1
+  lottie: ^3.3.1
 
 dev_dependencies:
   flutter_test:
@@ -29,6 +30,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/animations/
     - assets/images/backgrounds/
     - assets/images/backgrounds/scenes/
     - assets/images/backgrounds/scenes/valley/
@@ -37,5 +39,6 @@ flutter:
     - assets/images/creatures/
     - assets/images/creatures/uncommon/
     - assets/images/creatures/rare/
+    - assets/images/creatures/legendary/
     - assets/images/ui/
     - assets/data/

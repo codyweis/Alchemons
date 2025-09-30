@@ -119,6 +119,7 @@ class _BreedScreenState extends State<BreedScreen>
                           onHatchComplete: () {
                             setState(() {});
                           },
+                          tabController: _tabController,
                         ),
                       ],
                     ),

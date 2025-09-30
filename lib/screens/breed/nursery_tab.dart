@@ -1,18 +1,22 @@
 import 'dart:convert';
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/constants/egg.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
-import 'package:alchemons/models/breeding_info.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/providers/app_providers.dart';
+import 'package:alchemons/screens/breed/utils/breed_utils.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/widgets/animations/breed_result_animation.dart';
+import 'package:alchemons/widgets/animations/database_typing_animation.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/delay_type_widget.dart';
 import 'package:flame/extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -20,11 +24,13 @@ import 'package:provider/provider.dart';
 class NurseryTab extends StatefulWidget {
   final DateTime? maxSeenNowUtc;
   final VoidCallback onHatchComplete;
+  final TabController tabController;
 
   const NurseryTab({
     super.key,
     this.maxSeenNowUtc,
     required this.onHatchComplete,
+    required this.tabController,
   });
 
   @override
@@ -34,6 +40,8 @@ class NurseryTab extends StatefulWidget {
 class _NurseryTabState extends State<NurseryTab> {
   // Cache undiscovered status to prevent flashing
   final Map<String, bool> _undiscoveredCache = {};
+
+  bool _scanComplete = false;
 
   @override
   Widget build(BuildContext context) {
@@ -394,37 +402,45 @@ class _NurseryTabState extends State<NurseryTab> {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: hasEgg
-                ? (ready ? Colors.green.shade50 : Colors.blue.shade50)
-                : isUnlocked
-                ? Colors.grey.shade50
-                : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
+        GestureDetector(
+          onTap: () {
+            // if has egg do nothing else go to breed screen
+            if (!hasEgg) {
+              widget.tabController.animateTo(0);
+            }
+          },
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
               color: hasEgg
-                  ? (ready ? Colors.green.shade400 : Colors.blue.shade400)
+                  ? (ready ? Colors.green.shade50 : Colors.blue.shade50)
                   : isUnlocked
-                  ? Colors.grey.shade300
-                  : Colors.grey.shade400,
-              width: 2,
+                  ? Colors.grey.shade50
+                  : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: hasEgg
+                    ? (ready ? Colors.green.shade400 : Colors.blue.shade400)
+                    : isUnlocked
+                    ? Colors.grey.shade300
+                    : Colors.grey.shade400,
+                width: 2,
+              ),
             ),
-          ),
-          child: Icon(
-            hasEgg
-                ? (ready ? Icons.psychology_rounded : Icons.science_rounded)
-                : isUnlocked
-                ? Icons.add_circle_outline_rounded
-                : Icons.lock_rounded,
-            color: hasEgg
-                ? (ready ? Colors.green.shade600 : Colors.blue.shade600)
-                : isUnlocked
-                ? Colors.grey.shade500
-                : Colors.grey.shade600,
-            size: 20,
+            child: Icon(
+              hasEgg
+                  ? (ready ? Icons.psychology_rounded : Icons.science_rounded)
+                  : isUnlocked
+                  ? Icons.add_circle_outline_rounded
+                  : Icons.lock_rounded,
+              color: hasEgg
+                  ? (ready ? Colors.green.shade600 : Colors.blue.shade600)
+                  : isUnlocked
+                  ? Colors.grey.shade500
+                  : Colors.grey.shade600,
+              size: 20,
+            ),
           ),
         ),
         if (hasEgg && slot.rarity != null)
@@ -681,7 +697,7 @@ class _NurseryTabState extends State<NurseryTab> {
     final safeNow = _safeNowUtc();
     await db.speedUpSlot(
       slotId: slotId,
-      delta: const Duration(minutes: 10),
+      delta: const Duration(minutes: 100),
       safeNowUtc: safeNow,
     );
 
@@ -767,7 +783,6 @@ class _NurseryTabState extends State<NurseryTab> {
           rarity: 'Common',
           description: '',
           image: '',
-          breeding: BreedingInfo.empty(),
         );
 
     var out = base;
@@ -815,6 +830,13 @@ class _NurseryTabState extends State<NurseryTab> {
       return;
     }
 
+    // CHECK DISCOVERY STATUS BEFORE MARKING AS DISCOVERED
+    final isNewDiscovery = await _isUndiscovered(offspring.id);
+    final isVariantNewDiscovery = slot.bonusVariantId != null
+        ? await _isUndiscovered(slot.bonusVariantId!)
+        : false;
+
+    // NOW mark as discovered
     await gameData.markDiscovered(offspring.id);
 
     Creature? variant;
@@ -873,262 +895,332 @@ class _NurseryTabState extends State<NurseryTab> {
 
     await db.clearEgg(slot.id);
 
+    final elementName = offspring.types.first;
+    final palette = paletteForElement(elementName);
+
     // Clear from cache since it's now discovered
     if (slot.resultCreatureId != null) {
       _undiscoveredCache.remove(slot.resultCreatureId!);
     }
 
-    widget.onHatchComplete();
     if (!mounted) return;
+    await playHatchCinematic(
+      context,
+      'assets/animations/egg_hatch.json',
+      palette,
+    );
 
-    await _showExtractionResult(instanceId, variant);
+    widget.onHatchComplete();
+
+    await _showExtractionResult(
+      instanceId,
+      variant,
+      isNewDiscovery,
+      isVariantNewDiscovery,
+    );
     await gameState.refresh();
   }
 
+  // Updated _showExtractionResult method
   Future<void> _showExtractionResult(
     String instanceId,
     Creature? variant,
+    bool isNewDiscovery,
+    bool isVariantNewDiscovery,
   ) async {
     if (!mounted) return;
 
     final offspring = await _effectiveFromInstance(instanceId);
     if (!mounted) return;
 
+    // Reset scan completion state
+    _scanComplete = false;
+    bool _allTypingComplete = false;
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(10),
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.95,
-          height: MediaQuery.of(context).size.height * 0.8,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.95),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.indigo.shade300, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.indigo.shade200,
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.all(10),
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.95,
+              height: MediaQuery.of(context).size.height * 0.8,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.indigo.shade300, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.indigo.shade200,
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.indigo.shade50,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                  border: Border(
-                    bottom: BorderSide(color: Colors.indigo.shade200),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.science_rounded,
-                                color: Colors.indigo.shade600,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                variant != null
-                                    ? 'Variant Specimen Extracted'
-                                    : 'Extraction Complete',
-                                style: TextStyle(
-                                  color: Colors.indigo.shade700,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            offspring.name,
-                            style: TextStyle(
-                              color: Colors.indigo.shade600,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+              child: Column(
+                children: [
+                  _buildExtractionHeader(offspring, variant),
+
+                  // Docked creature sprite section
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.shade50,
+                      border: Border(
+                        bottom: BorderSide(color: Colors.indigo.shade200),
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(
-                          Icons.close_rounded,
-                          color: Colors.grey.shade600,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Container(
-                        height: 250,
-                        width: 250,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.indigo.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.indigo.shade200),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.indigo.shade100,
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: CreatureSprite(
-                          spritePath:
-                              offspring.spriteData?.spriteSheetPath ?? '',
-                          totalFrames: offspring.spriteData?.totalFrames ?? 1,
-                          rows: offspring.spriteData?.rows ?? 1,
-                          frameSize: Vector2(
-                            offspring.spriteData!.frameWidth.toDouble(),
-                            offspring.spriteData!.frameHeight.toDouble(),
-                          ),
-                          isPrismatic: offspring.isPrismaticSkin,
-                          stepTime:
-                              offspring.spriteData!.frameDurationMs / 1000.0,
-                          scale: scaleFromGenes(offspring.genetics),
-                          saturation: satFromGenes(offspring.genetics),
-                          brightness: briFromGenes(offspring.genetics),
-                          hueShift: hueFromGenes(offspring.genetics),
-                        ),
-                      ),
-                      if (variant != null) ...[
-                        const SizedBox(height: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Main creature sprite
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
+                          height: 200,
+                          width: 200,
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.orange.shade100,
+                            color: Colors.indigo.shade50,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.orange.shade300),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.auto_awesome_rounded,
-                                color: Colors.orange.shade700,
-                                size: 14,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Genetic Variant Detected',
-                                style: TextStyle(
-                                  color: Colors.orange.shade700,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        CreatureSprite(
-                          spritePath:
-                              offspring.spriteData?.spriteSheetPath ?? '',
-                          totalFrames: offspring.spriteData?.totalFrames ?? 1,
-                          rows: offspring.spriteData?.rows ?? 1,
-                          frameSize: Vector2(
-                            offspring.spriteData!.frameWidth.toDouble(),
-                            offspring.spriteData!.frameHeight.toDouble(),
-                          ),
-                          isPrismatic: offspring.isPrismaticSkin,
-                          stepTime:
-                              offspring.spriteData!.frameDurationMs / 1000.0,
-                          scale: scaleFromGenes(offspring.genetics),
-                          saturation: satFromGenes(offspring.genetics),
-                          brightness: briFromGenes(offspring.genetics),
-                          hueShift: hueFromGenes(offspring.genetics),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      _buildAnalysisSection('Specimen Analysis', [
-                        _buildAnalysisRow('Classification', offspring.rarity),
-                        _buildAnalysisRow(
-                          'Type Categories',
-                          offspring.types.join(', '),
-                        ),
-                        if (offspring.description.isNotEmpty)
-                          _buildAnalysisRow('Notes', offspring.description),
-                      ]),
-                      const SizedBox(height: 12),
-                      _buildAnalysisSection('Genetic Profile', [
-                        _buildAnalysisRow(
-                          'Size Variant',
-                          _getSizeName(offspring),
-                        ),
-                        _buildAnalysisRow(
-                          'Pigmentation',
-                          _getTintName(offspring),
-                        ),
-                        if (offspring.nature != null)
-                          _buildAnalysisRow(
-                            'Behavioral Pattern',
-                            offspring.nature!.id,
-                          ),
-                        if (offspring.isPrismaticSkin == true)
-                          _buildAnalysisRow(
-                            'Special Trait',
-                            'Prismatic Phenotype',
-                          ),
-                      ]),
-                      const SizedBox(height: 16),
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.indigo.shade600,
-                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.indigo.shade200),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.indigo.shade200,
-                                blurRadius: 6,
+                                color: Colors.indigo.shade100,
+                                blurRadius: 4,
                                 offset: const Offset(0, 2),
                               ),
                             ],
                           ),
+                          child: CreatureScanAnimation(
+                            isNewDiscovery: isNewDiscovery,
+                            scanDuration: const Duration(milliseconds: 3000),
+                            onScanComplete: () {
+                              print('Scan complete for ${offspring.name}');
+                              setDialogState(() {
+                                _scanComplete = true;
+                              });
+                            },
+                            child: CreatureSprite(
+                              spritePath:
+                                  offspring.spriteData?.spriteSheetPath ?? '',
+                              totalFrames:
+                                  offspring.spriteData?.totalFrames ?? 1,
+                              rows: offspring.spriteData?.rows ?? 1,
+                              frameSize: Vector2(
+                                offspring.spriteData!.frameWidth.toDouble(),
+                                offspring.spriteData!.frameHeight.toDouble(),
+                              ),
+                              isPrismatic: offspring.isPrismaticSkin,
+                              stepTime:
+                                  offspring.spriteData!.frameDurationMs /
+                                  1000.0,
+                              scale: scaleFromGenes(offspring.genetics),
+                              saturation: satFromGenes(offspring.genetics),
+                              brightness: briFromGenes(offspring.genetics),
+                              hueShift: hueFromGenes(offspring.genetics),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 16),
+
+                        // Variant sprite (if exists)
+                        if (variant != null)
+                          Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.orange.shade300,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.auto_awesome_rounded,
+                                      color: Colors.orange.shade700,
+                                      size: 12,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Variant',
+                                      style: TextStyle(
+                                        color: Colors.orange.shade700,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                height: 120,
+                                width: 120,
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.orange.shade200,
+                                  ),
+                                ),
+                                child: CreatureScanAnimation(
+                                  isNewDiscovery: isVariantNewDiscovery,
+                                  scanDuration: const Duration(
+                                    milliseconds: 2000,
+                                  ),
+                                  child: CreatureSprite(
+                                    spritePath:
+                                        variant.spriteData?.spriteSheetPath ??
+                                        '',
+                                    totalFrames:
+                                        variant.spriteData?.totalFrames ?? 1,
+                                    rows: variant.spriteData?.rows ?? 1,
+                                    frameSize: Vector2(
+                                      variant.spriteData!.frameWidth.toDouble(),
+                                      variant.spriteData!.frameHeight
+                                          .toDouble(),
+                                    ),
+                                    isPrismatic: variant.isPrismaticSkin,
+                                    stepTime:
+                                        variant.spriteData!.frameDurationMs /
+                                        1000.0,
+                                    scale: scaleFromGenes(variant.genetics),
+                                    saturation: satFromGenes(variant.genetics),
+                                    brightness: briFromGenes(variant.genetics),
+                                    hueShift: hueFromGenes(variant.genetics),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          // Database typing animation for analysis sections
+                          DatabaseTypingAnimation(
+                            startAnimation: _scanComplete,
+                            delayBetweenItems: const Duration(
+                              milliseconds: 800,
+                            ),
+                            onComplete: () {
+                              // This callback fires when all typing is done
+                              setDialogState(() {
+                                _allTypingComplete = true;
+                              });
+                            },
+                            children: [
+                              _buildAnalysisSection('Specimen Analysis', [
+                                _buildTypingAnalysisRow(
+                                  'Classification',
+                                  offspring.rarity,
+                                  _scanComplete,
+                                ),
+                                _buildTypingAnalysisRow(
+                                  'Type Categories',
+                                  offspring.types.join(', '),
+                                  _scanComplete,
+                                  delay: const Duration(milliseconds: 300),
+                                ),
+                                if (offspring.description.isNotEmpty)
+                                  _buildTypingAnalysisRow(
+                                    'Notes',
+                                    offspring.description,
+                                    _scanComplete,
+                                    delay: const Duration(milliseconds: 600),
+                                  ),
+                              ]),
+                              _buildAnalysisSection('Genetic Profile', [
+                                _buildTypingAnalysisRow(
+                                  'Size Variant',
+                                  _getSizeName(offspring),
+                                  _scanComplete,
+                                ),
+                                _buildTypingAnalysisRow(
+                                  'Pigmentation',
+                                  _getTintName(offspring),
+                                  _scanComplete,
+                                  delay: const Duration(milliseconds: 300),
+                                ),
+                                if (offspring.nature != null)
+                                  _buildTypingAnalysisRow(
+                                    'Behavioral Pattern',
+                                    offspring.nature!.id,
+                                    _scanComplete,
+                                    delay: const Duration(milliseconds: 600),
+                                  ),
+                                if (offspring.isPrismaticSkin == true)
+                                  _buildTypingAnalysisRow(
+                                    'Special Trait',
+                                    'Prismatic Phenotype',
+                                    _scanComplete,
+                                    delay: const Duration(milliseconds: 900),
+                                  ),
+                              ]),
+                            ],
+                          ),
+
+                          // Add some bottom padding to ensure content doesn't get hidden behind button
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Docked button at bottom
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border(
+                        top: BorderSide(color: Colors.indigo.shade200),
+                      ),
+                    ),
+                    child: AnimatedOpacity(
+                      opacity: _allTypingComplete ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 500),
+                      child: GestureDetector(
+                        onTap: _allTypingComplete
+                            ? () => Navigator.of(context).pop()
+                            : null,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _allTypingComplete
+                                ? Colors.indigo.shade600
+                                : Colors.grey.shade400,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: _allTypingComplete
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.indigo.shade200,
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
+                          ),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Icon(
                                 Icons.check_rounded,
@@ -1148,196 +1240,108 @@ class _NurseryTabState extends State<NurseryTab> {
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildCreatureDisplayCard(Creature creature, bool isVariant) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isVariant ? Colors.orange.shade300 : Colors.indigo.shade200,
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isVariant ? Colors.orange.shade100 : Colors.indigo.shade100,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+  // New method for typing analysis rows
+  Widget _buildTypingAnalysisRow(
+    String label,
+    String value,
+    bool startTyping, {
+    Duration delay = Duration.zero,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: startTyping
+                ? DelayedTypingText(
+                    text: value,
+                    delay: delay,
+                    style: TextStyle(
+                      color: Colors.indigo.shade700,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
+                : Container(), // Empty until scan completes
           ),
         ],
       ),
-      child: Column(
+    );
+  }
+
+  Widget _buildExtractionHeader(Creature offspring, Creature? variant) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.indigo.shade50,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
+        ),
+        border: Border(bottom: BorderSide(color: Colors.indigo.shade200)),
+      ),
+      child: Row(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                height: 100,
-                width: 100,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: BreedConstants.getTypeColor(
-                        creature.types.first,
-                      ).withOpacity(0.2),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
+          Expanded(
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.science_rounded,
+                      color: Colors.indigo.shade600,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      variant != null
+                          ? 'Variant Specimen Extracted'
+                          : 'Extraction Complete',
+                      style: TextStyle(
+                        color: Colors.indigo.shade700,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    'assets/images/creatures/${creature.rarity.toLowerCase()}/${creature.id.toUpperCase()}_${creature.name.toLowerCase()}.gif',
-                    fit: BoxFit.fitWidth,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: BreedConstants.getTypeColor(
-                            creature.types.first,
-                          ).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          BreedConstants.getTypeIcon(creature.types.first),
-                          size: 40,
-                          color: BreedConstants.getTypeColor(
-                            creature.types.first,
-                          ),
-                        ),
-                      );
-                    },
+                const SizedBox(height: 4),
+                Text(
+                  offspring.name,
+                  style: TextStyle(
+                    color: Colors.indigo.shade600,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-              if (isVariant)
-                Positioned(
-                  top: -4,
-                  right: -4,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade600,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
-                    child: const Text(
-                      'VAR',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              if (creature.isPrismaticSkin == true)
-                Positioned(
-                  top: -4,
-                  left: -4,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.purple.shade600,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
-                    child: const Text(
-                      'PRIS',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              Positioned(
-                bottom: -4,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: BreedConstants.getRarityColor(creature.rarity),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
-                    child: Text(
-                      creature.rarity.toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            creature.name,
-            style: TextStyle(
-              color: Colors.indigo.shade700,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+              ],
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-          Wrap(
-            spacing: 4,
-            children: creature.types
-                .map(
-                  (type) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: BreedConstants.getTypeColor(type).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: BreedConstants.getTypeColor(
-                          type,
-                        ).withOpacity(0.3),
-                      ),
-                    ),
-                    child: Text(
-                      type,
-                      style: TextStyle(
-                        color: BreedConstants.getTypeColor(type),
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
           ),
         ],
       ),

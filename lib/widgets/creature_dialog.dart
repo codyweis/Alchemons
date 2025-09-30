@@ -53,7 +53,9 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   int _currentImageIndex = 0;
   late PageController _pageController;
   Future<Creature>? _resolvedCreature;
-  Set<String> _expandedParents = {};
+  final Set<String> _expandedParents = {};
+
+  late ScrollController _scrollController;
 
   // Instance data for level/XP display
   int? _instanceLevel;
@@ -67,6 +69,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
       length: widget.isDiscovered ? 2 : 1,
       vsync: this,
     );
+    _scrollController = ScrollController();
     _pageController = PageController(viewportFraction: 1.0);
     if (widget.instanceId != null) {
       _resolvedCreature = _displayCreatureForInstance(widget.instanceId!);
@@ -127,6 +130,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   void dispose() {
     _tabController.dispose();
     _pageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -653,6 +657,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     final parentage = c.parentage;
 
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -985,7 +990,9 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
             ...categoryTraits.map((t) {
               final trait = t as Map;
               return _buildJustificationResult(
-                entry.value,
+                trait['category'] != 'genetics'
+                    ? entry.value
+                    : trait['trait'] as String,
                 trait['actualValue'] as String,
                 (trait['actualChance'] as num).toDouble(),
                 trait['mechanism'] as String,
@@ -1508,9 +1515,16 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min, // Important: prevents unnecessary space
         children: [
           InkWell(
             onTap: () {
+              // Store current scroll position before setState
+              double? currentOffset;
+              if (_scrollController.hasClients) {
+                currentOffset = _scrollController.offset;
+              }
+
               setState(() {
                 if (isExpanded) {
                   _expandedParents.remove(parentId);
@@ -1518,6 +1532,15 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                   _expandedParents.add(parentId);
                 }
               });
+
+              // Restore scroll position after the frame is built
+              if (currentOffset != null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo(currentOffset!);
+                  }
+                });
+              }
             },
             borderRadius: BorderRadius.circular(8),
             child: Padding(
@@ -1601,10 +1624,14 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                           ),
                         ),
                       const SizedBox(width: 6),
-                      Icon(
-                        isExpanded ? Icons.expand_less : Icons.expand_more,
-                        color: Colors.indigo.shade400,
-                        size: 16,
+                      AnimatedRotation(
+                        turns: isExpanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          Icons.expand_more,
+                          color: Colors.indigo.shade400,
+                          size: 16,
+                        ),
                       ),
                     ],
                   ),
@@ -1612,41 +1639,56 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
               ),
             ),
           ),
-          if (isExpanded) ...[
-            Divider(color: Colors.indigo.shade200, height: 1),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
+          // Use ClipRect and AnimatedCrossFade for better control
+          ClipRect(
+            child: AnimatedCrossFade(
+              firstChild: const SizedBox(width: double.infinity, height: 0),
+              secondChild: Column(
                 children: [
-                  _buildParentDataSection('Genetic Profile', [
-                    if (snap.genetics?.get('size') != null)
-                      _buildDataRow(
-                        'Size Variant',
-                        sizeLabels[snap.genetics!.get('size')] ?? 'Standard',
-                      ),
-                    if (snap.genetics?.get('tinting') != null)
-                      _buildDataRow(
-                        'Pigmentation',
-                        tintLabels[snap.genetics!.get('tinting')] ?? 'Standard',
-                      ),
-                    if (snap.nature != null)
-                      _buildDataRow('Behavior', snap.nature!.id),
-                  ]),
-                  if (snap.genetics != null &&
-                      (snap.genetics!.get('size') != null ||
-                          snap.genetics!.get('tinting') != null)) ...[
-                    const SizedBox(height: 8),
-                    _buildParentDataSection('Genetic Contribution', [
-                      _buildDataRow(
-                        'Traits Passed',
-                        '${sizeLabels[snap.genetics!.get('size')] ?? 'Standard'} morphology, ${(tintLabels[snap.genetics!.get('tinting')] ?? 'Standard').toLowerCase()} pigmentation',
-                      ),
-                    ]),
-                  ],
+                  Divider(color: Colors.indigo.shade200, height: 1),
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      children: [
+                        _buildParentDataSection('Genetic Profile', [
+                          if (snap.genetics?.get('size') != null)
+                            _buildDataRow(
+                              'Size Variant',
+                              sizeLabels[snap.genetics!.get('size')] ??
+                                  'Standard',
+                            ),
+                          if (snap.genetics?.get('tinting') != null)
+                            _buildDataRow(
+                              'Pigmentation',
+                              tintLabels[snap.genetics!.get('tinting')] ??
+                                  'Standard',
+                            ),
+                          if (snap.nature != null)
+                            _buildDataRow('Behavior', snap.nature!.id),
+                        ]),
+                        if (snap.genetics != null &&
+                            (snap.genetics!.get('size') != null ||
+                                snap.genetics!.get('tinting') != null)) ...[
+                          const SizedBox(height: 8),
+                          _buildParentDataSection('Genetic Contribution', [
+                            _buildDataRow(
+                              'Traits Passed',
+                              '${sizeLabels[snap.genetics!.get('size')] ?? 'Standard'} morphology, ${(tintLabels[snap.genetics!.get('tinting')] ?? 'Standard').toLowerCase()} pigmentation',
+                            ),
+                          ]),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
               ),
+              crossFadeState: isExpanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 250),
+              sizeCurve: Curves.easeInOut,
             ),
-          ],
+          ),
         ],
       ),
     );

@@ -1,4 +1,3 @@
-import 'package:alchemons/models/breeding_info.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/special_breeding.dart';
@@ -23,14 +22,23 @@ class SpriteData {
 
   factory SpriteData.fromJson(Map<String, dynamic> json) {
     return SpriteData(
-      frameWidth: json['frameWidth'] ?? 512,
-      frameHeight: json['frameHeight'] ?? 512,
-      totalFrames: json['totalFrames'] ?? 4,
-      frameDurationMs: json['frameDurationMs'] ?? 120,
-      rows: json['rows'] ?? 1,
+      frameWidth: (json['frameWidth'] as int?) ?? 512,
+      frameHeight: (json['frameHeight'] as int?) ?? 512,
+      totalFrames: (json['totalFrames'] as int?) ?? 4,
+      frameDurationMs: (json['frameDurationMs'] as int?) ?? 120,
+      rows: (json['rows'] as int?) ?? 1,
       spriteSheetPath: json['spriteSheetPath'] as String,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'frameWidth': frameWidth,
+    'frameHeight': frameHeight,
+    'totalFrames': totalFrames,
+    'frameDurationMs': frameDurationMs,
+    'rows': rows,
+    'spriteSheetPath': spriteSheetPath,
+  };
 }
 
 class Genetics {
@@ -41,27 +49,44 @@ class Genetics {
 
   Genetics copyWith({Map<String, String>? variants}) =>
       Genetics(Map.unmodifiable(variants ?? this.variants));
+
+  factory Genetics.fromJson(Map<String, dynamic> json) =>
+      Genetics(Map<String, String>.from(json));
+
+  Map<String, dynamic> toJson() => variants;
 }
 
 class Creature {
   final String id;
   final String name;
-  final List<String>
-  types; // primary at [0], optional secondary at [1] for variants
-  final String rarity; // "Common" | "Uncommon" | "Rare" | "Mythic" | "Variant"
+
+  /// Primary at [0], optional secondary at [1] for variants.
+  final List<String> types;
+
+  /// "Common" | "Uncommon" | "Rare" | "Mythic" | "Variant"
+  final String rarity;
+
   final String description;
-  final String image; // base static image
-  final BreedingInfo breeding;
+
+  /// Base static image path, e.g. "creatures/rare/HOR01_firehorn.png"
+  final String image;
+
   final SpecialBreeding? specialBreeding;
-  final String? mutationFamily; // e.g. "Wing", "Crest", "Back", ...
+
+  /// e.g. "Wing", "Crest", "Back", ...
+  final String? mutationFamily;
+
   final List<List<String>>? guaranteedBreeding;
   final NatureDef? nature;
   final Genetics? genetics;
+
+  /// Prismatic skin flag (e.g. special cosmetic)
   final bool isPrismaticSkin;
+
   final Parentage? parentage;
 
-  /// Cross-breeding variant compatibility:
-  /// if partner's primary type is in here, we may produce a variant.
+  /// Cross-breeding variant compatibility: if partner's primary type is in
+  /// here, we may produce a variant.
   final Set<String> variantTypes;
 
   /// Flags an instance created as a runtime variant (not from the catalog).
@@ -77,7 +102,6 @@ class Creature {
     required this.rarity,
     required this.description,
     required this.image,
-    required this.breeding,
     this.specialBreeding,
     this.guaranteedBreeding,
     this.mutationFamily,
@@ -90,54 +114,80 @@ class Creature {
     this.parentage,
   });
 
+  /// JSON -> Creature (null-safe)
   factory Creature.fromJson(Map<String, dynamic> json) {
-    // Base image path from JSON.
-    final String imagePath = json['image'];
+    // Basic fields
+    final String imagePath = json['image'] as String;
+    final String id = json['id'] as String;
+    final String name = json['name'] as String;
+    final String rarity = json['rarity'] as String;
+    final String description = json['description'] as String;
 
-    // If `spriteData` exists, we synthesize a default spriteSheetPath by convention:
+    // Collections with guards
+    final types = (json['types'] is List)
+        ? List<String>.from(json['types'] as List)
+        : const <String>[];
+
+    // Optional/nested JSON blobs
+    final specialBreedingJson = json['specialBreeding'];
+    final guaranteedBreedingJson = json['guaranteedBreeding'];
+    final variantJson = json['variant'];
+    final geneticsJson = json['genetics'];
+    final natureJson = json['nature'];
+    final parentageJson = json['parentage'];
+    final spriteDataJson = json['spriteData'];
+
+    // If `spriteData` exists, synthesize a default spriteSheetPath by convention:
     // "<image basename>_spritesheet.png"
     String? spritesheetPath;
-    if (json['spriteData'] != null) {
+    if (spriteDataJson is Map && imagePath.isNotEmpty) {
       spritesheetPath = imagePath.replaceAll('.png', '_spritesheet.png');
     }
 
     return Creature(
-      id: json['id'],
-      name: json['name'],
-      types: List<String>.from(json['types']),
-      rarity: json['rarity'],
-      description: json['description'],
+      id: id,
+      name: name,
+      types: types,
+      rarity: rarity,
+      description: description,
       image: imagePath,
-      breeding: BreedingInfo.fromJson(json['breeding']),
-      specialBreeding: json['specialBreeding'] != null
-          ? SpecialBreeding.fromJson(json['specialBreeding'])
+
+      specialBreeding: specialBreedingJson is Map<String, dynamic>
+          ? SpecialBreeding.fromJson(specialBreedingJson)
           : null,
-      guaranteedBreeding: json['guaranteedBreeding'] != null
-          ? (json['guaranteedBreeding'] as List)
-                .map((e) => List<String>.from(e))
+
+      guaranteedBreeding: guaranteedBreedingJson is List
+          ? (guaranteedBreedingJson as List)
+                .map((e) => List<String>.from(e as List))
                 .toList()
           : null,
-      mutationFamily: json['mutationFamily'],
-      variantTypes: json['variant'] == null
-          ? const {}
-          : Set<String>.from(
-              (json['variant'] as List).map((e) => e.toString()),
-            ),
-      isVariant: json['isVariant'] ?? false,
-      genetics: json['genetics'] != null
-          ? Genetics(Map<String, String>.from(json['genetics']))
+
+      mutationFamily: json['mutationFamily'] as String?,
+
+      variantTypes: variantJson is List
+          ? Set<String>.from(variantJson.map((e) => e.toString()))
+          : const {},
+
+      isVariant: (json['isVariant'] as bool?) ?? false,
+
+      genetics: geneticsJson is Map<String, dynamic>
+          ? Genetics.fromJson(geneticsJson)
           : null,
-      nature: json['nature'] != null
-          ? NatureDef.fromJson(json['nature'])
+
+      nature: natureJson is Map<String, dynamic>
+          ? NatureDef.fromJson(natureJson)
           : null,
-      parentage: json['parentage'] != null
-          ? Parentage.fromJson(json['parentage'])
+
+      parentage: parentageJson is Map<String, dynamic>
+          ? Parentage.fromJson(parentageJson)
           : null,
-      isPrismaticSkin: json['isPrismaticSkin'] ?? false,
-      spriteData: spritesheetPath != null
+
+      isPrismaticSkin: (json['isPrismaticSkin'] as bool?) ?? false,
+
+      spriteData: spriteDataJson is Map<String, dynamic>
           ? SpriteData.fromJson({
-              ...json['spriteData'],
-              'spriteSheetPath': spritesheetPath,
+              ...spriteDataJson,
+              if (spritesheetPath != null) 'spriteSheetPath': spritesheetPath,
             })
           : null,
     );
@@ -167,17 +217,34 @@ class Creature {
       nature: null,
       genetics: null,
       isPrismaticSkin: false,
-      breeding:
-          BreedingInfo.empty(), // variants don't follow normal breeding rules
       isVariant: true,
       spriteData: spriteVariantData,
       variantTypes:
           const {}, // runtime variants don't cause further variants by default
-      mutationFamily: null, // or inherit if you prefer
+      mutationFamily: null,
       specialBreeding: null,
       guaranteedBreeding: null,
+      parentage: null,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'types': types,
+    'rarity': rarity,
+    'description': description,
+    'image': image,
+    if (guaranteedBreeding != null) 'guaranteedBreeding': guaranteedBreeding,
+    if (mutationFamily != null) 'mutationFamily': mutationFamily,
+    'variant': variantTypes.toList(),
+    'isVariant': isVariant,
+    if (spriteData != null) 'spriteData': spriteData!.toJson(),
+    if (nature != null) 'nature': nature!.toJson(),
+    if (genetics != null) 'genetics': genetics!.toJson(),
+    'isPrismaticSkin': isPrismaticSkin,
+    if (parentage != null) 'parentage': parentage!.toJson(),
+  };
 }
 
 extension CreatureCopy on Creature {
@@ -188,7 +255,6 @@ extension CreatureCopy on Creature {
     String? rarity,
     String? description,
     String? image,
-    BreedingInfo? breeding,
     SpecialBreeding? specialBreeding,
     String? mutationFamily,
     List<List<String>>? guaranteedBreeding,
@@ -207,7 +273,6 @@ extension CreatureCopy on Creature {
       rarity: rarity ?? this.rarity,
       description: description ?? this.description,
       image: image ?? this.image,
-      breeding: breeding ?? this.breeding,
       specialBreeding: specialBreeding ?? this.specialBreeding,
       mutationFamily: mutationFamily ?? this.mutationFamily,
       guaranteedBreeding: guaranteedBreeding ?? this.guaranteedBreeding,

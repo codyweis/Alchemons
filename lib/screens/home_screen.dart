@@ -1,3 +1,4 @@
+import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
@@ -8,10 +9,15 @@ import 'package:alchemons/screens/profile_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/test/dev_seeder.dart';
+import 'package:alchemons/widgets/animations/particle_burst.dart';
+import 'package:alchemons/widgets/animations/router/push_soft.dart';
+import 'package:alchemons/widgets/animations/tilt_helper.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_providers.dart';
 import '../models/creature.dart';
@@ -241,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             border: Border.all(
                               color: isSelected
                                   ? Colors.indigo.shade600
-                                  : _getTypeColor(
+                                  : BreedConstants.getTypeColor(
                                       creature.types.first,
                                     ).withOpacity(0.5),
                               width: isSelected ? 2 : 1,
@@ -250,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               BoxShadow(
                                 color: isSelected
                                     ? Colors.indigo.shade200
-                                    : _getTypeColor(
+                                    : BreedConstants.getTypeColor(
                                         creature.types.first,
                                       ).withOpacity(0.1),
                                 blurRadius: isSelected ? 6 : 2,
@@ -267,7 +273,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     height: 50,
                                     width: 100,
                                     decoration: BoxDecoration(
-                                      color: _getTypeColor(
+                                      color: BreedConstants.getTypeColor(
                                         creature.types.first,
                                       ).withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(6),
@@ -280,12 +286,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                         errorBuilder:
                                             (context, error, stackTrace) {
                                               return Icon(
-                                                _getCreatureIcon(
+                                                BreedConstants.getTypeIcon(
                                                   creature.types.first,
                                                 ),
-                                                color: _getTypeColor(
-                                                  creature.types.first,
-                                                ),
+                                                color:
+                                                    BreedConstants.getTypeColor(
+                                                      creature.types.first,
+                                                    ),
                                                 size: 20,
                                               );
                                             },
@@ -452,35 +459,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           return _buildErrorScreen(gameState.error!, gameState.refresh);
         }
 
-        return Scaffold(
-          body: Stack(
-            children: [
-              _buildBackgroundLayers(),
-              SafeArea(
-                child: Column(
-                  children: [
-                    _buildEnhancedHeader(),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Column(
-                            children: [
-                              const SizedBox(height: 16),
-                              _buildFeaturedCreatures(),
-                              const SizedBox(height: 20),
-                              _buildNavigationBubbles(),
-                              const SizedBox(height: 20),
-                            ],
+        return ParticleOverlay(
+          child: Scaffold(
+            body: Stack(
+              children: [
+                _buildBackgroundLayers(),
+                SafeArea(
+                  child: Column(
+                    children: [
+                      _buildEnhancedHeader(),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Column(
+                              children: [
+                                const SizedBox(height: 16),
+                                _buildFeaturedCreatures(),
+                                const SizedBox(height: 20),
+                                _buildNavigationBubbles(),
+                                const SizedBox(height: 20),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -628,9 +637,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ... rest of your existing methods remain the same ...
-  // (I'm keeping the rest of the methods unchanged to avoid repetition)
-
   Widget _buildBackgroundLayers() {
     return Stack(
       children: [
@@ -641,9 +647,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.blue.shade50,
+                  Colors.red.shade50,
                   Colors.indigo.shade50,
-                  Colors.purple.shade50,
+                  Colors.green.shade50,
                 ],
               ),
             ),
@@ -653,19 +659,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: AnimatedBuilder(
             animation: _rotationController,
             builder: (context, child) {
-              return Container(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.topRight,
-                    radius: 1.5,
-                    colors: [
-                      Colors.indigo.withOpacity(
-                        0.05 * (_rotationController.value),
+              final t = _rotationController.value;
+              final dx = sin(t * 2 * 3.14159) * 0.2;
+              final dy = cos(t * 2 * 3.14159) * 0.15;
+              return Stack(
+                children: [
+                  Align(
+                    alignment: Alignment(0.6 + dx, -0.4 + dy),
+                    child: Container(
+                      width: 380,
+                      height: 380,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            Colors.indigo.withOpacity(0.12),
+                            Colors.transparent,
+                          ],
+                        ),
                       ),
-                      Colors.transparent,
-                    ],
+                    ),
                   ),
-                ),
+                ],
               );
             },
           ),
@@ -999,7 +1014,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
             return _buildEnhancedCreatureSlot(
               creature,
-              _getTypeColor(creature.types.first),
+              BreedConstants.getTypeColor(creature.types.first),
               index * 0.5,
             );
           }).toList(),
@@ -1043,155 +1058,168 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       builder: (context, child) {
         return Transform.translate(
           offset: Offset(0, -2 * _breathingController.value),
-          child: GestureDetector(
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) => Dialog(
-                  backgroundColor: Colors.transparent,
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.indigo.shade200,
-                        width: 2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
+          child: Tilt(
+            maxTilt: 20,
+            child: GestureDetector(
+              onTapUp: (details) {
+                HapticFeedback.selectionClick();
+                ParticleOverlay.trigger(context, details, glowColor);
+                // show detail dialog (unchanged):
+                showDialog(
+                  context: context,
+                  builder: (context) => Dialog(
+                    backgroundColor: Colors.transparent,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.95),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
                           color: Colors.indigo.shade200,
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                          width: 2,
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: SizedBox(
-                            width: 160,
-                            height: 160,
-                            child: creature.spriteData != null
-                                ? CreatureSprite(
-                                    spritePath:
-                                        creature.spriteData!.spriteSheetPath,
-                                    totalFrames:
-                                        creature.spriteData!.totalFrames,
-                                    frameSize: Vector2(
-                                      creature.spriteData!.frameWidth * 1.0,
-                                      creature.spriteData!.frameHeight * 1.0,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.indigo.shade200,
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: SizedBox(
+                              width: 160,
+                              height: 160,
+                              child: creature.spriteData != null
+                                  ? CreatureSprite(
+                                      spritePath:
+                                          creature.spriteData!.spriteSheetPath,
+                                      totalFrames:
+                                          creature.spriteData!.totalFrames,
+                                      frameSize: Vector2(
+                                        creature.spriteData!.frameWidth * 1.0,
+                                        creature.spriteData!.frameHeight * 1.0,
+                                      ),
+                                      rows: creature.spriteData!.rows,
+                                      stepTime:
+                                          (creature
+                                              .spriteData!
+                                              .frameDurationMs /
+                                          1000.0),
+                                    )
+                                  : Container(
+                                      color: glowColor.withOpacity(0.1),
+                                      child: Icon(
+                                        BreedConstants.getTypeIcon(
+                                          creature.types.first,
+                                        ),
+                                        color: glowColor,
+                                        size: 40,
+                                      ),
                                     ),
-                                    rows: creature.spriteData!.rows,
-                                    stepTime:
-                                        (creature.spriteData!.frameDurationMs /
-                                        1000.0),
-                                  )
-                                : Container(
-                                    color: glowColor.withOpacity(0.1),
-                                    child: Icon(
-                                      _getCreatureIcon(creature.types.first),
-                                      color: glowColor,
-                                      size: 40,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          creature.name,
-                          style: TextStyle(
-                            color: Colors.indigo.shade700,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: glowColor.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: glowColor.withOpacity(0.5),
                             ),
                           ),
-                          child: Text(
-                            creature.types.first,
+                          const SizedBox(height: 12),
+                          Text(
+                            creature.name,
                             style: TextStyle(
-                              color: glowColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                              color: Colors.indigo.shade700,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: Container(
+                          const SizedBox(height: 4),
+                          Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 6,
+                              horizontal: 8,
+                              vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.indigo.shade600,
-                              borderRadius: BorderRadius.circular(8),
+                              color: glowColor.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: glowColor.withOpacity(0.5),
+                              ),
                             ),
-                            child: const Text(
-                              'Close',
+                            child: Text(
+                              creature.types.first,
                               style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
+                                color: glowColor,
                                 fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.indigo.shade600,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Close',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: glowColor.withOpacity(0.5), width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: glowColor.withOpacity(0.2),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
+                );
+              },
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: glowColor.withOpacity(0.5),
+                    width: 2,
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: creature.spriteData != null
-                    ? CreatureSprite(
-                        spritePath: creature.spriteData!.spriteSheetPath,
-                        rows: creature.spriteData!.rows,
-                        totalFrames: creature.spriteData!.totalFrames,
-                        frameSize: Vector2(
-                          creature.spriteData!.frameWidth * 1.0,
-                          creature.spriteData!.frameHeight * 1.0,
+                  boxShadow: [
+                    BoxShadow(
+                      color: glowColor.withOpacity(0.2),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: creature.spriteData != null
+                      ? CreatureSprite(
+                          spritePath: creature.spriteData!.spriteSheetPath,
+                          rows: creature.spriteData!.rows,
+                          totalFrames: creature.spriteData!.totalFrames,
+                          frameSize: Vector2(
+                            creature.spriteData!.frameWidth * 1.0,
+                            creature.spriteData!.frameHeight * 1.0,
+                          ),
+                          stepTime:
+                              (creature.spriteData!.frameDurationMs / 1000.0),
+                        )
+                      : Icon(
+                          BreedConstants.getTypeIcon(creature.types.first),
+                          size: 28,
+                          color: glowColor,
                         ),
-                        stepTime:
-                            (creature.spriteData!.frameDurationMs / 1000.0),
-                      )
-                    : Icon(
-                        _getCreatureIcon(creature.types.first),
-                        size: 28,
-                        color: glowColor,
-                      ),
+                ),
               ),
             ),
           ),
@@ -1219,12 +1247,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Colors.blue.shade600,
                   '$collectionPercent%',
                   () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CreaturesScreen(),
-                      ),
-                    );
+                    context.pushSoft(const CreaturesScreen());
                   },
                 ),
                 _buildNavigationBubble(
@@ -1312,145 +1335,50 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   ) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 100,
-        height: 100,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3), width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                color: Colors.indigo.shade700,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (subtitle.isNotEmpty) ...[
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 8,
-                  fontWeight: FontWeight.w500,
-                ),
+      child: Tilt(
+        maxTilt: 20,
+        child: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withOpacity(0.3), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.1),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
             ],
-          ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.indigo.shade700,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (subtitle.isNotEmpty) ...[
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
-  }
-
-  IconData _getCreatureIcon(String type) {
-    switch (type) {
-      case 'Fire':
-        return Icons.local_fire_department_rounded;
-      case 'Water':
-        return Icons.water_drop_rounded;
-      case 'Earth':
-        return Icons.terrain_rounded;
-      case 'Air':
-        return Icons.air_rounded;
-      case 'Steam':
-        return Icons.cloud_rounded;
-      case 'Lava':
-        return Icons.volcano_rounded;
-      case 'Lightning':
-        return Icons.flash_on_rounded;
-      case 'Mud':
-        return Icons.layers_rounded;
-      case 'Ice':
-        return Icons.ac_unit_rounded;
-      case 'Dust':
-        return Icons.grain_rounded;
-      case 'Crystal':
-        return Icons.diamond_rounded;
-      case 'Plant':
-        return Icons.eco_rounded;
-      case 'Storm':
-        return Icons.thunderstorm_rounded;
-      case 'Magma':
-        return Icons.whatshot_rounded;
-      case 'Poison':
-        return Icons.dangerous_rounded;
-      case 'Spirit':
-        return Icons.auto_awesome_rounded;
-      case 'Shadow':
-        return Icons.nights_stay_rounded;
-      case 'Light':
-        return Icons.wb_sunny_rounded;
-      case 'Blood':
-        return Icons.bloodtype_rounded;
-      case 'Dream':
-        return Icons.bedtime_rounded;
-      case 'Arcane':
-        return Icons.auto_fix_high_rounded;
-      case 'Chaos':
-        return Icons.scatter_plot_rounded;
-      case 'Time':
-        return Icons.schedule_rounded;
-      case 'Void':
-        return Icons.blur_circular_rounded;
-      case 'Ascended':
-        return Icons.star_rounded;
-      default:
-        return Icons.pets_rounded;
-    }
-  }
-
-  Color _getTypeColor(String type) {
-    switch (type) {
-      case 'Fire':
-        return Colors.red.shade400;
-      case 'Water':
-        return Colors.blue.shade400;
-      case 'Earth':
-        return Colors.brown.shade400;
-      case 'Air':
-        return Colors.cyan.shade400;
-      case 'Steam':
-        return Colors.grey.shade400;
-      case 'Lava':
-        return Colors.deepOrange.shade400;
-      case 'Lightning':
-        return Colors.yellow.shade600;
-      case 'Mud':
-        return Colors.brown.shade300;
-      case 'Ice':
-        return Colors.lightBlue.shade400;
-      case 'Dust':
-        return Colors.brown.shade200;
-      case 'Crystal':
-        return Colors.purple.shade300;
-      case 'Plant':
-        return Colors.green.shade400;
-      case 'Poison':
-        return Colors.green.shade600;
-      case 'Spirit':
-        return Colors.teal.shade400;
-      case 'Dark':
-        return Colors.grey.shade700;
-      case 'Light':
-        return Colors.yellow.shade300;
-      case 'Blood':
-        return Colors.red.shade700;
-      default:
-        return Colors.purple.shade400;
-    }
   }
 }
