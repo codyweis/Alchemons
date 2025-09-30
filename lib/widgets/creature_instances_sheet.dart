@@ -1,4 +1,7 @@
+import 'dart:ui';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
@@ -8,15 +11,14 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/providers/species_instances_vm.dart';
 import 'package:alchemons/models/creature.dart';
-import 'dart:convert';
 
 typedef InstanceTap = void Function(CreatureInstance instance);
 
 class InstancesSheet extends StatelessWidget {
   final Creature species;
   final InstanceTap onTap;
-  final String? selectedInstanceId1; // Currently selected parent 1
-  final String? selectedInstanceId2; // Currently selected parent 2
+  final String? selectedInstanceId1;
+  final String? selectedInstanceId2;
 
   const InstancesSheet({
     super.key,
@@ -29,189 +31,216 @@ class InstancesSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
+    final factionSvc = context.read<FactionService>();
+    final currentFaction = factionSvc.current;
+    final factionColors = getFactionColors(currentFaction);
+    final primaryColor = factionColors.$1;
+    final secondaryColor = factionColors.$2;
 
     return ChangeNotifierProvider(
       create: (_) => SpeciesInstancesVM(db, species.id),
       child: Consumer<SpeciesInstancesVM>(
         builder: (_, vm, __) {
           return DraggableScrollableSheet(
-            initialChildSize: 0.6,
-            minChildSize: 0.3,
-            maxChildSize: 0.85,
+            initialChildSize: 0.7,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
             expand: false,
             builder: (context, scrollController) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.95),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                  border: Border.all(color: Colors.indigo.shade200, width: 2),
-                ),
-                child: Column(
-                  children: [
-                    // Fixed header section
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              return Padding(
+                padding: const EdgeInsets.all(12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0B0F14).withOpacity(0.92),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: primaryColor.withOpacity(.4),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(.2),
+                            blurRadius: 24,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
                       child: Column(
                         children: [
-                          Container(
-                            width: 32,
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade300,
-                              borderRadius: BorderRadius.circular(2),
+                          // Header
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.25),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(.2),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: primaryColor.withOpacity(.35),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              primaryColor.withOpacity(.3),
+                                              secondaryColor.withOpacity(.3),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.biotech_rounded,
+                                          color: primaryColor,
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${species.name.toUpperCase()} SPECIMENS',
+                                              style: const TextStyle(
+                                                color: Color(0xFFE8EAED),
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w900,
+                                                letterSpacing: 0.8,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            const Text(
+                                              'Containment facility',
+                                              style: TextStyle(
+                                                color: Color(0xFFB6C0CC),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              (vm.count >=
+                                                  SpeciesInstancesVM.cap)
+                                              ? Colors.red.withOpacity(.15)
+                                              : Colors.green.withOpacity(.15),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          border: Border.all(
+                                            color:
+                                                (vm.count >=
+                                                    SpeciesInstancesVM.cap)
+                                                ? Colors.red.withOpacity(.4)
+                                                : Colors.green.withOpacity(.4),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${vm.count}/${SpeciesInstancesVM.cap}',
+                                          style: TextStyle(
+                                            color:
+                                                (vm.count >=
+                                                    SpeciesInstancesVM.cap)
+                                                ? Colors.red.shade300
+                                                : Colors.green.shade300,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.indigo.shade50,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Icon(
-                                  Icons.biotech_rounded,
-                                  color: Colors.indigo.shade600,
-                                  size: 16,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${species.name} Specimens',
-                                      style: TextStyle(
-                                        color: Colors.indigo.shade800,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+
+                          // Content
+                          Expanded(
+                            child: vm.instances.isEmpty
+                                ? _EmptyState(primaryColor: primaryColor)
+                                : Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      12,
+                                      0,
+                                      12,
+                                      16,
                                     ),
-                                    Text(
-                                      'Containment facility',
-                                      style: TextStyle(
-                                        color: Colors.indigo.shade600,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                    child: GridView.builder(
+                                      controller: scrollController,
+                                      physics: const BouncingScrollPhysics(),
+                                      itemCount: vm.instances.length,
+                                      gridDelegate:
+                                          const SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: 2,
+                                            childAspectRatio: 0.75,
+                                            crossAxisSpacing: 10,
+                                            mainAxisSpacing: 10,
+                                          ),
+                                      itemBuilder: (_, i) {
+                                        final inst = vm.instances[i];
+                                        final isSelected =
+                                            inst.instanceId ==
+                                                selectedInstanceId1 ||
+                                            inst.instanceId ==
+                                                selectedInstanceId2;
+                                        final selectionNumber =
+                                            inst.instanceId ==
+                                                selectedInstanceId1
+                                            ? 1
+                                            : inst.instanceId ==
+                                                  selectedInstanceId2
+                                            ? 2
+                                            : null;
+
+                                        return _InstanceCard(
+                                          species: species,
+                                          instance: inst,
+                                          isSelected: isSelected,
+                                          selectionNumber: selectionNumber,
+                                          primaryColor: primaryColor,
+                                          onTap: () => onTap(inst),
+                                        );
+                                      },
                                     ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: (vm.count >= SpeciesInstancesVM.cap)
-                                      ? Colors.red.shade50
-                                      : Colors.green.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: (vm.count >= SpeciesInstancesVM.cap)
-                                        ? Colors.red.shade300
-                                        : Colors.green.shade300,
-                                    width: 1,
                                   ),
-                                ),
-                                child: Text(
-                                  '${vm.count}/${SpeciesInstancesVM.cap}',
-                                  style: TextStyle(
-                                    color: (vm.count >= SpeciesInstancesVM.cap)
-                                        ? Colors.red.shade700
-                                        : Colors.green.shade700,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
-                            ],
                           ),
                         ],
                       ),
                     ),
-
-                    // Scrollable content section
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-                        child: vm.instances.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade50,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Icon(
-                                        Icons.science_outlined,
-                                        size: 48,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      "No ${species.name} specimens",
-                                      style: TextStyle(
-                                        color: Colors.grey.shade700,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      "Acquire specimens through genetic synthesis\nor field research operations",
-                                      style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 11,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : GridView.builder(
-                                controller: scrollController,
-                                itemCount: vm.instances.length,
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 2,
-                                      childAspectRatio: 0.8,
-                                      crossAxisSpacing: 10,
-                                      mainAxisSpacing: 10,
-                                    ),
-                                itemBuilder: (_, i) {
-                                  final inst = vm.instances[i];
-                                  final isSelected =
-                                      inst.instanceId == selectedInstanceId1 ||
-                                      inst.instanceId == selectedInstanceId2;
-                                  final selectionNumber =
-                                      inst.instanceId == selectedInstanceId1
-                                      ? 1
-                                      : inst.instanceId == selectedInstanceId2
-                                      ? 2
-                                      : null;
-
-                                  return _InstanceCard(
-                                    species: species,
-                                    instance: inst,
-                                    isSelected: isSelected,
-                                    selectionNumber: selectionNumber,
-                                    onTap: () => onTap(inst),
-                                  );
-                                },
-                              ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               );
             },
@@ -222,17 +251,70 @@ class InstancesSheet extends StatelessWidget {
   }
 }
 
+class _EmptyState extends StatelessWidget {
+  final Color primaryColor;
+  const _EmptyState({required this.primaryColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.06),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(.15)),
+              ),
+              child: Icon(
+                Icons.science_outlined,
+                size: 48,
+                color: primaryColor.withOpacity(.6),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'No specimens contained',
+              style: TextStyle(
+                color: Color(0xFFE8EAED),
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Acquire specimens through genetic synthesis\nor field research operations',
+              style: TextStyle(
+                color: Color(0xFFB6C0CC),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _InstanceCard extends StatelessWidget {
   final Creature species;
   final CreatureInstance instance;
   final VoidCallback onTap;
   final bool isSelected;
-  final int? selectionNumber; // 1 for parent 1, 2 for parent 2
+  final int? selectionNumber;
+  final Color primaryColor;
 
   const _InstanceCard({
     required this.species,
     required this.instance,
     required this.onTap,
+    required this.primaryColor,
     this.isSelected = false,
     this.selectionNumber,
   });
@@ -265,314 +347,323 @@ class _InstanceCard extends StatelessWidget {
     final sd = species.spriteData;
     final g = genetics;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.green.shade50 : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected
-                  ? Colors.green.shade400
-                  : Colors.indigo.shade200,
-              width: isSelected ? 3 : 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isSelected
-                    ? Colors.green.shade200.withOpacity(0.7)
-                    : Colors.indigo.shade100.withOpacity(0.5),
-                blurRadius: isSelected ? 6 : 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          height: double.infinity,
+    final borderColor = isSelected
+        ? Colors.green.shade400
+        : primaryColor.withOpacity(.4);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.green.withOpacity(.12)
+              : Colors.black.withOpacity(.2),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor, width: isSelected ? 2.5 : 1.5),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(.3),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Sprite container
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.04),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withOpacity(.12)),
+                  ),
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(9),
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: sd != null
+                              ? CreatureSprite(
+                                  spritePath: sd.spriteSheetPath,
+                                  totalFrames: sd.totalFrames,
+                                  rows: sd.rows,
+                                  frameSize: Vector2(
+                                    sd.frameWidth.toDouble(),
+                                    sd.frameHeight.toDouble(),
+                                  ),
+                                  stepTime: sd.frameDurationMs / 1000.0,
+                                  scale: scaleFromGenes(g),
+                                  saturation: satFromGenes(g),
+                                  brightness: briFromGenes(g),
+                                  hueShift: hueFromGenes(g),
+                                  isPrismatic: instance.isPrismaticSkin,
+                                )
+                              : Image.asset(species.image, fit: BoxFit.contain),
+                        ),
+                      ),
+
+                      // Level badge
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
+                            gradient: LinearGradient(
+                              colors: [
+                                primaryColor.withOpacity(.9),
+                                primaryColor,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: Colors.grey.shade200,
+                              color: Colors.white.withOpacity(.3),
                               width: 1,
                             ),
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(7),
-                            child: Padding(
-                              padding: const EdgeInsets.all(3),
-
-                              child: sd != null
-                                  ? CreatureSprite(
-                                      spritePath: sd.spriteSheetPath,
-                                      totalFrames: sd.totalFrames,
-                                      rows: sd.rows,
-                                      frameSize: Vector2(
-                                        sd.frameWidth.toDouble(),
-                                        sd.frameHeight.toDouble(),
-                                      ),
-                                      stepTime: sd.frameDurationMs / 1000.0,
-                                      scale: scaleFromGenes(g),
-                                      saturation: satFromGenes(g),
-                                      brightness: briFromGenes(g),
-                                      hueShift: hueFromGenes(g),
-                                      isPrismatic: instance.isPrismaticSkin,
-                                    )
-                                  : Image.asset(
-                                      species
-                                          .image, // fallback static image if no sprite sheet
-                                      fit: BoxFit.contain,
-                                    ),
+                          child: Text(
+                            'LV ${instance.level}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
                             ),
                           ),
                         ),
+                      ),
 
+                      // Prismatic badge
+                      if (instance.isPrismaticSkin == true)
                         Positioned(
-                          top: -1,
-                          left: -1,
+                          top: 6,
+                          right: 6,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 2,
-                            ),
+                            padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: Colors.indigo.shade600,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Colors.white, width: 1),
-                            ),
-                            child: Text(
-                              'L${instance.level}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (instance.isPrismaticSkin == true)
-                          Positioned(
-                            top: 3,
-                            right: 3,
-                            child: Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: BoxDecoration(
-                                color: Colors.purple.shade600,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Icon(
-                                Icons.auto_awesome,
-                                color: Colors.white,
-                                size: 10,
-                              ),
-                            ),
-                          ),
-
-                        // Selection indicator
-                        if (isSelected && selectionNumber != null)
-                          Positioned(
-                            bottom: 3,
-                            right: 3,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.green.shade600,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.merge_type_rounded,
-                                    color: Colors.white,
-                                    size: 8,
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    '$selectionNumber',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.purple.shade400,
+                                  Colors.purple.shade600,
                                 ],
                               ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                StaminaBadge(
-                  instanceId: instance.instanceId,
-                  showCountdown: true,
-                ),
-                const SizedBox(height: 6),
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Selected badge for breeding
-                      if (isSelected) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade100,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: Colors.green.shade400,
-                              width: 0.5,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.merge_type_rounded,
-                                color: Colors.green.shade700,
-                                size: 8,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(.3),
+                                width: 1,
                               ),
-                              const SizedBox(width: 2),
-                              Text(
-                                'Parent $selectionNumber',
-                                style: TextStyle(
-                                  color: Colors.green.shade700,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                      ],
-
-                      if (instance.isPrismaticSkin == true) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.purple.shade100,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: Colors.purple.shade300,
-                              width: 0.5,
                             ),
-                          ),
-                          child: Text(
-                            'Prismatic',
-                            style: TextStyle(
-                              color: Colors.purple.shade700,
-                              fontSize: 8,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                      ],
-                      Row(
-                        children: [
-                          Icon(
-                            sizeIcon,
-                            size: 12,
-                            color: Colors.indigo.shade600,
-                          ),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(
-                              sizeName,
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: Colors.indigo.shade700,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Icon(
-                            tintIcon,
-                            size: 12,
-                            color: Colors.indigo.shade600,
-                          ),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(
-                              tintName,
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: Colors.indigo.shade700,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (instance.natureId != null &&
-                          instance.natureId!.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.psychology_rounded,
+                            child: const Icon(
+                              Icons.auto_awesome,
+                              color: Colors.white,
                               size: 12,
-                              color: Colors.indigo.shade600,
                             ),
-                            const SizedBox(width: 3),
-                            Expanded(
-                              child: Text(
-                                instance.natureId!,
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: Colors.indigo.shade700,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+
+                      // Selection indicator
+                      if (isSelected && selectionNumber != null)
+                        Positioned(
+                          bottom: 6,
+                          right: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade600,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
                               ),
                             ),
-                          ],
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.merge_type_rounded,
+                                  color: Colors.white,
+                                  size: 10,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '$selectionNumber',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ],
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Stamina bar
+              StaminaBadge(
+                instanceId: instance.instanceId,
+                showCountdown: true,
+              ),
+
+              const SizedBox(height: 8),
+
+              // Info section
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Selected parent badge
+                  if (isSelected) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(.2),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: Colors.green.shade400.withOpacity(.6),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.merge_type_rounded,
+                            color: Colors.green.shade300,
+                            size: 10,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'PARENT $selectionNumber',
+                            style: TextStyle(
+                              color: Colors.green.shade300,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+
+                  // Prismatic badge (text version)
+                  if (instance.isPrismaticSkin == true) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.purple.shade400.withOpacity(.2),
+                            Colors.purple.shade600.withOpacity(.2),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: Colors.purple.shade400.withOpacity(.6),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        'PRISMATIC',
+                        style: TextStyle(
+                          color: Colors.purple.shade200,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+
+                  // Genetics info
+                  _InfoRow(
+                    icon: sizeIcon,
+                    label: sizeName,
+                    color: primaryColor,
+                  ),
+                  const SizedBox(height: 4),
+                  _InfoRow(
+                    icon: tintIcon,
+                    label: tintName,
+                    color: primaryColor,
+                  ),
+                  if (instance.natureId != null &&
+                      instance.natureId!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    _InfoRow(
+                      icon: Icons.psychology_rounded,
+                      label: instance.natureId!,
+                      color: primaryColor,
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 12, color: color.withOpacity(.8)),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              color: Color(0xFFE8EAED),
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

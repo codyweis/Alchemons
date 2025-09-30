@@ -1,4 +1,4 @@
-// lib/screens/map_screen.dart
+import 'dart:ui';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
@@ -7,195 +7,197 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_access_service.dart';
 import 'package:alchemons/widgets/wilderness/countdown_badge.dart';
 import 'package:flutter/material.dart';
-
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
 import 'package:alchemons/screens/scenes/scene_page.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:provider/provider.dart';
 
-class MapScreen extends StatelessWidget {
+class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
   @override
+  State<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _glowController;
+
+  @override
+  void initState() {
+    super.initState();
+    _glowController = AnimationController(
+      duration: const Duration(milliseconds: 1800),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final factionSvc = context.read<FactionService>();
+    final currentFaction = factionSvc.current;
+    final (primaryColor, _, accentColor) = getFactionColors(currentFaction);
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(context),
-            _buildPartyStatus(context),
-            Expanded(child: _buildExpeditionsList(context)),
-            _buildFooterInfo(context),
-          ],
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF0B0F14).withOpacity(0.96),
+              const Color(0xFF0B0F14).withOpacity(0.92),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(accentColor),
+              _buildPartyStatus(accentColor),
+              Expanded(child: _buildExpeditionsList(accentColor)),
+              _buildFooterInfo(accentColor),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.indigo[50],
-        border: Border(bottom: BorderSide(color: Colors.indigo[200]!)),
-      ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.indigo[100],
-                borderRadius: BorderRadius.circular(6),
+  Widget _buildHeader(Color accentColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      child: _GlassContainer(
+        accentColor: accentColor,
+        glowController: _glowController,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              _IconButton(
+                icon: Icons.arrow_back_rounded,
+                accentColor: accentColor,
+                onTap: () => Navigator.of(context).maybePop(),
               ),
-              child: Icon(
-                Icons.arrow_back_rounded,
-                color: Colors.indigo[600],
-                size: 16,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'BREEDING EXPEDITIONS',
+                      style: _TextStyles.headerTitle,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Discover wild creatures and breed with your party',
+                      style: _TextStyles.headerSubtitle,
+                    ),
+                  ],
+                ),
               ),
-            ),
+              _GlowingIcon(
+                icon: Icons.explore_rounded,
+                color: accentColor,
+                controller: _glowController,
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Breeding Expeditions',
-                  style: TextStyle(
-                    color: Colors.indigo[800],
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  'Discover wild creatures and breed with your party',
-                  style: TextStyle(
-                    color: Colors.indigo[600],
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.indigo[100],
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              Icons.explore_rounded,
-              color: Colors.indigo[600],
-              size: 16,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildPartyStatus(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green[200]!, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green[100]!,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.green[50],
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              Icons.groups_rounded,
-              color: Colors.green[600],
-              size: 16,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Breeding Team Status',
-                  style: TextStyle(
-                    color: Colors.green[800],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+  Widget _buildPartyStatus(Color accentColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: _GlassContainer(
+        accentColor: Colors.green.shade400,
+        glowController: _glowController,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.green.shade400.withOpacity(0.3),
+                      Colors.transparent,
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.green.shade400.withOpacity(0.5),
                   ),
                 ),
-                Text(
-                  'Select your party for wild creature breeding missions',
-                  style: TextStyle(
-                    color: Colors.green[600],
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Icon(
+                  Icons.groups_rounded,
+                  size: 16,
+                  color: Colors.green.shade400,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Breeding Team Status', style: _TextStyles.labelText),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Select your party for breeding missions',
+                      style: _TextStyles.hint,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.green.shade400,
+                size: 12,
+              ),
+            ],
           ),
-          Icon(
-            Icons.arrow_forward_ios_rounded,
-            color: Colors.green[400],
-            size: 12,
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildExpeditionsList(BuildContext context) {
+  Widget _buildExpeditionsList(Color accentColor) {
     final db = context.read<AlchemonsDatabase>();
     final access = WildernessAccessService(db);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Breeding Grounds',
-            style: TextStyle(
-              color: Colors.indigo[700],
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Text('Breeding Grounds', style: _TextStyles.sectionTitle),
           ),
-          const SizedBox(height: 8),
 
-          // --- Mystic Valley (valley) ---
+          // Mystic Valley
           FutureBuilder<bool>(
             future: access.canEnter('valley'),
             builder: (context, snap) {
               final available = snap.data ?? true;
-
-              // Card with a badge overlay when locked
               return Stack(
                 children: [
                   _ExpeditionCard(
                     title: 'Mystic Valley Breeding Ground',
                     subtitle: 'Common & Uncommon Forest Creatures',
                     description:
-                        'Lush woodland habitat home to gentle forest creatures. Perfect for beginners…',
+                        'Lush woodland habitat home to gentle forest creatures. Perfect for beginners.',
                     difficulty: 'Beginner',
                     expectedRewards: const [
                       'Forest Offspring',
@@ -205,6 +207,7 @@ class MapScreen extends StatelessWidget {
                     icon: Icons.eco_rounded,
                     statusColor: Colors.green,
                     isAvailable: available,
+                    glowController: _glowController,
                     onTap: () =>
                         _onExpeditionTap(context, 'valley', valleyScene),
                   ),
@@ -220,12 +223,12 @@ class MapScreen extends StatelessWidget {
           ),
 
           const SizedBox(height: 12),
-          // --- Volcano Expedition (volcano) ---
+
+          // Volcano Expedition
           FutureBuilder<bool>(
             future: access.canEnter('volcano'),
             builder: (context, snap) {
               final available = snap.data ?? true;
-
               return Stack(
                 children: [
                   _ExpeditionCard(
@@ -240,8 +243,9 @@ class MapScreen extends StatelessWidget {
                       'Advanced Breeding XP',
                     ],
                     icon: Icons.whatshot_rounded,
-                    statusColor: Colors.red,
+                    statusColor: Colors.orange,
                     isAvailable: available,
+                    glowController: _glowController,
                     onTap: () =>
                         _onExpeditionTap(context, 'volcano', volcanoScene),
                   ),
@@ -255,13 +259,14 @@ class MapScreen extends StatelessWidget {
               );
             },
           ),
+
           const SizedBox(height: 12),
-          // --- Swamp Expedition (swamp) --- //
+
+          // Swamp Expedition
           FutureBuilder<bool>(
             future: access.canEnter('swamp'),
             builder: (context, snap) {
               final available = snap.data ?? true;
-
               return Stack(
                 children: [
                   _ExpeditionCard(
@@ -278,6 +283,7 @@ class MapScreen extends StatelessWidget {
                     icon: Icons.water_rounded,
                     statusColor: Colors.blue,
                     isAvailable: available,
+                    glowController: _glowController,
                     onTap: () => _onExpeditionTap(context, 'swamp', swampScene),
                   ),
                   if (!available)
@@ -295,28 +301,35 @@ class MapScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFooterInfo(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        border: Border(top: BorderSide(color: Colors.grey[200]!)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline_rounded, color: Colors.grey[600], size: 14),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Breeding grounds refresh daily at 00:00 UTC. Party selection required for all breeding missions.',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-              ),
+  Widget _buildFooterInfo(Color accentColor) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.18),
+            border: Border(
+              top: BorderSide(color: accentColor.withOpacity(0.35)),
             ),
           ),
-        ],
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline_rounded,
+                color: _TextStyles.mutedText,
+                size: 14,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Breeding grounds refresh daily at 00:00 UTC. Party selection required for all breeding missions.',
+                  style: _TextStyles.footerText,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -332,54 +345,39 @@ class MapScreen extends StatelessWidget {
 
     var ok = await access.canEnter(biomeId);
     if (!ok && await factions.earthCanRefreshToday(biomeId)) {
-      final use = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('LandExplorer'),
-          content: const Text(
-            'Use today’s instant refresh to reopen this ground?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Not now'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Refresh'),
-            ),
-          ],
-        ),
-      );
+      final use = await _showRefreshDialog(context);
       if (use == true) {
-        // If your service lacks this, implement it to clear the daily gate
         await access.refreshWilderness(biomeId);
         await factions.earthMarkRefreshedToday(biomeId);
 
-        _showCustomSnackBar(
+        if (!context.mounted) return;
+        _showToast(
           context,
           'LandExplorer activated: breeding ground refreshed',
           Icons.forest_rounded,
-          Colors.green.shade600,
+          Colors.green.shade400,
         );
         ok = true;
       }
     }
+
     if (!ok) {
       final left = access.timeUntilReset();
       final hh = left.inHours;
       final mm = left.inMinutes.remainder(60);
       final ss = left.inSeconds.remainder(60);
-      _showCustomSnackBar(
+      if (!context.mounted) return;
+      _showToast(
         context,
         'Breeding ground refreshes in ${hh}h ${mm}m ${ss}s',
         Icons.schedule_rounded,
-        Colors.orange[600]!,
+        Colors.orange.shade400,
       );
       return;
     }
 
     // Pick party
+    if (!context.mounted) return;
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PartyPickerPage()),
@@ -402,16 +400,11 @@ class MapScreen extends StatelessWidget {
     );
   }
 
-  void _showUnavailable(BuildContext context, String reason) {
-    _showCustomSnackBar(
-      context,
-      reason,
-      Icons.construction_rounded,
-      Colors.amber[600]!,
-    );
+  Future<bool?> _showRefreshDialog(BuildContext context) {
+    return showDialog<bool>(context: context, builder: (_) => _RefreshDialog());
   }
 
-  void _showCustomSnackBar(
+  void _showToast(
     BuildContext context,
     String message,
     IconData icon,
@@ -423,16 +416,7 @@ class MapScreen extends StatelessWidget {
           children: [
             Icon(icon, color: Colors.white, size: 16),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
+            Expanded(child: Text(message)),
           ],
         ),
         backgroundColor: color,
@@ -440,6 +424,118 @@ class MapScreen extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         margin: const EdgeInsets.all(16),
       ),
+    );
+  }
+}
+
+// ==================== REUSABLE COMPONENTS ====================
+
+class _GlassContainer extends StatelessWidget {
+  final Widget child;
+  final Color accentColor;
+  final AnimationController glowController;
+
+  const _GlassContainer({
+    required this.child,
+    required this.accentColor,
+    required this.glowController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: AnimatedBuilder(
+          animation: glowController,
+          builder: (context, _) {
+            final glow = 0.35 + glowController.value * 0.4;
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: accentColor.withOpacity(glow * 0.85)),
+                boxShadow: [
+                  BoxShadow(
+                    color: accentColor.withOpacity(glow * 0.5),
+                    blurRadius: 20 + glowController.value * 14,
+                  ),
+                ],
+              ),
+              child: child,
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _IconButton extends StatelessWidget {
+  final IconData icon;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _IconButton({
+    required this.icon,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: accentColor.withOpacity(.35)),
+        ),
+        child: Icon(icon, color: _TextStyles.softText, size: 18),
+      ),
+    );
+  }
+}
+
+class _GlowingIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final AnimationController controller;
+
+  const _GlowingIcon({
+    required this.icon,
+    required this.color,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, __) {
+        final glow = 0.35 + controller.value * 0.4;
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [color.withOpacity(.3), Colors.transparent],
+            ),
+            border: Border.all(color: color.withOpacity(glow)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(glow * .4),
+                blurRadius: 20 + controller.value * 14,
+              ),
+            ],
+          ),
+          child: Icon(icon, size: 18, color: color),
+        );
+      },
     );
   }
 }
@@ -454,6 +550,7 @@ class _ExpeditionCard extends StatelessWidget {
   final MaterialColor statusColor;
   final VoidCallback onTap;
   final bool isAvailable;
+  final AnimationController glowController;
 
   const _ExpeditionCard({
     required this.title,
@@ -465,226 +562,455 @@ class _ExpeditionCard extends StatelessWidget {
     required this.statusColor,
     required this.onTap,
     required this.isAvailable,
+    required this.glowController,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cardColor = isAvailable ? statusColor.shade400 : Colors.grey.shade600;
+
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isAvailable
-              ? Colors.white.withOpacity(0.95)
-              : Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isAvailable ? statusColor[200]! : Colors.grey[300]!,
-            width: 2,
-          ),
-          boxShadow: isAvailable
-              ? [
-                  BoxShadow(
-                    color: statusColor[100]!,
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: AnimatedBuilder(
+            animation: glowController,
+            builder: (context, _) {
+              final glow = isAvailable
+                  ? 0.35 + glowController.value * 0.4
+                  : 0.2;
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(isAvailable ? 0.14 : 0.25),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: cardColor.withOpacity(glow * 0.85),
+                    width: 1.5,
                   ),
-                ]
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isAvailable ? statusColor[50] : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: isAvailable ? statusColor[600] : Colors.grey[500],
-                    size: 20,
-                  ),
+                  boxShadow: isAvailable
+                      ? [
+                          BoxShadow(
+                            color: cardColor.withOpacity(glow * 0.5),
+                            blurRadius: 20 + glowController.value * 14,
+                          ),
+                        ]
+                      : null,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              title,
-                              style: TextStyle(
-                                color: isAvailable
-                                    ? statusColor[800]
-                                    : Colors.grey[600],
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              colors: [
+                                cardColor.withOpacity(isAvailable ? 0.3 : 0.15),
+                                Colors.transparent,
+                              ],
+                            ),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: cardColor.withOpacity(
+                                isAvailable ? 0.5 : 0.3,
                               ),
                             ),
                           ),
-                          _buildDifficultyBadge(),
-                        ],
-                      ),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: isAvailable
-                              ? statusColor[600]
-                              : Colors.grey[500],
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
+                          child: Icon(icon, color: cardColor, size: 20),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isAvailable)
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(
-                      Icons.arrow_forward_rounded,
-                      color: statusColor,
-                      size: 14,
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(
-                      Icons.lock_rounded,
-                      color: Colors.grey[500],
-                      size: 14,
-                    ),
-                  ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Description
-            Text(
-              description,
-              style: TextStyle(
-                color: isAvailable ? Colors.grey[700] : Colors.grey[500],
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Expected rewards section
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Expected Research Yields',
-                  style: TextStyle(
-                    color: isAvailable ? Colors.indigo[700] : Colors.grey[500],
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isAvailable ? Colors.grey[50] : Colors.grey[100],
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey[200]!),
-                  ),
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: expectedRewards.map((reward) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isAvailable
-                              ? statusColor[100]
-                              : Colors.grey[200],
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: isAvailable
-                                ? statusColor[200]!
-                                : Colors.grey[300]!,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      title,
+                                      style: isAvailable
+                                          ? _TextStyles.cardTitle
+                                          : _TextStyles.cardTitleDisabled,
+                                    ),
+                                  ),
+                                  _DifficultyBadge(
+                                    difficulty: difficulty,
+                                    isAvailable: isAvailable,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                subtitle,
+                                style: isAvailable
+                                    ? _TextStyles.cardSubtitle
+                                    : _TextStyles.cardSubtitleDisabled,
+                              ),
+                            ],
                           ),
                         ),
-                        child: Text(
-                          reward,
-                          style: TextStyle(
-                            color: isAvailable
-                                ? statusColor[700]
-                                : Colors.grey[500],
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: cardColor.withOpacity(
+                              isAvailable ? 0.15 : 0.1,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            isAvailable
+                                ? Icons.arrow_forward_rounded
+                                : Icons.lock_rounded,
+                            color: cardColor,
+                            size: 14,
                           ),
                         ),
-                      );
-                    }).toList(),
-                  ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      description,
+                      style: isAvailable
+                          ? _TextStyles.description
+                          : _TextStyles.descriptionDisabled,
+                    ),
+                    const SizedBox(height: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Expected Research Yields',
+                          style: isAvailable
+                              ? _TextStyles.rewardTitle
+                              : _TextStyles.rewardTitleDisabled,
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(
+                              isAvailable ? 0.04 : 0.02,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.12),
+                            ),
+                          ),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: expectedRewards.map((reward) {
+                              return _RewardBadge(
+                                text: reward,
+                                color: statusColor,
+                                isAvailable: isAvailable,
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ],
+              );
+            },
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildDifficultyBadge() {
-    MaterialColor badgeColor;
-    switch (difficulty.toLowerCase()) {
-      case 'beginner':
-        badgeColor = Colors.green;
-        break;
-      case 'advanced':
-        badgeColor = Colors.orange;
-        break;
-      case 'expert':
-        badgeColor = Colors.red;
-        break;
-      default:
-        badgeColor = Colors.grey;
-    }
+class _DifficultyBadge extends StatelessWidget {
+  final String difficulty;
+  final bool isAvailable;
+
+  const _DifficultyBadge({required this.difficulty, required this.isAvailable});
+
+  @override
+  Widget build(BuildContext context) {
+    final badgeColor = _getBadgeColor();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: isAvailable ? badgeColor[100] : Colors.grey[200],
+        color: isAvailable
+            ? badgeColor.withOpacity(0.2)
+            : Colors.grey.shade700.withOpacity(0.3),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: isAvailable ? badgeColor[300]! : Colors.grey[300]!,
+          color: isAvailable
+              ? badgeColor.withOpacity(0.5)
+              : Colors.grey.shade600.withOpacity(0.5),
         ),
       ),
       child: Text(
         difficulty,
         style: TextStyle(
-          color: isAvailable ? badgeColor[700] : Colors.grey[500],
+          color: isAvailable ? badgeColor : Colors.grey.shade500,
           fontSize: 9,
           fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
         ),
       ),
     );
   }
+
+  Color _getBadgeColor() {
+    switch (difficulty.toLowerCase()) {
+      case 'beginner':
+        return Colors.green.shade400;
+      case 'intermediate':
+        return Colors.blue.shade400;
+      case 'advanced':
+        return Colors.orange.shade400;
+      case 'expert':
+        return Colors.red.shade400;
+      default:
+        return Colors.grey.shade400;
+    }
+  }
+}
+
+class _RewardBadge extends StatelessWidget {
+  final String text;
+  final MaterialColor color;
+  final bool isAvailable;
+
+  const _RewardBadge({
+    required this.text,
+    required this.color,
+    required this.isAvailable,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: isAvailable
+            ? color.shade400.withOpacity(0.2)
+            : Colors.grey.shade700.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: isAvailable
+              ? color.shade400.withOpacity(0.5)
+              : Colors.grey.shade600.withOpacity(0.5),
+        ),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: isAvailable ? color.shade400 : Colors.grey.shade500,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+class _RefreshDialog extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1F2E).withOpacity(0.95),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.green.shade400.withOpacity(0.5)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.forest_rounded,
+                  color: Colors.green.shade400,
+                  size: 32,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'LandExplorer',
+                  style: TextStyle(
+                    color: _TextStyles.softText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Use today\'s instant refresh to reopen this ground?',
+                  style: TextStyle(
+                    color: _TextStyles.mutedText,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.white.withOpacity(0.06),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: BorderSide(
+                              color: Colors.white.withOpacity(0.25),
+                            ),
+                          ),
+                        ),
+                        child: Text(
+                          'Not now',
+                          style: TextStyle(
+                            color: _TextStyles.softText,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade600,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Refresh',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== TEXT STYLES ====================
+
+class _TextStyles {
+  static const softText = Color(0xFFE8EAED);
+  static const mutedText = Color(0xFFB6C0CC);
+
+  static const headerTitle = TextStyle(
+    color: softText,
+    fontSize: 15,
+    fontWeight: FontWeight.w900,
+    letterSpacing: 0.8,
+  );
+
+  static const headerSubtitle = TextStyle(
+    color: mutedText,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+  );
+
+  static const sectionTitle = TextStyle(
+    color: softText,
+    fontSize: 14,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.5,
+  );
+
+  static const labelText = TextStyle(
+    color: softText,
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+  );
+
+  static const hint = TextStyle(
+    color: mutedText,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+  );
+
+  static const cardTitle = TextStyle(
+    color: softText,
+    fontSize: 14,
+    fontWeight: FontWeight.w800,
+  );
+
+  static const cardTitleDisabled = TextStyle(
+    color: Color(0xFF7A8290),
+    fontSize: 14,
+    fontWeight: FontWeight.w800,
+  );
+
+  static const cardSubtitle = TextStyle(
+    color: mutedText,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+  );
+
+  static const cardSubtitleDisabled = TextStyle(
+    color: Color(0xFF7A8290),
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+  );
+
+  static const description = TextStyle(
+    color: mutedText,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+  );
+
+  static const descriptionDisabled = TextStyle(
+    color: Color(0xFF6A7380),
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+  );
+
+  static const rewardTitle = TextStyle(
+    color: softText,
+    fontSize: 11,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.4,
+  );
+
+  static const rewardTitleDisabled = TextStyle(
+    color: Color(0xFF7A8290),
+    fontSize: 11,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.4,
+  );
+
+  static const footerText = TextStyle(
+    color: mutedText,
+    fontSize: 10,
+    fontWeight: FontWeight.w600,
+    height: 1.3,
+  );
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/constants/egg.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -12,6 +13,7 @@ import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/animations/breed_result_animation.dart';
 import 'package:alchemons/widgets/animations/database_typing_animation.dart';
@@ -38,21 +40,21 @@ class NurseryTab extends StatefulWidget {
 }
 
 class _NurseryTabState extends State<NurseryTab> {
-  // Cache undiscovered status to prevent flashing
   final Map<String, bool> _undiscoveredCache = {};
-
   bool _scanComplete = false;
 
   @override
   Widget build(BuildContext context) {
     final db = context.watch<AlchemonsDatabase>();
+    final factionSvc = context.read<FactionService>();
+    final currentFaction = factionSvc.current;
+    final factionColors = getFactionColors(currentFaction);
+    final primaryColor = factionColors.$1;
 
     return StreamBuilder<List<IncubatorSlot>>(
       stream: db.watchSlots(),
       builder: (context, snap) {
         final slots = snap.data ?? const <IncubatorSlot>[];
-
-        // Update cache for any new creature IDs
         _preloadUndiscoveredStatus(slots);
 
         return SingleChildScrollView(
@@ -61,11 +63,11 @@ class _NurseryTabState extends State<NurseryTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final slot in slots) _buildIncubatorSlot(slot),
+              for (final slot in slots) _buildIncubatorSlot(slot, primaryColor),
+              const SizedBox(height: 16),
+              _buildStorageSection(primaryColor),
               const SizedBox(height: 12),
-              _buildStorageSection(),
-              const SizedBox(height: 8),
-              _buildEggInventory(),
+              _buildEggInventory(primaryColor),
             ],
           ),
         );
@@ -77,9 +79,7 @@ class _NurseryTabState extends State<NurseryTab> {
     for (final slot in slots) {
       if (slot.resultCreatureId != null &&
           !_undiscoveredCache.containsKey(slot.resultCreatureId!)) {
-        // Set a temporary value to prevent multiple calls
         _undiscoveredCache[slot.resultCreatureId!] = false;
-
         _isUndiscovered(slot.resultCreatureId!).then((result) {
           if (mounted) {
             setState(() {
@@ -91,146 +91,164 @@ class _NurseryTabState extends State<NurseryTab> {
     }
   }
 
-  Widget _buildStorageSection() {
+  Widget _buildStorageSection(Color primaryColor) {
     return Row(
       children: [
-        Icon(
-          Icons.inventory_2_rounded,
-          color: Colors.indigo.shade600,
-          size: 16,
-        ),
-        const SizedBox(width: 8),
+        Icon(Icons.inventory_2_rounded, color: primaryColor, size: 18),
+        const SizedBox(width: 10),
         Text(
-          'Specimen Storage',
+          'SPECIMEN STORAGE',
           style: TextStyle(
-            color: Colors.indigo.shade700,
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
+            color: primaryColor,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.8,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildEggInventory() {
+  Widget _buildEggInventory(Color primaryColor) {
     return StreamBuilder<List<Egg>>(
       stream: context.read<AlchemonsDatabase>().watchInventory(),
       builder: (context, snap) {
         final items = snap.data ?? const [];
         if (items.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.science_outlined,
-                  color: Colors.grey.shade400,
-                  size: 20,
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(.15)),
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  'No specimens in storage',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.science_outlined,
+                      color: Colors.white.withOpacity(.4),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'No specimens in storage',
+                      style: TextStyle(
+                        color: Color(0xFFB6C0CC),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           );
         }
         return Column(
-          children: items.map((e) => _buildInventoryRow(e)).toList(),
+          children: items
+              .map((e) => _buildInventoryRow(e, primaryColor))
+              .toList(),
         );
       },
     );
   }
 
-  Widget _buildInventoryRow(Egg egg) {
+  Widget _buildInventoryRow(Egg egg, Color primaryColor) {
     final remaining = Duration(milliseconds: egg.remainingMs);
+    final rarityColor = BreedConstants.getRarityColor(egg.rarity);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade100,
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: BreedConstants.getRarityColor(egg.rarity).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: BreedConstants.getRarityColor(
-                  egg.rarity,
-                ).withOpacity(0.3),
-              ),
+              color: Colors.black.withOpacity(.2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: rarityColor.withOpacity(.4)),
             ),
-            child: Icon(
-              Icons.science_rounded,
-              size: 18,
-              color: BreedConstants.getRarityColor(egg.rarity),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  '${egg.rarity} Specimen',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.indigo.shade700,
-                    fontSize: 12,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        rarityColor.withOpacity(.25),
+                        rarityColor.withOpacity(.15),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: rarityColor.withOpacity(.4)),
+                  ),
+                  child: Icon(
+                    Icons.science_rounded,
+                    size: 20,
+                    color: rarityColor,
                   ),
                 ),
-                Text(
-                  'ID: ${egg.resultCreatureId}',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${egg.rarity.toUpperCase()} SPECIMEN',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFE8EAED),
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'ID: ${egg.resultCreatureId}',
+                        style: const TextStyle(
+                          color: Color(0xFFB6C0CC),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'Development: ${BreedConstants.formatRemaining(remaining)}',
+                        style: const TextStyle(
+                          color: Color(0xFFB6C0CC),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                Text(
-                  'Development: ${BreedConstants.formatRemaining(remaining)}',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
+                Column(
+                  children: [
+                    _buildInventoryButton(
+                      'Transfer',
+                      Icons.arrow_upward_rounded,
+                      Colors.green,
+                      () => _moveToNest(egg),
+                    ),
+                    const SizedBox(height: 6),
+                    _buildInventoryButton(
+                      'Discard',
+                      Icons.delete_outline_rounded,
+                      Colors.red,
+                      () => _discardEgg(egg),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          Column(
-            children: [
-              _buildInventoryButton(
-                'Transfer',
-                Icons.arrow_upward_rounded,
-                Colors.green.shade600,
-                () => _moveToNest(egg),
-              ),
-              const SizedBox(height: 3),
-              _buildInventoryButton(
-                'Discard',
-                Icons.delete_outline_rounded,
-                Colors.red.shade600,
-                () => _discardEgg(egg),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -244,22 +262,24 @@ class _NurseryTabState extends State<NurseryTab> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(4),
+          color: color.withOpacity(.9),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: color.withOpacity(.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white, size: 10),
-            const SizedBox(width: 3),
+            Icon(icon, color: Colors.white, size: 12),
+            const SizedBox(width: 4),
             Text(
-              text,
+              text.toUpperCase(),
               style: const TextStyle(
                 color: Colors.white,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w800,
                 fontSize: 9,
+                letterSpacing: 0.5,
               ),
             ),
           ],
@@ -268,7 +288,7 @@ class _NurseryTabState extends State<NurseryTab> {
     );
   }
 
-  Widget _buildIncubatorSlot(IncubatorSlot slot) {
+  Widget _buildIncubatorSlot(IncubatorSlot slot, Color primaryColor) {
     final isUnlocked = slot.unlocked;
     final hasEgg = slot.eggId != null && slot.hatchAtUtcMs != null;
     final rarity = slot.rarity?.toLowerCase();
@@ -300,95 +320,116 @@ class _NurseryTabState extends State<NurseryTab> {
     final factions = context.read<FactionService>();
     final showAirPredict = factions.current == FactionId.air;
 
+    final statusColor = ready
+        ? Colors.green
+        : hasEgg
+        ? primaryColor
+        : isUnlocked
+        ? Colors.white.withOpacity(.3)
+        : Colors.grey;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isUnlocked
-              ? (hasEgg ? Colors.blue.shade300 : Colors.green.shade300)
-              : Colors.grey.shade300,
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isUnlocked
-                ? (hasEgg ? Colors.blue.shade100 : Colors.green.shade100)
-                : Colors.grey.shade100,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          _buildSlotIcon(slot, hasEgg, isUnlocked, ready),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(.2),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: statusColor.withOpacity(.4), width: 2),
+              boxShadow: hasEgg
+                  ? [
+                      BoxShadow(
+                        color: statusColor.withOpacity(.2),
+                        blurRadius: 12,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
               children: [
-                _buildSlotTitle(isUnlocked, hasEgg, ready, slot.id),
-                const SizedBox(height: 3),
-                _buildSlotSubtitle(
-                  isUnlocked,
-                  hasEgg,
-                  ready,
-                  remainingText,
-                  slot,
-                ),
-                if (hasEgg &&
-                    showAirPredict &&
-                    slot.resultCreatureId != null &&
-                    _undiscoveredCache[slot.resultCreatureId!] == true) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.insights_rounded,
-                          size: 14,
-                          color: Colors.teal.shade700,
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.teal.shade50,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.teal.shade200),
-                          ),
-                          child: Text(
-                            'UNDISCOVERED',
-                            style: TextStyle(
-                              color: Colors.teal.shade800,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                            ),
+                _buildSlotIcon(slot, hasEgg, isUnlocked, ready, primaryColor),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSlotTitle(
+                        isUnlocked,
+                        hasEgg,
+                        ready,
+                        slot.id,
+                        primaryColor,
+                      ),
+                      const SizedBox(height: 4),
+                      _buildSlotSubtitle(
+                        isUnlocked,
+                        hasEgg,
+                        ready,
+                        remainingText,
+                        slot,
+                      ),
+                      if (hasEgg &&
+                          showAirPredict &&
+                          slot.resultCreatureId != null &&
+                          _undiscoveredCache[slot.resultCreatureId!] ==
+                              true) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.insights_rounded,
+                                size: 14,
+                                color: Colors.teal.shade300,
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.withOpacity(.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: Colors.teal.withOpacity(.4),
+                                  ),
+                                ),
+                                child: Text(
+                                  'UNDISCOVERED',
+                                  style: TextStyle(
+                                    color: Colors.teal.shade300,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
+                      if (hasEgg && progress != null) ...[
+                        const SizedBox(height: 10),
+                        _buildProgressBar(progress, slot.rarity ?? 'common'),
+                      ],
+                      if (hasEgg) ...[
+                        const SizedBox(height: 12),
+                        _buildSlotActions(slot, ready, primaryColor),
+                      ],
+                    ],
                   ),
-                ],
-                if (hasEgg && progress != null) ...[
-                  const SizedBox(height: 6),
-                  _buildProgressBar(progress, slot.rarity ?? 'common'),
-                ],
-                if (hasEgg) ...[
-                  const SizedBox(height: 8),
-                  _buildSlotActions(slot, ready),
-                ],
+                ),
+                if (!hasEgg && !isUnlocked)
+                  _buildUnlockButton(slot.id, primaryColor),
               ],
             ),
           ),
-          if (!hasEgg && !isUnlocked) _buildUnlockButton(slot.id),
-        ],
+        ),
       ),
     );
   }
@@ -398,35 +439,40 @@ class _NurseryTabState extends State<NurseryTab> {
     bool hasEgg,
     bool isUnlocked,
     bool ready,
+    Color primaryColor,
   ) {
+    final statusColor = ready
+        ? Colors.green
+        : hasEgg
+        ? primaryColor
+        : Colors.white.withOpacity(.2);
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
         GestureDetector(
           onTap: () {
-            // if has egg do nothing else go to breed screen
             if (!hasEgg) {
               widget.tabController.animateTo(0);
             }
           },
           child: Container(
-            width: 48,
-            height: 48,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              color: hasEgg
-                  ? (ready ? Colors.green.shade50 : Colors.blue.shade50)
-                  : isUnlocked
-                  ? Colors.grey.shade50
-                  : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: hasEgg
-                    ? (ready ? Colors.green.shade400 : Colors.blue.shade400)
-                    : isUnlocked
-                    ? Colors.grey.shade300
-                    : Colors.grey.shade400,
-                width: 2,
-              ),
+              gradient: hasEgg || !isUnlocked
+                  ? LinearGradient(
+                      colors: [
+                        statusColor.withOpacity(.2),
+                        statusColor.withOpacity(.1),
+                      ],
+                    )
+                  : null,
+              color: hasEgg || !isUnlocked
+                  ? null
+                  : Colors.white.withOpacity(.04),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: statusColor.withOpacity(.5), width: 2),
             ),
             child: Icon(
               hasEgg
@@ -434,32 +480,28 @@ class _NurseryTabState extends State<NurseryTab> {
                   : isUnlocked
                   ? Icons.add_circle_outline_rounded
                   : Icons.lock_rounded,
-              color: hasEgg
-                  ? (ready ? Colors.green.shade600 : Colors.blue.shade600)
-                  : isUnlocked
-                  ? Colors.grey.shade500
-                  : Colors.grey.shade600,
-              size: 20,
+              color: statusColor.withOpacity(.9),
+              size: 24,
             ),
           ),
         ),
         if (hasEgg && slot.rarity != null)
           Positioned(
-            right: -3,
-            top: -3,
+            right: -4,
+            top: -4,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
               decoration: BoxDecoration(
                 color: BreedConstants.getRarityColor(slot.rarity!),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.white, width: 1),
+                border: Border.all(color: Colors.white, width: 1.5),
               ),
               child: Text(
                 slot.rarity!.substring(0, 1).toUpperCase(),
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 8,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ),
@@ -468,19 +510,30 @@ class _NurseryTabState extends State<NurseryTab> {
     );
   }
 
-  Widget _buildSlotTitle(bool isUnlocked, bool hasEgg, bool ready, int slotId) {
+  Widget _buildSlotTitle(
+    bool isUnlocked,
+    bool hasEgg,
+    bool ready,
+    int slotId,
+    Color primaryColor,
+  ) {
     return Text(
       !isUnlocked
-          ? 'Chamber ${slotId + 1} - Locked'
+          ? 'CHAMBER ${slotId + 1} - LOCKED'
           : hasEgg
-          ? (ready ? 'Development Complete' : 'Incubating Specimen')
-          : 'Chamber ${slotId + 1} - Available',
+          ? (ready ? 'DEVELOPMENT COMPLETE' : 'INCUBATING SPECIMEN')
+          : 'CHAMBER ${slotId + 1} - AVAILABLE',
       style: TextStyle(
-        color: isUnlocked
-            ? (hasEgg ? Colors.blue.shade700 : Colors.green.shade700)
-            : Colors.grey.shade600,
+        color: ready
+            ? Colors.green.shade300
+            : hasEgg
+            ? primaryColor
+            : isUnlocked
+            ? const Color(0xFFE8EAED)
+            : const Color(0xFFB6C0CC),
         fontSize: 12,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 0.5,
       ),
     );
   }
@@ -499,50 +552,54 @@ class _NurseryTabState extends State<NurseryTab> {
           ? (ready ? 'Ready for extraction' : 'Time remaining: $remainingText')
           : 'Ready for specimen insertion',
       style: TextStyle(
-        color: isUnlocked
-            ? (hasEgg ? Colors.blue.shade600 : Colors.green.shade600)
-            : Colors.grey.shade500,
-        fontSize: 10,
-        fontWeight: FontWeight.w500,
+        color: const Color(0xFFB6C0CC).withOpacity(.8),
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
 
   Widget _buildProgressBar(double progress, String rarity) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: LinearProgressIndicator(
-        value: progress.clamp(0, 1),
-        minHeight: 6,
-        backgroundColor: Colors.grey.shade200,
-        valueColor: AlwaysStoppedAnimation<Color>(
-          BreedConstants.getRarityColor(rarity),
+    final rarityColor = BreedConstants.getRarityColor(rarity);
+    return Container(
+      height: 8,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white.withOpacity(.2)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(5),
+        child: LinearProgressIndicator(
+          value: progress.clamp(0, 1),
+          minHeight: 8,
+          backgroundColor: Colors.white.withOpacity(.08),
+          valueColor: AlwaysStoppedAnimation<Color>(rarityColor),
         ),
       ),
     );
   }
 
-  Widget _buildSlotActions(IncubatorSlot slot, bool ready) {
+  Widget _buildSlotActions(IncubatorSlot slot, bool ready, Color primaryColor) {
     return Wrap(
-      spacing: 6,
-      runSpacing: 4,
+      spacing: 8,
+      runSpacing: 8,
       children: [
         _buildActionButton(
           ready ? 'Extract' : 'Processing',
           ready ? Icons.biotech_rounded : Icons.schedule_rounded,
-          ready ? Colors.green.shade600 : Colors.blue.shade600,
+          ready ? Colors.green : primaryColor,
           ready ? () => _hatchFromSlot(slot) : null,
         ),
         _buildActionButton(
           'Accelerate',
           Icons.speed_rounded,
-          Colors.orange.shade600,
+          Colors.orange,
           () => _speedUpSlot(slot.id),
         ),
         _buildActionButton(
           'Cancel',
           Icons.cancel_outlined,
-          Colors.grey.shade600,
+          Colors.grey,
           () => _cancelToInventory(slot),
         ),
       ],
@@ -558,22 +615,34 @@ class _NurseryTabState extends State<NurseryTab> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: onTap != null ? color : Colors.grey.shade400,
-          borderRadius: BorderRadius.circular(4),
+          color: onTap != null
+              ? color.withOpacity(.9)
+              : Colors.white.withOpacity(.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: onTap != null
+                ? color.withOpacity(.3)
+                : Colors.white.withOpacity(.2),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white, size: 12),
-            const SizedBox(width: 4),
+            Icon(
+              icon,
+              color: Colors.white.withOpacity(onTap != null ? 1 : 0.5),
+              size: 14,
+            ),
+            const SizedBox(width: 6),
             Text(
-              text,
-              style: const TextStyle(
-                color: Colors.white,
+              text.toUpperCase(),
+              style: TextStyle(
+                color: Colors.white.withOpacity(onTap != null ? 1 : 0.5),
                 fontSize: 10,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
               ),
             ),
           ],
@@ -582,26 +651,33 @@ class _NurseryTabState extends State<NurseryTab> {
     );
   }
 
-  Widget _buildUnlockButton(int slotId) {
+  Widget _buildUnlockButton(int slotId, Color primaryColor) {
     return GestureDetector(
       onTap: () => _unlockSlot(slotId),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.indigo.shade600,
-          borderRadius: BorderRadius.circular(6),
+          gradient: LinearGradient(
+            colors: [
+              primaryColor.withOpacity(.9),
+              primaryColor.withOpacity(.7),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: primaryColor.withOpacity(.4)),
         ),
-        child: Row(
+        child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.lock_open_rounded, color: Colors.white, size: 14),
-            const SizedBox(width: 4),
-            const Text(
-              'Unlock',
+            Icon(Icons.lock_open_rounded, color: Colors.white, size: 16),
+            SizedBox(width: 6),
+            Text(
+              'UNLOCK',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 11,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5,
               ),
             ),
           ],
@@ -609,6 +685,9 @@ class _NurseryTabState extends State<NurseryTab> {
       ),
     );
   }
+
+  // Keep all your existing methods (_safeNowUtc, _remainingFor, _moveToNest, etc.)
+  // I'll just show the signatures since they remain functionally the same
 
   DateTime _safeNowUtc() {
     final now = DateTime.now().toUtc();
@@ -903,11 +982,15 @@ class _NurseryTabState extends State<NurseryTab> {
       _undiscoveredCache.remove(slot.resultCreatureId!);
     }
 
+    final factionSvc = context.read<FactionService>();
+    final faction = await factionSvc.current;
+
     if (!mounted) return;
     await playHatchCinematic(
       context,
       'assets/animations/egg_hatch.json',
       palette,
+      faction,
     );
 
     widget.onHatchComplete();
@@ -933,9 +1016,19 @@ class _NurseryTabState extends State<NurseryTab> {
     final offspring = await _effectiveFromInstance(instanceId);
     if (!mounted) return;
 
+    // faction accent (matches list tiles/buttons above)
+    final factionSvc = context.read<FactionService>();
+    final currentFaction = factionSvc.current;
+    final factionColors = getFactionColors(currentFaction);
+    final primaryColor = factionColors.$1;
+
     // Reset scan completion state
     _scanComplete = false;
-    bool _allTypingComplete = false;
+
+    bool ctaVisible = false;
+    bool ctaTouchable = false;
+    bool closing = false;
+    bool allTypingComplete = false;
 
     showDialog(
       context: context,
@@ -944,305 +1037,391 @@ class _NurseryTabState extends State<NurseryTab> {
         builder: (context, setDialogState) {
           return Dialog(
             backgroundColor: Colors.transparent,
-            insetPadding: const EdgeInsets.all(10),
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.95,
-              height: MediaQuery.of(context).size.height * 0.8,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.95),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.indigo.shade300, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.indigo.shade200,
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  _buildExtractionHeader(offspring, variant),
-
-                  // Docked creature sprite section
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.shade50,
-                      border: Border(
-                        bottom: BorderSide(color: Colors.indigo.shade200),
-                      ),
+            insetPadding: const EdgeInsets.all(12),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.95,
+                  height: MediaQuery.of(context).size.height * 0.82,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(.25),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: primaryColor.withOpacity(.45),
+                      width: 2,
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Main creature sprite
-                        Container(
-                          height: 200,
-                          width: 200,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.indigo.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.indigo.shade200),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.indigo.shade100,
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: CreatureScanAnimation(
-                            isNewDiscovery: isNewDiscovery,
-                            scanDuration: const Duration(milliseconds: 3000),
-                            onScanComplete: () {
-                              print('Scan complete for ${offspring.name}');
-                              setDialogState(() {
-                                _scanComplete = true;
-                              });
-                            },
-                            child: CreatureSprite(
-                              spritePath:
-                                  offspring.spriteData?.spriteSheetPath ?? '',
-                              totalFrames:
-                                  offspring.spriteData?.totalFrames ?? 1,
-                              rows: offspring.spriteData?.rows ?? 1,
-                              frameSize: Vector2(
-                                offspring.spriteData!.frameWidth.toDouble(),
-                                offspring.spriteData!.frameHeight.toDouble(),
-                              ),
-                              isPrismatic: offspring.isPrismaticSkin,
-                              stepTime:
-                                  offspring.spriteData!.frameDurationMs /
-                                  1000.0,
-                              scale: scaleFromGenes(offspring.genetics),
-                              saturation: satFromGenes(offspring.genetics),
-                              brightness: briFromGenes(offspring.genetics),
-                              hueShift: hueFromGenes(offspring.genetics),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(.18),
+                        blurRadius: 20,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      _buildExtractionHeaderDark(
+                        offspring,
+                        variant,
+                        primaryColor,
+                      ),
+
+                      // Sprite dock
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.03),
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Colors.white.withOpacity(.08),
                             ),
                           ),
                         ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Main creature
+                            Container(
+                              height: 200,
+                              width: 200,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(.02),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(.12),
+                                ),
+                              ),
+                              child: CreatureScanAnimation(
+                                isNewDiscovery: isNewDiscovery,
+                                scanDuration: const Duration(
+                                  milliseconds: 3000,
+                                ),
+                                onReadyChanged: (ready) {
+                                  if (ready) {
+                                    setDialogState(() => _scanComplete = true);
+                                  }
+                                },
+                                child: CreatureSprite(
+                                  spritePath:
+                                      offspring.spriteData?.spriteSheetPath ??
+                                      '',
+                                  totalFrames:
+                                      offspring.spriteData?.totalFrames ?? 1,
+                                  rows: offspring.spriteData?.rows ?? 1,
+                                  frameSize: Vector2(
+                                    offspring.spriteData!.frameWidth.toDouble(),
+                                    offspring.spriteData!.frameHeight
+                                        .toDouble(),
+                                  ),
+                                  isPrismatic: offspring.isPrismaticSkin,
+                                  stepTime:
+                                      offspring.spriteData!.frameDurationMs /
+                                      1000.0,
+                                  scale: scaleFromGenes(offspring.genetics),
+                                  saturation: satFromGenes(offspring.genetics),
+                                  brightness: briFromGenes(offspring.genetics),
+                                  hueShift: hueFromGenes(offspring.genetics),
+                                ),
+                              ),
+                            ),
 
-                        const SizedBox(width: 16),
+                            const SizedBox(width: 14),
 
-                        // Variant sprite (if exists)
-                        if (variant != null)
-                          Column(
-                            children: [
-                              Container(
+                            // Variant (optional)
+                            if (variant != null)
+                              Column(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.withOpacity(.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.orange.withOpacity(.35),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.auto_awesome_rounded,
+                                          size: 12,
+                                          color: Colors.orange,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        const Text(
+                                          'VARIANT',
+                                          style: TextStyle(
+                                            color: Colors.orange,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: .5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    height: 120,
+                                    width: 120,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(.02),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(.12),
+                                      ),
+                                    ),
+                                    child: CreatureScanAnimation(
+                                      isNewDiscovery: isVariantNewDiscovery,
+                                      scanDuration: const Duration(
+                                        milliseconds: 2000,
+                                      ),
+                                      onReadyChanged: (ready) {
+                                        if (ready) {
+                                          setDialogState(
+                                            () => _scanComplete = true,
+                                          );
+                                        }
+                                      },
+                                      child: CreatureSprite(
+                                        spritePath:
+                                            variant
+                                                .spriteData
+                                                ?.spriteSheetPath ??
+                                            '',
+                                        totalFrames:
+                                            variant.spriteData?.totalFrames ??
+                                            1,
+                                        rows: variant.spriteData?.rows ?? 1,
+                                        frameSize: Vector2(
+                                          variant.spriteData!.frameWidth
+                                              .toDouble(),
+                                          variant.spriteData!.frameHeight
+                                              .toDouble(),
+                                        ),
+                                        isPrismatic: variant.isPrismaticSkin,
+                                        stepTime:
+                                            variant
+                                                .spriteData!
+                                                .frameDurationMs /
+                                            1000.0,
+                                        scale: scaleFromGenes(variant.genetics),
+                                        saturation: satFromGenes(
+                                          variant.genetics,
+                                        ),
+                                        brightness: briFromGenes(
+                                          variant.genetics,
+                                        ),
+                                        hueShift: hueFromGenes(
+                                          variant.genetics,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      Expanded(
+                        child: TickerMode(
+                          enabled: !closing,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            physics: const BouncingScrollPhysics(),
+                            child: Column(
+                              children: [
+                                DatabaseTypingAnimation(
+                                  startAnimation: _scanComplete,
+                                  delayBetweenItems: const Duration(
+                                    milliseconds: 800,
+                                  ),
+                                  onComplete: () {
+                                    setDialogState(() {
+                                      allTypingComplete = true;
+                                      ctaVisible = true;
+                                      ctaTouchable = false;
+                                    });
+                                  },
+                                  children: [
+                                    _buildAnalysisSectionDark(
+                                      'SPECIMEN ANALYSIS',
+                                      primaryColor,
+                                      [
+                                        _buildTypingAnalysisRowDark(
+                                          'CLASSIFICATION',
+                                          offspring.rarity,
+                                          _scanComplete,
+                                          primaryColor,
+                                        ),
+                                        _buildTypingAnalysisRowDark(
+                                          'TYPE CATEGORIES',
+                                          offspring.types.join(', '),
+                                          _scanComplete,
+                                          primaryColor,
+                                          delay: const Duration(
+                                            milliseconds: 300,
+                                          ),
+                                        ),
+                                        if (offspring.description.isNotEmpty)
+                                          _buildTypingAnalysisRowDark(
+                                            'NOTES',
+                                            offspring.description,
+                                            _scanComplete,
+                                            primaryColor,
+                                            delay: const Duration(
+                                              milliseconds: 600,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    _buildAnalysisSectionDark(
+                                      'GENETIC PROFILE',
+                                      primaryColor,
+                                      [
+                                        _buildTypingAnalysisRowDark(
+                                          'SIZE VARIANT',
+                                          _getSizeName(offspring),
+                                          _scanComplete,
+                                          primaryColor,
+                                        ),
+                                        _buildTypingAnalysisRowDark(
+                                          'PIGMENTATION',
+                                          _getTintName(offspring),
+                                          _scanComplete,
+                                          primaryColor,
+                                          delay: const Duration(
+                                            milliseconds: 300,
+                                          ),
+                                        ),
+                                        if (offspring.nature != null)
+                                          _buildTypingAnalysisRowDark(
+                                            'BEHAVIOR',
+                                            offspring.nature!.id,
+                                            _scanComplete,
+                                            primaryColor,
+                                            delay: const Duration(
+                                              milliseconds: 600,
+                                            ),
+                                          ),
+                                        if (offspring.isPrismaticSkin == true)
+                                          _buildTypingAnalysisRowDark(
+                                            'SPECIAL TRAIT',
+                                            'PRISMATIC PHENOTYPE',
+                                            _scanComplete,
+                                            primaryColor,
+                                            delay: const Duration(
+                                              milliseconds: 900,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Docked CTA
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(.2),
+                          border: Border(
+                            top: BorderSide(
+                              color: Colors.white.withOpacity(.08),
+                            ),
+                          ),
+                        ),
+                        child: AnimatedOpacity(
+                          opacity: ctaVisible ? 1 : 0,
+                          duration: const Duration(milliseconds: 450),
+                          onEnd: () {
+                            if (ctaVisible && !closing) {
+                              setDialogState(() => ctaTouchable = true);
+                            }
+                          },
+                          child: IgnorePointer(
+                            ignoring: !ctaTouchable || closing,
+                            child: GestureDetector(
+                              onTap: () {
+                                if (closing) return;
+                                setDialogState(() {
+                                  closing = true;
+                                  ctaTouchable = false;
+                                });
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  if (Navigator.of(context).canPop()) {
+                                    Navigator.of(context).pop();
+                                  }
+                                });
+                              },
+                              child: Container(
+                                width: double.infinity,
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
+                                  horizontal: 22,
+                                  vertical: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.orange.shade100,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.orange.shade300,
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      primaryColor.withOpacity(.95),
+                                      primaryColor.withOpacity(.8),
+                                    ],
                                   ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(.18),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: primaryColor.withOpacity(.25),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(
-                                      Icons.auto_awesome_rounded,
-                                      color: Colors.orange.shade700,
-                                      size: 12,
+                                      Icons.check_rounded,
+                                      color: Colors.white,
+                                      size: 16,
                                     ),
-                                    const SizedBox(width: 4),
+                                    SizedBox(width: 6),
                                     Text(
-                                      'Variant',
+                                      'EXTRACTION CONFIRMED',
                                       style: TextStyle(
-                                        color: Colors.orange.shade700,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13,
+                                        letterSpacing: .6,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Container(
-                                height: 120,
-                                width: 120,
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.orange.shade200,
-                                  ),
-                                ),
-                                child: CreatureScanAnimation(
-                                  isNewDiscovery: isVariantNewDiscovery,
-                                  scanDuration: const Duration(
-                                    milliseconds: 2000,
-                                  ),
-                                  child: CreatureSprite(
-                                    spritePath:
-                                        variant.spriteData?.spriteSheetPath ??
-                                        '',
-                                    totalFrames:
-                                        variant.spriteData?.totalFrames ?? 1,
-                                    rows: variant.spriteData?.rows ?? 1,
-                                    frameSize: Vector2(
-                                      variant.spriteData!.frameWidth.toDouble(),
-                                      variant.spriteData!.frameHeight
-                                          .toDouble(),
-                                    ),
-                                    isPrismatic: variant.isPrismaticSkin,
-                                    stepTime:
-                                        variant.spriteData!.frameDurationMs /
-                                        1000.0,
-                                    scale: scaleFromGenes(variant.genetics),
-                                    saturation: satFromGenes(variant.genetics),
-                                    brightness: briFromGenes(variant.genetics),
-                                    hueShift: hueFromGenes(variant.genetics),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ),
-
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          // Database typing animation for analysis sections
-                          DatabaseTypingAnimation(
-                            startAnimation: _scanComplete,
-                            delayBetweenItems: const Duration(
-                              milliseconds: 800,
                             ),
-                            onComplete: () {
-                              // This callback fires when all typing is done
-                              setDialogState(() {
-                                _allTypingComplete = true;
-                              });
-                            },
-                            children: [
-                              _buildAnalysisSection('Specimen Analysis', [
-                                _buildTypingAnalysisRow(
-                                  'Classification',
-                                  offspring.rarity,
-                                  _scanComplete,
-                                ),
-                                _buildTypingAnalysisRow(
-                                  'Type Categories',
-                                  offspring.types.join(', '),
-                                  _scanComplete,
-                                  delay: const Duration(milliseconds: 300),
-                                ),
-                                if (offspring.description.isNotEmpty)
-                                  _buildTypingAnalysisRow(
-                                    'Notes',
-                                    offspring.description,
-                                    _scanComplete,
-                                    delay: const Duration(milliseconds: 600),
-                                  ),
-                              ]),
-                              _buildAnalysisSection('Genetic Profile', [
-                                _buildTypingAnalysisRow(
-                                  'Size Variant',
-                                  _getSizeName(offspring),
-                                  _scanComplete,
-                                ),
-                                _buildTypingAnalysisRow(
-                                  'Pigmentation',
-                                  _getTintName(offspring),
-                                  _scanComplete,
-                                  delay: const Duration(milliseconds: 300),
-                                ),
-                                if (offspring.nature != null)
-                                  _buildTypingAnalysisRow(
-                                    'Behavioral Pattern',
-                                    offspring.nature!.id,
-                                    _scanComplete,
-                                    delay: const Duration(milliseconds: 600),
-                                  ),
-                                if (offspring.isPrismaticSkin == true)
-                                  _buildTypingAnalysisRow(
-                                    'Special Trait',
-                                    'Prismatic Phenotype',
-                                    _scanComplete,
-                                    delay: const Duration(milliseconds: 900),
-                                  ),
-                              ]),
-                            ],
-                          ),
-
-                          // Add some bottom padding to ensure content doesn't get hidden behind button
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Docked button at bottom
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border(
-                        top: BorderSide(color: Colors.indigo.shade200),
-                      ),
-                    ),
-                    child: AnimatedOpacity(
-                      opacity: _allTypingComplete ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 500),
-                      child: GestureDetector(
-                        onTap: _allTypingComplete
-                            ? () => Navigator.of(context).pop()
-                            : null,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _allTypingComplete
-                                ? Colors.indigo.shade600
-                                : Colors.grey.shade400,
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: _allTypingComplete
-                                ? [
-                                    BoxShadow(
-                                      color: Colors.indigo.shade200,
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.check_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              const Text(
-                                'Extraction Confirmed',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           );
@@ -1251,11 +1430,103 @@ class _NurseryTabState extends State<NurseryTab> {
     );
   }
 
-  // New method for typing analysis rows
-  Widget _buildTypingAnalysisRow(
+  Widget _buildExtractionHeaderDark(
+    Creature offspring,
+    Creature? variant,
+    Color primaryColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.03),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
+        ),
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withOpacity(.08)),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.science_rounded, color: primaryColor, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                variant != null
+                    ? 'VARIANT SPECIMEN EXTRACTED'
+                    : 'EXTRACTION COMPLETE',
+                style: TextStyle(
+                  color: primaryColor,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                  letterSpacing: .6,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            offspring.name,
+            style: const TextStyle(
+              color: Color(0xFFE8EAED),
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              letterSpacing: .3,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnalysisSectionDark(
+    String title,
+    Color primaryColor,
+    List<Widget> children,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.dataset_outlined, color: primaryColor, size: 16),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Color(0xFFE8EAED),
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .6,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(.25),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white.withOpacity(.12)),
+          ),
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTypingAnalysisRowDark(
     String label,
     String value,
-    bool startTyping, {
+    bool startTyping,
+    Color primaryColor, {
     Duration delay = Duration.zero,
   }) {
     return Padding(
@@ -1264,13 +1535,14 @@ class _NurseryTabState extends State<NurseryTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 90,
+            width: 110,
             child: Text(
               label,
               style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+                color: Colors.white.withOpacity(.6),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .4,
               ),
             ),
           ),
@@ -1279,99 +1551,16 @@ class _NurseryTabState extends State<NurseryTab> {
                 ? DelayedTypingText(
                     text: value,
                     delay: delay,
-                    style: TextStyle(
-                      color: Colors.indigo.shade700,
+                    style: const TextStyle(
+                      color: Color(0xFFE8EAED),
                       fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                     ),
                   )
-                : Container(), // Empty until scan completes
+                : const SizedBox.shrink(),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildExtractionHeader(Creature offspring, Creature? variant) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.indigo.shade50,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(16),
-        ),
-        border: Border(bottom: BorderSide(color: Colors.indigo.shade200)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.science_rounded,
-                      color: Colors.indigo.shade600,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      variant != null
-                          ? 'Variant Specimen Extracted'
-                          : 'Extraction Complete',
-                      style: TextStyle(
-                        color: Colors.indigo.shade700,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  offspring.name,
-                  style: TextStyle(
-                    color: Colors.indigo.shade600,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnalysisSection(String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: Colors.indigo.shade700,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Column(children: children),
-        ),
-      ],
     );
   }
 

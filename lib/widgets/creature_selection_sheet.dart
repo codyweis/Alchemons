@@ -1,5 +1,10 @@
+import 'dart:ui';
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/utils/creature_filter_util.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/creature.dart';
 
 class CreatureSelectionSheet extends StatefulWidget {
@@ -25,7 +30,6 @@ class CreatureSelectionSheet extends StatefulWidget {
   @override
   State<CreatureSelectionSheet> createState() => _CreatureSelectionSheetState();
 
-  /// Static method to show as a modal bottom sheet
   static Future<T?> show<T>({
     required BuildContext context,
     required List<Map<String, dynamic>> discoveredCreatures,
@@ -67,136 +71,162 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
   String _selectedSort = 'Name';
   bool _isGridView = true;
 
-  final List<String> _filterOptions = [
-    'All',
-    'Fire',
-    'Water',
-    'Earth',
-    'Air',
-    'Steam',
-    'Lava',
-    'Lightning',
-    'Mud',
-    'Ice',
-    'Dust',
-    'Crystal',
-    'Plant',
-    'Poison',
-    'Spirit',
-    'Dark',
-    'Light',
-    'Blood',
-  ];
-
   final List<String> _sortOptions = ['Name', 'Rarity', 'Type'];
 
   @override
   Widget build(BuildContext context) {
+    final factionSvc = context.read<FactionService>();
+    final currentFaction = factionSvc.current;
+    final factionColors = getFactionColors(currentFaction);
+    final primaryColor = factionColors.$1;
+    final secondaryColor = factionColors.$2;
+
     final filteredCreatures = _filterAndSortCreatures(
       widget.discoveredCreatures,
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.white, Colors.blue.shade50],
-        ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        border: Border.all(color: Colors.indigo.shade200, width: 2),
-      ),
-      child: Column(
-        children: [
-          _buildDragHandle(),
-          widget.customHeader ?? _buildDefaultHeader(),
-          _buildFiltersAndSort(),
-          Expanded(
-            child: _isGridView
-                ? _buildCreatureGrid(filteredCreatures)
-                : _buildCreatureList(filteredCreatures),
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B0F14).withOpacity(0.92),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: primaryColor.withOpacity(.4), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryColor.withOpacity(.2),
+                  blurRadius: 24,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                _buildDragHandle(),
+                widget.customHeader ?? _buildDefaultHeader(primaryColor),
+                _buildFiltersAndSort(primaryColor, secondaryColor),
+                Expanded(
+                  child: _isGridView
+                      ? _buildCreatureGrid(filteredCreatures, primaryColor)
+                      : _buildCreatureList(filteredCreatures, primaryColor),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildDragHandle() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Container(
         width: 40,
         height: 4,
         decoration: BoxDecoration(
-          color: Colors.grey.shade300,
-          borderRadius: BorderRadius.circular(8),
+          color: Colors.white.withOpacity(0.25),
+          borderRadius: BorderRadius.circular(4),
         ),
       ),
     );
   }
 
-  Widget _buildDefaultHeader() {
+  Widget _buildDefaultHeader(Color primaryColor) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Icon(Icons.biotech_rounded, color: Colors.indigo.shade600, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              widget.title ?? 'Select Specimen',
-              style: TextStyle(
-                color: Colors.indigo.shade700,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(.2),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: primaryColor.withOpacity(.35)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    primaryColor.withOpacity(.3),
+                    primaryColor.withOpacity(.2),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.biotech_rounded, color: primaryColor, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (widget.title ?? 'SELECT SPECIMEN').toUpperCase(),
+                    style: const TextStyle(
+                      color: Color(0xFFE8EAED),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Research database',
+                    style: TextStyle(
+                      color: Color(0xFFB6C0CC),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          if (widget.showViewToggle)
-            GestureDetector(
-              onTap: () => setState(() => _isGridView = !_isGridView),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: _isGridView
-                      ? Colors.indigo.shade50
-                      : Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: _isGridView
-                        ? Colors.indigo.shade300
-                        : Colors.orange.shade300,
-                    width: 1,
+            if (widget.showViewToggle)
+              GestureDetector(
+                onTap: () => setState(() => _isGridView = !_isGridView),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: primaryColor.withOpacity(.4)),
+                  ),
+                  child: Icon(
+                    _isGridView
+                        ? Icons.view_list_rounded
+                        : Icons.grid_view_rounded,
+                    color: primaryColor,
+                    size: 18,
                   ),
                 ),
-                child: Icon(
-                  _isGridView
-                      ? Icons.view_list_rounded
-                      : Icons.grid_view_rounded,
-                  color: _isGridView
-                      ? Colors.indigo.shade600
-                      : Colors.orange.shade600,
-                  size: 16,
-                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildFiltersAndSort() {
-    return Container(
-      margin: const EdgeInsets.all(16),
+  Widget _buildFiltersAndSort(Color primaryColor, Color secondaryColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Row(
         children: [
           Expanded(
             child: _buildDropdown(
               'Type Filter',
-              _filterOptions,
+              CreatureFilterUtils.filterOptions,
               _selectedFilter,
               (value) => setState(() => _selectedFilter = value!),
               Icons.filter_list_rounded,
+              primaryColor,
             ),
           ),
           const SizedBox(width: 8),
@@ -207,6 +237,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
               _selectedSort,
               (value) => setState(() => _selectedSort = value!),
               Icons.sort_rounded,
+              primaryColor,
             ),
           ),
         ],
@@ -220,23 +251,24 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     String selectedValue,
     void Function(String?) onChanged,
     IconData icon,
+    Color primaryColor,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.indigo.shade200, width: 2),
+        color: Colors.black.withOpacity(.2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: primaryColor.withOpacity(.35)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selectedValue,
           isExpanded: true,
-          icon: Icon(icon, color: Colors.indigo.shade600, size: 16),
-          dropdownColor: Colors.white,
-          style: TextStyle(
-            color: Colors.indigo.shade700,
-            fontSize: 11,
+          icon: Icon(icon, color: primaryColor, size: 16),
+          dropdownColor: const Color(0xFF1A1F2E),
+          style: const TextStyle(
+            color: Color(0xFFE8EAED),
+            fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
           onChanged: onChanged,
@@ -246,10 +278,10 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
               child: Text(
                 value,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.indigo.shade700,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
+                style: const TextStyle(
+                  color: Color(0xFFE8EAED),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             );
@@ -259,129 +291,158 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     );
   }
 
-  Widget _buildCreatureGrid(List<Map<String, dynamic>> creatures) {
+  Widget _buildCreatureGrid(
+    List<Map<String, dynamic>> creatures,
+    Color primaryColor,
+  ) {
     if (creatures.isEmpty) {
-      return _buildEmptyState();
+      return _buildEmptyState(primaryColor);
     }
 
     return GridView.builder(
       controller: widget.scrollController,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
       physics: const BouncingScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        childAspectRatio: 0.9,
+        childAspectRatio: 0.8,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
       ),
       itemCount: creatures.length,
-      itemBuilder: (context, index) => _buildCreatureCard(creatures[index]),
+      itemBuilder: (context, index) =>
+          _buildCreatureCard(creatures[index], primaryColor),
     );
   }
 
-  Widget _buildCreatureList(List<Map<String, dynamic>> creatures) {
+  Widget _buildCreatureList(
+    List<Map<String, dynamic>> creatures,
+    Color primaryColor,
+  ) {
     if (creatures.isEmpty) {
-      return _buildEmptyState();
+      return _buildEmptyState(primaryColor);
     }
 
     return ListView.builder(
       controller: widget.scrollController,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
       physics: const BouncingScrollPhysics(),
       itemCount: creatures.length,
-      itemBuilder: (context, index) => _buildCreatureListItem(creatures[index]),
+      itemBuilder: (context, index) =>
+          _buildCreatureListItem(creatures[index], primaryColor),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(Color primaryColor) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off_rounded, color: Colors.grey.shade400, size: 40),
-          const SizedBox(height: 12),
-          Text(
-            widget.emptyStateMessage ?? 'No specimens match current filters',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.06),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(.15)),
+              ),
+              child: Icon(
+                Icons.search_off_rounded,
+                size: 48,
+                color: primaryColor.withOpacity(.6),
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 16),
+            const Text(
+              'No specimens found',
+              style: TextStyle(
+                color: Color(0xFFE8EAED),
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.emptyStateMessage ?? 'No specimens match current filters',
+              style: const TextStyle(
+                color: Color(0xFFB6C0CC),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildCreatureCard(Map<String, dynamic> creatureData) {
+  Widget _buildCreatureCard(
+    Map<String, dynamic> creatureData,
+    Color primaryColor,
+  ) {
     final creature = creatureData['creature'] as Creature;
     final typeColor = BreedConstants.getTypeColor(creature.types.first);
+    final rarityColor = BreedConstants.getRarityColor(creature.rarity);
 
     return GestureDetector(
       onTap: () => widget.onSelectCreature(creature.id),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: typeColor.withOpacity(0.5), width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: typeColor.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          color: Colors.black.withOpacity(.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: typeColor.withOpacity(.4), width: 1.5),
         ),
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                creature.name,
-                style: TextStyle(
-                  color: Colors.indigo.shade700,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
+              // Rarity badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: rarityColor.withOpacity(.2),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: rarityColor.withOpacity(.4)),
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                child: Text(
+                  creature.rarity.toUpperCase(),
+                  style: TextStyle(
+                    color: rarityColor,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
               const SizedBox(height: 6),
+
+              // Image container
               Expanded(
                 child: Container(
-                  constraints: const BoxConstraints(
-                    maxHeight: 80,
-                    maxWidth: 80,
-                  ),
                   decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.04),
                     borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: typeColor.withOpacity(0.2),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    border: Border.all(color: Colors.white.withOpacity(.12)),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(7),
                     child: Image.asset(
                       'assets/images/creatures/${creature.rarity.toLowerCase()}/'
                       '${creature.id.toUpperCase()}_${creature.name.toLowerCase()}.png',
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) => Container(
                         decoration: BoxDecoration(
                           color: typeColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(7),
                         ),
                         child: Center(
                           child: Icon(
                             BreedConstants.getTypeIcon(creature.types.first),
-                            size: 32,
-                            color: typeColor,
+                            size: 28,
+                            color: typeColor.withOpacity(.7),
                           ),
                         ),
                       ),
@@ -389,23 +450,19 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(
-                  color: BreedConstants.getRarityColor(
-                    creature.rarity,
-                  ).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
+              const SizedBox(height: 6),
+
+              // Name
+              Text(
+                creature.name,
+                style: const TextStyle(
+                  color: Color(0xFFE8EAED),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
                 ),
-                child: Text(
-                  creature.rarity,
-                  style: TextStyle(
-                    color: BreedConstants.getRarityColor(creature.rarity),
-                    fontSize: 8,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -414,9 +471,13 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     );
   }
 
-  Widget _buildCreatureListItem(Map<String, dynamic> creatureData) {
+  Widget _buildCreatureListItem(
+    Map<String, dynamic> creatureData,
+    Color primaryColor,
+  ) {
     final creature = creatureData['creature'] as Creature;
     final typeColor = BreedConstants.getTypeColor(creature.types.first);
+    final rarityColor = BreedConstants.getRarityColor(creature.rarity);
 
     return GestureDetector(
       onTap: () => widget.onSelectCreature(creature.id),
@@ -424,35 +485,23 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: typeColor.withOpacity(0.5), width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: typeColor.withOpacity(0.1),
-              blurRadius: 3,
-              offset: const Offset(0, 1),
-            ),
-          ],
+          color: Colors.black.withOpacity(.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: typeColor.withOpacity(.4), width: 1.5),
         ),
         child: Row(
           children: [
-            // Creature image
+            // Image
             Container(
-              width: 40,
-              height: 40,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                boxShadow: [
-                  BoxShadow(
-                    color: typeColor.withOpacity(0.2),
-                    blurRadius: 2,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
+                color: Colors.white.withOpacity(.04),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withOpacity(.12)),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(7),
                 child: Image.asset(
                   'assets/images/creatures/${creature.rarity.toLowerCase()}/'
                   '${creature.id.toUpperCase()}_${creature.name.toLowerCase()}.png',
@@ -460,13 +509,13 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                   errorBuilder: (context, error, stackTrace) => Container(
                     decoration: BoxDecoration(
                       color: typeColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(7),
                     ),
                     child: Center(
                       child: Icon(
                         BreedConstants.getTypeIcon(creature.types.first),
-                        size: 20,
-                        color: typeColor,
+                        size: 22,
+                        color: typeColor.withOpacity(.7),
                       ),
                     ),
                   ),
@@ -474,16 +523,17 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
               ),
             ),
             const SizedBox(width: 12),
-            // Creature info
+
+            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     creature.name,
-                    style: TextStyle(
-                      color: Colors.indigo.shade700,
-                      fontSize: 14,
+                    style: const TextStyle(
+                      color: Color(0xFFE8EAED),
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -496,19 +546,19 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: BreedConstants.getRarityColor(
-                            creature.rarity,
-                          ).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(4),
+                          color: rarityColor.withOpacity(.2),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(
+                            color: rarityColor.withOpacity(.4),
+                          ),
                         ),
                         child: Text(
-                          creature.rarity,
+                          creature.rarity.toUpperCase(),
                           style: TextStyle(
-                            color: BreedConstants.getRarityColor(
-                              creature.rarity,
-                            ),
+                            color: rarityColor,
                             fontSize: 9,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
                           ),
                         ),
                       ),
@@ -519,32 +569,31 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                             (type) => Container(
                               margin: const EdgeInsets.only(right: 4),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 1,
+                                horizontal: 5,
+                                vertical: 2,
                               ),
                               decoration: BoxDecoration(
                                 color: BreedConstants.getTypeColor(
                                   type,
                                 ).withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(3),
+                                borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
                                   color: BreedConstants.getTypeColor(
                                     type,
-                                  ).withOpacity(0.5),
-                                  width: 1,
+                                  ).withOpacity(0.4),
                                 ),
                               ),
                               child: Text(
-                                type,
+                                type.toUpperCase(),
                                 style: TextStyle(
                                   color: BreedConstants.getTypeColor(type),
                                   fontSize: 8,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.3,
                                 ),
                               ),
                             ),
-                          )
-                          .toList(),
+                          ),
                     ],
                   ),
                 ],
@@ -570,9 +619,9 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
       final creatureB = b['creature'] as Creature;
       switch (_selectedSort) {
         case 'Rarity':
-          return _getRarityOrder(
+          return CreatureFilterUtils.getRarityOrder(
             creatureA.rarity,
-          ).compareTo(_getRarityOrder(creatureB.rarity));
+          ).compareTo(CreatureFilterUtils.getRarityOrder(creatureB.rarity));
         case 'Type':
           return creatureA.types.first.compareTo(creatureB.types.first);
         case 'Name':
@@ -582,22 +631,5 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     });
 
     return filtered;
-  }
-
-  int _getRarityOrder(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common':
-        return 0;
-      case 'uncommon':
-        return 1;
-      case 'rare':
-        return 2;
-      case 'mythic':
-        return 3;
-      case 'legendary':
-        return 4;
-      default:
-        return 0;
-    }
   }
 }

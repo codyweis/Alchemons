@@ -1,10 +1,26 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 class CreatureScanAnimation extends StatefulWidget {
   final Widget child;
   final bool isNewDiscovery;
+
+  /// Called when the scan chain completes. Only fired if [autoComplete] is true
+  /// *and* no external action has been taken.
   final VoidCallback? onScanComplete;
+
+  /// Total scan duration.
   final Duration scanDuration;
+
+  /// If true, this widget absorbs touches over its own bounds while animating.
+  final bool blockTouchesWhileAnimating;
+
+  /// Emits when the widget is ready for user interaction (CTA can be enabled).
+  final ValueChanged<bool>? onReadyChanged;
+
+  /// If true, the widget will call [onScanComplete] automatically when the
+  /// animation chain finishes. Set this to false when you show your own button.
+  final bool autoComplete;
 
   const CreatureScanAnimation({
     super.key,
@@ -12,37 +28,57 @@ class CreatureScanAnimation extends StatefulWidget {
     this.isNewDiscovery = false,
     this.onScanComplete,
     this.scanDuration = const Duration(milliseconds: 2000),
+    this.blockTouchesWhileAnimating = false,
+    this.onReadyChanged,
+    this.autoComplete = false, // <- default to manual, safer for CTA flows
   });
 
   @override
-  State<CreatureScanAnimation> createState() => _CreatureScanAnimationState();
+  State<CreatureScanAnimation> createState() => CreatureScanAnimationState();
 }
 
-class _CreatureScanAnimationState extends State<CreatureScanAnimation>
+class CreatureScanAnimationState extends State<CreatureScanAnimation>
     with TickerProviderStateMixin {
-  late AnimationController _scanController;
-  late AnimationController _gridController;
-  late AnimationController _discoveryController;
+  late final AnimationController _scanController;
+  late final AnimationController _gridController;
+  late final AnimationController _discoveryController;
 
-  late Animation<double> _scanPosition;
-  late Animation<double> _gridOpacity;
-  late Animation<double> _creatureOpacity;
-  late Animation<double> _discoveryFlash;
+  late final Animation<double> _scanPosition;
+  late final Animation<double> _gridOpacity;
+  late final Animation<double> _creatureOpacity;
+  late final Animation<double> _discoveryFlash;
+
+  Timer? _flashDelay;
+
+  // Guards
+  bool _completionQueued = false; // internal completion scheduled
+  bool _externalHandled = false; // parent pressed CTA and took control
+  bool _readyForTap = false;
+
+  bool get isReadyForTap => _readyForTap;
+
+  /// Call this from your CTA before you navigate/change screens.
+  /// It atomically marks the completion as handled so any queued internal
+  /// completion will be ignored.
+  void takeAction() {
+    _externalHandled = true;
+    _completionQueued = false; // ignore any queued internal callback
+  }
 
   @override
   void initState() {
     super.initState();
 
-    // Use the passed scanDuration for the main scan effect
-    final scanDuration = (widget.scanDuration.inMilliseconds * 0.75).round();
+    final scanMs = widget.scanDuration.inMilliseconds;
+    final mainScanMs = (scanMs * 0.75).round();
 
     _scanController = AnimationController(
-      duration: Duration(milliseconds: scanDuration),
+      duration: Duration(milliseconds: mainScanMs),
       vsync: this,
     );
 
     _gridController = AnimationController(
-      duration: Duration(milliseconds: (scanDuration * 0.8).round()),
+      duration: Duration(milliseconds: (mainScanMs * 0.8).round()),
       vsync: this,
     );
 
@@ -51,68 +87,112 @@ class _CreatureScanAnimationState extends State<CreatureScanAnimation>
       vsync: this,
     );
 
-    _setupAnimations();
-    _startScanning();
-  }
-
-  void _setupAnimations() {
-    // Scanning line moving from top to bottom
+    // ---- Animations ----
     _scanPosition = Tween<double>(
       begin: -0.1,
       end: 1.1,
     ).animate(CurvedAnimation(parent: _scanController, curve: Curves.linear));
 
-    // Grid overlay that appears during scan
     _gridOpacity = TweenSequence<double>([
       TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 0.6), weight: 20),
       TweenSequenceItem(tween: Tween<double>(begin: 0.6, end: 0.6), weight: 60),
       TweenSequenceItem(tween: Tween<double>(begin: 0.6, end: 0.0), weight: 20),
     ]).animate(_gridController);
 
-    // Creature becomes translucent during scan
     _creatureOpacity = TweenSequence<double>([
       TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.4), weight: 30),
       TweenSequenceItem(tween: Tween<double>(begin: 0.4, end: 0.4), weight: 40),
       TweenSequenceItem(tween: Tween<double>(begin: 0.4, end: 1.0), weight: 30),
     ]).animate(_scanController);
 
-    // Discovery flash effect
     _discoveryFlash = TweenSequence<double>([
       TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.0), weight: 25),
       TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.0), weight: 25),
       TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.0), weight: 25),
       TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.0), weight: 25),
     ]).animate(_discoveryController);
+
+    // ---- Chain (no awaits) ----
+    _scanController.addStatusListener(_onScanStatus);
+    _discoveryController.addStatusListener(_onDiscoveryStatus);
+
+    _startScanning();
   }
 
-  void _startScanning() async {
-    print(
-      'CreatureScanAnimation: Starting scan with duration ${widget.scanDuration.inMilliseconds}ms',
-    );
-
-    // Start the grid and scan simultaneously
-    _gridController.forward();
-    await _scanController.forward();
-
-    print('CreatureScanAnimation: Scan line complete');
-
-    // If it's a new discovery, show the flash
-    if (widget.isNewDiscovery) {
-      await Future.delayed(const Duration(milliseconds: 200));
-      await _discoveryController.forward();
-      print('CreatureScanAnimation: Discovery flash complete');
+  void _onScanStatus(AnimationStatus status) {
+    if (!mounted) return;
+    if (status == AnimationStatus.completed) {
+      if (widget.isNewDiscovery) {
+        _flashDelay?.cancel();
+        _flashDelay = Timer(const Duration(milliseconds: 200), () {
+          if (!mounted || _externalHandled) return;
+          _discoveryController.forward(from: 0);
+        });
+      } else {
+        _queueCompletion();
+      }
     }
-
-    // Callback when scan is done
-    widget.onScanComplete?.call();
-    print('CreatureScanAnimation: All animations complete');
   }
+
+  void _onDiscoveryStatus(AnimationStatus status) {
+    if (!mounted) return;
+    if (status == AnimationStatus.completed) {
+      _queueCompletion();
+    }
+  }
+
+  void _queueCompletion() {
+    if (_completionQueued) return;
+    _completionQueued = true;
+
+    // Mark ready before calling out, so UI can enable CTA immediately.
+    _setReady(true);
+
+    // Defer to next frame and respect externalHandled + autoComplete
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_externalHandled) return; // parent CTA already acted
+      if (!widget.autoComplete) return; // manual mode -> do nothing
+      widget.onScanComplete?.call(); // auto mode -> fire once
+    });
+  }
+
+  void _setReady(bool v) {
+    if (_readyForTap == v) return;
+    _readyForTap = v;
+    widget.onReadyChanged?.call(v);
+    if (mounted) setState(() {});
+  }
+
+  void _startScanning() {
+    // Reset all flags and controllers
+    _flashDelay?.cancel();
+    _completionQueued = false;
+    _externalHandled = false;
+    _setReady(false);
+
+    _gridController.value = 0;
+    _scanController.value = 0;
+    _discoveryController.value = 0;
+
+    // Drive (no await)
+    _gridController.forward(from: 0);
+    _scanController.forward(from: 0);
+  }
+
+  /// Optional manual restart through GlobalKey.
+  void restart() => _startScanning();
 
   @override
   void dispose() {
-    _scanController.dispose();
-    _gridController.dispose();
-    _discoveryController.dispose();
+    _flashDelay?.cancel();
+    _scanController.removeStatusListener(_onScanStatus);
+    _discoveryController.removeStatusListener(_onDiscoveryStatus);
+
+    for (final c in [_scanController, _gridController, _discoveryController]) {
+      c.stop(canceled: true);
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -124,13 +204,13 @@ class _CreatureScanAnimationState extends State<CreatureScanAnimation>
         _gridController,
         _discoveryController,
       ]),
-      builder: (context, child) {
+      builder: (context, _) {
         return LayoutBuilder(
           builder: (context, constraints) {
             return Stack(
               clipBehavior: Clip.none,
               children: [
-                // Main creature with opacity effect - centered and full size
+                // Main content
                 Center(
                   child: SizedBox(
                     width: constraints.maxWidth,
@@ -142,7 +222,7 @@ class _CreatureScanAnimationState extends State<CreatureScanAnimation>
                   ),
                 ),
 
-                // Holographic grid overlay
+                // Grid
                 if (_gridOpacity.value > 0)
                   Positioned.fill(
                     child: Opacity(
@@ -151,14 +231,14 @@ class _CreatureScanAnimationState extends State<CreatureScanAnimation>
                     ),
                   ),
 
-                // Scanning line
+                // Scan line
                 if (_scanController.isAnimating)
                   Positioned(
                     top:
                         (_scanPosition.value * (constraints.maxHeight - 20)) +
-                        10, // Starts 10px from top, ends 10px from bottom
-                    left: 1, // Inset from left
-                    right: 1, // Inset from right
+                        10,
+                    left: 1,
+                    right: 1,
                     child: Container(
                       height: 2,
                       decoration: BoxDecoration(
@@ -174,7 +254,7 @@ class _CreatureScanAnimationState extends State<CreatureScanAnimation>
                     ),
                   ),
 
-                // Corner scanning brackets
+                // Brackets
                 if (_scanController.isAnimating || _gridController.isAnimating)
                   Positioned.fill(
                     child: CustomPaint(
@@ -184,12 +264,10 @@ class _CreatureScanAnimationState extends State<CreatureScanAnimation>
                     ),
                   ),
 
-                // New discovery flash overlay
+                // Discovery flash
                 if (widget.isNewDiscovery && _discoveryController.isAnimating)
                   Positioned(
-                    top:
-                        -(constraints.maxHeight *
-                            0.12), // Proportional to container height
+                    top: -(constraints.maxHeight * 0.12),
                     left: 0,
                     right: 0,
                     child: Opacity(
@@ -214,16 +292,16 @@ class _CreatureScanAnimationState extends State<CreatureScanAnimation>
                             ),
                           ],
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
                               Icons.auto_awesome_rounded,
                               color: Colors.white,
                               size: 16,
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: 6),
                             Text(
                               'NEW CREATURE DISCOVERED',
                               style: TextStyle(
@@ -238,6 +316,12 @@ class _CreatureScanAnimationState extends State<CreatureScanAnimation>
                       ),
                     ),
                   ),
+
+                // Optional input blocker over this widget's area only
+                if (widget.blockTouchesWhileAnimating && !_readyForTap)
+                  const Positioned.fill(
+                    child: AbsorbPointer(child: SizedBox.expand()),
+                  ),
               ],
             );
           },
@@ -247,33 +331,29 @@ class _CreatureScanAnimationState extends State<CreatureScanAnimation>
   }
 }
 
+// === Painters ===
+
 class HolographicGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    final grid = Paint()
       ..color = Colors.cyan.shade400.withOpacity(0.4)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
 
-    final gridSize = 20.0;
-
-    // Draw vertical lines
-    for (double x = 0; x <= size.width; x += gridSize) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    const step = 20.0;
+    for (double x = 0; x <= size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+    }
+    for (double y = 0; y <= size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
     }
 
-    // Draw horizontal lines
-    for (double y = 0; y <= size.height; y += gridSize) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-
-    // Draw wireframe border
-    final borderPaint = Paint()
+    final border = Paint()
       ..color = Colors.cyan.shade400.withOpacity(0.6)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
-
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), borderPaint);
+    canvas.drawRect(Offset.zero & size, border);
   }
 
   @override
@@ -282,61 +362,42 @@ class HolographicGridPainter extends CustomPainter {
 
 class ScanningBracketsPainter extends CustomPainter {
   final double progress;
-
-  ScanningBracketsPainter({required this.progress});
+  const ScanningBracketsPainter({required this.progress});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    final p = Paint()
       ..color = Colors.cyan.shade400.withOpacity(0.8)
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
-    final bracketSize = 20.0;
-    final animatedSize = bracketSize * progress;
+    const maxLen = 20.0;
+    final len = maxLen * progress;
 
-    // Top-left bracket
-    canvas.drawLine(Offset(0, animatedSize), Offset(0, 0), paint);
-    canvas.drawLine(Offset(0, 0), Offset(animatedSize, 0), paint);
-
-    // Top-right bracket
+    // TL
+    canvas.drawLine(Offset(0, len), const Offset(0, 0), p);
+    canvas.drawLine(const Offset(0, 0), Offset(len, 0), p);
+    // TR
+    canvas.drawLine(Offset(size.width - len, 0), Offset(size.width, 0), p);
+    canvas.drawLine(Offset(size.width, 0), Offset(size.width, len), p);
+    // BL
+    canvas.drawLine(Offset(0, size.height - len), Offset(0, size.height), p);
+    canvas.drawLine(Offset(0, size.height), Offset(len, size.height), p);
+    // BR
     canvas.drawLine(
-      Offset(size.width - animatedSize, 0),
-      Offset(size.width, 0),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(size.width, 0),
-      Offset(size.width, animatedSize),
-      paint,
-    );
-
-    // Bottom-left bracket
-    canvas.drawLine(
-      Offset(0, size.height - animatedSize),
-      Offset(0, size.height),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(0, size.height),
-      Offset(animatedSize, size.height),
-      paint,
-    );
-
-    // Bottom-right bracket
-    canvas.drawLine(
-      Offset(size.width - animatedSize, size.height),
+      Offset(size.width - len, size.height),
       Offset(size.width, size.height),
-      paint,
+      p,
     );
     canvas.drawLine(
       Offset(size.width, size.height),
-      Offset(size.width, size.height - animatedSize),
-      paint,
+      Offset(size.width, size.height - len),
+      p,
     );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant ScanningBracketsPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

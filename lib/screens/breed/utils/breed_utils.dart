@@ -1,4 +1,5 @@
 import 'package:alchemons/constants/egg.dart';
+import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/widgets/animations/hatch_animation.dart';
 import 'package:flutter/material.dart';
 
@@ -6,6 +7,7 @@ Future<void> playHatchCinematic(
   BuildContext context,
   String assetPath,
   EggPalette palette,
+  FactionId? factionId,
 ) {
   return showGeneralDialog(
     context: context,
@@ -17,6 +19,7 @@ Future<void> playHatchCinematic(
         palette: palette,
         triggerAt: 0.7,
         lottieAsset: assetPath,
+        factionId: factionId,
         onFinished: () {
           Navigator.of(context, rootNavigator: true).pop(); // close overlay
         },
