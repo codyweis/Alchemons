@@ -5,6 +5,7 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:flutter/material.dart';
@@ -75,6 +76,10 @@ class AppProviders extends StatelessWidget {
       providers: [
         // Database provider
         Provider<AlchemonsDatabase>.value(value: db),
+
+        ChangeNotifierProvider<HarvestService>(
+          create: (ctx) => HarvestService(ctx.read<AlchemonsDatabase>()),
+        ),
 
         // Game data service provider (already initialized)
         Provider<GameDataService>.value(value: gameDataService),

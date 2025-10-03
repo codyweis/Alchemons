@@ -138,6 +138,11 @@ class FactionService {
     return v == '1';
   }
 
+  Future<bool> setBlobSlotsUnlockedTest() async {
+    await db.setSetting('blob_slots_unlocked', '3');
+    return true;
+  }
+
   Future<void> _setPerkUnlocked(int perkIndex, bool value, {FactionId? forId}) {
     final id = forId ?? current;
     if (id == null) return Future.value();

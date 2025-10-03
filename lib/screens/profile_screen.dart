@@ -1,7 +1,11 @@
 // lib/screens/profile_screen.dart
+import 'dart:ui';
+import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -44,6 +48,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           content: const Text('Second perk unlocked!'),
           backgroundColor: Colors.green.shade700,
           behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       setState(() => _load = _fetch());
@@ -54,6 +61,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           content: Text('Discover $need creatures to unlock the second perk.'),
           backgroundColor: Colors.orange.shade700,
           behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     }
@@ -61,71 +71,222 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final sz = MediaQuery.of(context).size;
+
+    final f = context.read<FactionService>().current ?? FactionId.water;
+    final accent = accentForFaction(f);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
-      body: FutureBuilder<_ProfileData>(
-        future: _load,
-        builder: (context, snap) {
-          if (!snap.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final data = snap.data!;
-          if (data.faction == null) {
-            return const Center(child: Text('Choose a faction to begin.'));
-          }
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text('PROFILE'),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: const Color(0xFFE8EAED),
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+            child: Container(color: Colors.black.withOpacity(.12)),
+          ),
+        ),
+      ),
+      body: Stack(
+        children: [
+          // Subtle dark gradient background
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF0B0E12), Color(0xFF10141A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+          ),
 
-          final perks = FactionService.catalog[data.faction!]!.perks;
+          // Content
+          FutureBuilder<_ProfileData>(
+            future: _load,
+            builder: (context, snap) {
+              if (!snap.hasData) {
+                return const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                );
+              }
+              final data = snap.data!;
+              if (data.faction == null) {
+                return Center(
+                  child: _glassCard(
+                    child: const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'Choose a faction to begin.',
+                        style: TextStyle(
+                          color: Color(0xFFE8EAED),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _factionHeader(data.faction!, data.discoveredCount),
-              const SizedBox(height: 12),
+              final accent = _accentFor(data.faction!);
 
-              // Perk 1
-              if (perks.isNotEmpty)
-                _perkTile(
-                  title: perks[0].name,
-                  description: perks[0].description,
-                  unlocked: data.perk1,
-                  badgeColor: Colors.indigo,
+              return SafeArea(
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 16 + 8, 16, 24),
+                  children: [
+                    // Faction switcher chip (glass)
+                    GestureDetector(
+                      onTap: () async {
+                        HapticFeedback.lightImpact();
+                        final selected = await showDialog<FactionId>(
+                          context: context,
+                          builder: (_) => const FactionPickerDialog(),
+                        );
+                        if (selected != null) {
+                          await context.read<FactionService>().setId(selected);
+                          if (mounted) setState(() {});
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: accent.withOpacity(0.6)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              switch (f) {
+                                FactionId.fire =>
+                                  Icons.local_fire_department_rounded,
+                                FactionId.water => Icons.water_drop_rounded,
+                                FactionId.air => Icons.air_rounded,
+                                FactionId.earth => Icons.terrain_rounded,
+                              },
+                              size: 16,
+                              color: accent,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              f.name[0].toUpperCase() + f.name.substring(1),
+                              style: TextStyle(
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _factionHeader(data.faction!, data.discoveredCount, accent),
+                    const SizedBox(height: 14),
+
+                    // Section label
+                    _sectionLabel('DIVISION PERKS', accent),
+                    const SizedBox(height: 10),
+
+                    // Perk 1
+                    Builder(
+                      builder: (_) {
+                        final perks =
+                            FactionService.catalog[data.faction!]!.perks;
+                        if (perks.isEmpty) return const SizedBox.shrink();
+                        return _perkTile(
+                          title: perks[0].name,
+                          description: perks[0].description,
+                          unlocked: data.perk1,
+                          accent: accent,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Perk 2
+                    Builder(
+                      builder: (_) {
+                        final perks =
+                            FactionService.catalog[data.faction!]!.perks;
+                        if (perks.length < 2) return const SizedBox.shrink();
+                        return _perkTile(
+                          title: perks[1].name,
+                          description: perks[1].description,
+                          unlocked: data.perk2,
+                          accent: accent,
+                          trailing: !data.perk2
+                              ? _glassButton(
+                                  label: 'CHECK UNLOCK',
+                                  onTap: _checkUnlockPerk2,
+                                  accent: accent,
+                                  compact: true,
+                                )
+                              : null,
+                          footer: !data.perk2
+                              ? _reqText(
+                                  'Requirement: Discover '
+                                  '${FactionService.perk2DiscoverThreshold} creatures',
+                                )
+                              : _activeText(),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Discovery progress mini-card
+                    _progressCard(
+                      discovered: data.discoveredCount,
+                      accent: accent,
+                      width: sz.width,
+                    ),
+                  ],
                 ),
-              if (perks.isNotEmpty) const SizedBox(height: 10),
-
-              // Perk 2
-              if (perks.length >= 2)
-                _perkTile(
-                  title: perks[1].name,
-                  description: perks[1].description,
-                  unlocked: data.perk2,
-                  badgeColor: Colors.teal,
-                  trailing: !data.perk2
-                      ? TextButton(
-                          onPressed: _checkUnlockPerk2,
-                          child: const Text('Check unlock'),
-                        )
-                      : null,
-                  footer: !data.perk2
-                      ? Text(
-                          'Requirement: Discover '
-                          '${FactionService.perk2DiscoverThreshold} creatures',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        )
-                      : const Text('Active', style: TextStyle(fontSize: 12)),
-                ),
-            ],
-          );
-        },
+              );
+            },
+          ),
+        ],
       ),
     );
   }
 
   // --- helpers ----
 
-  Widget _factionHeader(FactionId id, int discovered) {
+  Color _accentFor(FactionId id) {
+    // Reuse global faction palette
+    final colors = getFactionColors(id);
+    return colors.$1; // primary accent color
+  }
+
+  Widget _sectionLabel(String text, Color accent) {
+    return Row(
+      children: [
+        Icon(Icons.dataset_outlined, size: 16, color: accent),
+        const SizedBox(width: 8),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Color(0xFFE8EAED),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .6,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _factionHeader(FactionId id, int discovered, Color accent) {
     final (icon, color) = switch (id) {
       FactionId.fire => (Icons.local_fire_department_rounded, Colors.red),
       FactionId.water => (Icons.water_drop_rounded, Colors.blue),
@@ -135,35 +296,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final name = id.name[0].toUpperCase() + id.name.substring(1);
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.25), width: 2),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Faction: $name',
-                  style: TextStyle(
-                    color: color.shade700,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text('Discovered creatures: $discovered'),
-              ],
+    return _glassCard(
+      borderColor: accent.withOpacity(.45),
+      glowColor: accent.withOpacity(.18),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: accent.withOpacity(.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: accent.withOpacity(.35)),
+              ),
+              child: Icon(icon, color: accent, size: 22),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'FACTION: $name',
+                    style: const TextStyle(
+                      color: Color(0xFFE8EAED),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Discovered creatures: $discovered',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(.75),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _chip(text: 'ACTIVE', color: color.shade400),
+          ],
+        ),
       ),
     );
   }
@@ -172,59 +349,247 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String title,
     required String description,
     required bool unlocked,
-    required MaterialColor badgeColor,
+    required Color accent,
     Widget? trailing,
     Widget? footer,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: unlocked ? Colors.white : Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: unlocked ? badgeColor.shade200 : Colors.grey.shade300,
-          width: 2,
+    final statusColor = unlocked ? accent : Colors.white.withOpacity(.35);
+
+    return _glassCard(
+      borderColor: statusColor.withOpacity(.45),
+      glowColor: unlocked
+          ? accent.withOpacity(.16)
+          : Colors.black.withOpacity(.2),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top row: badge + title + action
+            Row(
+              children: [
+                _chip(
+                  text: unlocked ? 'UNLOCKED' : 'LOCKED',
+                  color: unlocked ? accent : Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      letterSpacing: .3,
+                      color: Color(0xFFE8EAED),
+                    ),
+                  ),
+                ),
+                if (trailing != null) trailing,
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: TextStyle(
+                color: Colors.white.withOpacity(.85),
+                fontSize: 13,
+                height: 1.28,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (footer != null) ...[const SizedBox(height: 8), footer],
+          ],
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: unlocked
-                      ? badgeColor.withOpacity(0.15)
-                      : Colors.grey.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  unlocked ? 'Unlocked' : 'Locked',
+    );
+  }
+
+  Widget _reqText(String text) => Text(
+    text,
+    style: TextStyle(
+      fontSize: 12,
+      color: Colors.orange.shade200,
+      fontWeight: FontWeight.w700,
+    ),
+  );
+
+  Widget _activeText() => Text(
+    'Active',
+    style: TextStyle(
+      fontSize: 12,
+      color: Colors.green.shade300,
+      fontWeight: FontWeight.w800,
+      letterSpacing: .3,
+    ),
+  );
+
+  Widget _glassButton({
+    required String label,
+    required VoidCallback onTap,
+    required Color accent,
+    bool compact = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 10 : 14,
+          vertical: compact ? 6 : 10,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [accent.withOpacity(.95), accent.withOpacity(.8)],
+          ),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withOpacity(.18)),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withOpacity(.25),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: 11,
+            letterSpacing: .6,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _chip({required String text, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(.45)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Color(0xFFE8EAED),
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .5,
+        ),
+      ),
+    );
+  }
+
+  Widget _progressCard({
+    required int discovered,
+    required Color accent,
+    required double width,
+  }) {
+    // simple soft progress visualization; scale is arbitrary here
+    final totalHint = FactionService.perk2DiscoverThreshold;
+    final p = (discovered / (totalHint == 0 ? 1 : totalHint)).clamp(0.0, 1.0);
+
+    return _glassCard(
+      borderColor: Colors.white.withOpacity(.14),
+      glowColor: accent.withOpacity(.12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.insights_rounded, size: 16, color: accent),
+                const SizedBox(width: 8),
+                const Text(
+                  'DISCOVERY PROGRESS',
                   style: TextStyle(
-                    color: unlocked ? badgeColor.shade700 : Colors.black54,
-                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFE8EAED),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .6,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              height: 10,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withOpacity(.14)),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(7),
+                child: LinearProgressIndicator(
+                  value: p,
+                  minHeight: 10,
+                  backgroundColor: Colors.white.withOpacity(.06),
+                  valueColor: AlwaysStoppedAnimation<Color>(accent),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '$discovered discovered',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(.8),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Goal: $totalHint',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(.6),
+                    fontWeight: FontWeight.w600,
                     fontSize: 12,
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              if (trailing != null) trailing,
-            ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _glassCard({
+    required Widget child,
+    Color? borderColor,
+    Color? glowColor,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(.22),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: (borderColor ?? Colors.white.withOpacity(.14)),
+              width: 2,
+            ),
+            boxShadow: glowColor == null
+                ? null
+                : [
+                    BoxShadow(
+                      color: glowColor,
+                      blurRadius: 16,
+                      spreadRadius: 1,
+                    ),
+                  ],
           ),
-          const SizedBox(height: 6),
-          Text(description, style: const TextStyle(fontSize: 13)),
-          if (footer != null) ...[const SizedBox(height: 6), footer],
-        ],
+          child: child,
+        ),
       ),
     );
   }

@@ -2721,6 +2721,736 @@ class FeedEventsCompanion extends UpdateCompanion<FeedEvent> {
   }
 }
 
+class $HarvestFarmsTable extends HarvestFarms
+    with TableInfo<$HarvestFarmsTable, HarvestFarm> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HarvestFarmsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _elementMeta = const VerificationMeta(
+    'element',
+  );
+  @override
+  late final GeneratedColumn<String> element = GeneratedColumn<String>(
+    'element',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unlockedMeta = const VerificationMeta(
+    'unlocked',
+  );
+  @override
+  late final GeneratedColumn<bool> unlocked = GeneratedColumn<bool>(
+    'unlocked',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("unlocked" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _levelMeta = const VerificationMeta('level');
+  @override
+  late final GeneratedColumn<int> level = GeneratedColumn<int>(
+    'level',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, element, unlocked, level];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'harvest_farms';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HarvestFarm> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('element')) {
+      context.handle(
+        _elementMeta,
+        element.isAcceptableOrUnknown(data['element']!, _elementMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_elementMeta);
+    }
+    if (data.containsKey('unlocked')) {
+      context.handle(
+        _unlockedMeta,
+        unlocked.isAcceptableOrUnknown(data['unlocked']!, _unlockedMeta),
+      );
+    }
+    if (data.containsKey('level')) {
+      context.handle(
+        _levelMeta,
+        level.isAcceptableOrUnknown(data['level']!, _levelMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  HarvestFarm map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HarvestFarm(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      element: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}element'],
+      )!,
+      unlocked: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}unlocked'],
+      )!,
+      level: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}level'],
+      )!,
+    );
+  }
+
+  @override
+  $HarvestFarmsTable createAlias(String alias) {
+    return $HarvestFarmsTable(attachedDatabase, alias);
+  }
+}
+
+class HarvestFarm extends DataClass implements Insertable<HarvestFarm> {
+  final int id;
+  final String element;
+  final bool unlocked;
+  final int level;
+  const HarvestFarm({
+    required this.id,
+    required this.element,
+    required this.unlocked,
+    required this.level,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['element'] = Variable<String>(element);
+    map['unlocked'] = Variable<bool>(unlocked);
+    map['level'] = Variable<int>(level);
+    return map;
+  }
+
+  HarvestFarmsCompanion toCompanion(bool nullToAbsent) {
+    return HarvestFarmsCompanion(
+      id: Value(id),
+      element: Value(element),
+      unlocked: Value(unlocked),
+      level: Value(level),
+    );
+  }
+
+  factory HarvestFarm.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HarvestFarm(
+      id: serializer.fromJson<int>(json['id']),
+      element: serializer.fromJson<String>(json['element']),
+      unlocked: serializer.fromJson<bool>(json['unlocked']),
+      level: serializer.fromJson<int>(json['level']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'element': serializer.toJson<String>(element),
+      'unlocked': serializer.toJson<bool>(unlocked),
+      'level': serializer.toJson<int>(level),
+    };
+  }
+
+  HarvestFarm copyWith({
+    int? id,
+    String? element,
+    bool? unlocked,
+    int? level,
+  }) => HarvestFarm(
+    id: id ?? this.id,
+    element: element ?? this.element,
+    unlocked: unlocked ?? this.unlocked,
+    level: level ?? this.level,
+  );
+  HarvestFarm copyWithCompanion(HarvestFarmsCompanion data) {
+    return HarvestFarm(
+      id: data.id.present ? data.id.value : this.id,
+      element: data.element.present ? data.element.value : this.element,
+      unlocked: data.unlocked.present ? data.unlocked.value : this.unlocked,
+      level: data.level.present ? data.level.value : this.level,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HarvestFarm(')
+          ..write('id: $id, ')
+          ..write('element: $element, ')
+          ..write('unlocked: $unlocked, ')
+          ..write('level: $level')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, element, unlocked, level);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HarvestFarm &&
+          other.id == this.id &&
+          other.element == this.element &&
+          other.unlocked == this.unlocked &&
+          other.level == this.level);
+}
+
+class HarvestFarmsCompanion extends UpdateCompanion<HarvestFarm> {
+  final Value<int> id;
+  final Value<String> element;
+  final Value<bool> unlocked;
+  final Value<int> level;
+  const HarvestFarmsCompanion({
+    this.id = const Value.absent(),
+    this.element = const Value.absent(),
+    this.unlocked = const Value.absent(),
+    this.level = const Value.absent(),
+  });
+  HarvestFarmsCompanion.insert({
+    this.id = const Value.absent(),
+    required String element,
+    this.unlocked = const Value.absent(),
+    this.level = const Value.absent(),
+  }) : element = Value(element);
+  static Insertable<HarvestFarm> custom({
+    Expression<int>? id,
+    Expression<String>? element,
+    Expression<bool>? unlocked,
+    Expression<int>? level,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (element != null) 'element': element,
+      if (unlocked != null) 'unlocked': unlocked,
+      if (level != null) 'level': level,
+    });
+  }
+
+  HarvestFarmsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? element,
+    Value<bool>? unlocked,
+    Value<int>? level,
+  }) {
+    return HarvestFarmsCompanion(
+      id: id ?? this.id,
+      element: element ?? this.element,
+      unlocked: unlocked ?? this.unlocked,
+      level: level ?? this.level,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (element.present) {
+      map['element'] = Variable<String>(element.value);
+    }
+    if (unlocked.present) {
+      map['unlocked'] = Variable<bool>(unlocked.value);
+    }
+    if (level.present) {
+      map['level'] = Variable<int>(level.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HarvestFarmsCompanion(')
+          ..write('id: $id, ')
+          ..write('element: $element, ')
+          ..write('unlocked: $unlocked, ')
+          ..write('level: $level')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $HarvestJobsTable extends HarvestJobs
+    with TableInfo<$HarvestJobsTable, HarvestJob> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HarvestJobsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _jobIdMeta = const VerificationMeta('jobId');
+  @override
+  late final GeneratedColumn<String> jobId = GeneratedColumn<String>(
+    'job_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _farmIdMeta = const VerificationMeta('farmId');
+  @override
+  late final GeneratedColumn<int> farmId = GeneratedColumn<int>(
+    'farm_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _creatureInstanceIdMeta =
+      const VerificationMeta('creatureInstanceId');
+  @override
+  late final GeneratedColumn<String> creatureInstanceId =
+      GeneratedColumn<String>(
+        'creature_instance_id',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _startUtcMsMeta = const VerificationMeta(
+    'startUtcMs',
+  );
+  @override
+  late final GeneratedColumn<int> startUtcMs = GeneratedColumn<int>(
+    'start_utc_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationMsMeta = const VerificationMeta(
+    'durationMs',
+  );
+  @override
+  late final GeneratedColumn<int> durationMs = GeneratedColumn<int>(
+    'duration_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ratePerMinuteMeta = const VerificationMeta(
+    'ratePerMinute',
+  );
+  @override
+  late final GeneratedColumn<int> ratePerMinute = GeneratedColumn<int>(
+    'rate_per_minute',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    jobId,
+    farmId,
+    creatureInstanceId,
+    startUtcMs,
+    durationMs,
+    ratePerMinute,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'harvest_jobs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HarvestJob> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('job_id')) {
+      context.handle(
+        _jobIdMeta,
+        jobId.isAcceptableOrUnknown(data['job_id']!, _jobIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_jobIdMeta);
+    }
+    if (data.containsKey('farm_id')) {
+      context.handle(
+        _farmIdMeta,
+        farmId.isAcceptableOrUnknown(data['farm_id']!, _farmIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_farmIdMeta);
+    }
+    if (data.containsKey('creature_instance_id')) {
+      context.handle(
+        _creatureInstanceIdMeta,
+        creatureInstanceId.isAcceptableOrUnknown(
+          data['creature_instance_id']!,
+          _creatureInstanceIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_creatureInstanceIdMeta);
+    }
+    if (data.containsKey('start_utc_ms')) {
+      context.handle(
+        _startUtcMsMeta,
+        startUtcMs.isAcceptableOrUnknown(
+          data['start_utc_ms']!,
+          _startUtcMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_startUtcMsMeta);
+    }
+    if (data.containsKey('duration_ms')) {
+      context.handle(
+        _durationMsMeta,
+        durationMs.isAcceptableOrUnknown(data['duration_ms']!, _durationMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_durationMsMeta);
+    }
+    if (data.containsKey('rate_per_minute')) {
+      context.handle(
+        _ratePerMinuteMeta,
+        ratePerMinute.isAcceptableOrUnknown(
+          data['rate_per_minute']!,
+          _ratePerMinuteMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_ratePerMinuteMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {jobId};
+  @override
+  HarvestJob map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HarvestJob(
+      jobId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}job_id'],
+      )!,
+      farmId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}farm_id'],
+      )!,
+      creatureInstanceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}creature_instance_id'],
+      )!,
+      startUtcMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_utc_ms'],
+      )!,
+      durationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_ms'],
+      )!,
+      ratePerMinute: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rate_per_minute'],
+      )!,
+    );
+  }
+
+  @override
+  $HarvestJobsTable createAlias(String alias) {
+    return $HarvestJobsTable(attachedDatabase, alias);
+  }
+}
+
+class HarvestJob extends DataClass implements Insertable<HarvestJob> {
+  final String jobId;
+  final int farmId;
+  final String creatureInstanceId;
+  final int startUtcMs;
+  final int durationMs;
+  final int ratePerMinute;
+  const HarvestJob({
+    required this.jobId,
+    required this.farmId,
+    required this.creatureInstanceId,
+    required this.startUtcMs,
+    required this.durationMs,
+    required this.ratePerMinute,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['job_id'] = Variable<String>(jobId);
+    map['farm_id'] = Variable<int>(farmId);
+    map['creature_instance_id'] = Variable<String>(creatureInstanceId);
+    map['start_utc_ms'] = Variable<int>(startUtcMs);
+    map['duration_ms'] = Variable<int>(durationMs);
+    map['rate_per_minute'] = Variable<int>(ratePerMinute);
+    return map;
+  }
+
+  HarvestJobsCompanion toCompanion(bool nullToAbsent) {
+    return HarvestJobsCompanion(
+      jobId: Value(jobId),
+      farmId: Value(farmId),
+      creatureInstanceId: Value(creatureInstanceId),
+      startUtcMs: Value(startUtcMs),
+      durationMs: Value(durationMs),
+      ratePerMinute: Value(ratePerMinute),
+    );
+  }
+
+  factory HarvestJob.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HarvestJob(
+      jobId: serializer.fromJson<String>(json['jobId']),
+      farmId: serializer.fromJson<int>(json['farmId']),
+      creatureInstanceId: serializer.fromJson<String>(
+        json['creatureInstanceId'],
+      ),
+      startUtcMs: serializer.fromJson<int>(json['startUtcMs']),
+      durationMs: serializer.fromJson<int>(json['durationMs']),
+      ratePerMinute: serializer.fromJson<int>(json['ratePerMinute']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'jobId': serializer.toJson<String>(jobId),
+      'farmId': serializer.toJson<int>(farmId),
+      'creatureInstanceId': serializer.toJson<String>(creatureInstanceId),
+      'startUtcMs': serializer.toJson<int>(startUtcMs),
+      'durationMs': serializer.toJson<int>(durationMs),
+      'ratePerMinute': serializer.toJson<int>(ratePerMinute),
+    };
+  }
+
+  HarvestJob copyWith({
+    String? jobId,
+    int? farmId,
+    String? creatureInstanceId,
+    int? startUtcMs,
+    int? durationMs,
+    int? ratePerMinute,
+  }) => HarvestJob(
+    jobId: jobId ?? this.jobId,
+    farmId: farmId ?? this.farmId,
+    creatureInstanceId: creatureInstanceId ?? this.creatureInstanceId,
+    startUtcMs: startUtcMs ?? this.startUtcMs,
+    durationMs: durationMs ?? this.durationMs,
+    ratePerMinute: ratePerMinute ?? this.ratePerMinute,
+  );
+  HarvestJob copyWithCompanion(HarvestJobsCompanion data) {
+    return HarvestJob(
+      jobId: data.jobId.present ? data.jobId.value : this.jobId,
+      farmId: data.farmId.present ? data.farmId.value : this.farmId,
+      creatureInstanceId: data.creatureInstanceId.present
+          ? data.creatureInstanceId.value
+          : this.creatureInstanceId,
+      startUtcMs: data.startUtcMs.present
+          ? data.startUtcMs.value
+          : this.startUtcMs,
+      durationMs: data.durationMs.present
+          ? data.durationMs.value
+          : this.durationMs,
+      ratePerMinute: data.ratePerMinute.present
+          ? data.ratePerMinute.value
+          : this.ratePerMinute,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HarvestJob(')
+          ..write('jobId: $jobId, ')
+          ..write('farmId: $farmId, ')
+          ..write('creatureInstanceId: $creatureInstanceId, ')
+          ..write('startUtcMs: $startUtcMs, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('ratePerMinute: $ratePerMinute')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    jobId,
+    farmId,
+    creatureInstanceId,
+    startUtcMs,
+    durationMs,
+    ratePerMinute,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HarvestJob &&
+          other.jobId == this.jobId &&
+          other.farmId == this.farmId &&
+          other.creatureInstanceId == this.creatureInstanceId &&
+          other.startUtcMs == this.startUtcMs &&
+          other.durationMs == this.durationMs &&
+          other.ratePerMinute == this.ratePerMinute);
+}
+
+class HarvestJobsCompanion extends UpdateCompanion<HarvestJob> {
+  final Value<String> jobId;
+  final Value<int> farmId;
+  final Value<String> creatureInstanceId;
+  final Value<int> startUtcMs;
+  final Value<int> durationMs;
+  final Value<int> ratePerMinute;
+  final Value<int> rowid;
+  const HarvestJobsCompanion({
+    this.jobId = const Value.absent(),
+    this.farmId = const Value.absent(),
+    this.creatureInstanceId = const Value.absent(),
+    this.startUtcMs = const Value.absent(),
+    this.durationMs = const Value.absent(),
+    this.ratePerMinute = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  HarvestJobsCompanion.insert({
+    required String jobId,
+    required int farmId,
+    required String creatureInstanceId,
+    required int startUtcMs,
+    required int durationMs,
+    required int ratePerMinute,
+    this.rowid = const Value.absent(),
+  }) : jobId = Value(jobId),
+       farmId = Value(farmId),
+       creatureInstanceId = Value(creatureInstanceId),
+       startUtcMs = Value(startUtcMs),
+       durationMs = Value(durationMs),
+       ratePerMinute = Value(ratePerMinute);
+  static Insertable<HarvestJob> custom({
+    Expression<String>? jobId,
+    Expression<int>? farmId,
+    Expression<String>? creatureInstanceId,
+    Expression<int>? startUtcMs,
+    Expression<int>? durationMs,
+    Expression<int>? ratePerMinute,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (jobId != null) 'job_id': jobId,
+      if (farmId != null) 'farm_id': farmId,
+      if (creatureInstanceId != null)
+        'creature_instance_id': creatureInstanceId,
+      if (startUtcMs != null) 'start_utc_ms': startUtcMs,
+      if (durationMs != null) 'duration_ms': durationMs,
+      if (ratePerMinute != null) 'rate_per_minute': ratePerMinute,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  HarvestJobsCompanion copyWith({
+    Value<String>? jobId,
+    Value<int>? farmId,
+    Value<String>? creatureInstanceId,
+    Value<int>? startUtcMs,
+    Value<int>? durationMs,
+    Value<int>? ratePerMinute,
+    Value<int>? rowid,
+  }) {
+    return HarvestJobsCompanion(
+      jobId: jobId ?? this.jobId,
+      farmId: farmId ?? this.farmId,
+      creatureInstanceId: creatureInstanceId ?? this.creatureInstanceId,
+      startUtcMs: startUtcMs ?? this.startUtcMs,
+      durationMs: durationMs ?? this.durationMs,
+      ratePerMinute: ratePerMinute ?? this.ratePerMinute,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (jobId.present) {
+      map['job_id'] = Variable<String>(jobId.value);
+    }
+    if (farmId.present) {
+      map['farm_id'] = Variable<int>(farmId.value);
+    }
+    if (creatureInstanceId.present) {
+      map['creature_instance_id'] = Variable<String>(creatureInstanceId.value);
+    }
+    if (startUtcMs.present) {
+      map['start_utc_ms'] = Variable<int>(startUtcMs.value);
+    }
+    if (durationMs.present) {
+      map['duration_ms'] = Variable<int>(durationMs.value);
+    }
+    if (ratePerMinute.present) {
+      map['rate_per_minute'] = Variable<int>(ratePerMinute.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HarvestJobsCompanion(')
+          ..write('jobId: $jobId, ')
+          ..write('farmId: $farmId, ')
+          ..write('creatureInstanceId: $creatureInstanceId, ')
+          ..write('startUtcMs: $startUtcMs, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('ratePerMinute: $ratePerMinute, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   _$AlchemonsDatabase(QueryExecutor e) : super(e);
   $AlchemonsDatabaseManager get managers => $AlchemonsDatabaseManager(this);
@@ -2733,6 +3463,8 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   late final $CreatureInstancesTable creatureInstances =
       $CreatureInstancesTable(this);
   late final $FeedEventsTable feedEvents = $FeedEventsTable(this);
+  late final $HarvestFarmsTable harvestFarms = $HarvestFarmsTable(this);
+  late final $HarvestJobsTable harvestJobs = $HarvestJobsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2744,6 +3476,8 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
     settings,
     creatureInstances,
     feedEvents,
+    harvestFarms,
+    harvestJobs,
   ];
 }
 
@@ -4174,6 +4908,416 @@ typedef $$FeedEventsTableProcessedTableManager =
       FeedEvent,
       PrefetchHooks Function()
     >;
+typedef $$HarvestFarmsTableCreateCompanionBuilder =
+    HarvestFarmsCompanion Function({
+      Value<int> id,
+      required String element,
+      Value<bool> unlocked,
+      Value<int> level,
+    });
+typedef $$HarvestFarmsTableUpdateCompanionBuilder =
+    HarvestFarmsCompanion Function({
+      Value<int> id,
+      Value<String> element,
+      Value<bool> unlocked,
+      Value<int> level,
+    });
+
+class $$HarvestFarmsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $HarvestFarmsTable> {
+  $$HarvestFarmsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get element => $composableBuilder(
+    column: $table.element,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get unlocked => $composableBuilder(
+    column: $table.unlocked,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HarvestFarmsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $HarvestFarmsTable> {
+  $$HarvestFarmsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get element => $composableBuilder(
+    column: $table.element,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get unlocked => $composableBuilder(
+    column: $table.unlocked,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HarvestFarmsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $HarvestFarmsTable> {
+  $$HarvestFarmsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get element =>
+      $composableBuilder(column: $table.element, builder: (column) => column);
+
+  GeneratedColumn<bool> get unlocked =>
+      $composableBuilder(column: $table.unlocked, builder: (column) => column);
+
+  GeneratedColumn<int> get level =>
+      $composableBuilder(column: $table.level, builder: (column) => column);
+}
+
+class $$HarvestFarmsTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $HarvestFarmsTable,
+          HarvestFarm,
+          $$HarvestFarmsTableFilterComposer,
+          $$HarvestFarmsTableOrderingComposer,
+          $$HarvestFarmsTableAnnotationComposer,
+          $$HarvestFarmsTableCreateCompanionBuilder,
+          $$HarvestFarmsTableUpdateCompanionBuilder,
+          (
+            HarvestFarm,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $HarvestFarmsTable,
+              HarvestFarm
+            >,
+          ),
+          HarvestFarm,
+          PrefetchHooks Function()
+        > {
+  $$HarvestFarmsTableTableManager(
+    _$AlchemonsDatabase db,
+    $HarvestFarmsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HarvestFarmsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HarvestFarmsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HarvestFarmsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> element = const Value.absent(),
+                Value<bool> unlocked = const Value.absent(),
+                Value<int> level = const Value.absent(),
+              }) => HarvestFarmsCompanion(
+                id: id,
+                element: element,
+                unlocked: unlocked,
+                level: level,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String element,
+                Value<bool> unlocked = const Value.absent(),
+                Value<int> level = const Value.absent(),
+              }) => HarvestFarmsCompanion.insert(
+                id: id,
+                element: element,
+                unlocked: unlocked,
+                level: level,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HarvestFarmsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $HarvestFarmsTable,
+      HarvestFarm,
+      $$HarvestFarmsTableFilterComposer,
+      $$HarvestFarmsTableOrderingComposer,
+      $$HarvestFarmsTableAnnotationComposer,
+      $$HarvestFarmsTableCreateCompanionBuilder,
+      $$HarvestFarmsTableUpdateCompanionBuilder,
+      (
+        HarvestFarm,
+        BaseReferences<_$AlchemonsDatabase, $HarvestFarmsTable, HarvestFarm>,
+      ),
+      HarvestFarm,
+      PrefetchHooks Function()
+    >;
+typedef $$HarvestJobsTableCreateCompanionBuilder =
+    HarvestJobsCompanion Function({
+      required String jobId,
+      required int farmId,
+      required String creatureInstanceId,
+      required int startUtcMs,
+      required int durationMs,
+      required int ratePerMinute,
+      Value<int> rowid,
+    });
+typedef $$HarvestJobsTableUpdateCompanionBuilder =
+    HarvestJobsCompanion Function({
+      Value<String> jobId,
+      Value<int> farmId,
+      Value<String> creatureInstanceId,
+      Value<int> startUtcMs,
+      Value<int> durationMs,
+      Value<int> ratePerMinute,
+      Value<int> rowid,
+    });
+
+class $$HarvestJobsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $HarvestJobsTable> {
+  $$HarvestJobsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get jobId => $composableBuilder(
+    column: $table.jobId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get farmId => $composableBuilder(
+    column: $table.farmId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get creatureInstanceId => $composableBuilder(
+    column: $table.creatureInstanceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startUtcMs => $composableBuilder(
+    column: $table.startUtcMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ratePerMinute => $composableBuilder(
+    column: $table.ratePerMinute,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HarvestJobsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $HarvestJobsTable> {
+  $$HarvestJobsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get jobId => $composableBuilder(
+    column: $table.jobId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get farmId => $composableBuilder(
+    column: $table.farmId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get creatureInstanceId => $composableBuilder(
+    column: $table.creatureInstanceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startUtcMs => $composableBuilder(
+    column: $table.startUtcMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ratePerMinute => $composableBuilder(
+    column: $table.ratePerMinute,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HarvestJobsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $HarvestJobsTable> {
+  $$HarvestJobsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get jobId =>
+      $composableBuilder(column: $table.jobId, builder: (column) => column);
+
+  GeneratedColumn<int> get farmId =>
+      $composableBuilder(column: $table.farmId, builder: (column) => column);
+
+  GeneratedColumn<String> get creatureInstanceId => $composableBuilder(
+    column: $table.creatureInstanceId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get startUtcMs => $composableBuilder(
+    column: $table.startUtcMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get ratePerMinute => $composableBuilder(
+    column: $table.ratePerMinute,
+    builder: (column) => column,
+  );
+}
+
+class $$HarvestJobsTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $HarvestJobsTable,
+          HarvestJob,
+          $$HarvestJobsTableFilterComposer,
+          $$HarvestJobsTableOrderingComposer,
+          $$HarvestJobsTableAnnotationComposer,
+          $$HarvestJobsTableCreateCompanionBuilder,
+          $$HarvestJobsTableUpdateCompanionBuilder,
+          (
+            HarvestJob,
+            BaseReferences<_$AlchemonsDatabase, $HarvestJobsTable, HarvestJob>,
+          ),
+          HarvestJob,
+          PrefetchHooks Function()
+        > {
+  $$HarvestJobsTableTableManager(
+    _$AlchemonsDatabase db,
+    $HarvestJobsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HarvestJobsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HarvestJobsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HarvestJobsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> jobId = const Value.absent(),
+                Value<int> farmId = const Value.absent(),
+                Value<String> creatureInstanceId = const Value.absent(),
+                Value<int> startUtcMs = const Value.absent(),
+                Value<int> durationMs = const Value.absent(),
+                Value<int> ratePerMinute = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HarvestJobsCompanion(
+                jobId: jobId,
+                farmId: farmId,
+                creatureInstanceId: creatureInstanceId,
+                startUtcMs: startUtcMs,
+                durationMs: durationMs,
+                ratePerMinute: ratePerMinute,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String jobId,
+                required int farmId,
+                required String creatureInstanceId,
+                required int startUtcMs,
+                required int durationMs,
+                required int ratePerMinute,
+                Value<int> rowid = const Value.absent(),
+              }) => HarvestJobsCompanion.insert(
+                jobId: jobId,
+                farmId: farmId,
+                creatureInstanceId: creatureInstanceId,
+                startUtcMs: startUtcMs,
+                durationMs: durationMs,
+                ratePerMinute: ratePerMinute,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HarvestJobsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $HarvestJobsTable,
+      HarvestJob,
+      $$HarvestJobsTableFilterComposer,
+      $$HarvestJobsTableOrderingComposer,
+      $$HarvestJobsTableAnnotationComposer,
+      $$HarvestJobsTableCreateCompanionBuilder,
+      $$HarvestJobsTableUpdateCompanionBuilder,
+      (
+        HarvestJob,
+        BaseReferences<_$AlchemonsDatabase, $HarvestJobsTable, HarvestJob>,
+      ),
+      HarvestJob,
+      PrefetchHooks Function()
+    >;
 
 class $AlchemonsDatabaseManager {
   final _$AlchemonsDatabase _db;
@@ -4189,4 +5333,8 @@ class $AlchemonsDatabaseManager {
       $$CreatureInstancesTableTableManager(_db, _db.creatureInstances);
   $$FeedEventsTableTableManager get feedEvents =>
       $$FeedEventsTableTableManager(_db, _db.feedEvents);
+  $$HarvestFarmsTableTableManager get harvestFarms =>
+      $$HarvestFarmsTableTableManager(_db, _db.harvestFarms);
+  $$HarvestJobsTableTableManager get harvestJobs =>
+      $$HarvestJobsTableTableManager(_db, _db.harvestJobs);
 }

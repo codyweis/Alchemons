@@ -490,22 +490,6 @@ class WildMonComponent extends PositionComponent
     _addTapPulse();
   }
 
-  // Size-only mapping (same values you use in the widget side)
-  double _scaleFromGenes(Genetics? g) {
-    switch (g?.get('size')) {
-      case 'tiny':
-        return 0.75;
-      case 'small':
-        return 0.9;
-      case 'large':
-        return 1.15;
-      case 'giant':
-        return 1.3;
-      default:
-        return 1.0;
-    }
-  }
-
   void _addTapPulse() {
     add(
       ScaleEffect.to(

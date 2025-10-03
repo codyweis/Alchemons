@@ -119,7 +119,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
   Widget _buildSprite({double dynamicHueShift = 0.0}) {
     Widget sprite = SpriteAnimationWidget(
       animation: _spriteAnimation!,
-      anchor: Anchor.center,
+      anchor: Anchor.topLeft,
       animationTicker: _spriteTicker!,
     );
 
