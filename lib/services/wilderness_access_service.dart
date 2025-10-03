@@ -17,7 +17,8 @@ class WildernessAccessService {
 
   Future<bool> canEnter(String sceneId) async {
     final last = await db.getSetting(_key(sceneId));
-    return last != _todayStampLocal();
+    //return last != _todayStampLocal();
+    return true;
   }
 
   Future<void> markEntered(String sceneId) async {

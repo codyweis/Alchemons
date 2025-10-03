@@ -1,25 +1,25 @@
 {
   "meta": {
-    "notes": "Alchemons playful lore with unique descriptions per creature. Full 8\u00d717 set.",
+    "notes": "Alchemons playful lore with unique descriptions per creature. Full 8×17 set.",
     "familyCodes": {
       "Let": "LET",
-      "Back": "BAK",
-      "Mane": "MAN",
-      "Pip": "PIP",
       "Horn": "HOR",
-      "Claw": "CLA",
+      "Kin": "KIN",
+      "Mane": "MAN",
+      "Mask": "MSK",
+      "Pip": "PIP",
       "Wing": "WNG",
-      "Crest": "CRE"
+      "Mystic": "MYS"
     },
     "baseRarityByFamily": {
       "Let": "Common",
-      "Back": "Common",
-      "Mane": "Uncommon",
       "Pip": "Uncommon",
-      "Horn": "Uncommon",
-      "Claw": "Uncommon",
-      "Wing": "Rare",
-      "Crest": "Rare"
+      "Mane": "Uncommon",
+      "Mask": "Rare",
+      "Horn": "Rare",
+      "Wing": "Legendary",
+      "Kin": "Legendary",
+      "Mystic": "Mystic"
     },
     "rarityBumpElements": [
       "Light",
@@ -50,908 +50,720 @@
         "parent2": 47,
         "mutation": 1
       }
+    },
+    "types": [
+      {
+        "id": "T001",
+        "name": "Fire",
+        "description": "Born of flame; passionate and volatile."
+      },
+      {
+        "id": "T002",
+        "name": "Water",
+        "description": "Fluid and adaptive; calm or crushing."
+      },
+      {
+        "id": "T003",
+        "name": "Earth",
+        "description": "Sturdy and grounded; unyielding."
+      },
+      {
+        "id": "T004",
+        "name": "Air",
+        "description": "Swift and elusive; ever-moving."
+      },
+      {
+        "id": "T005",
+        "name": "Steam",
+        "description": "Vapor between fire and water; shifting."
+      },
+      {
+        "id": "T006",
+        "name": "Lava",
+        "description": "Molten rock; searing and heavy."
+      },
+      {
+        "id": "T007",
+        "name": "Lightning",
+        "description": "Charged and sudden; crackling power."
+      },
+      {
+        "id": "T008",
+        "name": "Mud",
+        "description": "Thick and stubborn mix of earth and water."
+      },
+      {
+        "id": "T009",
+        "name": "Ice",
+        "description": "Cold precision; frozen beauty."
+      },
+      {
+        "id": "T010",
+        "name": "Dust",
+        "description": "Ancient grit; whisper of ruins."
+      },
+      {
+        "id": "T011",
+        "name": "Crystal",
+        "description": "Faceted and arcane; refractive."
+      },
+      {
+        "id": "T012",
+        "name": "Plant",
+        "description": "Living growth; verdant and resilient."
+      },
+      {
+        "id": "T013",
+        "name": "Poison",
+        "description": "Toxic and corrosive; silent threat."
+      },
+      {
+        "id": "T014",
+        "name": "Spirit",
+        "description": "Ethereal and liminal; otherworldly."
+      },
+      {
+        "id": "T015",
+        "name": "Dark",
+        "description": "Veiled and secret; devours light."
+      },
+      {
+        "id": "T016",
+        "name": "Light",
+        "description": "Radiant and pure; revealing."
+      },
+      {
+        "id": "T017",
+        "name": "Blood",
+        "description": "Vital and primal; life-bound myth."
+      }
+    ],
+    "baseRarityPerFamily": {
+      "Let": "Uncommon"
     }
   },
   "creatures": [
     {
-      "id": "LET01",
-      "name": "FireLet",
+      "id": "HOR01",
+      "name": "Firehorn",
       "types": [
         "Fire"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**FireLet** \u2014 In volcanic sanctums's ember forges, this lively let leaves trails of embers wherever it wanders. Breeders prize its knack for adding a twist of fire magic to any pairing.",
-      "image": "creatures/common/LET01_firelet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Its blazing horn burns with unyielding flame, and its temper flares just as hot.",
+      "image": "creatures/rare/HOR01_firehorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire"
-          ]
-        ]
       }
     },
     {
-      "id": "LET02",
-      "name": "WaterLet",
+      "id": "HOR02",
+      "name": "Waterhorn",
       "types": [
         "Water"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**WaterLet** \u2014 This let calls the tidal grottos of lunar seas home, where its water mischief keeps both rivals and friends on edge.",
-      "image": "creatures/common/LET02_waterlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Its smooth crest gleams with droplets, and its calm nature flows like a steady stream.",
+      "image": "creatures/rare/HOR02_waterhorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water"
-          ]
-        ]
       }
     },
     {
-      "id": "LET03",
-      "name": "EarthLet",
+      "id": "HOR03",
+      "name": "Earthhorn",
       "types": [
         "Earth"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**EarthLet** \u2014 Found roaming the root-crowned caverns of elder mountains, this let delights in outwitting Alchemon tamers. Its earth nature shows in every playful escape and curious glance.",
-      "image": "creatures/common/LET03_earthlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Its rocky horn juts like a mountain peak, and its stance is unshakable.",
+      "image": "creatures/rare/HOR03_earthhorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Earth"
-          ]
-        ]
       }
     },
     {
-      "id": "LET04",
-      "name": "AirLet",
+      "id": "HOR04",
+      "name": "Airhorn",
       "types": [
         "Air"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**AirLet** \u2014 Stories tell of this let darting through skyways and passes near stormward heights, always a step ahead, daring tamers to keep up. Its air energy is contagious.",
-      "image": "creatures/common/LET04_airlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Its crest curves like a swift gale, and it moves with sudden bursts of speed.",
+      "image": "creatures/rare/HOR04_airhorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air"
-          ]
-        ]
       }
     },
     {
-      "id": "LET05",
-      "name": "SteamLet",
+      "id": "HOR05",
+      "name": "Steamhorn",
       "types": [
         "Steam"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**SteamLet** \u2014 Found roaming the hissing vents of geysers and baths, this let delights in outwitting Alchemon tamers. Its steam nature shows in every playful escape and curious glance.",
-      "image": "creatures/common/LET05_steamlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Vapor hisses from its horn, masking its form in clouds of heat.",
+      "image": "creatures/rare/HOR05_steamhorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Water"
-          ],
-          [
-            "Steam"
-          ]
-        ]
       }
     },
     {
-      "id": "LET06",
-      "name": "LavaLet",
+      "id": "HOR06",
+      "name": "Lavahorn",
       "types": [
         "Lava"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**LavaLet** \u2014 In blackened calderas's basalt rivers, this lively let leaves trails of molten wake wherever it wanders. Breeders prize its knack for adding a twist of lava magic to any pairing.",
-      "image": "creatures/common/LET06_lavalet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Molten cracks glow across its body, and its horn drips sparks of fire and stone.",
+      "image": "creatures/rare/HOR06_lavahorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Earth"
-          ],
-          [
-            "Lava"
-          ]
-        ]
       }
     },
     {
-      "id": "LET07",
-      "name": "LightningLet",
+      "id": "HOR07",
+      "name": "Lightninghorn",
       "types": [
         "Lightning"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**LightningLet** \u2014 Found roaming the anvil-clouds of split-sky storms, this let delights in outwitting Alchemon tamers. Its lightning nature shows in every playful escape and curious glance.",
-      "image": "creatures/common/LET07_lightninglet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Electric arcs crackle across its crest, and its steps resound like thunderclaps.",
+      "image": "creatures/rare/HOR07_lightninghorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Lightning"
-          ]
-        ]
       }
     },
     {
-      "id": "LET08",
-      "name": "MudLet",
+      "id": "HOR08",
+      "name": "Mudhorn",
       "types": [
         "Mud"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**MudLet** \u2014 Found roaming the sunken bogs of peat-choked fens, this let delights in outwitting Alchemon tamers. Its mud nature shows in every playful escape and curious glance.",
-      "image": "creatures/common/LET08_mudlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Its horn is caked with hardened clay, giving it a rugged, stubborn strength.",
+      "image": "creatures/rare/HOR08_mudhorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water",
-            "Earth"
-          ],
-          [
-            "Mud"
-          ]
-        ]
       }
     },
     {
-      "id": "LET09",
-      "name": "IceLet",
+      "id": "HOR09",
+      "name": "Icehorn",
       "types": [
         "Ice"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**IceLet** \u2014 Stories tell of this let darting through blue glaciers near polar night, always a step ahead, daring tamers to keep up. Its ice energy is contagious.",
-      "image": "creatures/common/LET09_icelet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "A crest of frozen crystal crowns its head, radiating a chilling calm.",
+      "image": "creatures/rare/HOR09_icehorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Water"
-          ],
-          [
-            "Ice"
-          ]
-        ]
       }
     },
     {
-      "id": "LET10",
-      "name": "DustLet",
+      "id": "HOR10",
+      "name": "Dusthorn",
       "types": [
         "Dust"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**DustLet** \u2014 Among the ruined colonnades of salt flats and ruins, it skips and scampers with sibilant grit in its wake. In breeding pens, its dust spark often shows up in unexpected ways.",
-      "image": "creatures/common/LET10_dustlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Its horn sheds faint grains, as if carved from ancient ruins.",
+      "image": "creatures/rare/HOR10_dusthorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Earth"
-          ],
-          [
-            "Dust"
-          ]
-        ]
       }
     },
     {
-      "id": "LET11",
-      "name": "CrystalLet",
+      "id": "HOR11",
+      "name": "Crystalhorn",
       "types": [
         "Crystal"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**CrystalLet** \u2014 This let calls the geode halls of hollow geodes home, where its crystal mischief keeps both rivals and friends on edge.",
-      "image": "creatures/common/LET11_crystallet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Glittering facets crown its brow, refracting light in dazzling hues.",
+      "image": "creatures/rare/HOR11_crystalhorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Crystal"
-          ]
-        ]
       }
     },
     {
-      "id": "LET12",
-      "name": "PlantLet",
+      "id": "HOR12",
+      "name": "Planthorn",
       "types": [
         "Plant"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**PlantLet** \u2014 Found roaming the green vaults of old growth, this let delights in outwitting Alchemon tamers. Its plant nature shows in every playful escape and curious glance.",
-      "image": "creatures/common/LET12_plantlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Leafy horns sprout from its crown, swaying as if alive with the wind.",
+      "image": "creatures/rare/HOR12_planthorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Plant"
-          ]
-        ]
       }
     },
     {
-      "id": "LET13",
-      "name": "PoisonLet",
+      "id": "HOR13",
+      "name": "Poisonhorn",
       "types": [
         "Poison"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**PoisonLet** \u2014 This let calls the violet stills of alembics and swamps home, where its poison mischief keeps both rivals and friends on edge.",
-      "image": "creatures/common/LET13_poisonlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Venom drips from grooves in its horn, seeping a noxious haze.",
+      "image": "creatures/rare/HOR13_poisonhorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Poison"
-          ]
-        ]
       }
     },
     {
-      "id": "LET14",
-      "name": "SpiritLet",
+      "id": "HOR14",
+      "name": "Spirithorn",
       "types": [
         "Spirit"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**SpiritLet** \u2014 Stories tell of this let darting through thin places near veilbound paths, always a step ahead, daring tamers to keep up. Its spirit energy is contagious.",
-      "image": "creatures/common/LET14_spiritlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Its translucent crest flickers, as though caught between worlds.",
+      "image": "creatures/rare/HOR14_spirithorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Spirit"
-          ]
-        ]
       }
     },
     {
-      "id": "LET15",
-      "name": "DarkLet",
+      "id": "HOR15",
+      "name": "Darkhorn",
       "types": [
         "Dark"
       ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**DarkLet** \u2014 This let calls the umbra courts of moonless vaults home, where its Dark mischief keeps both rivals and friends on edge.",
-      "image": "creatures/uncommon/LET15_Darklet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Its jagged crest swallows light, and its eyes burn with quiet defiance.",
+      "image": "creatures/rare/HOR15_darkhorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Dark"
-          ]
-        ]
       }
     },
     {
-      "id": "LET16",
-      "name": "LightLet",
+      "id": "HOR16",
+      "name": "Lighthorn",
       "types": [
         "Light"
       ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**LightLet** \u2014 Among the dawn stairs of sunward terraces, it skips and scampers with auric hush in its wake. In breeding pens, its light spark often shows up in unexpected ways.",
-      "image": "creatures/uncommon/LET16_lightlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Its radiant horn glows softly, guiding allies through the dark.",
+      "image": "creatures/rare/HOR16_lighthorn.png",
+      "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Light"
-          ]
-        ]
       }
     },
     {
-      "id": "LET17",
-      "name": "BloodLet",
+      "id": "HOR17",
+      "name": "Bloodhorn",
       "types": [
         "Blood"
       ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**BloodLet** \u2014 Stories tell of this let darting through red rites near vital altars, always a step ahead, daring tamers to keep up. Its blood energy is contagious.",
-      "image": "creatures/mythic/LET17_bloodlet.png",
-      "mutationFamily": "Let",
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Its crimson horn pulses with life’s rhythm, echoing the beat of a primal heart.",
+      "image": "creatures/rare/HOR17_bloodhorn.png",
+      "mutationFamily": "Horn",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "KIN01",
+      "name": "Firekin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Coal-black hide veined with ember light; its mane burns without smoke and leaves courage—or chaos—in its wake.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Blood"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK01",
-      "name": "FireBack",
       "types": [
         "Fire"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**FireBack** \u2014 This back calls the ember forges of volcanic sanctums home, where its fire mischief keeps both rivals and friends on edge.",
-      "image": "creatures/common/BAK01_fireback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN01_firekin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN02",
+      "name": "Waterkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Glass-smooth and tidal, it moves with the hush of deep rivers; puddles form where its hooves pause to listen.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Fire"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK02",
-      "name": "WaterBack",
       "types": [
         "Water"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**WaterBack** \u2014 Found roaming the tidal grottos of lunar seas, this back delights in outwitting Alchemon tamers. Its water nature shows in every playful escape and curious glance.",
-      "image": "creatures/common/BAK02_waterback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN02_waterkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN03",
+      "name": "Earthkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Barked and mossed, it treads patiently; seedlings rise in its footsteps like vows kept by the soil.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Water"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK03",
-      "name": "EarthBack",
       "types": [
         "Earth"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**EarthBack** \u2014 Among the root-crowned caverns of elder mountains, it skips and scampers with stone pulse in its wake. In breeding pens, its earth spark often shows up in unexpected ways.",
-      "image": "creatures/common/BAK03_earthback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN03_earthkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN04",
+      "name": "Airkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Weightless and whorled, it drifts on currents unseen; distant voices hitch a ride in its trailing breeze.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Earth"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK04",
-      "name": "AirBack",
       "types": [
         "Air"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**AirBack** \u2014 Stories tell of this back darting through skyways and passes near stormward heights, always a step ahead, daring tamers to keep up. Its air energy is contagious.",
-      "image": "creatures/common/BAK04_airback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN04_airkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN05",
+      "name": "Steamkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "A warm mist cloaks it, beading into shining drops; it appears at bathhouses and geysers to bless the breath.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Air"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK05",
-      "name": "SteamBack",
       "types": [
         "Steam"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**SteamBack** \u2014 Stories tell of this back darting through hissing vents near geysers and baths, always a step ahead, daring tamers to keep up. Its steam energy is contagious.",
-      "image": "creatures/common/BAK05_steamback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN05_steamkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN06",
+      "name": "Lavakin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Cracked with molten seams that pulse like a volcano’s heart; stones soften where it passes.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Water"
-          ],
-          [
-            "Steam"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK06",
-      "name": "LavaBack",
       "types": [
         "Lava"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**LavaBack** \u2014 Stories tell of this back darting through basalt rivers near blackened calderas, always a step ahead, daring tamers to keep up. Its lava energy is contagious.",
-      "image": "creatures/common/BAK06_lavaback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN06_lavakin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN07",
+      "name": "Lightningkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "A living thunderbolt—arcs stutter from its crown and its gaze flashes like a storm breaking.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Earth"
-          ],
-          [
-            "Lava"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK07",
-      "name": "LightningBack",
       "types": [
         "Lightning"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**LightningBack** \u2014 This back calls the anvil-clouds of split-sky storms home, where its lightning mischief keeps both rivals and friends on edge.",
-      "image": "creatures/common/BAK07_lightningback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN07_lightningkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN08",
+      "name": "Mudkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Clay-clotted and cheerful, it splashes through lowlands; marsh flowers bloom from the spatters.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Lightning"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK08",
-      "name": "MudBack",
       "types": [
         "Mud"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**MudBack** \u2014 In peat-choked fens's sunken bogs, this lively back leaves trails of sucking mire wherever it wanders. Breeders prize its knack for adding a twist of mud magic to any pairing.",
-      "image": "creatures/common/BAK08_mudback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN08_mudkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN09",
+      "name": "Icekin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Cut from winter’s glare, it leaves lacework frost behind; its quiet is a cathedral of cold.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Water",
-            "Earth"
-          ],
-          [
-            "Mud"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK09",
-      "name": "IceBack",
       "types": [
         "Ice"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**IceBack** \u2014 Among the blue glaciers of polar night, it skips and scampers with rimed breath in its wake. In breeding pens, its ice spark often shows up in unexpected ways.",
-      "image": "creatures/common/BAK09_iceback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN09_icekin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN10",
+      "name": "Dustkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Desert-pale and wind-carved, it writes new dunes with every step and keeps old roads secret.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Water"
-          ],
-          [
-            "Ice"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK10",
-      "name": "DustBack",
       "types": [
         "Dust"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**DustBack** \u2014 Among the ruined colonnades of salt flats and ruins, it skips and scampers with sibilant grit in its wake. In breeding pens, its dust spark often shows up in unexpected ways.",
-      "image": "creatures/common/BAK10_dustback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN10_dustkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN11",
+      "name": "Crystalkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Prisms sprout like antlers; light refracts in hushed colors, showing paths not yet taken.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Earth"
-          ],
-          [
-            "Dust"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK11",
-      "name": "CrystalBack",
       "types": [
         "Crystal"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**CrystalBack** \u2014 This back calls the geode halls of hollow geodes home, where its crystal mischief keeps both rivals and friends on edge.",
-      "image": "creatures/common/BAK11_crystalback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN11_crystalkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN12",
+      "name": "Plantkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Sap-bright and leaf-crowned, it smells of rain and loam; weary fields green at its passing.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Crystal"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK12",
-      "name": "PlantBack",
       "types": [
         "Plant"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**PlantBack** \u2014 In old growth's green vaults, this lively back leaves trails of leaf-hum wherever it wanders. Breeders prize its knack for adding a twist of plant magic to any pairing.",
-      "image": "creatures/common/BAK12_plantback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN12_plantkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN13",
+      "name": "Poisonkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Hums with a sweet, forbidden perfume; its shadow stains leaves violet where it lingers.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Plant"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK13",
-      "name": "PoisonBack",
       "types": [
         "Poison"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**PoisonBack** \u2014 Stories tell of this back darting through violet stills near alembics and swamps, always a step ahead, daring tamers to keep up. Its poison energy is contagious.",
-      "image": "creatures/common/BAK13_poisonback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN13_poisonkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN14",
+      "name": "Spiritkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Half here, half remembered; bells no one hung seem to ring when it turns its luminous eye.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Poison"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK14",
-      "name": "SpiritBack",
       "types": [
         "Spirit"
       ],
-      "variant": null,
-      "rarity": "Common",
-      "description": "**SpiritBack** \u2014 Among the thin places of veilbound paths, it skips and scampers with afterglow in its wake. In breeding pens, its spirit spark often shows up in unexpected ways.",
-      "image": "creatures/common/BAK14_spiritback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN14_spiritkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN15",
+      "name": "Darkkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "A candle-swallowing silhouette with a violet pupil; fears grow quiet, then speak truths near it.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Spirit"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK15",
-      "name": "DarkBack",
       "types": [
         "Dark"
       ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**DarkBack** \u2014 Found roaming the umbra courts of moonless vaults, this back delights in outwitting Alchemon tamers. Its Dark nature shows in every playful escape and curious glance.",
-      "image": "creatures/uncommon/BAK15_Darkback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN15_darkkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN16",
+      "name": "Lightkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Glimmering like a newborn dawn, it reveals hidden doors and forgives old footprints.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Dark"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK16",
-      "name": "LightBack",
       "types": [
         "Light"
       ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**LightBack** \u2014 This back calls the dawn stairs of sunward terraces home, where its light mischief keeps both rivals and friends on edge.",
-      "image": "creatures/uncommon/BAK16_lightback.png",
-      "mutationFamily": "Back",
+      "image": "creatures/legendary/KIN16_lightkin.png",
+      "variant": []
+    },
+    {
+      "id": "KIN17",
+      "name": "Bloodkin",
+      "mutationFamily": "Kin",
+      "rarity": "Legendary",
+      "description": "Red as myth, its pulse is audible; hunters lower spears when that rhythm enters their bones.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Light"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "BAK17",
-      "name": "BloodBack",
       "types": [
         "Blood"
       ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**BloodBack** \u2014 Stories tell of this back darting through red rites near vital altars, always a step ahead, daring tamers to keep up. Its blood energy is contagious.",
-      "image": "creatures/mythic/BAK17_bloodback.png",
-      "mutationFamily": "Back",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Blood"
-          ]
-        ]
-      }
+      "image": "creatures/legendary/KIN17_bloodkin.png",
+      "variant": []
     },
     {
       "id": "MAN01",
-      "name": "FireMane",
+      "name": "Firemane",
       "types": [
         "Fire"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**FireMane** \u2014 Found roaming the ember forges of volcanic sanctums, this mane delights in outwitting Alchemon tamers. Its fire nature shows in every playful escape and curious glance.",
+      "description": "Crackling with ember-bright energy, its fiery plume flickers in rhythm with mischievous laughter.",
       "image": "creatures/uncommon/MAN01_firemane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -960,24 +772,17 @@
         "totalFrames": 16,
         "rows": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire"
-          ]
-        ]
       }
     },
     {
       "id": "MAN02",
-      "name": "WaterMane",
+      "name": "Watermane",
       "types": [
         "Water"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**WaterMane** \u2014 This mane calls the tidal grottos of lunar seas home, where its water mischief keeps both rivals and friends on edge.",
+      "description": "Graceful and calm, it leaves rippling puddles where it dances near rivers and lakes.",
       "image": "creatures/uncommon/MAN02_watermane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -985,24 +790,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water"
-          ]
-        ]
       }
     },
     {
       "id": "MAN03",
-      "name": "EarthMane",
+      "name": "Earthmane",
       "types": [
         "Earth"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**EarthMane** \u2014 Among the root-crowned caverns of elder mountains, it skips and scampers with stone pulse in its wake. In breeding pens, its earth spark often shows up in unexpected ways.",
+      "description": "Sturdy and mossy, its steps echo like pebbles tumbling down ancient paths.",
       "image": "creatures/uncommon/MAN03_earthmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1010,24 +808,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Earth"
-          ]
-        ]
       }
     },
     {
       "id": "MAN04",
-      "name": "AirMane",
+      "name": "Airmane",
       "types": [
         "Air"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**AirMane** \u2014 Stories tell of this mane darting through skyways and passes near stormward heights, always a step ahead, daring tamers to keep up. Its air energy is contagious.",
+      "description": "Light and restless, its crest flutters like a playful breeze through tall grass.",
       "image": "creatures/uncommon/MAN04_airmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1035,24 +826,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air"
-          ]
-        ]
       }
     },
     {
       "id": "MAN05",
-      "name": "SteamMane",
+      "name": "Steammane",
       "types": [
         "Steam"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**SteamMane** \u2014 Stories tell of this mane darting through hissing vents near geysers and baths, always a step ahead, daring tamers to keep up. Its steam energy is contagious.",
+      "description": "Shifting and elusive, mist trails behind it as if it were half-dream.",
       "image": "creatures/uncommon/MAN05_steammane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1060,28 +844,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Water"
-          ],
-          [
-            "Steam"
-          ]
-        ]
       }
     },
     {
       "id": "MAN06",
-      "name": "LavaMane",
+      "name": "Lavamane",
       "types": [
         "Lava"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**LavaMane** \u2014 In blackened calderas's basalt rivers, this lively mane leaves trails of molten wake wherever it wanders. Breeders prize its knack for adding a twist of lava magic to any pairing.",
+      "description": "Molten veins glow beneath its surface, each step leaving a faint sear on stone.",
       "image": "creatures/uncommon/MAN06_lavamane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1089,28 +862,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Earth"
-          ],
-          [
-            "Lava"
-          ]
-        ]
       }
     },
     {
       "id": "MAN07",
-      "name": "LightningMane",
+      "name": "Lightningmane",
       "types": [
         "Lightning"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**LightningMane** \u2014 In split-sky storms's anvil-clouds, this lively mane leaves trails of static crackle wherever it wanders. Breeders prize its knack for adding a twist of lightning magic to any pairing.",
+      "description": "Its movements spark with sudden flashes, laughter echoing like thunderclaps.",
       "image": "creatures/uncommon/MAN07_lightningmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1118,24 +880,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Lightning"
-          ]
-        ]
       }
     },
     {
       "id": "MAN08",
-      "name": "MudMane",
+      "name": "Mudmane",
       "types": [
         "Mud"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**MudMane** \u2014 This mane calls the sunken bogs of peat-choked fens home, where its mud mischief keeps both rivals and friends on edge.",
+      "description": "Clumsy but endearing, it splashes muck with every joyful bound.",
       "image": "creatures/uncommon/MAN08_mudmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1143,28 +898,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water",
-            "Earth"
-          ],
-          [
-            "Mud"
-          ]
-        ]
       }
     },
     {
       "id": "MAN09",
-      "name": "IceMane",
+      "name": "Icemane",
       "types": [
         "Ice"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**IceMane** \u2014 Stories tell of this mane darting through blue glaciers near polar night, always a step ahead, daring tamers to keep up. Its ice energy is contagious.",
+      "description": "Crowned with frozen crystals, it trails frost in its playful steps.",
       "image": "creatures/uncommon/MAN09_icemane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1172,28 +916,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Water"
-          ],
-          [
-            "Ice"
-          ]
-        ]
       }
     },
     {
       "id": "MAN10",
-      "name": "DustMane",
+      "name": "Dustmane",
       "types": [
         "Dust"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**DustMane** \u2014 In salt flats and ruins's ruined colonnades, this lively mane leaves trails of sibilant grit wherever it wanders. Breeders prize its knack for adding a twist of dust magic to any pairing.",
+      "description": "Ancient grit swirls around it, carrying whispers of forgotten ruins.",
       "image": "creatures/uncommon/MAN10_dustmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1201,28 +934,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Earth"
-          ],
-          [
-            "Dust"
-          ]
-        ]
       }
     },
     {
       "id": "MAN11",
-      "name": "CrystalMane",
+      "name": "Crystalmane",
       "types": [
         "Crystal"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**CrystalMane** \u2014 This mane calls the geode halls of hollow geodes home, where its crystal mischief keeps both rivals and friends on edge.",
+      "description": "Its body shimmers with faceted brilliance, scattering light wherever it prances.",
       "image": "creatures/uncommon/MAN11_crystalmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1231,24 +953,17 @@
         "totalFrames": 5,
         "rows": 3,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Crystal"
-          ]
-        ]
       }
     },
     {
       "id": "MAN12",
-      "name": "PlantMane",
+      "name": "Plantmane",
       "types": [
         "Plant"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**PlantMane** \u2014 Among the green vaults of old growth, it skips and scampers with leaf-hum in its wake. In breeding pens, its plant spark often shows up in unexpected ways.",
+      "description": "Gentle and curious, its leafy crest always reaches toward the sun as it nurtures life.",
       "image": "creatures/uncommon/MAN12_plantmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1256,24 +971,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Plant"
-          ]
-        ]
       }
     },
     {
       "id": "MAN13",
-      "name": "PoisonMane",
+      "name": "Poisonmane",
       "types": [
         "Poison"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**PoisonMane** \u2014 This mane calls the violet stills of alembics and swamps home, where its poison mischief keeps both rivals and friends on edge.",
+      "description": "Its touch carries a faint sting, and its eyes gleam with mischievous venom.",
       "image": "creatures/uncommon/MAN13_poisonmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1281,24 +989,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Poison"
-          ]
-        ]
       }
     },
     {
       "id": "MAN14",
-      "name": "SpiritMane",
+      "name": "Spiritmane",
       "types": [
         "Spirit"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**SpiritMane** \u2014 Among the thin places of veilbound paths, it skips and scampers with afterglow in its wake. In breeding pens, its spirit spark often shows up in unexpected ways.",
+      "description": "Ethereal and faintly glowing, it drifts as though half tethered to another realm.",
       "image": "creatures/uncommon/MAN14_spiritmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
@@ -1306,99 +1007,377 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Spirit"
-          ]
-        ]
       }
     },
     {
       "id": "MAN15",
-      "name": "DarkMane",
+      "name": "Darkmane",
       "types": [
         "Dark"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**DarkMane** \u2014 Among the umbra courts of moonless vaults, it skips and scampers with ink-quiet in its wake. In breeding pens, its Dark spark often shows up in unexpected ways.",
-      "image": "creatures/rare/MAN15_Darkmane.png",
+      "variant": [],
+      "rarity": "Uncommon",
+      "description": "Its crimson eyes gleam from the shadows, a playful silhouette in the night.",
+      "image": "creatures/uncommon/MAN15_darkmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 6,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Dark"
-          ]
-        ]
       }
     },
     {
       "id": "MAN16",
-      "name": "LightMane",
+      "name": "Lightmane",
       "types": [
         "Light"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**LightMane** \u2014 Found roaming the dawn stairs of sunward terraces, this mane delights in outwitting Alchemon tamers. Its light nature shows in every playful escape and curious glance.",
-      "image": "creatures/rare/MAN16_lightmane.png",
+      "variant": [],
+      "rarity": "Uncommon",
+      "description": "Radiant and pure, it illuminates the paths it wanders with gentle warmth.",
+      "image": "creatures/uncommon/MAN16_lightmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Light"
-          ]
-        ]
       }
     },
     {
       "id": "MAN17",
-      "name": "BloodMane",
+      "name": "Bloodmane",
       "types": [
         "Blood"
       ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**BloodMane** \u2014 Stories tell of this mane darting through red rites near vital altars, always a step ahead, daring tamers to keep up. Its blood energy is contagious.",
-      "image": "creatures/mythic/MAN17_bloodmane.png",
+      "variant": [],
+      "rarity": "Uncommon",
+      "description": "Its form pulses with a crimson rhythm, echoing the primal heartbeat of life itself.",
+      "image": "creatures/uncommon/MAN17_bloodmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Blood"
-          ]
-        ]
       }
     },
     {
-      "id": "PIP01",
-      "name": "FirePip",
+      "id": "MSK01",
+      "name": "Firemask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Flames lick the edges of its mask, the cracks glowing like molten veins.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
       "types": [
         "Fire"
       ],
-      "variant": null,
+      "image": "creatures/rare/MSK01_firemask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK02",
+      "name": "Watermask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Veins of flowing blue light shimmer across its mask, rippling like waves on the surface of a deep sea.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Water"
+      ],
+      "image": "creatures/rare/MSK02_watermask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK03",
+      "name": "Earthmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Its heavy mask is carved like stone, streaked with glowing green lines that pulse like roots underground.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Earth"
+      ],
+      "image": "creatures/rare/MSK03_earthmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK04",
+      "name": "Airmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Whorls of wind etch across its mask, shifting as though carved from moving air.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Air"
+      ],
+      "image": "creatures/rare/MSK04_airmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK05",
+      "name": "Steammask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Its mask exhales wisps of vapor, the surface clouding and clearing like fogged glass.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Steam"
+      ],
+      "image": "creatures/rare/MSK05_steammask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK06",
+      "name": "Lavamask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Crimson fissures split its mask, glowing with molten fury beneath hardened crust.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Lava"
+      ],
+      "image": "creatures/rare/MSK06_lavamask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK07",
+      "name": "Lightningmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Bolts spark from jagged runes etched in its mask, eyes flaring with restless stormlight.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Lightning"
+      ],
+      "image": "creatures/rare/MSK07_lightningmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK08",
+      "name": "Mudmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Its mask appears caked with dried clay, faint cracks weeping with damp glow.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Mud"
+      ],
+      "image": "creatures/rare/MSK08_mudmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK09",
+      "name": "Icemask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Cold breath seeps from the cracks of its frozen mask, sharp and crystalline as winter’s edge.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Ice"
+      ],
+      "image": "creatures/rare/MSK09_icemask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK10",
+      "name": "Dustmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Its mask looks ancient and eroded, glowing lines cutting through like forgotten ruins.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Dust"
+      ],
+      "image": "creatures/rare/MSK10_dustmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK11",
+      "name": "Crystalmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Facets gleam across its mask, scattering light into spectral shards.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Crystal"
+      ],
+      "image": "creatures/rare/MSK11_crystalmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK12",
+      "name": "Plantmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Vines curl across its mask, glowing with verdant veins that shift like living roots.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Plant"
+      ],
+      "image": "creatures/rare/MSK12_plantmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK13",
+      "name": "Poisonmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Its mask oozes faint, sickly vapors, and the cracks drip with venomous glow.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Poison"
+      ],
+      "image": "creatures/rare/MSK13_poisonmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK14",
+      "name": "Spiritmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Its mask flickers translucently, as though etched from another world.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Spirit"
+      ],
+      "image": "creatures/rare/MSK14_spiritmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK15",
+      "name": "Darkmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "A shroud of shadows leaks from its mask, and its eyes burn violet with hidden malice.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Dark"
+      ],
+      "image": "creatures/rare/MSK15_darkmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK16",
+      "name": "Lightmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Radiant glyphs blaze across its mask, glowing brighter when it draws near.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Light"
+      ],
+      "image": "creatures/rare/MSK16_lightmask.png",
+      "variant": []
+    },
+    {
+      "id": "MSK17",
+      "name": "Bloodmask",
+      "mutationFamily": "Mask",
+      "rarity": "Rare",
+      "description": "Runnels of crimson light trace its mask, dripping like fresh wounds that never heal.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Blood"
+      ],
+      "image": "creatures/rare/MSK17_bloodmask.png",
+      "variant": []
+    },
+    {
+      "id": "PIP01",
+      "name": "Firepip",
+      "types": [
+        "Fire"
+      ],
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**FirePip** \u2014 Found roaming the ember forges of volcanic sanctums, this pip delights in outwitting Alchemon tamers. Its fire nature shows in every playful escape and curious glance.",
+      "description": "Its scales glow like embers, and sparks dance whenever it flicks its tail.",
       "image": "creatures/uncommon/PIP01_firepip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1406,24 +1385,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire"
-          ]
-        ]
       }
     },
     {
       "id": "PIP02",
-      "name": "WaterPip",
+      "name": "Waterpip",
       "types": [
         "Water"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**WaterPip** \u2014 Stories tell of this pip darting through tidal grottos near lunar seas, always a step ahead, daring tamers to keep up. Its water energy is contagious.",
+      "description": "Smooth and playful, it splashes with every step, leaving droplets that shimmer like pearls.",
       "image": "creatures/uncommon/PIP02_waterpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1431,24 +1403,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water"
-          ]
-        ]
       }
     },
     {
       "id": "PIP03",
-      "name": "EarthPip",
+      "name": "Earthpip",
       "types": [
         "Earth"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**EarthPip** \u2014 Found roaming the root-crowned caverns of elder mountains, this pip delights in outwitting Alchemon tamers. Its earth nature shows in every playful escape and curious glance.",
+      "description": "Covered in pebbly scales, it stomps about with surprising strength for its size.",
       "image": "creatures/uncommon/PIP03_earthpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1456,24 +1421,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Earth"
-          ]
-        ]
       }
     },
     {
       "id": "PIP04",
-      "name": "AirPip",
+      "name": "Airpip",
       "types": [
         "Air"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**AirPip** \u2014 Found roaming the skyways and passes of stormward heights, this pip delights in outwitting Alchemon tamers. Its air nature shows in every playful escape and curious glance.",
+      "description": "It darts about weightlessly, its frills fluttering like wings on the wind.",
       "image": "creatures/uncommon/PIP04_airpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1481,24 +1439,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air"
-          ]
-        ]
       }
     },
     {
       "id": "PIP05",
-      "name": "SteamPip",
+      "name": "Steampip",
       "types": [
         "Steam"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**SteamPip** \u2014 Found roaming the hissing vents of geysers and baths, this pip delights in outwitting Alchemon tamers. Its steam nature shows in every playful escape and curious glance.",
+      "description": "Warm mist hisses from its back, wrapping it in shifting vapor trails.",
       "image": "creatures/uncommon/PIP05_steampip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1506,28 +1457,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Water"
-          ],
-          [
-            "Steam"
-          ]
-        ]
       }
     },
     {
       "id": "PIP06",
-      "name": "LavaPip",
+      "name": "Lavapip",
       "types": [
         "Lava"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**LavaPip** \u2014 In blackened calderas's basalt rivers, this lively pip leaves trails of molten wake wherever it wanders. Breeders prize its knack for adding a twist of lava magic to any pairing.",
+      "description": "Its body pulses with molten light, and each step leaves a faint scorch.",
       "image": "creatures/uncommon/PIP06_lavapip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1535,28 +1475,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Earth"
-          ],
-          [
-            "Lava"
-          ]
-        ]
       }
     },
     {
       "id": "PIP07",
-      "name": "LightningPip",
+      "name": "Lightningpip",
       "types": [
         "Lightning"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**LightningPip** \u2014 In split-sky storms's anvil-clouds, this lively pip leaves trails of static crackle wherever it wanders. Breeders prize its knack for adding a twist of lightning magic to any pairing.",
+      "description": "Crackling arcs leap between its scales, and its eyes flash with restless energy.",
       "image": "creatures/uncommon/PIP07_lightningpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1564,24 +1493,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Lightning"
-          ]
-        ]
       }
     },
     {
       "id": "PIP08",
-      "name": "MudPip",
+      "name": "Mudpip",
       "types": [
         "Mud"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**MudPip** \u2014 Among the sunken bogs of peat-choked fens, it skips and scampers with sucking mire in its wake. In breeding pens, its mud spark often shows up in unexpected ways.",
+      "description": "It leaves muddy prints behind, gleefully splashing in every puddle it finds.",
       "image": "creatures/uncommon/PIP08_mudpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1589,28 +1511,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water",
-            "Earth"
-          ],
-          [
-            "Mud"
-          ]
-        ]
       }
     },
     {
       "id": "PIP09",
-      "name": "IcePip",
+      "name": "Icepip",
       "types": [
         "Ice"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**IcePip** \u2014 Stories tell of this pip darting through blue glaciers near polar night, always a step ahead, daring tamers to keep up. Its ice energy is contagious.",
+      "description": "Its scales shimmer with frost, and a chilly aura clings to its playful leaps.",
       "image": "creatures/uncommon/PIP09_icepip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1618,28 +1529,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Water"
-          ],
-          [
-            "Ice"
-          ]
-        ]
       }
     },
     {
       "id": "PIP10",
-      "name": "DustPip",
+      "name": "Dustpip",
       "types": [
         "Dust"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**DustPip** \u2014 This pip calls the ruined colonnades of salt flats and ruins home, where its dust mischief keeps both rivals and friends on edge.",
+      "description": "Its hide carries a dry, powdery coat, and a swirl of grit follows wherever it scurries.",
       "image": "creatures/uncommon/PIP10_dustpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1647,28 +1547,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Earth"
-          ],
-          [
-            "Dust"
-          ]
-        ]
       }
     },
     {
       "id": "PIP11",
-      "name": "CrystalPip",
+      "name": "Crystalpip",
       "types": [
         "Crystal"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**CrystalPip** \u2014 This pip calls the geode halls of hollow geodes home, where its crystal mischief keeps both rivals and friends on edge.",
+      "description": "Shards of glittering crystal crown its head and spine, gleaming with inner light.",
       "image": "creatures/uncommon/PIP11_crystalpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1676,24 +1565,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Crystal"
-          ]
-        ]
       }
     },
     {
       "id": "PIP12",
-      "name": "PlantPip",
+      "name": "Plantpip",
       "types": [
         "Plant"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**PlantPip** \u2014 Among the green vaults of old growth, it skips and scampers with leaf-hum in its wake. In breeding pens, its plant spark often shows up in unexpected ways.",
+      "description": "Green frills sprout from its back, and flowers bloom where it rests.",
       "image": "creatures/uncommon/PIP12_plantpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1701,24 +1583,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Plant"
-          ]
-        ]
       }
     },
     {
       "id": "PIP13",
-      "name": "PoisonPip",
+      "name": "Poisonpip",
       "types": [
         "Poison"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**PoisonPip** \u2014 Found roaming the violet stills of alembics and swamps, this pip delights in outwitting Alchemon tamers. Its poison nature shows in every playful escape and curious glance.",
+      "description": "A faint haze seeps from its breath, and its playful grin hides a toxic sting.",
       "image": "creatures/uncommon/PIP13_poisonpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1726,24 +1601,17 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Poison"
-          ]
-        ]
       }
     },
     {
       "id": "PIP14",
-      "name": "SpiritPip",
+      "name": "Spiritpip",
       "types": [
         "Spirit"
       ],
-      "variant": null,
+      "variant": [],
       "rarity": "Uncommon",
-      "description": "**SpiritPip** \u2014 Among the thin places of veilbound paths, it skips and scampers with afterglow in its wake. In breeding pens, its spirit spark often shows up in unexpected ways.",
+      "description": "Translucent and ghostly, it flickers in and out of sight like a phantom flame.",
       "image": "creatures/uncommon/PIP14_spiritpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
@@ -1751,990 +1619,74 @@
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Spirit"
-          ]
-        ]
       }
     },
     {
       "id": "PIP15",
-      "name": "DarkPip",
+      "name": "Darkpip",
       "types": [
         "Dark"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**DarkPip** \u2014 This pip calls the umbra courts of moonless vaults home, where its Dark mischief keeps both rivals and friends on edge.",
-      "image": "creatures/rare/PIP15_Darkpip.png",
+      "variant": [],
+      "rarity": "Uncommon",
+      "description": "Its eyes glow faintly crimson, and shadows coil tightly around its scales.",
+      "image": "creatures/uncommon/PIP15_darkpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Dark"
-          ]
-        ]
       }
     },
     {
       "id": "PIP16",
-      "name": "LightPip",
+      "name": "Lightpip",
       "types": [
         "Light"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**LightPip** \u2014 In sunward terraces's dawn stairs, this lively pip leaves trails of auric hush wherever it wanders. Breeders prize its knack for adding a twist of light magic to any pairing.",
-      "image": "creatures/rare/PIP16_lightpip.png",
+      "variant": [],
+      "rarity": "Uncommon",
+      "description": "Radiant patterns gleam across its body, shining brightest when it plays.",
+      "image": "creatures/uncommon/PIP16_lightpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Light"
-          ]
-        ]
       }
     },
     {
       "id": "PIP17",
-      "name": "BloodPip",
+      "name": "Bloodpip",
       "types": [
         "Blood"
       ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**BloodPip** \u2014 Stories tell of this pip darting through red rites near vital altars, always a step ahead, daring tamers to keep up. Its blood energy is contagious.",
-      "image": "creatures/mythic/PIP17_bloodpip.png",
+      "variant": [],
+      "rarity": "Uncommon",
+      "description": "Its scales glisten with a crimson sheen, and a primal rhythm beats in its chest.",
+      "image": "creatures/uncommon/PIP17_bloodpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Blood"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR01",
-      "name": "FireHorn",
-      "types": [
-        "Fire"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**FireHorn** \u2014 This horn calls the ember forges of volcanic sanctums home, where its fire mischief keeps both rivals and friends on edge.",
-      "image": "creatures/uncommon/HOR01_firehorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR02",
-      "name": "WaterHorn",
-      "types": [
-        "Water"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**WaterHorn** \u2014 This horn calls the tidal grottos of lunar seas home, where its water mischief keeps both rivals and friends on edge.",
-      "image": "creatures/uncommon/HOR02_waterhorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR03",
-      "name": "EarthHorn",
-      "types": [
-        "Earth"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**EarthHorn** \u2014 Stories tell of this horn darting through root-crowned caverns near elder mountains, always a step ahead, daring tamers to keep up. Its earth energy is contagious.",
-      "image": "creatures/uncommon/HOR03_earthhorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Earth"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR04",
-      "name": "AirHorn",
-      "types": [
-        "Air"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**AirHorn** \u2014 Found roaming the skyways and passes of stormward heights, this horn delights in outwitting Alchemon tamers. Its air nature shows in every playful escape and curious glance.",
-      "image": "creatures/uncommon/HOR04_airhorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR05",
-      "name": "SteamHorn",
-      "types": [
-        "Steam"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**SteamHorn** \u2014 Among the hissing vents of geysers and baths, it skips and scampers with ghost-warm mist in its wake. In breeding pens, its steam spark often shows up in unexpected ways.",
-      "image": "creatures/uncommon/HOR05_steamhorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Water"
-          ],
-          [
-            "Steam"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR06",
-      "name": "LavaHorn",
-      "types": [
-        "Lava"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**LavaHorn** \u2014 Found roaming the basalt rivers of blackened calderas, this horn delights in outwitting Alchemon tamers. Its lava nature shows in every playful escape and curious glance.",
-      "image": "creatures/uncommon/HOR06_lavahorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Earth"
-          ],
-          [
-            "Lava"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR07",
-      "name": "LightningHorn",
-      "types": [
-        "Lightning"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**LightningHorn** \u2014 This horn calls the anvil-clouds of split-sky storms home, where its lightning mischief keeps both rivals and friends on edge.",
-      "image": "creatures/uncommon/HOR07_lightninghorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Lightning"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR08",
-      "name": "MudHorn",
-      "types": [
-        "Mud"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**MudHorn** \u2014 Among the sunken bogs of peat-choked fens, it skips and scampers with sucking mire in its wake. In breeding pens, its mud spark often shows up in unexpected ways.",
-      "image": "creatures/uncommon/HOR08_mudhorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water",
-            "Earth"
-          ],
-          [
-            "Mud"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR09",
-      "name": "IceHorn",
-      "types": [
-        "Ice"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**IceHorn** \u2014 This horn calls the blue glaciers of polar night home, where its ice mischief keeps both rivals and friends on edge.",
-      "image": "creatures/uncommon/HOR09_icehorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Water"
-          ],
-          [
-            "Ice"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR10",
-      "name": "DustHorn",
-      "types": [
-        "Dust"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**DustHorn** \u2014 In salt flats and ruins's ruined colonnades, this lively horn leaves trails of sibilant grit wherever it wanders. Breeders prize its knack for adding a twist of dust magic to any pairing.",
-      "image": "creatures/uncommon/HOR10_dusthorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Earth"
-          ],
-          [
-            "Dust"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR11",
-      "name": "CrystalHorn",
-      "types": [
-        "Crystal"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**CrystalHorn** \u2014 Found roaming the geode halls of hollow geodes, this horn delights in outwitting Alchemon tamers. Its crystal nature shows in every playful escape and curious glance.",
-      "image": "creatures/uncommon/HOR11_crystalhorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Crystal"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR12",
-      "name": "PlantHorn",
-      "types": [
-        "Plant"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**PlantHorn** \u2014 In old growth's green vaults, this lively horn leaves trails of leaf-hum wherever it wanders. Breeders prize its knack for adding a twist of plant magic to any pairing.",
-      "image": "creatures/uncommon/HOR12_planthorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Plant"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR13",
-      "name": "PoisonHorn",
-      "types": [
-        "Poison"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**PoisonHorn** \u2014 Among the violet stills of alembics and swamps, it skips and scampers with sweet rot in its wake. In breeding pens, its poison spark often shows up in unexpected ways.",
-      "image": "creatures/uncommon/HOR13_poisonhorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Poison"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR14",
-      "name": "SpiritHorn",
-      "types": [
-        "Spirit"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**SpiritHorn** \u2014 Found roaming the thin places of veilbound paths, this horn delights in outwitting Alchemon tamers. Its spirit nature shows in every playful escape and curious glance.",
-      "image": "creatures/uncommon/HOR14_spirithorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Spirit"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR15",
-      "name": "DarkHorn",
-      "types": [
-        "Dark"
-      ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**DarkHorn** \u2014 This horn calls the umbra courts of moonless vaults home, where its Dark mischief keeps both rivals and friends on edge.",
-      "image": "creatures/rare/HOR15_Darkhorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Dark"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR16",
-      "name": "LightHorn",
-      "types": [
-        "Light"
-      ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**LightHorn** \u2014 Found roaming the dawn stairs of sunward terraces, this horn delights in outwitting Alchemon tamers. Its light nature shows in every playful escape and curious glance.",
-      "image": "creatures/rare/HOR16_lighthorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Light"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "HOR17",
-      "name": "BloodHorn",
-      "types": [
-        "Blood"
-      ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**BloodHorn** \u2014 In vital altars's red rites, this lively horn leaves trails of heartbeat thunder wherever it wanders. Breeders prize its knack for adding a twist of blood magic to any pairing.",
-      "image": "creatures/mythic/HOR17_bloodhorn.png",
-      "mutationFamily": "Horn",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Blood"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA01",
-      "name": "FireClaw",
-      "types": [
-        "Fire"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**FireClaw** \u2014 Among the ember forges of volcanic sanctums, it skips and scampers with embers in its wake. In breeding pens, its fire spark often shows up in unexpected ways.",
-      "image": "creatures/uncommon/CLA01_fireclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA02",
-      "name": "WaterClaw",
-      "types": [
-        "Water"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**WaterClaw** \u2014 In lunar seas's tidal grottos, this lively claw leaves trails of tides wherever it wanders. Breeders prize its knack for adding a twist of water magic to any pairing.",
-      "image": "creatures/uncommon/CLA02_waterclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA03",
-      "name": "EarthClaw",
-      "types": [
-        "Earth"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**EarthClaw** \u2014 This claw calls the root-crowned caverns of elder mountains home, where its earth mischief keeps both rivals and friends on edge.",
-      "image": "creatures/uncommon/CLA03_earthclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Earth"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA04",
-      "name": "AirClaw",
-      "types": [
-        "Air"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**AirClaw** \u2014 Found roaming the skyways and passes of stormward heights, this claw delights in outwitting Alchemon tamers. Its air nature shows in every playful escape and curious glance.",
-      "image": "creatures/uncommon/CLA04_airclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA05",
-      "name": "SteamClaw",
-      "types": [
-        "Steam"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**SteamClaw** \u2014 This claw calls the hissing vents of geysers and baths home, where its steam mischief keeps both rivals and friends on edge.",
-      "image": "creatures/uncommon/CLA05_steamclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Water"
-          ],
-          [
-            "Steam"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA06",
-      "name": "LavaClaw",
-      "types": [
-        "Lava"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**LavaClaw** \u2014 This claw calls the basalt rivers of blackened calderas home, where its lava mischief keeps both rivals and friends on edge.",
-      "image": "creatures/uncommon/CLA06_lavaclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Earth"
-          ],
-          [
-            "Lava"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA07",
-      "name": "LightningClaw",
-      "types": [
-        "Lightning"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**LightningClaw** \u2014 Found roaming the anvil-clouds of split-sky storms, this claw delights in outwitting Alchemon tamers. Its lightning nature shows in every playful escape and curious glance.",
-      "image": "creatures/uncommon/CLA07_lightningclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Lightning"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA08",
-      "name": "MudClaw",
-      "types": [
-        "Mud"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**MudClaw** \u2014 Among the sunken bogs of peat-choked fens, it skips and scampers with sucking mire in its wake. In breeding pens, its mud spark often shows up in unexpected ways.",
-      "image": "creatures/uncommon/CLA08_mudclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water",
-            "Earth"
-          ],
-          [
-            "Mud"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA09",
-      "name": "IceClaw",
-      "types": [
-        "Ice"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**IceClaw** \u2014 In polar night's blue glaciers, this lively claw leaves trails of rimed breath wherever it wanders. Breeders prize its knack for adding a twist of ice magic to any pairing.",
-      "image": "creatures/uncommon/CLA09_iceclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Water"
-          ],
-          [
-            "Ice"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA10",
-      "name": "DustClaw",
-      "types": [
-        "Dust"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**DustClaw** \u2014 Stories tell of this claw darting through ruined colonnades near salt flats and ruins, always a step ahead, daring tamers to keep up. Its dust energy is contagious.",
-      "image": "creatures/uncommon/CLA10_dustclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Earth"
-          ],
-          [
-            "Dust"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA11",
-      "name": "CrystalClaw",
-      "types": [
-        "Crystal"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**CrystalClaw** \u2014 Found roaming the geode halls of hollow geodes, this claw delights in outwitting Alchemon tamers. Its crystal nature shows in every playful escape and curious glance.",
-      "image": "creatures/uncommon/CLA11_crystalclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Crystal"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA12",
-      "name": "PlantClaw",
-      "types": [
-        "Plant"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**PlantClaw** \u2014 Among the green vaults of old growth, it skips and scampers with leaf-hum in its wake. In breeding pens, its plant spark often shows up in unexpected ways.",
-      "image": "creatures/uncommon/CLA12_plantclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Plant"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA13",
-      "name": "PoisonClaw",
-      "types": [
-        "Poison"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**PoisonClaw** \u2014 In alembics and swamps's violet stills, this lively claw leaves trails of sweet rot wherever it wanders. Breeders prize its knack for adding a twist of poison magic to any pairing.",
-      "image": "creatures/uncommon/CLA13_poisonclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Poison"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA14",
-      "name": "SpiritClaw",
-      "types": [
-        "Spirit"
-      ],
-      "variant": null,
-      "rarity": "Uncommon",
-      "description": "**SpiritClaw** \u2014 In veilbound paths's thin places, this lively claw leaves trails of afterglow wherever it wanders. Breeders prize its knack for adding a twist of spirit magic to any pairing.",
-      "image": "creatures/uncommon/CLA14_spiritclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Spirit"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA15",
-      "name": "DarkClaw",
-      "types": [
-        "Dark"
-      ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**DarkClaw** \u2014 In moonless vaults's umbra courts, this lively claw leaves trails of ink-quiet wherever it wanders. Breeders prize its knack for adding a twist of Dark magic to any pairing.",
-      "image": "creatures/rare/CLA15_Darkclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Dark"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA16",
-      "name": "LightClaw",
-      "types": [
-        "Light"
-      ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**LightClaw** \u2014 Found roaming the dawn stairs of sunward terraces, this claw delights in outwitting Alchemon tamers. Its light nature shows in every playful escape and curious glance.",
-      "image": "creatures/rare/CLA16_lightclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Light"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CLA17",
-      "name": "BloodClaw",
-      "types": [
-        "Blood"
-      ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**BloodClaw** \u2014 Stories tell of this claw darting through red rites near vital altars, always a step ahead, daring tamers to keep up. Its blood energy is contagious.",
-      "image": "creatures/mythic/CLA17_bloodclaw.png",
-      "mutationFamily": "Claw",
-      "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Blood"
-          ]
-        ]
       }
     },
     {
       "id": "WNG01",
-      "name": "FireWing",
+      "name": "Firewing",
       "types": [
         "Fire"
       ],
-      "variant": ["lightning"],
-      "rarity": "Rare",
-      "description": "**FireWing** \u2014 This wing calls the ember forges of volcanic sanctums home, where its fire mischief keeps both rivals and friends on edge.",
-      "image": "creatures/rare/WNG01_firewing.png",
+      "variant": [
+        "lightning"
+      ],
+      "rarity": "Legendary",
+      "description": "Born of furnace winds, it streaks the sky in ember arcs—villages light bonfires when a Firewing is sighted.",
+      "image": "creatures/legendary/WNG01_firewing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
@@ -2742,25 +1694,18 @@
         "totalFrames": 16,
         "rows": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire"
-          ]
-        ]
       }
     },
     {
       "id": "WNG02",
-      "name": "WaterWing",
+      "name": "Waterwing",
       "types": [
         "Water"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**WaterWing** \u2014 Among the tidal grottos of lunar seas, it skips and scampers with tides in its wake. In breeding pens, its water spark often shows up in unexpected ways.",
-      "image": "creatures/rare/WNG02_waterwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Its pinions skim waves like silver oars; storms calm when it folds its wings and dives beneath the swell.",
+      "image": "creatures/legendary/WNG02_waterwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
@@ -2768,51 +1713,37 @@
         "rows": 3,
         "totalFrames": 8,
         "frameDurationMs": 160
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water"
-          ]
-        ]
       }
     },
     {
       "id": "WNG03",
-      "name": "EarthWing",
+      "name": "Earthwing",
       "types": [
         "Earth"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**EarthWing** \u2014 Found roaming the root-crowned caverns of elder mountains, this wing delights in outwitting Alchemon tamers. Its earth nature shows in every playful escape and curious glance.",
-      "image": "creatures/rare/WNG03_earthwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Stone-limbed and solemn, it lands like a mountain settling—cliffs answer its call with quiet echoes.",
+      "image": "creatures/legendary/WNG03_earthwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "row": 2,
         "totalFrames": 3,
-        "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Earth"
-          ]
-        ]
+        "frameDurationMs": 120,
+        "rows": 2
       }
     },
     {
       "id": "WNG04",
-      "name": "AirWing",
+      "name": "Airwing",
       "types": [
         "Air"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**AirWing** \u2014 This wing calls the skyways and passes of stormward heights home, where its air mischief keeps both rivals and friends on edge.",
-      "image": "creatures/rare/WNG04_airwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "A whisper given form; it vanishes into currents and reappears miles away, laughing in the language of gusts.",
+      "image": "creatures/legendary/WNG04_airwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
@@ -2820,25 +1751,18 @@
         "totalFrames": 4,
         "rows": 2,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air"
-          ]
-        ]
       }
     },
     {
       "id": "WNG05",
-      "name": "SteamWing",
+      "name": "Steamwing",
       "types": [
         "Steam"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**SteamWing** \u2014 This wing calls the hissing vents of geysers and baths home, where its steam mischief keeps both rivals and friends on edge.",
-      "image": "creatures/rare/WNG05_steamwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Warm mist billows from its feathers; rainbows cling to its wake as if unwilling to let go.",
+      "image": "creatures/legendary/WNG05_steamwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
@@ -2846,866 +1770,844 @@
         "totalFrames": 6,
         "rows": 2,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Water"
-          ],
-          [
-            "Steam"
-          ]
-        ]
       }
     },
     {
       "id": "WNG06",
-      "name": "LavaWing",
+      "name": "Lavawing",
       "types": [
         "Lava"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**LavaWing** \u2014 This wing calls the basalt rivers of blackened calderas home, where its lava mischief keeps both rivals and friends on edge.",
-      "image": "creatures/rare/WNG06_lavawing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Veins of molten glow lace its scales; volcanoes murmur lullabies when it circles their calderas.",
+      "image": "creatures/legendary/WNG06_lavawing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Earth"
-          ],
-          [
-            "Lava"
-          ]
-        ]
       }
     },
     {
       "id": "WNG07",
-      "name": "LightningWing",
+      "name": "Lightningwing",
       "types": [
         "Lightning"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**LightningWing** \u2014 Stories tell of this wing darting through anvil-clouds near split-sky storms, always a step ahead, daring tamers to keep up. Its lightning energy is contagious.",
-      "image": "creatures/rare/WNG07_lightningwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "A storm with a heartbeat—every wingbeat sketches jagged light across the cloudbanks.",
+      "image": "creatures/legendary/WNG07_lightningwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Lightning"
-          ]
-        ]
       }
     },
     {
       "id": "WNG08",
-      "name": "MudWing",
+      "name": "Mudwing",
       "types": [
         "Mud"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**MudWing** \u2014 This wing calls the sunken bogs of peat-choked fens home, where its mud mischief keeps both rivals and friends on edge.",
-      "image": "creatures/rare/WNG08_mudwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "River-brown and stubborn, it banks low over floodplains, sewing fertile silt with every sweep.",
+      "image": "creatures/legendary/WNG08_mudwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Water",
-            "Earth"
-          ],
-          [
-            "Mud"
-          ]
-        ]
       }
     },
     {
       "id": "WNG09",
-      "name": "IceWing",
+      "name": "Icewing",
       "types": [
         "Ice"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**IceWing** \u2014 In polar night's blue glaciers, this lively wing leaves trails of rimed breath wherever it wanders. Breeders prize its knack for adding a twist of ice magic to any pairing.",
-      "image": "creatures/rare/WNG09_icewing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Quiet as snowfall, it paints the air with glittering rime and leaves the world breathless behind it.",
+      "image": "creatures/legendary/WNG09_icewing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Water"
-          ],
-          [
-            "Ice"
-          ]
-        ]
       }
     },
     {
       "id": "WNG10",
-      "name": "DustWing",
+      "name": "Dustwing",
       "types": [
         "Dust"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**DustWing** \u2014 Among the ruined colonnades of salt flats and ruins, it skips and scampers with sibilant grit in its wake. In breeding pens, its dust spark often shows up in unexpected ways.",
-      "image": "creatures/rare/WNG10_dustwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Desert-born, it rises on heated mirage and carves dunes into new maps with its turbulent glide.",
+      "image": "creatures/legendary/WNG10_dustwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Earth"
-          ],
-          [
-            "Dust"
-          ]
-        ]
       }
     },
     {
       "id": "WNG11",
-      "name": "CrystalWing",
+      "name": "Crystalwing",
       "types": [
         "Crystal"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**CrystalWing** \u2014 In hollow geodes's geode halls, this lively wing leaves trails of prismatic gleam wherever it wanders. Breeders prize its knack for adding a twist of crystal magic to any pairing.",
-      "image": "creatures/rare/WNG11_crystalwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Faceted wings refract the sun into wandering constellations; healers gather beneath its lumens.",
+      "image": "creatures/legendary/WNG11_crystalwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Crystal"
-          ]
-        ]
       }
     },
     {
       "id": "WNG12",
-      "name": "PlantWing",
+      "name": "Plantwing",
       "types": [
         "Plant"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**PlantWing** \u2014 Among the green vaults of old growth, it skips and scampers with leaf-hum in its wake. In breeding pens, its plant spark often shows up in unexpected ways.",
-      "image": "creatures/rare/WNG12_plantwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Vine-veined membranes rustle like forests in wind; seeds hitch rides beneath its scales to distant fields.",
+      "image": "creatures/legendary/WNG12_plantwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Plant"
-          ]
-        ]
       }
     },
     {
       "id": "WNG13",
-      "name": "PoisonWing",
+      "name": "Poisonwing",
       "types": [
         "Poison"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**PoisonWing** \u2014 Stories tell of this wing darting through violet stills near alembics and swamps, always a step ahead, daring tamers to keep up. Its poison energy is contagious.",
-      "image": "creatures/rare/WNG13_poisonwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "A haze of sweet-sour perfume trails it; even serpents bow as it shadows their dens.",
+      "image": "creatures/legendary/WNG13_poisonwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Poison"
-          ]
-        ]
       }
     },
     {
       "id": "WNG14",
-      "name": "SpiritWing",
+      "name": "Spiritwing",
       "types": [
         "Spirit"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**SpiritWing** \u2014 Stories tell of this wing darting through thin places near veilbound paths, always a step ahead, daring tamers to keep up. Its spirit energy is contagious.",
-      "image": "creatures/rare/WNG14_spiritwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Half in this world, half in the hush between—its passage tolls like distant bells only children hear.",
+      "image": "creatures/legendary/WNG14_spiritwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Spirit"
-          ]
-        ]
       }
     },
     {
       "id": "WNG15",
-      "name": "DarkWing",
+      "name": "Darkwing",
       "types": [
         "Dark"
       ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**DarkWing** \u2014 Found roaming the umbra courts of moonless vaults, this wing delights in outwitting Alchemon tamers. Its Dark nature shows in every playful escape and curious glance.",
-      "image": "creatures/mythic/WNG15_Darkwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "It drinks the stars as it climbs; courage frays in its shade, yet owls follow as if sworn.",
+      "image": "creatures/legendary/WNG15_darkwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Dark"
-          ]
-        ]
       }
     },
     {
       "id": "WNG16",
-      "name": "LightWing",
+      "name": "Lightwing",
       "types": [
         "Light"
       ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**LightWing** \u2014 This wing calls the dawn stairs of sunward terraces home, where its light mischief keeps both rivals and friends on edge.",
-      "image": "creatures/mythic/WNG16_lightwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Dawn’s herald, it inks halos on the clouds and writes forgiveness across the sky.",
+      "image": "creatures/legendary/WNG16_lightwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Light"
-          ]
-        ]
       }
     },
     {
       "id": "WNG17",
-      "name": "BloodWing",
+      "name": "Bloodwing",
       "types": [
         "Blood"
       ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**BloodWing** \u2014 Stories tell of this wing darting through red rites near vital altars, always a step ahead, daring tamers to keep up. Its blood energy is contagious.",
-      "image": "creatures/mythic/WNG17_bloodwing.png",
+      "variant": [],
+      "rarity": "Legendary",
+      "description": "Its wings beat with a primal cadence—hunters lay down spears when that red rhythm fills the valley.",
+      "image": "creatures/legendary/WNG17_bloodwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Blood"
-          ]
-        ]
       }
     },
     {
-      "id": "CRE01",
-      "name": "FireCrest",
+      "id": "MYS01",
+      "name": "Firemystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to fire. Born of flame; passionate and volatile.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
       "types": [
         "Fire"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**FireCrest** \u2014 This crest calls the ember forges of volcanic sanctums home, where its fire mischief keeps both rivals and friends on edge.",
-      "image": "creatures/rare/cre/CRE01_firecrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS01_firemystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS02",
+      "name": "Watermystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to water. Fluid and adaptive; calm or crushing.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Fire"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE02",
-      "name": "WaterCrest",
       "types": [
         "Water"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**WaterCrest** \u2014 Found roaming the tidal grottos of lunar seas, this crest delights in outwitting Alchemon tamers. Its water nature shows in every playful escape and curious glance.",
-      "image": "creatures/rare/cre/CRE02_watercrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS02_watermystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS03",
+      "name": "Earthmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to earth. Sturdy and grounded; unyielding.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Water"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE03",
-      "name": "EarthCrest",
       "types": [
         "Earth"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**EarthCrest** \u2014 Found roaming the root-crowned caverns of elder mountains, this crest delights in outwitting Alchemon tamers. Its earth nature shows in every playful escape and curious glance.",
-      "image": "creatures/rare/cre/CRE03_earthcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS03_earthmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS04",
+      "name": "Airmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to air. Swift and elusive; ever-moving.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Earth"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE04",
-      "name": "AirCrest",
       "types": [
         "Air"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**AirCrest** \u2014 Found roaming the skyways and passes of stormward heights, this crest delights in outwitting Alchemon tamers. Its air nature shows in every playful escape and curious glance.",
-      "image": "creatures/rare/cre/CRE04_aircrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS04_airmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS05",
+      "name": "Steammystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to steam. Vapor between fire and water; shifting.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Air"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE05",
-      "name": "SteamCrest",
       "types": [
         "Steam"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**SteamCrest** \u2014 Stories tell of this crest darting through hissing vents near geysers and baths, always a step ahead, daring tamers to keep up. Its steam energy is contagious.",
-      "image": "creatures/rare/cre/CRE05_steamcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS05_steammystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS06",
+      "name": "Lavamystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to lava. Molten rock; searing and heavy.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Water"
-          ],
-          [
-            "Steam"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE06",
-      "name": "LavaCrest",
       "types": [
         "Lava"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**LavaCrest** \u2014 This crest calls the basalt rivers of blackened calderas home, where its lava mischief keeps both rivals and friends on edge.",
-      "image": "creatures/rare/cre/CRE06_lavacrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS06_lavamystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS07",
+      "name": "Lightningmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to lightning. Charged and sudden; crackling power.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Fire",
-            "Earth"
-          ],
-          [
-            "Lava"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE07",
-      "name": "LightningCrest",
       "types": [
         "Lightning"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**LightningCrest** \u2014 In split-sky storms's anvil-clouds, this lively crest leaves trails of static crackle wherever it wanders. Breeders prize its knack for adding a twist of lightning magic to any pairing.",
-      "image": "creatures/rare/cre/CRE07_lightningcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS07_lightningmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS08",
+      "name": "Mudmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to mud. Thick and stubborn mix of earth and water.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Lightning"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE08",
-      "name": "MudCrest",
       "types": [
         "Mud"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**MudCrest** \u2014 Among the sunken bogs of peat-choked fens, it skips and scampers with sucking mire in its wake. In breeding pens, its mud spark often shows up in unexpected ways.",
-      "image": "creatures/rare/cre/CRE08_mudcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS08_mudmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS09",
+      "name": "Icemystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to ice. Cold precision; frozen beauty.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Water",
-            "Earth"
-          ],
-          [
-            "Mud"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE09",
-      "name": "IceCrest",
       "types": [
         "Ice"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**IceCrest** \u2014 Found roaming the blue glaciers of polar night, this crest delights in outwitting Alchemon tamers. Its ice nature shows in every playful escape and curious glance.",
-      "image": "creatures/rare/cre/CRE09_icecrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS09_icemystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS10",
+      "name": "Dustmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to dust. Ancient grit; whisper of ruins.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Water"
-          ],
-          [
-            "Ice"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE10",
-      "name": "DustCrest",
       "types": [
         "Dust"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**DustCrest** \u2014 Found roaming the ruined colonnades of salt flats and ruins, this crest delights in outwitting Alchemon tamers. Its dust nature shows in every playful escape and curious glance.",
-      "image": "creatures/rare/cre/CRE10_dustcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS10_dustmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS11",
+      "name": "Crystalmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to crystal. Faceted and arcane; refractive.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Air",
-            "Earth"
-          ],
-          [
-            "Dust"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE11",
-      "name": "CrystalCrest",
       "types": [
         "Crystal"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**CrystalCrest** \u2014 Stories tell of this crest darting through geode halls near hollow geodes, always a step ahead, daring tamers to keep up. Its crystal energy is contagious.",
-      "image": "creatures/rare/cre/CRE11_crystalcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS11_crystalmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS12",
+      "name": "Plantmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to plant. Living growth; verdant and resilient.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Crystal"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE12",
-      "name": "PlantCrest",
       "types": [
         "Plant"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**PlantCrest** \u2014 Among the green vaults of old growth, it skips and scampers with leaf-hum in its wake. In breeding pens, its plant spark often shows up in unexpected ways.",
-      "image": "creatures/rare/cre/CRE12_plantcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS12_plantmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS13",
+      "name": "Poisonmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to poison. Toxic and corrosive; silent threat.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Plant"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE13",
-      "name": "PoisonCrest",
       "types": [
         "Poison"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**PoisonCrest** \u2014 This crest calls the violet stills of alembics and swamps home, where its poison mischief keeps both rivals and friends on edge.",
-      "image": "creatures/rare/cre/CRE13_poisoncrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS13_poisonmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS14",
+      "name": "Spiritmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to spirit. Ethereal and liminal; otherworldly.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Poison"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE14",
-      "name": "SpiritCrest",
       "types": [
         "Spirit"
       ],
-      "variant": null,
-      "rarity": "Rare",
-      "description": "**SpiritCrest** \u2014 Found roaming the thin places of veilbound paths, this crest delights in outwitting Alchemon tamers. Its spirit nature shows in every playful escape and curious glance.",
-      "image": "creatures/rare/cre/CRE14_spiritcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS14_spiritmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS15",
+      "name": "Darkmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to dark. Veiled and secret; devours light.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Spirit"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE15",
-      "name": "DarkCrest",
       "types": [
         "Dark"
       ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**DarkCrest** \u2014 This crest calls the umbra courts of moonless vaults home, where its Dark mischief keeps both rivals and friends on edge.",
-      "image": "creatures/mythic/cre/CRE15_Darkcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS15_darkmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS16",
+      "name": "Lightmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to light. Radiant and pure; revealing.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Dark"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE16",
-      "name": "LightCrest",
       "types": [
         "Light"
       ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**LightCrest** \u2014 Found roaming the dawn stairs of sunward terraces, this crest delights in outwitting Alchemon tamers. Its light nature shows in every playful escape and curious glance.",
-      "image": "creatures/mythic/cre/CRE16_lightcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS16_lightmystic.png",
+      "variant": []
+    },
+    {
+      "id": "MYS17",
+      "name": "Bloodmystic",
+      "mutationFamily": "Mystic",
+      "rarity": "Mystic",
+      "description": "A mystic attuned to blood. Vital and primal; life-bound myth.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
       },
-      "breeding": {
-        "parents": [
-          [
-            "Light"
-          ]
-        ]
-      }
-    },
-    {
-      "id": "CRE17",
-      "name": "BloodCrest",
       "types": [
         "Blood"
       ],
-      "variant": null,
-      "rarity": "Mythic",
-      "description": "**BloodCrest** \u2014 Found roaming the red rites of vital altars, this crest delights in outwitting Alchemon tamers. Its blood nature shows in every playful escape and curious glance.",
-      "image": "creatures/mythic/cre/CRE17_bloodcrest.png",
-      "mutationFamily": "Crest",
+      "image": "creatures/mystic/MYS17_bloodmystic.png",
+      "variant": []
+    },
+    {
+      "id": "LET01",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Fire"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Lively and ember-bright, it leaves warm smudges where its paws tap the ground.",
+      "image": "assets/sprites/Let/LET01.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
         "frameDurationMs": 120
-      },
-      "breeding": {
-        "parents": [
-          [
-            "Blood"
-          ]
-        ]
+      }
+    },
+    {
+      "id": "LET02",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Water"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Smooth and glimmering, it paddles through puddles and hums like a quiet stream.",
+      "image": "assets/sprites/Let/LET02.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET03",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Earth"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Pebble-tough and patient, it carries the hush of old trails in its gait.",
+      "image": "assets/sprites/Let/LET03.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET04",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Air"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Feather-light and fidgety, it zips about as if the wind were tugging its tail.",
+      "image": "assets/sprites/Let/LET04.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET05",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Steam"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Wrapped in gentle vapor, it fogs up anything it noses with cheerful puffs.",
+      "image": "assets/sprites/Let/LET05.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET06",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Lava"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Veined with molten glow, it tiptoes carefully, leaving freckles of heat behind.",
+      "image": "assets/sprites/Let/LET06.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET07",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Lightning"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Quick as a wink, tiny sparks hop between its whiskers when it giggles.",
+      "image": "assets/sprites/Let/LET07.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET08",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Mud"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Mirthful and splattery, it decorates friends and footpaths with muddy polka-dots.",
+      "image": "assets/sprites/Let/LET08.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET09",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Ice"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Cool to the touch, it scribbles frosty doodles wherever it pauses.",
+      "image": "assets/sprites/Let/LET09.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET10",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Dust"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Dune-dusted and spry, a little swirl of grit trails every skip and hop.",
+      "image": "assets/sprites/Let/LET10.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET11",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Crystal"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Facet-bright and curious, it catches light and tosses it back in rainbow shards.",
+      "image": "assets/sprites/Let/LET11.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET12",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Plant"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Leaf-fringed and sunny, small blossoms seem to follow wherever it settles.",
+      "image": "assets/sprites/Let/LET12.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET13",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Poison"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Sweet-sour and sly, a violet haze twinkles in its footsteps—look, don’t lick.",
+      "image": "assets/sprites/Let/LET13.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET14",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Spirit"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Half here, half hush, it peeks from the corner of your eye and waves anyway.",
+      "image": "assets/sprites/Let/LET14.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET15",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Dark"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Shadow-soft with ruby eyes, it plays hide-and-seek even at noon.",
+      "image": "assets/sprites/Let/LET15.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET16",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Light"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Softly radiant, it turns hallways into little dawns as it toddles by.",
+      "image": "assets/sprites/Let/LET16.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      }
+    },
+    {
+      "id": "LET17",
+      "name": "Let",
+      "family": "Let",
+      "types": [
+        "Blood"
+      ],
+      "rarity": "Common",
+      "variant": [],
+      "description": "Red-warm and steady, you can almost hear a comforting heartbeat when it cuddles.",
+      "image": "assets/sprites/Let/LET17.png",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
       }
     }
   ],
-  "types": [
-    {
-      "id": "T001",
-      "name": "Fire",
-      "description": "Born of flame; passionate and volatile."
-    },
-    {
-      "id": "T002",
-      "name": "Water",
-      "description": "Fluid and adaptive; calm or crushing."
-    },
-    {
-      "id": "T003",
-      "name": "Earth",
-      "description": "Sturdy and grounded; unyielding."
-    },
-    {
-      "id": "T004",
-      "name": "Air",
-      "description": "Swift and elusive; ever-moving."
-    },
-    {
-      "id": "T005",
-      "name": "Steam",
-      "description": "Vapor between fire and water; shifting."
-    },
-    {
-      "id": "T006",
-      "name": "Lava",
-      "description": "Molten rock; searing and heavy."
-    },
-    {
-      "id": "T007",
-      "name": "Lightning",
-      "description": "Charged and sudden; crackling power."
-    },
-    {
-      "id": "T008",
-      "name": "Mud",
-      "description": "Thick and stubborn mix of earth and water."
-    },
-    {
-      "id": "T009",
-      "name": "Ice",
-      "description": "Cold precision; frozen beauty."
-    },
-    {
-      "id": "T010",
-      "name": "Dust",
-      "description": "Ancient grit; whisper of ruins."
-    },
-    {
-      "id": "T011",
-      "name": "Crystal",
-      "description": "Faceted and arcane; refractive."
-    },
-    {
-      "id": "T012",
-      "name": "Plant",
-      "description": "Living growth; verdant and resilient."
-    },
-    {
-      "id": "T013",
-      "name": "Poison",
-      "description": "Toxic and corrosive; silent threat."
-    },
-    {
-      "id": "T014",
-      "name": "Spirit",
-      "description": "Ethereal and liminal; otherworldly."
-    },
-    {
-      "id": "T015",
-      "name": "Dark",
-      "description": "Veiled and secret; devours light."
-    },
-    {
-      "id": "T016",
-      "name": "Light",
-      "description": "Radiant and pure; revealing."
-    },
-    {
-      "id": "T017",
-      "name": "Blood",
-      "description": "Vital and primal; life-bound myth."
-    }
-  ]
+  "classes": {
+    "Let": "Tiny elemental sprites, each a playful embodiment of their element. Known for their curiosity and mischief, Lets flit about, leaving traces of their essence in their wake.",
+    "Mane": "Sprout-like tricksters, said to spring from the soil where magic seeps. They embody growth and playfulness, taking on different forms depending on their elemental nature.",
+    "Pip": "Pips are dragonlings of pure element, small in stature but fierce in spirit. They are curious, loyal, and mischievous, often following adventurers as companions. Each Pip reflects its elemental heart, with scales, tails, or frills shaped by fire, water, earth, and beyond.",
+    "Horn": "Horns are stocky guardians, born with elemental crests that grow into mighty symbols of strength. Fierce yet loyal, they’re known for their determination in battle and their instinct to protect their kin. Each Horn’s crest and hide reflect the element that fuels its spirit.",
+    "Mask": "Masks are enigmatic spirits bound to carved visages of elemental power. The mask they bear is more than decoration — it is their true face, etched with runes, cracks, and glowing veins that reveal the force within. Masks are rare and often seen as omens, appearing at the edges of mortal realms to watch, guide, or haunt.",
+    "Wing": "Wings are skyborn dragonkin revered as heralds of the horizon. Their flight stirs weather and wonder alike—embers, frost, and starlight are said to follow in their wake. Legends claim the first dawn rose from a Wing’s cry.",
+    "Kin": "Kins are cyclopean elementals shaped like lithe deer—emissaries of raw nature. They wander between realms as omens and guides, their forms shifting with the element they embody."
+  }
 }

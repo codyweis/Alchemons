@@ -1,6 +1,5 @@
 // utils/creature_filter_utils.dart
 import 'package:flutter/material.dart';
-import '../models/creature.dart';
 import '../database/alchemons_db.dart';
 import '../services/creature_repository.dart';
 
@@ -84,9 +83,9 @@ class CreatureFilterUtils {
           comparison = a.level.compareTo(b.level);
           break;
         case 'Rarity':
-          comparison = _getRarityOrder(
+          comparison = getRarityOrder(
             creatureA.rarity,
-          ).compareTo(_getRarityOrder(creatureB.rarity));
+          ).compareTo(getRarityOrder(creatureB.rarity));
           break;
         case 'Type':
           comparison = creatureA.types.first.compareTo(creatureB.types.first);
@@ -102,7 +101,7 @@ class CreatureFilterUtils {
     return filtered;
   }
 
-  static int _getRarityOrder(String rarity) {
+  static int getRarityOrder(String rarity) {
     switch (rarity.toLowerCase()) {
       case 'common':
         return 0;

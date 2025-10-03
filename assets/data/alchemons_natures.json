@@ -28,12 +28,12 @@
     {
       "id": "Homotypic",
       "dominance": 1,
-      "effect": { "breed_same_type_chance_mult": 1.25 }
+      "effect": { "breed_same_type_chance_mult": 1.50 }
     },
     {
       "id": "Heterotypic",
       "dominance": 1,
-      "effect": { "breed_same_type_chance_mult": 0.75 }
+      "effect": { "breed_same_type_chance_mult": 0.50 }
     },
     {
       "id": "Precocial",

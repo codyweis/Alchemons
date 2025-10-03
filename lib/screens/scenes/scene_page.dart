@@ -1,5 +1,8 @@
 // lib/screens/scenes/scene_page.dart
+import 'dart:math' as math;
+
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/valley_pool.dart';
 import 'package:alchemons/screens/encounter/encounter_screen.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -25,10 +28,13 @@ class ScenePage extends StatefulWidget {
   State<ScenePage> createState() => _ScenePageState();
 }
 
-class _ScenePageState extends State<ScenePage> {
+class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   late SceneGame _game;
   late EncounterService _encounters;
   bool _resolverHooked = false; // only hook resolver once
+
+  late AnimationController _encounterCtrl;
+  bool _transitioning = false; // overlay on/off
 
   @override
   void initState() {
@@ -49,31 +55,42 @@ class _ScenePageState extends State<ScenePage> {
     );
     _game.attachEncounters(_encounters);
 
+    // NEW: encounter cinematic
+    _encounterCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650), // out
+      reverseDuration: const Duration(milliseconds: 520), // in
+    );
+
     // lib/screens/scenes/scene_page.dart
+    // _game.onStartEncounter = (speciesId, hydrated) async {
+    //   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    //   _game.pauseEngine();
+    //   final result = await Navigator.push<EncounterResult>(
+    //     context,
+    //     MaterialPageRoute(
+    //       builder: (_) => EncounterPage(
+    //         speciesId: speciesId,
+    //         party: widget.party, // your PartyMember list
+    //         hydrated: hydrated,
+    //       ),
+    //     ),
+    //   );
+    //   _game.resumeEngine();
+    //   SystemChrome.setPreferredOrientations([
+    //     DeviceOrientation.landscapeLeft,
+    //     DeviceOrientation.landscapeRight,
+    //   ]);
+
+    //   if (result == EncounterResult.bred) {
+    //     _game.clearWild();
+    //   }
+    // };
     _game.onStartEncounter = (speciesId, hydrated) async {
-      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-      _game.pauseEngine();
-      final result = await Navigator.push<EncounterResult>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => EncounterPage(
-            speciesId: speciesId,
-            party: widget.party, // your PartyMember list
-            hydrated: hydrated,
-          ),
-        ),
-      );
-      _game.resumeEngine();
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-
-      if (result == EncounterResult.bred) {
-        _game.clearWild();
-      }
+      // If your engine guarantees this is a Creature, cast once:
+      final creature = hydrated as Creature;
+      await _startEncounterWithTransition(speciesId, creature);
     };
-
     _game.onEncounter = (roll) {
       // Handle the encounter event
     };
@@ -87,7 +104,50 @@ class _ScenePageState extends State<ScenePage> {
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
+    _encounterCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _startEncounterWithTransition(
+    String speciesId,
+    Creature hydrated,
+  ) async {
+    // OUT: shake + fade to black
+    _transitioning = true;
+    setState(() {});
+    HapticFeedback.mediumImpact();
+    await _encounterCtrl.forward(); // 0 -> 1
+
+    // Switch to portrait & pause while fully black
+    await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    _game.pauseEngine();
+
+    final result = await Navigator.push<EncounterResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EncounterPage(
+          speciesId: speciesId,
+          party: widget.party,
+          hydrated: hydrated,
+        ),
+      ),
+    );
+
+    // Back to scene: resume behind black, then fade in
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    _game.resumeEngine();
+
+    // IN: fade from black + tiny settle shake
+    await _encounterCtrl.reverse(); // 1 -> 0
+    _transitioning = false;
+    if (mounted) setState(() {});
+
+    if (result == EncounterResult.bred) {
+      _game.clearWild();
+    }
   }
 
   Future<void> _maybeRestoreWaterParty() async {
@@ -136,7 +196,79 @@ class _ScenePageState extends State<ScenePage> {
         return Scaffold(
           body: Stack(
             children: [
-              GameWidget(game: _game),
+              // 1) GAME + screen shake
+              AnimatedBuilder(
+                animation: _encounterCtrl,
+                child: GameWidget(game: _game),
+                builder: (_, child) {
+                  final v = _encounterCtrl.value; // 0..1
+                  final phaseOut = Curves.easeOutCubic.transform(v);
+                  final phaseIn = Curves.easeOutCubic.transform(1 - v);
+                  final outAmp = (1 - phaseOut) * 12.0; // px
+                  final inAmp = (1 - phaseIn) * 4.0; // px
+                  final amp = _encounterCtrl.status == AnimationStatus.reverse
+                      ? inAmp
+                      : outAmp;
+
+                  final t = v;
+                  final dx = math.sin(t * math.pi * 14) * amp;
+                  final dy = math.cos(t * math.pi * 11) * amp * 0.7;
+                  final rot = math.sin(t * math.pi * 9) * (amp * 0.0022);
+
+                  return Transform.translate(
+                    offset: Offset(dx, dy),
+                    child: Transform.rotate(angle: rot, child: child),
+                  );
+                },
+              ),
+
+              // 2) SINGLE overlay: fade-to-black + vignette
+              AnimatedBuilder(
+                animation: _encounterCtrl,
+                builder: (_, __) {
+                  final v = _encounterCtrl.value;
+                  final black = const Interval(
+                    0.15,
+                    1.0,
+                    curve: Curves.easeInExpo,
+                  ).transform(v);
+                  if (!_transitioning && black == 0)
+                    return const SizedBox.shrink();
+                  return IgnorePointer(
+                    ignoring: true,
+                    child: Stack(
+                      children: [
+                        // base blackout layer
+                        Positioned.fill(
+                          child: Opacity(
+                            opacity: black,
+                            child: const ColoredBox(color: Colors.black),
+                          ),
+                        ),
+                        // vignette on top
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                center: Alignment.center,
+                                radius: 1.15,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(black * 0.65),
+                                  Colors.black.withOpacity(black),
+                                ],
+                                stops: const [0.45, 0.78, 1.0],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
+              // Back button
               SafeArea(
                 child: Align(
                   alignment: Alignment.topLeft,
