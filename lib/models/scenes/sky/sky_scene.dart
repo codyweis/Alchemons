@@ -4,31 +4,25 @@ import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:flame/components.dart';
 
-final volcanoScene = SceneDefinition(
-  worldWidth: 1500,
+final skyScene = SceneDefinition(
+  worldWidth: 1600,
   worldHeight: 850,
   layers: [
     LayerDefinition(
       id: SceneLayer.layer1,
-      imagePath: 'backgrounds/scenes/volcano/background.png',
+      imagePath: 'backgrounds/scenes/sky/sky.png',
       parallaxFactor: 0.0,
       widthMul: 1.0,
     ),
     LayerDefinition(
       id: SceneLayer.layer2,
-      imagePath: 'backgrounds/scenes/volcano/volcano.png',
+      imagePath: 'backgrounds/scenes/sky/midground.png',
       parallaxFactor: 0.1,
       widthMul: 1.0,
     ),
     LayerDefinition(
       id: SceneLayer.layer3,
-      imagePath: 'backgrounds/scenes/volcano/midground.png',
-      parallaxFactor: 0.4,
-      widthMul: 1.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer4,
-      imagePath: 'backgrounds/scenes/volcano/foreground.png',
+      imagePath: 'backgrounds/scenes/sky/foreground.png',
       parallaxFactor: 0.7,
       widthMul: 1.0,
     ),
@@ -37,13 +31,7 @@ final volcanoScene = SceneDefinition(
     SpawnPoint(
       id: 'SP_volcano_01',
       normalizedPos: const Offset(0.40, 0.65),
-      anchor: SceneLayer.layer4,
-      size: Vector2(80, 80),
-    ),
-    SpawnPoint(
-      id: 'SP_volcano_02',
-      normalizedPos: const Offset(0.58, 0.80),
-      anchor: SceneLayer.layer4,
+      anchor: SceneLayer.layer3,
       size: Vector2(80, 80),
     ),
   ],
