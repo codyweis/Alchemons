@@ -1,4 +1,6 @@
+// EncounterPage (updated)
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart' as db;
@@ -15,6 +17,8 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:alchemons/utils/nature_utils.dart';
+import 'package:alchemons/widgets/badges/badge_widget.dart';
+import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
@@ -44,7 +48,6 @@ class _EncounterPageState extends State<EncounterPage>
   PartyMember? _selected;
   bool _isBreeding = false;
   late AnimationController _glowController;
-  late AnimationController _pulseController;
 
   @override
   void initState() {
@@ -53,17 +56,11 @@ class _EncounterPageState extends State<EncounterPage>
       duration: const Duration(milliseconds: 1800),
       vsync: this,
     )..repeat(reverse: true);
-
-    _pulseController = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _glowController.dispose();
-    _pulseController.dispose();
     super.dispose();
   }
 
@@ -74,7 +71,7 @@ class _EncounterPageState extends State<EncounterPage>
     final (primaryColor, _, accentColor) = getFactionColors(currentFaction);
     final repo = context.read<CreatureRepository>();
     final base = repo.getCreatureById(widget.speciesId);
-    final visual = widget.hydrated ?? base;
+    final wild = widget.hydrated ?? base;
 
     return WillPopScope(
       onWillPop: () async {
@@ -82,80 +79,97 @@ class _EncounterPageState extends State<EncounterPage>
         return false;
       },
       child: Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                const Color(0xFF0B0F14).withOpacity(0.96),
-                const Color(0xFF0B0F14).withOpacity(0.92),
-              ],
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                _buildHeader(accentColor),
-                _buildWildCreatureDisplay(visual, accentColor),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
+        backgroundColor: const Color(0xFF0B0F14),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                child: _GlassContainer(
+                  accentColor: accentColor,
+                  glowController: _glowController,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
                       children: [
-                        _buildEncounterInfo(visual, accentColor),
-                        if (_selected != null)
-                          _buildCompatibilityPanel(
-                            visual,
-                            _selected!,
-                            accentColor,
+                        _IconButton(
+                          icon: Icons.arrow_back_rounded,
+                          accentColor: accentColor,
+                          onTap: () =>
+                              Navigator.pop(context, EncounterResult.ran),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'ENCOUNTER',
+                            style: _TextStyles.headerTitle,
                           ),
-                        _buildPartySection(accentColor),
+                        ),
+                        GlowingIcon(
+                          icon: Icons.pets_outlined,
+                          color: accentColor,
+                          controller: _glowController,
+                          dialogTitle: "Wild Creature",
+                          dialogMessage:
+                              "This is the wild creature you are attempting to breed with. Select a suitable partner from your party below.",
+                        ),
                       ],
                     ),
                   ),
                 ),
-                _buildActionButtons(accentColor),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(Color accentColor) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      child: _GlassContainer(
-        accentColor: accentColor,
-        glowController: _glowController,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              _IconButton(
-                icon: Icons.arrow_back_rounded,
-                accentColor: accentColor,
-                onTap: () => Navigator.pop(context, EncounterResult.ran),
               ),
-              const SizedBox(width: 12),
+
+              // Content
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   children: [
-                    Text('FIELD ENCOUNTER', style: _TextStyles.headerTitle),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Wild specimen breeding opportunity',
-                      style: _TextStyles.headerSubtitle,
+                    // Wild hero
+                    _WildHeroSection(wild: wild),
+
+                    const SizedBox(height: 10),
+
+                    // Pick partner
+                    _SectionCard(
+                      title: 'Select A Breeding Specimen',
+                      icon: Icons.groups_outlined,
+                      accent: accentColor,
+                      child: SizedBox(
+                        height: 168,
+                        child: _PartyStrip(
+                          party: widget.party,
+                          selected: _selected,
+                          onPick: (p) => setState(() => _selected = p),
+                        ),
+                      ),
                     ),
+
+                    const SizedBox(height: 10),
+
+                    // Stats (wild + selected partner)
+                    _SectionCard(
+                      title: 'Info',
+                      icon: Icons.analytics_outlined,
+                      accent: Colors.tealAccent.shade400,
+                      child: _StatsPanel(wild: wild, selection: _selected),
+                    ),
+
+                    const SizedBox(height: 80), // space above sticky footer
                   ],
                 ),
               ),
-              _GlowingIcon(
-                icon: Icons.explore_rounded,
-                color: accentColor,
-                controller: _glowController,
+
+              // Sticky footer
+              _FooterBar(
+                busy: _isBreeding,
+                enabled: _selected != null && !_isBreeding,
+                primaryColor: primaryColor,
+                onBreed: _selected == null
+                    ? null
+                    : () => _handleBreed(context, _selected!),
+                onAbort: () => Navigator.pop(context, EncounterResult.ran),
               ),
             ],
           ),
@@ -164,348 +178,7 @@ class _EncounterPageState extends State<EncounterPage>
     );
   }
 
-  Widget _buildWildCreatureDisplay(Creature? visual, Color accentColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: _GlassContainer(
-        accentColor: Colors.purple.shade400,
-        glowController: _glowController,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Text(
-                'Wild Specimen',
-                style: TextStyle(
-                  color: _TextStyles.mutedText,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 8),
-              AnimatedBuilder(
-                animation: _pulseController,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: 1.0 + (_pulseController.value * 0.05),
-                    child: child,
-                  );
-                },
-                child: _WildPreviewBox(creature: visual),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                visual?.name ?? 'Unknown Species',
-                style: _TextStyles.wildCreatureName,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 6),
-              if (visual?.types.isNotEmpty == true)
-                _TypeBadges(types: visual!.types),
-              const SizedBox(height: 6),
-              _RarityBadge(rarity: visual?.rarity ?? 'Unknown'),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEncounterInfo(Creature? visual, Color accentColor) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-      child: _GlassContainer(
-        accentColor: accentColor,
-        glowController: _glowController,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.science_outlined, color: accentColor, size: 16),
-                  const SizedBox(width: 8),
-                  Text('Breeding Opportunity', style: _TextStyles.sectionTitle),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Subject ${visual?.name ?? 'specimen'} is displaying breeding readiness. Cross-breeding with your team may yield valuable offspring for research.',
-                style: _TextStyles.description,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompatibilityPanel(
-    Creature? wild,
-    PartyMember partner,
-    Color accentColor,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-      child: _GlassContainer(
-        accentColor: Colors.green.shade400,
-        glowController: _glowController,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.biotech_outlined,
-                    color: Colors.green.shade400,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Compatibility Analysis',
-                    style: _TextStyles.sectionTitle,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              FutureBuilder<db.CreatureInstance?>(
-                future: context.read<AlchemonsDatabase>().getInstance(
-                  partner.instanceId,
-                ),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final instance = snapshot.data!;
-                  final repo = context.read<CreatureRepository>();
-                  final partnerCreature = repo.getCreatureById(instance.baseId);
-
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: _CompatibilityCard(
-                          title: 'Wild',
-                          creature: wild,
-                          color: Colors.purple.shade400,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            colors: [
-                              Colors.green.shade400.withOpacity(0.3),
-                              Colors.transparent,
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.green.shade400.withOpacity(0.5),
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.science,
-                          color: Colors.green.shade400,
-                          size: 16,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _CompatibilityCard(
-                          title: 'Team',
-                          creature: partnerCreature,
-                          color: Colors.blue.shade400,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPartySection(Color accentColor) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-      child: _GlassContainer(
-        accentColor: accentColor,
-        glowController: _glowController,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.groups_outlined, color: accentColor, size: 16),
-                  const SizedBox(width: 8),
-                  Text('Select Partner', style: _TextStyles.sectionTitle),
-                  const Spacer(),
-                  if (_selected != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade400.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: Colors.green.shade400.withOpacity(0.5),
-                        ),
-                      ),
-                      child: Text(
-                        'Selected',
-                        style: TextStyle(
-                          color: Colors.green.shade400,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 160,
-                child: _PartyGrid(
-                  party: widget.party,
-                  selected: _selected,
-                  onPick: (p) => setState(() => _selected = p),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButtons(Color accentColor) {
-    final canBreed = _selected != null && !_isBreeding;
-
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.18),
-            border: Border(
-              top: BorderSide(color: accentColor.withOpacity(0.35)),
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: GestureDetector(
-                  onTap: canBreed
-                      ? () => _handleBreed(context, _selected!)
-                      : null,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: canBreed
-                          ? Colors.green.shade600
-                          : Colors.grey.shade700,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: canBreed
-                          ? [
-                              BoxShadow(
-                                color: Colors.green.shade400.withOpacity(0.4),
-                                blurRadius: 12,
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_isBreeding) ...[
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                        ] else ...[
-                          const Icon(
-                            Icons.science_outlined,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        Text(
-                          _isBreeding ? 'Processing...' : 'Initiate Breeding',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(context, EncounterResult.ran),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withOpacity(0.25)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.close_outlined,
-                          color: _TextStyles.softText,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Abort',
-                          style: TextStyle(
-                            color: _TextStyles.softText,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
+  // ----- breeding logic unchanged (snipped for brevity, keep your existing _handleBreed / dialogs) -----
   Future<void> _handleBreed(BuildContext context, PartyMember partner) async {
     setState(() => _isBreeding = true);
 
@@ -517,9 +190,11 @@ class _EncounterPageState extends State<EncounterPage>
     final stamina = context.read<StaminaService>();
 
     bool spinnerOpen = false;
-    Future<void> openSpinner() async {
+    void openSpinner() {
+      if (spinnerOpen) return;
       spinnerOpen = true;
-      await showDialog(
+      // NOTE: do NOT await this
+      showDialog(
         context: context,
         barrierDismissible: false,
         useRootNavigator: true,
@@ -528,10 +203,9 @@ class _EncounterPageState extends State<EncounterPage>
     }
 
     void closeSpinnerIfOpen() {
-      if (spinnerOpen) {
-        spinnerOpen = false;
-        Navigator.of(context, rootNavigator: true).pop();
-      }
+      if (!spinnerOpen) return;
+      spinnerOpen = false;
+      Navigator.of(context, rootNavigator: true).pop();
     }
 
     try {
@@ -640,12 +314,13 @@ class _EncounterPageState extends State<EncounterPage>
         placedIndex = free.id;
       }
 
-      final waterPerk1 = factions.perk1Active && factions.isWater();
+      final factionsSvc = context.read<FactionService>();
+      final waterPerk1 = factionsSvc.perk1Active && factionsSvc.isWater();
       final partnerIsWater =
           (repo.getCreatureById(inst.baseId)?.types.contains('Water') ?? false);
       final wildIsWater = wild.types.contains('Water');
 
-      final skipStamina = factions.waterSkipBreedStamina(
+      final skipStamina = factionsSvc.waterSkipBreedStamina(
         bothWater: partnerIsWater && wildIsWater,
         perk1: waterPerk1,
       );
@@ -705,7 +380,487 @@ class _EncounterPageState extends State<EncounterPage>
   }
 }
 
-// ==================== REUSABLE COMPONENTS ====================
+// ------------------------------------------------------------
+// UI Pieces
+// ------------------------------------------------------------
+
+class _WildHeroSection extends StatelessWidget {
+  final Creature? wild;
+  const _WildHeroSection({required this.wild});
+
+  @override
+  Widget build(BuildContext context) {
+    final Genetics? g = wild?.genetics;
+    final tintBorder = _tintSwatchColor(g) ?? Colors.purple.shade400;
+
+    final wildNature = wild?.nature?.id ?? '—';
+    final wildSize = _sizeName(wild?.genetics);
+    final wildTint = _tintName(wild?.genetics);
+
+    return _SectionCard(
+      title: 'Wild Specimen',
+      icon: Icons.pets_outlined,
+      accent: tintBorder,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _WildPreviewBox(creature: wild, borderColor: tintBorder),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  wild?.name ?? 'Unknown Species',
+                  style: _TextStyles.wildCreatureName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _StatChip(
+                      icon: Icons.psychology,
+                      label: 'Nature',
+                      value: wildNature,
+                    ),
+                    _StatChip(
+                      icon: Icons.height,
+                      label: 'Size',
+                      value: wildSize,
+                    ),
+                    _StatChip(
+                      icon: Icons.palette,
+                      label: 'Tint',
+                      value: wildTint,
+                      swatch: _TintDot(color: _tintSwatchColor(wild?.genetics)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    if (wild?.types.isNotEmpty == true)
+                      Expanded(child: TypeBadges(types: wild!.types)),
+                    const SizedBox(width: 8),
+                    RarityBadge(rarity: wild?.rarity ?? 'Unknown'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color accent;
+  final Widget child;
+
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.accent,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final glowController = AnimationController(
+      duration: const Duration(milliseconds: 1),
+      vsync: Navigator.of(context),
+    ); // static glow
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: _GlassContainer(
+        accentColor: accent,
+        glowController: glowController,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Icon(icon, size: 16, color: accent),
+                  const SizedBox(width: 8),
+                  Text(title.toUpperCase(), style: _TextStyles.sectionTitle),
+                ],
+              ),
+              const SizedBox(height: 10),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PartyStrip extends StatelessWidget {
+  final List<PartyMember> party;
+  final PartyMember? selected;
+  final ValueChanged<PartyMember> onPick;
+
+  const _PartyStrip({
+    required this.party,
+    required this.selected,
+    required this.onPick,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (party.isEmpty) {
+      return Center(
+        child: Text('No team members available', style: _TextStyles.hint),
+      );
+    }
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      itemCount: party.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 8),
+      itemBuilder: (context, i) {
+        final p = party[i];
+        final isSel = selected?.instanceId == p.instanceId;
+        return _PartyCard(member: p, selected: isSel, onTap: () => onPick(p));
+      },
+    );
+  }
+}
+
+class _FooterBar extends StatelessWidget {
+  final bool busy;
+  final bool enabled;
+  final Color primaryColor;
+  final VoidCallback? onBreed;
+  final VoidCallback onAbort;
+
+  const _FooterBar({
+    required this.busy,
+    required this.enabled,
+    required this.primaryColor,
+    required this.onBreed,
+    required this.onAbort,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.18),
+            border: Border(
+              top: BorderSide(color: Colors.white.withOpacity(.14)),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: GestureDetector(
+                  onTap: enabled ? onBreed : null,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      gradient: enabled
+                          ? LinearGradient(
+                              colors: [
+                                primaryColor.withOpacity(.95),
+                                primaryColor.withOpacity(.8),
+                              ],
+                            )
+                          : null,
+                      color: enabled ? null : Colors.grey.shade700,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(.18)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (busy)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                        else
+                          const Icon(
+                            Icons.science_outlined,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        const SizedBox(width: 8),
+                        Text(
+                          busy ? 'Processing...' : 'Initiate Breeding',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: onAbort,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.25)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.close_outlined,
+                          color: _TextStyles.softText,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text('Abort', style: _TextStyles.cardTitle),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Stats panel: partner with nature/size/tint and stamina.
+class _StatsPanel extends StatelessWidget {
+  final Creature? wild; // kept for callsite compatibility, not used here
+  final PartyMember? selection;
+  const _StatsPanel({required this.wild, required this.selection});
+
+  @override
+  Widget build(BuildContext context) {
+    if (selection == null) {
+      return Text(
+        'Select a partner to view detailed stats.',
+        style: _TextStyles.hint,
+      );
+    }
+
+    final repo = context.read<CreatureRepository>();
+    final adb = context.read<AlchemonsDatabase>();
+
+    return FutureBuilder<db.CreatureInstance?>(
+      future: adb.getInstance(selection!.instanceId),
+      builder: (context, snap) {
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+        }
+        final inst = snap.data!;
+        final base = repo.getCreatureById(inst.baseId);
+        final Genetics? g = _geneticsFromJson(inst.geneticsJson);
+        final partnerName = base?.name ?? inst.baseId;
+        final nature = inst.natureId ?? base?.nature?.id ?? '—';
+        final size = _sizeName(g);
+        final tint = _tintName(g);
+        final stamina = inst.staminaBars;
+        final maxStamina = inst.staminaMax;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _StatsRowHeader(label: 'Partner'),
+            const SizedBox(height: 8),
+            _EntityStatsRow(
+              preview: _TintedSpritePreview(
+                spritePath: base?.spriteData?.spriteSheetPath,
+                frames: base?.spriteData?.totalFrames ?? 1,
+                rows: base?.spriteData?.rows ?? 1,
+                frameW: base?.spriteData?.frameWidth?.toDouble() ?? 64,
+                frameH: base?.spriteData?.frameHeight?.toDouble() ?? 64,
+                genetics: g,
+                prismatic: inst.isPrismaticSkin == true,
+              ),
+              name: partnerName,
+              chips: [
+                _StatChip(
+                  icon: Icons.psychology,
+                  label: 'Nature',
+                  value: nature,
+                ),
+                _StatChip(icon: Icons.height, label: 'Size', value: size),
+                _StatChip(
+                  icon: Icons.palette,
+                  label: 'Tint',
+                  value: tint,
+                  swatch: _TintDot(color: _tintSwatchColor(g)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _StaminaBar(current: stamina, max: maxStamina),
+                ),
+                const SizedBox(width: 8),
+                Text('$stamina/$maxStamina', style: _TextStyles.cardSmallTitle),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+// ---------- Small stat building blocks ----------
+
+class _StatsRowHeader extends StatelessWidget {
+  final String label;
+  const _StatsRowHeader({required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(Icons.info_outline, size: 14, color: Colors.white.withOpacity(.8)),
+        const SizedBox(width: 6),
+        Text(label.toUpperCase(), style: _TextStyles.sectionTitle),
+      ],
+    );
+  }
+}
+
+class _DividerThin extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(height: 1, color: Colors.white.withOpacity(.08));
+  }
+}
+
+class _EntityStatsRow extends StatelessWidget {
+  final Widget preview;
+  final String name;
+  final List<Widget> chips;
+
+  const _EntityStatsRow({
+    required this.preview,
+    required this.name,
+    required this.chips,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        preview,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: _TextStyles.cardTitle),
+              const SizedBox(height: 6),
+              Wrap(spacing: 6, runSpacing: 6, children: chips),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Widget? swatch;
+
+  const _StatChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.swatch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.white.withOpacity(.85)),
+          const SizedBox(width: 6),
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              color: Color(0xFFB6C0CC),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFFE8EAED),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (swatch != null) ...[const SizedBox(width: 6), swatch!],
+        ],
+      ),
+    );
+  }
+}
+
+class _TintDot extends StatelessWidget {
+  final Color? color;
+  const _TintDot({this.color});
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? Colors.grey.shade500;
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
+        color: c,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1),
+      ),
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// Shared widgets (reused, with minor tweak to accept borderColor)
+// ------------------------------------------------------------
 
 class _GlassContainer extends StatelessWidget {
   final Widget child;
@@ -778,56 +933,18 @@ class _IconButton extends StatelessWidget {
   }
 }
 
-class _GlowingIcon extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final AnimationController controller;
-
-  const _GlowingIcon({
-    required this.icon,
-    required this.color,
-    required this.controller,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (_, __) {
-        final glow = 0.35 + controller.value * 0.4;
-        return Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [color.withOpacity(.3), Colors.transparent],
-            ),
-            border: Border.all(color: color.withOpacity(glow)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(glow * .4),
-                blurRadius: 20 + controller.value * 14,
-              ),
-            ],
-          ),
-          child: Icon(icon, size: 18, color: color),
-        );
-      },
-    );
-  }
-}
-
 class _WildPreviewBox extends StatelessWidget {
   final Creature? creature;
+  final Color borderColor;
 
-  const _WildPreviewBox({required this.creature});
+  const _WildPreviewBox({required this.creature, required this.borderColor});
 
   @override
   Widget build(BuildContext context) {
     if (creature?.spriteData == null) {
       return Container(
-        width: 100,
-        height: 100,
+        width: 110,
+        height: 110,
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.06),
           borderRadius: BorderRadius.circular(12),
@@ -839,15 +956,12 @@ class _WildPreviewBox extends StatelessWidget {
 
     final sd = creature!.spriteData!;
     return Container(
-      width: 100,
-      height: 100,
+      width: 110,
+      height: 110,
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.04),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.purple.shade400.withOpacity(0.5),
-          width: 2,
-        ),
+        border: Border.all(color: borderColor.withOpacity(0.6), width: 2),
       ),
       padding: const EdgeInsets.all(4),
       child: GameWidget(
@@ -868,178 +982,76 @@ class _WildPreviewBox extends StatelessWidget {
   }
 }
 
-class _TypeBadges extends StatelessWidget {
-  final List<String> types;
+/// A tiny sprite preview that tints/size-scales using Genetics.
+class _TintedSpritePreview extends StatelessWidget {
+  final String? spritePath;
+  final int frames;
+  final int rows;
+  final double frameW;
+  final double frameH;
+  final Genetics? genetics;
+  final bool prismatic;
 
-  const _TypeBadges({required this.types});
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      alignment: WrapAlignment.center,
-      children: types.map((type) {
-        final color = CreatureFilterUtils.getTypeColor(type);
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withOpacity(0.5)),
-          ),
-          child: Text(
-            type,
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _RarityBadge extends StatelessWidget {
-  final String rarity;
-
-  const _RarityBadge({required this.rarity});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _getRarityColor(rarity);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.star_border_outlined, color: color, size: 12),
-          const SizedBox(width: 4),
-          Text(
-            rarity,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getRarityColor(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common':
-        return Colors.grey.shade500;
-      case 'uncommon':
-        return Colors.green.shade400;
-      case 'rare':
-        return Colors.blue.shade400;
-      case 'epic':
-      case 'mythic':
-        return Colors.purple.shade400;
-      case 'legendary':
-        return Colors.orange.shade400;
-      default:
-        return Colors.grey.shade500;
-    }
-  }
-}
-
-class _CompatibilityCard extends StatelessWidget {
-  final String title;
-  final Creature? creature;
-  final Color color;
-
-  const _CompatibilityCard({
-    required this.title,
-    required this.creature,
-    required this.color,
+  const _TintedSpritePreview({
+    required this.spritePath,
+    required this.frames,
+    required this.rows,
+    required this.frameW,
+    required this.frameH,
+    required this.genetics,
+    required this.prismatic,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.5)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: _TextStyles.mutedText,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.6,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            creature?.name ?? 'Unknown',
-            style: TextStyle(
-              color: color,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
+  factory _TintedSpritePreview.fromCreature(Creature? c) {
+    final sd = c?.spriteData;
+    return _TintedSpritePreview(
+      spritePath: sd?.spriteSheetPath,
+      frames: sd?.totalFrames ?? 1,
+      rows: sd?.rows ?? 1,
+      frameW: (sd?.frameWidth ?? 64).toDouble(),
+      frameH: (sd?.frameHeight ?? 64).toDouble(),
+      genetics: c?.genetics,
+      prismatic: c?.isPrismaticSkin == true,
     );
   }
-}
-
-class _PartyGrid extends StatelessWidget {
-  final List<PartyMember> party;
-  final PartyMember? selected;
-  final ValueChanged<PartyMember> onPick;
-
-  const _PartyGrid({
-    required this.party,
-    required this.selected,
-    required this.onPick,
-  });
 
   @override
   Widget build(BuildContext context) {
-    if (party.isEmpty) {
-      return Center(
-        child: Text(
-          'No team members available',
-          style: _TextStyles.hint,
-          textAlign: TextAlign.center,
+    if (spritePath == null) {
+      return Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.06),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white.withOpacity(.18)),
         ),
+        child: Icon(Icons.image_not_supported, color: Colors.white54, size: 18),
       );
     }
 
-    return ListView.builder(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      itemCount: party.length,
-      itemBuilder: (context, i) {
-        final p = party[i];
-        final isSel = selected?.instanceId == p.instanceId;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: _PartyCard(member: p, selected: isSel, onTap: () => onPick(p)),
-        );
-      },
+    final border = _tintSwatchColor(genetics) ?? Colors.white24;
+
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: border.withOpacity(.7), width: 2),
+        color: Colors.white.withOpacity(.03),
+      ),
+      padding: const EdgeInsets.all(3),
+      child: GameWidget(
+        game: _OneSpriteGame(
+          spritePath: spritePath!,
+          frames: frames,
+          rows: rows,
+          frameSize: Vector2(frameW, frameH),
+          stepTime: .08,
+          genetics: genetics,
+          prismatic: prismatic,
+        ),
+      ),
     );
   }
 }
@@ -1063,7 +1075,7 @@ class _PartyCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 180),
         width: 120,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
@@ -1090,40 +1102,81 @@ class _PartyCard extends StatelessWidget {
           future: dbInstance.getInstance(member.instanceId),
           builder: (context, snap) {
             if (!snap.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              );
             }
-
             final inst = snap.data!;
             final base = repo.getCreatureById(inst.baseId);
             final displayName = base?.name ?? inst.baseId;
             final stamina = inst.staminaBars;
             final maxStamina = inst.staminaMax;
 
+            final sd = base?.spriteData;
+            final genetics = _geneticsFromJson(inst.geneticsJson);
+
             return Column(
               children: [
                 Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: base != null
-                            ? CreatureFilterUtils.getTypeColor(base.types.first)
-                            : Colors.grey.shade600,
-                        width: 2,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: base?.image != null
-                          ? Image.asset(
-                              'assets/images/${base!.image}',
-                              fit: BoxFit.cover,
-                            )
-                          : Icon(
-                              Icons.pets,
-                              color: _TextStyles.mutedText,
-                              size: 32,
+                  child: AspectRatio(
+                    aspectRatio:
+                        1, // keep it perfectly square like the wild preview
+                    child: Builder(
+                      builder: (context) {
+                        final sd = base?.spriteData;
+                        final genetics = _geneticsFromJson(inst.geneticsJson);
+                        final borderColor =
+                            _tintSwatchColor(genetics) ??
+                            (base != null
+                                ? CreatureFilterUtils.getTypeColor(
+                                    base.types.first,
+                                  )
+                                : Colors.grey.shade600);
+
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.04),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: borderColor.withOpacity(0.6),
+                              width: 2,
                             ),
+                          ),
+                          padding: const EdgeInsets.all(
+                            4,
+                          ), // same padding as wild box
+                          child: sd != null
+                              ? GameWidget(
+                                  game: _OneSpriteGame(
+                                    spritePath: sd.spriteSheetPath,
+                                    frames: sd.totalFrames,
+                                    rows: sd.rows,
+                                    frameSize: Vector2(
+                                      sd.frameWidth.toDouble(),
+                                      sd.frameHeight.toDouble(),
+                                    ),
+                                    stepTime: sd.frameDurationMs / 1000.0,
+                                    genetics: genetics,
+                                    prismatic: inst.isPrismaticSkin == true,
+                                  ),
+                                )
+                              : Container(
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(.03),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(.15),
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.image_not_supported,
+                                    color: _TextStyles.mutedText,
+                                    size: 24,
+                                  ),
+                                ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -1186,6 +1239,10 @@ class _StaminaBar extends StatelessWidget {
   }
 }
 
+// ------------------------------------------------------------
+// Dialog & Flame game (unchanged behavior)
+// ------------------------------------------------------------
+
 class _ResultDialog extends StatelessWidget {
   final Creature baby;
   final int? slotIndex;
@@ -1223,15 +1280,7 @@ class _ResultDialog extends StatelessWidget {
                   size: 32,
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  'Breeding Success!',
-                  style: TextStyle(
-                    color: _TextStyles.softText,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                  ),
-                ),
+                Text('Breeding Success!', style: _TextStyles.resultTitle),
                 const SizedBox(height: 12),
                 Text(
                   enqueued
@@ -1244,11 +1293,7 @@ class _ResultDialog extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     'Estimated development: ${_formatDuration(hatchIn!)}',
-                    style: TextStyle(
-                      color: _TextStyles.mutedText,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: _TextStyles.resultEta,
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -1335,7 +1380,65 @@ class _OneSpriteGame extends FlameGame {
   }
 }
 
-// ==================== TEXT STYLES ====================
+// ------------------------------------------------------------
+// Helpers (labels, genetics, tint color)
+// ------------------------------------------------------------
+
+const Map<String, String> _sizeLabels = {
+  'micro': 'Micro',
+  'small': 'Small',
+  'normal': 'Standard',
+  'large': 'Large',
+  'giant': 'Giant',
+};
+
+const Map<String, String> _tintLabels = {
+  'normal': 'Standard',
+  'warm': 'Warm',
+  'cool': 'Cool',
+  'vibrant': 'Vibrant',
+  'muted': 'Muted',
+  'ashen': 'Ashen',
+  'verdant': 'Verdant',
+  'fiery': 'Fiery',
+  'aqua': 'Aqua',
+};
+
+String _sizeName(Genetics? g) {
+  final raw = g?.get('size') ?? 'normal';
+  return _sizeLabels[raw] ?? _capitalize(raw);
+}
+
+String _tintName(Genetics? g) {
+  final raw = g?.get('tinting') ?? 'normal';
+  return _tintLabels[raw] ?? _capitalize(raw);
+}
+
+String _capitalize(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+Genetics? _geneticsFromJson(String? jsonStr) {
+  if (jsonStr == null || jsonStr.isEmpty) return null;
+  try {
+    final m = Map<String, dynamic>.from(jsonDecode(jsonStr));
+    return Genetics(m.map((k, v) => MapEntry(k, v.toString())));
+  } catch (_) {
+    return null;
+  }
+}
+
+Color? _tintSwatchColor(Genetics? g) {
+  if (g == null) return null;
+  final hue = hueFromGenes(g); // degrees
+  final sat = satFromGenes(g).clamp(0.0, 1.0);
+  final bri = briFromGenes(g).clamp(0.0, 1.0);
+  final h = ((hue % 360) + 360) % 360;
+  return HSVColor.fromAHSV(1.0, h, sat, math.max(.35, bri)).toColor();
+}
+
+// ------------------------------------------------------------
+// Text styles
+// ------------------------------------------------------------
 
 class _TextStyles {
   static const softText = Color(0xFFE8EAED);
@@ -1348,22 +1451,16 @@ class _TextStyles {
     letterSpacing: 0.8,
   );
 
-  static const headerSubtitle = TextStyle(
-    color: mutedText,
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-  );
-
   static const sectionTitle = TextStyle(
     color: softText,
-    fontSize: 13,
-    fontWeight: FontWeight.w700,
+    fontSize: 12.5,
+    fontWeight: FontWeight.w900,
     letterSpacing: 0.5,
   );
 
   static const wildCreatureName = TextStyle(
     color: softText,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: FontWeight.w900,
     letterSpacing: 0.5,
   );
@@ -1391,5 +1488,18 @@ class _TextStyles {
     color: softText,
     fontSize: 11,
     fontWeight: FontWeight.w700,
+  );
+
+  static const resultTitle = TextStyle(
+    color: softText,
+    fontSize: 18,
+    fontWeight: FontWeight.w800,
+    letterSpacing: 0.5,
+  );
+
+  static TextStyle get resultEta => TextStyle(
+    color: mutedText.withOpacity(.9),
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
   );
 }

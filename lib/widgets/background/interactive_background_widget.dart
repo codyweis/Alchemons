@@ -1,6 +1,11 @@
-import 'package:alchemons/models/faction.dart';
-import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:math' as math;
+
+import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/widgets/animations/shaders/fire_animation.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 class InteractiveBackground extends StatefulWidget {
   // Controllers are created/started by the parent (..repeat()).
@@ -43,10 +48,55 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
   double _rippleAnimation = 0.0;
   static const int maxParticles = 30;
 
+  // Live tilt (dx = tiltX, dy = tiltY), read by the water painter.
+  final ValueNotifier<Offset> _tilt = ValueNotifier<Offset>(Offset.zero);
+
+  StreamSubscription<AccelerometerEvent>? _accelSub;
+  double _tiltX = 0.0, _tiltY = 0.0; // internal smoothed state
+
   @override
   void initState() {
     super.initState();
     _initializeParticles();
+
+    const g = 9.81;
+
+    // Smoother low-pass + per-event step clamp to kill micro-jitter.
+    const lp = 0.06; // lower = smoother response
+    const maxStep = 0.02; // max change per sensor event
+
+    _accelSub =
+        accelerometerEventStream(
+          samplingPeriod:
+              SensorInterval.gameInterval, // try uiInterval if needed
+        ).listen((e) {
+          final tx = (e.x / g).clamp(-1.0, 1.0);
+          final ty = (-e.y / g).clamp(-1.0, 1.0);
+
+          // Exponential smoothing
+          final nx = _tiltX + (tx - _tiltX) * lp;
+          final ny = _tiltY + (ty - _tiltY) * lp;
+
+          // Clamp step to avoid tiny spikes
+          double clampStep(double from, double to) {
+            final d = to - from;
+            if (d > maxStep) return from + maxStep;
+            if (d < -maxStep) return from - maxStep;
+            return to;
+          }
+
+          _tiltX = clampStep(_tiltX, nx);
+          _tiltY = clampStep(_tiltY, ny);
+
+          // Notify painter with the new live tilt
+          _tilt.value = Offset(_tiltX, _tiltY);
+        });
+  }
+
+  @override
+  void dispose() {
+    _accelSub?.cancel();
+    super.dispose();
   }
 
   void _initializeParticles() {
@@ -55,7 +105,7 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
     }
   }
 
-  // ---- Helpers ----
+  // ---- Interaction helpers ----
   void _handleTapDown(TapDownDetails details) {
     setState(() {
       _lastTapPosition = details.localPosition;
@@ -115,26 +165,45 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
     final c = widget.waveController;
     switch (widget.factionType) {
       case FactionId.fire:
-        return RepaintBoundary(
-          child: CustomPaint(
-            painter: FirePainter(
-              controller: c,
-              speedFactor: widget.elementalSpeed,
-              primaryColor: widget.primaryColor,
-              secondaryColor: widget.secondaryColor,
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            RepaintBoundary(
+              child: CustomPaint(
+                painter: FirePainter(
+                  controller: c,
+                  speedFactor: widget.elementalSpeed,
+                  primaryColor: widget.primaryColor,
+                  secondaryColor: widget.secondaryColor,
+                ),
+                isComplex: true,
+                willChange: true,
+              ),
             ),
-            isComplex: true,
-            willChange: true,
-          ),
+            Visibility(
+              visible:
+                  defaultTargetPlatform != TargetPlatform.android &&
+                  (defaultTargetPlatform == TargetPlatform.iOS),
+              child: FireFX(
+                intensity: 1.15,
+                rise: 0.68,
+                turbulence: 1.25,
+                noiseScale: 2.0,
+                softEdge: 0.22,
+                speedFactor: 1.0,
+              ),
+            ),
+          ],
         );
       case FactionId.water:
         return RepaintBoundary(
           child: CustomPaint(
-            painter: WavePainter(
+            painter: RainSplashPainter(
               controller: c,
               speedFactor: widget.elementalSpeed,
               primaryColor: widget.primaryColor,
               secondaryColor: widget.secondaryColor,
+              tilt: _tilt, // live tilt
             ),
             isComplex: true,
             willChange: true,
@@ -156,11 +225,13 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
       case FactionId.earth:
         return RepaintBoundary(
           child: CustomPaint(
-            painter: EarthPainter(
+            painter: EarthPlantsPainter(
               controller: c,
               speedFactor: widget.elementalSpeed,
               primaryColor: widget.primaryColor,
               secondaryColor: widget.secondaryColor,
+              bandFraction: 0.25,
+              bandFeather: 0.08,
             ),
             isComplex: true,
             willChange: true,
@@ -301,26 +372,18 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
                   FadeTransition(opacity: anim, child: child),
               child: KeyedSubtree(
                 key: ValueKey(widget.factionType),
-                child: const SizedBox.expand(
-                  // ensure full constraints
-                  child: _FactionLayerProxy(),
-                ),
+                child: const SizedBox.expand(child: _FactionLayerProxy()),
               ),
             ),
           ),
-
-          // The proxy above renders the current faction effect behind the scenes
-          // keeping AnimatedSwitcher children simple & consistently sized.
-          // (See below _FactionLayerProxy)
         ],
       ),
     );
   }
 }
 
-/// We use a proxy so AnimatedSwitcher children are always the same widget
-/// type/size, avoiding re-layout flicker. It grabs the nearest
-/// InteractiveBackground state via context and paints the faction effect.
+/// Proxy so AnimatedSwitcher children are uniform.
+/// It grabs the nearest InteractiveBackground state and paints the faction effect.
 class _FactionLayerProxy extends StatelessWidget {
   const _FactionLayerProxy();
 
@@ -379,12 +442,10 @@ class InteractiveParticlePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // time from controller (monotonic seconds)
     final timeSeconds =
         (controller.lastElapsedDuration ?? Duration.zero).inMicroseconds / 1e6;
     final loop = timeSeconds - timeSeconds.floorToDouble();
 
-    // advance particles
     for (var particle in particles) {
       particle.update();
     }
@@ -426,7 +487,6 @@ class InteractiveParticlePainter extends CustomPainter {
     for (int i = 0; i < particles.length; i++) {
       final p = particles[i];
 
-      // Linear drift uses timeSeconds (no reset)
       final baseX =
           size.width / particles.length * i + timeSeconds * driftPerSecond;
       final baseY =
@@ -535,8 +595,8 @@ class FirePainter extends CustomPainter {
       final sway = _seededRandom(i, 2) * 60 - 30;
       final stagger = _seededRandom(i, 4);
 
-      final phase = t * speed + stagger; // continuous
-      final u = phase - phase.floor(); // 0..1
+      final phase = t * speed + stagger;
+      final u = phase - phase.floor();
 
       final x = randomX * size.width + math.sin(phase * 2 * math.pi) * sway;
 
@@ -580,102 +640,339 @@ class FirePainter extends CustomPainter {
   bool shouldRepaint(FirePainter oldDelegate) => true;
 }
 
-// ---------------------- WATER - Seamless rainfall ----------------------
+// ---------------------- WATER - Rain splashes (crown + jet + foam) ----------------------
 
-class WavePainter extends CustomPainter {
+class RainSplashPainter extends CustomPainter {
   final AnimationController controller;
   final double speedFactor;
   final Color primaryColor;
   final Color secondaryColor;
+  final ValueListenable<Offset> tilt;
 
-  WavePainter({
+  // --- NEW: tiny bit of persistent state for smoothing / integration
+  double _tiltXSmooth = 0.0;
+  double _tiltYSmooth = 0.0;
+  double _lastT = 0.0;
+  double _adv1Acc = 0.0; // integrated phase shift for wave 1
+  double _adv2Acc = 0.0; // integrated phase shift for wave 2
+
+  RainSplashPainter({
     required this.controller,
     required this.primaryColor,
     required this.secondaryColor,
+    required this.tilt,
     this.speedFactor = 1.0,
-  }) : super(repaint: controller);
+  }) : super(repaint: Listenable.merge([controller, tilt]));
 
   double _timeSeconds() =>
       (controller.lastElapsedDuration ?? Duration.zero).inMicroseconds / 1e6;
+
+  // helper
+  static double _ease01(double x) => x * x * (3 - 2 * x);
 
   @override
   void paint(Canvas canvas, Size size) {
     final t = _timeSeconds() * speedFactor;
 
-    for (int i = 0; i < 50; i++) {
-      final randomX = _seededRandom(i, 0);
-      final speed = 0.5 + _seededRandom(i, 1) * 0.5;
-      final sway = _seededRandom(i, 2) * 20 - 10;
-      final stagger = _seededRandom(i, 4);
+    // --- Smooth the live tilt with an exponential moving average
+    final raw = tilt.value;
+    final tiltX = raw.dx.clamp(-1.0, 1.0);
+    final tiltY = raw.dy.clamp(-1.0, 1.0);
 
-      final phase = t * speed + stagger;
+    // elapsed step (defensive against resets)
+    double dt = t - _lastT;
+    if (dt < 0 || dt > 0.25) dt = 0.0; // clamp large jumps
+    _lastT = t;
+
+    // time-constant ~120ms feels nice; smaller = snappier, larger = more floaty
+    const tau = 0.12;
+    final alpha = dt <= 0 ? 1.0 : (1 - math.exp(-dt / tau));
+
+    // optional mild deadzone to avoid micro-jitter near flat
+    double _deadzone(double v, [double d = 0.02]) => (v.abs() < d) ? 0.0 : v;
+
+    _tiltXSmooth += (_deadzone(tiltX) - _tiltXSmooth) * alpha;
+    _tiltYSmooth += (_deadzone(tiltY) - _tiltYSmooth) * alpha;
+
+    final easedTiltX = _ease01(_tiltXSmooth.abs()) * _tiltXSmooth.sign;
+    final easedTiltY = _ease01(_tiltYSmooth.abs()) * _tiltYSmooth.sign;
+
+    // ----- Pool layout (unchanged shape, but uses smoothed tilt Y)
+    const basePoolFraction = 0.22;
+    const poolFeather = 0.05;
+
+    final poolHeight = size.height * (basePoolFraction + easedTiltY * 0.02);
+    final baseTop = size.height - poolHeight;
+
+    // Slope from smoothed/eased tilt
+    final maxSlopePx = size.height * 0.2;
+    final slope = -(easedTiltX.clamp(-1.0, 1.0)) * maxSlopePx;
+
+    // Continuous “downhill” influence (no .sign snapping)
+    final downhill = easedTiltX; // [-1..1], not just {-1,0,1}
+
+    // Base linear waterline (no waves)
+    double _yLinear(double x) {
+      final tx = (x / size.width).clamp(0.0, 1.0);
+      final yL = baseTop + slope;
+      final yR = baseTop - slope;
+      return (1 - tx) * yL + tx * yR;
+    }
+
+    // ----- Traveling surface waves (same k/ω, but velocity is integrated)
+    final A1 = 6.0 + 4.0 * easedTiltX.abs();
+    final A2 = 3.5 + 2.0 * easedTiltX.abs();
+    final k1 = 2 * math.pi / 140.0;
+    final k2 = 2 * math.pi / 70.0;
+    final w1 = 2 * math.pi * 0.55;
+    final w2 = 2 * math.pi * 1.05;
+
+    // Continuous advection velocity (px/sec), direction from smoothed tilt
+    final v1 = (80.0 + 120.0 * easedTiltX.abs()) * downhill;
+    final v2 = (50.0 + 80.0 * easedTiltX.abs()) * downhill;
+
+    // Integrate phase shift: s(t) = ∫ v(τ) dτ  (prevents instant re-phasing)
+    _adv1Acc += v1 * dt;
+    _adv2Acc += v2 * dt;
+
+    double _ySurface(double x) {
+      final base = _yLinear(x);
+      final a = A1 * math.sin(k1 * (x + _adv1Acc) + w1 * t);
+      final b = A2 * math.sin(k2 * (x - _adv2Acc) - w2 * t);
+      return base + 0.6 * a + 0.4 * b;
+    }
+
+    final featherPx = size.height * poolFeather;
+    double _poolMask(double x, double y) {
+      final top = _ySurface(x);
+      if (y <= top) return 0.0;
+      if (y >= top + featherPx) return 1.0;
+      final f = (y - top) / featherPx;
+      return f * f * (3 - 2 * f);
+    }
+
+    // ----- Draw pool
+    final top = Path()..moveTo(0, _ySurface(0));
+    const step = 8.0;
+    for (double x = step; x <= size.width; x += step) {
+      top.lineTo(x, _ySurface(x));
+    }
+    final pool = Path.from(top)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final poolBounds = Rect.fromLTWH(
+      0,
+      baseTop,
+      size.width,
+      size.height - baseTop,
+    );
+    final poolPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          primaryColor.withOpacity(0.10),
+          primaryColor.withOpacity(0.18),
+          primaryColor.withOpacity(0.26),
+        ],
+        stops: const [0.0, 0.6, 1.0],
+      ).createShader(poolBounds);
+    canvas.drawPath(pool, poolPaint);
+
+    final crestPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..color = Colors.white.withOpacity(0.07);
+    canvas.drawPath(top, crestPaint);
+
+    // ----- Rain + splashes (keep behavior, but make wind continuous & softer)
+    const rainCount = 60;
+    const int maxActiveSplashes = 1;
+    int activeSplashes = 0;
+    final gateBucket = (t * 3).floor();
+    final keepProb = maxActiveSplashes / rainCount;
+
+    final fadeZone = size.height * 0.15;
+    final totalRange = size.height + fadeZone * 2;
+    final yStart = -fadeZone;
+
+    final rainPaint = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.0;
+    final jetPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final dropletPaint = Paint()..style = PaintingStyle.fill;
+    final foamStroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final foamBlob = Paint()
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
+    // Physics
+    const double g = 900.0;
+    const double jetVy0 = 0.0;
+    const double sideVy0 = 200.0;
+    const double sideVxMax = 150.0;
+    const double splashLifetime = 0.3;
+
+    for (int i = 0; i < rainCount; i++) {
+      final rx = _seededRandom(i, 0);
+      final speed = 0.50 + _seededRandom(i, 1) * 0.50;
+      final sway = _seededRandom(i, 2) * 20 - 10;
+      final stag = _seededRandom(i, 4);
+
+      final phase = t * speed + stag;
       final u = phase - phase.floor();
 
-      final x = randomX * size.width + math.sin(phase * math.pi) * sway;
+      // softer, continuous wind push
+      final wind = easedTiltX * 6.0; // was 10 and snapped by sign before
+      final xNow = rx * size.width + math.sin(phase * math.pi) * sway + wind;
+      final yNow = yStart + (u * totalRange);
 
-      final fadeZone = size.height * 0.15;
-      final totalRange = size.height + fadeZone * 2;
-      final yStart = -fadeZone;
-      final y = yStart + (u * totalRange);
+      if (yNow < size.height) {
+        double fade = 1.0;
+        if (yNow < fadeZone && yNow >= 0) {
+          fade = yNow / fadeZone;
+        } else if (yNow > size.height - fadeZone && yNow <= size.height) {
+          fade = (size.height - yNow) / fadeZone;
+        } else if (yNow < 0 || yNow > size.height) {
+          fade = 0.0;
+        }
 
-      final dropLength = 8.0 + _seededRandom(i, 3) * 4;
-
-      double fadeOpacity = 1.0;
-      if (y < fadeZone && y >= 0) {
-        fadeOpacity = y / fadeZone;
-      } else if (y > size.height - fadeZone && y <= size.height) {
-        fadeOpacity = (size.height - y) / fadeZone;
-      } else if (y < 0 || y > size.height) {
-        fadeOpacity = 0.0;
+        if (fade > 0) {
+          rainPaint.color = primaryColor.withOpacity(0.13 * fade);
+          final len = 9.0 + _seededRandom(i, 3) * 5;
+          canvas.drawLine(
+            Offset(xNow, yNow),
+            Offset(xNow, yNow + len),
+            rainPaint,
+          );
+        }
       }
 
-      if (fadeOpacity > 0) {
-        final rainPaint = Paint()
-          ..color = primaryColor.withOpacity(0.15 * fadeOpacity)
-          ..strokeWidth = 1
-          ..strokeCap = StrokeCap.round;
-        canvas.drawLine(Offset(x, y), Offset(x, y + dropLength), rainPaint);
+      // Impact timing (mean waterline)
+      final uHitFlat = (baseTop - yStart) / totalRange;
+      var du = u - uHitFlat;
+      if (du < 0) du += 1.0;
+
+      final periodSec = 1.0 / speed;
+      final dts = du * periodSec;
+
+      final gateRand = _seededRandom(i, 1000.0 + gateBucket);
+      final passGate = gateRand < keepProb;
+
+      if (dts <= splashLifetime &&
+          passGate &&
+          activeSplashes < maxActiveSplashes) {
+        activeSplashes++;
+        final life = (1.0 - dts / splashLifetime).clamp(0.0, 1.0);
+
+        // Impact position (using integrated wind at hit moment)
+        final phaseHit = (phase - u) + uHitFlat;
+        final xHit =
+            rx * size.width + math.sin(phaseHit * math.pi) * sway + wind;
+        final ySurf = _ySurface(xHit);
+        final origin = Offset(xHit, ySurf + 8.0);
+
+        // Central jet
+        final hJet = jetVy0 * dts - 0.5 * g * dts * dts;
+        if (hJet > 0) {
+          jetPaint
+            ..color = Color.lerp(
+              primaryColor,
+              Colors.white,
+              0.35,
+            )!.withOpacity(0.55 * life)
+            ..strokeWidth = 2.2 - 1.2 * (1 - life);
+          final lean = easedTiltX * 10.0; // continuous
+          canvas.drawLine(origin, origin.translate(lean, -hJet), jetPaint);
+        }
+
+        // Crown + droplets (unchanged except using helpers)
+        final crownR = 6.0 + 26.0 * (1.0 - life);
+        final crownA = math.pi * 0.45;
+
+        final crown = Path()
+          ..moveTo(
+            origin.dx - crownR * math.cos(crownA),
+            ySurf - crownR * 0.35 * math.sin(crownA),
+          );
+        for (double a = -crownA; a <= crownA; a += crownA / 10) {
+          final px = origin.dx + crownR * math.cos(a);
+          final py = ySurf - crownR * 0.35 * math.sin(a);
+          crown.lineTo(px, py);
+        }
+        final crownPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4 - 0.8 * (1 - life)
+          ..color = Color.lerp(
+            primaryColor,
+            Colors.white,
+            0.45,
+          )!.withOpacity(0.35 * life);
+        canvas.drawPath(crown, crownPaint);
+
+        for (int k = -2; k <= 2; k++) {
+          if (k == 0) continue;
+          final side = k.sign;
+          final idx = (i * 31 + k * 7);
+          final vx =
+              side * (0.45 + 0.55 * _seededRandom(idx, 7)) * sideVxMax * 0.8;
+          final vy = (0.65 + 0.35 * _seededRandom(idx, 8)) * sideVy0 * 0.9;
+
+          final x = origin.dx + vx * dts;
+          final y = origin.dy - (vy * dts - 0.5 * g * dts * dts);
+
+          if (y < _ySurface(x) - 2 && x > -10 && x < size.width + 10) {
+            final r = 1.2 + 0.9 * life + 0.4 * _seededRandom(idx, 10);
+            dropletPaint.color = Color.lerp(
+              primaryColor,
+              Colors.white,
+              0.50,
+            )!.withOpacity(0.55 * life);
+            canvas.drawCircle(Offset(x, y), r, dropletPaint);
+          }
+        }
+
+        final foamR = 5.0 + 22.0 * (1.0 - life);
+        final foamAlpha =
+            (_poolMask(origin.dx, origin.dy) * 0.75 + 0.25) * (life * life);
+
+        foamBlob.color = Colors.white.withOpacity(0.10 * foamAlpha);
+        canvas.drawCircle(Offset(xHit, ySurf + 6.0), foamR, foamBlob);
+
+        foamStroke
+          ..color = Colors.white.withOpacity(0.18 * foamAlpha)
+          ..strokeWidth = 1.1 + 0.6 * life;
+        canvas.drawCircle(Offset(xHit, ySurf + 6.0), foamR * 1.15, foamStroke);
       }
     }
 
-    final paint = Paint()
-      ..color = primaryColor.withOpacity(0.12)
-      ..style = PaintingStyle.fill;
-
-    final path = Path()..moveTo(0, size.height * 0.7);
-    for (double x = 0; x <= size.width; x += 10) {
-      final y =
-          size.height * 0.7 +
-          math.sin((x / size.width) * 4 * math.pi + t * 2 * math.pi) * 40;
-      path.lineTo(x, y);
+    // Sheen band (unchanged)
+    final sheenPath = Path()..moveTo(0, _ySurface(0) + 10);
+    for (double x = step; x <= size.width; x += step) {
+      sheenPath.lineTo(x, _ySurface(x) + 10);
     }
-    path
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(path, paint);
-
-    final paint2 = Paint()
-      ..color = secondaryColor.withOpacity(0.08)
-      ..style = PaintingStyle.fill;
-
-    final path2 = Path()..moveTo(0, size.height * 0.8);
-    for (double x = 0; x <= size.width; x += 10) {
-      final y =
-          size.height * 0.8 +
-          math.sin((x / size.width) * 3 * math.pi + t * 2 * math.pi + math.pi) *
-              35;
-      path2.lineTo(x, y);
-    }
-    path2
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(path2, paint2);
+    final sheenPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Colors.white.withOpacity(0.05), Colors.transparent],
+      ).createShader(Rect.fromLTWH(0, baseTop, size.width, 16));
+    canvas.drawPath(sheenPath, sheenPaint);
   }
 
   @override
-  bool shouldRepaint(WavePainter oldDelegate) => true;
+  bool shouldRepaint(RainSplashPainter old) =>
+      old.speedFactor != speedFactor ||
+      old.primaryColor != primaryColor ||
+      old.secondaryColor != secondaryColor;
 }
 
 // ---------------------- AIR - Seamless drifting clouds ----------------------
@@ -754,19 +1051,27 @@ class AirPainter extends CustomPainter {
   bool shouldRepaint(AirPainter oldDelegate) => true;
 }
 
-// ---------------------- EARTH - Seamless falling crystals ----------------------
+// ---------------------- EARTH - Seamless plants ----------------------
 
-class EarthPainter extends CustomPainter {
+class EarthPlantsPainter extends CustomPainter {
   final AnimationController controller;
   final double speedFactor;
   final Color primaryColor;
   final Color secondaryColor;
 
-  EarthPainter({
+  /// Bottom band where plants live (0..1 of the screen height).
+  final double bandFraction;
+
+  /// Soft fade thickness near the top of the band (0..1 of screen height).
+  final double bandFeather;
+
+  EarthPlantsPainter({
     required this.controller,
     required this.primaryColor,
     required this.secondaryColor,
     this.speedFactor = 1.0,
+    this.bandFraction = 0.25,
+    this.bandFeather = 0.08,
   }) : super(repaint: controller);
 
   double _timeSeconds() =>
@@ -776,81 +1081,174 @@ class EarthPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final t = _timeSeconds() * speedFactor;
 
-    for (int i = 0; i < 25; i++) {
-      final randomX = _seededRandom(i, 0);
-      final speed = 0.25 + _seededRandom(i, 1) * 0.3;
-      final sway = _seededRandom(i, 2) * 30 - 15;
-      final rotSpeed = 0.5 + _seededRandom(i, 3) * 1.0;
+    // ----- Layout band (bottom band where plants grow)
+    final bandHeight = size.height * bandFraction;
+    final bandTopY = size.height - bandHeight;
+    final bandFadePx = size.height * bandFeather;
+    final groundY = size.height - 2.0;
+
+    double _verticalBandFade(double y) {
+      if (y <= bandTopY) return 0.0;
+      if (y >= bandTopY + bandFadePx) return 1.0;
+      final x = (y - bandTopY) / bandFadePx;
+      return x * x * (3 - 2 * x);
+    }
+
+    final stemPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final leafPaint = Paint()..style = PaintingStyle.fill;
+    final budPaint = Paint()..style = PaintingStyle.fill;
+
+    final plantCount = (12 + size.width / 60).clamp(12, 26).toInt();
+
+    for (int i = 0; i < plantCount; i++) {
+      final baseX = _seededRandom(i, 0) * size.width;
+      final speed = 0.14 + _seededRandom(i, 1) * 0.16;
+      final swaySeed = (_seededRandom(i, 2) - 0.5);
+      final heightFrac = 0.55 + _seededRandom(i, 3) * 0.35;
       final stagger = _seededRandom(i, 4);
+      final hueMix = _seededRandom(i, 5);
 
       final phase = t * speed + stagger;
       final u = phase - phase.floor();
 
-      final x = randomX * size.width + math.sin(phase * math.pi) * sway;
+      final growIn = (u < 0.65)
+          ? _easeOutCubic((u / 0.65).clamp(0.0, 1.0))
+          : 1.0;
+      final fadeOut = (u > 0.85) ? ((u - 0.85) / 0.15).clamp(0.0, 1.0) : 0.0;
 
-      final fadeZone = size.height * 0.15;
-      final totalRange = size.height + fadeZone * 2;
-      final yStart = -fadeZone;
-      final y = yStart + (u * totalRange);
+      final h = (bandHeight - 10.0) * heightFrac;
+      final stemBase = Offset(baseX, groundY);
+      final stemTipY = (groundY - h);
 
-      final rotation = phase * math.pi * rotSpeed;
+      final swayA = swaySeed * 18.0 + math.sin(phase * 2 * math.pi) * 6.0;
+      final swayB =
+          -swaySeed * 14.0 + math.sin(phase * 1.5 * math.pi + 1.7) * 5.0;
+      final tipSway = swaySeed * 10.0 + math.sin(phase * 3.1) * 4.0;
+      final stemCtrl1 = Offset(baseX + swayA, groundY - h * 0.33);
+      final stemCtrl2 = Offset(baseX + swayB, groundY - h * 0.66);
+      final stemTip = Offset(baseX + tipSway, stemTipY);
 
-      double fadeOpacity = 1.0;
-      if (y < fadeZone && y >= 0) {
-        fadeOpacity = y / fadeZone;
-      } else if (y > size.height - fadeZone && y <= size.height) {
-        fadeOpacity = (size.height - y) / fadeZone;
-      } else if (y < 0 || y > size.height) {
-        fadeOpacity = 0.0;
-      }
+      final fullStem = Path()
+        ..moveTo(stemBase.dx, stemBase.dy)
+        ..cubicTo(
+          stemCtrl1.dx,
+          stemCtrl1.dy,
+          stemCtrl2.dx,
+          stemCtrl2.dy,
+          stemTip.dx,
+          stemTip.dy,
+        );
 
-      if (fadeOpacity > 0) {
+      final metric = fullStem.computeMetrics().isEmpty
+          ? null
+          : fullStem.computeMetrics().first;
+      if (metric == null) continue;
+
+      final drawLen = metric.length * growIn * (1.0 - 0.5 * fadeOut);
+      final stemPart = metric.extractPath(0, drawLen);
+
+      final tipSample =
+          metric.getTangentForOffset(drawLen)?.position ?? stemTip;
+      final bandAlpha = _verticalBandFade(tipSample.dy);
+      final lifeAlpha = (1.0 - fadeOut);
+      final alpha = (bandAlpha * lifeAlpha).clamp(0.0, 1.0);
+
+      final stemWidth = 1.6 + (h / 140.0);
+      final stemColor = Color.lerp(
+        primaryColor.withOpacity(0.85),
+        secondaryColor.withOpacity(0.85),
+        hueMix,
+      )!;
+
+      stemPaint
+        ..color = stemColor.withOpacity(0.75 * alpha)
+        ..strokeWidth = stemWidth;
+
+      canvas.drawPath(stemPart, stemPaint);
+
+      final leafSlots = <double>[0.35, 0.55, 0.75];
+      for (int li = 0; li < leafSlots.length; li++) {
+        final slot = leafSlots[li];
+        if (drawLen < metric.length * (slot * 0.92)) continue;
+
+        final tangent = metric.getTangentForOffset(
+          (metric.length * slot).clamp(0.0, drawLen),
+        );
+        if (tangent == null) continue;
+
+        final side = (li % 2 == 0) ? 1.0 : -1.0;
+
+        final localGrow =
+            ((drawLen / metric.length) - slot) / 0.15; // ~0.15 window
+        final leafK = localGrow.clamp(0.0, 1.0);
+        final leafAlpha = (leafK * (1.0 - fadeOut) * alpha).clamp(0.0, 1.0);
+
+        final baseLeafW = 14.0 + h * 0.05;
+        final baseLeafH = 8.0 + h * 0.03;
+        final leafW = baseLeafW * (0.6 + 0.4 * leafK);
+        final leafH = baseLeafH * (0.6 + 0.4 * leafK);
+
+        final breathe = 1.0 + math.sin(phase * 2 * math.pi + li) * 0.03;
+        final angle = tangent.vector.direction + side * (math.pi / 2) * 0.88;
+
         canvas.save();
-        canvas.translate(x, y);
-        canvas.rotate(rotation);
+        canvas.translate(tangent.position.dx, tangent.position.dy);
+        canvas.rotate(angle);
+        canvas.scale(breathe, breathe);
 
-        final crystalPath = Path()
-          ..moveTo(0, -6)
-          ..lineTo(4, 0)
-          ..lineTo(0, 6)
-          ..lineTo(-4, 0)
-          ..close();
+        final leafPath = Path()
+          ..addOval(
+            Rect.fromCenter(
+              center: Offset(leafW * 0.35, 0),
+              width: leafW,
+              height: leafH,
+            ),
+          );
 
-        final crystalPaint = Paint()
-          ..color = (i % 2 == 0 ? primaryColor : secondaryColor).withOpacity(
-            0.3 * fadeOpacity,
-          )
-          ..style = PaintingStyle.fill;
+        leafPaint.color = stemColor.withOpacity(0.7 * leafAlpha);
+        canvas.drawPath(leafPath, leafPaint);
 
-        canvas.drawPath(crystalPath, crystalPaint);
-
-        final borderPaint = Paint()
-          ..color = primaryColor.withOpacity(0.4 * fadeOpacity)
+        final veinPaint = Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1;
-        canvas.drawPath(crystalPath, borderPaint);
+          ..strokeWidth = 0.8
+          ..color = Colors.white.withOpacity(0.25 * leafAlpha);
+        canvas.drawLine(Offset(0, 0), Offset(leafW * 0.6, 0), veinPaint);
 
         canvas.restore();
       }
+
+      if (growIn > 0.6) {
+        final budK = ((growIn - 0.6) / 0.25).clamp(0.0, 1.0);
+        final budSize = (2.6 + h * 0.015) * budK * (1.0 - fadeOut);
+        final pos = tipSample;
+        final budColor = Color.lerp(
+          secondaryColor,
+          primaryColor,
+          0.2 + 0.6 * hueMix,
+        )!.withOpacity(0.9 * alpha * (1.0 - 0.4 * fadeOut));
+        budPaint.color = budColor;
+        canvas.drawCircle(pos, budSize, budPaint);
+      }
+
+      final baseGlow = Paint()
+        ..color = primaryColor.withOpacity(0.06 * alpha)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+      canvas.drawCircle(stemBase, 6.0, baseGlow);
     }
 
-    final groundPath = Path()..moveTo(0, size.height * 0.9);
-    for (double x = 0; x <= size.width; x += 15) {
-      final y =
-          size.height * 0.9 + (math.sin((x / size.width) * 10 * math.pi) * 3);
-      groundPath.lineTo(x, y);
-    }
-    groundPath
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-
-    final groundPaint = Paint()
-      ..color = primaryColor.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
-    canvas.drawPath(groundPath, groundPaint);
+    final soilPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [primaryColor.withOpacity(0.12), primaryColor.withOpacity(0.0)],
+      ).createShader(Rect.fromLTWH(0, bandTopY - 8, size.width, 16));
+    canvas.drawRect(Rect.fromLTWH(0, bandTopY - 8, size.width, 16), soilPaint);
   }
 
+  static double _easeOutCubic(double x) => 1 - math.pow(1 - x, 3).toDouble();
+
   @override
-  bool shouldRepaint(EarthPainter oldDelegate) => true;
+  bool shouldRepaint(EarthPlantsPainter old) => true;
 }

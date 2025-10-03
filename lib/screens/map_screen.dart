@@ -5,6 +5,7 @@ import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/screens/party_picker.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_access_service.dart';
+import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:alchemons/widgets/wilderness/countdown_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
@@ -104,10 +105,13 @@ class _MapScreenState extends State<MapScreen>
                   ],
                 ),
               ),
-              _GlowingIcon(
+              GlowingIcon(
                 icon: Icons.explore_rounded,
                 color: accentColor,
                 controller: _glowController,
+                dialogTitle: "Breeding Expeditions",
+                dialogMessage:
+                    "Venture into diverse biomes to discover and research wild creatures. When encountering a wild creature, you can choose one member of your party to attempt to breed with it. Successfully breeding, will create an offspring to be extracted in the Incubator.",
               ),
             ],
           ),
@@ -323,7 +327,7 @@ class _MapScreenState extends State<MapScreen>
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Breeding grounds refresh daily at 00:00 UTC. Party selection required for all breeding missions.',
+                  'Breeding grounds refresh daily at 00:00 UTC.',
                   style: _TextStyles.footerText,
                 ),
               ),
@@ -497,45 +501,6 @@ class _IconButton extends StatelessWidget {
         ),
         child: Icon(icon, color: _TextStyles.softText, size: 18),
       ),
-    );
-  }
-}
-
-class _GlowingIcon extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final AnimationController controller;
-
-  const _GlowingIcon({
-    required this.icon,
-    required this.color,
-    required this.controller,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (_, __) {
-        final glow = 0.35 + controller.value * 0.4;
-        return Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [color.withOpacity(.3), Colors.transparent],
-            ),
-            border: Border.all(color: color.withOpacity(glow)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(glow * .4),
-                blurRadius: 20 + controller.value * 14,
-              ),
-            ],
-          ),
-          child: Icon(icon, size: 18, color: color),
-        );
-      },
     );
   }
 }
@@ -1009,7 +974,7 @@ class _TextStyles {
 
   static const footerText = TextStyle(
     color: mutedText,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: FontWeight.w600,
     height: 1.3,
   );

@@ -9,6 +9,7 @@ import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/screens/breed/utils/breed_utils.dart';
+import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -1354,67 +1355,105 @@ class _NurseryTabState extends State<NurseryTab> {
                           },
                           child: IgnorePointer(
                             ignoring: !ctaTouchable || closing,
-                            child: GestureDetector(
-                              onTap: () {
-                                if (closing) return;
-                                setDialogState(() {
-                                  closing = true;
-                                  ctaTouchable = false;
-                                });
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (Navigator.of(context).canPop()) {
-                                    Navigator.of(context).pop();
-                                  }
-                                });
-                              },
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 22,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      primaryColor.withOpacity(.95),
-                                      primaryColor.withOpacity(.8),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(.18),
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: primaryColor.withOpacity(.25),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.check_rounded,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'EXTRACTION CONFIRMED',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 13,
-                                        letterSpacing: .6,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      if (closing) return;
+                                      setDialogState(() {
+                                        closing = true;
+                                        ctaTouchable = false;
+                                      });
+                                      WidgetsBinding.instance
+                                          .addPostFrameCallback((_) {
+                                            if (Navigator.of(
+                                              context,
+                                            ).canPop()) {
+                                              Navigator.of(context).pop();
+                                            }
+                                          });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 22,
+                                        vertical: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            primaryColor.withOpacity(.95),
+                                            primaryColor.withOpacity(.8),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(.18),
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: primaryColor.withOpacity(
+                                              .25,
+                                            ),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.check_rounded,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'EXTRACTION CONFIRMED',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 13,
+                                              letterSpacing: .6,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 10),
+                                GestureDetector(
+                                  onTap: () {
+                                    if (closing) return;
+                                    // Navigate to creature screen
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const CreaturesScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(.08),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(.25),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      Icons.pets_rounded,
+                                      color: Colors.white.withOpacity(.9),
+                                      size: 22,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),

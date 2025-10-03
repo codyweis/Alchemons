@@ -13,6 +13,7 @@ import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -342,196 +343,209 @@ class _BreedingTabState extends State<BreedingTab> {
     }
 
     try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black.withOpacity(0.7),
-        builder: (context) => Center(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: Container(
-                padding: const EdgeInsets.all(28),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(.3),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: primaryColor.withOpacity(.4),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(.3),
-                      blurRadius: 20,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-                      strokeWidth: 3,
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'PROCESSING GENETIC FUSION',
-                      style: TextStyle(
-                        color: Color(0xFFE8EAED),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      final breedingEngine = context.read<BreedingEngine>();
-      final db = context.read<AlchemonsDatabase>();
       final repo = context.read<CreatureRepository>();
-      final factions = context.read<FactionService>();
-      final firePerk2 = await factions.perk2Active();
+      final speciesA = repo.getCreatureById(selectedParent1!.baseId);
+      final speciesB = repo.getCreatureById(selectedParent2!.baseId);
 
-      final breedingResult = breedingEngine.breedInstances(
-        selectedParent1!,
-        selectedParent2!,
+      // Colors based on first type (fallback to theme accent if missing)
+      final colorA = speciesA != null
+          ? BreedConstants.getTypeColor(speciesA.types.first)
+          : Theme.of(context).colorScheme.primary;
+      final colorB = speciesB != null
+          ? BreedConstants.getTypeColor(speciesB.types.first)
+          : Theme.of(context).colorScheme.secondary;
+
+      // Sprites for the cinematic (small, square-ish)
+      Widget spriteFor(CreatureInstance inst, Creature? base) {
+        if (base?.spriteData == null) {
+          return Icon(
+            Icons.pets,
+            color: Colors.white.withOpacity(.8),
+            size: 64,
+          );
+        }
+        final g = decodeGenetics(inst.geneticsJson);
+        return SizedBox(
+          width: 120,
+          height: 120,
+          child: CreatureSprite(
+            spritePath: base!.spriteData!.spriteSheetPath,
+            totalFrames: base.spriteData!.totalFrames,
+            rows: base.spriteData!.rows,
+            frameSize: Vector2(
+              base.spriteData!.frameWidth * 1.0,
+              base.spriteData!.frameHeight * 1.0,
+            ),
+            stepTime: base.spriteData!.frameDurationMs / 1000.0,
+            scale: scaleFromGenes(g),
+            saturation: satFromGenes(g),
+            brightness: briFromGenes(g),
+            hueShift: hueFromGenes(g),
+            isPrismatic: inst.isPrismaticSkin,
+          ),
+        );
+      }
+
+      final leftSprite = spriteFor(selectedParent1!, speciesA);
+      final rightSprite = spriteFor(selectedParent2!, speciesB);
+
+      // Run your existing breeding logic *inside* the cinematic.
+      await showAlchemyFusionCinematic<void>(
+        context: context,
+        leftSprite: leftSprite,
+        rightSprite: rightSprite,
+        leftColor: colorA,
+        rightColor: colorB,
+        minDuration: const Duration(milliseconds: 1800),
+        task: () async {
+          // === Your original breeding logic (minus the old showDialog) ===
+          final breedingEngine = context.read<BreedingEngine>();
+          final db = context.read<AlchemonsDatabase>();
+          final repo = context.read<CreatureRepository>();
+          final factions = context.read<FactionService>();
+          final stamina = context.read<StaminaService>();
+
+          final firePerk2 = await factions.perk2Active();
+
+          final raw = breedingEngine.breedInstances(
+            selectedParent1!,
+            selectedParent2!,
+          );
+          if (!raw.success || raw.creature == null) {
+            _showToast(
+              'Genetic incompatibility detected',
+              icon: Icons.warning_rounded,
+              color: Colors.orange,
+            );
+            throw Exception('Incompatible'); // will close cinematic and return
+          }
+
+          final resultWithJustification = breedingEngine
+              .breedInstancesWithJustification(
+                selectedParent1!,
+                selectedParent2!,
+              );
+
+          if (!resultWithJustification.success ||
+              resultWithJustification.result.creature == null) {
+            _showToast(
+              'Genetic incompatibility detected',
+              icon: Icons.warning_rounded,
+              color: Colors.orange,
+            );
+            throw Exception('Incompatible');
+          }
+
+          String? analysisJson;
+          if (resultWithJustification.justification != null) {
+            analysisJson = jsonEncode(
+              resultWithJustification.justification!.toJson(),
+            );
+          }
+
+          final offspring = resultWithJustification.result.creature!;
+
+          final hasFireParent =
+              repo
+                      .getCreatureById(selectedParent1!.baseId)
+                      ?.types
+                      .contains('Fire') ==
+                  true ||
+              repo
+                      .getCreatureById(selectedParent2!.baseId)
+                      ?.types
+                      .contains('Fire') ==
+                  true;
+
+          final fireMult = factions.fireHatchTimeMultiplier(
+            hasFireParent: hasFireParent,
+            perk2: firePerk2,
+          );
+
+          final rarityKey = offspring.rarity.toLowerCase();
+          final baseHatchDelay =
+              BreedConstants.rarityHatchTimes[rarityKey] ??
+              const Duration(minutes: 10);
+
+          final hatchMult = hatchMultForNature(offspring.nature?.id);
+          final adjustedHatchDelay = Duration(
+            milliseconds: (baseHatchDelay.inMilliseconds * hatchMult * fireMult)
+                .round(),
+          );
+
+          final payload = {
+            'baseId': offspring.id,
+            'rarity': offspring.rarity,
+            'natureId': offspring.nature?.id,
+            'genetics': offspring.genetics?.variants ?? <String, String>{},
+            'parentage': offspring.parentage?.toJson(),
+            'isPrismaticSkin': offspring.isPrismaticSkin,
+            'likelihoodAnalysis': analysisJson,
+          };
+          final payloadJson = jsonEncode(payload);
+
+          final free = await db.firstFreeSlot();
+          final eggId = 'egg_${DateTime.now().millisecondsSinceEpoch}';
+
+          if (free == null) {
+            await db.enqueueEgg(
+              eggId: eggId,
+              resultCreatureId: offspring.id,
+              bonusVariantId: raw.variantUnlocked?.id,
+              rarity: offspring.rarity,
+              remaining: adjustedHatchDelay,
+              payloadJson: payloadJson,
+            );
+            _showToast(
+              'Incubator full — specimen transferred to storage',
+              icon: Icons.inventory_2_rounded,
+              color: Colors.orange,
+            );
+          } else {
+            final hatchAtUtc = DateTime.now().toUtc().add(adjustedHatchDelay);
+            await db.placeEgg(
+              slotId: free.id,
+              eggId: eggId,
+              resultCreatureId: offspring.id,
+              bonusVariantId: raw.variantUnlocked?.id,
+              rarity: offspring.rarity,
+              hatchAtUtc: hatchAtUtc,
+              payloadJson: payloadJson,
+            );
+            _showToast(
+              'Embryo placed in incubation chamber ${free.id + 1}',
+              icon: Icons.science_rounded,
+              color: const Color.fromARGB(255, 239, 255, 92),
+            );
+          }
+
+          // Spend stamina (unless perk)
+          final bothWater =
+              repo
+                      .getCreatureById(selectedParent1!.baseId)
+                      ?.types
+                      .contains('Water') ==
+                  true &&
+              repo
+                      .getCreatureById(selectedParent2!.baseId)
+                      ?.types
+                      .contains('Water') ==
+                  true;
+          final skipStamina = context
+              .read<FactionService>()
+              .waterSkipBreedStamina(
+                bothWater: bothWater,
+                perk1: factions.perk1Active && factions.isWater(),
+              );
+          if (!skipStamina) {
+            await stamina.spendForBreeding(selectedParent1!.instanceId);
+            await stamina.spendForBreeding(selectedParent2!.instanceId);
+          }
+        },
       );
-
-      if (!breedingResult.success || breedingResult.creature == null) {
-        _showToast(
-          'Genetic incompatibility detected',
-          icon: Icons.warning_rounded,
-          color: Colors.orange,
-        );
-        return;
-      }
-
-      final resultWithJustification = breedingEngine
-          .breedInstancesWithJustification(selectedParent1!, selectedParent2!);
-
-      if (!resultWithJustification.success ||
-          resultWithJustification.result.creature == null) {
-        _showToast(
-          'Genetic incompatibility detected',
-          icon: Icons.warning_rounded,
-          color: Colors.orange,
-        );
-        return;
-      }
-
-      String? analysisJson;
-      if (resultWithJustification.justification != null) {
-        analysisJson = jsonEncode(
-          resultWithJustification.justification!.toJson(),
-        );
-      }
-
-      final offspring = resultWithJustification.result.creature!;
-
-      final hasFireParent =
-          repo
-                  .getCreatureById(selectedParent1!.baseId)
-                  ?.types
-                  .contains('Fire') ==
-              true ||
-          repo
-                  .getCreatureById(selectedParent2!.baseId)
-                  ?.types
-                  .contains('Fire') ==
-              true;
-
-      final fireMult = factions.fireHatchTimeMultiplier(
-        hasFireParent: hasFireParent,
-        perk2: firePerk2,
-      );
-
-      final rarityKey = offspring.rarity.toLowerCase();
-      final baseHatchDelay =
-          BreedConstants.rarityHatchTimes[rarityKey] ??
-          const Duration(minutes: 10);
-
-      final hatchMult = hatchMultForNature(offspring.nature?.id);
-      final adjustedHatchDelay = Duration(
-        milliseconds: (baseHatchDelay.inMilliseconds * hatchMult * fireMult)
-            .round(),
-      );
-
-      final payload = {
-        'baseId': offspring.id,
-        'rarity': offspring.rarity,
-        'natureId': offspring.nature?.id,
-        'genetics': offspring.genetics?.variants ?? <String, String>{},
-        'parentage': offspring.parentage?.toJson(),
-        'isPrismaticSkin': offspring.isPrismaticSkin,
-        'likelihoodAnalysis': analysisJson,
-      };
-      final payloadJson = jsonEncode(payload);
-
-      final free = await db.firstFreeSlot();
-      final eggId = 'egg_${DateTime.now().millisecondsSinceEpoch}';
-
-      if (free == null) {
-        await db.enqueueEgg(
-          eggId: eggId,
-          resultCreatureId: offspring.id,
-          bonusVariantId: breedingResult.variantUnlocked?.id,
-          rarity: offspring.rarity,
-          remaining: adjustedHatchDelay,
-          payloadJson: payloadJson,
-        );
-        _showToast(
-          'Incubator full — specimen transferred to storage',
-          icon: Icons.inventory_2_rounded,
-          color: Colors.orange,
-        );
-      } else {
-        final hatchAtUtc = DateTime.now().toUtc().add(adjustedHatchDelay);
-        await db.placeEgg(
-          slotId: free.id,
-          eggId: eggId,
-          resultCreatureId: offspring.id,
-          bonusVariantId: breedingResult.variantUnlocked?.id,
-          rarity: offspring.rarity,
-          hatchAtUtc: hatchAtUtc,
-          payloadJson: payloadJson,
-        );
-        _showToast(
-          'Embryo placed in incubation chamber ${free.id + 1}',
-          icon: Icons.science_rounded,
-          color: Colors.green,
-        );
-      }
-
-      final waterPerk1 = factions.perk1Active && factions.isWater();
-      final bothParentsWater =
-          repo
-                  .getCreatureById(selectedParent1!.baseId)
-                  ?.types
-                  .contains('Water') ==
-              true &&
-          repo
-                  .getCreatureById(selectedParent2!.baseId)
-                  ?.types
-                  .contains('Water') ==
-              true;
-
-      final skipStamina = factions.waterSkipBreedStamina(
-        bothWater: bothParentsWater,
-        perk1: waterPerk1,
-      );
-
-      if (!skipStamina) {
-        await stamina.spendForBreeding(id1);
-        await stamina.spendForBreeding(id2);
-      }
 
       if (!mounted) return;
+      // Reset slots, notify
       setState(() {
         selectedParent1 = null;
         selectedParent2 = null;
@@ -543,10 +557,6 @@ class _BreedingTabState extends State<BreedingTab> {
         color: Colors.red,
         icon: Icons.error_rounded,
       );
-    } finally {
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
     }
   }
 

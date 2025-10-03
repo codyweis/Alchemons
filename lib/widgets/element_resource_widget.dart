@@ -1,7 +1,9 @@
 import 'dart:ui';
+import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/element_resource.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 class ResourceCollectionWidget extends StatefulWidget {
   final Color accentColor;
@@ -53,91 +55,103 @@ class _ResourceCollectionWidgetState extends State<ResourceCollectionWidget>
 
   @override
   Widget build(BuildContext context) {
-    final resources = getSampleResources().where((r) => r.amount > 0).toList()
-      ..sort((a, b) => b.amount.compareTo(a.amount));
+    final db = context.read<AlchemonsDatabase>();
 
-    if (resources.isEmpty) return const SizedBox.shrink();
+    return StreamBuilder<Map<String, int>>(
+      stream: db.watchResourceBalances(),
+      builder: (context, snap) {
+        if (!snap.hasData) return const SizedBox.shrink();
 
-    const compactIconSize = 30.0;
-    const compactSpacing = 8.0;
+        final res =
+            _toElementResources(snap.data!).where((r) => r.amount > 0).toList()
+              ..sort((a, b) => b.amount.compareTo(a.amount));
 
-    final compactWidth =
-        (resources.length * compactIconSize) +
-        ((resources.length - 1) * compactSpacing) +
-        24;
+        if (res.isEmpty) return const SizedBox.shrink();
 
-    return RepaintBoundary(
-      child: GestureDetector(
-        onTap: _toggle,
-        behavior: HitTestBehavior.opaque,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return AnimatedBuilder(
-              animation: _t,
-              builder: (context, _) {
-                final maxWidth = constraints.maxWidth;
-                final width = lerpDouble(compactWidth, maxWidth, _t.value)!;
-                final height = lerpDouble(60, 128, _t.value)!;
-                final radius = lerpDouble(28, 18, _t.value)!;
-                final glassOpacity = lerpDouble(0.16, 0.12, _t.value)!;
+        const compactIconSize = 30.0;
+        const compactSpacing = 8.0;
+        final compactWidth =
+            (res.length * compactIconSize) +
+            ((res.length - 1) * compactSpacing) +
+            24;
 
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(radius),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                    child: Container(
-                      width: width,
-                      height: height,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(glassOpacity),
-                        borderRadius: BorderRadius.circular(radius),
-                        border: Border.all(
-                          color: widget.accentColor.withOpacity(
-                            (1 - _t.value) * 0.45,
-                          ),
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: widget.accentColor.withOpacity(
-                              0.10 + 0.10 * (1 - _t.value),
+        return RepaintBoundary(
+          child: GestureDetector(
+            onTap: _toggle,
+            behavior: HitTestBehavior.opaque,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return AnimatedBuilder(
+                  animation: _t,
+                  builder: (context, _) {
+                    final maxWidth = constraints.maxWidth;
+                    final width = lerpDouble(compactWidth, maxWidth, _t.value)!;
+                    final height = lerpDouble(60, 128, _t.value)!;
+                    final radius = lerpDouble(28, 18, _t.value)!;
+                    final glassOpacity = lerpDouble(0.16, 0.12, _t.value)!;
+
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(radius),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                        child: Container(
+                          width: width,
+                          height: height,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(glassOpacity),
+                            borderRadius: BorderRadius.circular(radius),
+                            border: Border.all(
+                              color: widget.accentColor.withOpacity(
+                                (1 - _t.value) * 0.45,
+                              ),
+                              width: 1,
                             ),
-                            blurRadius: 18,
-                            spreadRadius: 1,
+                            boxShadow: [
+                              BoxShadow(
+                                color: widget.accentColor.withOpacity(
+                                  0.10 + 0.10 * (1 - _t.value),
+                                ),
+                                blurRadius: 18,
+                                spreadRadius: 1,
+                              ),
+                            ],
                           ),
-                        ],
+                          child: ListView.separated(
+                            key: const PageStorageKey('resource-strip'),
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            padding: EdgeInsets.fromLTRB(
+                              lerpDouble(12, 8, _t.value)!, // left
+                              lerpDouble(6, 8, _t.value)!, // top
+                              lerpDouble(12, 8, _t.value)!, // right
+                              lerpDouble(6, 8, _t.value)!, // bottom
+                            ),
+                            itemBuilder: (context, i) => _ResourceTile(
+                              key: ValueKey(res[i].id),
+                              r: res[i],
+                              t: _t.value,
+                            ),
+                            separatorBuilder: (_, __) => SizedBox(
+                              width: lerpDouble(compactSpacing, 10, _t.value)!,
+                            ),
+                            itemCount: res.length,
+                            cacheExtent: 1000,
+                          ),
+                        ),
                       ),
-                      child: ListView.separated(
-                        key: const PageStorageKey('resource-strip'),
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        padding: EdgeInsets.fromLTRB(
-                          lerpDouble(12, 8, _t.value)!, // left
-                          lerpDouble(6, 8, _t.value)!, // top
-                          lerpDouble(12, 8, _t.value)!, // right
-                          lerpDouble(6, 8, _t.value)!, // bottom
-                        ),
-                        itemBuilder: (context, i) => _ResourceTile(
-                          key: ValueKey('${resources[i].name}-$i'),
-                          r: resources[i],
-                          t: _t.value,
-                        ),
-                        separatorBuilder: (_, __) => SizedBox(
-                          width: lerpDouble(compactSpacing, 10, _t.value)!,
-                        ),
-                        itemCount: resources.length,
-                        cacheExtent: 1000,
-                      ),
-                    ),
-                  ),
+                    );
+                  },
                 );
               },
-            );
-          },
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
+
+  List<ElementResource> _toElementResources(Map<String, int> m) =>
+      ElementId.values.map((e) => ElementResource.fromDbMap(m, e)).toList();
 }
 
 class _ResourceTile extends StatelessWidget {

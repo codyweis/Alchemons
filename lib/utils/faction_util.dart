@@ -10,7 +10,11 @@ import 'package:flutter/material.dart';
 
   switch (factionId) {
     case FactionId.fire:
-      return (Colors.red, Colors.orange, Colors.deepOrange);
+      return (
+        Colors.red,
+        const Color.fromARGB(255, 255, 0, 21),
+        Colors.deepOrange,
+      );
     case FactionId.water:
       return (Colors.blue, Colors.cyan, Colors.lightBlue);
     case FactionId.air:
@@ -21,9 +25,22 @@ import 'package:flutter/material.dart';
       );
     case FactionId.earth:
       return (
-        Colors.brown,
+        const Color.fromARGB(255, 101, 71, 60),
         const Color.fromARGB(255, 140, 230, 143),
-        Colors.amber,
+        const Color.fromARGB(255, 42, 132, 55),
       );
+  }
+}
+
+Color accentForFaction(FactionId f) {
+  switch (f) {
+    case FactionId.fire:
+      return Colors.deepOrangeAccent;
+    case FactionId.water:
+      return Color.fromARGB(255, 84, 161, 197);
+    case FactionId.air:
+      return Color.fromARGB(255, 159, 176, 185);
+    case FactionId.earth:
+      return Color.fromARGB(255, 132, 105, 51);
   }
 }

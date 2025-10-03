@@ -1,3 +1,4 @@
+// lib/screens/home_screen.dart
 import 'dart:ui';
 
 import 'package:alchemons/database/alchemons_db.dart';
@@ -5,15 +6,21 @@ import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/screens/feeding_screen.dart';
+import 'package:alchemons/screens/field_screen.dart';
+import 'package:alchemons/screens/harvest_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
 import 'package:alchemons/screens/profile_screen.dart';
+import 'package:alchemons/screens/shop_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/test/dev_seeder.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/router/push_soft.dart';
 import 'package:alchemons/widgets/background/interactive_background_widget.dart';
+import 'package:alchemons/widgets/blob_party/overlays/floating_bubble_overlay.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
+import 'package:alchemons/widgets/kpi/kpi_chip_widget.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -37,6 +44,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _glowController;
 
   bool _isInitialized = false;
+
+  Color get _softTextOnDark => Colors.white70;
 
   @override
   void initState() {
@@ -108,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _isInitialized = true;
       });
     } catch (e) {
-      print('Error during app initialization: $e');
+      debugPrint('Error during app initialization: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -125,7 +134,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final repository = context.read<CreatureRepository>();
       await repository.loadCreatures();
     } catch (e) {
-      print('Error loading creature repository: $e');
+      debugPrint('Error loading creature repository: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -171,6 +180,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
 
         final factionSvc = context.read<FactionService>();
+        factionSvc.setBlobSlotsUnlockedTest(); // DEV TEST
+
         final currentFaction = factionSvc.current;
         final (primary, secondary, accent) = getFactionColors(currentFaction);
         final speeds = _speedFor(currentFaction!);
@@ -211,6 +222,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                   ],
                 ),
+              ),
+              FloatingBubblesOverlay(
+                regionPadding: const EdgeInsets.fromLTRB(12, 140, 12, 140),
+                discoveredCreatures:
+                    gameState.discoveredCreatures, // 👈 add this
               ),
             ],
           ),
@@ -316,7 +332,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.error_outline_rounded,
                         color: Colors.redAccent,
                         size: 34,
@@ -384,154 +400,71 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildEnhancedHeader() {
     final f = context.read<FactionService>().current ?? FactionId.water;
-    final accent = _accentForFaction(f);
+    final accent = accentForFaction(f);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AnimatedBuilder(
-            animation: _glowController,
-            builder: (context, _) {
-              return _PulsingBorder(
-                anim: _glowController,
-                color: accent,
-                borderRadius: BorderRadius.circular(16),
+      child: AnimatedBuilder(
+        animation: _glowController,
+        builder: (context, _) {
+          return Row(
+            children: [
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                  );
+                },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: accent.withOpacity(0.6)),
                   ),
-                  decoration: _glass(
-                    tint: Colors.black,
-                    stroke: accent,
-                    opacity: 0.18,
-                  ),
-                  child: Row(
-                    children: [
-                      // App glyph
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              accent.withOpacity(0.55),
-                              Colors.transparent,
-                            ],
-                          ),
-                          border: Border.all(color: accent.withOpacity(0.5)),
-                        ),
-                        child: const Icon(
-                          Icons.science_rounded,
-                          size: 18,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Title & subtitle
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ALCHEMONS',
-                            style: TextStyle(
-                              color: _softTextOnDark,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 25,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          Text(
-                            'Research Facility',
-                            style: TextStyle(
-                              color: _mutedTextOnDark,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      // Faction switcher chip (glass)
-                      GestureDetector(
-                        onTap: () async {
-                          HapticFeedback.lightImpact();
-                          final selected = await showDialog<FactionId>(
-                            context: context,
-                            builder: (_) => const FactionPickerDialog(),
-                          );
-                          if (selected != null) {
-                            await context.read<FactionService>().setId(
-                              selected,
-                            );
-                            if (mounted) setState(() {});
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.06),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: accent.withOpacity(0.6)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                switch (f) {
-                                  FactionId.fire =>
-                                    Icons.local_fire_department_rounded,
-                                  FactionId.water => Icons.water_drop_rounded,
-                                  FactionId.air => Icons.air_rounded,
-                                  FactionId.earth => Icons.terrain_rounded,
-                                },
-                                size: 16,
-                                color: accent,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                f.name[0].toUpperCase() + f.name.substring(1),
-                                style: TextStyle(
-                                  color: _softTextOnDark,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: Icon(Icons.person_rounded, color: accent, size: 24),
                 ),
-              );
-            },
-          ),
-        ),
+              ),
+              const SizedBox(width: 12),
+              // Title & subtitle
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ALCHEMONS',
+                    style: TextStyle(
+                      color: _softTextOnDark,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 40,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  Text(
+                    'Research Facility',
+                    style: TextStyle(
+                      color: _mutedTextOnDark,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   Widget _buildStatsHUD(GameStateNotifier gameState) {
     final f = context.read<FactionService>().current ?? FactionId.water;
-    final accent = _accentForFaction(f);
+    final accent = accentForFaction(f);
 
     final total = gameState.creatures.length;
     final discovered = gameState.discoveredCreatures.length;
-    final owned = gameState
-        .discoveredCreatures
-        .length; // if you have this; else fallback:
-    final safeOwned = owned == 0 && gameState.discoveredCreatures.isEmpty
-        ? discovered
-        : owned;
 
     final completion = (total == 0)
         ? 0.0
@@ -620,28 +553,174 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             labelRight: '100%',
                           ),
                           const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _MiniKpi(
-                                  icon: Icons.pets_rounded,
-                                  label: 'Owned',
-                                  value: '$safeOwned',
-                                  accent: accent,
-                                  breathe: breathe,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _MiniKpi(
-                                  icon: Icons.bolt_rounded,
-                                  label: 'Activity',
-                                  value: _activityBadge(gameState),
-                                  accent: accent,
-                                  breathe: breathe,
-                                ),
-                              ),
-                            ],
+
+                          // KPIs: Incubating + Harvest (new KpiChip)
+                          Builder(
+                            builder: (context) {
+                              final harvestSvc = context
+                                  .watch<HarvestService>();
+
+                              return StreamBuilder<List<IncubatorSlot>>(
+                                stream: context
+                                    .read<AlchemonsDatabase>()
+                                    .watchSlots(),
+                                builder: (context, snap) {
+                                  final slots =
+                                      snap.data ?? const <IncubatorSlot>[];
+                                  final nowMs = DateTime.now()
+                                      .toUtc()
+                                      .millisecondsSinceEpoch;
+
+                                  // ----- Incubator stats -----
+                                  final unlockedSlots = slots
+                                      .where((s) => s.unlocked)
+                                      .toList();
+                                  final totalUnlockedInc = unlockedSlots.length;
+
+                                  final withEgg = unlockedSlots
+                                      .where((s) => s.eggId != null)
+                                      .toList();
+
+                                  final readyIncubating = withEgg.where((s) {
+                                    return s.hatchAtUtcMs != null &&
+                                        nowMs >= s.hatchAtUtcMs!;
+                                  }).length;
+
+                                  final activeIncubating =
+                                      (withEgg.length - readyIncubating).clamp(
+                                        0,
+                                        999,
+                                      );
+
+                                  final openInc =
+                                      (totalUnlockedInc - withEgg.length).clamp(
+                                        0,
+                                        999,
+                                      );
+
+                                  // ✅ AVAILABLE = OPEN + READY
+
+                                  // 👇 STATUS-ONLY STRINGS (what you asked for)
+                                  final statusIncubating = (readyIncubating > 0)
+                                      ? 'READY'
+                                      : (totalUnlockedInc > 0 &&
+                                            openInc == totalUnlockedInc)
+                                      ? 'ALL AVAILABLE'
+                                      : 'INCUBATING';
+
+                                  // ----- Harvest stats (exclude locked farms for counts) -----
+                                  final farms = harvestSvc.farms
+                                      .where((f) => f.unlocked)
+                                      .toList();
+                                  final totalUnlockedFarms = farms.length;
+                                  final activeHarvestTotal = farms
+                                      .where((f) => f.active != null)
+                                      .length;
+
+                                  final readyHarvest = farms.where((f) {
+                                    final j = f.active;
+                                    if (j == null) return false;
+                                    final endMs = j.startUtcMs + j.durationMs;
+                                    return nowMs >= endMs;
+                                  }).length;
+
+                                  final activeHarvest =
+                                      (activeHarvestTotal - readyHarvest).clamp(
+                                        0,
+                                        999,
+                                      );
+
+                                  final openFarms =
+                                      (totalUnlockedFarms - activeHarvestTotal)
+                                          .clamp(0, 999);
+
+                                  final statusHarvest = (readyHarvest > 0)
+                                      ? 'COLLECT'
+                                      : (openFarms > 0)
+                                      ? 'OPEN'
+                                      : (activeHarvest > 0)
+                                      ? 'EXTRACTING'
+                                      : 'IDLE';
+
+                                  final incubatorLines =
+                                      _sentencesForIncubators(
+                                        ready: readyIncubating,
+                                        open: openInc,
+                                        active: activeIncubating,
+                                      );
+
+                                  final harvestLines = _sentencesForHarvest(
+                                    ready: readyHarvest,
+                                    open: openFarms,
+                                    active: activeHarvest,
+                                  );
+
+                                  return Row(
+                                    children: [
+                                      Expanded(
+                                        child: KpiChip(
+                                          heroTag: 'kpi-incubating',
+                                          icon: Icons.egg_rounded,
+                                          label: 'Incubating',
+                                          // ✅ STATUS ONLY
+                                          compactValue: statusIncubating,
+                                          readyCount:
+                                              readyIncubating, // blink only if READY
+                                          accent: accentForFaction(
+                                            context
+                                                    .read<FactionService>()
+                                                    .current ??
+                                                FactionId.water,
+                                          ),
+                                          details: incubatorLines,
+                                          breathe: _breathingController.value,
+                                          onOpen: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const BreedScreen(
+                                                      initialTab: 1,
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: KpiChip(
+                                          heroTag: 'kpi-harvest',
+                                          icon: Icons.agriculture_rounded,
+                                          label: 'Harvest',
+                                          compactValue:
+                                              statusHarvest, // status ONLY ("COLLECT"/"OPEN"/"EXTRACTING"/"IDLE")
+                                          readyCount: readyHarvest,
+                                          accent: accentForFaction(
+                                            context
+                                                    .read<FactionService>()
+                                                    .current ??
+                                                FactionId.water,
+                                          ),
+                                          details: harvestLines,
+                                          breathe: _breathingController.value,
+                                          onOpen: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const HarvestScreen(),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -658,7 +737,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildNavigationBubbles() {
     final f = context.read<FactionService>().current ?? FactionId.water;
-    final accent = _accentForFaction(f);
+    final accent = accentForFaction(f);
 
     final items = <({String title, IconData icon, VoidCallback onTap})>[
       (
@@ -698,19 +777,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           HapticFeedback.lightImpact();
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const MapScreen()),
+            MaterialPageRoute(builder: (_) => const FieldScreen()),
           );
         },
       ),
       (
-        title: 'Profile',
-        icon: Icons.person_rounded,
+        title: 'Shop',
+        icon: Icons.shopping_bag_rounded,
         onTap: () {
           HapticFeedback.lightImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
-          );
+          context.pushSoft(const ShopScreen());
         },
       ),
     ];
@@ -754,6 +830,62 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  String _cardinal(int n) => n == 1 ? 'One' : n.toString();
+  String _isAre(int n) => n == 1 ? 'is' : 'are';
+  String _plural(int n, String singular, String plural) =>
+      n == 1 ? singular : plural;
+
+  /// More “scientific” phrasing for incubators.
+  /// - “ready” and “active” are mutually exclusive (already enforced above).
+  List<String> _sentencesForIncubators({
+    required int ready,
+    required int open,
+    required int active,
+  }) {
+    final lines = <String>[];
+    if (ready > 0) {
+      lines.add(
+        '${_cardinal(ready)} ${_plural(ready, "incubator", "incubators")} ready for extraction.',
+      );
+    }
+    if (active > 0) {
+      lines.add(
+        '${_cardinal(active)} ${_plural(active, "incubator", "incubators")} ${_isAre(active)} under active incubation.',
+      );
+    }
+    if (open > 0) {
+      lines.add('${_cardinal(open)} ${_isAre(open)} available.');
+    }
+    if (lines.isEmpty) lines.add('All incubators are idle.');
+    return lines;
+  }
+
+  /// Scientific phrasing for harvest sites (no “unlocked” line).
+  List<String> _sentencesForHarvest({
+    required int ready,
+    required int open,
+    required int active,
+  }) {
+    final lines = <String>[];
+    if (ready > 0) {
+      lines.add(
+        '${_cardinal(ready)} ${_plural(ready, "site", "sites")} ready for collection.',
+      );
+    }
+    if (active > 0) {
+      lines.add(
+        '${_cardinal(active)} ${_plural(active, "site", "sites")} ${_isAre(active)} harvesting in progress.',
+      );
+    }
+    if (open > 0) {
+      lines.add(
+        '${_cardinal(open)} idle ${_plural(open, "site", "sites")} available.',
+      );
+    }
+    if (lines.isEmpty) lines.add('No active harvesting detected.');
+    return lines;
   }
 }
 
@@ -884,92 +1016,6 @@ class _BarMeter extends StatelessWidget {
   }
 }
 
-class _MiniKpi extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color accent;
-  final double breathe;
-  const _MiniKpi({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.accent,
-    required this.breathe,
-  });
-  @override
-  Widget build(BuildContext context) {
-    final floatY = -1.5 * math.sin(breathe * math.pi);
-    return Transform.translate(
-      offset: Offset(0, floatY),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: accent.withOpacity(0.55)),
-          boxShadow: [
-            BoxShadow(color: accent.withOpacity(0.16), blurRadius: 12),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [accent.withOpacity(0.5), Colors.transparent],
-                ),
-                border: Border.all(color: accent.withOpacity(0.55)),
-              ),
-              child: Icon(icon, size: 16, color: _softTextOnDark),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label.toUpperCase(),
-                    style: TextStyle(
-                      color: _mutedTextOnDark,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: _softTextOnDark,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-String _activityBadge(GameStateNotifier gameState) {
-  // toy heuristic; replace with your own recent-actions metric if you have it
-  final d = gameState.discoveredCreatures.length;
-  if (d == 0) return 'Idle';
-  if (d < 5) return 'Warming Up';
-  if (d < 12) return 'Active';
-  return 'Surging';
-}
-
 /// Circular progress arc with soft glow
 class _ProgressArcPainter extends CustomPainter {
   final double progress; // 0..1
@@ -1016,7 +1062,7 @@ class _ProgressArcPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 10
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)
       ..color = accent.withOpacity(0.4 * glow);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
@@ -1131,19 +1177,6 @@ class LoadingParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(LoadingParticlePainter oldDelegate) => true;
-}
-
-Color _accentForFaction(FactionId f) {
-  switch (f) {
-    case FactionId.fire:
-      return Colors.deepOrangeAccent;
-    case FactionId.water:
-      return Colors.cyanAccent;
-    case FactionId.air:
-      return Colors.lightBlueAccent;
-    case FactionId.earth:
-      return Colors.limeAccent.shade200;
-  }
 }
 
 Color _softTextOnDark = const Color(0xFFE8EAED); // warm white

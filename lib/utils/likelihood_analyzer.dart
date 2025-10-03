@@ -1312,7 +1312,7 @@ extension BreedingLikelihoodAnalyzerJustification
     } else if (actualType != t1 && actualType != t2) {
       return "$t1 + $t2 elements fused to create $actualType through alchemical combination (${chance.toStringAsFixed(1)}% chance).";
     } else {
-      return "Despite elemental recipe rules, offspring inherited pure $actualType element from parents (${chance.toStringAsFixed(1)}% chance).";
+      return "Despite elemental rules, offspring inherited pure $actualType element from parents (${chance.toStringAsFixed(1)}% chance).";
     }
   }
 

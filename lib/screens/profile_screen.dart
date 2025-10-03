@@ -1,9 +1,11 @@
 // lib/screens/profile_screen.dart
 import 'dart:ui';
+import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -71,6 +73,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final sz = MediaQuery.of(context).size;
 
+    final f = context.read<FactionService>().current ?? FactionId.water;
+    final accent = accentForFaction(f);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -134,6 +139,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 16 + 8, 16, 24),
                   children: [
+                    // Faction switcher chip (glass)
+                    GestureDetector(
+                      onTap: () async {
+                        HapticFeedback.lightImpact();
+                        final selected = await showDialog<FactionId>(
+                          context: context,
+                          builder: (_) => const FactionPickerDialog(),
+                        );
+                        if (selected != null) {
+                          await context.read<FactionService>().setId(selected);
+                          if (mounted) setState(() {});
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: accent.withOpacity(0.6)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              switch (f) {
+                                FactionId.fire =>
+                                  Icons.local_fire_department_rounded,
+                                FactionId.water => Icons.water_drop_rounded,
+                                FactionId.air => Icons.air_rounded,
+                                FactionId.earth => Icons.terrain_rounded,
+                              },
+                              size: 16,
+                              color: accent,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              f.name[0].toUpperCase() + f.name.substring(1),
+                              style: TextStyle(
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     _factionHeader(data.faction!, data.discoveredCount, accent),
                     const SizedBox(height: 14),
 

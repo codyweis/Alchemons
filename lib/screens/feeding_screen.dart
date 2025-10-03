@@ -4,6 +4,8 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/widgets/badges/badge_widget.dart';
+import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -39,11 +41,17 @@ class _FeedingScreenState extends State<FeedingScreen>
   String _speciesRarityFilter = 'All Rarities';
   String _speciesSortBy = 'Name';
   bool _speciesAscending = true;
-  String _instanceGroupBy = 'Level';
-  String _instanceSortBy = 'Level';
-  bool _instanceAscending = false;
 
   late AnimationController _glowController;
+
+  // Fodder filter state
+  String? _fodderFilterSize;
+  String? _fodderFilterTint;
+  bool _fodderFilterPrismatic = false;
+  String _fodderSortBy = 'Level';
+  bool _fodderAscending = false;
+
+  String? _fodderFilterNature;
 
   @override
   void initState() {
@@ -84,8 +92,7 @@ class _FeedingScreenState extends State<FeedingScreen>
             children: [
               _buildHeader(accentColor),
               _buildTargetSection(accentColor),
-              if (_targetInstanceId != null)
-                _buildInstanceGrouping(accentColor),
+
               Expanded(
                 child: StreamBuilder<List<CreatureInstance>>(
                   stream: db.watchAllInstances(),
@@ -134,10 +141,21 @@ class _FeedingScreenState extends State<FeedingScreen>
                   ],
                 ),
               ),
-              _GlowingIcon(
+              GlowingIcon(
                 icon: Icons.science_rounded,
                 color: accentColor,
                 controller: _glowController,
+                dialogTitle: "Enhancement Instructions",
+                dialogMessage:
+                    "Select an Alchemon to enhance by feeding it "
+                    "other Alchemons of the same species. The target Alchemon "
+                    "will gain experience points (XP) based on the levels of "
+                    "the fodder Alchemons used. Higher level fodder will yield "
+                    "more XP, potentially allowing the target to level up. "
+                    "Select multiple fodder Alchemons to maximize XP gain. "
+                    "Once satisfied with your selection, press the 'Enhance' "
+                    "button to apply the changes. Note that fodder Alchemons "
+                    "will be permanently consumed in the process.",
               ),
             ],
           ),
@@ -213,7 +231,6 @@ class _FeedingScreenState extends State<FeedingScreen>
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              _CreatureAvatar(creature: creature, size: 48),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -221,7 +238,7 @@ class _FeedingScreenState extends State<FeedingScreen>
                   children: [
                     Text(creature.name, style: _TextStyles.cardTitle),
                     const SizedBox(height: 4),
-                    _TypeBadges(types: creature.types),
+                    TypeBadges(types: creature.types),
                     const SizedBox(height: 4),
                     Text('Select specimen instance', style: _TextStyles.hint),
                   ],
@@ -274,7 +291,7 @@ class _FeedingScreenState extends State<FeedingScreen>
                     builder: (context, snapshot) {
                       return _CreatureAvatar(
                         creature: snapshot.data ?? base,
-                        size: 48,
+                        size: 80,
                       );
                     },
                   ),
@@ -285,9 +302,8 @@ class _FeedingScreenState extends State<FeedingScreen>
                       children: [
                         Row(
                           children: [
-                            Expanded(
-                              child: Text(name, style: _TextStyles.cardTitle),
-                            ),
+                            Text(name, style: _TextStyles.cardTitle),
+                            const SizedBox(width: 8),
                             _Badge(
                               text: 'L${instance.level}',
                               color: Colors.amber,
@@ -382,44 +398,6 @@ class _FeedingScreenState extends State<FeedingScreen>
     );
   }
 
-  Widget _buildInstanceGrouping(Color accentColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: _FilterDropdown(
-              items: const ['Level', 'Genetics', 'Creation Date'],
-              selectedValue: _instanceGroupBy,
-              onChanged: (v) => setState(() => _instanceGroupBy = v!),
-              icon: Icons.group_work_rounded,
-              accentColor: accentColor,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _FilterDropdown(
-              items: const ['Level', 'Created Date'],
-              selectedValue: _instanceSortBy,
-              onChanged: (v) => setState(() => _instanceSortBy = v!),
-              icon: Icons.sort_rounded,
-              accentColor: accentColor,
-            ),
-          ),
-          const SizedBox(width: 8),
-          _IconButton(
-            icon: _instanceAscending
-                ? Icons.keyboard_arrow_up
-                : Icons.keyboard_arrow_down,
-            accentColor: accentColor,
-            onTap: () =>
-                setState(() => _instanceAscending = !_instanceAscending),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildMainContent(
     List<CreatureInstance> allInstances,
     Color accentColor,
@@ -475,71 +453,91 @@ class _FeedingScreenState extends State<FeedingScreen>
     List<CreatureInstance> allInstances,
     Color accentColor,
   ) {
-    final groupedInstances = _FilterHelper.groupAndSortInstances(
-      allInstances
-          .where((instance) => instance.baseId == _targetSpeciesId)
-          .toList(),
-      _instanceGroupBy,
-      _instanceSortBy,
-      _instanceAscending,
-    );
+    var targetInstances = allInstances
+        .where((instance) => instance.baseId == _targetSpeciesId)
+        .toList();
 
-    if (groupedInstances.isEmpty) {
-      return _EmptyState(message: 'No instances of this species found');
-    }
+    targetInstances = targetInstances.where((inst) {
+      if (_fodderFilterPrismatic && inst.isPrismaticSkin != true) return false;
 
-    final sortedGroupKeys = groupedInstances.keys.toList()..sort();
+      final genetics = GeneticsHelper.parseGenetics(inst);
+      if (_fodderFilterSize != null && genetics?['size'] != _fodderFilterSize) {
+        return false;
+      }
+      if (_fodderFilterTint != null &&
+          genetics?['tinting'] != _fodderFilterTint) {
+        return false;
+      }
+
+      if (_fodderFilterNature != null && inst.natureId != _fodderFilterNature) {
+        return false;
+      }
+
+      return true;
+    }).toList();
+
+    targetInstances.sort((a, b) {
+      int comparison = _fodderSortBy == 'Level'
+          ? a.level.compareTo(b.level)
+          : a.createdAtUtcMs.compareTo(b.createdAtUtcMs);
+      return _fodderAscending ? comparison : -comparison;
+    });
+
+    final hasFilters =
+        _fodderFilterSize != null ||
+        _fodderFilterTint != null ||
+        _fodderFilterNature != null ||
+        _fodderFilterPrismatic;
+
+    final totalCount = allInstances
+        .where((i) => i.baseId == _targetSpeciesId)
+        .length;
 
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Select Target Specimen', style: _TextStyles.sectionTitle),
+          Row(
+            children: [
+              Text('Select Target Specimen', style: _TextStyles.sectionTitle),
+              const Spacer(),
+              _Badge(
+                text: '${targetInstances.length}/$totalCount',
+                color: Colors.blue,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildFodderFilters(accentColor),
           const SizedBox(height: 8),
           Expanded(
-            child: ListView.builder(
-              physics: const BouncingScrollPhysics(),
-              itemCount: sortedGroupKeys.length,
-              itemBuilder: (context, groupIndex) {
-                final groupKey = sortedGroupKeys[groupIndex];
-                final instances = groupedInstances[groupKey]!;
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (groupIndex > 0) const SizedBox(height: 12),
-                    _GroupHeader(
-                      groupKey: groupKey,
-                      count: instances.length,
-                      icon: _FilterHelper.getGroupIcon(_instanceGroupBy),
-                      accentColor: accentColor,
+            child: targetInstances.isEmpty
+                ? _EmptyState(
+                    message: hasFilters
+                        ? 'No matching specimens'
+                        : 'No instances of this species found',
+                    subtitle: hasFilters ? 'Try adjusting your filters' : null,
+                  )
+                : GridView.builder(
+                    physics: const BouncingScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 1.2,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                    itemCount: targetInstances.length,
+                    itemBuilder: (_, i) => _TargetInstanceCard(
+                      instance: targetInstances[i],
+                      onTap: () => setState(() {
+                        _targetInstanceId = targetInstances[i].instanceId;
+                        _selectedFodder.clear();
+                        _preview = null;
+                      }),
                     ),
-                    const SizedBox(height: 6),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 1.4,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
-                      itemCount: instances.length,
-                      itemBuilder: (_, i) => _TargetInstanceCard(
-                        instance: instances[i],
-                        onTap: () => setState(() {
-                          _targetInstanceId = instances[i].instanceId;
-                          _selectedFodder.clear();
-                          _preview = null;
-                        }),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                  ),
           ),
         ],
       ),
@@ -550,21 +548,38 @@ class _FeedingScreenState extends State<FeedingScreen>
     List<CreatureInstance> allInstances,
     Color accentColor,
   ) {
-    final fodderInstances = _FilterHelper.filterAndSortFodder(
+    var fodderInstances = _FilterHelper.filterAndSortFodder(
       allInstances,
       _targetSpeciesId,
       _targetInstanceId,
-      _instanceSortBy,
-      _instanceAscending,
+      _fodderSortBy,
+      _fodderAscending,
     );
 
-    if (fodderInstances.isEmpty) {
-      return _EmptyState(
-        message: 'No Enhancement Material Available',
-        subtitle: 'No other instances available for enhancement protocols.',
-        icon: Icons.no_food_rounded,
-      );
-    }
+    fodderInstances = fodderInstances.where((inst) {
+      if (_fodderFilterPrismatic && inst.isPrismaticSkin != true) return false;
+
+      final genetics = GeneticsHelper.parseGenetics(inst);
+      if (_fodderFilterSize != null && genetics?['size'] != _fodderFilterSize) {
+        return false;
+      }
+      if (_fodderFilterTint != null &&
+          genetics?['tinting'] != _fodderFilterTint) {
+        return false;
+      }
+
+      if (_fodderFilterNature != null && inst.natureId != _fodderFilterNature) {
+        return false;
+      }
+
+      return true;
+    }).toList();
+
+    final hasFilters =
+        _fodderFilterSize != null ||
+        _fodderFilterTint != null ||
+        _fodderFilterNature != null ||
+        _fodderFilterPrismatic;
 
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -581,44 +596,262 @@ class _FeedingScreenState extends State<FeedingScreen>
               ),
               const Spacer(),
               _Badge(
-                text: '${fodderInstances.length} available',
+                text:
+                    '${fodderInstances.length}/${allInstances.where((i) => i.baseId == _targetSpeciesId && i.instanceId != _targetInstanceId).length}',
                 color: Colors.green,
               ),
             ],
           ),
           const SizedBox(height: 8),
+          _buildFodderFilters(accentColor),
+          const SizedBox(height: 8),
           Expanded(
-            child: GridView.builder(
-              physics: const BouncingScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 0.6,
-                crossAxisSpacing: 5,
-                mainAxisSpacing: 5,
-              ),
-              itemCount: fodderInstances.length,
-              itemBuilder: (_, i) => _FodderCard(
-                instance: fodderInstances[i],
-                isSelected: _selectedFodder.contains(
-                  fodderInstances[i].instanceId,
-                ),
-                onTap: () async {
-                  setState(() {
-                    if (_selectedFodder.contains(
-                      fodderInstances[i].instanceId,
-                    )) {
-                      _selectedFodder.remove(fodderInstances[i].instanceId);
-                    } else {
-                      _selectedFodder.add(fodderInstances[i].instanceId);
-                    }
-                  });
-                  await _updatePreview();
-                },
-              ),
-            ),
+            child: fodderInstances.isEmpty
+                ? _EmptyState(
+                    message: hasFilters
+                        ? 'No matching specimens'
+                        : 'No Enhancement Material Available',
+                    subtitle: hasFilters
+                        ? 'Try adjusting your filters'
+                        : 'No other instances available for enhancement protocols.',
+                    icon: hasFilters
+                        ? Icons.search_off_rounded
+                        : Icons.no_food_rounded,
+                  )
+                : GridView.builder(
+                    physics: const BouncingScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          childAspectRatio: 0.6,
+                          crossAxisSpacing: 5,
+                          mainAxisSpacing: 5,
+                        ),
+                    itemCount: fodderInstances.length,
+                    itemBuilder: (_, i) => _FodderCard(
+                      instance: fodderInstances[i],
+                      isSelected: _selectedFodder.contains(
+                        fodderInstances[i].instanceId,
+                      ),
+                      onTap: () async {
+                        setState(() {
+                          if (_selectedFodder.contains(
+                            fodderInstances[i].instanceId,
+                          )) {
+                            _selectedFodder.remove(
+                              fodderInstances[i].instanceId,
+                            );
+                          } else {
+                            _selectedFodder.add(fodderInstances[i].instanceId);
+                          }
+                        });
+                        await _updatePreview();
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFodderFilters(Color accentColor) {
+    return Column(
+      children: [
+        // Sort row
+        Row(
+          children: [
+            Icon(
+              Icons.sort_rounded,
+              size: 14,
+              color: accentColor.withOpacity(.8),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _FodderSortChip(
+                      label: 'Level ↑',
+                      isSelected: _fodderSortBy == 'Level' && !_fodderAscending,
+                      primaryColor: accentColor,
+                      onTap: () => setState(() {
+                        _fodderSortBy = 'Level';
+                        _fodderAscending = false;
+                      }),
+                    ),
+                    const SizedBox(width: 6),
+                    _FodderSortChip(
+                      label: 'Level ↓',
+                      isSelected: _fodderSortBy == 'Level' && _fodderAscending,
+                      primaryColor: accentColor,
+                      onTap: () => setState(() {
+                        _fodderSortBy = 'Level';
+                        _fodderAscending = true;
+                      }),
+                    ),
+                    const SizedBox(width: 6),
+                    _FodderSortChip(
+                      label: 'Newest',
+                      isSelected:
+                          _fodderSortBy == 'Created Date' && !_fodderAscending,
+                      primaryColor: accentColor,
+                      onTap: () => setState(() {
+                        _fodderSortBy = 'Created Date';
+                        _fodderAscending = false;
+                      }),
+                    ),
+                    const SizedBox(width: 6),
+                    _FodderSortChip(
+                      label: 'Oldest',
+                      isSelected:
+                          _fodderSortBy == 'Created Date' && _fodderAscending,
+                      primaryColor: accentColor,
+                      onTap: () => setState(() {
+                        _fodderSortBy = 'Created Date';
+                        _fodderAscending = true;
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        // Filter row
+        Row(
+          children: [
+            Icon(
+              Icons.filter_list_rounded,
+              size: 14,
+              color: accentColor.withOpacity(.8),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _FodderFilterChip(
+                      icon: Icons.auto_awesome,
+                      label: 'Prismatic',
+                      isSelected: _fodderFilterPrismatic,
+                      primaryColor: accentColor,
+                      onTap: () => setState(
+                        () => _fodderFilterPrismatic = !_fodderFilterPrismatic,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    _FodderFilterDropdown(
+                      icon: Icons.straighten_rounded,
+                      label: 'Size',
+                      value: _fodderFilterSize,
+                      items: const [
+                        'tiny',
+                        'small',
+                        'normal',
+                        'large',
+                        'giant',
+                      ],
+                      itemLabels: const {
+                        'tiny': 'Tiny',
+                        'small': 'Small',
+                        'normal': 'Normal',
+                        'large': 'Large',
+                        'giant': 'Giant',
+                      },
+                      primaryColor: accentColor,
+                      onChanged: (v) => setState(() => _fodderFilterSize = v),
+                    ),
+                    const SizedBox(width: 6),
+                    _FodderFilterDropdown(
+                      icon: Icons.palette_outlined,
+                      label: 'Tint',
+                      value: _fodderFilterTint,
+                      items: const [
+                        'normal',
+                        'warm',
+                        'cool',
+                        'vibrant',
+                        'pale',
+                        'albino',
+                      ],
+                      itemLabels: const {
+                        'normal': 'Normal',
+                        'warm': 'Thermal',
+                        'cool': 'Cryogenic',
+                        'vibrant': 'Saturated',
+                        'pale': 'Diminished',
+                        'albino': 'Albino',
+                      },
+                      primaryColor: accentColor,
+                      onChanged: (v) => setState(() => _fodderFilterTint = v),
+                    ),
+                    const SizedBox(width: 6),
+                    _FodderFilterDropdown(
+                      icon: Icons.psychology_rounded,
+                      label: 'Nature',
+                      value: _fodderFilterNature,
+                      items: const [
+                        'Metabolic',
+                        'Reproductive',
+                        'Ecophysiological',
+                        'Sympatric',
+                        'Conspecific',
+                        'Homotypic',
+                        'Heterotypic',
+                        'Precocial',
+                        'Neuroadaptive',
+                        'Homeostatic',
+                        'Placidal',
+                        'Dormant',
+                        'Apathetic',
+                        'Nullic',
+                      ],
+                      itemLabels: const {
+                        'Metabolic': 'Metabolic',
+                        'Reproductive': 'Reproductive',
+                        'Ecophysiological': 'Ecophysiological',
+                        'Sympatric': 'Sympatric',
+                        'Conspecific': 'Conspecific',
+                        'Homotypic': 'Homotypic',
+                        'Heterotypic': 'Heterotypic',
+                        'Precocial': 'Precocial',
+                        'Neuroadaptive': 'Neuroadaptive',
+                        'Homeostatic': 'Homeostatic',
+                        'Placidal': 'Placidal',
+                        'Dormant': 'Dormant',
+                        'Apathetic': 'Apathetic',
+                        'Nullic': 'Nullic',
+                      },
+                      primaryColor: accentColor,
+                      onChanged: (v) => setState(() => _fodderFilterNature = v),
+                    ),
+                    if (_fodderFilterSize != null ||
+                        _fodderFilterTint != null ||
+                        _fodderFilterNature != null ||
+                        _fodderFilterPrismatic) ...[
+                      const SizedBox(width: 6),
+                      _ClearFodderFiltersButton(
+                        primaryColor: accentColor,
+                        onTap: () => setState(() {
+                          _fodderFilterSize = null;
+                          _fodderFilterTint = null;
+                          _fodderFilterNature = null;
+                          _fodderFilterPrismatic = false;
+                        }),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -700,10 +933,20 @@ class _FeedingScreenState extends State<FeedingScreen>
 
   // Helper methods
   void _resetSelection() => setState(() {
-    _targetSpeciesId = null;
-    _targetInstanceId = null;
-    _selectedFodder.clear();
-    _preview = null;
+    // Go back one step: if we're in fodder selection, go back to instance selection
+    // If we're in instance selection, go back to species selection
+    if (_targetInstanceId != null) {
+      // Currently in fodder selection -> go back to instance selection
+      _targetInstanceId = null;
+      _selectedFodder.clear();
+      _preview = null;
+    } else {
+      // Currently in instance selection -> go back to species selection
+      _targetSpeciesId = null;
+      _targetInstanceId = null;
+      _selectedFodder.clear();
+      _preview = null;
+    }
   });
 
   Future<void> _updatePreview() async {
@@ -793,6 +1036,387 @@ class _FeedingScreenState extends State<FeedingScreen>
 
 // ==================== REUSABLE COMPONENTS ====================
 
+class _FodderSortChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final Color primaryColor;
+  final VoidCallback onTap;
+
+  const _FodderSortChip({
+    required this.label,
+    required this.isSelected,
+    required this.primaryColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? primaryColor.withOpacity(.2)
+              : Colors.white.withOpacity(.06),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected
+                ? primaryColor.withOpacity(.5)
+                : Colors.white.withOpacity(.15),
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? primaryColor : const Color(0xFFB6C0CC),
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FodderFilterChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final Color primaryColor;
+  final VoidCallback onTap;
+
+  const _FodderFilterChip({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.primaryColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? primaryColor.withOpacity(.2)
+              : Colors.white.withOpacity(.06),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected
+                ? primaryColor.withOpacity(.5)
+                : Colors.white.withOpacity(.15),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 11,
+              color: isSelected ? primaryColor : const Color(0xFFB6C0CC),
+            ),
+            const SizedBox(width: 3),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? primaryColor : const Color(0xFFB6C0CC),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FodderFilterDropdown extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? value;
+  final List<String> items;
+  final Map<String, String> itemLabels;
+  final Color primaryColor;
+  final ValueChanged<String?> onChanged;
+
+  const _FodderFilterDropdown({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.itemLabels,
+    required this.primaryColor,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final result = await showDialog<String>(
+          context: context,
+          builder: (context) => _FodderFilterDialog(
+            title: label,
+            items: items,
+            itemLabels: itemLabels,
+            currentValue: value,
+            primaryColor: primaryColor,
+          ),
+        );
+        if (result != null) {
+          onChanged(result == 'clear' ? null : result);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: value != null
+              ? primaryColor.withOpacity(.2)
+              : Colors.white.withOpacity(.06),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: value != null
+                ? primaryColor.withOpacity(.5)
+                : Colors.white.withOpacity(.15),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 11,
+              color: value != null ? primaryColor : const Color(0xFFB6C0CC),
+            ),
+            const SizedBox(width: 3),
+            Text(
+              value != null ? itemLabels[value] ?? value! : label,
+              style: TextStyle(
+                color: value != null ? primaryColor : const Color(0xFFB6C0CC),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              Icons.arrow_drop_down,
+              size: 12,
+              color: value != null ? primaryColor : const Color(0xFFB6C0CC),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ClearFodderFiltersButton extends StatelessWidget {
+  final Color primaryColor;
+  final VoidCallback onTap;
+
+  const _ClearFodderFiltersButton({
+    required this.primaryColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(.15),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.red.withOpacity(.4), width: 1.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.clear_rounded, size: 11, color: Colors.red.shade300),
+            const SizedBox(width: 3),
+            Text(
+              'Clear',
+              style: TextStyle(
+                color: Colors.red.shade300,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Replace your _FodderFilterDialog class with this version:
+
+class _FodderFilterDialog extends StatelessWidget {
+  final String title;
+  final List<String> items;
+  final Map<String, String> itemLabels;
+  final String? currentValue;
+  final Color primaryColor;
+
+  const _FodderFilterDialog({
+    required this.title,
+    required this.items,
+    required this.itemLabels,
+    required this.currentValue,
+    required this.primaryColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 500, maxWidth: 400),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF0B0F14).withOpacity(0.92),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: primaryColor.withOpacity(.4),
+                  width: 2,
+                ),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Color(0xFFE8EAED),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      physics: const BouncingScrollPhysics(),
+                      children: [
+                        ...items.map((item) {
+                          final isSelected = currentValue == item;
+                          return GestureDetector(
+                            onTap: () => Navigator.pop(context, item),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? primaryColor.withOpacity(.2)
+                                    : Colors.white.withOpacity(.06),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? primaryColor.withOpacity(.5)
+                                      : Colors.white.withOpacity(.15),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      itemLabels[item] ?? item,
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? primaryColor
+                                            : const Color(0xFFE8EAED),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    Icon(
+                                      Icons.check_rounded,
+                                      color: primaryColor,
+                                      size: 18,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                        if (currentValue != null) ...[
+                          const SizedBox(height: 4),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context, 'clear'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(.15),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.red.withOpacity(.4),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.clear_rounded,
+                                    color: Colors.red.shade300,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Clear Filter',
+                                    style: TextStyle(
+                                      color: Colors.red.shade300,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GlassContainer extends StatelessWidget {
   final Widget child;
   final Color accentColor;
@@ -860,45 +1484,6 @@ class _IconButton extends StatelessWidget {
         ),
         child: Icon(icon, color: _TextStyles.softText, size: 18),
       ),
-    );
-  }
-}
-
-class _GlowingIcon extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final AnimationController controller;
-
-  const _GlowingIcon({
-    required this.icon,
-    required this.color,
-    required this.controller,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (_, __) {
-        final glow = 0.35 + controller.value * 0.4;
-        return Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [color.withOpacity(.3), Colors.transparent],
-            ),
-            border: Border.all(color: color.withOpacity(glow)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(glow * .4),
-                blurRadius: 20 + controller.value * 14,
-              ),
-            ],
-          ),
-          child: Icon(icon, size: 18, color: color),
-        );
-      },
     );
   }
 }
@@ -1021,38 +1606,6 @@ class _CreatureAvatar extends StatelessWidget {
   }
 }
 
-class _TypeBadges extends StatelessWidget {
-  final List<String> types;
-
-  const _TypeBadges({required this.types});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: types.take(2).map((type) {
-        final color = CreatureFilterUtils.getTypeColor(type);
-        return Container(
-          margin: const EdgeInsets.only(right: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: color.withOpacity(0.5)),
-          ),
-          child: Text(
-            type,
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
 class _Badge extends StatelessWidget {
   final String text;
   final MaterialColor color;
@@ -1094,7 +1647,7 @@ class _ChangeButton extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.symmetric(
           horizontal: isSmall ? 8 : 10,
-          vertical: isSmall ? 4 : 6,
+          vertical: isSmall ? 4 : 10,
         ),
         decoration: BoxDecoration(
           color: Colors.orange.shade100.withOpacity(0.15),
@@ -1114,7 +1667,7 @@ class _ChangeButton extends StatelessWidget {
               'Change',
               style: TextStyle(
                 color: Colors.orange.shade400,
-                fontSize: isSmall ? 10 : 11,
+                fontSize: isSmall ? 10 : 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1325,11 +1878,13 @@ class _TargetInstanceCard extends StatelessWidget {
     final repo = context.watch<CreatureRepository>();
     final base = repo.getCreatureById(instance.baseId);
     final genetics = GeneticsHelper.parseGenetics(instance);
+    final sizeVariant = GeneticsHelper.getSizeVariant(genetics);
+    final tintingVariant = GeneticsHelper.getTintingVariant(genetics);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.06),
           borderRadius: BorderRadius.circular(12),
@@ -1338,93 +1893,94 @@ class _TargetInstanceCard extends StatelessWidget {
             width: 1.5,
           ),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Avatar with compact badges overlay
             FutureBuilder<Creature?>(
               future: GeneticsHelper.createCreatureFromInstance(instance, repo),
               builder: (context, snapshot) {
                 return SizedBox(
-                  width: 75,
-                  height: 75,
+                  height: 90,
                   child: Stack(
                     children: [
-                      _CreatureAvatar(
-                        creature: snapshot.data ?? base,
-                        size: 75,
-                      ),
-                      Positioned(
-                        top: -2,
-                        left: -2,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.shade100,
-                            borderRadius: BorderRadius.circular(5),
-                            border: Border.all(color: Colors.amber.shade300),
-                          ),
-                          child: Text(
-                            'L${instance.level}',
-                            style: TextStyle(
-                              color: Colors.amber.shade900,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                      // Centered avatar
+                      Center(
+                        child: _CreatureAvatar(
+                          creature: snapshot.data ?? base,
+                          size: 85,
                         ),
                       ),
+                      // Top row: Level and XP
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _CompactBadge(
+                              text: 'L${instance.level}',
+                              color: const Color.fromARGB(255, 0, 0, 0),
+                              bgColor: Colors.amber.shade100,
+                              borderColor: Colors.amber.shade300,
+                            ),
+                            _CompactBadge(
+                              text: '${instance.xp}',
+                              color: Colors.green.shade700,
+                              bgColor: Colors.green.shade100,
+                              borderColor: Colors.green.shade300,
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Bottom right: Prismatic indicator
+                      if (instance.isPrismaticSkin)
+                        const Positioned(
+                          bottom: 2,
+                          right: 2,
+                          child: Text('⭐', style: TextStyle(fontSize: 16)),
+                        ),
                     ],
                   ),
                 );
               },
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (instance.isPrismaticSkin)
-                    Text(
-                      '⭐',
-                      style: TextStyle(fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
-                  const SizedBox(height: 4),
-                  _SmallBadge(text: '${instance.xp} XP', color: Colors.green),
-                  const SizedBox(height: 3),
-                  _SmallBadge(
-                    text: instance.natureId ?? 'None',
-                    color: instance.natureId != null
-                        ? Colors.purple
-                        : Colors.grey,
+            const SizedBox(height: 6),
+
+            // Info badges row
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              alignment: WrapAlignment.center,
+              children: [
+                // Nature
+                _InfoChip(
+                  text: instance.natureId ?? 'None',
+                  color: instance.natureId != null
+                      ? Colors.purple.shade600
+                      : Colors.grey.shade600,
+                  bgColor: instance.natureId != null
+                      ? Colors.purple.shade100
+                      : Colors.grey.shade200,
+                ),
+                // Size
+                if (sizeVariant != null)
+                  _InfoChip(
+                    icon: sizeIcons[sizeVariant] ?? Icons.circle,
+                    text: sizeLabels[sizeVariant] ?? sizeVariant,
+                    color: getSizeTextColor(sizeVariant),
+                    bgColor: getSizeColor(sizeVariant),
                   ),
-                  if (genetics != null) ...[
-                    const SizedBox(height: 3),
-                    if (GeneticsHelper.getSizeVariant(genetics) != null)
-                      _GeneticsBadge(
-                        icon:
-                            sizeIcons[GeneticsHelper.getSizeVariant(
-                              genetics,
-                            )!] ??
-                            Icons.circle,
-                        text:
-                            sizeLabels[GeneticsHelper.getSizeVariant(
-                              genetics,
-                            )!] ??
-                            GeneticsHelper.getSizeVariant(genetics)!,
-                        color: getSizeTextColor(
-                          GeneticsHelper.getSizeVariant(genetics)!,
-                        ),
-                        bgColor: getSizeColor(
-                          GeneticsHelper.getSizeVariant(genetics)!,
-                        ),
-                      ),
-                  ],
-                ],
-              ),
+                // Tint
+                if (tintingVariant != null && tintingVariant != 'normal')
+                  _InfoChip(
+                    icon: tintIcons[tintingVariant] ?? Icons.palette_outlined,
+                    text: tintLabels[tintingVariant] ?? tintingVariant,
+                    color: getTintingTextColor(tintingVariant),
+                    bgColor: getTintingColor(tintingVariant),
+                  ),
+              ],
             ),
           ],
         ),
@@ -1449,12 +2005,14 @@ class _FodderCard extends StatelessWidget {
     final repo = context.watch<CreatureRepository>();
     final base = repo.getCreatureById(instance.baseId);
     final genetics = GeneticsHelper.parseGenetics(instance);
+    final sizeVariant = GeneticsHelper.getSizeVariant(genetics);
+    final tintingVariant = GeneticsHelper.getTintingVariant(genetics);
 
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: isSelected
               ? Colors.green.shade400.withOpacity(0.15)
@@ -1480,124 +2038,98 @@ class _FodderCard extends StatelessWidget {
               : null,
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
+            // Avatar with level badge
             FutureBuilder<Creature?>(
               future: GeneticsHelper.createCreatureFromInstance(instance, repo),
               builder: (context, snapshot) {
                 return SizedBox(
-                  height: 70,
-                  width: 70,
+                  height: 80,
                   child: Stack(
                     children: [
-                      Positioned(
-                        top: 8,
-                        left: 8,
+                      Center(
                         child: _CreatureAvatar(
                           creature: snapshot.data ?? base,
-                          size: 62,
+                          size: 76,
                         ),
                       ),
+                      // Level badge - top left
                       Positioned(
                         top: 0,
                         left: 0,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.shade100,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: Colors.amber.shade300),
-                          ),
-                          child: Text(
-                            'L${instance.level}',
-                            style: TextStyle(
-                              color: Colors.amber.shade700,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                        child: _CompactBadge(
+                          text: 'L${instance.level}',
+                          color: const Color.fromARGB(255, 0, 0, 0),
+                          bgColor: Colors.amber.shade100,
+                          borderColor: Colors.amber.shade300,
                         ),
                       ),
+                      // Prismatic - bottom right
+                      if (instance.isPrismaticSkin)
+                        const Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Text('⭐', style: TextStyle(fontSize: 14)),
+                        ),
                     ],
                   ),
                 );
               },
             ),
             const SizedBox(height: 4),
+
+            // Name
             Text(
               base?.name ?? instance.baseId,
-              style: _TextStyles.cardSmallTitle,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                height: 1.1,
+              ),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
-            Row(
+            const SizedBox(height: 6),
+
+            // Info badges
+            Wrap(
+              spacing: 3,
+              runSpacing: 3,
+              alignment: WrapAlignment.center,
               children: [
-                Expanded(
-                  child: _TinyBadge(
-                    text: '${instance.xp}XP',
-                    color: Colors.green,
-                  ),
+                // Nature
+                _InfoChip(
+                  text: instance.natureId ?? 'None',
+                  color: instance.natureId != null
+                      ? Colors.purple.shade600
+                      : Colors.grey.shade600,
+                  bgColor: instance.natureId != null
+                      ? Colors.purple.shade100
+                      : Colors.grey.shade200,
+                  compact: true,
                 ),
-                const SizedBox(width: 3),
-                Expanded(
-                  child: _TinyBadge(
-                    text: instance.natureId ?? 'None',
-                    color: instance.natureId != null
-                        ? Colors.purple
-                        : Colors.grey,
+                // Size
+                if (sizeVariant != null)
+                  _InfoChip(
+                    icon: sizeIcons[sizeVariant] ?? Icons.circle,
+                    text: sizeLabels[sizeVariant] ?? sizeVariant,
+                    color: getSizeTextColor(sizeVariant),
+                    bgColor: getSizeColor(sizeVariant),
+                    compact: true,
                   ),
-                ),
+                // Tint
+                if (tintingVariant != null && tintingVariant != 'normal')
+                  _InfoChip(
+                    icon: tintIcons[tintingVariant] ?? Icons.palette_outlined,
+                    text: tintLabels[tintingVariant] ?? tintingVariant,
+                    color: getTintingTextColor(tintingVariant),
+                    bgColor: getTintingColor(tintingVariant),
+                    compact: true,
+                  ),
               ],
             ),
-            if (genetics != null) ...[
-              const SizedBox(height: 3),
-              if (GeneticsHelper.getSizeVariant(genetics) != null)
-                _GeneticsBadge(
-                  icon:
-                      sizeIcons[GeneticsHelper.getSizeVariant(genetics)!] ??
-                      Icons.circle,
-                  text:
-                      sizeLabels[GeneticsHelper.getSizeVariant(genetics)!] ??
-                      GeneticsHelper.getSizeVariant(genetics)!,
-                  color: getSizeTextColor(
-                    GeneticsHelper.getSizeVariant(genetics)!,
-                  ),
-                  bgColor: getSizeColor(
-                    GeneticsHelper.getSizeVariant(genetics)!,
-                  ),
-                ),
-              if (GeneticsHelper.getTintingVariant(genetics) != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: _GeneticsBadge(
-                    icon:
-                        tintIcons[GeneticsHelper.getTintingVariant(
-                          genetics,
-                        )!] ??
-                        Icons.palette_outlined,
-                    text:
-                        tintLabels[GeneticsHelper.getTintingVariant(
-                          genetics,
-                        )!] ??
-                        GeneticsHelper.getTintingVariant(genetics)!,
-                    color: getTintingTextColor(
-                      GeneticsHelper.getTintingVariant(genetics)!,
-                    ),
-                    bgColor: getTintingColor(
-                      GeneticsHelper.getTintingVariant(genetics)!,
-                    ),
-                  ),
-                ),
-            ],
-            if (instance.isPrismaticSkin)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: _SmallBadge(text: '⭐', color: Colors.pink),
-              ),
           ],
         ),
       ),
@@ -1605,31 +2137,86 @@ class _FodderCard extends StatelessWidget {
   }
 }
 
-class _TinyBadge extends StatelessWidget {
+// Compact badge for level/xp
+class _CompactBadge extends StatelessWidget {
   final String text;
-  final MaterialColor color;
+  final Color color;
+  final Color bgColor;
+  final Color borderColor;
 
-  const _TinyBadge({required this.text, required this.color});
+  const _CompactBadge({
+    required this.text,
+    required this.color,
+    required this.bgColor,
+    required this.borderColor,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: color.shade50.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color.shade400.withOpacity(0.5), width: 0.5),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: borderColor, width: 0.5),
       ),
       child: Text(
         text,
         style: TextStyle(
-          color: color.shade400,
-          fontSize: 8,
-          fontWeight: FontWeight.w600,
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          height: 1,
         ),
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+// Info chip for nature/size/tint
+class _InfoChip extends StatelessWidget {
+  final IconData? icon;
+  final String text;
+  final Color color;
+  final Color bgColor;
+  final bool compact;
+
+  const _InfoChip({
+    this.icon,
+    required this.text,
+    required this.color,
+    required this.bgColor,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 4 : 6,
+        vertical: compact ? 2 : 3,
+      ),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: compact ? 9 : 10, color: color),
+            SizedBox(width: compact ? 2 : 3),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: compact ? 8 : 9,
+              fontWeight: FontWeight.w600,
+              height: 1,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1875,59 +2462,6 @@ class _FilterHelper {
     return filtered;
   }
 
-  static Map<String, List<CreatureInstance>> groupAndSortInstances(
-    List<CreatureInstance> instances,
-    String groupBy,
-    String sortBy,
-    bool ascending,
-  ) {
-    Map<String, List<CreatureInstance>> grouped = {};
-
-    for (final instance in instances) {
-      String groupKey;
-      switch (groupBy) {
-        case 'Level':
-          final levelRange = (instance.level ~/ 10) * 10;
-          groupKey = 'Level ${levelRange}-${levelRange + 9}';
-          break;
-        case 'Genetics':
-          groupKey = instance.isPrismaticSkin ? 'Prismatic' : 'Standard';
-          break;
-        case 'Creation Date':
-          final date = DateTime.fromMillisecondsSinceEpoch(
-            instance.createdAtUtcMs,
-          );
-          final diff = DateTime.now().difference(date).inDays;
-          if (diff < 1) {
-            groupKey = 'Recent';
-          } else if (diff < 7) {
-            groupKey = 'This Week';
-          } else if (diff < 30) {
-            groupKey = 'This Month';
-          } else {
-            groupKey = 'Archived';
-          }
-          break;
-        default:
-          groupKey = 'All';
-      }
-
-      grouped.putIfAbsent(groupKey, () => []);
-      grouped[groupKey]!.add(instance);
-    }
-
-    for (final group in grouped.values) {
-      group.sort((a, b) {
-        int comparison = sortBy == 'Level'
-            ? a.level.compareTo(b.level)
-            : a.createdAtUtcMs.compareTo(b.createdAtUtcMs);
-        return ascending ? comparison : -comparison;
-      });
-    }
-
-    return grouped;
-  }
-
   static List<CreatureInstance> filterAndSortFodder(
     List<CreatureInstance> allInstances,
     String? targetSpeciesId,
@@ -1952,19 +2486,6 @@ class _FilterHelper {
     });
 
     return filtered;
-  }
-
-  static IconData getGroupIcon(String groupBy) {
-    switch (groupBy) {
-      case 'Level':
-        return Icons.trending_up_rounded;
-      case 'Genetics':
-        return Icons.auto_awesome_rounded;
-      case 'Creation Date':
-        return Icons.schedule_rounded;
-      default:
-        return Icons.group_work_rounded;
-    }
   }
 }
 

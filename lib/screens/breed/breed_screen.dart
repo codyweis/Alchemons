@@ -6,28 +6,45 @@ import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/screens/breed/breed_tab.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'nursery_tab.dart';
 
 class BreedScreen extends StatefulWidget {
-  const BreedScreen({super.key});
+  /// 0 = Breeding, 1 = Incubator (Nursery)
+  final int initialTab;
+  const BreedScreen({super.key, this.initialTab = 0});
 
   @override
   State<BreedScreen> createState() => _BreedScreenState();
 }
 
 class _BreedScreenState extends State<BreedScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   Timer? _ticker;
   DateTime? _maxSeenNowUtc;
+  late AnimationController _pulse;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _tabController = TabController(length: 2, vsync: this);
+
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 1),
+    );
+
+    // ADD: drive a soft in-out pulse forever
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    )..repeat(reverse: true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _loadHighWaterClock();
@@ -36,12 +53,22 @@ class _BreedScreenState extends State<BreedScreen>
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+
+    // OPTIONAL: only pulse on the current tab (index 0 here)
+    _tabController.addListener(() {
+      if (_tabController.index == 0) {
+        _pulse.repeat(reverse: true);
+      } else {
+        _pulse.stop();
+      }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
+    _pulse.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -391,22 +418,13 @@ class _BreedScreenState extends State<BreedScreen>
                   ),
                 ),
                 const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        primaryColor.withOpacity(.3),
-                        secondaryColor.withOpacity(.3),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.biotech_rounded,
-                    color: primaryColor,
-                    size: 20,
-                  ),
+                GlowingIcon(
+                  icon: Icons.merge_type_rounded,
+                  color: secondaryColor,
+                  controller: _pulse,
+                  dialogTitle: "Breeding Protocols",
+                  dialogMessage:
+                      "Combine compatible creature species to produce unique offspring with inherited traits. Experiment with different pairings to discover new genetic combinations. After breeding is initiated, the offspring will appear in the Incubator tab.",
                 ),
               ],
             ),

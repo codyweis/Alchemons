@@ -386,106 +386,96 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
               final creature = versionData['creature'] as Creature;
               final isVariant = versionData['isVariant'] as bool;
 
-              return Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(.04),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: primaryColor.withOpacity(.3),
-                    width: 2,
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: CreatureSprite(
-                            spritePath: creature.spriteData!.spriteSheetPath,
-                            totalFrames: creature.spriteData!.totalFrames,
-                            rows: creature.spriteData!.rows,
-                            scale: scaleFromGenes(creature.genetics),
-                            saturation: satFromGenes(creature.genetics),
-                            brightness: briFromGenes(creature.genetics),
-                            hueShift: hueFromGenes(creature.genetics),
-                            isPrismatic: creature.isPrismaticSkin,
-                            frameSize: Vector2(
-                              creature.spriteData!.frameWidth.toDouble(),
-                              creature.spriteData!.frameHeight.toDouble(),
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: CreatureSprite(
+                          spritePath: creature.spriteData!.spriteSheetPath,
+                          totalFrames: creature.spriteData!.totalFrames,
+                          rows: creature.spriteData!.rows,
+                          scale: scaleFromGenes(creature.genetics),
+                          saturation: satFromGenes(creature.genetics),
+                          brightness: briFromGenes(creature.genetics),
+                          hueShift: hueFromGenes(creature.genetics),
+                          isPrismatic: creature.isPrismaticSkin,
+                          frameSize: Vector2(
+                            creature.spriteData!.frameWidth.toDouble(),
+                            creature.spriteData!.frameHeight.toDouble(),
+                          ),
+                          stepTime:
+                              (creature.spriteData!.frameDurationMs / 1000.0),
+                        ),
+                      ),
+                    ),
+                    if (isVariant)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.orange.shade500,
+                                Colors.orange.shade600,
+                              ],
                             ),
-                            stepTime:
-                                (creature.spriteData!.frameDurationMs / 1000.0),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(.3),
+                            ),
+                          ),
+                          child: const Text(
+                            'VARIANT',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                       ),
-                      if (isVariant)
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 3,
+                    if (creature.isPrismaticSkin == true)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.purple.shade400,
+                                Colors.purple.shade600,
+                              ],
                             ),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.orange.shade500,
-                                  Colors.orange.shade600,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(.3),
-                              ),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(.3),
                             ),
-                            child: const Text(
-                              'VARIANT',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.5,
-                              ),
+                          ),
+                          child: const Text(
+                            'PRISMATIC',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
                             ),
                           ),
                         ),
-                      if (creature.isPrismaticSkin == true)
-                        Positioned(
-                          top: 8,
-                          left: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.purple.shade400,
-                                  Colors.purple.shade600,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(.3),
-                              ),
-                            ),
-                            child: const Text(
-                              'PRISMATIC',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               );
             },
@@ -536,7 +526,12 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                 ),
               ];
 
-              return _buildSwipeableCreatureDisplay(allVersions, primaryColor);
+              return Center(
+                child: _buildSwipeableCreatureDisplay(
+                  allVersions,
+                  primaryColor,
+                ),
+              );
             },
           ),
           const SizedBox(height: 20),

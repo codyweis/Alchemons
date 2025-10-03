@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -439,7 +440,14 @@ class _GlassAppBar extends StatelessWidget {
                       ],
                     ),
                   ),
-                  _PulseBadge(controller: pulse, accentColor: accentColor),
+                  GlowingIcon(
+                    controller: pulse,
+                    color: accentColor,
+                    icon: Icons.storage_rounded,
+                    dialogTitle: "Alchemon Database",
+                    dialogMessage:
+                        "Explore the Alchemon Database to view detailed information about acquired species, including natures, genetics, parental information and more.",
+                  ),
                   const SizedBox(width: 4),
                 ],
               ),
@@ -756,10 +764,14 @@ class _CreatureCard extends StatelessWidget {
                   padding: const EdgeInsets.all(6),
                   child: Column(
                     children: [
+                      // Image container with aspect ratio
                       Expanded(
-                        child: _CreatureImage(c: c, discovered: discovered),
+                        child: Center(
+                          child: _CreatureImage(c: c, discovered: discovered),
+                        ),
                       ),
                       const SizedBox(height: 4),
+                      // Text content at bottom
                       Text(
                         discovered ? c.name : 'Unknown',
                         maxLines: 1,
@@ -1393,43 +1405,6 @@ class _StickyFilterBar extends SliverPersistentHeaderDelegate {
       old.scope != scope ||
       old.typeFilter != typeFilter ||
       old.isGrid != isGrid;
-}
-
-class _PulseBadge extends StatelessWidget {
-  final AnimationController controller;
-  final Color accentColor;
-  const _PulseBadge({required this.controller, required this.accentColor});
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (_, __) {
-        final glow = 0.35 + controller.value * 0.4;
-        return Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: accentColor.withOpacity(glow)),
-            boxShadow: [
-              BoxShadow(
-                color: accentColor.withOpacity(glow * .4),
-                blurRadius: 20 + controller.value * 14,
-              ),
-            ],
-            gradient: RadialGradient(
-              colors: [accentColor.withOpacity(.55), Colors.transparent],
-            ),
-          ),
-          child: const Icon(
-            Icons.storage_rounded,
-            size: 16,
-            color: Colors.white,
-          ),
-        );
-      },
-    );
-  }
 }
 
 class _Glass extends StatelessWidget {
