@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/screens/party_picker.dart';
@@ -300,6 +301,42 @@ class _MapScreenState extends State<MapScreen>
               );
             },
           ),
+          const SizedBox(height: 12),
+          // --- Sky Expedition (sky) ---
+          FutureBuilder<bool>(
+            future: access.canEnter('sky'),
+            builder: (context, snap) {
+              final available = snap.data ?? true;
+
+              return Stack(
+                children: [
+                  _ExpeditionCard(
+                    title: 'Sky Breeding Ground',
+                    subtitle: 'Rare Air Creatures',
+                    description:
+                        'A high-altitude habitat filled with unique air-type creatures. Ideal for advanced breeders.',
+                    difficulty: 'Advanced',
+                    expectedRewards: const [
+                      'Sky Offspring',
+                      'Rare Clouds',
+                      'Advanced Breeding XP',
+                    ],
+                    icon: Icons.cloud_rounded,
+                    statusColor: Colors.blue,
+                    isAvailable: available,
+                    glowController: _glowController,
+                    onTap: () => _onExpeditionTap(context, 'sky', skyScene),
+                  ),
+                  if (!available)
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: CountdownBadge(remaining: access.timeUntilReset),
+                    ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -364,8 +401,7 @@ class _MapScreenState extends State<MapScreen>
         ok = true;
       }
     }
-
-    if (!ok) {
+    if (ok) {
       final left = access.timeUntilReset();
       final hh = left.inHours;
       final mm = left.inMinutes.remainder(60);
