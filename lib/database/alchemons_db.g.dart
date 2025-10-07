@@ -2721,27 +2721,31 @@ class FeedEventsCompanion extends UpdateCompanion<FeedEvent> {
   }
 }
 
-class $HarvestFarmsTable extends HarvestFarms
-    with TableInfo<$HarvestFarmsTable, HarvestFarm> {
+class $BiomeFarmsTable extends BiomeFarms
+    with TableInfo<$BiomeFarmsTable, BiomeFarm> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $HarvestFarmsTable(this.attachedDatabase, [this._alias]);
+  $BiomeFarmsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
     'id',
     aliasedName,
     false,
+    hasAutoIncrement: true,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
   );
-  static const VerificationMeta _elementMeta = const VerificationMeta(
-    'element',
+  static const VerificationMeta _biomeIdMeta = const VerificationMeta(
+    'biomeId',
   );
   @override
-  late final GeneratedColumn<String> element = GeneratedColumn<String>(
-    'element',
+  late final GeneratedColumn<String> biomeId = GeneratedColumn<String>(
+    'biome_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -2772,16 +2776,33 @@ class $HarvestFarmsTable extends HarvestFarms
     requiredDuringInsert: false,
     defaultValue: const Constant(1),
   );
+  static const VerificationMeta _activeElementIdMeta = const VerificationMeta(
+    'activeElementId',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, element, unlocked, level];
+  late final GeneratedColumn<String> activeElementId = GeneratedColumn<String>(
+    'active_element_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    biomeId,
+    unlocked,
+    level,
+    activeElementId,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'harvest_farms';
+  static const String $name = 'biome_farms';
   @override
   VerificationContext validateIntegrity(
-    Insertable<HarvestFarm> instance, {
+    Insertable<BiomeFarm> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -2789,13 +2810,13 @@ class $HarvestFarmsTable extends HarvestFarms
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('element')) {
+    if (data.containsKey('biome_id')) {
       context.handle(
-        _elementMeta,
-        element.isAcceptableOrUnknown(data['element']!, _elementMeta),
+        _biomeIdMeta,
+        biomeId.isAcceptableOrUnknown(data['biome_id']!, _biomeIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_elementMeta);
+      context.missing(_biomeIdMeta);
     }
     if (data.containsKey('unlocked')) {
       context.handle(
@@ -2809,22 +2830,31 @@ class $HarvestFarmsTable extends HarvestFarms
         level.isAcceptableOrUnknown(data['level']!, _levelMeta),
       );
     }
+    if (data.containsKey('active_element_id')) {
+      context.handle(
+        _activeElementIdMeta,
+        activeElementId.isAcceptableOrUnknown(
+          data['active_element_id']!,
+          _activeElementIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  HarvestFarm map(Map<String, dynamic> data, {String? tablePrefix}) {
+  BiomeFarm map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return HarvestFarm(
+    return BiomeFarm(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
-      element: attachedDatabase.typeMapping.read(
+      biomeId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}element'],
+        data['${effectivePrefix}biome_id'],
       )!,
       unlocked: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
@@ -2834,55 +2864,68 @@ class $HarvestFarmsTable extends HarvestFarms
         DriftSqlType.int,
         data['${effectivePrefix}level'],
       )!,
+      activeElementId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}active_element_id'],
+      ),
     );
   }
 
   @override
-  $HarvestFarmsTable createAlias(String alias) {
-    return $HarvestFarmsTable(attachedDatabase, alias);
+  $BiomeFarmsTable createAlias(String alias) {
+    return $BiomeFarmsTable(attachedDatabase, alias);
   }
 }
 
-class HarvestFarm extends DataClass implements Insertable<HarvestFarm> {
+class BiomeFarm extends DataClass implements Insertable<BiomeFarm> {
   final int id;
-  final String element;
+  final String biomeId;
   final bool unlocked;
   final int level;
-  const HarvestFarm({
+  final String? activeElementId;
+  const BiomeFarm({
     required this.id,
-    required this.element,
+    required this.biomeId,
     required this.unlocked,
     required this.level,
+    this.activeElementId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['element'] = Variable<String>(element);
+    map['biome_id'] = Variable<String>(biomeId);
     map['unlocked'] = Variable<bool>(unlocked);
     map['level'] = Variable<int>(level);
+    if (!nullToAbsent || activeElementId != null) {
+      map['active_element_id'] = Variable<String>(activeElementId);
+    }
     return map;
   }
 
-  HarvestFarmsCompanion toCompanion(bool nullToAbsent) {
-    return HarvestFarmsCompanion(
+  BiomeFarmsCompanion toCompanion(bool nullToAbsent) {
+    return BiomeFarmsCompanion(
       id: Value(id),
-      element: Value(element),
+      biomeId: Value(biomeId),
       unlocked: Value(unlocked),
       level: Value(level),
+      activeElementId: activeElementId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(activeElementId),
     );
   }
 
-  factory HarvestFarm.fromJson(
+  factory BiomeFarm.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return HarvestFarm(
+    return BiomeFarm(
       id: serializer.fromJson<int>(json['id']),
-      element: serializer.fromJson<String>(json['element']),
+      biomeId: serializer.fromJson<String>(json['biomeId']),
       unlocked: serializer.fromJson<bool>(json['unlocked']),
       level: serializer.fromJson<int>(json['level']),
+      activeElementId: serializer.fromJson<String?>(json['activeElementId']),
     );
   }
   @override
@@ -2890,97 +2933,115 @@ class HarvestFarm extends DataClass implements Insertable<HarvestFarm> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
-      'element': serializer.toJson<String>(element),
+      'biomeId': serializer.toJson<String>(biomeId),
       'unlocked': serializer.toJson<bool>(unlocked),
       'level': serializer.toJson<int>(level),
+      'activeElementId': serializer.toJson<String?>(activeElementId),
     };
   }
 
-  HarvestFarm copyWith({
+  BiomeFarm copyWith({
     int? id,
-    String? element,
+    String? biomeId,
     bool? unlocked,
     int? level,
-  }) => HarvestFarm(
+    Value<String?> activeElementId = const Value.absent(),
+  }) => BiomeFarm(
     id: id ?? this.id,
-    element: element ?? this.element,
+    biomeId: biomeId ?? this.biomeId,
     unlocked: unlocked ?? this.unlocked,
     level: level ?? this.level,
+    activeElementId: activeElementId.present
+        ? activeElementId.value
+        : this.activeElementId,
   );
-  HarvestFarm copyWithCompanion(HarvestFarmsCompanion data) {
-    return HarvestFarm(
+  BiomeFarm copyWithCompanion(BiomeFarmsCompanion data) {
+    return BiomeFarm(
       id: data.id.present ? data.id.value : this.id,
-      element: data.element.present ? data.element.value : this.element,
+      biomeId: data.biomeId.present ? data.biomeId.value : this.biomeId,
       unlocked: data.unlocked.present ? data.unlocked.value : this.unlocked,
       level: data.level.present ? data.level.value : this.level,
+      activeElementId: data.activeElementId.present
+          ? data.activeElementId.value
+          : this.activeElementId,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('HarvestFarm(')
+    return (StringBuffer('BiomeFarm(')
           ..write('id: $id, ')
-          ..write('element: $element, ')
+          ..write('biomeId: $biomeId, ')
           ..write('unlocked: $unlocked, ')
-          ..write('level: $level')
+          ..write('level: $level, ')
+          ..write('activeElementId: $activeElementId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, element, unlocked, level);
+  int get hashCode =>
+      Object.hash(id, biomeId, unlocked, level, activeElementId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is HarvestFarm &&
+      (other is BiomeFarm &&
           other.id == this.id &&
-          other.element == this.element &&
+          other.biomeId == this.biomeId &&
           other.unlocked == this.unlocked &&
-          other.level == this.level);
+          other.level == this.level &&
+          other.activeElementId == this.activeElementId);
 }
 
-class HarvestFarmsCompanion extends UpdateCompanion<HarvestFarm> {
+class BiomeFarmsCompanion extends UpdateCompanion<BiomeFarm> {
   final Value<int> id;
-  final Value<String> element;
+  final Value<String> biomeId;
   final Value<bool> unlocked;
   final Value<int> level;
-  const HarvestFarmsCompanion({
+  final Value<String?> activeElementId;
+  const BiomeFarmsCompanion({
     this.id = const Value.absent(),
-    this.element = const Value.absent(),
+    this.biomeId = const Value.absent(),
     this.unlocked = const Value.absent(),
     this.level = const Value.absent(),
+    this.activeElementId = const Value.absent(),
   });
-  HarvestFarmsCompanion.insert({
+  BiomeFarmsCompanion.insert({
     this.id = const Value.absent(),
-    required String element,
+    required String biomeId,
     this.unlocked = const Value.absent(),
     this.level = const Value.absent(),
-  }) : element = Value(element);
-  static Insertable<HarvestFarm> custom({
+    this.activeElementId = const Value.absent(),
+  }) : biomeId = Value(biomeId);
+  static Insertable<BiomeFarm> custom({
     Expression<int>? id,
-    Expression<String>? element,
+    Expression<String>? biomeId,
     Expression<bool>? unlocked,
     Expression<int>? level,
+    Expression<String>? activeElementId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (element != null) 'element': element,
+      if (biomeId != null) 'biome_id': biomeId,
       if (unlocked != null) 'unlocked': unlocked,
       if (level != null) 'level': level,
+      if (activeElementId != null) 'active_element_id': activeElementId,
     });
   }
 
-  HarvestFarmsCompanion copyWith({
+  BiomeFarmsCompanion copyWith({
     Value<int>? id,
-    Value<String>? element,
+    Value<String>? biomeId,
     Value<bool>? unlocked,
     Value<int>? level,
+    Value<String?>? activeElementId,
   }) {
-    return HarvestFarmsCompanion(
+    return BiomeFarmsCompanion(
       id: id ?? this.id,
-      element: element ?? this.element,
+      biomeId: biomeId ?? this.biomeId,
       unlocked: unlocked ?? this.unlocked,
       level: level ?? this.level,
+      activeElementId: activeElementId ?? this.activeElementId,
     );
   }
 
@@ -2990,8 +3051,8 @@ class HarvestFarmsCompanion extends UpdateCompanion<HarvestFarm> {
     if (id.present) {
       map['id'] = Variable<int>(id.value);
     }
-    if (element.present) {
-      map['element'] = Variable<String>(element.value);
+    if (biomeId.present) {
+      map['biome_id'] = Variable<String>(biomeId.value);
     }
     if (unlocked.present) {
       map['unlocked'] = Variable<bool>(unlocked.value);
@@ -2999,27 +3060,31 @@ class HarvestFarmsCompanion extends UpdateCompanion<HarvestFarm> {
     if (level.present) {
       map['level'] = Variable<int>(level.value);
     }
+    if (activeElementId.present) {
+      map['active_element_id'] = Variable<String>(activeElementId.value);
+    }
     return map;
   }
 
   @override
   String toString() {
-    return (StringBuffer('HarvestFarmsCompanion(')
+    return (StringBuffer('BiomeFarmsCompanion(')
           ..write('id: $id, ')
-          ..write('element: $element, ')
+          ..write('biomeId: $biomeId, ')
           ..write('unlocked: $unlocked, ')
-          ..write('level: $level')
+          ..write('level: $level, ')
+          ..write('activeElementId: $activeElementId')
           ..write(')'))
         .toString();
   }
 }
 
-class $HarvestJobsTable extends HarvestJobs
-    with TableInfo<$HarvestJobsTable, HarvestJob> {
+class $BiomeJobsTable extends BiomeJobs
+    with TableInfo<$BiomeJobsTable, BiomeJob> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $HarvestJobsTable(this.attachedDatabase, [this._alias]);
+  $BiomeJobsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _jobIdMeta = const VerificationMeta('jobId');
   @override
   late final GeneratedColumn<String> jobId = GeneratedColumn<String>(
@@ -3029,10 +3094,12 @@ class $HarvestJobsTable extends HarvestJobs
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _farmIdMeta = const VerificationMeta('farmId');
+  static const VerificationMeta _biomeIdMeta = const VerificationMeta(
+    'biomeId',
+  );
   @override
-  late final GeneratedColumn<int> farmId = GeneratedColumn<int>(
-    'farm_id',
+  late final GeneratedColumn<int> biomeId = GeneratedColumn<int>(
+    'biome_id',
     aliasedName,
     false,
     type: DriftSqlType.int,
@@ -3085,7 +3152,7 @@ class $HarvestJobsTable extends HarvestJobs
   @override
   List<GeneratedColumn> get $columns => [
     jobId,
-    farmId,
+    biomeId,
     creatureInstanceId,
     startUtcMs,
     durationMs,
@@ -3095,10 +3162,10 @@ class $HarvestJobsTable extends HarvestJobs
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'harvest_jobs';
+  static const String $name = 'biome_jobs';
   @override
   VerificationContext validateIntegrity(
-    Insertable<HarvestJob> instance, {
+    Insertable<BiomeJob> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -3111,13 +3178,13 @@ class $HarvestJobsTable extends HarvestJobs
     } else if (isInserting) {
       context.missing(_jobIdMeta);
     }
-    if (data.containsKey('farm_id')) {
+    if (data.containsKey('biome_id')) {
       context.handle(
-        _farmIdMeta,
-        farmId.isAcceptableOrUnknown(data['farm_id']!, _farmIdMeta),
+        _biomeIdMeta,
+        biomeId.isAcceptableOrUnknown(data['biome_id']!, _biomeIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_farmIdMeta);
+      context.missing(_biomeIdMeta);
     }
     if (data.containsKey('creature_instance_id')) {
       context.handle(
@@ -3166,16 +3233,16 @@ class $HarvestJobsTable extends HarvestJobs
   @override
   Set<GeneratedColumn> get $primaryKey => {jobId};
   @override
-  HarvestJob map(Map<String, dynamic> data, {String? tablePrefix}) {
+  BiomeJob map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return HarvestJob(
+    return BiomeJob(
       jobId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}job_id'],
       )!,
-      farmId: attachedDatabase.typeMapping.read(
+      biomeId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}farm_id'],
+        data['${effectivePrefix}biome_id'],
       )!,
       creatureInstanceId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -3197,21 +3264,21 @@ class $HarvestJobsTable extends HarvestJobs
   }
 
   @override
-  $HarvestJobsTable createAlias(String alias) {
-    return $HarvestJobsTable(attachedDatabase, alias);
+  $BiomeJobsTable createAlias(String alias) {
+    return $BiomeJobsTable(attachedDatabase, alias);
   }
 }
 
-class HarvestJob extends DataClass implements Insertable<HarvestJob> {
+class BiomeJob extends DataClass implements Insertable<BiomeJob> {
   final String jobId;
-  final int farmId;
+  final int biomeId;
   final String creatureInstanceId;
   final int startUtcMs;
   final int durationMs;
   final int ratePerMinute;
-  const HarvestJob({
+  const BiomeJob({
     required this.jobId,
-    required this.farmId,
+    required this.biomeId,
     required this.creatureInstanceId,
     required this.startUtcMs,
     required this.durationMs,
@@ -3221,7 +3288,7 @@ class HarvestJob extends DataClass implements Insertable<HarvestJob> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['job_id'] = Variable<String>(jobId);
-    map['farm_id'] = Variable<int>(farmId);
+    map['biome_id'] = Variable<int>(biomeId);
     map['creature_instance_id'] = Variable<String>(creatureInstanceId);
     map['start_utc_ms'] = Variable<int>(startUtcMs);
     map['duration_ms'] = Variable<int>(durationMs);
@@ -3229,10 +3296,10 @@ class HarvestJob extends DataClass implements Insertable<HarvestJob> {
     return map;
   }
 
-  HarvestJobsCompanion toCompanion(bool nullToAbsent) {
-    return HarvestJobsCompanion(
+  BiomeJobsCompanion toCompanion(bool nullToAbsent) {
+    return BiomeJobsCompanion(
       jobId: Value(jobId),
-      farmId: Value(farmId),
+      biomeId: Value(biomeId),
       creatureInstanceId: Value(creatureInstanceId),
       startUtcMs: Value(startUtcMs),
       durationMs: Value(durationMs),
@@ -3240,14 +3307,14 @@ class HarvestJob extends DataClass implements Insertable<HarvestJob> {
     );
   }
 
-  factory HarvestJob.fromJson(
+  factory BiomeJob.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return HarvestJob(
+    return BiomeJob(
       jobId: serializer.fromJson<String>(json['jobId']),
-      farmId: serializer.fromJson<int>(json['farmId']),
+      biomeId: serializer.fromJson<int>(json['biomeId']),
       creatureInstanceId: serializer.fromJson<String>(
         json['creatureInstanceId'],
       ),
@@ -3261,7 +3328,7 @@ class HarvestJob extends DataClass implements Insertable<HarvestJob> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'jobId': serializer.toJson<String>(jobId),
-      'farmId': serializer.toJson<int>(farmId),
+      'biomeId': serializer.toJson<int>(biomeId),
       'creatureInstanceId': serializer.toJson<String>(creatureInstanceId),
       'startUtcMs': serializer.toJson<int>(startUtcMs),
       'durationMs': serializer.toJson<int>(durationMs),
@@ -3269,25 +3336,25 @@ class HarvestJob extends DataClass implements Insertable<HarvestJob> {
     };
   }
 
-  HarvestJob copyWith({
+  BiomeJob copyWith({
     String? jobId,
-    int? farmId,
+    int? biomeId,
     String? creatureInstanceId,
     int? startUtcMs,
     int? durationMs,
     int? ratePerMinute,
-  }) => HarvestJob(
+  }) => BiomeJob(
     jobId: jobId ?? this.jobId,
-    farmId: farmId ?? this.farmId,
+    biomeId: biomeId ?? this.biomeId,
     creatureInstanceId: creatureInstanceId ?? this.creatureInstanceId,
     startUtcMs: startUtcMs ?? this.startUtcMs,
     durationMs: durationMs ?? this.durationMs,
     ratePerMinute: ratePerMinute ?? this.ratePerMinute,
   );
-  HarvestJob copyWithCompanion(HarvestJobsCompanion data) {
-    return HarvestJob(
+  BiomeJob copyWithCompanion(BiomeJobsCompanion data) {
+    return BiomeJob(
       jobId: data.jobId.present ? data.jobId.value : this.jobId,
-      farmId: data.farmId.present ? data.farmId.value : this.farmId,
+      biomeId: data.biomeId.present ? data.biomeId.value : this.biomeId,
       creatureInstanceId: data.creatureInstanceId.present
           ? data.creatureInstanceId.value
           : this.creatureInstanceId,
@@ -3305,9 +3372,9 @@ class HarvestJob extends DataClass implements Insertable<HarvestJob> {
 
   @override
   String toString() {
-    return (StringBuffer('HarvestJob(')
+    return (StringBuffer('BiomeJob(')
           ..write('jobId: $jobId, ')
-          ..write('farmId: $farmId, ')
+          ..write('biomeId: $biomeId, ')
           ..write('creatureInstanceId: $creatureInstanceId, ')
           ..write('startUtcMs: $startUtcMs, ')
           ..write('durationMs: $durationMs, ')
@@ -3319,7 +3386,7 @@ class HarvestJob extends DataClass implements Insertable<HarvestJob> {
   @override
   int get hashCode => Object.hash(
     jobId,
-    farmId,
+    biomeId,
     creatureInstanceId,
     startUtcMs,
     durationMs,
@@ -3328,49 +3395,49 @@ class HarvestJob extends DataClass implements Insertable<HarvestJob> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is HarvestJob &&
+      (other is BiomeJob &&
           other.jobId == this.jobId &&
-          other.farmId == this.farmId &&
+          other.biomeId == this.biomeId &&
           other.creatureInstanceId == this.creatureInstanceId &&
           other.startUtcMs == this.startUtcMs &&
           other.durationMs == this.durationMs &&
           other.ratePerMinute == this.ratePerMinute);
 }
 
-class HarvestJobsCompanion extends UpdateCompanion<HarvestJob> {
+class BiomeJobsCompanion extends UpdateCompanion<BiomeJob> {
   final Value<String> jobId;
-  final Value<int> farmId;
+  final Value<int> biomeId;
   final Value<String> creatureInstanceId;
   final Value<int> startUtcMs;
   final Value<int> durationMs;
   final Value<int> ratePerMinute;
   final Value<int> rowid;
-  const HarvestJobsCompanion({
+  const BiomeJobsCompanion({
     this.jobId = const Value.absent(),
-    this.farmId = const Value.absent(),
+    this.biomeId = const Value.absent(),
     this.creatureInstanceId = const Value.absent(),
     this.startUtcMs = const Value.absent(),
     this.durationMs = const Value.absent(),
     this.ratePerMinute = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  HarvestJobsCompanion.insert({
+  BiomeJobsCompanion.insert({
     required String jobId,
-    required int farmId,
+    required int biomeId,
     required String creatureInstanceId,
     required int startUtcMs,
     required int durationMs,
     required int ratePerMinute,
     this.rowid = const Value.absent(),
   }) : jobId = Value(jobId),
-       farmId = Value(farmId),
+       biomeId = Value(biomeId),
        creatureInstanceId = Value(creatureInstanceId),
        startUtcMs = Value(startUtcMs),
        durationMs = Value(durationMs),
        ratePerMinute = Value(ratePerMinute);
-  static Insertable<HarvestJob> custom({
+  static Insertable<BiomeJob> custom({
     Expression<String>? jobId,
-    Expression<int>? farmId,
+    Expression<int>? biomeId,
     Expression<String>? creatureInstanceId,
     Expression<int>? startUtcMs,
     Expression<int>? durationMs,
@@ -3379,7 +3446,7 @@ class HarvestJobsCompanion extends UpdateCompanion<HarvestJob> {
   }) {
     return RawValuesInsertable({
       if (jobId != null) 'job_id': jobId,
-      if (farmId != null) 'farm_id': farmId,
+      if (biomeId != null) 'biome_id': biomeId,
       if (creatureInstanceId != null)
         'creature_instance_id': creatureInstanceId,
       if (startUtcMs != null) 'start_utc_ms': startUtcMs,
@@ -3389,18 +3456,18 @@ class HarvestJobsCompanion extends UpdateCompanion<HarvestJob> {
     });
   }
 
-  HarvestJobsCompanion copyWith({
+  BiomeJobsCompanion copyWith({
     Value<String>? jobId,
-    Value<int>? farmId,
+    Value<int>? biomeId,
     Value<String>? creatureInstanceId,
     Value<int>? startUtcMs,
     Value<int>? durationMs,
     Value<int>? ratePerMinute,
     Value<int>? rowid,
   }) {
-    return HarvestJobsCompanion(
+    return BiomeJobsCompanion(
       jobId: jobId ?? this.jobId,
-      farmId: farmId ?? this.farmId,
+      biomeId: biomeId ?? this.biomeId,
       creatureInstanceId: creatureInstanceId ?? this.creatureInstanceId,
       startUtcMs: startUtcMs ?? this.startUtcMs,
       durationMs: durationMs ?? this.durationMs,
@@ -3415,8 +3482,8 @@ class HarvestJobsCompanion extends UpdateCompanion<HarvestJob> {
     if (jobId.present) {
       map['job_id'] = Variable<String>(jobId.value);
     }
-    if (farmId.present) {
-      map['farm_id'] = Variable<int>(farmId.value);
+    if (biomeId.present) {
+      map['biome_id'] = Variable<int>(biomeId.value);
     }
     if (creatureInstanceId.present) {
       map['creature_instance_id'] = Variable<String>(creatureInstanceId.value);
@@ -3438,9 +3505,9 @@ class HarvestJobsCompanion extends UpdateCompanion<HarvestJob> {
 
   @override
   String toString() {
-    return (StringBuffer('HarvestJobsCompanion(')
+    return (StringBuffer('BiomeJobsCompanion(')
           ..write('jobId: $jobId, ')
-          ..write('farmId: $farmId, ')
+          ..write('biomeId: $biomeId, ')
           ..write('creatureInstanceId: $creatureInstanceId, ')
           ..write('startUtcMs: $startUtcMs, ')
           ..write('durationMs: $durationMs, ')
@@ -3463,8 +3530,8 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   late final $CreatureInstancesTable creatureInstances =
       $CreatureInstancesTable(this);
   late final $FeedEventsTable feedEvents = $FeedEventsTable(this);
-  late final $HarvestFarmsTable harvestFarms = $HarvestFarmsTable(this);
-  late final $HarvestJobsTable harvestJobs = $HarvestJobsTable(this);
+  late final $BiomeFarmsTable biomeFarms = $BiomeFarmsTable(this);
+  late final $BiomeJobsTable biomeJobs = $BiomeJobsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3476,8 +3543,8 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
     settings,
     creatureInstances,
     feedEvents,
-    harvestFarms,
-    harvestJobs,
+    biomeFarms,
+    biomeJobs,
   ];
 }
 
@@ -4908,24 +4975,26 @@ typedef $$FeedEventsTableProcessedTableManager =
       FeedEvent,
       PrefetchHooks Function()
     >;
-typedef $$HarvestFarmsTableCreateCompanionBuilder =
-    HarvestFarmsCompanion Function({
+typedef $$BiomeFarmsTableCreateCompanionBuilder =
+    BiomeFarmsCompanion Function({
       Value<int> id,
-      required String element,
+      required String biomeId,
       Value<bool> unlocked,
       Value<int> level,
+      Value<String?> activeElementId,
     });
-typedef $$HarvestFarmsTableUpdateCompanionBuilder =
-    HarvestFarmsCompanion Function({
+typedef $$BiomeFarmsTableUpdateCompanionBuilder =
+    BiomeFarmsCompanion Function({
       Value<int> id,
-      Value<String> element,
+      Value<String> biomeId,
       Value<bool> unlocked,
       Value<int> level,
+      Value<String?> activeElementId,
     });
 
-class $$HarvestFarmsTableFilterComposer
-    extends Composer<_$AlchemonsDatabase, $HarvestFarmsTable> {
-  $$HarvestFarmsTableFilterComposer({
+class $$BiomeFarmsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $BiomeFarmsTable> {
+  $$BiomeFarmsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4937,8 +5006,8 @@ class $$HarvestFarmsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get element => $composableBuilder(
-    column: $table.element,
+  ColumnFilters<String> get biomeId => $composableBuilder(
+    column: $table.biomeId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4951,11 +5020,16 @@ class $$HarvestFarmsTableFilterComposer
     column: $table.level,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<String> get activeElementId => $composableBuilder(
+    column: $table.activeElementId,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
-class $$HarvestFarmsTableOrderingComposer
-    extends Composer<_$AlchemonsDatabase, $HarvestFarmsTable> {
-  $$HarvestFarmsTableOrderingComposer({
+class $$BiomeFarmsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $BiomeFarmsTable> {
+  $$BiomeFarmsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4967,8 +5041,8 @@ class $$HarvestFarmsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get element => $composableBuilder(
-    column: $table.element,
+  ColumnOrderings<String> get biomeId => $composableBuilder(
+    column: $table.biomeId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -4981,11 +5055,16 @@ class $$HarvestFarmsTableOrderingComposer
     column: $table.level,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get activeElementId => $composableBuilder(
+    column: $table.activeElementId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
-class $$HarvestFarmsTableAnnotationComposer
-    extends Composer<_$AlchemonsDatabase, $HarvestFarmsTable> {
-  $$HarvestFarmsTableAnnotationComposer({
+class $$BiomeFarmsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $BiomeFarmsTable> {
+  $$BiomeFarmsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4995,74 +5074,77 @@ class $$HarvestFarmsTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get element =>
-      $composableBuilder(column: $table.element, builder: (column) => column);
+  GeneratedColumn<String> get biomeId =>
+      $composableBuilder(column: $table.biomeId, builder: (column) => column);
 
   GeneratedColumn<bool> get unlocked =>
       $composableBuilder(column: $table.unlocked, builder: (column) => column);
 
   GeneratedColumn<int> get level =>
       $composableBuilder(column: $table.level, builder: (column) => column);
+
+  GeneratedColumn<String> get activeElementId => $composableBuilder(
+    column: $table.activeElementId,
+    builder: (column) => column,
+  );
 }
 
-class $$HarvestFarmsTableTableManager
+class $$BiomeFarmsTableTableManager
     extends
         RootTableManager<
           _$AlchemonsDatabase,
-          $HarvestFarmsTable,
-          HarvestFarm,
-          $$HarvestFarmsTableFilterComposer,
-          $$HarvestFarmsTableOrderingComposer,
-          $$HarvestFarmsTableAnnotationComposer,
-          $$HarvestFarmsTableCreateCompanionBuilder,
-          $$HarvestFarmsTableUpdateCompanionBuilder,
+          $BiomeFarmsTable,
+          BiomeFarm,
+          $$BiomeFarmsTableFilterComposer,
+          $$BiomeFarmsTableOrderingComposer,
+          $$BiomeFarmsTableAnnotationComposer,
+          $$BiomeFarmsTableCreateCompanionBuilder,
+          $$BiomeFarmsTableUpdateCompanionBuilder,
           (
-            HarvestFarm,
-            BaseReferences<
-              _$AlchemonsDatabase,
-              $HarvestFarmsTable,
-              HarvestFarm
-            >,
+            BiomeFarm,
+            BaseReferences<_$AlchemonsDatabase, $BiomeFarmsTable, BiomeFarm>,
           ),
-          HarvestFarm,
+          BiomeFarm,
           PrefetchHooks Function()
         > {
-  $$HarvestFarmsTableTableManager(
-    _$AlchemonsDatabase db,
-    $HarvestFarmsTable table,
-  ) : super(
+  $$BiomeFarmsTableTableManager(_$AlchemonsDatabase db, $BiomeFarmsTable table)
+    : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$HarvestFarmsTableFilterComposer($db: db, $table: table),
+              $$BiomeFarmsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$HarvestFarmsTableOrderingComposer($db: db, $table: table),
+              $$BiomeFarmsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$HarvestFarmsTableAnnotationComposer($db: db, $table: table),
+              $$BiomeFarmsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                Value<String> element = const Value.absent(),
+                Value<String> biomeId = const Value.absent(),
                 Value<bool> unlocked = const Value.absent(),
                 Value<int> level = const Value.absent(),
-              }) => HarvestFarmsCompanion(
+                Value<String?> activeElementId = const Value.absent(),
+              }) => BiomeFarmsCompanion(
                 id: id,
-                element: element,
+                biomeId: biomeId,
                 unlocked: unlocked,
                 level: level,
+                activeElementId: activeElementId,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                required String element,
+                required String biomeId,
                 Value<bool> unlocked = const Value.absent(),
                 Value<int> level = const Value.absent(),
-              }) => HarvestFarmsCompanion.insert(
+                Value<String?> activeElementId = const Value.absent(),
+              }) => BiomeFarmsCompanion.insert(
                 id: id,
-                element: element,
+                biomeId: biomeId,
                 unlocked: unlocked,
                 level: level,
+                activeElementId: activeElementId,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -5072,37 +5154,37 @@ class $$HarvestFarmsTableTableManager
       );
 }
 
-typedef $$HarvestFarmsTableProcessedTableManager =
+typedef $$BiomeFarmsTableProcessedTableManager =
     ProcessedTableManager<
       _$AlchemonsDatabase,
-      $HarvestFarmsTable,
-      HarvestFarm,
-      $$HarvestFarmsTableFilterComposer,
-      $$HarvestFarmsTableOrderingComposer,
-      $$HarvestFarmsTableAnnotationComposer,
-      $$HarvestFarmsTableCreateCompanionBuilder,
-      $$HarvestFarmsTableUpdateCompanionBuilder,
+      $BiomeFarmsTable,
+      BiomeFarm,
+      $$BiomeFarmsTableFilterComposer,
+      $$BiomeFarmsTableOrderingComposer,
+      $$BiomeFarmsTableAnnotationComposer,
+      $$BiomeFarmsTableCreateCompanionBuilder,
+      $$BiomeFarmsTableUpdateCompanionBuilder,
       (
-        HarvestFarm,
-        BaseReferences<_$AlchemonsDatabase, $HarvestFarmsTable, HarvestFarm>,
+        BiomeFarm,
+        BaseReferences<_$AlchemonsDatabase, $BiomeFarmsTable, BiomeFarm>,
       ),
-      HarvestFarm,
+      BiomeFarm,
       PrefetchHooks Function()
     >;
-typedef $$HarvestJobsTableCreateCompanionBuilder =
-    HarvestJobsCompanion Function({
+typedef $$BiomeJobsTableCreateCompanionBuilder =
+    BiomeJobsCompanion Function({
       required String jobId,
-      required int farmId,
+      required int biomeId,
       required String creatureInstanceId,
       required int startUtcMs,
       required int durationMs,
       required int ratePerMinute,
       Value<int> rowid,
     });
-typedef $$HarvestJobsTableUpdateCompanionBuilder =
-    HarvestJobsCompanion Function({
+typedef $$BiomeJobsTableUpdateCompanionBuilder =
+    BiomeJobsCompanion Function({
       Value<String> jobId,
-      Value<int> farmId,
+      Value<int> biomeId,
       Value<String> creatureInstanceId,
       Value<int> startUtcMs,
       Value<int> durationMs,
@@ -5110,9 +5192,9 @@ typedef $$HarvestJobsTableUpdateCompanionBuilder =
       Value<int> rowid,
     });
 
-class $$HarvestJobsTableFilterComposer
-    extends Composer<_$AlchemonsDatabase, $HarvestJobsTable> {
-  $$HarvestJobsTableFilterComposer({
+class $$BiomeJobsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $BiomeJobsTable> {
+  $$BiomeJobsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -5124,8 +5206,8 @@ class $$HarvestJobsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get farmId => $composableBuilder(
-    column: $table.farmId,
+  ColumnFilters<int> get biomeId => $composableBuilder(
+    column: $table.biomeId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5150,9 +5232,9 @@ class $$HarvestJobsTableFilterComposer
   );
 }
 
-class $$HarvestJobsTableOrderingComposer
-    extends Composer<_$AlchemonsDatabase, $HarvestJobsTable> {
-  $$HarvestJobsTableOrderingComposer({
+class $$BiomeJobsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $BiomeJobsTable> {
+  $$BiomeJobsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -5164,8 +5246,8 @@ class $$HarvestJobsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get farmId => $composableBuilder(
-    column: $table.farmId,
+  ColumnOrderings<int> get biomeId => $composableBuilder(
+    column: $table.biomeId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -5190,9 +5272,9 @@ class $$HarvestJobsTableOrderingComposer
   );
 }
 
-class $$HarvestJobsTableAnnotationComposer
-    extends Composer<_$AlchemonsDatabase, $HarvestJobsTable> {
-  $$HarvestJobsTableAnnotationComposer({
+class $$BiomeJobsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $BiomeJobsTable> {
+  $$BiomeJobsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -5202,8 +5284,8 @@ class $$HarvestJobsTableAnnotationComposer
   GeneratedColumn<String> get jobId =>
       $composableBuilder(column: $table.jobId, builder: (column) => column);
 
-  GeneratedColumn<int> get farmId =>
-      $composableBuilder(column: $table.farmId, builder: (column) => column);
+  GeneratedColumn<int> get biomeId =>
+      $composableBuilder(column: $table.biomeId, builder: (column) => column);
 
   GeneratedColumn<String> get creatureInstanceId => $composableBuilder(
     column: $table.creatureInstanceId,
@@ -5226,49 +5308,47 @@ class $$HarvestJobsTableAnnotationComposer
   );
 }
 
-class $$HarvestJobsTableTableManager
+class $$BiomeJobsTableTableManager
     extends
         RootTableManager<
           _$AlchemonsDatabase,
-          $HarvestJobsTable,
-          HarvestJob,
-          $$HarvestJobsTableFilterComposer,
-          $$HarvestJobsTableOrderingComposer,
-          $$HarvestJobsTableAnnotationComposer,
-          $$HarvestJobsTableCreateCompanionBuilder,
-          $$HarvestJobsTableUpdateCompanionBuilder,
+          $BiomeJobsTable,
+          BiomeJob,
+          $$BiomeJobsTableFilterComposer,
+          $$BiomeJobsTableOrderingComposer,
+          $$BiomeJobsTableAnnotationComposer,
+          $$BiomeJobsTableCreateCompanionBuilder,
+          $$BiomeJobsTableUpdateCompanionBuilder,
           (
-            HarvestJob,
-            BaseReferences<_$AlchemonsDatabase, $HarvestJobsTable, HarvestJob>,
+            BiomeJob,
+            BaseReferences<_$AlchemonsDatabase, $BiomeJobsTable, BiomeJob>,
           ),
-          HarvestJob,
+          BiomeJob,
           PrefetchHooks Function()
         > {
-  $$HarvestJobsTableTableManager(
-    _$AlchemonsDatabase db,
-    $HarvestJobsTable table,
-  ) : super(
+  $$BiomeJobsTableTableManager(_$AlchemonsDatabase db, $BiomeJobsTable table)
+    : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$HarvestJobsTableFilterComposer($db: db, $table: table),
+              $$BiomeJobsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$HarvestJobsTableOrderingComposer($db: db, $table: table),
+              $$BiomeJobsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$HarvestJobsTableAnnotationComposer($db: db, $table: table),
+              $$BiomeJobsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> jobId = const Value.absent(),
-                Value<int> farmId = const Value.absent(),
+                Value<int> biomeId = const Value.absent(),
                 Value<String> creatureInstanceId = const Value.absent(),
                 Value<int> startUtcMs = const Value.absent(),
                 Value<int> durationMs = const Value.absent(),
                 Value<int> ratePerMinute = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => HarvestJobsCompanion(
+              }) => BiomeJobsCompanion(
                 jobId: jobId,
-                farmId: farmId,
+                biomeId: biomeId,
                 creatureInstanceId: creatureInstanceId,
                 startUtcMs: startUtcMs,
                 durationMs: durationMs,
@@ -5278,15 +5358,15 @@ class $$HarvestJobsTableTableManager
           createCompanionCallback:
               ({
                 required String jobId,
-                required int farmId,
+                required int biomeId,
                 required String creatureInstanceId,
                 required int startUtcMs,
                 required int durationMs,
                 required int ratePerMinute,
                 Value<int> rowid = const Value.absent(),
-              }) => HarvestJobsCompanion.insert(
+              }) => BiomeJobsCompanion.insert(
                 jobId: jobId,
-                farmId: farmId,
+                biomeId: biomeId,
                 creatureInstanceId: creatureInstanceId,
                 startUtcMs: startUtcMs,
                 durationMs: durationMs,
@@ -5301,21 +5381,21 @@ class $$HarvestJobsTableTableManager
       );
 }
 
-typedef $$HarvestJobsTableProcessedTableManager =
+typedef $$BiomeJobsTableProcessedTableManager =
     ProcessedTableManager<
       _$AlchemonsDatabase,
-      $HarvestJobsTable,
-      HarvestJob,
-      $$HarvestJobsTableFilterComposer,
-      $$HarvestJobsTableOrderingComposer,
-      $$HarvestJobsTableAnnotationComposer,
-      $$HarvestJobsTableCreateCompanionBuilder,
-      $$HarvestJobsTableUpdateCompanionBuilder,
+      $BiomeJobsTable,
+      BiomeJob,
+      $$BiomeJobsTableFilterComposer,
+      $$BiomeJobsTableOrderingComposer,
+      $$BiomeJobsTableAnnotationComposer,
+      $$BiomeJobsTableCreateCompanionBuilder,
+      $$BiomeJobsTableUpdateCompanionBuilder,
       (
-        HarvestJob,
-        BaseReferences<_$AlchemonsDatabase, $HarvestJobsTable, HarvestJob>,
+        BiomeJob,
+        BaseReferences<_$AlchemonsDatabase, $BiomeJobsTable, BiomeJob>,
       ),
-      HarvestJob,
+      BiomeJob,
       PrefetchHooks Function()
     >;
 
@@ -5333,8 +5413,8 @@ class $AlchemonsDatabaseManager {
       $$CreatureInstancesTableTableManager(_db, _db.creatureInstances);
   $$FeedEventsTableTableManager get feedEvents =>
       $$FeedEventsTableTableManager(_db, _db.feedEvents);
-  $$HarvestFarmsTableTableManager get harvestFarms =>
-      $$HarvestFarmsTableTableManager(_db, _db.harvestFarms);
-  $$HarvestJobsTableTableManager get harvestJobs =>
-      $$HarvestJobsTableTableManager(_db, _db.harvestJobs);
+  $$BiomeFarmsTableTableManager get biomeFarms =>
+      $$BiomeFarmsTableTableManager(_db, _db.biomeFarms);
+  $$BiomeJobsTableTableManager get biomeJobs =>
+      $$BiomeJobsTableTableManager(_db, _db.biomeJobs);
 }

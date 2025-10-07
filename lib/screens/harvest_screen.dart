@@ -1,26 +1,29 @@
-// lib/screens/harvest_screen.dart
+// lib/screens/biome_harvest_screen.dart
 import 'dart:ui';
 import 'dart:math' as math;
 
+import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/constants/unlock_costs.dart';
+import 'package:alchemons/models/biome_farm_state.dart';
+import 'package:alchemons/models/harvest_biome.dart';
+import 'package:alchemons/screens/harvest_detail_screen.dart';
 import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/farm_element.dart';
 import 'package:alchemons/services/harvest_service.dart';
-import 'package:alchemons/screens/harvest_detail_screen.dart';
 
-class HarvestScreen extends StatefulWidget {
-  const HarvestScreen({super.key, this.service});
+class BiomeHarvestScreen extends StatefulWidget {
+  const BiomeHarvestScreen({super.key, this.service});
 
   final HarvestService? service;
 
   @override
-  State<HarvestScreen> createState() => _HarvestScreenState();
+  State<BiomeHarvestScreen> createState() => _BiomeHarvestScreenState();
 }
 
-class _HarvestScreenState extends State<HarvestScreen>
+class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
     with TickerProviderStateMixin {
   late HarvestService svc;
   late final AnimationController _bg;
@@ -47,21 +50,21 @@ class _HarvestScreenState extends State<HarvestScreen>
     super.dispose();
   }
 
-  Future<void> _promptUnlock(HarvestFarmState f) async {
-    final costDb = _unlockCostToKeys(f.element.unlockCostDb);
+  Future<void> _promptUnlock(BiomeFarmState farm) async {
+    final costDb = UnlockCosts.biome(farm.biome);
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
-      builder: (_) => _UnlockDialog(element: f.element, costDb: costDb),
+      builder: (_) => _UnlockDialog(biome: farm.biome, costDb: costDb),
     );
 
     if (confirmed == true) {
-      final ok = await svc.unlock(f.element, cost: costDb);
+      final ok = await svc.unlock(farm.biome, cost: costDb);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            ok ? 'Unlocked ${f.element.label}!' : 'Not enough resources',
+            ok ? 'Unlocked ${farm.biome.label}!' : 'Not enough resources',
           ),
           behavior: SnackBarBehavior.floating,
           backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade700,
@@ -72,13 +75,6 @@ class _HarvestScreenState extends State<HarvestScreen>
 
   @override
   Widget build(BuildContext context) {
-    final farms = svc.farms;
-    // Use color from first unlocked farm, or a default
-    final accentColor = farms
-        .firstWhere((f) => f.unlocked, orElse: () => farms.first)
-        .element
-        .color;
-
     return Scaffold(
       backgroundColor: const Color(0xFF0B0F14),
       extendBodyBehindAppBar: true,
@@ -86,73 +82,78 @@ class _HarvestScreenState extends State<HarvestScreen>
         preferredSize: const Size.fromHeight(0),
         child: AppBar(backgroundColor: Colors.transparent, elevation: 0),
       ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _bg,
-              builder: (_, __) =>
-                  CustomPaint(painter: _HarvestBackdropPainter(t: _bg.value)),
-            ),
-          ),
-          Column(
-            children: [
-              _buildHeader(accentColor),
-              Expanded(
-                child: AnimatedBuilder(
-                  animation: svc,
-                  builder: (_, __) {
-                    final width = MediaQuery.of(context).size.width;
-                    final cross = width >= 900
-                        ? 4
-                        : width >= 650
-                        ? 3
-                        : 2;
-                    final aspect = width >= 650 ? .95 : .93;
+      body: ListenableBuilder(
+        // ← NEW: Wrap body in ListenableBuilder
+        listenable: svc,
+        builder: (_, __) {
+          final biomes = svc.biomes; // ← NOW reads fresh data on each notify
+          final accentColor = biomes
+              .firstWhere((f) => f.unlocked, orElse: () => biomes.first)
+              .biome
+              .primaryColor;
 
-                    return GridView.builder(
-                      padding: const EdgeInsets.all(14),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: cross,
-                        mainAxisSpacing: 14,
-                        crossAxisSpacing: 14,
-                        childAspectRatio: aspect,
-                      ),
-                      itemCount: farms.length,
-                      itemBuilder: (_, i) {
-                        final f = farms[i];
-                        return _FarmCard(
-                          f: f,
-                          onUnlock: () => _promptUnlock(f),
-                          onOpen: () {
-                            Navigator.of(context).push(
-                              PageRouteBuilder(
-                                transitionDuration: const Duration(
-                                  milliseconds: 450,
-                                ),
-                                pageBuilder: (_, a1, __) => FadeTransition(
-                                  opacity: CurvedAnimation(
-                                    parent: a1,
-                                    curve: Curves.ease,
-                                  ),
-                                  child: HarvestDetailScreen(
-                                    element: f.element,
-                                    service: svc,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _bg,
+                  builder: (_, __) => CustomPaint(
+                    painter: _HarvestBackdropPainter(t: _bg.value),
+                  ),
                 ),
               ),
+              Column(
+                children: [
+                  _buildHeader(accentColor),
+                  Expanded(
+                    child: _buildGrid(biomes), // ← Pass biomes as parameter
+                  ),
+                ],
+              ),
             ],
-          ),
-        ],
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildGrid(List<BiomeFarmState> biomes) {
+    // ← NEW helper method
+    final width = MediaQuery.of(context).size.width;
+    final cross = width >= 900
+        ? 3
+        : width >= 650
+        ? 2
+        : 1;
+    final aspect = width >= 650 ? 1.05 : 1.0;
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(14),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: cross,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
+        childAspectRatio: aspect,
+      ),
+      itemCount: biomes.length,
+      itemBuilder: (_, i) {
+        final f = biomes[i];
+        return _BiomeCard(
+          farm: f,
+          onUnlock: () => _promptUnlock(f),
+          onOpen: () {
+            Navigator.of(context).push(
+              PageRouteBuilder(
+                transitionDuration: const Duration(milliseconds: 450),
+                pageBuilder: (_, a1, __) => FadeTransition(
+                  opacity: CurvedAnimation(parent: a1, curve: Curves.ease),
+                  child: BiomeDetailScreen(biome: f.biome, service: svc),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -179,7 +180,7 @@ class _HarvestScreenState extends State<HarvestScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'RESOURCE HARVESTING',
+                        'BIOME EXTRACTORS',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -195,7 +196,7 @@ class _HarvestScreenState extends State<HarvestScreen>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Extract elemental resources from active farms',
+                        'Extract elemental resources from specialized biomes',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.6),
                           fontSize: 11,
@@ -210,9 +211,9 @@ class _HarvestScreenState extends State<HarvestScreen>
                   icon: Icons.agriculture_rounded,
                   color: accentColor,
                   controller: _glowController,
-                  dialogTitle: "Resource Harvesting",
+                  dialogTitle: "Biome Extractors",
                   dialogMessage:
-                      "Set up and manage farms to extract valuable elemental resources over time. Unlock new farms with unique elements and upgrade existing ones to boost efficiency and yield.",
+                      "Each biome specializes in extracting multiple related elements. Unlock biomes to access their elements, then choose which element to extract based on your needs.",
                 ),
               ],
             ),
@@ -220,21 +221,6 @@ class _HarvestScreenState extends State<HarvestScreen>
         ),
       ),
     );
-  }
-
-  Map<String, int> _unlockCostToKeys(Map<String, int> uiCost) {
-    final map = <String, int>{};
-    for (final e in uiCost.entries) {
-      final k = switch (e.key.toLowerCase()) {
-        'embers' => 'res_embers',
-        'droplets' => 'res_droplets',
-        'breeze' => 'res_breeze',
-        'shards' => 'res_shards',
-        _ => e.key,
-      };
-      map[k] = e.value;
-    }
-    return map;
   }
 }
 
@@ -347,22 +333,22 @@ class _IconButtonState extends State<_IconButton> {
 
 // =================== Card ===================
 
-class _FarmCard extends StatefulWidget {
-  const _FarmCard({
-    required this.f,
+class _BiomeCard extends StatefulWidget {
+  const _BiomeCard({
+    required this.farm,
     required this.onUnlock,
     required this.onOpen,
   });
 
-  final HarvestFarmState f;
+  final BiomeFarmState farm;
   final VoidCallback onUnlock;
   final VoidCallback onOpen;
 
   @override
-  State<_FarmCard> createState() => _FarmCardState();
+  State<_BiomeCard> createState() => _BiomeCardState();
 }
 
-class _FarmCardState extends State<_FarmCard>
+class _BiomeCardState extends State<_BiomeCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _shine;
   bool _down = false;
@@ -384,12 +370,12 @@ class _FarmCardState extends State<_FarmCard>
 
   @override
   Widget build(BuildContext context) {
-    final e = widget.f.element;
-    final color = e.color;
-    final unlocked = widget.f.unlocked;
-    final hasActive = widget.f.active != null;
-    final completed = widget.f.completed;
-    final remaining = widget.f.remaining;
+    final biome = widget.farm.biome;
+    final color = widget.farm.currentColor;
+    final unlocked = widget.farm.unlocked;
+    final hasActive = widget.farm.hasActive;
+    final completed = widget.farm.completed;
+    final remaining = widget.farm.remaining;
 
     return GestureDetector(
       onTapDown: (_) => setState(() => _down = true),
@@ -470,119 +456,144 @@ class _FarmCardState extends State<_FarmCard>
                   ),
                   Padding(
                     padding: const EdgeInsets.all(14),
-                    child: AnimatedBuilder(
-                      animation: _shine,
-                      builder: (_, __) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 34,
-                                  height: 34,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: RadialGradient(
-                                      colors: [
-                                        color.withOpacity(.50),
-                                        color.withOpacity(.08),
-                                      ],
-                                    ),
-                                    border: Border.all(
-                                      color: color.withOpacity(.55),
-                                      width: 1.6,
-                                    ),
-                                  ),
-                                  child: Icon(e.icon, color: color, size: 20),
+                            Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    color.withOpacity(.50),
+                                    color.withOpacity(.08),
+                                  ],
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    e.label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Color(0xFFE8EAED),
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 15,
-                                      letterSpacing: .2,
-                                    ),
-                                  ),
+                                border: Border.all(
+                                  color: color.withOpacity(.55),
+                                  width: 1.6,
                                 ),
-                                _StatusChip(
-                                  color: color,
-                                  text: !unlocked
-                                      ? 'LOCKED'
-                                      : (hasActive
-                                            ? (completed ? 'READY' : 'ACTIVE')
-                                            : 'READY'),
-                                ),
-                              ],
+                              ),
+                              child: Icon(biome.icon, color: color, size: 20),
                             ),
-                            const SizedBox(height: 10),
-                            if (!unlocked) ...[
-                              const Spacer(),
-                              _AccentBtn(
-                                label: 'Unlock',
-                                icon: Icons.lock_open_rounded,
-                                color: color,
-                                filled: true,
-                                onTap: widget.onUnlock,
-                              ),
-                            ] else ...[
-                              Text(
-                                hasActive
-                                    ? (completed
-                                          ? 'Extraction complete — ready to collect.'
-                                          : 'Extraction in progress…')
-                                    : 'No active extraction — open to start',
-                                maxLines: 2,
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                biome.label,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(.78),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                                style: const TextStyle(
+                                  color: Color(0xFFE8EAED),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 15,
+                                  letterSpacing: .2,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              if (hasActive) ...[
-                                _MetaRow(
-                                  children: [
-                                    if (!completed && remaining != null)
-                                      _TinyPill(
-                                        icon: Icons.schedule_rounded,
-                                        label:
-                                            'ETA ${TimeOfDay.fromDateTime(DateTime.now().add(remaining)).format(context)}',
-                                      ),
-                                    if (completed)
-                                      const _TinyPill(
-                                        icon: Icons.check_circle_rounded,
-                                        label: 'Ready to collect',
-                                      ),
-                                  ],
-                                ),
-                              ] else
-                                const _MetaRow(
-                                  children: [
-                                    _TinyPill(
-                                      icon: Icons.hourglass_empty_rounded,
-                                      label: 'No active job',
-                                    ),
-                                  ],
-                                ),
-                              const Spacer(),
-                              _AccentBtn(
-                                label: 'Open',
-                                icon: Icons.chevron_right_rounded,
-                                color: color,
-                                filled: false,
-                                onTap: widget.onOpen,
-                              ),
-                            ],
+                            ),
+                            _StatusChip(
+                              color: color,
+                              text: !unlocked
+                                  ? 'LOCKED'
+                                  : (hasActive
+                                        ? (completed ? 'READY' : 'ACTIVE')
+                                        : 'READY'),
+                            ),
                           ],
-                        );
-                      },
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          biome.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(.72),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Element badges
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: [
+                            for (final name in biome.elementNames)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(.08),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(.15),
+                                  ),
+                                ),
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(
+                                    color: Color(0xFFE8EAED),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: .3,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        if (!unlocked) ...[
+                          const Spacer(),
+                          _AccentBtn(
+                            label: 'Unlock',
+                            icon: Icons.lock_open_rounded,
+                            color: color,
+                            filled: true,
+                            onTap: widget.onUnlock,
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 8),
+                          if (hasActive && widget.farm.activeElementId != null)
+                            _TinyPill(
+                              icon: Icons.science_rounded,
+                              label:
+                                  'Extracting ${biome.resourceNameForElement(widget.farm.activeElementId!)}',
+                            ),
+                          if (hasActive && !completed && remaining != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: _TinyPill(
+                                icon: Icons.schedule_rounded,
+                                label:
+                                    'ETA ${TimeOfDay.fromDateTime(DateTime.now().add(remaining)).format(context)}',
+                              ),
+                            ),
+                          if (hasActive && completed)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 4),
+                              child: _TinyPill(
+                                icon: Icons.check_circle_rounded,
+                                label: 'Ready to collect',
+                              ),
+                            ),
+                          if (!hasActive)
+                            const _TinyPill(
+                              icon: Icons.hourglass_empty_rounded,
+                              label: 'No active extraction',
+                            ),
+                          const Spacer(),
+                          _AccentBtn(
+                            label: 'Open',
+                            icon: Icons.chevron_right_rounded,
+                            color: color,
+                            filled: false,
+                            onTap: widget.onOpen,
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],
@@ -596,16 +607,6 @@ class _FarmCardState extends State<_FarmCard>
 }
 
 // =================== Helper Widgets ===================
-
-class _MetaRow extends StatelessWidget {
-  const _MetaRow({required this.children});
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(spacing: 8, runSpacing: 6, children: children);
-  }
-}
 
 class _TinyPill extends StatelessWidget {
   const _TinyPill({required this.icon, required this.label});
@@ -626,13 +627,17 @@ class _TinyPill extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: Colors.white.withOpacity(.9)),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFFE8EAED),
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .2,
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFFE8EAED),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .2,
+              ),
             ),
           ),
         ],
@@ -789,33 +794,18 @@ class _Orb extends StatelessWidget {
 // =================== Unlock dialog ===================
 
 class _UnlockDialog extends StatelessWidget {
-  const _UnlockDialog({required this.element, required this.costDb});
+  const _UnlockDialog({required this.biome, required this.costDb});
 
-  final FarmElement element;
+  final Biome biome;
   final Map<String, int> costDb;
 
-  String _prettyRes(String k) {
-    switch (k.toLowerCase()) {
-      case 'res_embers':
-      case 'embers':
-        return 'Embers';
-      case 'res_droplets':
-      case 'droplets':
-        return 'Droplets';
-      case 'res_breeze':
-      case 'breeze':
-        return 'Breeze';
-      case 'res_shards':
-      case 'shards':
-        return 'Shards';
-      default:
-        return k;
-    }
-  }
+  String displayForKey(String k) => ElementResources.byKey[k]?.resLabel ?? k;
+  IconData iconForKey(String k) =>
+      ElementResources.byKey[k]?.icon ?? Icons.blur_on_rounded;
 
   @override
   Widget build(BuildContext context) {
-    final color = element.color;
+    final color = biome.primaryColor;
     final db = context.read<AlchemonsDatabase>();
 
     return Dialog(
@@ -844,14 +834,7 @@ class _UnlockDialog extends StatelessWidget {
             child: StreamBuilder<Map<String, int>>(
               stream: db.watchResourceBalances(),
               builder: (context, snap) {
-                final bal =
-                    snap.data ??
-                    const {
-                      'res_embers': 0,
-                      'res_droplets': 0,
-                      'res_breeze': 0,
-                      'res_shards': 0,
-                    };
+                final bal = snap.data ?? {};
 
                 bool hasShortage = false;
                 for (final e in costDb.entries) {
@@ -885,12 +868,12 @@ class _UnlockDialog extends StatelessWidget {
                                 width: 1.6,
                               ),
                             ),
-                            child: Icon(element.icon, color: color, size: 22),
+                            child: Icon(biome.icon, color: color, size: 22),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Unlock ${element.label}',
+                              'Unlock ${biome.label}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -901,6 +884,15 @@ class _UnlockDialog extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        biome.description,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(.7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Align(
@@ -916,7 +908,7 @@ class _UnlockDialog extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       ...costDb.entries.map((e) {
-                        final name = _prettyRes(e.key);
+                        final name = displayForKey(e.key);
                         final have = bal[e.key] ?? 0;
                         final need = e.value;
                         final ok = have >= need;
@@ -940,7 +932,7 @@ class _UnlockDialog extends StatelessWidget {
                           child: Row(
                             children: [
                               Icon(
-                                _resIcon(name),
+                                iconForKey(e.key),
                                 size: 16,
                                 color: ok ? color : Colors.redAccent,
                               ),
@@ -1001,21 +993,6 @@ class _UnlockDialog extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  IconData _resIcon(String name) {
-    switch (name.toLowerCase()) {
-      case 'embers':
-        return Icons.local_fire_department_rounded;
-      case 'droplets':
-        return Icons.water_drop_rounded;
-      case 'breeze':
-        return Icons.air_rounded;
-      case 'shards':
-        return Icons.landslide_rounded;
-      default:
-        return Icons.circle;
-    }
   }
 }
 

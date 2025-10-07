@@ -2296,7 +2296,7 @@
     },
     {
       "id": "LET01",
-      "name": "Let",
+      "name": "Firelet",
       "family": "Let",
       "types": [
         "Fire"
@@ -2314,7 +2314,7 @@
     },
     {
       "id": "LET02",
-      "name": "Let",
+      "name": "Waterlet",
       "family": "Let",
       "types": [
         "Water"
@@ -2332,7 +2332,7 @@
     },
     {
       "id": "LET03",
-      "name": "Let",
+      "name": "Earthlet",
       "family": "Let",
       "types": [
         "Earth"
@@ -2350,7 +2350,7 @@
     },
     {
       "id": "LET04",
-      "name": "Let",
+      "name": "Airlet",
       "family": "Let",
       "types": [
         "Air"
@@ -2368,7 +2368,7 @@
     },
     {
       "id": "LET05",
-      "name": "Let",
+      "name": "Steamlet",
       "family": "Let",
       "types": [
         "Steam"
@@ -2386,7 +2386,7 @@
     },
     {
       "id": "LET06",
-      "name": "Let",
+      "name": "Lavalet",
       "family": "Let",
       "types": [
         "Lava"
@@ -2404,7 +2404,7 @@
     },
     {
       "id": "LET07",
-      "name": "Let",
+      "name": "Lightninglet",
       "family": "Let",
       "types": [
         "Lightning"
@@ -2422,7 +2422,7 @@
     },
     {
       "id": "LET08",
-      "name": "Let",
+      "name": "Mudlet",
       "family": "Let",
       "types": [
         "Mud"
@@ -2440,7 +2440,7 @@
     },
     {
       "id": "LET09",
-      "name": "Let",
+      "name": "Icelet",
       "family": "Let",
       "types": [
         "Ice"
@@ -2458,7 +2458,7 @@
     },
     {
       "id": "LET10",
-      "name": "Let",
+      "name": "Dustlet",
       "family": "Let",
       "types": [
         "Dust"
@@ -2476,7 +2476,7 @@
     },
     {
       "id": "LET11",
-      "name": "Let",
+      "name": "Crystalet",
       "family": "Let",
       "types": [
         "Crystal"
@@ -2494,7 +2494,7 @@
     },
     {
       "id": "LET12",
-      "name": "Let",
+      "name": "Leaflet",
       "family": "Let",
       "types": [
         "Plant"
@@ -2512,7 +2512,7 @@
     },
     {
       "id": "LET13",
-      "name": "Let",
+      "name": "Poisonlet",
       "family": "Let",
       "types": [
         "Poison"
@@ -2530,7 +2530,7 @@
     },
     {
       "id": "LET14",
-      "name": "Let",
+      "name": "Spiritlet",
       "family": "Let",
       "types": [
         "Spirit"
@@ -2548,7 +2548,7 @@
     },
     {
       "id": "LET15",
-      "name": "Let",
+      "name": "Darklet",
       "family": "Let",
       "types": [
         "Dark"
@@ -2566,7 +2566,7 @@
     },
     {
       "id": "LET16",
-      "name": "Let",
+      "name": "Lightlet",
       "family": "Let",
       "types": [
         "Light"
@@ -2584,7 +2584,7 @@
     },
     {
       "id": "LET17",
-      "name": "Let",
+      "name": "Bloodlet",
       "family": "Let",
       "types": [
         "Blood"

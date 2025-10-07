@@ -1,10 +1,11 @@
-// lib/screens/harvest_detail_screen.dart
+// lib/screens/biome_detail_screen.dart
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/farm_element.dart';
+import 'package:alchemons/models/harvest_biome.dart';
+import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/harvest_service.dart';
@@ -12,43 +13,37 @@ import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
 import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:alchemons/widgets/harvest/harvest_instance.dart';
-import 'package:alchemons/widgets/creature_sprite.dart'; // <-- you provided this
+import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-class HarvestDetailScreen extends StatefulWidget {
-  const HarvestDetailScreen({
+class BiomeDetailScreen extends StatefulWidget {
+  const BiomeDetailScreen({
     super.key,
-    required this.element,
+    required this.biome,
     required this.service,
     this.defaultDuration = const Duration(minutes: 30),
   });
 
-  final FarmElement element;
+  final Biome biome;
   final HarvestService service;
   final Duration defaultDuration;
 
   @override
-  State<HarvestDetailScreen> createState() => _HarvestDetailScreenState();
+  State<BiomeDetailScreen> createState() => _BiomeDetailScreenState();
 }
 
-class _HarvestDetailScreenState extends State<HarvestDetailScreen>
+class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     with TickerProviderStateMixin {
-  // Seamless time
   late final Ticker _ticker;
   double _tSeconds = 0.0;
   late AnimationController _tapFxCtrl;
   Offset? _tapLocal;
 
-  String? _jobIdCache;
-  int _totalMsCache = 0;
-
   late final AnimationController _collectCtrl;
-
-  // Job progress + header glow
   late final AnimationController _jobCtrl;
   late final AnimationController _glowController;
 
@@ -74,10 +69,8 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
       duration: const Duration(milliseconds: 700),
     );
 
-    // Continuous time (no resets)
     _ticker = createTicker((elapsed) {
       _tSeconds = elapsed.inMicroseconds / 1e6;
-      // Repaint everything that depends on time
       if (mounted) setState(() {});
     })..start();
 
@@ -105,12 +98,12 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
   }
 
   void _prepareCreatureFuture() {
-    final farm = widget.service.farm(widget.element);
+    final farm = widget.service.biome(widget.biome);
     _creatureFuture = _buildCreatureFromFarm(farm);
   }
 
-  void _syncJobProgress(HarvestFarmState farm) {
-    final j = farm.active;
+  void _syncJobProgress(BiomeFarmState farm) {
+    final j = farm.activeJob;
 
     if (j == null) {
       if (_jobCtrl.value != 0) _jobCtrl.value = 0;
@@ -119,52 +112,41 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
     }
 
     final totalMs = j.durationMs;
-    final rem = farm.remaining; // derived from DB (startUtcMs + durationMs)
+    final rem = farm.remaining;
     final progress = (rem == null || totalMs == 0)
         ? 0.0
         : (1.0 - rem.inMilliseconds / totalMs).clamp(0.0, 1.0);
 
-    // 1) Make the controller represent the full job duration.
     final total = Duration(milliseconds: totalMs);
     if (_jobCtrl.duration != total) {
       _jobCtrl.duration = total;
     }
 
-    // 2) If we’re completed, snap to 1 and stop.
     if (farm.completed) {
       if (_jobCtrl.value != 1.0) _jobCtrl.value = 1.0;
       _jobCtrl.stop();
-      _jobIdCache = j.jobId;
-      _totalMsCache = totalMs;
       return;
     }
 
-    // 3) Keep it running in real time. If a nudge changed remaining,
-    //    progress will jump; re-seed the controller and continue.
-    //    Only reset when the delta is meaningful to avoid jitter.
-    const eps = 0.002; // ~0.2%
+    const eps = 0.002;
     if ((_jobCtrl.value - progress).abs() > eps || !_jobCtrl.isAnimating) {
-      // Forward from the real progress; with duration=total this will
-      // take total*(1-progress) == remaining to finish.
       _jobCtrl.forward(from: progress);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final farm = widget.service.farm(widget.element);
-    final color = widget.element.color;
+    final farm = widget.service.biome(widget.biome);
+    final color = farm.currentColor;
 
     _syncJobProgress(farm);
 
     final progress = _jobCtrl.value;
-    // Start from 0 when no active job, fill up to 0.85 when complete
     final targetFill = farm.hasActive
         ? (0.0 + 0.85 * progress).clamp(0.0, 0.85)
         : 0.0;
     final curvedFill = Curves.easeOutCubic.transform(targetFill);
-
-    final drainP = Curves.easeInOutCubic.transform(_collectCtrl.value); // 0..1
+    final drainP = Curves.easeInOutCubic.transform(_collectCtrl.value);
     final effectiveFill = curvedFill * (1.0 - drainP);
 
     return Scaffold(
@@ -174,7 +156,6 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
         preferredSize: const Size.fromHeight(0),
         child: AppBar(backgroundColor: Colors.transparent, elevation: 0),
       ),
-      // We still listen to _jobCtrl changes; time updates come from setState in the ticker.
       body: AnimatedBuilder(
         animation: _jobCtrl,
         builder: (_, __) {
@@ -192,8 +173,8 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                     children: [
                       _HeaderCard(
                         color: color,
-                        icon: widget.element.icon,
-                        label: widget.element.label,
+                        icon: widget.biome.icon,
+                        label: widget.biome.label,
                         status: !farm.unlocked
                             ? 'LOCKED'
                             : (farm.hasActive
@@ -201,7 +182,8 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                                   : 'READY'),
                       ),
                       const SizedBox(height: 14),
-                      // ── Tube + Creature (inside) + Foreground glare ─────────────
+
+                      // Tube
                       AspectRatio(
                         aspectRatio: 3 / 4,
                         child: LayoutBuilder(
@@ -217,8 +199,6 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                               behavior: HitTestBehavior.opaque,
                               onTapDown: (details) {
                                 _handleTapBoost(farm);
-
-                                // clamp tap to inner RRect so FX stays inside glass
                                 final lp = details.localPosition;
                                 final clamped = Offset(
                                   lp.dx.clamp(inner.left + 6, inner.right - 6),
@@ -242,20 +222,15 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                                           child: AnimatedBuilder(
                                             animation: _tapFxCtrl,
                                             builder: (context, child) {
-                                              // Damped shake: 0..1 -> quick oscillation, fading out
-                                              final v =
-                                                  _tapFxCtrl.value; // 0..1
-                                              // frequency & decay tuned to feel juicy but subtle
+                                              final v = _tapFxCtrl.value;
                                               final osc = math.sin(
                                                 v * math.pi * 10,
                                               );
                                               final decay = (1.0 - v);
-                                              final amp =
-                                                  6.0 * decay; // max ~6px
+                                              final amp = 6.0 * decay;
                                               final dx = osc * amp * 0.6;
                                               final dy = -osc * amp * 0.35;
-                                              final rot =
-                                                  osc * 0.025; // ~1.4 degrees
+                                              final rot = osc * 0.025;
 
                                               return Transform.translate(
                                                 offset: Offset(dx, dy),
@@ -277,7 +252,7 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                                                 }
                                                 if (snapshot.hasError) {
                                                   return Icon(
-                                                    farm.element.icon,
+                                                    widget.biome.icon,
                                                     size: 28,
                                                     color: Colors.white
                                                         .withOpacity(.55),
@@ -291,8 +266,6 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                                         ),
                                       ),
                                     ),
-
-                                    // Background fluid, bubbles, inner caustics, back edge
                                     CustomPaint(
                                       painter: _TubeBackgroundPainter(
                                         tSeconds: _tSeconds,
@@ -314,7 +287,6 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                                         ),
                                       ),
                                     ),
-                                    // Foreground glass highlight, glare, light edges
                                     CustomPaint(
                                       painter: _TubeForegroundPainter(
                                         tSeconds: _tSeconds,
@@ -325,22 +297,14 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                                   ],
                                 ),
                                 builder: (_, child) {
-                                  // Damped multi-axis shake while draining
-                                  final v = _collectCtrl.value; // 0..1
-                                  final decay =
-                                      1.0 - v; // linear decay works well here
+                                  final v = _collectCtrl.value;
+                                  final decay = 1.0 - v;
                                   final dx =
-                                      math.sin(v * math.pi * 10) *
-                                      6.0 *
-                                      decay; // ~6px -> 0
+                                      math.sin(v * math.pi * 10) * 6.0 * decay;
                                   final dy =
-                                      math.cos(v * math.pi * 8) *
-                                      4.0 *
-                                      decay; // ~4px -> 0
+                                      math.cos(v * math.pi * 8) * 4.0 * decay;
                                   final rot =
-                                      math.sin(v * math.pi * 6) *
-                                      0.015 *
-                                      decay; // ~0.86°
+                                      math.sin(v * math.pi * 6) * 0.015 * decay;
                                   return Transform.translate(
                                     offset: Offset(dx, dy),
                                     child: Transform.rotate(
@@ -354,14 +318,15 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                           },
                         ),
                       ),
+
                       Text(
                         !farm.unlocked
-                            ? 'This extractor is locked.'
+                            ? 'This biome is locked.'
                             : (!farm.hasActive
                                   ? 'No active extraction. Insert a creature to begin.'
                                   : (farm.completed
                                         ? 'Extraction complete — ready to collect.'
-                                        : 'Extracting elements from Alchemon... ${_fmt(rem)} left')),
+                                        : 'Extracting ${_getResourceName(farm)}... ${_fmt(rem)} left')),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withOpacity(.82),
@@ -370,6 +335,7 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                         ),
                       ),
                       const SizedBox(height: 16),
+
                       if (!farm.unlocked)
                         _LockedPanel(
                           color: color,
@@ -378,7 +344,7 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                       else if (!farm.hasActive)
                         _StartPanel(
                           color: color,
-                          element: widget.element,
+                          biome: widget.biome,
                           defaultDuration: widget.defaultDuration,
                           onPickAndStart: _handlePickAndStart,
                         )
@@ -386,28 +352,23 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                         _ActivePanel(
                           color: color,
                           farm: farm,
-                          unit: _unit(widget.element),
+                          biome: widget.biome,
                           onCollect: farm.completed
                               ? () async {
-                                  // 1) Play local drain+shake cinematic
                                   HapticFeedback.mediumImpact();
                                   await _collectCtrl.forward(from: 0);
 
-                                  // 2) Now collect from DB (state switches to no-active-job)
                                   final got = await widget.service.collect(
-                                    widget.element,
+                                    widget.biome,
                                   );
 
                                   if (!mounted) return;
 
-                                  // Optional light settle
                                   HapticFeedback.lightImpact();
-
-                                  // 3) Toast + refresh creature (in case sprite changes)
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        'Collected $got ${_unit(widget.element)}',
+                                        'Collected $got ${_getResourceName(farm)}',
                                       ),
                                       behavior: SnackBarBehavior.floating,
                                     ),
@@ -417,19 +378,15 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                                 }
                               : null,
                           onCancel: () async {
-                            // Prevent double taps while animating
                             if (_collectCtrl.isAnimating) return;
 
-                            // 1) Play drain + shake (same controller you added for Collect)
                             HapticFeedback.heavyImpact();
                             await _collectCtrl.forward(from: 0);
 
-                            // 2) Cancel in DB (no payout)
-                            await widget.service.cancel(widget.element);
+                            await widget.service.cancel(widget.biome);
 
                             if (!mounted) return;
 
-                            // 3) Small settle + UI refresh
                             HapticFeedback.lightImpact();
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -452,57 +409,56 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
     );
   }
 
-  void _handleTapBoost(HarvestFarmState farm) async {
+  void _handleTapBoost(BiomeFarmState farm) async {
     if (!farm.hasActive || farm.completed) return;
 
-    // Optimistic progress
-    final totalMs = farm.active!.durationMs;
+    final totalMs = farm.activeJob!.durationMs;
     final currentMs = (1.0 - _jobCtrl.value) * totalMs;
     final newMs = (currentMs - 1000).clamp(0, totalMs).toDouble();
     _jobCtrl.value = 1.0 - (newMs / totalMs);
 
-    // Persist (don’t await to keep taps snappy; watcher will realign)
-    // Optionally throttle/batch if you expect very high tap rates.
-    unawaited(widget.service.nudge(widget.element));
+    unawaited(widget.service.nudge(widget.biome));
   }
 
-  // Creature mapping (uses your CreatureSprite; falls back to icon if data missing)
-  //make async
-  Future<Widget> _buildCreatureFromFarm(HarvestFarmState farm) async {
-    final job = farm.active;
+  Future<Widget> _buildCreatureFromFarm(BiomeFarmState farm) async {
+    final job = farm.activeJob;
     if (job == null) {
       return Icon(
-        farm.element.icon,
+        widget.biome.icon,
         size: 28,
         color: Colors.white.withOpacity(.55),
       );
     }
 
-    // 1. DB lookup (service should expose this)
+    print('DEBUG: Job creature ID: ${job.creatureInstanceId}'); // Add this
+
     final inst = await context.read<AlchemonsDatabase>().getInstance(
       job.creatureInstanceId,
     );
+
+    print('DEBUG: Instance found: ${inst != null}'); // Add this
+    print('DEBUG: Instance level: ${inst?.level}'); // Add this
+    print('DEBUG: Instance base ID: ${inst?.baseId}'); // Add this
+
     if (inst == null) {
       return Icon(
-        farm.element.icon,
+        widget.biome.icon,
         size: 40,
         color: Colors.white.withOpacity(.75),
       );
     }
 
-    // 2. Repo lookup
     final repo = context.read<CreatureRepository>();
     final base = repo.getCreatureById(inst.baseId);
     if (base == null || base.spriteData == null) {
       return Icon(
-        farm.element.icon,
+        widget.biome.icon,
         size: 40,
         color: Colors.white.withOpacity(.75),
       );
     }
     final genetics = decodeGenetics(inst.geneticsJson);
 
-    // 3. Render
     return CreatureSprite(
       spritePath: base.spriteData!.spriteSheetPath,
       totalFrames: base.spriteData!.totalFrames,
@@ -520,9 +476,7 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
     );
   }
 
-  // Float the creature roughly near the surface
   double _creatureY(double fill) {
-    // Align's Y: -1 (top) .. +1 (bottom)
     final y = 0.8 - fill * 1.6;
     return y.clamp(-0.2, 0.6);
   }
@@ -550,7 +504,7 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.element.label.toUpperCase(),
+                        widget.biome.label.toUpperCase(),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -581,9 +535,9 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
                   icon: Icons.access_alarm,
                   color: accentColor,
                   controller: _glowController,
-                  dialogTitle: "Extraction Process",
+                  dialogTitle: "Biome Extraction",
                   dialogMessage:
-                      "Extractors draw elemental resources from creatures over time. The extraction rate depends on the creature's level and nature and species. You can speed up the process by tapping the extractor.",
+                      "Extract resources from creatures matching this biome's elements. The resource type depends on your creature's element.",
                 ),
               ],
             ),
@@ -593,21 +547,65 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
     );
   }
 
+  void _showToast(
+    String message, {
+    IconData icon = Icons.info_rounded,
+    Color? color,
+  }) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color ?? Colors.indigo.shade400,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        dismissDirection: DismissDirection.horizontal,
+        showCloseIcon: true,
+      ),
+    );
+  }
+
   Future<void> _handlePickAndStart() async {
     final instanceId = await pickInstanceForHarvest(
       context: context,
-      element: widget.element,
+      allowedTypes: widget.biome.elementNames,
       duration: widget.defaultDuration,
     );
     if (instanceId == null) return;
 
-    final farm = widget.service.farm(widget.element);
+    final inst = await context.read<AlchemonsDatabase>().getInstance(
+      instanceId,
+    );
+    if (inst == null) return;
+    if (inst.staminaBars == 0) {
+      _showToast(
+        'This creature is too exhausted to work right now.',
+        icon: Icons.error_outline,
+        color: Colors.red.shade400,
+      );
+      return;
+    }
+
+    final repo = context.read<CreatureRepository>();
+    final base = repo.getCreatureById(inst.baseId);
+    if (base == null || base.types.isEmpty) return;
+
+    final creatureTypeId = base.types.first;
+    await widget.service.setActiveElement(widget.biome, creatureTypeId);
+
+    final farm = widget.service.biome(widget.biome);
     final ok = await widget.service.startJob(
-      element: widget.element,
+      biome: widget.biome,
       creatureInstanceId: instanceId,
       duration: widget.defaultDuration,
       ratePerMinute: _computeRatePerMinute(
-        element: widget.element,
         hasMatchingElement: true,
         natureBonusPct: 10,
         level: farm.level,
@@ -618,7 +616,7 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Cannot start job'),
+          content: Text('Cannot start extraction'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -629,29 +627,21 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
   }
 
   int _computeRatePerMinute({
-    required FarmElement element,
     required bool hasMatchingElement,
     required int natureBonusPct,
     required int level,
   }) {
-    var base = switch (element) {
-      FarmElement.fire => 3,
-      FarmElement.water => 3,
-      FarmElement.air => 2,
-      FarmElement.earth => 2,
-    };
+    var base = 3;
     base += (level - 1);
     if (hasMatchingElement) base = (base * 1.25).round();
     base = (base * (1 + natureBonusPct / 100)).round();
     return base.clamp(1, 999);
   }
 
-  String _unit(FarmElement e) => switch (e) {
-    FarmElement.fire => 'Embers',
-    FarmElement.water => 'Droplets',
-    FarmElement.air => 'Breeze',
-    FarmElement.earth => 'Shards',
-  };
+  String _getResourceName(BiomeFarmState farm) {
+    if (farm.activeElementId == null) return 'Resources';
+    return widget.biome.resourceNameForElement(farm.activeElementId!);
+  }
 
   String _fmt(Duration? d) {
     if (d == null) return '—';
@@ -664,7 +654,121 @@ class _HarvestDetailScreenState extends State<HarvestDetailScreen>
   }
 }
 
-// =================== Glass Header Components ===================
+class _StartPanel extends StatelessWidget {
+  const _StartPanel({
+    required this.color,
+    required this.biome,
+    required this.defaultDuration,
+    required this.onPickAndStart,
+  });
+
+  final Color color;
+  final Biome biome;
+  final Duration defaultDuration;
+  final VoidCallback onPickAndStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          'Insert a creature to extract resources from this biome.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withOpacity(.72),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _PrimaryBtn(
+          label: 'Insert Alchemon',
+          color: color,
+          onTap: onPickAndStart,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Duration: ${defaultDuration.inMinutes}m',
+          style: TextStyle(
+            color: Colors.white.withOpacity(.6),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActivePanel extends StatelessWidget {
+  const _ActivePanel({
+    required this.color,
+    required this.farm,
+    required this.biome,
+    required this.onCollect,
+    required this.onCancel,
+  });
+
+  final Color color;
+  final BiomeFarmState farm;
+  final Biome biome;
+  final VoidCallback? onCollect;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final j = farm.activeJob!;
+    final duration = Duration(milliseconds: j.durationMs);
+    final rate = j.ratePerMinute;
+    final total = rate * duration.inMinutes;
+    final resourceName = biome.resourceNameForElement(farm.activeElementId!);
+
+    return Column(
+      children: [
+        Text(
+          'Rate: $rate / min',
+          style: TextStyle(
+            color: Colors.white.withOpacity(.78),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Text(
+          'Total: $total $resourceName',
+          style: TextStyle(
+            color: Colors.white.withOpacity(.78),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _PrimaryBtn(
+                label: farm.completed ? 'Collect' : 'Collect (locked)',
+                color: color,
+                onTap: farm.completed && onCollect != null ? onCollect! : () {},
+                disabled: !farm.completed,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _OutlineBtn(
+                label: 'Cancel',
+                color: color,
+                onTap: onCancel,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// (Include all the helper widgets: _GlassContainer, _IconButton, _TubeGeometry,
+// painters, and panels from the previous version - they remain the same)
+// Continuing with helper widgets...
 
 class _GlassContainer extends StatelessWidget {
   const _GlassContainer({
@@ -772,8 +876,6 @@ class _IconButtonState extends State<_IconButton> {
   }
 }
 
-// =================== Tube geometry helper ===================
-
 class _TubeGeometry {
   _TubeGeometry(this.outer, this.inner);
   final RRect outer;
@@ -799,45 +901,6 @@ extension _RRectBorderRadius on RRect {
     bottomLeft: Radius.circular(blRadiusX),
     bottomRight: Radius.circular(brRadiusX),
   );
-}
-
-// =================== Painters ===================
-
-class _SplashPainter extends CustomPainter {
-  _SplashPainter({required this.progress, required this.color});
-  final double progress;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height * .55);
-
-    // Expanding circle
-    final circlePaint = Paint()
-      ..color = color.withOpacity((1 - progress) * 0.4)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4 * (1 - progress);
-    canvas.drawCircle(center, 40 * progress, circlePaint);
-
-    // Sparkles
-    final sparklePaint = Paint()
-      ..color = Colors.white.withOpacity(1 - progress);
-    final sparkCount = 6;
-    for (int i = 0; i < sparkCount; i++) {
-      final ang = (2 * math.pi / sparkCount) * i;
-      final dx = math.cos(ang) * 50 * progress;
-      final dy = math.sin(ang) * 50 * progress;
-      canvas.drawCircle(
-        center.translate(dx, dy),
-        3 * (1 - progress),
-        sparklePaint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _SplashPainter old) =>
-      old.progress != progress || old.color != color;
 }
 
 class _TubeBackgroundPainter extends CustomPainter {
@@ -1186,130 +1249,6 @@ class _LockedPanel extends StatelessWidget {
         _HintText('Unlock this extractor from the previous screen.'),
         const SizedBox(height: 10),
         _OutlineBtn(label: 'Go Back', color: color, onTap: onBack),
-      ],
-    );
-  }
-}
-
-class _StartPanel extends StatelessWidget {
-  const _StartPanel({
-    required this.color,
-    required this.element,
-    required this.defaultDuration,
-    required this.onPickAndStart,
-  });
-
-  final Color color;
-  final FarmElement element;
-  final Duration defaultDuration;
-  final VoidCallback onPickAndStart;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _HintText(
-          'Insert a matching-element creature to start extracting ${_unit(element)}.',
-        ),
-        const SizedBox(height: 10),
-        _PrimaryBtn(
-          label: 'Insert Creature',
-          color: color,
-          onTap: onPickAndStart,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Default duration: ${defaultDuration.inMinutes}m',
-          style: TextStyle(
-            color: Colors.white.withOpacity(.6),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Note: costs stamina while extracting.',
-          style: TextStyle(
-            color: Colors.white.withOpacity(.55),
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _unit(FarmElement e) => switch (e) {
-    FarmElement.fire => 'Embers',
-    FarmElement.water => 'Droplets',
-    FarmElement.air => 'Breeze',
-    FarmElement.earth => 'Shards',
-  };
-}
-
-class _ActivePanel extends StatelessWidget {
-  const _ActivePanel({
-    required this.color,
-    required this.farm,
-    required this.unit,
-    required this.onCollect,
-    required this.onCancel,
-  });
-
-  final Color color;
-  final HarvestFarmState farm;
-  final String unit;
-  final VoidCallback? onCollect;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    final j = farm.active!;
-    final duration = Duration(milliseconds: j.durationMs);
-    final rate = j.ratePerMinute;
-    final total = rate * duration.inMinutes;
-
-    return Column(
-      children: [
-        Text(
-          'Rate: $rate / min',
-          style: TextStyle(
-            color: Colors.white.withOpacity(.78),
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        Text(
-          'Total extracted once complete: $total $unit',
-          style: TextStyle(
-            color: Colors.white.withOpacity(.78),
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _PrimaryBtn(
-                label: farm.completed ? 'Collect' : 'Collect (locked)',
-                color: color,
-                onTap: farm.completed && onCollect != null ? onCollect! : () {},
-                disabled: !farm.completed,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _OutlineBtn(
-                label: 'Cancel',
-                color: color,
-                onTap: onCancel,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        const _HintText('Cancelling discards progress.'),
       ],
     );
   }

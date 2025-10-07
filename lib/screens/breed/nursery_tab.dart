@@ -18,6 +18,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/animations/breed_result_animation.dart';
 import 'package:alchemons/widgets/animations/database_typing_animation.dart';
+import 'package:alchemons/widgets/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/delay_type_widget.dart';
 import 'package:flame/extensions.dart';
@@ -1070,6 +1071,9 @@ class _NurseryTabState extends State<NurseryTab> {
                       ),
 
                       // Sprite dock
+                      // Replace the sprite dock section with this:
+
+                      // Sprite dock
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -1083,50 +1087,84 @@ class _NurseryTabState extends State<NurseryTab> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Main creature
-                            Container(
-                              height: 200,
-                              width: 200,
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(.02),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(.12),
-                                ),
-                              ),
-                              child: CreatureScanAnimation(
-                                isNewDiscovery: isNewDiscovery,
-                                scanDuration: const Duration(
-                                  milliseconds: 3000,
-                                ),
-                                onReadyChanged: (ready) {
-                                  if (ready) {
-                                    setDialogState(() => _scanComplete = true);
-                                  }
-                                },
-                                child: CreatureSprite(
-                                  spritePath:
-                                      offspring.spriteData?.spriteSheetPath ??
-                                      '',
-                                  totalFrames:
-                                      offspring.spriteData?.totalFrames ?? 1,
-                                  rows: offspring.spriteData?.rows ?? 1,
-                                  frameSize: Vector2(
-                                    offspring.spriteData!.frameWidth.toDouble(),
-                                    offspring.spriteData!.frameHeight
-                                        .toDouble(),
+                            // Main creature - wrapped in Stack for badge positioning
+                            Stack(
+                              children: [
+                                Container(
+                                  height: 200,
+                                  width: 200,
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(.02),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(.12),
+                                    ),
                                   ),
-                                  isPrismatic: offspring.isPrismaticSkin,
-                                  stepTime:
-                                      offspring.spriteData!.frameDurationMs /
-                                      1000.0,
-                                  scale: scaleFromGenes(offspring.genetics),
-                                  saturation: satFromGenes(offspring.genetics),
-                                  brightness: briFromGenes(offspring.genetics),
-                                  hueShift: hueFromGenes(offspring.genetics),
+                                  child: CreatureScanAnimation(
+                                    isNewDiscovery: isNewDiscovery,
+                                    scanDuration: const Duration(
+                                      milliseconds: 3000,
+                                    ),
+                                    onReadyChanged: (ready) {
+                                      if (ready) {
+                                        setDialogState(
+                                          () => _scanComplete = true,
+                                        );
+                                      }
+                                    },
+                                    child: CreatureSprite(
+                                      spritePath:
+                                          offspring
+                                              .spriteData
+                                              ?.spriteSheetPath ??
+                                          '',
+                                      totalFrames:
+                                          offspring.spriteData?.totalFrames ??
+                                          1,
+                                      rows: offspring.spriteData?.rows ?? 1,
+                                      frameSize: Vector2(
+                                        offspring.spriteData!.frameWidth
+                                            .toDouble(),
+                                        offspring.spriteData!.frameHeight
+                                            .toDouble(),
+                                      ),
+                                      isPrismatic: offspring.isPrismaticSkin,
+                                      stepTime:
+                                          offspring
+                                              .spriteData!
+                                              .frameDurationMs /
+                                          1000.0,
+                                      scale: scaleFromGenes(offspring.genetics),
+                                      saturation: satFromGenes(
+                                        offspring.genetics,
+                                      ),
+                                      brightness: briFromGenes(
+                                        offspring.genetics,
+                                      ),
+                                      hueShift: hueFromGenes(
+                                        offspring.genetics,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                // NEW badge positioned on top right
+                                if (isNewDiscovery)
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: AnimatedOpacity(
+                                      opacity: _scanComplete ? 1 : 0,
+                                      duration: const Duration(
+                                        milliseconds: 300,
+                                      ),
+                                      child: _persistentBadge(
+                                        'NEW DISCOVERY',
+                                        Colors.tealAccent,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
 
                             const SizedBox(width: 14),
@@ -1231,7 +1269,6 @@ class _NurseryTabState extends State<NurseryTab> {
                           ],
                         ),
                       ),
-
                       Expanded(
                         child: TickerMode(
                           enabled: !closing,
@@ -1428,11 +1465,12 @@ class _NurseryTabState extends State<NurseryTab> {
                                 GestureDetector(
                                   onTap: () {
                                     if (closing) return;
-                                    // Navigate to creature screen
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const CreaturesScreen(),
-                                      ),
+                                    // Open details for the *exact* instance we just created
+                                    CreatureDetailsDialog.show(
+                                      context,
+                                      offspring, // effective creature (with genes/nature/prismatic)
+                                      true, // discovered — we just hatched it
+                                      instanceId: instanceId,
                                     );
                                   },
                                   child: Container(
@@ -1447,7 +1485,8 @@ class _NurseryTabState extends State<NurseryTab> {
                                       ),
                                     ),
                                     child: Icon(
-                                      Icons.pets_rounded,
+                                      Icons
+                                          .pets_rounded, // or Icons.info_rounded if you prefer
                                       color: Colors.white.withOpacity(.9),
                                       size: 22,
                                     ),
@@ -1465,6 +1504,26 @@ class _NurseryTabState extends State<NurseryTab> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _persistentBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(.45)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: .5,
+        ),
       ),
     );
   }

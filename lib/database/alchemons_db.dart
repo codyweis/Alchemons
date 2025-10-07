@@ -1,65 +1,61 @@
 // lib/database/alchemons_db.dart
 import 'dart:convert';
 import 'package:alchemons/constants/element_resources.dart';
-import 'package:alchemons/models/farm_element.dart';
+import 'package:alchemons/models/harvest_biome.dart';
+import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:drift/drift.dart';
 
 part 'alchemons_db.g.dart';
 
+// =================== TABLES ===================
+
 class PlayerCreatures extends Table {
-  TextColumn get id => text()(); // species / catalog id
+  TextColumn get id => text()();
   BoolColumn get discovered => boolean().withDefault(const Constant(false))();
   TextColumn get natureId => text().nullable()();
   @override
   Set<Column> get primaryKey => {id};
 }
 
-// Existing: active incubators
 class IncubatorSlots extends Table {
-  IntColumn get id => integer()(); // 0,1,2...
+  IntColumn get id => integer()();
   BoolColumn get unlocked => boolean().withDefault(const Constant(true))();
-
-  TextColumn get eggId => text().nullable()(); // unique instance id
+  TextColumn get eggId => text().nullable()();
   TextColumn get resultCreatureId => text().nullable()();
   TextColumn get bonusVariantId => text().nullable()();
   TextColumn get rarity => text().nullable()();
-  IntColumn get hatchAtUtcMs => integer().nullable()(); // absolute UTC ms
+  IntColumn get hatchAtUtcMs => integer().nullable()();
   TextColumn get payloadJson => text().nullable()();
-
   @override
   Set<Column> get primaryKey => {id};
 }
 
-// NEW: queued eggs (not progressing). Store remainingMs snapshot.
 class Eggs extends Table {
-  TextColumn get eggId => text()(); // unique instance id
-  TextColumn get resultCreatureId => text()(); // CRxxx (baseId)
-  TextColumn get rarity => text()(); // "Common", ...
+  TextColumn get eggId => text()();
+  TextColumn get resultCreatureId => text()();
+  TextColumn get rarity => text()();
   TextColumn get bonusVariantId => text().nullable()();
-  IntColumn get remainingMs => integer()(); // doesn't tick while queued
+  IntColumn get remainingMs => integer()();
   TextColumn get payloadJson => text().nullable()();
   @override
   Set<Column> get primaryKey => {eggId};
 }
 
-// ---------- Harvest: farms & active jobs ----------
-class HarvestFarms extends Table {
-  IntColumn get id => integer()(); // 0=fire,1=water,2=air,3=earth
-  TextColumn get element => text()(); // "fire" | "water" | "air" | "earth"
+class BiomeFarms extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get biomeId => text()(); // 'volcanic', 'oceanic', etc
   BoolColumn get unlocked => boolean().withDefault(const Constant(false))();
   IntColumn get level => integer().withDefault(const Constant(1))();
-  @override
-  Set<Column> get primaryKey => {id};
+  TextColumn get activeElementId => text().nullable()(); // T001, T002, etc
 }
 
-class HarvestJobs extends Table {
-  TextColumn get jobId => text()(); // ULID/uuid
-  IntColumn get farmId => integer()(); // FK -> HarvestFarms.id
-  TextColumn get creatureInstanceId =>
-      text()(); // FK -> CreatureInstances.instanceId
-  IntColumn get startUtcMs => integer()(); // absolute UTC ms
-  IntColumn get durationMs => integer()(); // total duration
-  IntColumn get ratePerMinute => integer()(); // fixed snapshot
+class BiomeJobs extends Table {
+  TextColumn get jobId => text()();
+  IntColumn get biomeId => integer()(); // FK -> BiomeFarms.id
+  TextColumn get creatureInstanceId => text()();
+  IntColumn get startUtcMs => integer()();
+  IntColumn get durationMs => integer()();
+  IntColumn get ratePerMinute => integer()();
   @override
   Set<Column> get primaryKey => {jobId};
 }
@@ -71,50 +67,38 @@ class Settings extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-// ---------- New: player-owned instances ----------
 class CreatureInstances extends Table {
   TextColumn get instanceId => text()();
   TextColumn get baseId => text()();
-
-  // Core state
   IntColumn get level => integer().withDefault(const Constant(1))();
   IntColumn get xp => integer().withDefault(const Constant(0))();
   BoolColumn get locked => boolean().withDefault(const Constant(false))();
   TextColumn get nickname => text().nullable()();
-
-  // Cosmetics and inheritance (serialized)
   BoolColumn get isPrismaticSkin =>
       boolean().withDefault(const Constant(false))();
   TextColumn get natureId => text().nullable()();
   TextColumn get parentageJson => text().nullable()();
   TextColumn get geneticsJson => text().nullable()();
-
-  // Breeding analysis (NEW)
   TextColumn get likelihoodAnalysisJson => text().nullable()();
-
-  // Stamina (NEW)
   IntColumn get staminaMax => integer().withDefault(const Constant(3))();
   IntColumn get staminaBars => integer().withDefault(const Constant(3))();
   IntColumn get staminaLastUtcMs => integer().withDefault(const Constant(0))();
-
-  // Book-keeping
   IntColumn get createdAtUtcMs => integer().withDefault(const Constant(0))();
-
   @override
   Set<Column> get primaryKey => {instanceId};
 }
 
-// ---------- New: feeding audit log (optional) ----------
 class FeedEvents extends Table {
-  TextColumn get eventId => text()(); // ULID
+  TextColumn get eventId => text()();
   TextColumn get targetInstanceId => text()();
   TextColumn get fodderInstanceId => text()();
   IntColumn get xpGained => integer()();
   IntColumn get createdAtUtcMs => integer()();
-
   @override
   Set<Column> get primaryKey => {eventId};
 }
+
+// =================== DATABASE ===================
 
 @DriftDatabase(
   tables: [
@@ -122,203 +106,32 @@ class FeedEvents extends Table {
     IncubatorSlots,
     Eggs,
     Settings,
-    CreatureInstances, // <-- registered
-    FeedEvents, // <-- registered
-    HarvestFarms, // ← add
-    HarvestJobs, // ← add
+    CreatureInstances,
+    FeedEvents,
+    BiomeFarms,
+    BiomeJobs,
   ],
 )
 class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
-
-      // seed nests
-      final slotsToInsert = [
-        IncubatorSlotsCompanion(
-          id: const Value(0),
-          unlocked: const Value(true),
-        ),
-        IncubatorSlotsCompanion(
-          id: const Value(1),
-          unlocked: const Value(true),
-        ),
-        IncubatorSlotsCompanion(
-          id: const Value(2),
-          unlocked: const Value(false),
-        ),
-      ];
-      await setSetting('blob_slots_unlocked', '2');
-      await setSetting('blob_instances', '[]');
-      // Seed harvest farms
-      await _seedHarvestFarms();
-      // Optional: seed resource balances
-      for (final k in ElementResources.settingsKeys) {
-        await setSetting(k, '0');
-      }
-      for (final slot in slotsToInsert) {
-        await into(incubatorSlots).insert(slot);
-      }
-
-      // seed wallet
-      await setSetting('wallet_soft', '100'); // starter soft currency
+      await _seedInitialData();
     },
     onUpgrade: (m, from, to) async {
-      // Existing migrations you already had
-      if (from < 2) {
-        await m.createTable(incubatorSlots);
-        await m.createTable(settings);
-        final existing = await select(incubatorSlots).get();
-        if (existing.isEmpty) {
-          final slotsToInsert = [
-            IncubatorSlotsCompanion(
-              id: const Value(0),
-              unlocked: const Value(true),
-            ),
-            IncubatorSlotsCompanion(
-              id: const Value(1),
-              unlocked: const Value(true),
-            ),
-            IncubatorSlotsCompanion(
-              id: const Value(2),
-              unlocked: const Value(false),
-            ),
-          ];
-          for (final slot in slotsToInsert) {
-            await into(incubatorSlots).insert(slot);
-          }
-        }
-      }
-      if (from < 3) {
-        await m.createTable(eggs);
-        final w = await getSetting('wallet_soft');
-        if (w == null) await setSetting('wallet_soft', '100');
-      }
-      // New: v4 – instances table
-      if (from < 4) {
-        await m.createTable(creatureInstances);
-      }
-      // New: v5 – feed log
-      if (from < 5) {
-        await m.createTable(feedEvents);
-      }
-      if (from < 6) {
-        await m.addColumn(incubatorSlots, incubatorSlots.payloadJson);
-        await m.addColumn(eggs, eggs.payloadJson);
-      }
-      if (from < 7) {
-        await m.addColumn(creatureInstances, creatureInstances.staminaMax);
-        await m.addColumn(creatureInstances, creatureInstances.staminaBars);
-        await m.addColumn(
-          creatureInstances,
-          creatureInstances.staminaLastUtcMs,
-        );
+      if (from < 13) {
+        // Create new biome tables
+        await m.createTable(biomeFarms);
+        await m.createTable(biomeJobs);
+        await _seedBiomes();
 
-        // Optionally backfill sane values for existing rows
-        final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
-        await customStatement(
-          '''
-      UPDATE creature_instances
-      SET stamina_max = COALESCE(stamina_max, 3),
-          stamina_bars = CASE
-            WHEN COALESCE(stamina_bars, 0) = 0 THEN 3
-            ELSE MIN(stamina_bars, COALESCE(stamina_max, 3))
-          END,
-          stamina_last_utc_ms = CASE
-            WHEN COALESCE(stamina_last_utc_ms, 0) = 0 THEN ?
-            ELSE stamina_last_utc_ms
-          END
-    ''',
-          [nowMs],
-        );
-      }
-      if (from < 8) {
-        final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
-        // Normalize stamina to your new rules:
-        // - Metabolic => +1 max bar (4)
-        // - Others => 3
-        // - Clamp current bars to the new max
-        // - Ensure regen anchor is set
-        await customStatement(
-          '''
-    UPDATE creature_instances
-    SET stamina_max = CASE
-          WHEN LOWER(COALESCE(nature_id, '')) = 'metabolic' THEN 4
-          ELSE 3
-        END,
-        stamina_bars = MIN(
-          COALESCE(stamina_bars, 0),
-          CASE
-            WHEN LOWER(COALESCE(nature_id, '')) = 'metabolic' THEN 4
-            ELSE 3
-          END
-        ),
-        stamina_last_utc_ms = CASE
-          WHEN COALESCE(stamina_last_utc_ms, 0) = 0 THEN ?
-          ELSE stamina_last_utc_ms
-        END
-    ''',
-          [nowMs],
-        );
-      }
-      // NEW: v9 - Add likelihood analysis column
-      if (from < 9) {
-        await m.addColumn(
-          creatureInstances,
-          creatureInstances.likelihoodAnalysisJson,
-        );
-      }
-      if (from < 10) {
-        await m.createTable(harvestFarms);
-        await m.createTable(harvestJobs);
-        await _seedHarvestFarms();
-        // Backfill resource keys if missing
-        for (final k in [
-          'res_embers',
-          'res_droplets',
-          'res_breeze',
-          'res_shards',
-        ]) {
-          final v = await getSetting(k);
-          if (v == null) await setSetting(k, '0');
-        }
-      }
-      if (from < 11) {
-        // backfill farms if table exists but empty
-        final rows = await select(harvestFarms).get();
-        if (rows.isEmpty) {
-          await _seedHarvestFarms();
-        }
-        // ensure resource keys exist
-        for (final k in _kResourceKeys) {
-          final v = await getSetting(k);
-          if (v == null) await setSetting(k, '0');
-        }
-      }
-      if (from < 12) {
-        // Legacy -> new naming
-        final breeze = await getSetting('res_breeze');
-        if (breeze != null) {
-          await setSetting('res_wisps', breeze);
-          // optional: clear the legacy key
-          // await setSetting('res_breeze', '0');
-        }
-        final earthShards = await getSetting('res_shards'); // previously Earth
-        if (earthShards != null) {
-          await setSetting(
-            'res_pebbles',
-            earthShards,
-          ); // move to Earth's new key
-          // keep Ice shards at 0 unless you want to retain the old number for Ice
-          await setSetting('res_shards', '0');
-        }
-        // Make sure ALL keys exist
+        // Ensure all resource keys exist
         for (final k in ElementResources.settingsKeys) {
           final v = await getSetting(k);
           if (v == null) await setSetting(k, '0');
@@ -327,21 +140,50 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     },
   );
 
-  // -------------------- Settings helpers --------------------
-
-  Future<void> _seedHarvestFarms() async {
-    final existing = await select(harvestFarms).get();
-    if (existing.isNotEmpty) return;
-    final rows = [
-      HarvestFarmsCompanion(id: const Value(0), element: const Value('fire')),
-      HarvestFarmsCompanion(id: const Value(1), element: const Value('water')),
-      HarvestFarmsCompanion(id: const Value(2), element: const Value('air')),
-      HarvestFarmsCompanion(id: const Value(3), element: const Value('earth')),
+  Future<void> _seedInitialData() async {
+    // Seed incubator slots
+    final slotsToInsert = [
+      IncubatorSlotsCompanion(id: const Value(0), unlocked: const Value(true)),
+      IncubatorSlotsCompanion(id: const Value(1), unlocked: const Value(true)),
+      IncubatorSlotsCompanion(id: const Value(2), unlocked: const Value(false)),
     ];
-    for (final r in rows) {
-      await into(harvestFarms).insert(r);
+    for (final slot in slotsToInsert) {
+      await into(incubatorSlots).insert(slot);
+    }
+
+    // Seed settings
+    await setSetting('blob_slots_unlocked', '2');
+    await setSetting('blob_instances', '[]');
+    await setSetting('wallet_soft', '100');
+    await setSetting('shop_show_purchased', '0');
+
+    // Seed biomes
+    await _seedBiomes();
+
+    // Seed resource balances
+    for (final k in ElementResources.settingsKeys) {
+      await setSetting(k, '0');
     }
   }
+
+  Future<void> _seedBiomes() async {
+    final existing = await select(biomeFarms).get();
+    if (existing.isNotEmpty) return;
+
+    final rows = [
+      BiomeFarmsCompanion(biomeId: const Value('volcanic')),
+      BiomeFarmsCompanion(biomeId: const Value('oceanic')),
+      BiomeFarmsCompanion(biomeId: const Value('earthen')),
+      BiomeFarmsCompanion(biomeId: const Value('verdant')),
+      BiomeFarmsCompanion(biomeId: const Value('arcane')),
+    ];
+
+    for (final r in rows) {
+      await into(biomeFarms).insert(r);
+    }
+  }
+
+  // =================== SETTINGS ===================
 
   Future<String?> getSetting(String key) async {
     final row = await (select(
@@ -356,7 +198,8 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     );
   }
 
-  // wallet (soft currency)
+  // =================== WALLET ===================
+
   Future<int> getSoftBalance() async =>
       int.tryParse(await getSetting('wallet_soft') ?? '0') ?? 0;
 
@@ -372,7 +215,42 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     return true;
   }
 
-  // -------------------- Incubator helpers (existing + new) --------------------
+  // =================== RESOURCES ===================
+
+  Future<int> getResource(String key) async =>
+      int.tryParse(await getSetting(key) ?? '0') ?? 0;
+
+  Future<void> addResource(String key, int delta) async {
+    final cur = await getResource(key);
+    await setSetting(key, (cur + delta).toString());
+  }
+
+  Future<bool> spendResources(Map<String, int> costMap) async {
+    // Verify all resources available
+    for (final e in costMap.entries) {
+      if (await getResource(e.key) < e.value) return false;
+    }
+    // Deduct
+    for (final e in costMap.entries) {
+      await addResource(e.key, -e.value);
+    }
+    return true;
+  }
+
+  Stream<Map<String, int>> watchResourceBalances() {
+    final q = select(settings)
+      ..where((t) => t.key.isIn(ElementResources.settingsKeys));
+    return q.watch().map((rows) {
+      final m = {for (final k in ElementResources.settingsKeys) k: 0};
+      for (final r in rows) {
+        m[r.key] = int.tryParse(r.value) ?? 0;
+      }
+      return m;
+    });
+  }
+
+  // =================== INCUBATOR ===================
+
   Stream<List<IncubatorSlot>> watchSlots() => (select(
     incubatorSlots,
   )..orderBy([(t) => OrderingTerm.asc(t.id)])).watch();
@@ -392,7 +270,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     String? bonusVariantId,
     required String rarity,
     required DateTime hatchAtUtc,
-    String? payloadJson, // NEW
+    String? payloadJson,
   }) async {
     await (update(incubatorSlots)..where((t) => t.id.equals(slotId))).write(
       IncubatorSlotsCompanion(
@@ -427,7 +305,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   Future<DateTime?> speedUpSlot({
     required int slotId,
     required Duration delta,
-    required DateTime safeNowUtc, // pass your clamped now
+    required DateTime safeNowUtc,
   }) async {
     final row = await (select(
       incubatorSlots,
@@ -450,7 +328,8 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     return target;
   }
 
-  // -------------------- Egg inventory helpers --------------------
+  // =================== EGG INVENTORY ===================
+
   Stream<List<Egg>> watchInventory() =>
       (select(eggs)..orderBy([(t) => OrderingTerm.asc(t.rarity)])).watch();
 
@@ -459,8 +338,8 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     required String resultCreatureId,
     String? bonusVariantId,
     required String rarity,
-    required Duration remaining, // snapshot; doesn't tick while queued
-    String? payloadJson, // NEW
+    required Duration remaining,
+    String? payloadJson,
   }) async {
     await into(eggs).insertOnConflictUpdate(
       EggsCompanion(
@@ -478,7 +357,8 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     await (delete(eggs)..where((t) => t.eggId.equals(eggId))).go();
   }
 
-  // -------------------- Pokedex / discovery helpers --------------------
+  // =================== POKEDEX ===================
+
   Future<void> addOrUpdateCreature(PlayerCreaturesCompanion entry) =>
       into(playerCreatures).insertOnConflictUpdate(entry);
 
@@ -497,7 +377,8 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     playerCreatures,
   )..where((t) => t.discovered.equals(true))).watch();
 
-  // -------------------- Instances: caps & CRUD --------------------
+  // =================== INSTANCES ===================
+
   static const int defaultSpeciesCap = 100;
 
   Future<int> countBySpecies(String baseId) async {
@@ -518,7 +399,6 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     return n < cap;
   }
 
-  /// Inserts a new instance row. Returns the inserted instanceId.
   Future<String> insertInstance({
     required String instanceId,
     required String baseId,
@@ -530,10 +410,10 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     String? natureId,
     Map<String, dynamic>? parentage,
     Map<String, String>? genetics,
-    String? likelihoodAnalysisJson, // NEW
+    String? likelihoodAnalysisJson,
     DateTime? createdAtUtc,
-    int? staminaMax, // ← NEW (optional override)
-    int? staminaBars, // ← NEW (optional override)
+    int? staminaMax,
+    int? staminaBars,
   }) async {
     final nowMs =
         (createdAtUtc ?? DateTime.now().toUtc()).millisecondsSinceEpoch;
@@ -552,7 +432,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
         natureId: Value(natureId),
         parentageJson: Value(parentage == null ? null : jsonEncode(parentage)),
         geneticsJson: Value(genetics == null ? null : jsonEncode(genetics)),
-        likelihoodAnalysisJson: Value(likelihoodAnalysisJson), // NEW
+        likelihoodAnalysisJson: Value(likelihoodAnalysisJson),
         staminaMax: Value(maxBars),
         staminaBars: Value(curBars),
         staminaLastUtcMs: Value(nowMs),
@@ -610,6 +490,20 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
         creatureInstances,
       )..where((t) => t.baseId.equals(baseId))).watch();
 
+  Future<List<CreatureInstance>> listAllInstances() =>
+      select(creatureInstances).get();
+
+  Stream<List<CreatureInstance>> watchAllInstances() =>
+      select(creatureInstances).watch();
+
+  // AlchemonsDatabase
+  Stream<CreatureInstance?> watchInstanceById(String instanceId) {
+    final q = select(creatureInstances)
+      ..where((t) => t.instanceId.equals(instanceId));
+    return q
+        .watchSingleOrNull(); // or q.watch().map((r) => r.isEmpty ? null : r.first);
+  }
+
   Future<void> deleteInstances(List<String> instanceIds) async {
     if (instanceIds.isEmpty) return;
     await (delete(
@@ -653,7 +547,8 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     );
   }
 
-  // -------------------- Feeding audit --------------------
+  // =================== FEED LOG ===================
+
   Future<void> logFeed({
     required String eventId,
     required String targetInstanceId,
@@ -674,139 +569,83 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     );
   }
 
-  Future<List<CreatureInstance>> listAllInstances() =>
-      select(creatureInstances).get();
+  // =================== BIOME HARVEST ===================
 
-  Stream<List<CreatureInstance>> watchAllInstances() =>
-      select(creatureInstances).watch();
+  Stream<List<BiomeFarm>> watchBiomes() =>
+      (select(biomeFarms)..orderBy([(t) => OrderingTerm.asc(t.id)])).watch();
 
-  // ---------- Resources (using Settings as KV) ----------
-  Future<int> getResource(String key) async =>
-      int.tryParse(await getSetting(key) ?? '0') ?? 0;
+  Future<BiomeFarm?> getBiomeByBiomeId(String biomeId) => (select(
+    biomeFarms,
+  )..where((t) => t.biomeId.equals(biomeId))).getSingleOrNull();
 
-  Future<void> addResource(String key, int delta) async {
-    final cur = await getResource(key);
-    await setSetting(key, (cur + delta).toString());
-  }
-
-  Future<bool> spendResources(Map<String, int> costMap) async {
-    // All-or-nothing: verify
-    for (final e in costMap.entries) {
-      if (await getResource(e.key) < e.value) return false;
-    }
-    // Deduct
-    for (final e in costMap.entries) {
-      await addResource(e.key, -e.value);
-    }
-    return true;
-  }
-
-  /// Live stream of resource balances {key -> amount}
-  Stream<Map<String, int>> watchResourceBalances() {
-    final q = select(settings)..where((t) => t.key.isIn(_kResourceKeys));
-    return q.watch().map((rows) {
-      final m = {for (final k in _kResourceKeys) k: 0};
-      for (final r in rows) {
-        m[r.key] = int.tryParse(r.value) ?? 0;
-      }
-      return m;
-    });
-  }
-
-  static final _kResourceKeys = ElementResources.settingsKeys;
-
-  String resourceKeyForElement(String element) =>
-      ElementResources.keyForElement(element);
-
-  // ---------- Harvest operations ----------
-  Stream<List<HarvestFarm>> watchFarms() =>
-      (select(harvestFarms)..orderBy([(t) => OrderingTerm.asc(t.id)])).watch();
-
-  Future<HarvestFarm?> getFarmByElement(String element) => (select(
-    harvestFarms,
-  )..where((t) => t.element.equals(element))).getSingleOrNull();
-
-  Future<bool> unlockFarm({
-    required String element,
-    required Map<String, int> cost, // e.g. {'res_embers':50, 'res_droplets':20}
+  Future<bool> unlockBiome({
+    required String biomeId,
+    required Map<String, int> cost,
   }) async {
-    final farm = await getFarmByElement(element);
+    final farm = await getBiomeByBiomeId(biomeId);
     if (farm == null) return false;
     if (farm.unlocked) return true;
+
     final ok = await spendResources(cost);
     if (!ok) return false;
-    await (update(harvestFarms)..where((t) => t.id.equals(farm.id))).write(
-      const HarvestFarmsCompanion(unlocked: Value(true)),
+
+    await (update(biomeFarms)..where((t) => t.id.equals(farm.id))).write(
+      const BiomeFarmsCompanion(unlocked: Value(true)),
     );
     return true;
   }
 
-  /// Move the active job's start time earlier by `deltaMs` (negative speeds up).
-  /// Clamps so the job can't end in the past—at most to "now".
-  Future<bool> nudgeHarvest({
-    required String element, // 'fire' | 'water' | 'air' | 'earth'
-    required int deltaMs, // e.g. -1000 per tap
-  }) async {
-    final farm = await getFarmByElement(element);
-    if (farm == null) return false;
-    final job = await getActiveJobForFarm(farm.id);
-    if (job == null) return false;
+  Future<void> setBiomeActiveElement(String biomeId, String elementId) async {
+    final farm = await getBiomeByBiomeId(biomeId);
+    if (farm == null) return;
 
-    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
-
-    // Original finish time
-    final oldEnd = job.startUtcMs + job.durationMs;
-
-    // We "pull" the start earlier by |deltaMs|
-    var newStart = job.startUtcMs + deltaMs;
-
-    // Clamp so end time never goes before now (let it be exactly now at max)
-    final newEnd = newStart + job.durationMs;
-    if (newEnd < nowMs) {
-      newStart = nowMs - job.durationMs;
-    }
-
-    // No-op?
-    if (newStart == job.startUtcMs) return false;
-
-    await (update(harvestJobs)..where((t) => t.jobId.equals(job.jobId))).write(
-      HarvestJobsCompanion(startUtcMs: Value(newStart)),
+    await (update(biomeFarms)..where((t) => t.id.equals(farm.id))).write(
+      BiomeFarmsCompanion(activeElementId: Value(elementId)),
     );
-    return true;
   }
 
-  Future<HarvestJob?> getActiveJobForFarm(int farmId) async {
-    final q = select(harvestJobs)..where((t) => t.farmId.equals(farmId));
+  Future<HarvestJob?> getActiveJobForBiome(int biomeId) async {
+    final q = select(biomeJobs)..where((t) => t.biomeId.equals(biomeId));
     final list = await q.get();
-    // Only one job per farm; keep last if any
-    return list.isEmpty ? null : list.last;
+    if (list.isEmpty) return null;
+
+    final job = list.last;
+    return HarvestJob(
+      jobId: job.jobId,
+      creatureInstanceId: job.creatureInstanceId,
+      startUtcMs: job.startUtcMs,
+      durationMs: job.durationMs,
+      ratePerMinute: job.ratePerMinute,
+    );
   }
 
-  Future<bool> startHarvest({
-    required String element, // 'fire'|'water'|'air'|'earth'
-    required String jobId, // ULID/uuid
+  Future<bool> startBiomeJob({
+    required String biomeId,
+    required String jobId,
     required String creatureInstanceId,
     required Duration duration,
     required int ratePerMinute,
   }) async {
-    final farm = await getFarmByElement(element);
+    final farm = await getBiomeByBiomeId(biomeId);
     if (farm == null || !farm.unlocked) return false;
-    final active = await getActiveJobForFarm(farm.id);
+
+    final active = await getActiveJobForBiome(farm.id);
     if (active != null) return false;
 
-    // Spend stamina: -1 bar now (simple rule)
+    // Spend stamina
     final inst = await getInstance(creatureInstanceId);
     if (inst == null || inst.staminaBars <= 0) return false;
+
     await updateStamina(
       instanceId: inst.instanceId,
       staminaBars: inst.staminaBars - 1,
       staminaLastUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
     );
 
-    await into(harvestJobs).insert(
-      HarvestJobsCompanion(
+    await into(biomeJobs).insert(
+      BiomeJobsCompanion(
         jobId: Value(jobId),
-        farmId: Value(farm.id),
+        biomeId: Value(farm.id),
         creatureInstanceId: Value(creatureInstanceId),
         startUtcMs: Value(DateTime.now().toUtc().millisecondsSinceEpoch),
         durationMs: Value(duration.inMilliseconds),
@@ -816,38 +655,65 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     return true;
   }
 
-  Future<int> collectHarvest({required String element}) async {
-    final farm = await getFarmByElement(element);
+  Future<bool> nudgeBiomeJob(String biomeId, int deltaMs) async {
+    final farm = await getBiomeByBiomeId(biomeId);
+    if (farm == null) return false;
+
+    final job = await getActiveJobForBiome(farm.id);
+    if (job == null) return false;
+
+    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+    var newStart = job.startUtcMs + deltaMs;
+
+    final newEnd = newStart + job.durationMs;
+    if (newEnd < nowMs) {
+      newStart = nowMs - job.durationMs;
+    }
+
+    if (newStart == job.startUtcMs) return false;
+
+    await (update(biomeJobs)..where((t) => t.jobId.equals(job.jobId))).write(
+      BiomeJobsCompanion(startUtcMs: Value(newStart)),
+    );
+    return true;
+  }
+
+  Future<int> collectBiomeJob({required String biomeId}) async {
+    final farm = await getBiomeByBiomeId(biomeId);
     if (farm == null) return 0;
-    final job = await getActiveJobForFarm(farm.id);
-    if (job == null) return 0;
+
+    final job = await getActiveJobForBiome(farm.id);
+    if (job == null || farm.activeElementId == null) return 0;
 
     final endMs = job.startUtcMs + job.durationMs;
     final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
-    if (nowMs < endMs) return 0; // not ready
+    if (nowMs < endMs) return 0;
 
     final totalMinutes = Duration(milliseconds: job.durationMs).inMinutes;
     final payout = totalMinutes * job.ratePerMinute;
 
-    // Credit resource
-    final resKey = resourceKeyForElement(element);
-    await addResource(resKey, payout);
+    // Get resource key from biome
+    final biome = Biome.values.firstWhere((b) => b.id == biomeId);
+    final resKey = biome.resourceKeyForElement(farm.activeElementId!);
 
-    // Clear job
-    await (delete(harvestJobs)..where((t) => t.jobId.equals(job.jobId))).go();
+    await addResource(resKey, payout);
+    await (delete(biomeJobs)..where((t) => t.jobId.equals(job.jobId))).go();
+
     return payout;
   }
 
-  Future<void> cancelHarvest({required String element}) async {
-    final farm = await getFarmByElement(element);
+  Future<void> cancelBiomeJob(String biomeId) async {
+    final farm = await getBiomeByBiomeId(biomeId);
     if (farm == null) return;
-    final job = await getActiveJobForFarm(farm.id);
+
+    final job = await getActiveJobForBiome(farm.id);
     if (job == null) return;
-    await (delete(harvestJobs)..where((t) => t.jobId.equals(job.jobId))).go();
+
+    await (delete(biomeJobs)..where((t) => t.jobId.equals(job.jobId))).go();
   }
 
-  // ---------- Blob party (overlay) helpers ----------
-  // ---------- Floating bubble slots (Settings-backed) ----------
+  // =================== BLOB PARTY (OVERLAY) ===================
+
   Future<int> getBlobSlotsUnlocked() async {
     final v = await getSetting('blob_slots_unlocked');
     if (v == null) {
@@ -863,12 +729,12 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     await setSetting('blob_slots_unlocked', clamped.toString());
   }
 
-  /// Return up to 3 instance ids (nullable) for slots 0..2
   Future<List<String?>> getBlobInstanceSlots() async {
     final keys = ['blob_slot_0', 'blob_slot_1', 'blob_slot_2'];
     final vals = <String?>[];
     for (final k in keys) {
-      vals.add(await getSetting(k));
+      final v = await getSetting(k);
+      vals.add(v == '' ? null : v);
     }
     return vals;
   }
@@ -877,24 +743,13 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     if (index < 0 || index > 2) return;
     final key = 'blob_slot_$index';
     await setSetting(key, instanceId ?? '');
-    // store empty as "" then normalize reads above ("" -> null)
-    if ((await getSetting(key)) == '') {
-      // interpret "" as null
-      await into(settings).insertOnConflictUpdate(
-        SettingsCompanion(key: Value(key), value: const Value('')),
-      );
-    }
   }
 
-  Future<void> setBlobInstanceSlots(List<String?> slots) async {
-    await setSetting('blob_instances', jsonEncode(slots));
-  }
+  // =================== SHOP PREFS ===================
 
-  // ---------- Shop prefs ----------
   Future<bool> getShopShowPurchased() async {
     final v = await getSetting('shop_show_purchased');
     if (v == null) {
-      // default: HIDE purchased (false)
       await setSetting('shop_show_purchased', '0');
       return false;
     }
@@ -904,6 +759,4 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   Future<void> setShopShowPurchased(bool value) async {
     await setSetting('shop_show_purchased', value ? '1' : '0');
   }
-
-  //“shop” can just call setBlobSlotsUnlocked(2 or 3)
 }

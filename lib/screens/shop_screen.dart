@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/interactive_background_widget.dart';
@@ -31,19 +33,8 @@ class _ShopScreenState extends State<ShopScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    // Build once from element names (human-readable & future-proof)
-    _slot2Cost = ElementResources.costByElements({
-      'Fire': 60,
-      'Water': 60,
-      'Air': 60,
-      'Earth': 60,
-    });
-    _slot3Cost = ElementResources.costByElements({
-      'Fire': 140,
-      'Water': 140,
-      'Air': 140,
-      'Earth': 140,
-    });
+    _slot2Cost = UnlockCosts.bubbleSlot(2);
+    _slot3Cost = UnlockCosts.bubbleSlot(3);
 
     _rotationCtrl = AnimationController(
       vsync: this,
@@ -471,14 +462,6 @@ class _BalancesBarCompact extends StatelessWidget {
   const _BalancesBarCompact({required this.accent});
   final Color accent;
 
-  // Fallback featured keys if player has zero of everything
-  static const _featuredKeys = <String>{
-    'res_embers',
-    'res_droplets',
-    'res_breeze',
-    'res_shards',
-  };
-
   String _fmt(int n) {
     if (n >= 1000000000) return '${(n / 1e9).toStringAsFixed(1)}B';
     if (n >= 1000000) return '${(n / 1e6).toStringAsFixed(1)}M';
@@ -497,23 +480,16 @@ class _BalancesBarCompact extends StatelessWidget {
             snap.data ??
             {for (final e in ElementResources.all) e.settingsKey: 0};
 
-        // Show ALL resources with balance > 0 in compact row (sorted by value desc).
-        final positives =
-            ElementResources.all
-                .where((r) => (balances[r.settingsKey] ?? 0) > 0)
-                .toList()
-              ..sort(
-                (a, b) => (balances[b.settingsKey] ?? 0).compareTo(
-                  balances[a.settingsKey] ?? 0,
-                ),
-              );
-
-        // If none >0, fall back to a small set of featured.
-        final shown = positives.isNotEmpty
-            ? positives
-            : ElementResources.all
-                  .where((r) => _featuredKeys.contains(r.settingsKey))
-                  .toList();
+        // Only resources with a positive balance, sorted desc by value
+        final nonZero =
+            [
+              for (final r in ElementResources.all)
+                if ((balances[r.settingsKey] ?? 0) > 0) r,
+            ]..sort(
+              (a, b) => (balances[b.settingsKey] ?? 0).compareTo(
+                balances[a.settingsKey] ?? 0,
+              ),
+            );
 
         return _Glass(
           border: accent,
@@ -532,26 +508,43 @@ class _BalancesBarCompact extends StatelessWidget {
                   ),
                 ),
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  child: Row(
-                    children: [
-                      for (final r in shown) ...[
-                        _MiniResPill(
-                          icon: r.icon,
-                          color: r.color,
-                          label: r.resLabel,
-                          value: balances[r.settingsKey] ?? 0,
-                          fmt: _fmt,
-                        ),
-                        const SizedBox(width: 6),
+
+              if (nonZero.isEmpty)
+                Expanded(
+                  child: Opacity(
+                    opacity: 0.75,
+                    child: Text(
+                      'No resources yet',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: [
+                        for (final r in nonZero) ...[
+                          _MiniResPill(
+                            icon: r.icon,
+                            color: r.color,
+                            value: balances[r.settingsKey] ?? 0,
+                            fmt: _fmt,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ),
+
               TextButton(
                 onPressed: () =>
                     _openAllResourcesSheet(context, balances, accent),
@@ -625,7 +618,6 @@ class _BalancesBarCompact extends StatelessWidget {
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, c) {
-                          // Responsive columns for compact sheet
                           final cross = (c.maxWidth / 120).floor().clamp(2, 6);
                           return GridView.builder(
                             controller: controller,
@@ -668,14 +660,12 @@ class _MiniResPill extends StatelessWidget {
   const _MiniResPill({
     required this.icon,
     required this.color,
-    required this.label,
     required this.value,
     required this.fmt,
   });
 
   final IconData icon;
   final Color color;
-  final String label;
   final int value;
   final String Function(int) fmt;
 
@@ -704,15 +694,6 @@ class _MiniResPill extends StatelessWidget {
               ],
             ),
             child: Icon(icon, size: 12, color: Colors.white),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFFE8EAED),
-              fontWeight: FontWeight.w800,
-              fontSize: 11,
-            ),
           ),
           const SizedBox(width: 6),
           Text(
@@ -842,106 +823,161 @@ class _ShopItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: enabled ? 1.0 : 0.55,
-      child: _Glass(
-        border: accent,
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(
-              Icons.bubble_chart_rounded,
-              color: Colors.white70,
-              size: 28,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Color(0xFFE8EAED),
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
+    final db = context.read<AlchemonsDatabase>();
+
+    return StreamBuilder<Map<String, int>>(
+      stream: db.watchResourceBalances(),
+      builder: (context, snap) {
+        final balances =
+            snap.data ??
+            {for (final e in ElementResources.all) e.settingsKey: 0};
+
+        return Opacity(
+          opacity: enabled ? 1.0 : 0.55,
+          child: _Glass(
+            border: accent,
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.bubble_chart_rounded,
+                  color: Colors.white70,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _CostPill(
-                        label: 'Embers',
-                        amount: cost['res_embers'] ?? 0,
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Color(0xFFE8EAED),
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
                       ),
-                      _CostPill(
-                        label: 'Droplets',
-                        amount: cost['res_droplets'] ?? 0,
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
                       ),
-                      _CostPill(
-                        label: 'Breeze',
-                        amount: cost['res_breeze'] ?? 0,
-                      ),
-                      _CostPill(
-                        label: 'Shards',
-                        amount: cost['res_shards'] ?? 0,
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          for (final res in ElementResources.all)
+                            if ((cost[res.settingsKey] ?? 0) > 0)
+                              _CostPill(
+                                label: res.resLabel,
+                                amount: cost[res.settingsKey]!,
+                                currentAmount: enabled
+                                    ? balances[res.settingsKey] ?? 0
+                                    : null,
+                                icon: res.icon,
+                                color: res.color,
+                              ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: enabled ? onPressed : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: enabled ? accent : Colors.white24,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
                 ),
-              ),
-              child: const Text('Unlock'),
+                if (enabled) ...[
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: onPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Unlock'),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _CostPill extends StatelessWidget {
-  const _CostPill({required this.label, required this.amount});
+  const _CostPill({
+    required this.label,
+    required this.amount,
+    this.currentAmount,
+    this.icon = Icons.blur_on_rounded,
+    this.color = const Color(0xFFFFFFFF),
+  });
+
   final String label;
   final int amount;
+  final int? currentAmount; // null when item is already unlocked
+  final IconData icon;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     if (amount <= 0) return const SizedBox.shrink();
+
+    // If currentAmount is null, item is unlocked - just show the cost spent
+    if (currentAmount == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              '$label $amount',
+              style: const TextStyle(
+                color: Color(0xFFE8EAED),
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Item is locked - show current/required with color coding
+    final hasEnough = currentAmount! >= amount;
+    final displayColor = hasEnough ? color : Colors.red.shade300;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.06),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(
+          color: hasEnough ? Colors.white24 : Colors.red.withOpacity(0.4),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.blur_on_rounded, size: 14, color: Colors.white70),
+          Icon(icon, size: 14, color: displayColor),
           const SizedBox(width: 6),
           Text(
-            '$label $amount',
-            style: const TextStyle(
-              color: Color(0xFFE8EAED),
+            '$label $currentAmount/$amount',
+            style: TextStyle(
+              color: hasEnough ? const Color(0xFFE8EAED) : Colors.red.shade200,
               fontWeight: FontWeight.w800,
               fontSize: 12,
             ),
@@ -962,38 +998,12 @@ class _FarmUnlockColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
 
-    // You can move these to constants if you want them reused elsewhere.
-    final fire = ElementResources.costByElements({
-      'Fire': 0,
-      'Water': 40,
-      'Air': 20,
-      'Earth': 20,
-    });
-    final water = ElementResources.costByElements({
-      'Fire': 40,
-      'Water': 0,
-      'Air': 20,
-      'Earth': 20,
-    });
-    final air = ElementResources.costByElements({
-      'Fire': 20,
-      'Water': 20,
-      'Air': 0,
-      'Earth': 40,
-    });
-    final earth = ElementResources.costByElements({
-      'Fire': 20,
-      'Water': 20,
-      'Air': 40,
-      'Earth': 0,
-    });
-
     Future<Widget?> card(
       String label,
       String element,
       Map<String, int> cost,
     ) async {
-      final farm = await db.getFarmByElement(element);
+      final farm = await db.getBiomeByBiomeId(element);
       final unlocked = farm?.unlocked == true;
 
       if (unlocked && !showPurchased) return null; // hide if purchased
@@ -1007,7 +1017,7 @@ class _FarmUnlockColumn extends StatelessWidget {
         cost: cost,
         enabled: !unlocked,
         onPressed: () async {
-          final ok = await db.unlockFarm(element: element, cost: cost);
+          final ok = await db.unlockBiome(biomeId: element, cost: cost);
           final msg = ok ? '$label farm unlocked!' : 'Not enough resources';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1022,10 +1032,46 @@ class _FarmUnlockColumn extends StatelessWidget {
 
     return FutureBuilder<List<Widget?>>(
       future: Future.wait([
-        card('Fire', 'fire', fire),
-        card('Water', 'water', water),
-        card('Air', 'air', air),
-        card('Earth', 'earth', earth),
+        _farmCard(
+          context,
+          accent,
+          'Volcanic',
+          Biome.volcanic.id, // ← Use the enum's id
+          UnlockCosts.biome(Biome.volcanic),
+          showPurchased,
+        ),
+        _farmCard(
+          context,
+          accent,
+          'Oceanic',
+          Biome.oceanic.id, // ← Use the enum's id
+          UnlockCosts.biome(Biome.oceanic),
+          showPurchased,
+        ),
+        _farmCard(
+          context,
+          accent,
+          'Verdant',
+          Biome.verdant.id, // ← Use the enum's id
+          UnlockCosts.biome(Biome.verdant),
+          showPurchased,
+        ),
+        _farmCard(
+          context,
+          accent,
+          'Earthen',
+          Biome.earthen.id, // ← Use the enum's id
+          UnlockCosts.biome(Biome.earthen),
+          showPurchased,
+        ),
+        _farmCard(
+          context,
+          accent,
+          'Arcane',
+          Biome.arcane.id, // ← Use the enum's id
+          UnlockCosts.biome(Biome.arcane),
+          showPurchased,
+        ),
       ]),
       builder: (context, snap) {
         final children = (snap.data ?? const []).whereType<Widget>().toList();
@@ -1053,6 +1099,42 @@ class _FarmUnlockColumn extends StatelessWidget {
               children[i],
             ],
           ],
+        );
+      },
+    );
+  }
+
+  Future<Widget?> _farmCard(
+    BuildContext context,
+    Color accent,
+    String label,
+    String elementKey,
+    Map<String, int> cost,
+    bool showPurchased,
+  ) async {
+    final db = context.read<AlchemonsDatabase>();
+    final farm = await db.getBiomeByBiomeId(elementKey);
+    final unlocked = farm?.unlocked == true;
+
+    if (unlocked && !showPurchased) return null;
+
+    return _ShopItemCard(
+      title: unlocked ? '$label Farm (Unlocked)' : 'Unlock $label Farm',
+      subtitle: unlocked
+          ? 'Produces $label resources. Upgrades coming soon.'
+          : 'Enable $label resource production in the Field.',
+      accent: accent,
+      cost: cost,
+      enabled: !unlocked,
+      onPressed: () async {
+        final ok = await db.unlockBiome(biomeId: elementKey, cost: cost);
+        final msg = ok ? '$label farm unlocked!' : 'Not enough resources';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+          ),
         );
       },
     );

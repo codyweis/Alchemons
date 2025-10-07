@@ -14,6 +14,7 @@ import 'package:alchemons/screens/shop_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
+import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/test/dev_seeder.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/router/push_soft.dart';
@@ -96,26 +97,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       await _initializeRepository();
 
       final factionSvc = context.read<FactionService>();
-      final picked = await factionSvc.loadId();
+      final db = context.read<AlchemonsDatabase>();
+
+      // Warm the cache, then read the enum
+      await factionSvc.loadId();
+      FactionId? faction = factionSvc.current;
 
       if (!mounted) return;
 
-      if (picked == null) {
+      if (faction == null) {
         final selected = await showDialog<FactionId>(
           context: context,
           barrierDismissible: false,
           builder: (_) => const FactionPickerDialog(),
         );
-        if (selected != null) {
-          await factionSvc.setId(selected);
-          if (!mounted) return;
-        }
-        await factionSvc.ensureAirExtraSlotUnlocked();
+        if (!mounted || selected == null) return;
+        await factionSvc.setId(selected);
+        faction = selected; // <-- FactionId
       }
 
-      setState(() {
-        _isInitialized = true;
-      });
+      // Any per-faction unlocks you do at start:
+      await factionSvc.ensureAirExtraSlotUnlocked();
+
+      // 🔑 Now that we definitely have a faction, do the one-time starter grant.
+      await _grantStarterIfNeeded(faction!); // <-- pass FactionId
+
+      if (!mounted) return;
+      setState(() => _isInitialized = true);
     } catch (e) {
       debugPrint('Error during app initialization: $e');
       if (!mounted) return;
@@ -180,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
 
         final factionSvc = context.read<FactionService>();
-        factionSvc.setBlobSlotsUnlockedTest(); // DEV TEST
+        //factionSvc.setBlobSlotsUnlockedTest(); // DEV TEST
 
         final currentFaction = factionSvc.current;
         final (primary, secondary, accent) = getFactionColors(currentFaction);
@@ -233,6 +241,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       },
     );
+  }
+
+  Future<void> _grantStarterIfNeeded(FactionId faction) async {
+    final db = context.read<AlchemonsDatabase>();
+
+    // Make sure at least one chamber is usable before we try to place an egg.
+    final slots = await db.watchSlots().first; // first emission is fine here
+    final anyUnlocked = slots.any((s) => s.unlocked);
+    if (!anyUnlocked) {
+      await db.unlockSlot(0); // guarantees Chamber 1 is available
+    }
+
+    final granted = await db.ensureStarterGranted(
+      faction,
+      tutorialHatch: const Duration(seconds: 10),
+    );
+
+    if (!mounted) return;
+    if (granted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Starter specimen added to your incubator!'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _buildLoadingScreen(String message) {
@@ -608,17 +642,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                       ? 'ALL AVAILABLE'
                                       : 'INCUBATING';
 
+                                  final incubatorLines =
+                                      _sentencesForIncubators(
+                                        ready: readyIncubating,
+                                        open: openInc,
+                                        active: activeIncubating,
+                                      );
+
                                   // ----- Harvest stats (exclude locked farms for counts) -----
-                                  final farms = harvestSvc.farms
-                                      .where((f) => f.unlocked)
+                                  final biomes = harvestSvc.biomes
+                                      .where((b) => b.unlocked)
                                       .toList();
-                                  final totalUnlockedFarms = farms.length;
-                                  final activeHarvestTotal = farms
-                                      .where((f) => f.active != null)
+                                  final totalUnlockedBiomes = biomes.length;
+                                  final activeHarvestTotal = biomes
+                                      .where((b) => b.activeJob != null)
                                       .length;
 
-                                  final readyHarvest = farms.where((f) {
-                                    final j = f.active;
+                                  final readyHarvest = biomes.where((b) {
+                                    final j = b.activeJob;
                                     if (j == null) return false;
                                     final endMs = j.startUtcMs + j.durationMs;
                                     return nowMs >= endMs;
@@ -630,28 +671,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                         999,
                                       );
 
-                                  final openFarms =
-                                      (totalUnlockedFarms - activeHarvestTotal)
+                                  final openBiomes =
+                                      (totalUnlockedBiomes - activeHarvestTotal)
                                           .clamp(0, 999);
 
                                   final statusHarvest = (readyHarvest > 0)
                                       ? 'COLLECT'
-                                      : (openFarms > 0)
+                                      : (openBiomes > 0)
                                       ? 'OPEN'
                                       : (activeHarvest > 0)
                                       ? 'EXTRACTING'
                                       : 'IDLE';
 
-                                  final incubatorLines =
-                                      _sentencesForIncubators(
-                                        ready: readyIncubating,
-                                        open: openInc,
-                                        active: activeIncubating,
-                                      );
-
                                   final harvestLines = _sentencesForHarvest(
                                     ready: readyHarvest,
-                                    open: openFarms,
+                                    open: openBiomes,
                                     active: activeHarvest,
                                   );
 
@@ -710,7 +744,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                               context,
                                               MaterialPageRoute(
                                                 builder: (_) =>
-                                                    const HarvestScreen(),
+                                                    const BiomeHarvestScreen(),
                                               ),
                                             );
                                           },
@@ -847,18 +881,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final lines = <String>[];
     if (ready > 0) {
       lines.add(
-        '${_cardinal(ready)} ${_plural(ready, "incubator", "incubators")} ready for extraction.',
+        '${_cardinal(ready)} ${_plural(ready, "chamber", "chambers")} ready to hatch.',
       );
     }
     if (active > 0) {
       lines.add(
-        '${_cardinal(active)} ${_plural(active, "incubator", "incubators")} ${_isAre(active)} under active incubation.',
+        '${_cardinal(active)} ${_plural(active, "specimen", "specimens")} ${_isAre(active)} incubating.',
       );
     }
     if (open > 0) {
-      lines.add('${_cardinal(open)} ${_isAre(open)} available.');
+      lines.add(
+        '${_cardinal(open)} ${_plural(open, "chamber", "chambers")} available.',
+      );
     }
-    if (lines.isEmpty) lines.add('All incubators are idle.');
+    if (lines.isEmpty) lines.add('No active incubation detected.');
     return lines;
   }
 

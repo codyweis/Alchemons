@@ -1,20 +1,22 @@
 // lib/services/harvest_service.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:alchemons/models/farm_element.dart';
+import 'package:alchemons/models/harvest_biome.dart';
+import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/database/alchemons_db.dart' as db;
 
 class HarvestService extends ChangeNotifier {
   final db.AlchemonsDatabase _adb;
-  StreamSubscription<List<db.HarvestFarm>>? _farmSub;
+  StreamSubscription? _biomeSub;
 
-  final Map<FarmElement, HarvestFarmState> _farms = {
-    for (final e in FarmElement.values) e: HarvestFarmState(element: e),
+  final Map<Biome, BiomeFarmState> _biomes = {
+    for (final b in Biome.values)
+      b: BiomeFarmState(biome: b, unlocked: false, level: 1),
   };
 
   HarvestService(this._adb) {
-    // Keep local cache in sync with DB
-    _farmSub = _adb.watchFarms().listen(
+    // Watch biome changes
+    _biomeSub = _adb.watchBiomes().listen(
       (rows) async => _syncFromDb(rows),
       onError: (_) {},
     );
@@ -22,135 +24,119 @@ class HarvestService extends ChangeNotifier {
 
   @override
   void dispose() {
-    _farmSub?.cancel();
+    _biomeSub?.cancel();
     super.dispose();
   }
 
-  // -------- Public API (same shape as before) --------
+  // -------- Public API --------
 
-  List<HarvestFarmState> get farms =>
-      FarmElement.values.map((e) => _farms[e]!).toList();
+  List<BiomeFarmState> get biomes =>
+      Biome.values.map((b) => _biomes[b]!).toList();
 
-  HarvestFarmState farm(FarmElement e) => _farms[e]!;
+  BiomeFarmState biome(Biome b) => _biomes[b]!;
 
-  /// Unlock via DB, deducting resources there (all-or-nothing).
-  Future<bool> unlock(
-    FarmElement e, {
-    required Map<String, int> cost, // e.g. {'res_embers':50, 'res_droplets':20}
-  }) async {
-    final ok = await _adb.unlockFarm(element: _elStr(e), cost: cost);
-    if (ok) await _refreshOne(e);
+  /// Unlock biome via DB
+  Future<bool> unlock(Biome biome, {required Map<String, int> cost}) async {
+    final ok = await _adb.unlockBiome(biomeId: biome.id, cost: cost);
+    if (ok) await _refreshOne(biome);
     return ok;
   }
 
-  /// Starts a harvest job in DB (also spends 1 stamina there).
+  /// Set which element is active for this biome
+  Future<bool> setActiveElement(Biome biome, String elementId) async {
+    await _adb.setBiomeActiveElement(biome.id, elementId);
+    await _refreshOne(biome);
+    return true;
+  }
+
+  /// Start harvest job
   Future<bool> startJob({
-    required FarmElement element,
+    required Biome biome,
     required String creatureInstanceId,
     required Duration duration,
     required int ratePerMinute,
   }) async {
-    final ok = await _adb.startHarvest(
-      element: _elStr(element),
+    final farm = this.biome(biome);
+    if (!farm.unlocked || farm.activeElementId == null) return false;
+
+    final ok = await _adb.startBiomeJob(
+      biomeId: biome.id,
       jobId: 'job_${DateTime.now().toUtc().millisecondsSinceEpoch}',
       creatureInstanceId: creatureInstanceId,
       duration: duration,
       ratePerMinute: ratePerMinute,
     );
-    if (ok) await _refreshOne(element);
+    if (ok) await _refreshOne(biome);
     return ok;
   }
 
   Future<bool> nudge(
-    FarmElement element, {
+    Biome biome, {
     Duration by = const Duration(seconds: 1),
   }) async {
-    final ok = await _adb.nudgeHarvest(
-      element: _elStr(element),
-      deltaMs: -by.inMilliseconds, // negative = speed up
-    );
+    final ok = await _adb.nudgeBiomeJob(biome.id, -by.inMilliseconds);
     if (ok) {
-      await _refreshOne(element); // pull fresh job (keeps UI honest)
+      await _refreshOne(biome);
     }
     return ok;
   }
 
-  /// Collects when ready; returns payout amount (0 if not ready).
-  Future<int> collect(FarmElement element) async {
-    final payout = await _adb.collectHarvest(element: _elStr(element));
-    if (payout > 0) await _refreshOne(element);
+  /// Collect completed job
+  Future<int> collect(Biome biome) async {
+    final payout = await _adb.collectBiomeJob(biomeId: biome.id);
+    if (payout > 0) await _refreshOne(biome);
     return payout;
   }
 
-  /// Cancels current job (no payout).
-  Future<void> cancel(FarmElement element) async {
-    await _adb.cancelHarvest(element: _elStr(element));
-    await _refreshOne(element);
+  /// Cancel current job
+  Future<void> cancel(Biome biome) async {
+    await _adb.cancelBiomeJob(biome.id);
+    await _refreshOne(biome);
   }
 
-  // -------- Internal sync helpers --------
+  // -------- Internal sync --------
 
-  Future<void> _syncFromDb(List<db.HarvestFarm> rows) async {
-    // Update farm basics
+  Future<void> _syncFromDb(List<db.BiomeFarm> rows) async {
     for (final r in rows) {
-      final e = _elFromStr(r.element);
-      final state = _farms[e]!;
-      state.unlocked = r.unlocked;
-      state.level = r.level;
-    }
+      final biome = _biomeFromId(r.biomeId);
+      if (biome == null) continue;
 
-    // Fetch active jobs for each farm in parallel
-    final futures = <Future<void>>[];
-    for (final r in rows) {
-      futures.add(() async {
-        final e = _elFromStr(r.element);
-        final j = await _adb.getActiveJobForFarm(r.id);
-        _farms[e]!.active = j;
-      }());
-    }
-    await Future.wait(futures);
+      final job = await _adb.getActiveJobForBiome(r.id);
 
+      _biomes[biome] = BiomeFarmState(
+        biome: biome,
+        unlocked: r.unlocked,
+        level: r.level,
+        activeElementId: r.activeElementId,
+        activeJob: job,
+      );
+    }
     notifyListeners();
   }
 
-  Future<void> _refreshOne(FarmElement e) async {
-    final farm = await _adb.getFarmByElement(_elStr(e));
+  Future<void> _refreshOne(Biome biome) async {
+    final farm = await _adb.getBiomeByBiomeId(biome.id);
     if (farm == null) return;
-    final j = await _adb.getActiveJobForFarm(farm.id);
-    final state = _farms[e]!;
-    state.unlocked = farm.unlocked;
-    state.level = farm.level;
-    state.active = j;
+    final job = await _adb.getActiveJobForBiome(farm.id);
+
+    _biomes[biome] = BiomeFarmState(
+      biome: biome,
+      unlocked: farm.unlocked,
+      level: farm.level,
+      activeElementId: farm.activeElementId,
+      activeJob: job,
+    );
+    print(
+      'HarvestService: refreshing ${biome.id}, hasActive=${job != null}',
+    ); // DEBUG
     notifyListeners();
   }
 
-  // -------- Mapping helpers --------
-
-  String _elStr(FarmElement e) {
-    switch (e) {
-      case FarmElement.fire:
-        return 'fire';
-      case FarmElement.water:
-        return 'water';
-      case FarmElement.air:
-        return 'air';
-      case FarmElement.earth:
-        return 'earth';
-    }
-  }
-
-  FarmElement _elFromStr(String s) {
-    switch (s.toLowerCase()) {
-      case 'fire':
-        return FarmElement.fire;
-      case 'water':
-        return FarmElement.water;
-      case 'air':
-        return FarmElement.air;
-      case 'earth':
-        return FarmElement.earth;
-      default:
-        return FarmElement.fire; // sane default
+  Biome? _biomeFromId(String id) {
+    try {
+      return Biome.values.firstWhere((b) => b.id == id);
+    } catch (_) {
+      return null;
     }
   }
 }

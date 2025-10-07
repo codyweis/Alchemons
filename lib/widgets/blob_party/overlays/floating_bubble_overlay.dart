@@ -8,6 +8,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/blob_party/bubble_widget.dart';
 import 'package:alchemons/widgets/blob_party/floating_creature.dart';
+import 'package:alchemons/widgets/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -163,6 +164,23 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
   void dispose() {
     _ticker.dispose();
     super.dispose();
+  }
+
+  void _openDetailsFor(_Bubble b) {
+    final inst = b.instance;
+    if (inst == null) return;
+
+    final repo = context.read<CreatureRepository>();
+    final base = repo.getCreatureById(inst.baseId);
+    if (base == null) return;
+
+    // `isDiscovered` is effectively true when instanceId is provided
+    CreatureDetailsDialog.show(
+      context,
+      base,
+      false,
+      instanceId: inst.instanceId,
+    );
   }
 
   // ... _tick() stays the same (integration, damping, collisions) ...
@@ -322,6 +340,37 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
                     // context menu
                     onLongPress: () async {
                       final b = _bubbles[i];
+
+                      final items = <PopupMenuEntry<String>>[];
+
+                      if (b.instance != null) {
+                        items.add(
+                          const PopupMenuItem(
+                            value: 'details',
+                            child: Text('View details'),
+                          ),
+                        );
+                        items.add(
+                          const PopupMenuItem(
+                            value: 'reassign',
+                            child: Text('Reassign creature'),
+                          ),
+                        );
+                        items.add(
+                          const PopupMenuItem(
+                            value: 'clear',
+                            child: Text('Remove creature'),
+                          ),
+                        );
+                      } else {
+                        items.add(
+                          const PopupMenuItem(
+                            value: 'reassign',
+                            child: Text('Assign creature'),
+                          ),
+                        );
+                      }
+
                       final choice = await showMenu<String>(
                         context: context,
                         position: RelativeRect.fromLTRB(
@@ -330,18 +379,14 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
                           _regionSize.width - b.pos.dx,
                           _regionSize.height - b.pos.dy,
                         ),
-                        items: const [
-                          PopupMenuItem(
-                            value: 'reassign',
-                            child: Text('Reassign creature'),
-                          ),
-                          PopupMenuItem(
-                            value: 'clear',
-                            child: Text('Remove creature'),
-                          ),
-                        ],
+                        items: items,
                       );
-                      if (choice == 'reassign') {
+
+                      if (choice == null) return;
+
+                      if (choice == 'details') {
+                        _openDetailsFor(b);
+                      } else if (choice == 'reassign') {
                         await _pickInstanceFor(b, i);
                       } else if (choice == 'clear') {
                         setState(() => b.instance = null);

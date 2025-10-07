@@ -1,33 +1,34 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/models/harvest_biome.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/models/farm_element.dart' hide HarvestJob;
 import 'package:alchemons/widgets/stamina_bar.dart';
-
-// sprite + genetics
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/components.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 
 Future<String?> pickInstanceForHarvest({
   required BuildContext context,
-  required FarmElement element,
+  required List<String> allowedTypes,
   required Duration duration,
 }) {
   return showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _InstancePicker(element: element, duration: duration),
+    builder: (_) =>
+        _InstancePicker(allowedTypes: allowedTypes, duration: duration),
   );
 }
 
 class _InstancePicker extends StatefulWidget {
-  const _InstancePicker({required this.element, required this.duration});
-  final FarmElement element;
+  const _InstancePicker({required this.allowedTypes, required this.duration});
+
+  final List<String> allowedTypes;
   final Duration duration;
 
   @override
@@ -37,6 +38,14 @@ class _InstancePicker extends StatefulWidget {
 class _InstancePickerState extends State<_InstancePicker> {
   String _speciesQuery = '';
   final _search = TextEditingController();
+
+  // Filter state
+  String? _filterSize;
+  String? _filterTint;
+  String? _filterNature;
+  bool _filterPrismatic = false;
+  String _sortBy = 'Rate';
+  bool _sortAscending = false;
 
   @override
   void dispose() {
@@ -48,7 +57,7 @@ class _InstancePickerState extends State<_InstancePicker> {
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureRepository>();
-    final accent = widget.element.color;
+    final accent = _getColorForType(widget.allowedTypes.first);
 
     return DraggableScrollableSheet(
       initialChildSize: .88,
@@ -84,25 +93,26 @@ class _InstancePickerState extends State<_InstancePicker> {
                       );
                     }
 
-                    return StreamBuilder<List<HarvestJob>>(
-                      stream: (db.select(db.harvestJobs)).watch(),
+                    return StreamBuilder<List<BiomeJob>>(
+                      stream: (db.select(db.biomeJobs)).watch(),
                       builder: (context, jobSnap) {
                         final busy = {
                           if (jobSnap.data != null)
                             ...jobSnap.data!.map((j) => j.creatureInstanceId),
                         };
 
-                        // base pool: match farm element + stamina + not busy
                         var pool = instSnap.data!
-                            .where((i) => i.staminaBars > 0)
                             .where((i) => !busy.contains(i.instanceId))
                             .where(
-                              (i) =>
-                                  _matchesFarmElement(repo, i, widget.element),
+                              (i) => _matchesAllowedTypes(
+                                repo,
+                                i,
+                                widget.allowedTypes,
+                              ),
                             )
                             .toList();
 
-                        // apply species search (name or nickname)
+                        // Apply species search
                         if (_speciesQuery.isNotEmpty) {
                           final q = _speciesQuery.toLowerCase();
                           pool = pool.where((i) {
@@ -113,14 +123,34 @@ class _InstancePickerState extends State<_InstancePicker> {
                           }).toList();
                         }
 
-                        // sort by best preview rate
+                        // Apply filters
+                        pool = pool.where((inst) {
+                          if (_filterPrismatic && inst.isPrismaticSkin != true)
+                            return false;
+                          final genetics = _parseGenetics(inst);
+                          if (_filterSize != null &&
+                              genetics?['size'] != _filterSize)
+                            return false;
+                          if (_filterTint != null &&
+                              genetics?['tinting'] != _filterTint)
+                            return false;
+                          if (_filterNature != null &&
+                              inst.natureId != _filterNature)
+                            return false;
+                          return true;
+                        }).toList();
+
+                        // Sort
                         pool.sort((a, b) {
-                          final ra = _previewRate(repo, a, widget.element);
-                          final rb = _previewRate(repo, b, widget.element);
-                          return rb.compareTo(ra);
+                          int comparison = _sortBy == 'Level'
+                              ? a.level.compareTo(b.level)
+                              : _previewRate(
+                                  repo,
+                                  a,
+                                ).compareTo(_previewRate(repo, b));
+                          return _sortAscending ? comparison : -comparison;
                         });
 
-                        // responsive child aspect to reduce overflow
                         final width = MediaQuery.of(context).size.width;
                         final cross = width >= 900
                             ? 4
@@ -134,11 +164,16 @@ class _InstancePickerState extends State<_InstancePicker> {
                             : width < 700
                             ? 0.72
                             : 0.78;
+                        final hasFilters =
+                            _filterSize != null ||
+                            _filterTint != null ||
+                            _filterNature != null ||
+                            _filterPrismatic;
 
                         return CustomScrollView(
                           controller: scroll,
                           slivers: [
-                            // header
+                            // Header
                             SliverToBoxAdapter(
                               child: Padding(
                                 padding: const EdgeInsets.fromLTRB(
@@ -150,14 +185,14 @@ class _InstancePickerState extends State<_InstancePicker> {
                                 child: Row(
                                   children: [
                                     Icon(
-                                      widget.element.icon,
+                                      Icons.pets_rounded,
                                       color: accent,
                                       size: 20,
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        'Choose a ${widget.element.label} creature',
+                                        'Choose a creature',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
@@ -179,7 +214,7 @@ class _InstancePickerState extends State<_InstancePicker> {
                               ),
                             ),
 
-                            // filters: species search + derived type chips
+                            // Search
                             SliverToBoxAdapter(
                               child: Padding(
                                 padding: const EdgeInsets.fromLTRB(
@@ -188,64 +223,62 @@ class _InstancePickerState extends State<_InstancePicker> {
                                   16,
                                   10,
                                 ),
-                                child: Column(
-                                  children: [
-                                    // species search
-                                    TextField(
-                                      controller: _search,
-                                      onChanged: (v) =>
-                                          setState(() => _speciesQuery = v),
-                                      textInputAction: TextInputAction.search,
-                                      decoration: InputDecoration(
-                                        hintText: 'Search species or nickname…',
-                                        hintStyle: const TextStyle(
-                                          color: Color(0xFFB6C0CC),
-                                        ),
-                                        isDense: true,
-                                        prefixIcon: const Icon(
-                                          Icons.search,
-                                          size: 18,
-                                          color: Color(0xFFB6C0CC),
-                                        ),
-                                        filled: true,
-                                        fillColor: Colors.white.withOpacity(
-                                          .06,
-                                        ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Colors.white.withOpacity(
-                                              .12,
-                                            ),
-                                          ),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: Colors.white.withOpacity(
-                                              .12,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      style: const TextStyle(
-                                        color: Color(0xFFE8EAED),
-                                        fontSize: 13,
+                                child: TextField(
+                                  controller: _search,
+                                  onChanged: (v) =>
+                                      setState(() => _speciesQuery = v),
+                                  textInputAction: TextInputAction.search,
+                                  decoration: InputDecoration(
+                                    hintText: 'Search species or nickname…',
+                                    hintStyle: const TextStyle(
+                                      color: Color(0xFFB6C0CC),
+                                    ),
+                                    isDense: true,
+                                    prefixIcon: const Icon(
+                                      Icons.search,
+                                      size: 18,
+                                      color: Color(0xFFB6C0CC),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white.withOpacity(.06),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Colors.white.withOpacity(.12),
                                       ),
                                     ),
-                                  ],
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Colors.white.withOpacity(.12),
+                                      ),
+                                    ),
+                                  ),
+                                  style: const TextStyle(
+                                    color: Color(0xFFE8EAED),
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ),
                             ),
 
+                            // Filters
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  0,
+                                  16,
+                                  10,
+                                ),
+                                child: _buildFilters(accent),
+                              ),
+                            ),
+
                             if (pool.isEmpty)
-                              const SliverFillRemaining(
+                              SliverFillRemaining(
                                 hasScrollBody: false,
-                                child: _EmptyEligible(),
+                                child: _EmptyEligible(hasFilters: hasFilters),
                               )
                             else
                               SliverPadding(
@@ -271,17 +304,11 @@ class _InstancePickerState extends State<_InstancePicker> {
                                     final sp = repo.getCreatureById(
                                       inst.baseId,
                                     );
-                                    final rate = _previewRate(
-                                      repo,
-                                      inst,
-                                      widget.element,
-                                    );
+                                    final rate = _previewRate(repo, inst);
                                     final total =
                                         rate * widget.duration.inMinutes;
-
-                                    // genetics for sprite
                                     final g = decodeGenetics(inst.geneticsJson);
-                                    final sd = sp?.spriteData; // null-safe
+                                    final sd = sp?.spriteData;
 
                                     return GestureDetector(
                                       onTap: () => Navigator.pop(
@@ -305,7 +332,6 @@ class _InstancePickerState extends State<_InstancePicker> {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              // ---------- IMAGE / SPRITE (your block) ----------
                                               Expanded(
                                                 child: ClipRRect(
                                                   borderRadius:
@@ -325,9 +351,7 @@ class _InstancePickerState extends State<_InstancePicker> {
                                                     ),
                                                     child: Center(
                                                       child: ClipRect(
-                                                        // crops any overpaint from scale/hue effects
                                                         child: FittedBox(
-                                                          // keeps art centered + contained
                                                           fit: BoxFit.contain,
                                                           child: SizedBox(
                                                             width:
@@ -341,21 +365,20 @@ class _InstancePickerState extends State<_InstancePicker> {
                                                             child: (sd != null)
                                                                 ? CreatureSprite(
                                                                     spritePath:
-                                                                        sd!.spriteSheetPath,
+                                                                        sd.spriteSheetPath,
                                                                     totalFrames:
-                                                                        sd!.totalFrames,
-                                                                    rows: sd!
-                                                                        .rows,
+                                                                        sd.totalFrames,
+                                                                    rows:
+                                                                        sd.rows,
                                                                     frameSize: Vector2(
-                                                                      sd!.frameWidth
+                                                                      sd.frameWidth
                                                                           .toDouble(),
-                                                                      sd!.frameHeight
+                                                                      sd.frameHeight
                                                                           .toDouble(),
                                                                     ),
                                                                     stepTime:
-                                                                        sd!.frameDurationMs /
+                                                                        sd.frameDurationMs /
                                                                         1000.0,
-                                                                    // genetics-driven tweaks
                                                                     scale:
                                                                         scaleFromGenes(
                                                                           g,
@@ -383,9 +406,8 @@ class _InstancePickerState extends State<_InstancePicker> {
                                                                               .contain,
                                                                         )
                                                                       : Icon(
-                                                                          widget
-                                                                              .element
-                                                                              .icon,
+                                                                          Icons
+                                                                              .pets_rounded,
                                                                           size:
                                                                               28,
                                                                           color: Colors
@@ -402,15 +424,11 @@ class _InstancePickerState extends State<_InstancePicker> {
                                                 ),
                                               ),
                                               const SizedBox(height: 8),
-
-                                              // Stamina
                                               StaminaBadge(
                                                 instanceId: inst.instanceId,
                                                 showCountdown: true,
                                               ),
                                               const SizedBox(height: 8),
-
-                                              // Name (no overflow)
                                               Text(
                                                 (inst.nickname ??
                                                         sp?.name ??
@@ -425,8 +443,6 @@ class _InstancePickerState extends State<_InstancePicker> {
                                                 ),
                                               ),
                                               const SizedBox(height: 4),
-
-                                              // Rate / total chips
                                               Wrap(
                                                 spacing: 6,
                                                 runSpacing: 4,
@@ -446,10 +462,7 @@ class _InstancePickerState extends State<_InstancePicker> {
                                                   ),
                                                 ],
                                               ),
-
                                               const SizedBox(height: 6),
-
-                                              // Meta row (tight, no overflow)
                                               Row(
                                                 children: [
                                                   _Tiny('LV ${inst.level}'),
@@ -482,34 +495,194 @@ class _InstancePickerState extends State<_InstancePicker> {
     );
   }
 
-  // Only allow species whose element matches the current farm element.
-  bool _matchesFarmElement(
-    CreatureRepository repo,
-    CreatureInstance inst,
-    FarmElement farmEl,
-  ) {
-    final sp = repo.getCreatureById(inst.baseId);
-    if (sp == null) return false;
-    final want = farmEl.name.toLowerCase();
-    final e1 = (sp.types).toString().toLowerCase();
-    final list = (sp.types).map((t) => t.toLowerCase()).toList();
-    return (e1 == want) || list.contains(want);
+  Widget _buildFilters(Color accent) {
+    return Column(
+      children: [
+        // Sort row
+        Row(
+          children: [
+            Icon(Icons.sort_rounded, size: 14, color: accent.withOpacity(.8)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _SortChip(
+                      label: 'Level ↑',
+                      isSelected: _sortBy == 'Level' && !_sortAscending,
+                      color: accent,
+                      onTap: () => setState(() {
+                        _sortBy = 'Level';
+                        _sortAscending = false;
+                      }),
+                    ),
+                    const SizedBox(width: 6),
+                    _SortChip(
+                      label: 'Level ↓',
+                      isSelected: _sortBy == 'Level' && _sortAscending,
+                      color: accent,
+                      onTap: () => setState(() {
+                        _sortBy = 'Level';
+                        _sortAscending = true;
+                      }),
+                    ),
+                    const SizedBox(width: 6),
+                    _SortChip(
+                      label: 'Rate ↑',
+                      isSelected: _sortBy == 'Rate' && !_sortAscending,
+                      color: accent,
+                      onTap: () => setState(() {
+                        _sortBy = 'Rate';
+                        _sortAscending = false;
+                      }),
+                    ),
+                    const SizedBox(width: 6),
+                    _SortChip(
+                      label: 'Rate ↓',
+                      isSelected: _sortBy == 'Rate' && _sortAscending,
+                      color: accent,
+                      onTap: () => setState(() {
+                        _sortBy = 'Rate';
+                        _sortAscending = true;
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        // Filter row
+        Row(
+          children: [
+            Icon(
+              Icons.filter_list_rounded,
+              size: 14,
+              color: accent.withOpacity(.8),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _FilterChip(
+                      icon: Icons.auto_awesome,
+                      label: 'Prismatic',
+                      isSelected: _filterPrismatic,
+                      color: accent,
+                      onTap: () =>
+                          setState(() => _filterPrismatic = !_filterPrismatic),
+                    ),
+                    const SizedBox(width: 6),
+                    _FilterDropdown(
+                      icon: Icons.straighten_rounded,
+                      label: 'Size',
+                      value: _filterSize,
+                      items: const [
+                        'tiny',
+                        'small',
+                        'normal',
+                        'large',
+                        'giant',
+                      ],
+                      itemLabels: const {
+                        'tiny': 'Tiny',
+                        'small': 'Small',
+                        'normal': 'Normal',
+                        'large': 'Large',
+                        'giant': 'Giant',
+                      },
+                      color: accent,
+                      onChanged: (v) => setState(() => _filterSize = v),
+                    ),
+                    const SizedBox(width: 6),
+                    _FilterDropdown(
+                      icon: Icons.palette_outlined,
+                      label: 'Tint',
+                      value: _filterTint,
+                      items: const [
+                        'normal',
+                        'warm',
+                        'cool',
+                        'vibrant',
+                        'pale',
+                        'albino',
+                      ],
+                      itemLabels: const {
+                        'normal': 'Normal',
+                        'warm': 'Thermal',
+                        'cool': 'Cryogenic',
+                        'vibrant': 'Saturated',
+                        'pale': 'Diminished',
+                        'albino': 'Albino',
+                      },
+                      color: accent,
+                      onChanged: (v) => setState(() => _filterTint = v),
+                    ),
+                    const SizedBox(width: 6),
+                    _FilterDropdown(
+                      icon: Icons.psychology_rounded,
+                      label: 'Nature',
+                      value: _filterNature,
+                      items: const [
+                        'Metabolic',
+                        'Reproductive',
+                        'Diligent',
+                        'Sluggish',
+                      ],
+                      itemLabels: const {
+                        'Metabolic': 'Metabolic',
+                        'Reproductive': 'Reproductive',
+                        'Diligent': 'Diligent',
+                        'Sluggish': 'Sluggish',
+                      },
+                      color: accent,
+                      onChanged: (v) => setState(() => _filterNature = v),
+                    ),
+                    if (_filterSize != null ||
+                        _filterTint != null ||
+                        _filterNature != null ||
+                        _filterPrismatic) ...[
+                      const SizedBox(width: 6),
+                      _ClearButton(
+                        color: accent,
+                        onTap: () => setState(() {
+                          _filterSize = null;
+                          _filterTint = null;
+                          _filterNature = null;
+                          _filterPrismatic = false;
+                        }),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
-  int _previewRate(
+  bool _matchesAllowedTypes(
     CreatureRepository repo,
     CreatureInstance inst,
-    FarmElement farmEl,
+    List<String> allowedTypes,
   ) {
-    var base = switch (farmEl) {
-      FarmElement.fire => 3,
-      FarmElement.water => 3,
-      FarmElement.air => 2,
-      FarmElement.earth => 2,
-    };
-    base += (inst.level - 1); // level bonus
-    base = (base * 1.25)
-        .round(); // element synergy (we already filter to matches)
+    final sp = repo.getCreatureById(inst.baseId);
+    if (sp == null || sp.types.isEmpty) return false;
+    return allowedTypes.contains(sp.types.first);
+  }
+
+  int _previewRate(CreatureRepository repo, CreatureInstance inst) {
+    var base = 3;
+    base += (inst.level - 1);
+    base = (base * 1.25).round();
+
     final nature = (inst.natureId ?? '').toLowerCase();
     final natureBonusPct = switch (nature) {
       'metabolic' => 10,
@@ -521,32 +694,419 @@ class _InstancePickerState extends State<_InstancePicker> {
     return base.clamp(1, 999);
   }
 
-  String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+  Map<String, String>? _parseGenetics(CreatureInstance inst) {
+    if (inst.geneticsJson == null) return null;
+    try {
+      final map = Map<String, dynamic>.from(jsonDecode(inst.geneticsJson!));
+      return map.map((k, v) => MapEntry(k, v.toString()));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Color _getColorForType(String typeId) {
+    for (final biome in Biome.values) {
+      if (biome.elementIds.contains(typeId))
+        return biome.colorForElement(typeId);
+    }
+    return const Color(0xFF6BCF7F);
+  }
+}
+
+// Filter widgets
+class _SortChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _SortChip({
+    required this.label,
+    required this.isSelected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? color.withOpacity(.2)
+            : Colors.white.withOpacity(.06),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isSelected
+              ? color.withOpacity(.5)
+              : Colors.white.withOpacity(.15),
+          width: 1.5,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? color : const Color(0xFFB6C0CC),
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
+        ),
+      ),
+    ),
+  );
+}
+
+class _FilterChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? color.withOpacity(.2)
+            : Colors.white.withOpacity(.06),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isSelected
+              ? color.withOpacity(.5)
+              : Colors.white.withOpacity(.15),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 11,
+            color: isSelected ? color : const Color(0xFFB6C0CC),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? color : const Color(0xFFB6C0CC),
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _FilterDropdown extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? value;
+  final List<String> items;
+  final Map<String, String> itemLabels;
+  final Color color;
+  final ValueChanged<String?> onChanged;
+
+  const _FilterDropdown({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.itemLabels,
+    required this.color,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: () async {
+      final result = await showDialog<String>(
+        context: context,
+        builder: (context) => _FilterDialog(
+          title: label,
+          items: items,
+          itemLabels: itemLabels,
+          currentValue: value,
+          color: color,
+        ),
+      );
+      if (result != null) onChanged(result == 'clear' ? null : result);
+    },
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: value != null
+            ? color.withOpacity(.2)
+            : Colors.white.withOpacity(.06),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: value != null
+              ? color.withOpacity(.5)
+              : Colors.white.withOpacity(.15),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 11,
+            color: value != null ? color : const Color(0xFFB6C0CC),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            value != null ? itemLabels[value] ?? value! : label,
+            style: TextStyle(
+              color: value != null ? color : const Color(0xFFB6C0CC),
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Icon(
+            Icons.arrow_drop_down,
+            size: 12,
+            color: value != null ? color : const Color(0xFFB6C0CC),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ClearButton extends StatelessWidget {
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ClearButton({required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.red.withOpacity(.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.red.withOpacity(.4), width: 1.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.clear_rounded, size: 11, color: Colors.red.shade300),
+          const SizedBox(width: 3),
+          Text(
+            'Clear',
+            style: TextStyle(
+              color: Colors.red.shade300,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _FilterDialog extends StatelessWidget {
+  final String title;
+  final List<String> items;
+  final Map<String, String> itemLabels;
+  final String? currentValue;
+  final Color color;
+
+  const _FilterDialog({
+    required this.title,
+    required this.items,
+    required this.itemLabels,
+    required this.currentValue,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    backgroundColor: Colors.transparent,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 500, maxWidth: 400),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B0F14).withOpacity(0.92),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withOpacity(.4), width: 2),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Color(0xFFE8EAED),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      ...items.map((item) {
+                        final isSelected = currentValue == item;
+                        return GestureDetector(
+                          onTap: () => Navigator.pop(context, item),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? color.withOpacity(.2)
+                                  : Colors.white.withOpacity(.06),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isSelected
+                                    ? color.withOpacity(.5)
+                                    : Colors.white.withOpacity(.15),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    itemLabels[item] ?? item,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? color
+                                          : const Color(0xFFE8EAED),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                if (isSelected)
+                                  Icon(
+                                    Icons.check_rounded,
+                                    color: color,
+                                    size: 18,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                      if (currentValue != null) ...[
+                        const SizedBox(height: 4),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context, 'clear'),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.red.withOpacity(.4),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.clear_rounded,
+                                  color: Colors.red.shade300,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Clear Filter',
+                                  style: TextStyle(
+                                    color: Colors.red.shade300,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _EmptyEligible extends StatelessWidget {
-  const _EmptyEligible();
+  final bool hasFilters;
+  const _EmptyEligible({this.hasFilters = false});
+
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: const [
-          Icon(Icons.block, color: Colors.white54),
-          SizedBox(height: 8),
+        children: [
+          Icon(
+            hasFilters ? Icons.search_off_rounded : Icons.block,
+            color: Colors.white54,
+          ),
+          const SizedBox(height: 8),
           Text(
-            'No eligible creatures for this farm.',
-            style: TextStyle(
+            hasFilters
+                ? 'No creatures match filters'
+                : 'No eligible creatures for this biome.',
+            style: const TextStyle(
               color: Color(0xFFE8EAED),
               fontWeight: FontWeight.w800,
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
-            'You need a matching-element creature with at least 1 stamina bar.',
+            hasFilters
+                ? 'Try adjusting your filters'
+                : 'You need a matching-element creature with at least 1 stamina bar.',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: Color(0xFFB6C0CC),
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -558,52 +1118,12 @@ class _EmptyEligible extends StatelessWidget {
   );
 }
 
-class _TypeChip extends StatelessWidget {
-  const _TypeChip({
-    required this.label,
-    required this.selected,
-    required this.color,
-    required this.onTap,
-  });
-  final String label;
-  final bool selected;
-  final Color color;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: selected
-            ? color.withOpacity(.22)
-            : Colors.white.withOpacity(.06),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: selected ? color : Colors.white.withOpacity(.18),
-          width: 2,
-        ),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: selected ? color : const Color(0xFFE8EAED),
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          letterSpacing: .5,
-        ),
-      ),
-    ),
-  );
-}
-
 class _Chip extends StatelessWidget {
   const _Chip({required this.icon, required this.label, required this.color});
   final IconData icon;
   final String label;
   final Color color;
+
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -633,6 +1153,7 @@ class _Chip extends StatelessWidget {
 class _Tiny extends StatelessWidget {
   const _Tiny(this.text);
   final String text;
+
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),

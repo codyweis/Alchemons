@@ -303,10 +303,10 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
                             ),
                             SizedBox(width: 6),
                             Text(
-                              'NEW CREATURE DISCOVERED',
+                              'NEW DISCOVERY',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 12,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.0,
                               ),

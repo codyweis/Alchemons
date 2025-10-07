@@ -1,7 +1,6 @@
 // lib/screens/field_screen.dart
 import 'dart:math' as math;
 import 'dart:ui';
-import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/harvest_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
 import 'package:flutter/material.dart';
@@ -60,7 +59,7 @@ class _FieldScreenState extends State<FieldScreen>
     } else {
       Navigator.of(
         context,
-      ).push(MaterialPageRoute(builder: (_) => const HarvestScreen()));
+      ).push(MaterialPageRoute(builder: (_) => const BiomeHarvestScreen()));
     }
   }
 

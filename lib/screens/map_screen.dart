@@ -401,7 +401,7 @@ class _MapScreenState extends State<MapScreen>
         ok = true;
       }
     }
-    if (ok) {
+    if (!ok) {
       final left = access.timeUntilReset();
       final hh = left.inHours;
       final mm = left.inMinutes.remainder(60);
