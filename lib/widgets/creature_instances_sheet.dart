@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/screens/instance_selection_screen.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/filter_data_loader.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
@@ -36,9 +38,6 @@ class InstancesSheet extends StatefulWidget {
 
 class _InstancesSheetState extends State<InstancesSheet> {
   SortBy _sortBy = SortBy.newest;
-  String? _filterSize;
-  String? _filterTint;
-  bool _filterPrismatic = false;
 
   @override
   Widget build(BuildContext context) {
@@ -53,21 +52,8 @@ class _InstancesSheetState extends State<InstancesSheet> {
       create: (_) => SpeciesInstancesVM(db, widget.species.id),
       child: Consumer<SpeciesInstancesVM>(
         builder: (_, vm, __) {
-          // Apply filters and sorting
-          var filtered = vm.instances.where((inst) {
-            if (_filterPrismatic && inst.isPrismaticSkin != true) return false;
-
-            final genetics = decodeGenetics(inst.geneticsJson);
-            if (_filterSize != null && genetics?.get('size') != _filterSize) {
-              return false;
-            }
-            if (_filterTint != null &&
-                genetics?.get('tinting') != _filterTint) {
-              return false;
-            }
-
-            return true;
-          }).toList();
+          // ✅ Apply ONLY sorting (no filters)
+          var filtered = vm.instances.toList();
 
           // Apply sorting
           switch (_sortBy) {
@@ -182,7 +168,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                                             ),
                                             const SizedBox(height: 2),
                                             Text(
-                                              '${filtered.length} / ${vm.count} shown',
+                                              '${filtered.length} specimens',
                                               style: const TextStyle(
                                                 color: Color(0xFFB6C0CC),
                                                 fontSize: 11,
@@ -231,154 +217,115 @@ class _InstancesSheetState extends State<InstancesSheet> {
                                     ],
                                   ),
                                 ),
+                                // ✅ View All Details Button
+                                const SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: () async {
+                                    await InstanceSelectionDialog.show(
+                                      context,
+                                      widget.species,
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          primaryColor.withOpacity(.25),
+                                          primaryColor.withOpacity(.15),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: primaryColor.withOpacity(.4),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.filter_list_rounded,
+                                          color: primaryColor,
+                                          size: 14,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'View All & Filter',
+                                          style: TextStyle(
+                                            color: primaryColor,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
 
-                          // Filter and Sort Controls
+                          // ✅ Simple Sort Controls Only
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Column(
+                            child: Row(
                               children: [
-                                // Sort row
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.sort_rounded,
-                                      size: 16,
-                                      color: primaryColor.withOpacity(.8),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: SingleChildScrollView(
-                                        scrollDirection: Axis.horizontal,
-                                        child: Row(
-                                          children: [
-                                            _SortChip(
-                                              label: 'Newest',
-                                              isSelected:
-                                                  _sortBy == SortBy.newest,
-                                              primaryColor: primaryColor,
-                                              onTap: () => setState(
-                                                () => _sortBy = SortBy.newest,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            _SortChip(
-                                              label: 'Oldest',
-                                              isSelected:
-                                                  _sortBy == SortBy.oldest,
-                                              primaryColor: primaryColor,
-                                              onTap: () => setState(
-                                                () => _sortBy = SortBy.oldest,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            _SortChip(
-                                              label: 'Level ↑',
-                                              isSelected:
-                                                  _sortBy == SortBy.levelHigh,
-                                              primaryColor: primaryColor,
-                                              onTap: () => setState(
-                                                () =>
-                                                    _sortBy = SortBy.levelHigh,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            _SortChip(
-                                              label: 'Level ↓',
-                                              isSelected:
-                                                  _sortBy == SortBy.levelLow,
-                                              primaryColor: primaryColor,
-                                              onTap: () => setState(
-                                                () => _sortBy = SortBy.levelLow,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                Icon(
+                                  Icons.sort_rounded,
+                                  size: 16,
+                                  color: primaryColor.withOpacity(.8),
                                 ),
-                                const SizedBox(height: 8),
-
-                                // Filter row
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.filter_list_rounded,
-                                      size: 16,
-                                      color: primaryColor.withOpacity(.8),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: SingleChildScrollView(
-                                        scrollDirection: Axis.horizontal,
-                                        child: Row(
-                                          children: [
-                                            _FilterChip(
-                                              icon: Icons.auto_awesome,
-                                              label: 'Prismatic',
-                                              isSelected: _filterPrismatic,
-                                              primaryColor: primaryColor,
-                                              onTap: () => setState(
-                                                () => _filterPrismatic =
-                                                    !_filterPrismatic,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            _FilterDropdown(
-                                              icon: Icons.straighten_rounded,
-                                              label: 'Size',
-                                              value: _filterSize,
-                                              items: const [
-                                                'tiny',
-                                                'small',
-                                                'normal',
-                                                'large',
-                                                'giant',
-                                              ],
-                                              itemLabels: sizeLabels,
-                                              primaryColor: primaryColor,
-                                              onChanged: (v) => setState(
-                                                () => _filterSize = v,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            _FilterDropdown(
-                                              icon: Icons.palette_outlined,
-                                              label: 'Tint',
-                                              value: _filterTint,
-                                              items: const [
-                                                'pale',
-                                                'normal',
-                                                'vibrant',
-                                                'dark',
-                                              ],
-                                              itemLabels: tintLabels,
-                                              primaryColor: primaryColor,
-                                              onChanged: (v) => setState(
-                                                () => _filterTint = v,
-                                              ),
-                                            ),
-                                            if (_filterSize != null ||
-                                                _filterTint != null ||
-                                                _filterPrismatic) ...[
-                                              const SizedBox(width: 6),
-                                              _ClearFiltersButton(
-                                                primaryColor: primaryColor,
-                                                onTap: () => setState(() {
-                                                  _filterSize = null;
-                                                  _filterTint = null;
-                                                  _filterPrismatic = false;
-                                                }),
-                                              ),
-                                            ],
-                                          ],
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Row(
+                                      children: [
+                                        _SortChip(
+                                          label: 'Newest',
+                                          isSelected: _sortBy == SortBy.newest,
+                                          primaryColor: primaryColor,
+                                          onTap: () => setState(
+                                            () => _sortBy = SortBy.newest,
+                                          ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 6),
+                                        _SortChip(
+                                          label: 'Oldest',
+                                          isSelected: _sortBy == SortBy.oldest,
+                                          primaryColor: primaryColor,
+                                          onTap: () => setState(
+                                            () => _sortBy = SortBy.oldest,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        _SortChip(
+                                          label: 'Level ↑',
+                                          isSelected:
+                                              _sortBy == SortBy.levelHigh,
+                                          primaryColor: primaryColor,
+                                          onTap: () => setState(
+                                            () => _sortBy = SortBy.levelHigh,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        _SortChip(
+                                          label: 'Level ↓',
+                                          isSelected:
+                                              _sortBy == SortBy.levelLow,
+                                          primaryColor: primaryColor,
+                                          onTap: () => setState(
+                                            () => _sortBy = SortBy.levelLow,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -390,10 +337,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                             child: filtered.isEmpty
                                 ? _EmptyState(
                                     primaryColor: primaryColor,
-                                    hasFilters:
-                                        _filterSize != null ||
-                                        _filterTint != null ||
-                                        _filterPrismatic,
+                                    hasFilters: false,
                                   )
                                 : Padding(
                                     padding: const EdgeInsets.fromLTRB(
@@ -455,6 +399,8 @@ class _InstancesSheetState extends State<InstancesSheet> {
   }
 }
 
+// Keep _SortChip, _InstanceCard, _InfoRow, _EmptyState
+// ❌ DELETE: _FilterChip, _FilterDropdown, _FilterDialog, _ClearFiltersButton
 // Filter and Sort Chips
 
 class _SortChip extends StatelessWidget {
@@ -495,323 +441,6 @@ class _SortChip extends StatelessWidget {
             fontSize: 11,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.3,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final Color primaryColor;
-  final VoidCallback onTap;
-
-  const _FilterChip({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.primaryColor,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? primaryColor.withOpacity(.2)
-              : Colors.white.withOpacity(.06),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected
-                ? primaryColor.withOpacity(.5)
-                : Colors.white.withOpacity(.15),
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 12,
-              color: isSelected ? primaryColor : const Color(0xFFB6C0CC),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? primaryColor : const Color(0xFFB6C0CC),
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterDropdown extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? value;
-  final List<String> items;
-  final Map<String, String> itemLabels;
-  final Color primaryColor;
-  final ValueChanged<String?> onChanged;
-
-  const _FilterDropdown({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.items,
-    required this.itemLabels,
-    required this.primaryColor,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () async {
-        final result = await showDialog<String>(
-          context: context,
-          builder: (context) => _FilterDialog(
-            title: label,
-            items: items,
-            itemLabels: itemLabels,
-            currentValue: value,
-            primaryColor: primaryColor,
-          ),
-        );
-        if (result != null) {
-          onChanged(result == 'clear' ? null : result);
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: value != null
-              ? primaryColor.withOpacity(.2)
-              : Colors.white.withOpacity(.06),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: value != null
-                ? primaryColor.withOpacity(.5)
-                : Colors.white.withOpacity(.15),
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 12,
-              color: value != null ? primaryColor : const Color(0xFFB6C0CC),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              value != null ? itemLabels[value] ?? value! : label,
-              style: TextStyle(
-                color: value != null ? primaryColor : const Color(0xFFB6C0CC),
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-              ),
-            ),
-            const SizedBox(width: 2),
-            Icon(
-              Icons.arrow_drop_down,
-              size: 14,
-              color: value != null ? primaryColor : const Color(0xFFB6C0CC),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ClearFiltersButton extends StatelessWidget {
-  final Color primaryColor;
-  final VoidCallback onTap;
-
-  const _ClearFiltersButton({required this.primaryColor, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(.15),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.red.withOpacity(.4), width: 1.5),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.clear_rounded, size: 12, color: Colors.red.shade300),
-            const SizedBox(width: 4),
-            Text(
-              'Clear',
-              style: TextStyle(
-                color: Colors.red.shade300,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterDialog extends StatelessWidget {
-  final String title;
-  final List<String> items;
-  final Map<String, String> itemLabels;
-  final String? currentValue;
-  final Color primaryColor;
-
-  const _FilterDialog({
-    required this.title,
-    required this.items,
-    required this.itemLabels,
-    required this.currentValue,
-    required this.primaryColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF0B0F14).withOpacity(0.92),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: primaryColor.withOpacity(.4), width: 2),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Color(0xFFE8EAED),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...items.map((item) {
-                  final isSelected = currentValue == item;
-                  return GestureDetector(
-                    onTap: () => Navigator.pop(context, item),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? primaryColor.withOpacity(.2)
-                            : Colors.white.withOpacity(.06),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isSelected
-                              ? primaryColor.withOpacity(.5)
-                              : Colors.white.withOpacity(.15),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              itemLabels[item] ?? item,
-                              style: TextStyle(
-                                color: isSelected
-                                    ? primaryColor
-                                    : const Color(0xFFE8EAED),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          if (isSelected)
-                            Icon(
-                              Icons.check_rounded,
-                              color: primaryColor,
-                              size: 18,
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-                if (currentValue != null) ...[
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context, 'clear'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(.15),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.red.withOpacity(.4),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.clear_rounded,
-                            color: Colors.red.shade300,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Clear Filter',
-                            style: TextStyle(
-                              color: Colors.red.shade300,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
           ),
         ),
       ),

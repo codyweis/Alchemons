@@ -947,6 +947,20 @@ class _NurseryTabState extends State<NurseryTab> {
     }
 
     final svc = CreatureInstanceService(db);
+    Map<String, double>? stats;
+    if (payload['stats'] != null) {
+      final statsData = payload['stats'];
+      if (statsData is Map) {
+        stats = {
+          'speed': (statsData['speed'] as num?)?.toDouble() ?? 3.0,
+          'intelligence':
+              (statsData['intelligence'] as num?)?.toDouble() ?? 3.0,
+          'strength': (statsData['strength'] as num?)?.toDouble() ?? 3.0,
+          'beauty': (statsData['beauty'] as num?)?.toDouble() ?? 3.0,
+        };
+      }
+    }
+
     final result = await svc.finalizeInstance(
       baseId: payload['baseId'] as String,
       rarity: (payload['rarity'] as String?) ?? offspring.rarity,
@@ -955,6 +969,10 @@ class _NurseryTabState extends State<NurseryTab> {
       parentage: payload['parentage'] as Map<String, dynamic>?,
       isPrismaticSkin: payload['isPrismaticSkin'] as bool? ?? false,
       likelihoodAnalysisJson: payload['likelihoodAnalysis'] as String?,
+      statBeauty: stats?['beauty'],
+      statSpeed: stats?['speed'],
+      statIntelligence: stats?['intelligence'],
+      statStrength: stats?['strength'],
     );
 
     if (!mounted) return;

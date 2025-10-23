@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/creature_stats.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/services/creature_repository.dart';
@@ -20,6 +21,7 @@ class ParentSnapshot {
   final Genetics? genetics; // instance genetics at breed time
   final NatureDef? nature; // instance nature at breed time
   final SpriteData? spriteData;
+  final CreatureStats? stats;
 
   const ParentSnapshot({
     required this.instanceId,
@@ -32,6 +34,7 @@ class ParentSnapshot {
     this.genetics,
     this.nature,
     this.spriteData,
+    this.stats,
   });
 
   /// Use this when you are breeding **instances**.
@@ -39,7 +42,7 @@ class ParentSnapshot {
     db.CreatureInstance inst,
     CreatureRepository repo,
   ) {
-    final base = repo.getCreatureById(inst.baseId)!; // repo must be loaded
+    final base = repo.getCreatureById(inst.baseId)!;
     final genetics = decodeGenetics(inst.geneticsJson);
 
     return ParentSnapshot(
@@ -54,7 +57,13 @@ class ParentSnapshot {
       nature: inst.natureId != null
           ? NatureCatalog.byId(inst.natureId!)
           : base.nature,
-      spriteData: base.spriteData, // for thumbnail animation
+      spriteData: base.spriteData,
+      stats: CreatureStats(
+        speed: inst.statSpeed,
+        intelligence: inst.statIntelligence,
+        strength: inst.statStrength,
+        beauty: inst.statBeauty,
+      ),
     );
   }
 
@@ -70,6 +79,7 @@ class ParentSnapshot {
     genetics: c.genetics,
     nature: c.nature,
     spriteData: c.spriteData,
+    stats: null,
   );
 
   /// Back-compat JSON decode. Old saves used `id` ambiguously.
@@ -95,6 +105,9 @@ class ParentSnapshot {
       spriteData: j['spriteData'] != null
           ? SpriteData.fromJson(j['spriteData'] as Map<String, dynamic>)
           : null,
+      stats: j['stats'] != null
+          ? CreatureStats.fromJson(j['stats'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -119,7 +132,27 @@ class ParentSnapshot {
         'rows': spriteData!.rows,
         'spriteSheetPath': spriteData!.spriteSheetPath,
       },
+    if (stats != null) 'stats': stats!.toJson(),
   };
+
+  /// Use for wild creatures with optional stats
+  factory ParentSnapshot.fromCreatureWithStats(
+    Creature c,
+    CreatureStats? stats,
+  ) => ParentSnapshot(
+    instanceId: null,
+    baseId: c.id,
+    name: c.name,
+    types: List<String>.from(c.types),
+    rarity: c.rarity,
+    image: c.image,
+    isPrismaticSkin: c.isPrismaticSkin,
+    genetics: c.genetics,
+    nature: c.nature,
+    spriteData: c.spriteData,
+    stats:
+        stats ?? c.stats, // Use provided stats or fallback to creature's stats
+  );
 
   /// Rehydrate display fields from the catalog (use after app restart).
   ParentSnapshot rehydrate(CreatureRepository repo) {
@@ -136,6 +169,7 @@ class ParentSnapshot {
       genetics: genetics,
       nature: nature ?? base.nature,
       spriteData: spriteData ?? base.spriteData,
+      stats: stats,
     );
   }
 }

@@ -13,7 +13,7 @@ import 'package:flame/game.dart';
 
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
 import 'package:alchemons/models/scenes/scene_definition.dart';
-import 'package:alchemons/games/scene_game.dart';
+import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wildlife_generator.dart'; // your WildlifeGenerator file

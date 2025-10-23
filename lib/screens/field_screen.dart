@@ -1,6 +1,7 @@
 // lib/screens/field_screen.dart
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/harvest_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
 import 'package:flutter/material.dart';
@@ -61,6 +62,12 @@ class _FieldScreenState extends State<FieldScreen>
         context,
       ).push(MaterialPageRoute(builder: (_) => const BiomeHarvestScreen()));
     }
+  }
+
+  void _goCompetitions() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const CompetitionHubScreen()));
   }
 
   @override
@@ -161,23 +168,67 @@ class _FieldScreenState extends State<FieldScreen>
                         ),
                       ),
                     ),
+
+                    FadeTransition(
+                      opacity: CurvedAnimation(
+                        parent: _enterCtrl,
+                        curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+                      ),
+                      child: SlideTransition(
+                        position:
+                            Tween<Offset>(
+                              begin: const Offset(0, .18),
+                              end: Offset.zero,
+                            ).animate(
+                              CurvedAnimation(
+                                parent: _enterCtrl,
+                                curve: const Interval(
+                                  0.5,
+                                  1.0,
+                                  curve: Curves.easeOut,
+                                ),
+                              ),
+                            ),
+                        child: _ActionCard(
+                          title: 'Competitions',
+                          subtitle: 'Battle in elemental arenas',
+                          icon: Icons.emoji_events_rounded,
+                          primary: const Color(0xFFB565FF), // purple
+                          accent: const Color(0xFFD4A5FF),
+                          onTap: _goCompetitions,
+                        ),
+                      ),
+                    ),
                   ];
 
-                  return isWide
-                      ? Row(
-                          children: [
-                            Expanded(child: children[0]),
-                            const SizedBox(width: 14),
-                            Expanded(child: children[1]),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            children[0],
-                            const SizedBox(height: 14),
-                            children[1],
-                          ],
-                        );
+                  return SingleChildScrollView(
+                    // optional but nice for short screens
+                    child: isWide
+                        ? Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(child: children[0]),
+                                  const SizedBox(width: 14),
+                                  Expanded(child: children[1]),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              // show the 3rd card too
+                              children[2],
+                            ],
+                          )
+                        : Column(
+                            children: [
+                              children[0],
+                              const SizedBox(height: 14),
+                              children[1],
+                              const SizedBox(height: 14),
+                              // show the 3rd card too
+                              children[2],
+                            ],
+                          ),
+                  );
                 },
               ),
             ),

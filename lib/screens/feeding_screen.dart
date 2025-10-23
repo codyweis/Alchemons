@@ -3,12 +3,15 @@ import 'dart:ui';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
+import 'package:alchemons/utils/filter_data_loader.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/badges/badge_widget.dart';
+import 'package:alchemons/widgets/creature_dialog.dart';
 import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../database/alchemons_db.dart';
@@ -749,44 +752,19 @@ class _FeedingScreenState extends State<FeedingScreen>
                       icon: Icons.straighten_rounded,
                       label: 'Size',
                       value: _fodderFilterSize,
-                      items: const [
-                        'tiny',
-                        'small',
-                        'normal',
-                        'large',
-                        'giant',
-                      ],
-                      itemLabels: const {
-                        'tiny': 'Tiny',
-                        'small': 'Small',
-                        'normal': 'Normal',
-                        'large': 'Large',
-                        'giant': 'Giant',
-                      },
+                      items: FilterDataLoader.getSizeVariants(),
+                      itemLabels: FilterDataLoader.getSizeLabels(),
                       primaryColor: accentColor,
                       onChanged: (v) => setState(() => _fodderFilterSize = v),
                     ),
+
                     const SizedBox(width: 6),
                     _FodderFilterDropdown(
                       icon: Icons.palette_outlined,
                       label: 'Tint',
                       value: _fodderFilterTint,
-                      items: const [
-                        'normal',
-                        'warm',
-                        'cool',
-                        'vibrant',
-                        'pale',
-                        'albino',
-                      ],
-                      itemLabels: const {
-                        'normal': 'Normal',
-                        'warm': 'Thermal',
-                        'cool': 'Cryogenic',
-                        'vibrant': 'Saturated',
-                        'pale': 'Diminished',
-                        'albino': 'Albino',
-                      },
+                      items: FilterDataLoader.getTintingVariants(),
+                      itemLabels: FilterDataLoader.getTintingLabels(),
                       primaryColor: accentColor,
                       onChanged: (v) => setState(() => _fodderFilterTint = v),
                     ),
@@ -795,38 +773,8 @@ class _FeedingScreenState extends State<FeedingScreen>
                       icon: Icons.psychology_rounded,
                       label: 'Nature',
                       value: _fodderFilterNature,
-                      items: const [
-                        'Metabolic',
-                        'Reproductive',
-                        'Ecophysiological',
-                        'Sympatric',
-                        'Conspecific',
-                        'Homotypic',
-                        'Heterotypic',
-                        'Precocial',
-                        'Neuroadaptive',
-                        'Homeostatic',
-                        'Placidal',
-                        'Dormant',
-                        'Apathetic',
-                        'Nullic',
-                      ],
-                      itemLabels: const {
-                        'Metabolic': 'Metabolic',
-                        'Reproductive': 'Reproductive',
-                        'Ecophysiological': 'Ecophysiological',
-                        'Sympatric': 'Sympatric',
-                        'Conspecific': 'Conspecific',
-                        'Homotypic': 'Homotypic',
-                        'Heterotypic': 'Heterotypic',
-                        'Precocial': 'Precocial',
-                        'Neuroadaptive': 'Neuroadaptive',
-                        'Homeostatic': 'Homeostatic',
-                        'Placidal': 'Placidal',
-                        'Dormant': 'Dormant',
-                        'Apathetic': 'Apathetic',
-                        'Nullic': 'Nullic',
-                      },
+                      items: FilterDataLoader.getAllNatures(),
+                      itemLabels: FilterDataLoader.getNatureLabels(),
                       primaryColor: accentColor,
                       onChanged: (v) => setState(() => _fodderFilterNature = v),
                     ),
@@ -898,6 +846,10 @@ class _FeedingScreenState extends State<FeedingScreen>
   Widget _buildPreviewStats(Color accentColor) {
     if (_preview == null) return const SizedBox.shrink();
 
+    final statGains = _preview!.statGains;
+    final hasStatGains =
+        statGains != null && statGains.values.any((v) => v > 0);
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -905,27 +857,65 @@ class _FeedingScreenState extends State<FeedingScreen>
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: accentColor.withOpacity(0.35)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _StatColumn(
-              value: '${_preview!.totalXpGained}',
-              label: 'XP Gained',
-              color: accentColor,
+          Row(
+            children: [
+              Expanded(
+                child: _StatColumn(
+                  value: '${_preview!.totalXpGained}',
+                  label: 'XP Gained',
+                  color: accentColor,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 24,
+                color: Colors.white.withOpacity(0.25),
+              ),
+              Expanded(
+                child: _StatColumn(
+                  value: 'L${_preview!.newLevel}',
+                  label: 'New Level',
+                  color: Colors.purple.shade400,
+                ),
+              ),
+            ],
+          ),
+          if (hasStatGains) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              alignment: WrapAlignment.center,
+              children: [
+                if (statGains!['speed']! > 0)
+                  _StatGainChip(
+                    label: 'Speed',
+                    value: statGains['speed']!,
+                    icon: Icons.speed_rounded,
+                  ),
+                if (statGains['intelligence']! > 0)
+                  _StatGainChip(
+                    label: 'Intelligence',
+                    value: statGains['intelligence']!,
+                    icon: Icons.psychology_rounded,
+                  ),
+                if (statGains['strength']! > 0)
+                  _StatGainChip(
+                    label: 'Strength',
+                    value: statGains['strength']!,
+                    icon: Icons.fitness_center_rounded,
+                  ),
+                if (statGains['beauty']! > 0)
+                  _StatGainChip(
+                    label: 'Beauty',
+                    value: statGains['beauty']!,
+                    icon: Icons.auto_awesome_rounded,
+                  ),
+              ],
             ),
-          ),
-          Container(
-            width: 1,
-            height: 24,
-            color: Colors.white.withOpacity(0.25),
-          ),
-          Expanded(
-            child: _StatColumn(
-              value: 'L${_preview!.newLevel}',
-              label: 'New Level',
-              color: Colors.purple.shade400,
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -1029,6 +1019,45 @@ class _FeedingScreenState extends State<FeedingScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+}
+
+class _StatGainChip extends StatelessWidget {
+  final String label;
+  final double value;
+  final IconData icon;
+
+  const _StatGainChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.green.withOpacity(.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.green.shade300),
+          const SizedBox(width: 4),
+          Text(
+            '$label +${value.toStringAsFixed(2)}',
+            style: TextStyle(
+              color: Colors.green.shade300,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1883,6 +1912,23 @@ class _TargetInstanceCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
+      onLongPress: () async {
+        HapticFeedback.mediumImpact();
+        if (base != null) {
+          final effective = await GeneticsHelper.createCreatureFromInstance(
+            instance,
+            repo,
+          );
+          if (context.mounted && effective != null) {
+            CreatureDetailsDialog.show(
+              context,
+              effective,
+              true,
+              instanceId: instance.instanceId,
+            );
+          }
+        }
+      },
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
@@ -2010,6 +2056,23 @@ class _FodderCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
+      onLongPress: () async {
+        HapticFeedback.mediumImpact();
+        if (base != null) {
+          final effective = await GeneticsHelper.createCreatureFromInstance(
+            instance,
+            repo,
+          );
+          if (context.mounted && effective != null) {
+            CreatureDetailsDialog.show(
+              context,
+              effective,
+              true,
+              instanceId: instance.instanceId,
+            );
+          }
+        }
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(6),

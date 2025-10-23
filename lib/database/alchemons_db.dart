@@ -60,6 +60,18 @@ class BiomeJobs extends Table {
   Set<Column> get primaryKey => {jobId};
 }
 
+class CompetitionProgress extends Table {
+  TextColumn get biome => text()(); // 'oceanic', 'volcanic', etc.
+  IntColumn get highestLevelCompleted =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get totalWins => integer().withDefault(const Constant(0))();
+  IntColumn get totalLosses => integer().withDefault(const Constant(0))();
+  DateTimeColumn get lastCompletedAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {biome};
+}
+
 class Settings extends Table {
   TextColumn get key => text()();
   TextColumn get value => text()();
@@ -84,6 +96,12 @@ class CreatureInstances extends Table {
   IntColumn get staminaBars => integer().withDefault(const Constant(3))();
   IntColumn get staminaLastUtcMs => integer().withDefault(const Constant(0))();
   IntColumn get createdAtUtcMs => integer().withDefault(const Constant(0))();
+
+  // NEW STAT COLUMNS
+  RealColumn get statSpeed => real().withDefault(const Constant(3.0))();
+  RealColumn get statIntelligence => real().withDefault(const Constant(3.0))();
+  RealColumn get statStrength => real().withDefault(const Constant(3.0))();
+  RealColumn get statBeauty => real().withDefault(const Constant(3.0))();
   @override
   Set<Column> get primaryKey => {instanceId};
 }
@@ -110,13 +128,14 @@ class FeedEvents extends Table {
     FeedEvents,
     BiomeFarms,
     BiomeJobs,
+    CompetitionProgress,
   ],
 )
 class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -136,6 +155,16 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
           final v = await getSetting(k);
           if (v == null) await setSetting(k, '0');
         }
+      }
+      if (from < 14) {
+        // Add stat columns to existing instances
+        await m.addColumn(creatureInstances, creatureInstances.statSpeed);
+        await m.addColumn(
+          creatureInstances,
+          creatureInstances.statIntelligence,
+        );
+        await m.addColumn(creatureInstances, creatureInstances.statStrength);
+        await m.addColumn(creatureInstances, creatureInstances.statBeauty);
       }
     },
   );
@@ -414,6 +443,10 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     DateTime? createdAtUtc,
     int? staminaMax,
     int? staminaBars,
+    double? statSpeed,
+    double? statIntelligence,
+    double? statStrength,
+    double? statBeauty,
   }) async {
     final nowMs =
         (createdAtUtc ?? DateTime.now().toUtc()).millisecondsSinceEpoch;
@@ -437,6 +470,10 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
         staminaBars: Value(curBars),
         staminaLastUtcMs: Value(nowMs),
         createdAtUtcMs: Value(nowMs),
+        statSpeed: Value(statSpeed ?? 3.0),
+        statIntelligence: Value(statIntelligence ?? 3.0),
+        statStrength: Value(statStrength ?? 3.0),
+        statBeauty: Value(statBeauty ?? 3.0),
       ),
     );
 
@@ -544,6 +581,26 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
       creatureInstances,
     )..where((t) => t.instanceId.equals(instanceId))).write(
       CreatureInstancesCompanion(level: Value(level), xp: Value(newXp)),
+    );
+  }
+
+  // NEW STAT UPDATES
+  Future<void> updateStats({
+    required String instanceId,
+    required double statSpeed,
+    required double statIntelligence,
+    required double statStrength,
+    required double statBeauty,
+  }) async {
+    await (update(
+      creatureInstances,
+    )..where((t) => t.instanceId.equals(instanceId))).write(
+      CreatureInstancesCompanion(
+        statSpeed: Value(statSpeed),
+        statIntelligence: Value(statIntelligence),
+        statStrength: Value(statStrength),
+        statBeauty: Value(statBeauty),
+      ),
     );
   }
 

@@ -12,6 +12,7 @@
 
 import 'dart:math';
 
+import 'package:alchemons/models/creature_stats.dart';
 import 'package:alchemons/utils/nature_utils.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 
@@ -55,10 +56,20 @@ extension WildBreed on BreedingEngine {
           : baseA.nature,
       isPrismaticSkin: a.isPrismaticSkin || (baseA.isPrismaticSkin),
     );
+    // Get stats from instance
+    final statsA = CreatureStats(
+      speed: a.statSpeed,
+      intelligence: a.statIntelligence,
+      strength: a.statStrength,
+      beauty: a.statBeauty,
+    );
 
-    // Snapshots
+    // Snapshots with stats
     final snapA = ParentSnapshotFactory.fromDbInstance(a, repository);
-    final snapB = ParentSnapshot.fromCreature(wild);
+    final snapB = ParentSnapshot.fromCreatureWithStats(
+      wild,
+      null,
+    ); // Wild creatures don't have stats
 
     return _breedCore(parentA, wild, parentA: snapA, parentB: snapB);
   }
@@ -132,6 +143,7 @@ class BreedingEngine {
       isPrismaticSkin: b.isPrismaticSkin || (base2.isPrismaticSkin),
     );
 
+    // Include stats in parent snapshots
     final snapA = ParentSnapshotFactory.fromDbInstance(a, repository);
     final snapB = ParentSnapshotFactory.fromDbInstance(b, repository);
 
@@ -351,7 +363,7 @@ class BreedingEngine {
       }
     }
 
-    // Finalize
+    // With:
     final finalized = _finalizeChild(
       offspring,
       p1,
@@ -359,6 +371,7 @@ class BreedingEngine {
       parentA: parentA,
       parentB: parentB,
     );
+
     _log(
       '[Breeding] RESULT: ${finalized.id} • ${finalized.name} • fam=${_familyOf(finalized)} • ${finalized.types.first} • ${finalized.rarity}',
     );
@@ -370,6 +383,66 @@ class BreedingEngine {
   // ───────────────────────────────────────────────────────────
   // Finalization
   // ───────────────────────────────────────────────────────────
+
+  // Generate child stats based on parents
+  CreatureStats _generateChildStats(
+    ParentSnapshot parentA,
+    ParentSnapshot parentB,
+    NatureDef? childNature,
+    Genetics? childGenetics,
+  ) {
+    // Get parent stats from snapshots (if they exist)
+    final statsA = parentA.stats;
+    final statsB = parentB.stats;
+
+    CreatureStats childStats;
+
+    if (statsA != null && statsB != null) {
+      // Both parents have stats - breed them
+      childStats = CreatureStats.breed(
+        statsA,
+        statsB,
+        _random,
+        mutationChance: 0.15,
+        mutationStrength: 1.0,
+      );
+      _log('[Breeding] Stats inherited from parents with blending');
+    } else if (statsA != null) {
+      // Only parent A has stats - use with variance
+      childStats = CreatureStats.breed(
+        statsA,
+        CreatureStats.generate(_random), // Generate random for missing parent
+        _random,
+        mutationChance: 0.20,
+        mutationStrength: 1.2,
+      );
+      _log('[Breeding] Stats partially inherited from parent A');
+    } else if (statsB != null) {
+      // Only parent B has stats - use with variance
+      childStats = CreatureStats.breed(
+        CreatureStats.generate(_random),
+        statsB,
+        _random,
+        mutationChance: 0.20,
+        mutationStrength: 1.2,
+      );
+      _log('[Breeding] Stats partially inherited from parent B');
+    } else {
+      // Neither parent has stats - generate fresh
+      childStats = CreatureStats.generate(_random);
+      _log('[Breeding] Stats freshly generated');
+    }
+
+    // Apply nature bonus if applicable
+    childStats = childStats.applyNature(childNature?.id);
+    childStats = childStats.applyGenetics(childGenetics);
+
+    _log(
+      '[Breeding] Final stats: Speed=${childStats.speed.toStringAsFixed(1)}, Int=${childStats.intelligence.toStringAsFixed(1)}, Str=${childStats.strength.toStringAsFixed(1)}, Beauty=${childStats.beauty.toStringAsFixed(1)}',
+    );
+
+    return childStats;
+  }
 
   Creature _finalizeChild(
     Creature base,
@@ -400,6 +473,14 @@ class BreedingEngine {
       bredAt: DateTime.now(),
     );
     child = child.copyWith(parentage: parentage);
+
+    final childStats = _generateChildStats(
+      parentA,
+      parentB,
+      child.nature,
+      child.genetics,
+    );
+    child = child.copyWith(stats: childStats);
 
     return child;
   }
@@ -933,6 +1014,13 @@ class ParentSnapshotFactory {
           : base.nature,
     );
   }
+}
+
+class BreedingResultWithStats {
+  final Creature creature;
+  final CreatureStats stats;
+
+  BreedingResultWithStats({required this.creature, required this.stats});
 }
 
 const Map<String, Map<String, double>> tintBiasPerType = {

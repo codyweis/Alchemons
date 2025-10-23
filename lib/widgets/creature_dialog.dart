@@ -6,6 +6,7 @@ import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/screens/instance_selection_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -33,13 +34,13 @@ class CreatureDetailsDialog extends StatefulWidget {
   @override
   State<CreatureDetailsDialog> createState() => _CreatureDetailsDialogState();
 
-  static void show(
+  static Future<void> show(
     BuildContext context,
     Creature creature,
     bool isDiscovered, {
     String? instanceId,
-  }) {
-    showDialog(
+  }) async {
+    await showDialog(
       context: context,
       barrierColor: Colors.black.withOpacity(0.7),
       builder: (context) => CreatureDetailsDialog(
@@ -534,6 +535,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
               );
             },
           ),
+
           const SizedBox(height: 20),
           if (widget.instanceId != null) ...[
             _buildDataSection('Specimen Status', [
@@ -549,6 +551,48 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
               _buildDataRow('Description', c.description),
           ], primaryColor),
           const SizedBox(height: 16),
+
+          // NEW: Physical Attributes Section
+          if (widget.instanceId != null)
+            FutureBuilder<CreatureInstance?>(
+              future: context.read<AlchemonsDatabase>().getInstance(
+                widget.instanceId!,
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data != null) {
+                  final instance = snapshot.data!;
+                  return Column(
+                    children: [
+                      _buildDataSection('Physical Attributes', [
+                        _buildStatRow(
+                          'Speed',
+                          instance.statSpeed,
+                          primaryColor,
+                        ),
+                        _buildStatRow(
+                          'Intelligence',
+                          instance.statIntelligence,
+                          primaryColor,
+                        ),
+                        _buildStatRow(
+                          'Strength',
+                          instance.statStrength,
+                          primaryColor,
+                        ),
+                        _buildStatRow(
+                          'Beauty',
+                          instance.statBeauty,
+                          primaryColor,
+                        ),
+                      ], primaryColor),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+
           _buildDataSection('Genetic Profile', [
             _buildDataRow('Size Variant', _sizeName(c)),
             _buildDataRow('Pigmentation', _tintName(c)),
@@ -1410,6 +1454,118 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                   : CrossFadeState.showFirst,
               duration: const Duration(milliseconds: 250),
               sizeCurve: Curves.easeInOut,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String label, double value, Color primaryColor) {
+    final descriptor = getStatDescriptor(value, label.toLowerCase());
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 100,
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFFB6C0CC),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    // Stat bar
+                    Expanded(
+                      child: Container(
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: (value / 10.0).clamp(0.0, 1.0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: value == 10.0
+                                    ? [Colors.amber, Colors.amber.shade600]
+                                    : value >= 8.0
+                                    ? [Colors.green, Colors.green.shade600]
+                                    : value >= 6.0
+                                    ? [Colors.blue, Colors.blue.shade600]
+                                    : value >= 4.0
+                                    ? [
+                                        primaryColor,
+                                        primaryColor.withOpacity(.7),
+                                      ]
+                                    : [
+                                        Colors.orange.shade700,
+                                        Colors.orange.shade800,
+                                      ],
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Numeric value
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: value == 10.0
+                            ? Colors.amber.withOpacity(.2)
+                            : primaryColor.withOpacity(.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: value == 10.0
+                              ? Colors.amber.withOpacity(.4)
+                              : primaryColor.withOpacity(.3),
+                        ),
+                      ),
+                      child: Text(
+                        value.toStringAsFixed(1),
+                        style: TextStyle(
+                          color: value == 10.0 ? Colors.amber : primaryColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 100),
+            child: Text(
+              descriptor,
+              style: TextStyle(
+                color: value == 10.0
+                    ? Colors.amber.withOpacity(.9)
+                    : const Color(0xFF9AA6B2),
+                fontSize: 10,
+                fontStyle: FontStyle.italic,
+                fontWeight: value == 10.0 ? FontWeight.w600 : FontWeight.normal,
+              ),
             ),
           ),
         ],

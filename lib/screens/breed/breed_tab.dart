@@ -481,6 +481,7 @@ class _BreedingTabState extends State<BreedingTab> {
             'parentage': offspring.parentage?.toJson(),
             'isPrismaticSkin': offspring.isPrismaticSkin,
             'likelihoodAnalysis': analysisJson,
+            'stats': offspring.stats?.toJson(),
           };
           final payloadJson = jsonEncode(payload);
 

@@ -43,6 +43,10 @@ class CreatureInstanceService {
     String? nickname,
     int level = 1,
     String? likelihoodAnalysisJson,
+    double? statSpeed,
+    double? statIntelligence,
+    double? statStrength,
+    double? statBeauty,
   }) async {
     try {
       final canAdd = await _db.canAddInstance(baseId, cap: speciesCap);
@@ -64,6 +68,10 @@ class CreatureInstanceService {
         parentage: parentage,
         createdAtUtc: DateTime.now().toUtc(),
         likelihoodAnalysisJson: likelihoodAnalysisJson,
+        statSpeed: statSpeed,
+        statIntelligence: statIntelligence,
+        statStrength: statStrength,
+        statBeauty: statBeauty,
       );
 
       return InstanceFinalizeResult(
@@ -83,6 +91,7 @@ class FeedResult {
   final int newXpRemainder; // xp into current level
   final int fodderConsumed;
   final String? error;
+  final Map<String, double>? statGains;
 
   const FeedResult({
     required this.ok,
@@ -91,6 +100,7 @@ class FeedResult {
     required this.newXpRemainder,
     required this.fodderConsumed,
     this.error,
+    this.statGains,
   });
 
   factory FeedResult.fail(String msg) => FeedResult(
@@ -100,6 +110,7 @@ class FeedResult {
     newXpRemainder: 0,
     fodderConsumed: 0,
     error: msg,
+    statGains: null,
   );
 }
 
@@ -172,12 +183,11 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     required List<String> fodderInstanceIds,
     required CreatureRepository repo,
     int maxLevel = 100,
-    bool strictSpecies = true, // <— expose knob
+    bool strictSpecies = true,
   }) async {
     final target = await _db.getInstance(targetInstanceId);
     if (target == null) return FeedResult.fail('Target not found');
 
-    // Load/keep only compatible fodder
     final fodders = <db.CreatureInstance>[];
     for (final id in fodderInstanceIds) {
       final f = await _db.getInstance(id);
@@ -200,16 +210,16 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     int totalXp = 0;
     for (final f in fodders) {
       final raw = xpFromFodder(fodder: f, repo: repo);
-
-      // These bonuses will be moot if strictSpecies=true, but harmless to keep.
       final fb = repo.getCreatureById(f.baseId);
       final sameSpecies = (fb?.id == targetBase?.id);
       final sameFamily =
           !sameSpecies && (fb?.mutationFamily ?? '') == targetFamily;
-
       final mult = sameSpecies ? 1.25 : (sameFamily ? 1.10 : 1.0);
       totalXp += (raw * mult).round();
     }
+
+    // Calculate stat gains
+    final statGains = calculateStatGains(target: target, fodders: fodders);
 
     // Simulate level-ups
     int level = target.level;
@@ -225,6 +235,7 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       newLevel: level,
       newXpRemainder: xp,
       fodderConsumed: fodders.length,
+      statGains: statGains, // NEW
     );
   }
 
@@ -235,12 +246,11 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     required CreatureRepository repo,
     required FactionService factions,
     int maxLevel = 100,
-    bool strictSpecies = true, // <— expose knob
+    bool strictSpecies = true,
   }) async {
     final target = await _db.getInstance(targetInstanceId);
     if (target == null) return FeedResult.fail('Target not found');
 
-    // Load/keep only compatible fodder
     final fodders = <db.CreatureInstance>[];
     for (final id in fodderInstanceIds) {
       if (id == targetInstanceId) continue;
@@ -265,11 +275,9 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     for (final f in fodders) {
       final raw = xpFromFodder(fodder: f, repo: repo);
       final fb = repo.getCreatureById(f.baseId);
-
       final sameSpecies = (fb?.id == targetBase?.id);
       final sameFamily =
           !sameSpecies && (fb?.mutationFamily ?? '') == targetFamily;
-
       final mult = sameSpecies ? 1.25 : (sameFamily ? 1.10 : 1.0);
       totalXp += (raw * mult).round();
     }
@@ -281,7 +289,11 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     final appliedXp =
         ((totalXp * xpMult) * factions.fireXpMultiplierOnLevelGain()).round();
 
+    // Calculate stat gains
+    final statGains = calculateStatGains(target: target, fodders: fodders);
+
     await _db.transaction(() async {
+      // Apply XP and level up
       await _db.addXpAndMaybeLevel(
         instanceId: target.instanceId,
         deltaXp: appliedXp,
@@ -289,6 +301,36 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
         maxLevel: maxLevel,
       );
 
+      // NEW: Apply stat gains
+      final newStats = {
+        'speed': (target.statSpeed + (statGains['speed'] ?? 0)).clamp(
+          1.0,
+          10.0,
+        ),
+        'intelligence':
+            (target.statIntelligence + (statGains['intelligence'] ?? 0)).clamp(
+              1.0,
+              10.0,
+            ),
+        'strength': (target.statStrength + (statGains['strength'] ?? 0)).clamp(
+          1.0,
+          10.0,
+        ),
+        'beauty': (target.statBeauty + (statGains['beauty'] ?? 0)).clamp(
+          1.0,
+          10.0,
+        ),
+      };
+
+      await _db.updateStats(
+        instanceId: target.instanceId,
+        statSpeed: newStats['speed']!,
+        statIntelligence: newStats['intelligence']!,
+        statStrength: newStats['strength']!,
+        statBeauty: newStats['beauty']!,
+      );
+
+      // Delete fodder and log
       await _db.deleteInstances(fodders.map((e) => e.instanceId).toList());
 
       for (final f in fodders) {
@@ -312,6 +354,49 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       newLevel: updated.level,
       newXpRemainder: updated.xp,
       fodderConsumed: fodders.length,
+      statGains: statGains, // NEW
     );
+  }
+
+  /// Calculate stat gains from feeding
+  static Map<String, double> calculateStatGains({
+    required db.CreatureInstance target,
+    required List<db.CreatureInstance> fodders,
+  }) {
+    final gains = <String, double>{
+      'speed': 0.0,
+      'intelligence': 0.0,
+      'strength': 0.0,
+      'beauty': 0.0,
+    };
+
+    for (final fodder in fodders) {
+      // Find highest stat in this fodder
+      final fodderStats = {
+        'speed': fodder.statSpeed,
+        'intelligence': fodder.statIntelligence,
+        'strength': fodder.statStrength,
+        'beauty': fodder.statBeauty,
+      };
+
+      // Find the highest stat
+      String highestStatName = 'speed';
+      double highestStatValue = fodder.statSpeed;
+
+      fodderStats.forEach((name, value) {
+        if (value > highestStatValue) {
+          highestStatValue = value;
+          highestStatName = name;
+        }
+      });
+
+      // Calculate gain based on stat value
+      final double gain = highestStatValue >= 8.0 ? 0.1 : 0.01;
+
+      // Add to the corresponding stat
+      gains[highestStatName] = (gains[highestStatName] ?? 0) + gain;
+    }
+
+    return gains;
   }
 }

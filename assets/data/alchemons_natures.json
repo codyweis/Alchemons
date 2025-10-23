@@ -46,6 +46,30 @@
       "effect": { "xp_gain_mult": 1.15 }
     },
     {
+      "id": "Swift",
+      "dominance": 1,
+      "effect": { "stat_speed_bonus": 0.5 },
+      "description": "Enhances speed capabilities"
+    },
+    {
+      "id": "Clever",
+      "dominance": 1,
+      "effect": { "stat_intelligence_bonus": 0.5 },
+      "description": "Sharpens intellectual prowess"
+    },
+    {
+      "id": "Mighty",
+      "dominance": 1,
+      "effect": { "stat_strength_bonus": 0.5 },
+      "description": "Amplifies physical power"
+    },
+    {
+      "id": "Elegant",
+      "dominance": 1,
+      "effect": { "stat_beauty_bonus": 0.5 },
+      "description": "Enhances aesthetic grace"
+    },
+    {
       "id": "Homeostatic",
       "dominance": 2,
       "effect": {}

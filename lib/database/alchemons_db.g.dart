@@ -1619,6 +1619,54 @@ class $CreatureInstancesTable extends CreatureInstances
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _statSpeedMeta = const VerificationMeta(
+    'statSpeed',
+  );
+  @override
+  late final GeneratedColumn<double> statSpeed = GeneratedColumn<double>(
+    'stat_speed',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(5.0),
+  );
+  static const VerificationMeta _statIntelligenceMeta = const VerificationMeta(
+    'statIntelligence',
+  );
+  @override
+  late final GeneratedColumn<double> statIntelligence = GeneratedColumn<double>(
+    'stat_intelligence',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(5.0),
+  );
+  static const VerificationMeta _statStrengthMeta = const VerificationMeta(
+    'statStrength',
+  );
+  @override
+  late final GeneratedColumn<double> statStrength = GeneratedColumn<double>(
+    'stat_strength',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(5.0),
+  );
+  static const VerificationMeta _statBeautyMeta = const VerificationMeta(
+    'statBeauty',
+  );
+  @override
+  late final GeneratedColumn<double> statBeauty = GeneratedColumn<double>(
+    'stat_beauty',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(5.0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     instanceId,
@@ -1636,6 +1684,10 @@ class $CreatureInstancesTable extends CreatureInstances
     staminaBars,
     staminaLastUtcMs,
     createdAtUtcMs,
+    statSpeed,
+    statIntelligence,
+    statStrength,
+    statBeauty,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1761,6 +1813,36 @@ class $CreatureInstancesTable extends CreatureInstances
         ),
       );
     }
+    if (data.containsKey('stat_speed')) {
+      context.handle(
+        _statSpeedMeta,
+        statSpeed.isAcceptableOrUnknown(data['stat_speed']!, _statSpeedMeta),
+      );
+    }
+    if (data.containsKey('stat_intelligence')) {
+      context.handle(
+        _statIntelligenceMeta,
+        statIntelligence.isAcceptableOrUnknown(
+          data['stat_intelligence']!,
+          _statIntelligenceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stat_strength')) {
+      context.handle(
+        _statStrengthMeta,
+        statStrength.isAcceptableOrUnknown(
+          data['stat_strength']!,
+          _statStrengthMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stat_beauty')) {
+      context.handle(
+        _statBeautyMeta,
+        statBeauty.isAcceptableOrUnknown(data['stat_beauty']!, _statBeautyMeta),
+      );
+    }
     return context;
   }
 
@@ -1830,6 +1912,22 @@ class $CreatureInstancesTable extends CreatureInstances
         DriftSqlType.int,
         data['${effectivePrefix}created_at_utc_ms'],
       )!,
+      statSpeed: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}stat_speed'],
+      )!,
+      statIntelligence: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}stat_intelligence'],
+      )!,
+      statStrength: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}stat_strength'],
+      )!,
+      statBeauty: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}stat_beauty'],
+      )!,
     );
   }
 
@@ -1856,6 +1954,10 @@ class CreatureInstance extends DataClass
   final int staminaBars;
   final int staminaLastUtcMs;
   final int createdAtUtcMs;
+  final double statSpeed;
+  final double statIntelligence;
+  final double statStrength;
+  final double statBeauty;
   const CreatureInstance({
     required this.instanceId,
     required this.baseId,
@@ -1872,6 +1974,10 @@ class CreatureInstance extends DataClass
     required this.staminaBars,
     required this.staminaLastUtcMs,
     required this.createdAtUtcMs,
+    required this.statSpeed,
+    required this.statIntelligence,
+    required this.statStrength,
+    required this.statBeauty,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1903,6 +2009,10 @@ class CreatureInstance extends DataClass
     map['stamina_bars'] = Variable<int>(staminaBars);
     map['stamina_last_utc_ms'] = Variable<int>(staminaLastUtcMs);
     map['created_at_utc_ms'] = Variable<int>(createdAtUtcMs);
+    map['stat_speed'] = Variable<double>(statSpeed);
+    map['stat_intelligence'] = Variable<double>(statIntelligence);
+    map['stat_strength'] = Variable<double>(statStrength);
+    map['stat_beauty'] = Variable<double>(statBeauty);
     return map;
   }
 
@@ -1933,6 +2043,10 @@ class CreatureInstance extends DataClass
       staminaBars: Value(staminaBars),
       staminaLastUtcMs: Value(staminaLastUtcMs),
       createdAtUtcMs: Value(createdAtUtcMs),
+      statSpeed: Value(statSpeed),
+      statIntelligence: Value(statIntelligence),
+      statStrength: Value(statStrength),
+      statBeauty: Value(statBeauty),
     );
   }
 
@@ -1959,6 +2073,10 @@ class CreatureInstance extends DataClass
       staminaBars: serializer.fromJson<int>(json['staminaBars']),
       staminaLastUtcMs: serializer.fromJson<int>(json['staminaLastUtcMs']),
       createdAtUtcMs: serializer.fromJson<int>(json['createdAtUtcMs']),
+      statSpeed: serializer.fromJson<double>(json['statSpeed']),
+      statIntelligence: serializer.fromJson<double>(json['statIntelligence']),
+      statStrength: serializer.fromJson<double>(json['statStrength']),
+      statBeauty: serializer.fromJson<double>(json['statBeauty']),
     );
   }
   @override
@@ -1982,6 +2100,10 @@ class CreatureInstance extends DataClass
       'staminaBars': serializer.toJson<int>(staminaBars),
       'staminaLastUtcMs': serializer.toJson<int>(staminaLastUtcMs),
       'createdAtUtcMs': serializer.toJson<int>(createdAtUtcMs),
+      'statSpeed': serializer.toJson<double>(statSpeed),
+      'statIntelligence': serializer.toJson<double>(statIntelligence),
+      'statStrength': serializer.toJson<double>(statStrength),
+      'statBeauty': serializer.toJson<double>(statBeauty),
     };
   }
 
@@ -2001,6 +2123,10 @@ class CreatureInstance extends DataClass
     int? staminaBars,
     int? staminaLastUtcMs,
     int? createdAtUtcMs,
+    double? statSpeed,
+    double? statIntelligence,
+    double? statStrength,
+    double? statBeauty,
   }) => CreatureInstance(
     instanceId: instanceId ?? this.instanceId,
     baseId: baseId ?? this.baseId,
@@ -2021,6 +2147,10 @@ class CreatureInstance extends DataClass
     staminaBars: staminaBars ?? this.staminaBars,
     staminaLastUtcMs: staminaLastUtcMs ?? this.staminaLastUtcMs,
     createdAtUtcMs: createdAtUtcMs ?? this.createdAtUtcMs,
+    statSpeed: statSpeed ?? this.statSpeed,
+    statIntelligence: statIntelligence ?? this.statIntelligence,
+    statStrength: statStrength ?? this.statStrength,
+    statBeauty: statBeauty ?? this.statBeauty,
   );
   CreatureInstance copyWithCompanion(CreatureInstancesCompanion data) {
     return CreatureInstance(
@@ -2057,6 +2187,16 @@ class CreatureInstance extends DataClass
       createdAtUtcMs: data.createdAtUtcMs.present
           ? data.createdAtUtcMs.value
           : this.createdAtUtcMs,
+      statSpeed: data.statSpeed.present ? data.statSpeed.value : this.statSpeed,
+      statIntelligence: data.statIntelligence.present
+          ? data.statIntelligence.value
+          : this.statIntelligence,
+      statStrength: data.statStrength.present
+          ? data.statStrength.value
+          : this.statStrength,
+      statBeauty: data.statBeauty.present
+          ? data.statBeauty.value
+          : this.statBeauty,
     );
   }
 
@@ -2077,7 +2217,11 @@ class CreatureInstance extends DataClass
           ..write('staminaMax: $staminaMax, ')
           ..write('staminaBars: $staminaBars, ')
           ..write('staminaLastUtcMs: $staminaLastUtcMs, ')
-          ..write('createdAtUtcMs: $createdAtUtcMs')
+          ..write('createdAtUtcMs: $createdAtUtcMs, ')
+          ..write('statSpeed: $statSpeed, ')
+          ..write('statIntelligence: $statIntelligence, ')
+          ..write('statStrength: $statStrength, ')
+          ..write('statBeauty: $statBeauty')
           ..write(')'))
         .toString();
   }
@@ -2099,6 +2243,10 @@ class CreatureInstance extends DataClass
     staminaBars,
     staminaLastUtcMs,
     createdAtUtcMs,
+    statSpeed,
+    statIntelligence,
+    statStrength,
+    statBeauty,
   );
   @override
   bool operator ==(Object other) =>
@@ -2118,7 +2266,11 @@ class CreatureInstance extends DataClass
           other.staminaMax == this.staminaMax &&
           other.staminaBars == this.staminaBars &&
           other.staminaLastUtcMs == this.staminaLastUtcMs &&
-          other.createdAtUtcMs == this.createdAtUtcMs);
+          other.createdAtUtcMs == this.createdAtUtcMs &&
+          other.statSpeed == this.statSpeed &&
+          other.statIntelligence == this.statIntelligence &&
+          other.statStrength == this.statStrength &&
+          other.statBeauty == this.statBeauty);
 }
 
 class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
@@ -2137,6 +2289,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
   final Value<int> staminaBars;
   final Value<int> staminaLastUtcMs;
   final Value<int> createdAtUtcMs;
+  final Value<double> statSpeed;
+  final Value<double> statIntelligence;
+  final Value<double> statStrength;
+  final Value<double> statBeauty;
   final Value<int> rowid;
   const CreatureInstancesCompanion({
     this.instanceId = const Value.absent(),
@@ -2154,6 +2310,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.staminaBars = const Value.absent(),
     this.staminaLastUtcMs = const Value.absent(),
     this.createdAtUtcMs = const Value.absent(),
+    this.statSpeed = const Value.absent(),
+    this.statIntelligence = const Value.absent(),
+    this.statStrength = const Value.absent(),
+    this.statBeauty = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CreatureInstancesCompanion.insert({
@@ -2172,6 +2332,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.staminaBars = const Value.absent(),
     this.staminaLastUtcMs = const Value.absent(),
     this.createdAtUtcMs = const Value.absent(),
+    this.statSpeed = const Value.absent(),
+    this.statIntelligence = const Value.absent(),
+    this.statStrength = const Value.absent(),
+    this.statBeauty = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : instanceId = Value(instanceId),
        baseId = Value(baseId);
@@ -2191,6 +2355,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Expression<int>? staminaBars,
     Expression<int>? staminaLastUtcMs,
     Expression<int>? createdAtUtcMs,
+    Expression<double>? statSpeed,
+    Expression<double>? statIntelligence,
+    Expression<double>? statStrength,
+    Expression<double>? statBeauty,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2210,6 +2378,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       if (staminaBars != null) 'stamina_bars': staminaBars,
       if (staminaLastUtcMs != null) 'stamina_last_utc_ms': staminaLastUtcMs,
       if (createdAtUtcMs != null) 'created_at_utc_ms': createdAtUtcMs,
+      if (statSpeed != null) 'stat_speed': statSpeed,
+      if (statIntelligence != null) 'stat_intelligence': statIntelligence,
+      if (statStrength != null) 'stat_strength': statStrength,
+      if (statBeauty != null) 'stat_beauty': statBeauty,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2230,6 +2402,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Value<int>? staminaBars,
     Value<int>? staminaLastUtcMs,
     Value<int>? createdAtUtcMs,
+    Value<double>? statSpeed,
+    Value<double>? statIntelligence,
+    Value<double>? statStrength,
+    Value<double>? statBeauty,
     Value<int>? rowid,
   }) {
     return CreatureInstancesCompanion(
@@ -2249,6 +2425,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       staminaBars: staminaBars ?? this.staminaBars,
       staminaLastUtcMs: staminaLastUtcMs ?? this.staminaLastUtcMs,
       createdAtUtcMs: createdAtUtcMs ?? this.createdAtUtcMs,
+      statSpeed: statSpeed ?? this.statSpeed,
+      statIntelligence: statIntelligence ?? this.statIntelligence,
+      statStrength: statStrength ?? this.statStrength,
+      statBeauty: statBeauty ?? this.statBeauty,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2303,6 +2483,18 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     if (createdAtUtcMs.present) {
       map['created_at_utc_ms'] = Variable<int>(createdAtUtcMs.value);
     }
+    if (statSpeed.present) {
+      map['stat_speed'] = Variable<double>(statSpeed.value);
+    }
+    if (statIntelligence.present) {
+      map['stat_intelligence'] = Variable<double>(statIntelligence.value);
+    }
+    if (statStrength.present) {
+      map['stat_strength'] = Variable<double>(statStrength.value);
+    }
+    if (statBeauty.present) {
+      map['stat_beauty'] = Variable<double>(statBeauty.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2327,6 +2519,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
           ..write('staminaBars: $staminaBars, ')
           ..write('staminaLastUtcMs: $staminaLastUtcMs, ')
           ..write('createdAtUtcMs: $createdAtUtcMs, ')
+          ..write('statSpeed: $statSpeed, ')
+          ..write('statIntelligence: $statIntelligence, ')
+          ..write('statStrength: $statStrength, ')
+          ..write('statBeauty: $statBeauty, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4365,6 +4561,10 @@ typedef $$CreatureInstancesTableCreateCompanionBuilder =
       Value<int> staminaBars,
       Value<int> staminaLastUtcMs,
       Value<int> createdAtUtcMs,
+      Value<double> statSpeed,
+      Value<double> statIntelligence,
+      Value<double> statStrength,
+      Value<double> statBeauty,
       Value<int> rowid,
     });
 typedef $$CreatureInstancesTableUpdateCompanionBuilder =
@@ -4384,6 +4584,10 @@ typedef $$CreatureInstancesTableUpdateCompanionBuilder =
       Value<int> staminaBars,
       Value<int> staminaLastUtcMs,
       Value<int> createdAtUtcMs,
+      Value<double> statSpeed,
+      Value<double> statIntelligence,
+      Value<double> statStrength,
+      Value<double> statBeauty,
       Value<int> rowid,
     });
 
@@ -4468,6 +4672,26 @@ class $$CreatureInstancesTableFilterComposer
 
   ColumnFilters<int> get createdAtUtcMs => $composableBuilder(
     column: $table.createdAtUtcMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get statSpeed => $composableBuilder(
+    column: $table.statSpeed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get statIntelligence => $composableBuilder(
+    column: $table.statIntelligence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get statStrength => $composableBuilder(
+    column: $table.statStrength,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get statBeauty => $composableBuilder(
+    column: $table.statBeauty,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4555,6 +4779,26 @@ class $$CreatureInstancesTableOrderingComposer
     column: $table.createdAtUtcMs,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get statSpeed => $composableBuilder(
+    column: $table.statSpeed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get statIntelligence => $composableBuilder(
+    column: $table.statIntelligence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get statStrength => $composableBuilder(
+    column: $table.statStrength,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get statBeauty => $composableBuilder(
+    column: $table.statBeauty,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CreatureInstancesTableAnnotationComposer
@@ -4628,6 +4872,24 @@ class $$CreatureInstancesTableAnnotationComposer
     column: $table.createdAtUtcMs,
     builder: (column) => column,
   );
+
+  GeneratedColumn<double> get statSpeed =>
+      $composableBuilder(column: $table.statSpeed, builder: (column) => column);
+
+  GeneratedColumn<double> get statIntelligence => $composableBuilder(
+    column: $table.statIntelligence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get statStrength => $composableBuilder(
+    column: $table.statStrength,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get statBeauty => $composableBuilder(
+    column: $table.statBeauty,
+    builder: (column) => column,
+  );
 }
 
 class $$CreatureInstancesTableTableManager
@@ -4685,6 +4947,10 @@ class $$CreatureInstancesTableTableManager
                 Value<int> staminaBars = const Value.absent(),
                 Value<int> staminaLastUtcMs = const Value.absent(),
                 Value<int> createdAtUtcMs = const Value.absent(),
+                Value<double> statSpeed = const Value.absent(),
+                Value<double> statIntelligence = const Value.absent(),
+                Value<double> statStrength = const Value.absent(),
+                Value<double> statBeauty = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreatureInstancesCompanion(
                 instanceId: instanceId,
@@ -4702,6 +4968,10 @@ class $$CreatureInstancesTableTableManager
                 staminaBars: staminaBars,
                 staminaLastUtcMs: staminaLastUtcMs,
                 createdAtUtcMs: createdAtUtcMs,
+                statSpeed: statSpeed,
+                statIntelligence: statIntelligence,
+                statStrength: statStrength,
+                statBeauty: statBeauty,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4721,6 +4991,10 @@ class $$CreatureInstancesTableTableManager
                 Value<int> staminaBars = const Value.absent(),
                 Value<int> staminaLastUtcMs = const Value.absent(),
                 Value<int> createdAtUtcMs = const Value.absent(),
+                Value<double> statSpeed = const Value.absent(),
+                Value<double> statIntelligence = const Value.absent(),
+                Value<double> statStrength = const Value.absent(),
+                Value<double> statBeauty = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreatureInstancesCompanion.insert(
                 instanceId: instanceId,
@@ -4738,6 +5012,10 @@ class $$CreatureInstancesTableTableManager
                 staminaBars: staminaBars,
                 staminaLastUtcMs: staminaLastUtcMs,
                 createdAtUtcMs: createdAtUtcMs,
+                statSpeed: statSpeed,
+                statIntelligence: statIntelligence,
+                statStrength: statStrength,
+                statBeauty: statBeauty,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

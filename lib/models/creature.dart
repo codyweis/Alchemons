@@ -1,6 +1,9 @@
+// lib/models/creature.dart
+
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/special_breeding.dart';
+import 'package:alchemons/models/creature_stats.dart';
 
 /// Sprite sheet metadata for animated rendering.
 class SpriteData {
@@ -95,6 +98,9 @@ class Creature {
   /// Optional sprite-sheet data for animation.
   final SpriteData? spriteData;
 
+  /// NEW: Hidden stats for the creature
+  final CreatureStats? stats;
+
   Creature({
     required this.id,
     required this.name,
@@ -112,6 +118,7 @@ class Creature {
     this.genetics,
     this.isPrismaticSkin = false,
     this.parentage,
+    this.stats, // NEW
   });
 
   /// JSON -> Creature (null-safe)
@@ -136,6 +143,7 @@ class Creature {
     final natureJson = json['nature'];
     final parentageJson = json['parentage'];
     final spriteDataJson = json['spriteData'];
+    final statsJson = json['stats']; // NEW
 
     // If `spriteData` exists, synthesize a default spriteSheetPath by convention:
     // "<image basename>_spritesheet.png"
@@ -190,10 +198,14 @@ class Creature {
               if (spritesheetPath != null) 'spriteSheetPath': spritesheetPath,
             })
           : null,
+
+      stats: statsJson is Map<String, dynamic>
+          ? CreatureStats.fromJson(statsJson)
+          : null, // NEW
     );
   }
 
-  /// Runtime-built variant derived from a base creature + partner’s type.
+  /// Runtime-built variant derived from a base creature + partner's type.
   factory Creature.variant({
     required String baseId,
     required String baseName,
@@ -202,6 +214,7 @@ class Creature {
     secondaryType, // the partner's primary type that triggered the variant
     required String baseImage,
     SpriteData? spriteVariantData,
+    CreatureStats? stats, // NEW
   }) {
     return Creature(
       id: "${baseId}_${secondaryType}",
@@ -225,6 +238,7 @@ class Creature {
       specialBreeding: null,
       guaranteedBreeding: null,
       parentage: null,
+      stats: stats, // NEW
     );
   }
 
@@ -244,6 +258,7 @@ class Creature {
     if (genetics != null) 'genetics': genetics!.toJson(),
     'isPrismaticSkin': isPrismaticSkin,
     if (parentage != null) 'parentage': parentage!.toJson(),
+    if (stats != null) 'stats': stats!.toJson(), // NEW
   };
 }
 
@@ -265,6 +280,7 @@ extension CreatureCopy on Creature {
     NatureDef? nature,
     Genetics? genetics,
     Parentage? parentage,
+    CreatureStats? stats, // NEW
   }) {
     return Creature(
       id: id ?? this.id,
@@ -283,6 +299,7 @@ extension CreatureCopy on Creature {
       nature: nature ?? this.nature,
       genetics: genetics ?? this.genetics,
       parentage: parentage ?? this.parentage,
+      stats: stats ?? this.stats, // NEW
     );
   }
 }
