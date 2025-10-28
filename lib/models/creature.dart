@@ -165,7 +165,7 @@ class Creature {
           : null,
 
       guaranteedBreeding: guaranteedBreedingJson is List
-          ? (guaranteedBreedingJson as List)
+          ? (guaranteedBreedingJson)
                 .map((e) => List<String>.from(e as List))
                 .toList()
           : null,
@@ -217,7 +217,7 @@ class Creature {
     CreatureStats? stats, // NEW
   }) {
     return Creature(
-      id: "${baseId}_${secondaryType}",
+      id: "${baseId}_$secondaryType",
       name: "$baseName-$secondaryType",
       types: [primaryType, secondaryType],
       rarity: "Variant",

@@ -7,7 +7,7 @@ import '../models/creature.dart';
 class GameDataService {
   final AlchemonsDatabase db;
   late List<Creature> allCreatures;
-  List<Creature> _discoveredVariants = []; // New: Track variants
+  final List<Creature> _discoveredVariants = []; // New: Track variants
   bool _isInitialized = false;
 
   GameDataService({required this.db});

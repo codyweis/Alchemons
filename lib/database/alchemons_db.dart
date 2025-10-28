@@ -97,11 +97,22 @@ class CreatureInstances extends Table {
   IntColumn get staminaLastUtcMs => integer().withDefault(const Constant(0))();
   IntColumn get createdAtUtcMs => integer().withDefault(const Constant(0))();
 
-  // NEW STAT COLUMNS
+  // STAT COLUMNS
   RealColumn get statSpeed => real().withDefault(const Constant(3.0))();
   RealColumn get statIntelligence => real().withDefault(const Constant(3.0))();
   RealColumn get statStrength => real().withDefault(const Constant(3.0))();
   RealColumn get statBeauty => real().withDefault(const Constant(3.0))();
+
+  // POTENTIAL COLUMNS (max each stat can reach)
+  RealColumn get statSpeedPotential =>
+      real().withDefault(const Constant(4.0))();
+  RealColumn get statIntelligencePotential =>
+      real().withDefault(const Constant(4.0))();
+  RealColumn get statStrengthPotential =>
+      real().withDefault(const Constant(4.0))();
+  RealColumn get statBeautyPotential =>
+      real().withDefault(const Constant(4.0))();
+
   @override
   Set<Column> get primaryKey => {instanceId};
 }
@@ -132,10 +143,10 @@ class FeedEvents extends Table {
   ],
 )
 class AlchemonsDatabase extends _$AlchemonsDatabase {
-  AlchemonsDatabase(QueryExecutor e) : super(e);
+  AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -165,6 +176,31 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
         );
         await m.addColumn(creatureInstances, creatureInstances.statStrength);
         await m.addColumn(creatureInstances, creatureInstances.statBeauty);
+      }
+      if (from < 15) {
+        // Reset all existing creature stats to 3.0 for new 1-5 scale
+        await customUpdate(
+          'UPDATE creature_instances SET stat_speed = 3.0, stat_intelligence = 3.0, stat_strength = 3.0, stat_beauty = 3.0',
+        );
+      }
+      if (from < 16) {
+        // Add potential columns
+        await m.addColumn(
+          creatureInstances,
+          creatureInstances.statSpeedPotential,
+        );
+        await m.addColumn(
+          creatureInstances,
+          creatureInstances.statIntelligencePotential,
+        );
+        await m.addColumn(
+          creatureInstances,
+          creatureInstances.statStrengthPotential,
+        );
+        await m.addColumn(
+          creatureInstances,
+          creatureInstances.statBeautyPotential,
+        );
       }
     },
   );
@@ -398,6 +434,10 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   Future<List<PlayerCreature>> getAllCreatures() =>
       select(playerCreatures).get();
 
+  Future<List<CreatureInstance>> getAllInstances() async {
+    return await select(creatureInstances).get();
+  }
+
   Stream<List<PlayerCreature>> watchAllCreatures() => (select(
     playerCreatures,
   )..orderBy([(t) => OrderingTerm.asc(t.id)])).watch();
@@ -447,6 +487,10 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     double? statIntelligence,
     double? statStrength,
     double? statBeauty,
+    double? statSpeedPotential,
+    double? statIntelligencePotential,
+    double? statStrengthPotential,
+    double? statBeautyPotential,
   }) async {
     final nowMs =
         (createdAtUtc ?? DateTime.now().toUtc()).millisecondsSinceEpoch;
@@ -474,6 +518,10 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
         statIntelligence: Value(statIntelligence ?? 3.0),
         statStrength: Value(statStrength ?? 3.0),
         statBeauty: Value(statBeauty ?? 3.0),
+        statSpeedPotential: Value(statSpeedPotential ?? 4.0),
+        statIntelligencePotential: Value(statIntelligencePotential ?? 4.0),
+        statStrengthPotential: Value(statStrengthPotential ?? 4.0),
+        statBeautyPotential: Value(statBeautyPotential ?? 4.0),
       ),
     );
 
@@ -796,10 +844,38 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     return vals;
   }
 
+  Future<String?> getFeaturedInstanceId() async {
+    return await getSetting('featured_instance_id');
+  }
+
+  Future<void> setFeaturedInstanceId(String? instanceId) async {
+    await setSetting('featured_instance_id', instanceId ?? '');
+  }
+
   Future<void> setBlobSlotInstance(int index, String? instanceId) async {
     if (index < 0 || index > 2) return;
     final key = 'blob_slot_$index';
     await setSetting(key, instanceId ?? '');
+  }
+
+  // =================== THEME SETTINGS ===================
+
+  Future<StoredThemeMode> getStoredThemeMode() async {
+    final raw = await getSetting('theme_mode');
+    return StoredThemeMode.fromString(raw);
+  }
+
+  Future<void> setStoredThemeMode(StoredThemeMode mode) async {
+    await setSetting('theme_mode', mode.asString);
+  }
+
+  /// Reactive stream of theme mode so UI can rebuild on change
+  Stream<StoredThemeMode> watchStoredThemeMode() {
+    final q = select(settings)..where((t) => t.key.equals('theme_mode'));
+    return q.watch().map((rows) {
+      if (rows.isEmpty) return StoredThemeMode.system;
+      return StoredThemeMode.fromString(rows.first.value);
+    });
   }
 
   // =================== SHOP PREFS ===================
@@ -815,5 +891,35 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
 
   Future<void> setShopShowPurchased(bool value) async {
     await setSetting('shop_show_purchased', value ? '1' : '0');
+  }
+}
+
+//light dark
+enum StoredThemeMode {
+  light,
+  dark,
+  system;
+
+  static StoredThemeMode fromString(String? raw) {
+    switch (raw) {
+      case 'light':
+        return StoredThemeMode.light;
+      case 'dark':
+        return StoredThemeMode.dark;
+      case 'system':
+      default:
+        return StoredThemeMode.system;
+    }
+  }
+
+  String get asString {
+    switch (this) {
+      case StoredThemeMode.light:
+        return 'light';
+      case StoredThemeMode.dark:
+        return 'dark';
+      case StoredThemeMode.system:
+        return 'system';
+    }
   }
 }

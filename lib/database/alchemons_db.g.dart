@@ -1629,7 +1629,7 @@ class $CreatureInstancesTable extends CreatureInstances
     false,
     type: DriftSqlType.double,
     requiredDuringInsert: false,
-    defaultValue: const Constant(5.0),
+    defaultValue: const Constant(3.0),
   );
   static const VerificationMeta _statIntelligenceMeta = const VerificationMeta(
     'statIntelligence',
@@ -1641,7 +1641,7 @@ class $CreatureInstancesTable extends CreatureInstances
     false,
     type: DriftSqlType.double,
     requiredDuringInsert: false,
-    defaultValue: const Constant(5.0),
+    defaultValue: const Constant(3.0),
   );
   static const VerificationMeta _statStrengthMeta = const VerificationMeta(
     'statStrength',
@@ -1653,7 +1653,7 @@ class $CreatureInstancesTable extends CreatureInstances
     false,
     type: DriftSqlType.double,
     requiredDuringInsert: false,
-    defaultValue: const Constant(5.0),
+    defaultValue: const Constant(3.0),
   );
   static const VerificationMeta _statBeautyMeta = const VerificationMeta(
     'statBeauty',
@@ -1665,8 +1665,56 @@ class $CreatureInstancesTable extends CreatureInstances
     false,
     type: DriftSqlType.double,
     requiredDuringInsert: false,
-    defaultValue: const Constant(5.0),
+    defaultValue: const Constant(3.0),
   );
+  static const VerificationMeta _statSpeedPotentialMeta =
+      const VerificationMeta('statSpeedPotential');
+  @override
+  late final GeneratedColumn<double> statSpeedPotential =
+      GeneratedColumn<double>(
+        'stat_speed_potential',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(4.0),
+      );
+  static const VerificationMeta _statIntelligencePotentialMeta =
+      const VerificationMeta('statIntelligencePotential');
+  @override
+  late final GeneratedColumn<double> statIntelligencePotential =
+      GeneratedColumn<double>(
+        'stat_intelligence_potential',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(4.0),
+      );
+  static const VerificationMeta _statStrengthPotentialMeta =
+      const VerificationMeta('statStrengthPotential');
+  @override
+  late final GeneratedColumn<double> statStrengthPotential =
+      GeneratedColumn<double>(
+        'stat_strength_potential',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(4.0),
+      );
+  static const VerificationMeta _statBeautyPotentialMeta =
+      const VerificationMeta('statBeautyPotential');
+  @override
+  late final GeneratedColumn<double> statBeautyPotential =
+      GeneratedColumn<double>(
+        'stat_beauty_potential',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(4.0),
+      );
   @override
   List<GeneratedColumn> get $columns => [
     instanceId,
@@ -1688,6 +1736,10 @@ class $CreatureInstancesTable extends CreatureInstances
     statIntelligence,
     statStrength,
     statBeauty,
+    statSpeedPotential,
+    statIntelligencePotential,
+    statStrengthPotential,
+    statBeautyPotential,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1843,6 +1895,42 @@ class $CreatureInstancesTable extends CreatureInstances
         statBeauty.isAcceptableOrUnknown(data['stat_beauty']!, _statBeautyMeta),
       );
     }
+    if (data.containsKey('stat_speed_potential')) {
+      context.handle(
+        _statSpeedPotentialMeta,
+        statSpeedPotential.isAcceptableOrUnknown(
+          data['stat_speed_potential']!,
+          _statSpeedPotentialMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stat_intelligence_potential')) {
+      context.handle(
+        _statIntelligencePotentialMeta,
+        statIntelligencePotential.isAcceptableOrUnknown(
+          data['stat_intelligence_potential']!,
+          _statIntelligencePotentialMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stat_strength_potential')) {
+      context.handle(
+        _statStrengthPotentialMeta,
+        statStrengthPotential.isAcceptableOrUnknown(
+          data['stat_strength_potential']!,
+          _statStrengthPotentialMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stat_beauty_potential')) {
+      context.handle(
+        _statBeautyPotentialMeta,
+        statBeautyPotential.isAcceptableOrUnknown(
+          data['stat_beauty_potential']!,
+          _statBeautyPotentialMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1928,6 +2016,22 @@ class $CreatureInstancesTable extends CreatureInstances
         DriftSqlType.double,
         data['${effectivePrefix}stat_beauty'],
       )!,
+      statSpeedPotential: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}stat_speed_potential'],
+      )!,
+      statIntelligencePotential: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}stat_intelligence_potential'],
+      )!,
+      statStrengthPotential: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}stat_strength_potential'],
+      )!,
+      statBeautyPotential: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}stat_beauty_potential'],
+      )!,
     );
   }
 
@@ -1958,6 +2062,10 @@ class CreatureInstance extends DataClass
   final double statIntelligence;
   final double statStrength;
   final double statBeauty;
+  final double statSpeedPotential;
+  final double statIntelligencePotential;
+  final double statStrengthPotential;
+  final double statBeautyPotential;
   const CreatureInstance({
     required this.instanceId,
     required this.baseId,
@@ -1978,6 +2086,10 @@ class CreatureInstance extends DataClass
     required this.statIntelligence,
     required this.statStrength,
     required this.statBeauty,
+    required this.statSpeedPotential,
+    required this.statIntelligencePotential,
+    required this.statStrengthPotential,
+    required this.statBeautyPotential,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2013,6 +2125,12 @@ class CreatureInstance extends DataClass
     map['stat_intelligence'] = Variable<double>(statIntelligence);
     map['stat_strength'] = Variable<double>(statStrength);
     map['stat_beauty'] = Variable<double>(statBeauty);
+    map['stat_speed_potential'] = Variable<double>(statSpeedPotential);
+    map['stat_intelligence_potential'] = Variable<double>(
+      statIntelligencePotential,
+    );
+    map['stat_strength_potential'] = Variable<double>(statStrengthPotential);
+    map['stat_beauty_potential'] = Variable<double>(statBeautyPotential);
     return map;
   }
 
@@ -2047,6 +2165,10 @@ class CreatureInstance extends DataClass
       statIntelligence: Value(statIntelligence),
       statStrength: Value(statStrength),
       statBeauty: Value(statBeauty),
+      statSpeedPotential: Value(statSpeedPotential),
+      statIntelligencePotential: Value(statIntelligencePotential),
+      statStrengthPotential: Value(statStrengthPotential),
+      statBeautyPotential: Value(statBeautyPotential),
     );
   }
 
@@ -2077,6 +2199,18 @@ class CreatureInstance extends DataClass
       statIntelligence: serializer.fromJson<double>(json['statIntelligence']),
       statStrength: serializer.fromJson<double>(json['statStrength']),
       statBeauty: serializer.fromJson<double>(json['statBeauty']),
+      statSpeedPotential: serializer.fromJson<double>(
+        json['statSpeedPotential'],
+      ),
+      statIntelligencePotential: serializer.fromJson<double>(
+        json['statIntelligencePotential'],
+      ),
+      statStrengthPotential: serializer.fromJson<double>(
+        json['statStrengthPotential'],
+      ),
+      statBeautyPotential: serializer.fromJson<double>(
+        json['statBeautyPotential'],
+      ),
     );
   }
   @override
@@ -2104,6 +2238,12 @@ class CreatureInstance extends DataClass
       'statIntelligence': serializer.toJson<double>(statIntelligence),
       'statStrength': serializer.toJson<double>(statStrength),
       'statBeauty': serializer.toJson<double>(statBeauty),
+      'statSpeedPotential': serializer.toJson<double>(statSpeedPotential),
+      'statIntelligencePotential': serializer.toJson<double>(
+        statIntelligencePotential,
+      ),
+      'statStrengthPotential': serializer.toJson<double>(statStrengthPotential),
+      'statBeautyPotential': serializer.toJson<double>(statBeautyPotential),
     };
   }
 
@@ -2127,6 +2267,10 @@ class CreatureInstance extends DataClass
     double? statIntelligence,
     double? statStrength,
     double? statBeauty,
+    double? statSpeedPotential,
+    double? statIntelligencePotential,
+    double? statStrengthPotential,
+    double? statBeautyPotential,
   }) => CreatureInstance(
     instanceId: instanceId ?? this.instanceId,
     baseId: baseId ?? this.baseId,
@@ -2151,6 +2295,11 @@ class CreatureInstance extends DataClass
     statIntelligence: statIntelligence ?? this.statIntelligence,
     statStrength: statStrength ?? this.statStrength,
     statBeauty: statBeauty ?? this.statBeauty,
+    statSpeedPotential: statSpeedPotential ?? this.statSpeedPotential,
+    statIntelligencePotential:
+        statIntelligencePotential ?? this.statIntelligencePotential,
+    statStrengthPotential: statStrengthPotential ?? this.statStrengthPotential,
+    statBeautyPotential: statBeautyPotential ?? this.statBeautyPotential,
   );
   CreatureInstance copyWithCompanion(CreatureInstancesCompanion data) {
     return CreatureInstance(
@@ -2197,6 +2346,18 @@ class CreatureInstance extends DataClass
       statBeauty: data.statBeauty.present
           ? data.statBeauty.value
           : this.statBeauty,
+      statSpeedPotential: data.statSpeedPotential.present
+          ? data.statSpeedPotential.value
+          : this.statSpeedPotential,
+      statIntelligencePotential: data.statIntelligencePotential.present
+          ? data.statIntelligencePotential.value
+          : this.statIntelligencePotential,
+      statStrengthPotential: data.statStrengthPotential.present
+          ? data.statStrengthPotential.value
+          : this.statStrengthPotential,
+      statBeautyPotential: data.statBeautyPotential.present
+          ? data.statBeautyPotential.value
+          : this.statBeautyPotential,
     );
   }
 
@@ -2221,13 +2382,17 @@ class CreatureInstance extends DataClass
           ..write('statSpeed: $statSpeed, ')
           ..write('statIntelligence: $statIntelligence, ')
           ..write('statStrength: $statStrength, ')
-          ..write('statBeauty: $statBeauty')
+          ..write('statBeauty: $statBeauty, ')
+          ..write('statSpeedPotential: $statSpeedPotential, ')
+          ..write('statIntelligencePotential: $statIntelligencePotential, ')
+          ..write('statStrengthPotential: $statStrengthPotential, ')
+          ..write('statBeautyPotential: $statBeautyPotential')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     instanceId,
     baseId,
     level,
@@ -2247,7 +2412,11 @@ class CreatureInstance extends DataClass
     statIntelligence,
     statStrength,
     statBeauty,
-  );
+    statSpeedPotential,
+    statIntelligencePotential,
+    statStrengthPotential,
+    statBeautyPotential,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2270,7 +2439,11 @@ class CreatureInstance extends DataClass
           other.statSpeed == this.statSpeed &&
           other.statIntelligence == this.statIntelligence &&
           other.statStrength == this.statStrength &&
-          other.statBeauty == this.statBeauty);
+          other.statBeauty == this.statBeauty &&
+          other.statSpeedPotential == this.statSpeedPotential &&
+          other.statIntelligencePotential == this.statIntelligencePotential &&
+          other.statStrengthPotential == this.statStrengthPotential &&
+          other.statBeautyPotential == this.statBeautyPotential);
 }
 
 class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
@@ -2293,6 +2466,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
   final Value<double> statIntelligence;
   final Value<double> statStrength;
   final Value<double> statBeauty;
+  final Value<double> statSpeedPotential;
+  final Value<double> statIntelligencePotential;
+  final Value<double> statStrengthPotential;
+  final Value<double> statBeautyPotential;
   final Value<int> rowid;
   const CreatureInstancesCompanion({
     this.instanceId = const Value.absent(),
@@ -2314,6 +2491,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.statIntelligence = const Value.absent(),
     this.statStrength = const Value.absent(),
     this.statBeauty = const Value.absent(),
+    this.statSpeedPotential = const Value.absent(),
+    this.statIntelligencePotential = const Value.absent(),
+    this.statStrengthPotential = const Value.absent(),
+    this.statBeautyPotential = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CreatureInstancesCompanion.insert({
@@ -2336,6 +2517,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.statIntelligence = const Value.absent(),
     this.statStrength = const Value.absent(),
     this.statBeauty = const Value.absent(),
+    this.statSpeedPotential = const Value.absent(),
+    this.statIntelligencePotential = const Value.absent(),
+    this.statStrengthPotential = const Value.absent(),
+    this.statBeautyPotential = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : instanceId = Value(instanceId),
        baseId = Value(baseId);
@@ -2359,6 +2544,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Expression<double>? statIntelligence,
     Expression<double>? statStrength,
     Expression<double>? statBeauty,
+    Expression<double>? statSpeedPotential,
+    Expression<double>? statIntelligencePotential,
+    Expression<double>? statStrengthPotential,
+    Expression<double>? statBeautyPotential,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2382,6 +2571,14 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       if (statIntelligence != null) 'stat_intelligence': statIntelligence,
       if (statStrength != null) 'stat_strength': statStrength,
       if (statBeauty != null) 'stat_beauty': statBeauty,
+      if (statSpeedPotential != null)
+        'stat_speed_potential': statSpeedPotential,
+      if (statIntelligencePotential != null)
+        'stat_intelligence_potential': statIntelligencePotential,
+      if (statStrengthPotential != null)
+        'stat_strength_potential': statStrengthPotential,
+      if (statBeautyPotential != null)
+        'stat_beauty_potential': statBeautyPotential,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2406,6 +2603,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Value<double>? statIntelligence,
     Value<double>? statStrength,
     Value<double>? statBeauty,
+    Value<double>? statSpeedPotential,
+    Value<double>? statIntelligencePotential,
+    Value<double>? statStrengthPotential,
+    Value<double>? statBeautyPotential,
     Value<int>? rowid,
   }) {
     return CreatureInstancesCompanion(
@@ -2429,6 +2630,12 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       statIntelligence: statIntelligence ?? this.statIntelligence,
       statStrength: statStrength ?? this.statStrength,
       statBeauty: statBeauty ?? this.statBeauty,
+      statSpeedPotential: statSpeedPotential ?? this.statSpeedPotential,
+      statIntelligencePotential:
+          statIntelligencePotential ?? this.statIntelligencePotential,
+      statStrengthPotential:
+          statStrengthPotential ?? this.statStrengthPotential,
+      statBeautyPotential: statBeautyPotential ?? this.statBeautyPotential,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2495,6 +2702,24 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     if (statBeauty.present) {
       map['stat_beauty'] = Variable<double>(statBeauty.value);
     }
+    if (statSpeedPotential.present) {
+      map['stat_speed_potential'] = Variable<double>(statSpeedPotential.value);
+    }
+    if (statIntelligencePotential.present) {
+      map['stat_intelligence_potential'] = Variable<double>(
+        statIntelligencePotential.value,
+      );
+    }
+    if (statStrengthPotential.present) {
+      map['stat_strength_potential'] = Variable<double>(
+        statStrengthPotential.value,
+      );
+    }
+    if (statBeautyPotential.present) {
+      map['stat_beauty_potential'] = Variable<double>(
+        statBeautyPotential.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2523,6 +2748,10 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
           ..write('statIntelligence: $statIntelligence, ')
           ..write('statStrength: $statStrength, ')
           ..write('statBeauty: $statBeauty, ')
+          ..write('statSpeedPotential: $statSpeedPotential, ')
+          ..write('statIntelligencePotential: $statIntelligencePotential, ')
+          ..write('statStrengthPotential: $statStrengthPotential, ')
+          ..write('statBeautyPotential: $statBeautyPotential, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3714,6 +3943,400 @@ class BiomeJobsCompanion extends UpdateCompanion<BiomeJob> {
   }
 }
 
+class $CompetitionProgressTable extends CompetitionProgress
+    with TableInfo<$CompetitionProgressTable, CompetitionProgressData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CompetitionProgressTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _biomeMeta = const VerificationMeta('biome');
+  @override
+  late final GeneratedColumn<String> biome = GeneratedColumn<String>(
+    'biome',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _highestLevelCompletedMeta =
+      const VerificationMeta('highestLevelCompleted');
+  @override
+  late final GeneratedColumn<int> highestLevelCompleted = GeneratedColumn<int>(
+    'highest_level_completed',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _totalWinsMeta = const VerificationMeta(
+    'totalWins',
+  );
+  @override
+  late final GeneratedColumn<int> totalWins = GeneratedColumn<int>(
+    'total_wins',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _totalLossesMeta = const VerificationMeta(
+    'totalLosses',
+  );
+  @override
+  late final GeneratedColumn<int> totalLosses = GeneratedColumn<int>(
+    'total_losses',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastCompletedAtMeta = const VerificationMeta(
+    'lastCompletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastCompletedAt =
+      GeneratedColumn<DateTime>(
+        'last_completed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    biome,
+    highestLevelCompleted,
+    totalWins,
+    totalLosses,
+    lastCompletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'competition_progress';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CompetitionProgressData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('biome')) {
+      context.handle(
+        _biomeMeta,
+        biome.isAcceptableOrUnknown(data['biome']!, _biomeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_biomeMeta);
+    }
+    if (data.containsKey('highest_level_completed')) {
+      context.handle(
+        _highestLevelCompletedMeta,
+        highestLevelCompleted.isAcceptableOrUnknown(
+          data['highest_level_completed']!,
+          _highestLevelCompletedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_wins')) {
+      context.handle(
+        _totalWinsMeta,
+        totalWins.isAcceptableOrUnknown(data['total_wins']!, _totalWinsMeta),
+      );
+    }
+    if (data.containsKey('total_losses')) {
+      context.handle(
+        _totalLossesMeta,
+        totalLosses.isAcceptableOrUnknown(
+          data['total_losses']!,
+          _totalLossesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_completed_at')) {
+      context.handle(
+        _lastCompletedAtMeta,
+        lastCompletedAt.isAcceptableOrUnknown(
+          data['last_completed_at']!,
+          _lastCompletedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {biome};
+  @override
+  CompetitionProgressData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CompetitionProgressData(
+      biome: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}biome'],
+      )!,
+      highestLevelCompleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}highest_level_completed'],
+      )!,
+      totalWins: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_wins'],
+      )!,
+      totalLosses: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_losses'],
+      )!,
+      lastCompletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_completed_at'],
+      ),
+    );
+  }
+
+  @override
+  $CompetitionProgressTable createAlias(String alias) {
+    return $CompetitionProgressTable(attachedDatabase, alias);
+  }
+}
+
+class CompetitionProgressData extends DataClass
+    implements Insertable<CompetitionProgressData> {
+  final String biome;
+  final int highestLevelCompleted;
+  final int totalWins;
+  final int totalLosses;
+  final DateTime? lastCompletedAt;
+  const CompetitionProgressData({
+    required this.biome,
+    required this.highestLevelCompleted,
+    required this.totalWins,
+    required this.totalLosses,
+    this.lastCompletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['biome'] = Variable<String>(biome);
+    map['highest_level_completed'] = Variable<int>(highestLevelCompleted);
+    map['total_wins'] = Variable<int>(totalWins);
+    map['total_losses'] = Variable<int>(totalLosses);
+    if (!nullToAbsent || lastCompletedAt != null) {
+      map['last_completed_at'] = Variable<DateTime>(lastCompletedAt);
+    }
+    return map;
+  }
+
+  CompetitionProgressCompanion toCompanion(bool nullToAbsent) {
+    return CompetitionProgressCompanion(
+      biome: Value(biome),
+      highestLevelCompleted: Value(highestLevelCompleted),
+      totalWins: Value(totalWins),
+      totalLosses: Value(totalLosses),
+      lastCompletedAt: lastCompletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastCompletedAt),
+    );
+  }
+
+  factory CompetitionProgressData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CompetitionProgressData(
+      biome: serializer.fromJson<String>(json['biome']),
+      highestLevelCompleted: serializer.fromJson<int>(
+        json['highestLevelCompleted'],
+      ),
+      totalWins: serializer.fromJson<int>(json['totalWins']),
+      totalLosses: serializer.fromJson<int>(json['totalLosses']),
+      lastCompletedAt: serializer.fromJson<DateTime?>(json['lastCompletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'biome': serializer.toJson<String>(biome),
+      'highestLevelCompleted': serializer.toJson<int>(highestLevelCompleted),
+      'totalWins': serializer.toJson<int>(totalWins),
+      'totalLosses': serializer.toJson<int>(totalLosses),
+      'lastCompletedAt': serializer.toJson<DateTime?>(lastCompletedAt),
+    };
+  }
+
+  CompetitionProgressData copyWith({
+    String? biome,
+    int? highestLevelCompleted,
+    int? totalWins,
+    int? totalLosses,
+    Value<DateTime?> lastCompletedAt = const Value.absent(),
+  }) => CompetitionProgressData(
+    biome: biome ?? this.biome,
+    highestLevelCompleted: highestLevelCompleted ?? this.highestLevelCompleted,
+    totalWins: totalWins ?? this.totalWins,
+    totalLosses: totalLosses ?? this.totalLosses,
+    lastCompletedAt: lastCompletedAt.present
+        ? lastCompletedAt.value
+        : this.lastCompletedAt,
+  );
+  CompetitionProgressData copyWithCompanion(CompetitionProgressCompanion data) {
+    return CompetitionProgressData(
+      biome: data.biome.present ? data.biome.value : this.biome,
+      highestLevelCompleted: data.highestLevelCompleted.present
+          ? data.highestLevelCompleted.value
+          : this.highestLevelCompleted,
+      totalWins: data.totalWins.present ? data.totalWins.value : this.totalWins,
+      totalLosses: data.totalLosses.present
+          ? data.totalLosses.value
+          : this.totalLosses,
+      lastCompletedAt: data.lastCompletedAt.present
+          ? data.lastCompletedAt.value
+          : this.lastCompletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CompetitionProgressData(')
+          ..write('biome: $biome, ')
+          ..write('highestLevelCompleted: $highestLevelCompleted, ')
+          ..write('totalWins: $totalWins, ')
+          ..write('totalLosses: $totalLosses, ')
+          ..write('lastCompletedAt: $lastCompletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    biome,
+    highestLevelCompleted,
+    totalWins,
+    totalLosses,
+    lastCompletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CompetitionProgressData &&
+          other.biome == this.biome &&
+          other.highestLevelCompleted == this.highestLevelCompleted &&
+          other.totalWins == this.totalWins &&
+          other.totalLosses == this.totalLosses &&
+          other.lastCompletedAt == this.lastCompletedAt);
+}
+
+class CompetitionProgressCompanion
+    extends UpdateCompanion<CompetitionProgressData> {
+  final Value<String> biome;
+  final Value<int> highestLevelCompleted;
+  final Value<int> totalWins;
+  final Value<int> totalLosses;
+  final Value<DateTime?> lastCompletedAt;
+  final Value<int> rowid;
+  const CompetitionProgressCompanion({
+    this.biome = const Value.absent(),
+    this.highestLevelCompleted = const Value.absent(),
+    this.totalWins = const Value.absent(),
+    this.totalLosses = const Value.absent(),
+    this.lastCompletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CompetitionProgressCompanion.insert({
+    required String biome,
+    this.highestLevelCompleted = const Value.absent(),
+    this.totalWins = const Value.absent(),
+    this.totalLosses = const Value.absent(),
+    this.lastCompletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : biome = Value(biome);
+  static Insertable<CompetitionProgressData> custom({
+    Expression<String>? biome,
+    Expression<int>? highestLevelCompleted,
+    Expression<int>? totalWins,
+    Expression<int>? totalLosses,
+    Expression<DateTime>? lastCompletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (biome != null) 'biome': biome,
+      if (highestLevelCompleted != null)
+        'highest_level_completed': highestLevelCompleted,
+      if (totalWins != null) 'total_wins': totalWins,
+      if (totalLosses != null) 'total_losses': totalLosses,
+      if (lastCompletedAt != null) 'last_completed_at': lastCompletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CompetitionProgressCompanion copyWith({
+    Value<String>? biome,
+    Value<int>? highestLevelCompleted,
+    Value<int>? totalWins,
+    Value<int>? totalLosses,
+    Value<DateTime?>? lastCompletedAt,
+    Value<int>? rowid,
+  }) {
+    return CompetitionProgressCompanion(
+      biome: biome ?? this.biome,
+      highestLevelCompleted:
+          highestLevelCompleted ?? this.highestLevelCompleted,
+      totalWins: totalWins ?? this.totalWins,
+      totalLosses: totalLosses ?? this.totalLosses,
+      lastCompletedAt: lastCompletedAt ?? this.lastCompletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (biome.present) {
+      map['biome'] = Variable<String>(biome.value);
+    }
+    if (highestLevelCompleted.present) {
+      map['highest_level_completed'] = Variable<int>(
+        highestLevelCompleted.value,
+      );
+    }
+    if (totalWins.present) {
+      map['total_wins'] = Variable<int>(totalWins.value);
+    }
+    if (totalLosses.present) {
+      map['total_losses'] = Variable<int>(totalLosses.value);
+    }
+    if (lastCompletedAt.present) {
+      map['last_completed_at'] = Variable<DateTime>(lastCompletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CompetitionProgressCompanion(')
+          ..write('biome: $biome, ')
+          ..write('highestLevelCompleted: $highestLevelCompleted, ')
+          ..write('totalWins: $totalWins, ')
+          ..write('totalLosses: $totalLosses, ')
+          ..write('lastCompletedAt: $lastCompletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   _$AlchemonsDatabase(QueryExecutor e) : super(e);
   $AlchemonsDatabaseManager get managers => $AlchemonsDatabaseManager(this);
@@ -3728,6 +4351,8 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   late final $FeedEventsTable feedEvents = $FeedEventsTable(this);
   late final $BiomeFarmsTable biomeFarms = $BiomeFarmsTable(this);
   late final $BiomeJobsTable biomeJobs = $BiomeJobsTable(this);
+  late final $CompetitionProgressTable competitionProgress =
+      $CompetitionProgressTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3741,6 +4366,7 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
     feedEvents,
     biomeFarms,
     biomeJobs,
+    competitionProgress,
   ];
 }
 
@@ -4565,6 +5191,10 @@ typedef $$CreatureInstancesTableCreateCompanionBuilder =
       Value<double> statIntelligence,
       Value<double> statStrength,
       Value<double> statBeauty,
+      Value<double> statSpeedPotential,
+      Value<double> statIntelligencePotential,
+      Value<double> statStrengthPotential,
+      Value<double> statBeautyPotential,
       Value<int> rowid,
     });
 typedef $$CreatureInstancesTableUpdateCompanionBuilder =
@@ -4588,6 +5218,10 @@ typedef $$CreatureInstancesTableUpdateCompanionBuilder =
       Value<double> statIntelligence,
       Value<double> statStrength,
       Value<double> statBeauty,
+      Value<double> statSpeedPotential,
+      Value<double> statIntelligencePotential,
+      Value<double> statStrengthPotential,
+      Value<double> statBeautyPotential,
       Value<int> rowid,
     });
 
@@ -4692,6 +5326,26 @@ class $$CreatureInstancesTableFilterComposer
 
   ColumnFilters<double> get statBeauty => $composableBuilder(
     column: $table.statBeauty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get statSpeedPotential => $composableBuilder(
+    column: $table.statSpeedPotential,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get statIntelligencePotential => $composableBuilder(
+    column: $table.statIntelligencePotential,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get statStrengthPotential => $composableBuilder(
+    column: $table.statStrengthPotential,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get statBeautyPotential => $composableBuilder(
+    column: $table.statBeautyPotential,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4799,6 +5453,26 @@ class $$CreatureInstancesTableOrderingComposer
     column: $table.statBeauty,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get statSpeedPotential => $composableBuilder(
+    column: $table.statSpeedPotential,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get statIntelligencePotential => $composableBuilder(
+    column: $table.statIntelligencePotential,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get statStrengthPotential => $composableBuilder(
+    column: $table.statStrengthPotential,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get statBeautyPotential => $composableBuilder(
+    column: $table.statBeautyPotential,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CreatureInstancesTableAnnotationComposer
@@ -4890,6 +5564,26 @@ class $$CreatureInstancesTableAnnotationComposer
     column: $table.statBeauty,
     builder: (column) => column,
   );
+
+  GeneratedColumn<double> get statSpeedPotential => $composableBuilder(
+    column: $table.statSpeedPotential,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get statIntelligencePotential => $composableBuilder(
+    column: $table.statIntelligencePotential,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get statStrengthPotential => $composableBuilder(
+    column: $table.statStrengthPotential,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get statBeautyPotential => $composableBuilder(
+    column: $table.statBeautyPotential,
+    builder: (column) => column,
+  );
 }
 
 class $$CreatureInstancesTableTableManager
@@ -4951,6 +5645,10 @@ class $$CreatureInstancesTableTableManager
                 Value<double> statIntelligence = const Value.absent(),
                 Value<double> statStrength = const Value.absent(),
                 Value<double> statBeauty = const Value.absent(),
+                Value<double> statSpeedPotential = const Value.absent(),
+                Value<double> statIntelligencePotential = const Value.absent(),
+                Value<double> statStrengthPotential = const Value.absent(),
+                Value<double> statBeautyPotential = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreatureInstancesCompanion(
                 instanceId: instanceId,
@@ -4972,6 +5670,10 @@ class $$CreatureInstancesTableTableManager
                 statIntelligence: statIntelligence,
                 statStrength: statStrength,
                 statBeauty: statBeauty,
+                statSpeedPotential: statSpeedPotential,
+                statIntelligencePotential: statIntelligencePotential,
+                statStrengthPotential: statStrengthPotential,
+                statBeautyPotential: statBeautyPotential,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4995,6 +5697,10 @@ class $$CreatureInstancesTableTableManager
                 Value<double> statIntelligence = const Value.absent(),
                 Value<double> statStrength = const Value.absent(),
                 Value<double> statBeauty = const Value.absent(),
+                Value<double> statSpeedPotential = const Value.absent(),
+                Value<double> statIntelligencePotential = const Value.absent(),
+                Value<double> statStrengthPotential = const Value.absent(),
+                Value<double> statBeautyPotential = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreatureInstancesCompanion.insert(
                 instanceId: instanceId,
@@ -5016,6 +5722,10 @@ class $$CreatureInstancesTableTableManager
                 statIntelligence: statIntelligence,
                 statStrength: statStrength,
                 statBeauty: statBeauty,
+                statSpeedPotential: statSpeedPotential,
+                statIntelligencePotential: statIntelligencePotential,
+                statStrengthPotential: statStrengthPotential,
+                statBeautyPotential: statBeautyPotential,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -5676,6 +6386,228 @@ typedef $$BiomeJobsTableProcessedTableManager =
       BiomeJob,
       PrefetchHooks Function()
     >;
+typedef $$CompetitionProgressTableCreateCompanionBuilder =
+    CompetitionProgressCompanion Function({
+      required String biome,
+      Value<int> highestLevelCompleted,
+      Value<int> totalWins,
+      Value<int> totalLosses,
+      Value<DateTime?> lastCompletedAt,
+      Value<int> rowid,
+    });
+typedef $$CompetitionProgressTableUpdateCompanionBuilder =
+    CompetitionProgressCompanion Function({
+      Value<String> biome,
+      Value<int> highestLevelCompleted,
+      Value<int> totalWins,
+      Value<int> totalLosses,
+      Value<DateTime?> lastCompletedAt,
+      Value<int> rowid,
+    });
+
+class $$CompetitionProgressTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $CompetitionProgressTable> {
+  $$CompetitionProgressTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get biome => $composableBuilder(
+    column: $table.biome,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get highestLevelCompleted => $composableBuilder(
+    column: $table.highestLevelCompleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalWins => $composableBuilder(
+    column: $table.totalWins,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalLosses => $composableBuilder(
+    column: $table.totalLosses,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastCompletedAt => $composableBuilder(
+    column: $table.lastCompletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CompetitionProgressTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $CompetitionProgressTable> {
+  $$CompetitionProgressTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get biome => $composableBuilder(
+    column: $table.biome,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get highestLevelCompleted => $composableBuilder(
+    column: $table.highestLevelCompleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalWins => $composableBuilder(
+    column: $table.totalWins,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalLosses => $composableBuilder(
+    column: $table.totalLosses,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastCompletedAt => $composableBuilder(
+    column: $table.lastCompletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CompetitionProgressTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $CompetitionProgressTable> {
+  $$CompetitionProgressTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get biome =>
+      $composableBuilder(column: $table.biome, builder: (column) => column);
+
+  GeneratedColumn<int> get highestLevelCompleted => $composableBuilder(
+    column: $table.highestLevelCompleted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get totalWins =>
+      $composableBuilder(column: $table.totalWins, builder: (column) => column);
+
+  GeneratedColumn<int> get totalLosses => $composableBuilder(
+    column: $table.totalLosses,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastCompletedAt => $composableBuilder(
+    column: $table.lastCompletedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$CompetitionProgressTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $CompetitionProgressTable,
+          CompetitionProgressData,
+          $$CompetitionProgressTableFilterComposer,
+          $$CompetitionProgressTableOrderingComposer,
+          $$CompetitionProgressTableAnnotationComposer,
+          $$CompetitionProgressTableCreateCompanionBuilder,
+          $$CompetitionProgressTableUpdateCompanionBuilder,
+          (
+            CompetitionProgressData,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $CompetitionProgressTable,
+              CompetitionProgressData
+            >,
+          ),
+          CompetitionProgressData,
+          PrefetchHooks Function()
+        > {
+  $$CompetitionProgressTableTableManager(
+    _$AlchemonsDatabase db,
+    $CompetitionProgressTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CompetitionProgressTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CompetitionProgressTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$CompetitionProgressTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> biome = const Value.absent(),
+                Value<int> highestLevelCompleted = const Value.absent(),
+                Value<int> totalWins = const Value.absent(),
+                Value<int> totalLosses = const Value.absent(),
+                Value<DateTime?> lastCompletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CompetitionProgressCompanion(
+                biome: biome,
+                highestLevelCompleted: highestLevelCompleted,
+                totalWins: totalWins,
+                totalLosses: totalLosses,
+                lastCompletedAt: lastCompletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String biome,
+                Value<int> highestLevelCompleted = const Value.absent(),
+                Value<int> totalWins = const Value.absent(),
+                Value<int> totalLosses = const Value.absent(),
+                Value<DateTime?> lastCompletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CompetitionProgressCompanion.insert(
+                biome: biome,
+                highestLevelCompleted: highestLevelCompleted,
+                totalWins: totalWins,
+                totalLosses: totalLosses,
+                lastCompletedAt: lastCompletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CompetitionProgressTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $CompetitionProgressTable,
+      CompetitionProgressData,
+      $$CompetitionProgressTableFilterComposer,
+      $$CompetitionProgressTableOrderingComposer,
+      $$CompetitionProgressTableAnnotationComposer,
+      $$CompetitionProgressTableCreateCompanionBuilder,
+      $$CompetitionProgressTableUpdateCompanionBuilder,
+      (
+        CompetitionProgressData,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $CompetitionProgressTable,
+          CompetitionProgressData
+        >,
+      ),
+      CompetitionProgressData,
+      PrefetchHooks Function()
+    >;
 
 class $AlchemonsDatabaseManager {
   final _$AlchemonsDatabase _db;
@@ -5695,4 +6627,6 @@ class $AlchemonsDatabaseManager {
       $$BiomeFarmsTableTableManager(_db, _db.biomeFarms);
   $$BiomeJobsTableTableManager get biomeJobs =>
       $$BiomeJobsTableTableManager(_db, _db.biomeJobs);
+  $$CompetitionProgressTableTableManager get competitionProgress =>
+      $$CompetitionProgressTableTableManager(_db, _db.competitionProgress);
 }

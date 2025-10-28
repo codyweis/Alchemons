@@ -144,8 +144,8 @@ class _FireShaderPainter extends CustomPainter {
       ..setFloat(6, softEdge)
       ..setFloat(7, width) // uWidth  (non-zero!)
       ..setFloat(8, height) // uHeight (non-zero!)
-      ..setFloat(9, 0.2) // uBandTop
-      ..setFloat(10, 0.4); // uBandFeather
+      ..setFloat(9, 0.22) // uBandTop
+      ..setFloat(10, 0.3); // uBandFeather
 
     // ---- separate paints:
     // 1) Layer paint: only blend mode (no shader attached here)

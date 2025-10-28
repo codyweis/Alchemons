@@ -4,6 +4,7 @@ import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/theme_switch_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -93,17 +94,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       body: Stack(
         children: [
-          // Subtle dark gradient background
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF0B0E12), Color(0xFF10141A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-
           // Content
           FutureBuilder<_ProfileData>(
             future: _load,
@@ -139,6 +129,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 16 + 8, 16, 24),
                   children: [
+                    ThemeModeSelector(),
                     // Faction switcher chip (glass)
                     GestureDetector(
                       onTap: () async {

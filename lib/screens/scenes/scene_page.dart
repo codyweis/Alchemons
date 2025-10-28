@@ -62,30 +62,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       reverseDuration: const Duration(milliseconds: 520), // in
     );
 
-    // lib/screens/scenes/scene_page.dart
-    // _game.onStartEncounter = (speciesId, hydrated) async {
-    //   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    //   _game.pauseEngine();
-    //   final result = await Navigator.push<EncounterResult>(
-    //     context,
-    //     MaterialPageRoute(
-    //       builder: (_) => EncounterPage(
-    //         speciesId: speciesId,
-    //         party: widget.party, // your PartyMember list
-    //         hydrated: hydrated,
-    //       ),
-    //     ),
-    //   );
-    //   _game.resumeEngine();
-    //   SystemChrome.setPreferredOrientations([
-    //     DeviceOrientation.landscapeLeft,
-    //     DeviceOrientation.landscapeRight,
-    //   ]);
-
-    //   if (result == EncounterResult.bred) {
-    //     _game.clearWild();
-    //   }
-    // };
     _game.onStartEncounter = (speciesId, hydrated) async {
       // If your engine guarantees this is a Creature, cast once:
       final creature = hydrated as Creature;
@@ -232,8 +208,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     1.0,
                     curve: Curves.easeInExpo,
                   ).transform(v);
-                  if (!_transitioning && black == 0)
+                  if (!_transitioning && black == 0) {
                     return const SizedBox.shrink();
+                  }
                   return IgnorePointer(
                     ignoring: true,
                     child: Stack(

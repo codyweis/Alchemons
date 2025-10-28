@@ -6,7 +6,7 @@ import '../database/alchemons_db.dart';
 
 class CreatureRepository {
   List<Creature> _creatures = [];
-  List<Creature> _discoveredVariants = [];
+  final List<Creature> _discoveredVariants = [];
   final AlchemonsDatabase? db;
 
   CreatureRepository({this.db});

@@ -1,20 +1,22 @@
-import 'dart:ui';
+import 'package:alchemons/widgets/pulsing_hitbox_widget.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
+import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
+import 'package:alchemons/models/wilderness.dart' show PartyMember;
 import 'package:alchemons/screens/party_picker.dart';
+import 'package:alchemons/screens/scenes/scene_page.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_access_service.dart';
-import 'package:alchemons/widgets/glowing_icon.dart';
-import 'package:alchemons/widgets/wilderness/countdown_badge.dart';
-import 'package:flutter/material.dart';
-import 'package:alchemons/models/scenes/scene_definition.dart';
-import 'package:alchemons/models/scenes/valley/valley_scene.dart';
-import 'package:alchemons/models/wilderness.dart' show PartyMember;
-import 'package:alchemons/screens/scenes/scene_page.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/wilderness/countdown_badge.dart';
+import '../providers/app_providers.dart'; // for FactionTheme
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -23,359 +25,61 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _glowController;
-
-  @override
-  void initState() {
-    super.initState();
-    _glowController = AnimationController(
-      duration: const Duration(milliseconds: 1800),
-      vsync: this,
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _glowController.dispose();
-    super.dispose();
-  }
-
+class _MapScreenState extends State<MapScreen> {
   @override
   Widget build(BuildContext context) {
-    final factionSvc = context.read<FactionService>();
-    final currentFaction = factionSvc.current;
-    final (primaryColor, _, accentColor) = getFactionColors(currentFaction);
+    final theme = context.watch<FactionTheme>();
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF0B0F14).withOpacity(0.96),
-              const Color(0xFF0B0F14).withOpacity(0.92),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(accentColor),
-              _buildPartyStatus(accentColor),
-              Expanded(child: _buildExpeditionsList(accentColor)),
-              _buildFooterInfo(accentColor),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(Color accentColor) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      child: _GlassContainer(
-        accentColor: accentColor,
-        glowController: _glowController,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              _IconButton(
-                icon: Icons.arrow_back_rounded,
-                accentColor: accentColor,
-                onTap: () => Navigator.of(context).maybePop(),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'BREEDING EXPEDITIONS',
-                      style: _TextStyles.headerTitle,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Discover wild creatures and breed with your party',
-                      style: _TextStyles.headerSubtitle,
-                    ),
-                  ],
-                ),
-              ),
-              GlowingIcon(
-                icon: Icons.explore_rounded,
-                color: accentColor,
-                controller: _glowController,
-                dialogTitle: "Breeding Expeditions",
-                dialogMessage:
-                    "Venture into diverse biomes to discover and research wild creatures. When encountering a wild creature, you can choose one member of your party to attempt to breed with it. Successfully breeding, will create an offspring to be extracted in the Incubator.",
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPartyStatus(Color accentColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: _GlassContainer(
-        accentColor: Colors.green.shade400,
-        glowController: _glowController,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.green.shade400.withOpacity(0.3),
-                      Colors.transparent,
-                    ],
-                  ),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.green.shade400.withOpacity(0.5),
-                  ),
-                ),
-                child: Icon(
-                  Icons.groups_rounded,
-                  size: 16,
-                  color: Colors.green.shade400,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Breeding Team Status', style: _TextStyles.labelText),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Select your party for breeding missions',
-                      style: _TextStyles.hint,
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: Colors.green.shade400,
-                size: 12,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildExpeditionsList(Color accentColor) {
-    final db = context.read<AlchemonsDatabase>();
-    final access = WildernessAccessService(db);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text('Breeding Grounds', style: _TextStyles.sectionTitle),
-          ),
-
-          // Mystic Valley
-          FutureBuilder<bool>(
-            future: access.canEnter('valley'),
-            builder: (context, snap) {
-              final available = snap.data ?? true;
-              return Stack(
-                children: [
-                  _ExpeditionCard(
-                    title: 'Mystic Valley Breeding Ground',
-                    subtitle: 'Common & Uncommon Forest Creatures',
-                    description:
-                        'Lush woodland habitat home to gentle forest creatures. Perfect for beginners.',
-                    difficulty: 'Beginner',
-                    expectedRewards: const [
-                      'Forest Offspring',
-                      'Herb Materials',
-                      'Basic Breeding XP',
-                    ],
-                    icon: Icons.eco_rounded,
-                    statusColor: Colors.green,
-                    isAvailable: available,
-                    glowController: _glowController,
-                    onTap: () =>
-                        _onExpeditionTap(context, 'valley', valleyScene),
-                  ),
-                  if (!available)
-                    Positioned(
-                      right: 12,
-                      top: 12,
-                      child: CountdownBadge(remaining: access.timeUntilReset),
-                    ),
-                ],
-              );
-            },
-          ),
-
-          const SizedBox(height: 12),
-
-          // Volcano Expedition
-          FutureBuilder<bool>(
-            future: access.canEnter('volcano'),
-            builder: (context, snap) {
-              final available = snap.data ?? true;
-              return Stack(
-                children: [
-                  _ExpeditionCard(
-                    title: 'Volcano Breeding Ground',
-                    subtitle: 'Rare Fire & Earth Creatures',
-                    description:
-                        'A fiery volcanic landscape home to some of the rarest fire and earth-type creatures. Suitable for experienced breeders.',
-                    difficulty: 'Advanced',
-                    expectedRewards: const [
-                      'Volcanic Offspring',
-                      'Rare Minerals',
-                      'Advanced Breeding XP',
-                    ],
-                    icon: Icons.whatshot_rounded,
-                    statusColor: Colors.orange,
-                    isAvailable: available,
-                    glowController: _glowController,
-                    onTap: () =>
-                        _onExpeditionTap(context, 'volcano', volcanoScene),
-                  ),
-                  if (!available)
-                    Positioned(
-                      right: 12,
-                      top: 12,
-                      child: CountdownBadge(remaining: access.timeUntilReset),
-                    ),
-                ],
-              );
-            },
-          ),
-
-          const SizedBox(height: 12),
-
-          // Swamp Expedition
-          FutureBuilder<bool>(
-            future: access.canEnter('swamp'),
-            builder: (context, snap) {
-              final available = snap.data ?? true;
-              return Stack(
-                children: [
-                  _ExpeditionCard(
-                    title: 'Swamp Breeding Ground',
-                    subtitle: 'Uncommon & Rare Water Creatures',
-                    description:
-                        'Misty swamp habitat teeming with unique water-type creatures. Ideal for intermediate breeders.',
-                    difficulty: 'Intermediate',
-                    expectedRewards: const [
-                      'Swamp Offspring',
-                      'Rare Herbs',
-                      'Intermediate Breeding XP',
-                    ],
-                    icon: Icons.water_rounded,
-                    statusColor: Colors.blue,
-                    isAvailable: available,
-                    glowController: _glowController,
-                    onTap: () => _onExpeditionTap(context, 'swamp', swampScene),
-                  ),
-                  if (!available)
-                    Positioned(
-                      right: 12,
-                      top: 12,
-                      child: CountdownBadge(remaining: access.timeUntilReset),
-                    ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          // --- Sky Expedition (sky) ---
-          FutureBuilder<bool>(
-            future: access.canEnter('sky'),
-            builder: (context, snap) {
-              final available = snap.data ?? true;
-
-              return Stack(
-                children: [
-                  _ExpeditionCard(
-                    title: 'Sky Breeding Ground',
-                    subtitle: 'Rare Air Creatures',
-                    description:
-                        'A high-altitude habitat filled with unique air-type creatures. Ideal for advanced breeders.',
-                    difficulty: 'Advanced',
-                    expectedRewards: const [
-                      'Sky Offspring',
-                      'Rare Clouds',
-                      'Advanced Breeding XP',
-                    ],
-                    icon: Icons.cloud_rounded,
-                    statusColor: Colors.blue,
-                    isAvailable: available,
-                    glowController: _glowController,
-                    onTap: () => _onExpeditionTap(context, 'sky', skyScene),
-                  ),
-                  if (!available)
-                    Positioned(
-                      right: 12,
-                      top: 12,
-                      child: CountdownBadge(remaining: access.timeUntilReset),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFooterInfo(Color accentColor) {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.18),
-            border: Border(
-              top: BorderSide(color: accentColor.withOpacity(0.35)),
+      backgroundColor: theme.surfaceAlt,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _HeaderBar(
+              theme: theme,
+              onInfo: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => _InfoDialog(theme: theme),
+                );
+              },
             ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                color: _TextStyles.mutedText,
-                size: 14,
+
+            const SizedBox(height: 12),
+
+            _PartyStatusCard(
+              theme: theme,
+              onTap: () async {
+                HapticFeedback.selectionClick();
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PartyPickerPage()),
+                );
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            // MAP AREA
+            Expanded(
+              child: _ExpeditionMap(
+                theme: theme,
+                onSelectRegion: (biomeId, scene) {
+                  _handleRegionTap(context, biomeId, scene);
+                },
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Breeding grounds refresh daily at 00:00 UTC.',
-                  style: _TextStyles.footerText,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Future<void> _onExpeditionTap(
+  // --------------------------------------------------
+  // TAP HANDLER FOR MAP MARKERS
+  // --------------------------------------------------
+  Future<void> _handleRegionTap(
     BuildContext context,
     String biomeId,
     SceneDefinition scene,
@@ -384,28 +88,32 @@ class _MapScreenState extends State<MapScreen>
     final access = WildernessAccessService(db);
     final factions = context.read<FactionService>();
 
+    // check access / refresh if earth faction perk
     var ok = await access.canEnter(biomeId);
     if (!ok && await factions.earthCanRefreshToday(biomeId)) {
-      final use = await _showRefreshDialog(context);
-      if (use == true) {
+      final useRefresh = await _showRefreshDialog(context);
+      if (useRefresh == true) {
         await access.refreshWilderness(biomeId);
         await factions.earthMarkRefreshedToday(biomeId);
 
         if (!context.mounted) return;
         _showToast(
           context,
-          'LandExplorer activated: breeding ground refreshed',
+          'LandExplorer activated: breeding ground refreshed.',
           Icons.forest_rounded,
           Colors.green.shade400,
         );
+
         ok = true;
       }
     }
+
     if (!ok) {
       final left = access.timeUntilReset();
       final hh = left.inHours;
       final mm = left.inMinutes.remainder(60);
       final ss = left.inSeconds.remainder(60);
+
       if (!context.mounted) return;
       _showToast(
         context,
@@ -416,21 +124,20 @@ class _MapScreenState extends State<MapScreen>
       return;
     }
 
-    // Pick party
+    // choose party
     if (!context.mounted) return;
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PartyPickerPage()),
     );
-
     if (result == null) return;
 
-    final List<PartyMember> selectedParty = (result as List)
-        .cast<PartyMember>();
+    final selectedParty = (result as List).cast<PartyMember>();
 
+    // consume entry
     await access.markEntered(biomeId);
 
-    // Go to the scene
+    // go to biome scene
     if (!context.mounted) return;
     await Navigator.push(
       context,
@@ -441,7 +148,10 @@ class _MapScreenState extends State<MapScreen>
   }
 
   Future<bool?> _showRefreshDialog(BuildContext context) {
-    return showDialog<bool>(context: context, builder: (_) => _RefreshDialog());
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => const _RefreshDialog(),
+    );
   }
 
   void _showToast(
@@ -452,566 +162,581 @@ class _MapScreenState extends State<MapScreen>
   ) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(icon, color: Colors.white, size: 16),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         margin: const EdgeInsets.all(16),
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ==================== REUSABLE COMPONENTS ====================
+// =====================================================
+// HEADER BAR
+// =====================================================
 
-class _GlassContainer extends StatelessWidget {
-  final Widget child;
-  final Color accentColor;
-  final AnimationController glowController;
+class _HeaderBar extends StatelessWidget {
+  const _HeaderBar({required this.theme, required this.onInfo});
 
-  const _GlassContainer({
-    required this.child,
-    required this.accentColor,
-    required this.glowController,
-  });
+  final FactionTheme theme;
+  final VoidCallback onInfo;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: AnimatedBuilder(
-          animation: glowController,
-          builder: (context, _) {
-            final glow = 0.35 + glowController.value * 0.4;
-            return Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.14),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: accentColor.withOpacity(glow * 0.85)),
-                boxShadow: [
-                  BoxShadow(
-                    color: accentColor.withOpacity(glow * 0.5),
-                    blurRadius: 20 + glowController.value * 14,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Column(
+        children: [
+          // top row: back + info
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // center title/subtitle
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'BREEDING EXPEDITIONS',
+                    style: TextStyle(
+                      color: theme.text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .8,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Discover wild creatures & attempt crossbreeds',
+                    style: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: .4,
+                    ),
                   ),
                 ],
               ),
-              child: child,
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
 
-class _IconButton extends StatelessWidget {
-  final IconData icon;
-  final Color accentColor;
-  final VoidCallback onTap;
-
-  const _IconButton({
-    required this.icon,
-    required this.accentColor,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.06),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: accentColor.withOpacity(.35)),
-        ),
-        child: Icon(icon, color: _TextStyles.softText, size: 18),
-      ),
-    );
-  }
-}
-
-class _ExpeditionCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String description;
-  final String difficulty;
-  final List<String> expectedRewards;
-  final IconData icon;
-  final MaterialColor statusColor;
-  final VoidCallback onTap;
-  final bool isAvailable;
-  final AnimationController glowController;
-
-  const _ExpeditionCard({
-    required this.title,
-    required this.subtitle,
-    required this.description,
-    required this.difficulty,
-    required this.expectedRewards,
-    required this.icon,
-    required this.statusColor,
-    required this.onTap,
-    required this.isAvailable,
-    required this.glowController,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cardColor = isAvailable ? statusColor.shade400 : Colors.grey.shade600;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AnimatedBuilder(
-            animation: glowController,
-            builder: (context, _) {
-              final glow = isAvailable
-                  ? 0.35 + glowController.value * 0.4
-                  : 0.2;
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(isAvailable ? 0.14 : 0.25),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: cardColor.withOpacity(glow * 0.85),
-                    width: 1.5,
+              // info
+              GestureDetector(
+                onTap: onInfo,
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: theme.chipDecoration(rim: theme.accent),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    color: theme.text,
+                    size: 20,
                   ),
-                  boxShadow: isAvailable
-                      ? [
-                          BoxShadow(
-                            color: cardColor.withOpacity(glow * 0.5),
-                            blurRadius: 20 + glowController.value * 14,
-                          ),
-                        ]
-                      : null,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =====================================================
+// PARTY STATUS CARD
+// =====================================================
+
+class _PartyStatusCard extends StatelessWidget {
+  const _PartyStatusCard({required this.theme, required this.onTap});
+
+  final FactionTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: theme.chipDecoration(rim: theme.accent),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.greenAccent.withOpacity(.15),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.greenAccent.withOpacity(.5),
+                  width: 1.5,
+                ),
+              ),
+              child: Icon(
+                Icons.groups_rounded,
+                size: 18,
+                color: Colors.greenAccent.withOpacity(.9),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Breeding Team',
+                    style: TextStyle(
+                      color: theme.text,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .4,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Choose which party goes into the wild',
+                    style: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      height: 1.2,
+                      letterSpacing: .3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: theme.textMuted, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =====================================================
+// MAP + MARKERS
+// =====================================================
+class _ExpeditionMap extends StatelessWidget {
+  const _ExpeditionMap({required this.theme, required this.onSelectRegion});
+
+  final FactionTheme theme;
+  final void Function(String biomeId, SceneDefinition scene) onSelectRegion;
+
+  @override
+  Widget build(BuildContext context) {
+    // We still grab access here if you want to later show “locked”
+    // info in tooltips/etc. For now we’re not drawing those bubbles,
+    // so we don’t actually need the futures.
+    final db = context.read<AlchemonsDatabase>();
+    final access = WildernessAccessService(db);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // This is the actual rendered size of the map stack.
+        final mapW = constraints.maxWidth;
+        final mapH = constraints.maxHeight;
+
+        // Helper: create a positioned, invisible-but-tappable area.
+        Widget hotspot({
+          required double leftPct,
+          required double topPct,
+          required String biomeId,
+          required SceneDefinition scene,
+        }) {
+          final dx = mapW * leftPct;
+          final dy = mapH * topPct;
+
+          return Positioned(
+            left: dx - 70, // center the 140x140 box around the coord
+            top: dy - 70,
+            child: GestureDetector(
+              behavior:
+                  HitTestBehavior.opaque, // <- captures taps even if empty
+              onTap: () => onSelectRegion(biomeId, scene),
+              child: SizedBox(
+                width: 140,
+                height: 140,
+                //debug area
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            gradient: RadialGradient(
-                              colors: [
-                                cardColor.withOpacity(isAvailable ? 0.3 : 0.15),
-                                Colors.transparent,
-                              ],
-                            ),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: cardColor.withOpacity(
-                                isAvailable ? 0.5 : 0.3,
-                              ),
-                            ),
-                          ),
-                          child: Icon(icon, color: cardColor, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      title,
-                                      style: isAvailable
-                                          ? _TextStyles.cardTitle
-                                          : _TextStyles.cardTitleDisabled,
-                                    ),
-                                  ),
-                                  _DifficultyBadge(
-                                    difficulty: difficulty,
-                                    isAvailable: isAvailable,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                subtitle,
-                                style: isAvailable
-                                    ? _TextStyles.cardSubtitle
-                                    : _TextStyles.cardSubtitleDisabled,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: cardColor.withOpacity(
-                              isAvailable ? 0.15 : 0.1,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            isAvailable
-                                ? Icons.arrow_forward_rounded
-                                : Icons.lock_rounded,
-                            color: cardColor,
-                            size: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      description,
-                      style: isAvailable
-                          ? _TextStyles.description
-                          : _TextStyles.descriptionDisabled,
-                    ),
-                    const SizedBox(height: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Expected Research Yields',
-                          style: isAvailable
-                              ? _TextStyles.rewardTitle
-                              : _TextStyles.rewardTitleDisabled,
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(
-                              isAvailable ? 0.04 : 0.02,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.12),
-                            ),
-                          ),
-                          child: Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            children: expectedRewards.map((reward) {
-                              return _RewardBadge(
-                                text: reward,
-                                color: statusColor,
-                                isAvailable: isAvailable,
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ],
+                    PulsingDebugHitbox(
+                      size: 100,
+                      color: Colors.red,
+                      clipOval: true,
                     ),
                   ],
                 ),
-              );
-            },
+              ),
+            ),
+          );
+        }
+
+        return Stack(
+          children: [
+            ClipOval(
+              child: Container(
+                color: const Color.fromARGB(255, 48, 69, 82),
+                child: Padding(
+                  padding: const EdgeInsets.all(10.0),
+                  child: Image.asset(
+                    'assets/images/ui/map.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ),
+
+            // OPTIONAL vignette so touch zones pop visually (keeps the vibe)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 1.0,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.35),
+                      ],
+                      stops: const [0.6, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // === HOTSPOTS =================================================
+            hotspot(
+              leftPct: 0.3,
+              topPct: 0.2,
+              biomeId: 'valley',
+              scene: valleyScene,
+            ),
+            hotspot(
+              leftPct: 0.72,
+              topPct: 0.2,
+              biomeId: 'sky',
+              scene: skyScene,
+            ),
+            hotspot(
+              leftPct: 0.25,
+              topPct: 0.48,
+              biomeId: 'volcano',
+              scene: volcanoScene,
+            ),
+            hotspot(
+              leftPct: 0.72,
+              topPct: 0.48,
+              biomeId: 'swamp',
+              scene: swampScene,
+            ),
+
+            // Hint bar pinned to bottom
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 12,
+              child: _MapHintBar(theme: theme),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _MarkerTapWrapper extends StatefulWidget {
+  const _MarkerTapWrapper({required this.onTap, required this.child});
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  State<_MarkerTapWrapper> createState() => _MarkerTapWrapperState();
+}
+
+class _MarkerTapWrapperState extends State<_MarkerTapWrapper> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapDown: (_) => setState(() => _down = true),
+      onTapCancel: () => setState(() => _down = false),
+      onTapUp: (_) {
+        setState(() => _down = false);
+        HapticFeedback.lightImpact();
+        widget.onTap();
+      },
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOutCubic,
+        scale: _down ? 0.94 : 1.0,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Touchable hotspot area for the biome icon itself.
+            // (This is invisible but ensures the hit box is chunky.)
+            SizedBox(
+              width: 64,
+              height: 64,
+              // uncomment to debug tap zones:
+              // child: ColoredBox(color: Colors.red.withOpacity(.2)),
+            ),
+            const SizedBox(height: 6),
+            widget.child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// hint / legend bar at bottom of the map
+class _MapHintBar extends StatelessWidget {
+  const _MapHintBar({required this.theme});
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(.45),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.accent.withOpacity(.35), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline_rounded, size: 14, color: theme.textMuted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Tap a region to send a breeding party. Locked regions refresh daily at 00:00 UTC.',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _DifficultyBadge extends StatelessWidget {
-  final String difficulty;
-  final bool isAvailable;
+// =====================================================
+// INFO DIALOG
+// =====================================================
 
-  const _DifficultyBadge({required this.difficulty, required this.isAvailable});
+class _InfoDialog extends StatelessWidget {
+  const _InfoDialog({required this.theme});
+  final FactionTheme theme;
 
-  @override
-  Widget build(BuildContext context) {
-    final badgeColor = _getBadgeColor();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: isAvailable
-            ? badgeColor.withOpacity(0.2)
-            : Colors.grey.shade700.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: isAvailable
-              ? badgeColor.withOpacity(0.5)
-              : Colors.grey.shade600.withOpacity(0.5),
-        ),
-      ),
-      child: Text(
-        difficulty,
-        style: TextStyle(
-          color: isAvailable ? badgeColor : Colors.grey.shade500,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Color _getBadgeColor() {
-    switch (difficulty.toLowerCase()) {
-      case 'beginner':
-        return Colors.green.shade400;
-      case 'intermediate':
-        return Colors.blue.shade400;
-      case 'advanced':
-        return Colors.orange.shade400;
-      case 'expert':
-        return Colors.red.shade400;
-      default:
-        return Colors.grey.shade400;
-    }
-  }
-}
-
-class _RewardBadge extends StatelessWidget {
-  final String text;
-  final MaterialColor color;
-  final bool isAvailable;
-
-  const _RewardBadge({
-    required this.text,
-    required this.color,
-    required this.isAvailable,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: isAvailable
-            ? color.shade400.withOpacity(0.2)
-            : Colors.grey.shade700.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: isAvailable
-              ? color.shade400.withOpacity(0.5)
-              : Colors.grey.shade600.withOpacity(0.5),
-        ),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: isAvailable ? color.shade400 : Colors.grey.shade500,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-}
-
-class _RefreshDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1F2E).withOpacity(0.95),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.green.shade400.withOpacity(0.5)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A0E27).withOpacity(.95),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.accent, width: 1.4),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.explore_rounded, color: theme.accent, size: 28),
+            const SizedBox(height: 12),
+            Text(
+              'Breeding Expeditions',
+              style: TextStyle(
+                color: theme.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .5,
+              ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.forest_rounded,
-                  color: Colors.green.shade400,
-                  size: 32,
+            const SizedBox(height: 8),
+            Text(
+              'Venture into diverse biomes to discover and research wild creatures. When you encounter a wild creature, you can choose a party member to attempt breeding. Successful breeding will create an offspring you can extract in the Incubator.',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: theme.accentSoft,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: theme.accent, width: 1.4),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'LandExplorer',
+                alignment: Alignment.center,
+                child: Text(
+                  'OK',
                   style: TextStyle(
-                    color: _TextStyles.softText,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Use today\'s instant refresh to reopen this ground?',
-                  style: TextStyle(
-                    color: _TextStyles.mutedText,
+                    color: theme.text,
+                    fontWeight: FontWeight.w900,
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    letterSpacing: .5,
                   ),
-                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        style: TextButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.06),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: BorderSide(
-                              color: Colors.white.withOpacity(0.25),
-                            ),
-                          ),
-                        ),
-                        child: Text(
-                          'Not now',
-                          style: TextStyle(
-                            color: _TextStyles.softText,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade600,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Refresh',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ==================== TEXT STYLES ====================
+// =====================================================
+// REFRESH DIALOG
+// =====================================================
 
-class _TextStyles {
-  static const softText = Color(0xFFE8EAED);
-  static const mutedText = Color(0xFFB6C0CC);
+class _RefreshDialog extends StatelessWidget {
+  const _RefreshDialog();
 
-  static const headerTitle = TextStyle(
-    color: softText,
-    fontSize: 15,
-    fontWeight: FontWeight.w900,
-    letterSpacing: 0.8,
-  );
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<FactionTheme>();
 
-  static const headerSubtitle = TextStyle(
-    color: mutedText,
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-  );
-
-  static const sectionTitle = TextStyle(
-    color: softText,
-    fontSize: 14,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 0.5,
-  );
-
-  static const labelText = TextStyle(
-    color: softText,
-    fontSize: 12,
-    fontWeight: FontWeight.w700,
-  );
-
-  static const hint = TextStyle(
-    color: mutedText,
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-  );
-
-  static const cardTitle = TextStyle(
-    color: softText,
-    fontSize: 14,
-    fontWeight: FontWeight.w800,
-  );
-
-  static const cardTitleDisabled = TextStyle(
-    color: Color(0xFF7A8290),
-    fontSize: 14,
-    fontWeight: FontWeight.w800,
-  );
-
-  static const cardSubtitle = TextStyle(
-    color: mutedText,
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-  );
-
-  static const cardSubtitleDisabled = TextStyle(
-    color: Color(0xFF7A8290),
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-  );
-
-  static const description = TextStyle(
-    color: mutedText,
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-    height: 1.4,
-  );
-
-  static const descriptionDisabled = TextStyle(
-    color: Color(0xFF6A7380),
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-    height: 1.4,
-  );
-
-  static const rewardTitle = TextStyle(
-    color: softText,
-    fontSize: 11,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 0.4,
-  );
-
-  static const rewardTitleDisabled = TextStyle(
-    color: Color(0xFF7A8290),
-    fontSize: 11,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 0.4,
-  );
-
-  static const footerText = TextStyle(
-    color: mutedText,
-    fontSize: 12,
-    fontWeight: FontWeight.w600,
-    height: 1.3,
-  );
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A0E27).withOpacity(.95),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.greenAccent.withOpacity(.5),
+            width: 1.4,
+          ),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.forest_rounded,
+              color: Colors.greenAccent.withOpacity(.9),
+              size: 28,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'LandExplorer',
+              style: TextStyle(
+                color: theme.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Use today's instant refresh to reopen this ground?",
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                // cancel
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, false),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.04),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(.14),
+                          width: 1.4,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'NOT NOW',
+                        style: TextStyle(
+                          color: theme.text,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          letterSpacing: .5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // confirm
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, true),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent.withOpacity(.2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.greenAccent.withOpacity(.6),
+                          width: 1.4,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'REFRESH',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          letterSpacing: .5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -26,6 +26,8 @@ enum Biome {
     arcane => 'Channel mystical and primal energies',
   };
 
+  /// Elements that thematically live under this biome.
+  /// (For UI chips, flavor text, etc. This can stay.)
   List<String> get elementIds => switch (this) {
     volcanic => ['T001', 'T006', 'T007'], // Fire, Lava, Lightning
     oceanic => ['T002', 'T009', 'T005'], // Water, Ice, Steam
@@ -66,80 +68,65 @@ enum Biome {
     arcane => const Color(0xFFD4B3FF),
   };
 
-  // Helper to get resource key for a specific element
+  // =========================================================
+  // NEW CORE: unified biome resource identity
+  // =========================================================
+
+  /// This is the settings key / db key to store this biome's currency.
+  /// You will only have 5 of these in Settings now.
+  String get resourceKey => switch (this) {
+    volcanic => 'res_volcanic',
+    oceanic => 'res_oceanic',
+    earthen => 'res_earthen',
+    verdant => 'res_verdant',
+    arcane => 'res_arcane',
+  };
+
+  /// Player-facing display name of that resource
+  String get resourceLabel => switch (this) {
+    volcanic => 'Volcanic',
+    oceanic => 'Oceanic',
+    earthen => 'Earthen',
+    verdant => 'Verdant',
+    arcane => 'Arcane',
+  };
+
+  /// Icon representing that biome's resource in UI (for payouts/unlock/etc)
+  IconData get resourceIcon => icon;
+
+  /// Accent color for that resource (can just reuse primaryColor)
+  Color get resourceColor => primaryColor;
+
+  // =========================================================
+  // LEGACY COMPAT SHIMS (OPTIONAL, for screens still expecting elementId)
+  // =========================================================
+  //
+  // Before: a specific elementId like 'T001' mapped to a unique resource key,
+  // e.g. 'res_fire', 'res_water', etc.
+  //
+  // Now: ANY elementId under this biome maps to this biome's single resource pool.
+
   String resourceKeyForElement(String elementId) {
-    return switch (elementId) {
-      'T001' => 'res_fire',
-      'T002' => 'res_water',
-      'T003' => 'res_earth',
-      'T004' => 'res_air',
-      'T005' => 'res_steam',
-      'T006' => 'res_lava',
-      'T007' => 'res_lightning',
-      'T008' => 'res_mud',
-      'T009' => 'res_ice',
-      'T010' => 'res_dust',
-      'T011' => 'res_crystal',
-      'T012' => 'res_plant',
-      'T013' => 'res_poison',
-      'T014' => 'res_spirit',
-      'T015' => 'res_dark',
-      'T016' => 'res_light',
-      'T017' => 'res_blood',
-      _ => 'res_unknown',
-    };
+    // ignore which element exactly, just route to biome pool:
+    return resourceKey;
   }
 
-  // Helper to get display name for resource
   String resourceNameForElement(String elementId) {
-    return switch (elementId) {
-      'T001' => 'Embers',
-      'T002' => 'Droplets',
-      'T003' => 'Shards',
-      'T004' => 'Breeze',
-      'T005' => 'Steam',
-      'T006' => 'Lava',
-      'T007' => 'Lightning',
-      'T008' => 'Mud',
-      'T009' => 'Ice',
-      'T010' => 'Dust',
-      'T011' => 'Crystal',
-      'T012' => 'Plant',
-      'T013' => 'Poison',
-      'T014' => 'Spirit',
-      'T015' => 'Dark',
-      'T016' => 'Light',
-      'T017' => 'Blood',
-      _ => 'Unknown',
-    };
+    // same idea — always show the biome resource name
+    return resourceLabel;
   }
 
-  // Get element-specific color
+  // You *can* keep color/icon variations per element for flavor in the UI,
+  // but they should NOT imply different currencies anymore.
   Color colorForElement(String elementId) {
-    return switch (elementId) {
-      'T001' => const Color(0xFFFF6B35), // Fire
-      'T002' => const Color(0xFF4ECDC4), // Water
-      'T003' => const Color(0xFF8B6F47), // Earth
-      'T004' => const Color(0xFFB0E0E6), // Air
-      'T005' => const Color(0xFFE6E6FA), // Steam
-      'T006' => const Color(0xFFFF4500), // Lava
-      'T007' => const Color(0xFFFFD700), // Lightning
-      'T008' => const Color(0xFF8B7355), // Mud
-      'T009' => const Color(0xFF87CEEB), // Ice
-      'T010' => const Color(0xFFD2B48C), // Dust
-      'T011' => const Color(0xFFE0B0FF), // Crystal
-      'T012' => const Color(0xFF228B22), // Plant
-      'T013' => const Color(0xFF9370DB), // Poison
-      'T014' => const Color(0xFFE6E6FA), // Spirit
-      'T015' => const Color(0xFF4B0082), // Dark
-      'T016' => const Color(0xFFFFFACD), // Light
-      'T017' => const Color(0xFF8B0000), // Blood
-      _ => primaryColor,
-    };
+    // Option A: still do per-element flair like before.
+    // Option B (simpler): always biome color.
+    return primaryColor;
   }
 
-  // Get icon for specific element
   IconData iconForElement(String elementId) {
+    // Same: either keep per-element icons, or simplify.
+    // I'll keep the cool per-element icons for chips/active extraction pill.
     return switch (elementId) {
       'T001' => Icons.local_fire_department_rounded, // Fire
       'T002' => Icons.water_drop_rounded, // Water
@@ -158,7 +145,7 @@ enum Biome {
       'T015' => Icons.nightlight_rounded, // Dark
       'T016' => Icons.wb_sunny_rounded, // Light
       'T017' => Icons.bloodtype_rounded, // Blood
-      _ => Icons.circle,
+      _ => icon,
     };
   }
 }

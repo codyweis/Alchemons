@@ -1,12 +1,10 @@
 // widgets/wilderness/encounter_scaffold.dart
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
-import 'package:alchemons/models/creature.dart';
 
 import 'package:alchemons/models/wilderness.dart'; // PartyMember model you created
 

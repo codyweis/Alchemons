@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/genetics.dart';
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
@@ -249,6 +250,7 @@ class _EncounterPageState extends State<EncounterPage>
         familyRecipes: engine.familyRecipes,
         specialRules: engine.specialRules,
         tuning: engine.tuning,
+        engine: engine,
       );
 
       final result = engine.breedInstanceWithCreature(inst, wild);
@@ -259,10 +261,22 @@ class _EncounterPageState extends State<EncounterPage>
       }
 
       final baby = result.creature!;
-      final justification = analyzer.justifyBreedingResult(
-        creatureOfInst,
-        wild,
-        baby,
+      // Build the full parent creature from the instance
+      final parentGenetics = _geneticsFromJson(inst.geneticsJson);
+      final parentCreature = creatureOfInst.copyWith(
+        genetics: parentGenetics,
+        nature: inst.natureId != null
+            ? NatureCatalog.byId(inst.natureId!)
+            : creatureOfInst.nature,
+        isPrismaticSkin:
+            inst.isPrismaticSkin || (creatureOfInst.isPrismaticSkin ?? false),
+      );
+
+      // Use the new analyzer method
+      final analysisReport = analyzer.analyzeBreedingResult(
+        parentCreature, // Hydrated instance parent
+        wild, // Wild creature
+        baby, // Offspring
       );
 
       final rarityKey = baby.rarity.toLowerCase();
@@ -281,7 +295,7 @@ class _EncounterPageState extends State<EncounterPage>
         'genetics': baby.genetics?.variants ?? <String, String>{},
         'parentage': baby.parentage?.toJson(),
         'isPrismaticSkin': baby.isPrismaticSkin,
-        'likelihoodAnalysis': jsonEncode(justification.toJson()),
+        'likelihoodAnalysis': jsonEncode(analysisReport.toJson()),
       };
       final payloadJson = jsonEncode(payload);
       final eggId = 'egg_${DateTime.now().millisecondsSinceEpoch}';
@@ -697,8 +711,8 @@ class _StatsPanel extends StatelessWidget {
                 spritePath: base?.spriteData?.spriteSheetPath,
                 frames: base?.spriteData?.totalFrames ?? 1,
                 rows: base?.spriteData?.rows ?? 1,
-                frameW: base?.spriteData?.frameWidth?.toDouble() ?? 64,
-                frameH: base?.spriteData?.frameHeight?.toDouble() ?? 64,
+                frameW: base?.spriteData?.frameWidth.toDouble() ?? 64,
+                frameH: base?.spriteData?.frameHeight.toDouble() ?? 64,
                 genetics: g,
                 prismatic: inst.isPrismaticSkin == true,
               ),

@@ -6,13 +6,18 @@ import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
-import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
-import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/utils/show_quick_instance_dialog.dart';
+import 'package:alchemons/widgets/creature_instances_sheet.dart';
+import 'package:alchemons/widgets/creature_sprite.dart' hide InstanceSprite;
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bottom_sheet_shell.dart';
+import 'package:alchemons/widgets/creature_image.dart';
+import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../database/alchemons_db.dart';
 import '../widgets/stamina_bar.dart';
@@ -25,607 +30,557 @@ class PartyPickerPage extends StatefulWidget {
   State<PartyPickerPage> createState() => _PartyPickerPageState();
 }
 
-class _PartyPickerPageState extends State<PartyPickerPage>
-    with SingleTickerProviderStateMixin {
+class _PartyPickerPageState extends State<PartyPickerPage> {
+  // Selection state
   String? _selectedSpeciesId;
-  late AnimationController _glowController;
+
+  // Search state
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  late final ScrollController _speciesScrollCtrl;
 
   @override
   void initState() {
     super.initState();
-    _glowController = AnimationController(
-      duration: const Duration(milliseconds: 1800),
-      vsync: this,
-    )..repeat(reverse: true);
+    _speciesScrollCtrl = ScrollController();
   }
 
   @override
   void dispose() {
-    _glowController.dispose();
+    _searchController.dispose();
+    _speciesScrollCtrl.dispose();
     super.dispose();
   }
 
+  // Helper to build species summary list
+  List<Map<String, dynamic>> buildSpeciesListData({
+    required List<CreatureInstance> instances,
+    required CreatureRepository repo,
+  }) {
+    final countBySpecies = <String, int>{};
+    for (final inst in instances) {
+      countBySpecies[inst.baseId] = (countBySpecies[inst.baseId] ?? 0) + 1;
+    }
+
+    final result = <Map<String, dynamic>>[];
+    for (final speciesId in countBySpecies.keys) {
+      final creature = repo.getCreatureById(speciesId);
+      if (creature == null) continue;
+      result.add({'creature': creature, 'count': countBySpecies[speciesId]});
+    }
+    return result;
+  }
+
+  bool get _isPickingSpecies => _selectedSpeciesId == null;
+  bool get _isPickingInstance => _selectedSpeciesId != null;
+
+  String get _currentStage {
+    if (_isPickingSpecies) return 'species';
+    return 'instance';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final factionSvc = context.read<FactionService>();
-    final currentFaction = factionSvc.current;
-    final (primaryColor, _, accentColor) = getFactionColors(currentFaction);
+    final theme = context.watch<FactionTheme>();
     final db = context.watch<AlchemonsDatabase>();
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF0B0F14).withOpacity(0.96),
-              const Color(0xFF0B0F14).withOpacity(0.92),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(accentColor),
-              _buildTeamStatus(accentColor),
-              if (_selectedSpeciesId != null)
-                _buildSelectedSpeciesBanner(accentColor),
-              Expanded(
-                child: StreamBuilder<List<CreatureInstance>>(
-                  stream: db.watchAllInstances(),
-                  builder: (_, snap) {
-                    final instances = snap.data ?? const <CreatureInstance>[];
-                    return _buildMainContent(instances, accentColor);
-                  },
-                ),
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(0, 0),
+                radius: 1.2,
+                colors: [
+                  theme.surface,
+                  theme.surface,
+                  theme.surfaceAlt.withOpacity(.6),
+                ],
+                stops: const [0.0, 0.6, 1.0],
               ),
-              _PartyFooter(accentColor: accentColor),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(Color accentColor) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      child: _GlassContainer(
-        accentColor: accentColor,
-        glowController: _glowController,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              _IconButton(
-                icon: Icons.arrow_back_rounded,
-                accentColor: accentColor,
-                onTap: () => Navigator.of(context).maybePop(),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('TEAM ASSEMBLY', style: _TextStyles.headerTitle),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Select up to 3 specimens for deployment',
-                      style: _TextStyles.headerSubtitle,
-                    ),
-                  ],
-                ),
-              ),
-              _GlowingIcon(
-                icon: Icons.groups_rounded,
-                color: accentColor,
-                controller: _glowController,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTeamStatus(Color accentColor) {
-    final party = context.watch<SelectedPartyNotifier>();
-    final count = party.members.length;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: StreamBuilder<List<CreatureInstance>>(
-        stream: context.watch<AlchemonsDatabase>().watchAllInstances(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return _LoadingTeamStatus(accentColor: accentColor);
-          }
-
-          final allInstances = snapshot.data!;
-          final selectedInstances = party.members
-              .map(
-                (m) => allInstances.firstWhere(
-                  (inst) => inst.instanceId == m.instanceId,
-                  orElse: () => null as CreatureInstance,
-                ),
-              )
-              .whereType<CreatureInstance>()
-              .toList();
-
-          return _GlassContainer(
-            accentColor: count > 0 ? Colors.green.shade400 : accentColor,
-            glowController: _glowController,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
+            ),
+            child: SafeArea(
+              bottom: false,
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.groups_rounded,
-                        color: count > 0
-                            ? Colors.green.shade400
-                            : _TextStyles.mutedText,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        count > 0 ? 'Current Team' : 'No Team Selected',
-                        style: _TextStyles.labelText,
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              (count > 0
-                                      ? Colors.green.shade400
-                                      : Colors.grey.shade600)
-                                  .withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color:
-                                (count > 0
-                                        ? Colors.green.shade400
-                                        : Colors.grey.shade600)
-                                    .withOpacity(0.5),
-                          ),
-                        ),
-                        child: Text(
-                          '$count / ${SelectedPartyNotifier.maxSize}',
-                          style: TextStyle(
-                            color: count > 0
-                                ? Colors.green.shade400
-                                : Colors.grey.shade500,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
+                  _StageHeader(
+                    theme: theme,
+                    stage: _currentStage,
+                    onBack: _handleBack,
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: List.generate(SelectedPartyNotifier.maxSize, (i) {
-                      if (i > 0) {
-                        return Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: i < selectedInstances.length
-                                ? _TeamSlotFilled(
-                                    instance: selectedInstances[i],
-                                    onRemove: () => context
-                                        .read<SelectedPartyNotifier>()
-                                        .toggle(
-                                          selectedInstances[i].instanceId,
-                                        ),
-                                  )
-                                : _TeamSlotEmpty(),
-                          ),
-                        );
-                      }
-                      return Expanded(
-                        child: i < selectedInstances.length
-                            ? _TeamSlotFilled(
-                                instance: selectedInstances[i],
-                                onRemove: () => context
-                                    .read<SelectedPartyNotifier>()
-                                    .toggle(selectedInstances[i].instanceId),
-                              )
-                            : _TeamSlotEmpty(),
-                      );
-                    }),
+                  const SizedBox(height: 10),
+
+                  // Main content
+                  Expanded(
+                    child: StreamBuilder<List<CreatureInstance>>(
+                      stream: db.watchAllInstances(),
+                      builder: (context, snap) {
+                        final instances = snap.data ?? [];
+                        return _buildStageContent(theme, instances);
+                      },
+                    ),
                   ),
+
+                  // Footer with party info
+                  _PartyFooter(theme: theme),
                 ],
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSelectedSpeciesBanner(Color accentColor) {
-    final gameState = context.watch<GameStateNotifier>();
-    final speciesData = gameState.discoveredCreatures.firstWhere(
-      (data) => (data['creature'] as Creature).id == _selectedSpeciesId,
-      orElse: () => <String, Object>{},
-    );
-
-    if (speciesData.isEmpty) return const SizedBox.shrink();
-
-    final creature = speciesData['creature'] as Creature;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-      child: _GlassContainer(
-        accentColor: Colors.blue.shade400,
-        glowController: _glowController,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: CreatureFilterUtils.getTypeColor(
-                      creature.types.first,
-                    ),
-                    width: 1.5,
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
-                  child: creature.spriteData != null
-                      ? Image.asset('assets/images/${creature.image}')
-                      : Icon(
-                          CreatureFilterUtils.getTypeIcon(creature.types.first),
-                          size: 16,
-                          color: CreatureFilterUtils.getTypeColor(
-                            creature.types.first,
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(creature.name, style: _TextStyles.cardTitle),
-                    Text('Select instances', style: _TextStyles.hint),
-                  ],
-                ),
-              ),
-              GestureDetector(
-                onTap: () => setState(() => _selectedSpeciesId = null),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade400.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: Colors.orange.shade400.withOpacity(0.5),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.swap_horiz_rounded,
-                        color: Colors.orange.shade400,
-                        size: 12,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Change',
-                        style: TextStyle(
-                          color: Colors.orange.shade400,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
           ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildMainContent(
-    List<CreatureInstance> instances,
-    Color accentColor,
-  ) {
-    if (_selectedSpeciesId == null) {
-      return _buildSpeciesGrid(accentColor);
-    } else {
-      return _buildInstanceGrid(instances, accentColor);
-    }
-  }
-
-  Widget _buildSpeciesGrid(Color accentColor) {
-    final gameState = context.watch<GameStateNotifier>();
-    final species = gameState.discoveredCreatures;
-
-    if (species.isEmpty) {
-      return _EmptyState(message: 'No specimens discovered');
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Row(
-              children: [
-                Icon(Icons.science_rounded, color: accentColor, size: 16),
-                const SizedBox(width: 6),
-                Text('Select Species', style: _TextStyles.sectionTitle),
-              ],
-            ),
-          ),
-          Expanded(
-            child: GridView.builder(
-              physics: const BouncingScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 0.9,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
-              itemCount: species.length,
-              itemBuilder: (_, i) => _SpeciesCard(
-                creature: species[i]['creature'] as Creature,
-                glowController: _glowController,
-                onTap: () => setState(
-                  () => _selectedSpeciesId =
-                      (species[i]['creature'] as Creature).id,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInstanceGrid(
-    List<CreatureInstance> allInstances,
-    Color accentColor,
-  ) {
-    final filtered = allInstances
-        .where((inst) => inst.baseId == _selectedSpeciesId)
-        .toList();
-
-    if (filtered.isEmpty) {
-      return _EmptyState(message: 'No instances found for this species');
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Row(
-              children: [
-                Icon(Icons.pets_rounded, color: accentColor, size: 16),
-                const SizedBox(width: 6),
-                Text('Select Team Members', style: _TextStyles.sectionTitle),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: accentColor.withOpacity(0.5)),
-                  ),
-                  child: Text(
-                    '${filtered.length} available',
-                    style: TextStyle(
-                      color: accentColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: GridView.builder(
-              physics: const BouncingScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.65,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
-              itemCount: filtered.length,
-              itemBuilder: (_, i) {
-                final instance = filtered[i];
-                final party = context.watch<SelectedPartyNotifier>();
-                final selected = party.contains(instance.instanceId);
-                final disabled = instance.locked;
-
-                return _InstanceCard(
-                  instance: instance,
-                  selected: selected,
-                  disabled: disabled,
-                  glowController: _glowController,
-                  onTap: disabled
-                      ? null
-                      : () => context.read<SelectedPartyNotifier>().toggle(
-                          instance.instanceId,
-                        ),
-                );
+          // Close button
+          Positioned(
+            right: 10,
+            top: 40,
+            child: FloatingCloseButton(
+              size: 50,
+              theme: theme,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).maybePop();
               },
+              accentColor: theme.text,
+              iconColor: theme.text,
             ),
           ),
         ],
       ),
     );
   }
-}
 
-// ==================== REUSABLE COMPONENTS ====================
+  // ---------- Stage Content Builders ----------
 
-class _GlassContainer extends StatelessWidget {
-  final Widget child;
-  final Color accentColor;
-  final AnimationController glowController;
+  Widget _buildStageContent(
+    FactionTheme theme,
+    List<CreatureInstance> instances,
+  ) {
+    final repo = context.read<CreatureRepository>();
 
-  const _GlassContainer({
-    required this.child,
-    required this.accentColor,
-    required this.glowController,
-  });
+    if (_isPickingSpecies) {
+      return _buildSpeciesStage(theme, instances, repo);
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: AnimatedBuilder(
-          animation: glowController,
-          builder: (context, _) {
-            final glow = 0.35 + glowController.value * 0.4;
-            return Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.14),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: accentColor.withOpacity(glow * 0.85)),
-                boxShadow: [
-                  BoxShadow(
-                    color: accentColor.withOpacity(glow * 0.5),
-                    blurRadius: 20 + glowController.value * 14,
-                  ),
-                ],
-              ),
-              child: child,
-            );
-          },
-        ),
-      ),
-    );
+    // Instance selection
+    return _buildInstanceStage(theme, repo);
   }
-}
 
-class _IconButton extends StatelessWidget {
-  final IconData icon;
-  final Color accentColor;
-  final VoidCallback onTap;
+  // Stage 1: Choose species
+  Widget _buildSpeciesStage(
+    FactionTheme theme,
+    List<CreatureInstance> instances,
+    CreatureRepository repo,
+  ) {
+    final speciesData = buildSpeciesListData(instances: instances, repo: repo);
 
-  const _IconButton({
-    required this.icon,
-    required this.accentColor,
-    required this.onTap,
-  });
+    // Nothing owned
+    if (speciesData.isEmpty) {
+      return const _NoSpeciesOwnedWrapper();
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.06),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: accentColor.withOpacity(.35)),
-        ),
-        child: Icon(icon, color: _TextStyles.softText, size: 18),
-      ),
-    );
-  }
-}
+    // Filter species based on search query
+    final filteredSpeciesData = _searchQuery.isEmpty
+        ? speciesData
+        : speciesData.where((data) {
+            final creature = data['creature'] as Creature;
+            final name = creature.name.toLowerCase();
+            final types = creature.types.join(' ').toLowerCase();
+            final query = _searchQuery.toLowerCase();
+            return name.contains(query) || types.contains(query);
+          }).toList();
 
-class _GlowingIcon extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final AnimationController controller;
-
-  const _GlowingIcon({
-    required this.icon,
-    required this.color,
-    required this.controller,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (_, __) {
-        final glow = 0.35 + controller.value * 0.4;
-        return Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [color.withOpacity(.3), Colors.transparent],
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(5, 0, 5, 5),
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.surfaceAlt,
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(color: theme.border.withOpacity(.5), width: 1),
             ),
-            border: Border.all(color: color.withOpacity(glow)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(glow * .4),
-                blurRadius: 20 + controller.value * 14,
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+              style: TextStyle(
+                color: theme.text,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
-            ],
+              decoration: InputDecoration(
+                hintText: 'Search species...',
+                hintStyle: TextStyle(
+                  color: theme.textMuted.withOpacity(.5),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: theme.textMuted,
+                  size: 20,
+                ),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(
+                          Icons.clear_rounded,
+                          color: theme.textMuted,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+              ),
+            ),
           ),
-          child: Icon(icon, size: 18, color: color),
-        );
+        ),
+
+        // Results count if searching
+        if (_searchQuery.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Row(
+              children: [
+                Text(
+                  '${filteredSpeciesData.length} result${filteredSpeciesData.length == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Either empty "no matches" or list of species
+        Expanded(
+          child: filteredSpeciesData.isEmpty
+              ? _NoResultsFound(theme: theme)
+              : ListView.builder(
+                  controller: _speciesScrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(5, 0, 5, 24),
+                  itemCount: filteredSpeciesData.length,
+                  itemBuilder: (context, i) {
+                    final creature =
+                        filteredSpeciesData[i]['creature'] as Creature;
+                    final count = filteredSpeciesData[i]['count'] as int;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 5),
+                      child: _SpeciesRow(
+                        theme: theme,
+                        creature: creature,
+                        count: count,
+                        onTap: () {
+                          setState(() {
+                            _selectedSpeciesId = creature.id;
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                        },
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  // Stage 2: Choose which specific instances to add to party
+  Widget _buildInstanceStage(FactionTheme theme, CreatureRepository repo) {
+    final species = repo.getCreatureById(_selectedSpeciesId!);
+    if (species == null) {
+      return Center(
+        child: Text('Species missing', style: TextStyle(color: theme.text)),
+      );
+    }
+
+    final party = context.watch<SelectedPartyNotifier>();
+
+    return InstancesSheet(
+      species: species,
+      theme: theme,
+      selectionMode: true,
+      initialDetailMode: InstanceDetailMode.stats,
+      selectedInstanceId1: party.members.isNotEmpty
+          ? party.members[0].instanceId
+          : null,
+      selectedInstanceId2: party.members.length > 1
+          ? party.members[1].instanceId
+          : null,
+      selectedInstanceId3: party.members.length > 2
+          ? party.members[2].instanceId
+          : null,
+      onTap: (inst) {
+        context.read<SelectedPartyNotifier>().toggle(inst.instanceId);
       },
     );
   }
+
+  // ---------- Actions ----------
+
+  void _handleBack() {
+    setState(() {
+      if (_isPickingInstance) {
+        _selectedSpeciesId = null;
+      }
+    });
+  }
 }
 
-class _LoadingTeamStatus extends StatelessWidget {
-  final Color accentColor;
+// ---------- Header ----------
 
-  const _LoadingTeamStatus({required this.accentColor});
+class _StageHeader extends StatelessWidget {
+  final FactionTheme theme;
+  final String stage;
+  final VoidCallback onBack;
+
+  const _StageHeader({
+    required this.theme,
+    required this.stage,
+    required this.onBack,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final canGoBack = stage != 'species';
+    final (title, subtitle) = _getStageText();
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accentColor.withOpacity(0.35)),
+        color: theme.surface,
+        border: Border(bottom: BorderSide(color: theme.border)),
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation(accentColor),
+          if (canGoBack)
+            GestureDetector(
+              onTap: onBack,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: theme.border),
+                ),
+                child: Icon(Icons.arrow_back, color: theme.text, size: 18),
+              ),
+            ),
+          if (canGoBack) const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(width: 12),
-          Text('Loading team data...', style: _TextStyles.hint),
+        ],
+      ),
+    );
+  }
+
+  (String, String?) _getStageText() {
+    switch (stage) {
+      case 'species':
+        return ('Team Assembly', 'Select species to view specimens');
+      case 'instance':
+        return ('Choose Specimens', 'Select up to 3 for deployment');
+      default:
+        return ('', null);
+    }
+  }
+}
+
+// ---------- Footer ----------
+
+class _PartyFooter extends StatelessWidget {
+  const _PartyFooter({required this.theme});
+
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final party = context.watch<SelectedPartyNotifier>();
+    final count = party.members.length;
+    final canDeploy = count > 0 && count <= SelectedPartyNotifier.maxSize;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.surface,
+        border: Border(top: BorderSide(color: theme.border)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Current team display
+          StreamBuilder<List<CreatureInstance>>(
+            stream: context.watch<AlchemonsDatabase>().watchAllInstances(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              final allInstances = snapshot.data!;
+              final selectedInstances = party.members
+                  .map(
+                    (m) => allInstances
+                        .where((inst) => inst.instanceId == m.instanceId)
+                        .cast<CreatureInstance?>()
+                        .firstOrNull,
+                  )
+                  .whereType<CreatureInstance>()
+                  .toList();
+
+              if (selectedInstances.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              return Column(
+                children: [
+                  _TeamDisplay(
+                    theme: theme,
+                    selectedInstances: selectedInstances,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              );
+            },
+          ),
+
+          // Deploy button
+          _DeployButton(
+            theme: theme,
+            enabled: canDeploy,
+            selectedCount: count,
+            onTap: canDeploy
+                ? () => Navigator.pop(context, party.members)
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeamDisplay extends StatelessWidget {
+  final FactionTheme theme;
+  final List<CreatureInstance> selectedInstances;
+
+  const _TeamDisplay({required this.theme, required this.selectedInstances});
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.watch<CreatureRepository>();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.surfaceAlt,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.greenAccent.shade400.withOpacity(.5),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.groups_rounded,
+                color: Colors.greenAccent.shade400,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Current Team',
+                style: TextStyle(
+                  color: theme.text,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.greenAccent.shade400.withOpacity(.12),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: Colors.greenAccent.shade400.withOpacity(.5),
+                  ),
+                ),
+                child: Text(
+                  '${selectedInstances.length} / ${SelectedPartyNotifier.maxSize}',
+                  style: TextStyle(
+                    color: Colors.greenAccent.shade400,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: List.generate(SelectedPartyNotifier.maxSize, (i) {
+              final inst = i < selectedInstances.length
+                  ? selectedInstances[i]
+                  : null;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
+                  child: inst == null
+                      ? _TeamSlotEmpty(theme: theme)
+                      : _TeamSlotFilled(
+                          instance: inst,
+                          theme: theme,
+                          repo: repo,
+                          onRemove: () => context
+                              .read<SelectedPartyNotifier>()
+                              .toggle(inst.instanceId),
+                        ),
+                ),
+              );
+            }),
+          ),
         ],
       ),
     );
@@ -633,71 +588,59 @@ class _LoadingTeamStatus extends StatelessWidget {
 }
 
 class _TeamSlotFilled extends StatelessWidget {
-  final CreatureInstance instance;
-  final VoidCallback onRemove;
+  const _TeamSlotFilled({
+    required this.instance,
+    required this.theme,
+    required this.repo,
+    required this.onRemove,
+  });
 
-  const _TeamSlotFilled({required this.instance, required this.onRemove});
+  final CreatureInstance instance;
+  final FactionTheme theme;
+  final CreatureRepository repo;
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final repo = context.watch<CreatureRepository>();
     final base = repo.getCreatureById(instance.baseId);
+    final typeColor = base != null
+        ? CreatureFilterUtils.getTypeColor(base.types.first)
+        : theme.textMuted;
     final name = base?.name ?? instance.baseId;
 
     return GestureDetector(
       onTap: onRemove,
+      onLongPress: base == null
+          ? null
+          : () {
+              showQuickInstanceDialog(
+                context: context,
+                theme: theme,
+                creature: base,
+                instance: instance,
+              );
+            },
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: Colors.green.shade400.withOpacity(0.15),
+          color: theme.surface,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: base != null
-                ? CreatureFilterUtils.getTypeColor(
-                    base.types.first,
-                  ).withOpacity(0.6)
-                : Colors.grey.shade600,
-            width: 1.5,
-          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
+            SizedBox(
               width: 28,
               height: 28,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: base != null
-                      ? CreatureFilterUtils.getTypeColor(base.types.first)
-                      : Colors.grey.shade400,
-                  width: 1,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(5),
-                child: base?.spriteData != null
-                    ? Image.asset(
-                        'assets/images/${base!.image}',
-                        fit: BoxFit.cover,
-                      )
-                    : Icon(
-                        base != null
-                            ? CreatureFilterUtils.getTypeIcon(base.types.first)
-                            : Icons.help_outline,
-                        size: 14,
-                        color: base != null
-                            ? CreatureFilterUtils.getTypeColor(base.types.first)
-                            : Colors.grey.shade600,
-                      ),
-              ),
+              child: base != null
+                  ? InstanceSprite(creature: base, instance: instance, size: 28)
+                  : Icon(Icons.help_outline, size: 14, color: typeColor),
             ),
             const SizedBox(height: 3),
             Text(
               name,
               style: TextStyle(
-                color: Colors.green.shade400,
+                color: theme.text,
                 fontSize: 8,
                 fontWeight: FontWeight.w700,
               ),
@@ -721,17 +664,19 @@ class _TeamSlotFilled extends StatelessWidget {
 }
 
 class _TeamSlotEmpty extends StatelessWidget {
+  const _TeamSlotEmpty({required this.theme});
+  final FactionTheme theme;
+
   @override
   Widget build(BuildContext context) {
+    final border = theme.border;
+    final fg = theme.textMuted;
+
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: theme.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.15),
-          style: BorderStyle.solid,
-        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -739,24 +684,15 @@ class _TeamSlotEmpty extends StatelessWidget {
           Container(
             width: 28,
             height: 28,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.15),
-                style: BorderStyle.solid,
-              ),
-            ),
-            child: Icon(
-              Icons.add_outlined,
-              size: 14,
-              color: _TextStyles.mutedText,
-            ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(6)),
+            alignment: Alignment.center,
+            child: Icon(Icons.add_outlined, size: 14, color: fg),
           ),
           const SizedBox(height: 3),
           Text(
             'Empty',
             style: TextStyle(
-              color: _TextStyles.mutedText,
+              color: fg,
               fontSize: 8,
               fontWeight: FontWeight.w600,
             ),
@@ -764,7 +700,7 @@ class _TeamSlotEmpty extends StatelessWidget {
           Text(
             '--',
             style: TextStyle(
-              color: _TextStyles.mutedText,
+              color: fg,
               fontSize: 7,
               fontWeight: FontWeight.w600,
             ),
@@ -775,737 +711,239 @@ class _TeamSlotEmpty extends StatelessWidget {
   }
 }
 
-class _SpeciesCard extends StatelessWidget {
+class _DeployButton extends StatefulWidget {
+  final FactionTheme theme;
+  final bool enabled;
+  final int selectedCount;
+  final VoidCallback? onTap;
+
+  const _DeployButton({
+    required this.theme,
+    required this.enabled,
+    required this.selectedCount,
+    required this.onTap,
+  });
+
+  @override
+  State<_DeployButton> createState() => _DeployButtonState();
+}
+
+class _DeployButtonState extends State<_DeployButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pressCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _pressCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pressCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canTap = widget.enabled;
+
+    return AnimatedBuilder(
+      animation: _pressCtrl,
+      builder: (context, _) {
+        return GestureDetector(
+          onTapDown: canTap ? (_) => _pressCtrl.forward() : null,
+          onTapUp: canTap ? (_) => _pressCtrl.reverse() : null,
+          onTapCancel: canTap ? () => _pressCtrl.reverse() : null,
+          onTap: canTap ? widget.onTap : null,
+          child: Transform.scale(
+            scale: 1.0 - (_pressCtrl.value * 0.05),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: canTap ? Colors.greenAccent : widget.theme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: canTap
+                      ? Colors.greenAccent.shade400
+                      : widget.theme.border.withOpacity(.8),
+                  width: 1.5,
+                ),
+                boxShadow: canTap
+                    ? [
+                        BoxShadow(
+                          color: Colors.greenAccent.shade400.withOpacity(.4),
+                          blurRadius: 16,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.play_arrow_rounded,
+                    color: canTap ? Colors.white : widget.theme.textMuted,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.selectedCount > 0
+                        ? 'Deploy Team (${widget.selectedCount})'
+                        : 'Select Team Members',
+                    style: TextStyle(
+                      color: canTap ? Colors.white : widget.theme.textMuted,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------- Empty States / Helpers ----------
+
+class _NoSpeciesOwnedWrapper extends StatelessWidget {
+  const _NoSpeciesOwnedWrapper();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<FactionTheme>();
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          "You don't own any creatures yet.",
+          style: TextStyle(
+            color: theme.textMuted,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
+class _NoResultsFound extends StatelessWidget {
+  final FactionTheme theme;
+  const _NoResultsFound({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            color: theme.textMuted.withOpacity(.3),
+            size: 48,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No species found',
+            style: TextStyle(
+              color: theme.textMuted,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Try a different search term',
+            style: TextStyle(
+              color: theme.textMuted.withOpacity(.7),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------- Species Row ----------
+
+class _SpeciesRow extends StatelessWidget {
+  final FactionTheme theme;
   final Creature creature;
-  final AnimationController glowController;
+  final int count;
   final VoidCallback onTap;
 
-  const _SpeciesCard({
+  const _SpeciesRow({
+    required this.theme,
     required this.creature,
-    required this.glowController,
+    required this.count,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final typeColor = CreatureFilterUtils.getTypeColor(creature.types.first);
-
     return GestureDetector(
       onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AnimatedBuilder(
-            animation: glowController,
-            builder: (context, _) {
-              final glow = 0.35 + glowController.value * 0.4;
-              return Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.14),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: typeColor.withOpacity(glow * 0.85),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: typeColor.withOpacity(glow * 0.5),
-                      blurRadius: 20 + glowController.value * 14,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: typeColor, width: 2),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: creature.spriteData != null
-                              ? Image.asset('assets/images/${creature.image}')
-                              : Icon(
-                                  CreatureFilterUtils.getTypeIcon(
-                                    creature.types.first,
-                                  ),
-                                  size: 32,
-                                  color: typeColor,
-                                ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      creature.name,
-                      style: _TextStyles.cardSmallTitle,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 75,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.surface,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: theme.border),
         ),
-      ),
-    );
-  }
-}
-
-class _InstanceCard extends StatelessWidget {
-  final CreatureInstance instance;
-  final bool selected;
-  final bool disabled;
-  final AnimationController glowController;
-  final VoidCallback? onTap;
-
-  const _InstanceCard({
-    required this.instance,
-    required this.selected,
-    required this.disabled,
-    required this.glowController,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final repo = context.watch<CreatureRepository>();
-    final hydrated = _CreatureHelper.hydrateCreature(repo, instance);
-    final base = repo.getCreatureById(instance.baseId);
-    final name = instance.nickname?.isNotEmpty == true
-        ? instance.nickname!
-        : base?.name ?? instance.baseId;
-    final genetics = _CreatureHelper.parseGenetics(instance);
-
-    final borderColor = selected
-        ? Colors.green.shade400
-        : disabled
-        ? Colors.grey.shade600
-        : base != null
-        ? CreatureFilterUtils.getTypeColor(base.types.first)
-        : Colors.grey.shade600;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AnimatedBuilder(
-            animation: glowController,
-            builder: (context, _) {
-              final glow = selected ? 0.35 + glowController.value * 0.4 : 0.2;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(
-                    selected ? 0.12 : (disabled ? 0.25 : 0.14),
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: borderColor.withOpacity(glow * 0.85),
-                    width: selected ? 2 : 1.5,
-                  ),
-                  boxShadow: selected
-                      ? [
-                          BoxShadow(
-                            color: borderColor.withOpacity(glow * 0.5),
-                            blurRadius: 20 + glowController.value * 14,
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Column(
-                  children: [
-                    // Creature sprite
-                    SizedBox(
-                      height: 100,
-                      width: 100,
-                      child: _CreatureDisplay(
-                        hydrated: hydrated,
-                        fallbackColor: borderColor,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Name
-                    Text(
-                      name,
-                      style: disabled
-                          ? _TextStyles.cardTitleDisabled
-                          : _TextStyles.cardTitle,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    // Stamina
-                    _UniformBadge(
-                      color: Colors.green,
-                      child: StaminaBadge(
-                        instanceId: instance.instanceId,
-                        showCountdown: true,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    // Level and XP
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _UniformBadge(
-                            color: Colors.amber,
-                            child: Text(
-                              'L${instance.level}',
-                              style: TextStyle(
-                                color: Colors.amber.shade400,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: _UniformBadge(
-                            color: Colors.green,
-                            child: Text(
-                              '${instance.xp}XP',
-                              style: TextStyle(
-                                color: Colors.green.shade400,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    // Nature
-                    _UniformBadge(
-                      color: instance.natureId != null
-                          ? Colors.purple
-                          : Colors.grey,
-                      child: Text(
-                        instance.natureId ?? 'None',
-                        style: TextStyle(
-                          color: instance.natureId != null
-                              ? Colors.purple.shade400
-                              : Colors.grey.shade500,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-
-                    // Genetics badges
-                    if (genetics != null) ..._buildGeneticsBadges(genetics),
-
-                    // Prismatic
-                    if (instance.isPrismaticSkin) ...[
-                      const SizedBox(height: 4),
-                      _UniformBadge(
-                        color: Colors.pink,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('⭐', style: TextStyle(fontSize: 10)),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Prismatic',
-                              style: TextStyle(
-                                color: Colors.pink.shade400,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildGeneticsBadges(Map<String, String> genetics) {
-    final badges = <Widget>[];
-    final size = genetics['size'];
-    final tint = genetics['tinting'];
-
-    if (size != null && size != 'normal') {
-      badges.add(const SizedBox(height: 4));
-      badges.add(
-        _UniformBadge(
-          color: _getGeneticsColor(size, true),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                _getSizeIcon(size),
-                size: 12,
-                color: _getGeneticsTextColor(size, true),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _getSizeLabel(size),
-                style: TextStyle(
-                  color: _getGeneticsTextColor(size, true),
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (tint != null && tint != 'normal') {
-      badges.add(const SizedBox(height: 4));
-      badges.add(
-        _UniformBadge(
-          color: _getGeneticsColor(tint, false),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                _getTintIcon(tint),
-                size: 12,
-                color: _getGeneticsTextColor(tint, false),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _getTintLabel(tint),
-                style: TextStyle(
-                  color: _getGeneticsTextColor(tint, false),
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return badges;
-  }
-
-  MaterialColor _getGeneticsColor(String variant, bool isSize) {
-    if (isSize) {
-      switch (variant) {
-        case 'tiny':
-          return Colors.pink;
-        case 'small':
-          return Colors.blue;
-        case 'large':
-          return Colors.green;
-        case 'giant':
-          return Colors.orange;
-        default:
-          return Colors.grey;
-      }
-    } else {
-      switch (variant) {
-        case 'warm':
-          return Colors.red;
-        case 'cool':
-          return Colors.cyan;
-        case 'vibrant':
-          return Colors.purple;
-        case 'pale':
-          return Colors.grey;
-        default:
-          return Colors.grey;
-      }
-    }
-  }
-
-  Color _getGeneticsTextColor(String variant, bool isSize) {
-    return _getGeneticsColor(variant, isSize).shade400;
-  }
-
-  IconData _getSizeIcon(String size) {
-    switch (size) {
-      case 'tiny':
-        return Icons.radio_button_unchecked;
-      case 'small':
-        return Icons.remove_circle_outline;
-      case 'large':
-        return Icons.add_circle_outline;
-      case 'giant':
-        return Icons.circle_outlined;
-      default:
-        return Icons.circle;
-    }
-  }
-
-  String _getSizeLabel(String size) {
-    switch (size) {
-      case 'tiny':
-        return 'Tiny';
-      case 'small':
-        return 'Small';
-      case 'large':
-        return 'Large';
-      case 'giant':
-        return 'Giant';
-      default:
-        return size;
-    }
-  }
-
-  IconData _getTintIcon(String tint) {
-    switch (tint) {
-      case 'warm':
-        return Icons.local_fire_department_outlined;
-      case 'cool':
-        return Icons.ac_unit_outlined;
-      case 'vibrant':
-        return Icons.auto_awesome_outlined;
-      case 'pale':
-        return Icons.opacity_outlined;
-      default:
-        return Icons.palette_outlined;
-    }
-  }
-
-  String _getTintLabel(String tint) {
-    switch (tint) {
-      case 'warm':
-        return 'Warm';
-      case 'cool':
-        return 'Cool';
-      case 'vibrant':
-        return 'Vibrant';
-      case 'pale':
-        return 'Pale';
-      default:
-        return tint;
-    }
-  }
-}
-
-class _UniformBadge extends StatelessWidget {
-  final MaterialColor color;
-  final Widget child;
-
-  const _UniformBadge({required this.color, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: 22,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.shade400.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.shade400.withOpacity(0.5)),
-      ),
-      child: Center(child: child),
-    );
-  }
-}
-
-class _CreatureDisplay extends StatelessWidget {
-  final Creature? hydrated;
-  final Color fallbackColor;
-
-  const _CreatureDisplay({required this.hydrated, required this.fallbackColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: fallbackColor, width: 2),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: hydrated != null && hydrated!.spriteData != null
-            ? CreatureSprite(
-                spritePath: hydrated!.spriteData!.spriteSheetPath,
-                totalFrames: hydrated!.spriteData!.totalFrames,
-                rows: hydrated!.spriteData!.rows,
-                scale: scaleFromGenes(hydrated!.genetics),
-                saturation: satFromGenes(hydrated!.genetics),
-                brightness: briFromGenes(hydrated!.genetics),
-                hueShift: hueFromGenes(hydrated!.genetics),
-                isPrismatic: hydrated!.isPrismaticSkin,
-                frameSize: Vector2(
-                  hydrated!.spriteData!.frameWidth * 1.0,
-                  hydrated!.spriteData!.frameHeight * 1.0,
-                ),
-                stepTime: hydrated!.spriteData!.frameDurationMs / 1000.0,
-              )
-            : hydrated != null
-            ? Image.asset('assets/images/${hydrated!.image}', fit: BoxFit.cover)
-            : Icon(Icons.pets, size: 32, color: fallbackColor),
-      ),
-    );
-  }
-}
-
-class _PartyFooter extends StatelessWidget {
-  final Color accentColor;
-
-  const _PartyFooter({required this.accentColor});
-
-  @override
-  Widget build(BuildContext context) {
-    final party = context.watch<SelectedPartyNotifier>();
-    final count = party.members.length;
-    final canDeploy = count > 0 && count <= SelectedPartyNotifier.maxSize;
-
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.18),
-            border: Border(
-              top: BorderSide(color: accentColor.withOpacity(0.35)),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: accentColor.withOpacity(0.18),
-                blurRadius: 18,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      count == 0 ? 'Select Team' : 'Team Ready',
-                      style: _TextStyles.labelText,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Selected: $count / ${SelectedPartyNotifier.maxSize}',
-                      style: _TextStyles.hint,
-                    ),
-                  ],
-                ),
-              ),
-              GestureDetector(
-                onTap: canDeploy
-                    ? () => Navigator.pop(context, party.members)
-                    : null,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: canDeploy
-                        ? Colors.green.shade600
-                        : Colors.grey.shade700,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: canDeploy
-                        ? [
-                            BoxShadow(
-                              color: Colors.green.shade400.withOpacity(0.4),
-                              blurRadius: 12,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'Deploy',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final String message;
-
-  const _EmptyState({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.06),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(.15)),
-              ),
-              child: Icon(
-                Icons.pets_outlined,
-                size: 48,
-                color: _TextStyles.mutedText,
+            CreatureImage(c: creature, discovered: true),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    creature.name,
+                    style: TextStyle(
+                      color: theme.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    creature.types.join(', '),
+                    style: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
             Text(
-              message,
-              style: _TextStyles.emptyStateTitle,
-              textAlign: TextAlign.center,
+              '$count',
+              style: TextStyle(
+                color: theme.primary,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ],
         ),
       ),
     );
   }
-}
-
-// ==================== HELPER CLASSES ====================
-
-class _CreatureHelper {
-  static Creature? hydrateCreature(
-    CreatureRepository repo,
-    CreatureInstance instance,
-  ) {
-    final base = repo.getCreatureById(instance.baseId);
-    var out = base;
-
-    if (instance.isPrismaticSkin) {
-      out = out?.copyWith(isPrismaticSkin: true);
-    }
-
-    if (instance.natureId != null && instance.natureId!.isNotEmpty) {
-      final n = NatureCatalog.byId(instance.natureId!);
-      if (n != null) out = out?.copyWith(nature: n);
-    }
-
-    final g = decodeGenetics(instance.geneticsJson);
-    if (g != null) out = out?.copyWith(genetics: g);
-
-    return out;
-  }
-
-  static Map<String, String>? parseGenetics(CreatureInstance instance) {
-    if (instance.geneticsJson == null) return null;
-    try {
-      final map = Map<String, dynamic>.from(jsonDecode(instance.geneticsJson!));
-      return map.map((k, v) => MapEntry(k, v.toString()));
-    } catch (e) {
-      return null;
-    }
-  }
-}
-
-// ==================== TEXT STYLES ====================
-
-class _TextStyles {
-  static const softText = Color(0xFFE8EAED);
-  static const mutedText = Color(0xFFB6C0CC);
-
-  static const headerTitle = TextStyle(
-    color: softText,
-    fontSize: 15,
-    fontWeight: FontWeight.w900,
-    letterSpacing: 0.8,
-  );
-
-  static const headerSubtitle = TextStyle(
-    color: mutedText,
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-  );
-
-  static const sectionTitle = TextStyle(
-    color: softText,
-    fontSize: 14,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 0.5,
-  );
-
-  static const labelText = TextStyle(
-    color: softText,
-    fontSize: 12,
-    fontWeight: FontWeight.w700,
-  );
-
-  static const hint = TextStyle(
-    color: mutedText,
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-  );
-
-  static const cardTitle = TextStyle(
-    color: softText,
-    fontSize: 12,
-    fontWeight: FontWeight.w800,
-  );
-
-  static const cardTitleDisabled = TextStyle(
-    color: Color(0xFF7A8290),
-    fontSize: 12,
-    fontWeight: FontWeight.w800,
-  );
-
-  static const cardSmallTitle = TextStyle(
-    color: softText,
-    fontSize: 11,
-    fontWeight: FontWeight.w700,
-  );
-
-  static const emptyStateTitle = TextStyle(
-    color: softText,
-    fontSize: 16,
-    fontWeight: FontWeight.w800,
-  );
 }

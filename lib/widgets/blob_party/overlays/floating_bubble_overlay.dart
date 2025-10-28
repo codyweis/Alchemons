@@ -5,6 +5,7 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/blob_party/bubble_widget.dart';
 import 'package:alchemons/widgets/blob_party/floating_creature.dart';
@@ -23,10 +24,13 @@ class FloatingBubblesOverlay extends StatefulWidget {
     super.key,
     this.regionPadding = const EdgeInsets.fromLTRB(12, 140, 12, 160),
     required this.discoveredCreatures,
+    required this.theme,
   });
 
   final EdgeInsets regionPadding;
   final List<Map<String, dynamic>> discoveredCreatures;
+
+  final FactionTheme theme;
 
   @override
   State<FloatingBubblesOverlay> createState() => _FloatingBubblesOverlayState();
@@ -233,6 +237,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
       backgroundColor: Colors.transparent,
       builder: (_) {
         return InstancesSheet(
+          theme: widget.theme,
           species: species,
           onTap: (CreatureInstance ci) {
             Navigator.pop(context, ci);
@@ -412,8 +417,9 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
                         return const SizedBox.shrink();
                       }
                       final base = repo.getCreatureById(b.instance!.baseId);
-                      if (base?.spriteData == null)
+                      if (base?.spriteData == null) {
                         return const SizedBox.shrink();
+                      }
                       final g = decodeGenetics(b.instance!.geneticsJson);
                       return FloatingCreature(
                         sprite: CreatureSprite(
@@ -434,8 +440,6 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
                       );
                     },
                   ),
-
-                // ❌ Removed the “+” button entirely (no add UI)
               ],
             );
           },
@@ -451,7 +455,6 @@ class _Bubble {
     required this.vel,
     required this.radius,
     required this.seed,
-    this.instance,
   });
 
   Offset pos;

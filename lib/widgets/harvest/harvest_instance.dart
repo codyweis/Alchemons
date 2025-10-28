@@ -125,18 +125,23 @@ class _InstancePickerState extends State<_InstancePicker> {
 
                         // Apply filters
                         pool = pool.where((inst) {
-                          if (_filterPrismatic && inst.isPrismaticSkin != true)
+                          if (_filterPrismatic &&
+                              inst.isPrismaticSkin != true) {
                             return false;
+                          }
                           final genetics = _parseGenetics(inst);
                           if (_filterSize != null &&
-                              genetics?['size'] != _filterSize)
+                              genetics?['size'] != _filterSize) {
                             return false;
+                          }
                           if (_filterTint != null &&
-                              genetics?['tinting'] != _filterTint)
+                              genetics?['tinting'] != _filterTint) {
                             return false;
+                          }
                           if (_filterNature != null &&
-                              inst.natureId != _filterNature)
+                              inst.natureId != _filterNature) {
                             return false;
+                          }
                           return true;
                         }).toList();
 
@@ -706,8 +711,9 @@ class _InstancePickerState extends State<_InstancePicker> {
 
   Color _getColorForType(String typeId) {
     for (final biome in Biome.values) {
-      if (biome.elementIds.contains(typeId))
+      if (biome.elementIds.contains(typeId)) {
         return biome.colorForElement(typeId);
+      }
     }
     return const Color(0xFF6BCF7F);
   }

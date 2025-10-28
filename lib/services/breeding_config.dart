@@ -140,17 +140,25 @@ class BreedingTuning {
   final double prismaticSkinChance; // ~0.01% chance to be prismatic
   final int
   sameNatureLockInChance; // % chance to lock in nature if both parents share it
+  final int
+  globalMutationChance; // % chance for any breeding to trigger a mutation check
+  final double elementalBiasPenalty;
+  final int familyBiasPenalty;
 
   const BreedingTuning({
     this.inheritNatureChance =
-        60, // 90% chance to inherit nature from one parent
+        60, // 60% chance to inherit nature from one parent
     this.parentRepeatChance = 15,
-    this.prismaticSkinChance = 0.0001, // ~0.01% chance to be prismatic
+    this.prismaticSkinChance = 0.001, // ~0.1% chance to be prismatic
     this.variantChanceOnPure = 0, // not used now
     this.variantChanceCross = 20, // tweak
     this.sameFamilyMutationChancePct = 5, // tweak
     this.variantBlockedTypes = const {"Blood"},
     this.sameNatureLockInChance =
         50, // 50% chance to lock in nature if both parents share it
+    this.globalMutationChance =
+        2, // 2% chance for any breeding to trigger mutation
+    this.elementalBiasPenalty = .5, // double the chance
+    this.familyBiasPenalty = 2, // halve the chance
   });
 }

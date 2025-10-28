@@ -1,11 +1,28 @@
 // lib/widgets/creature_sprite.dart
 import 'dart:math' as math;
 
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/utils/genetics_util.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame/flame.dart' show Flame;
 import 'package:flame/sprite.dart';
 import 'package:flame/widgets.dart';
 import 'package:flutter/material.dart';
+
+class _ErrorIndicator extends StatelessWidget {
+  final String error;
+
+  const _ErrorIndicator({required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+    );
+  }
+}
 
 class CreatureSprite extends StatefulWidget {
   final String spritePath;
@@ -49,6 +66,8 @@ class _CreatureSpriteState extends State<CreatureSprite>
   AnimationController? _hueController;
   SpriteAnimation? _spriteAnimation;
   SpriteAnimationTicker? _spriteTicker;
+
+  String? _loadError;
 
   @override
   void initState() {
@@ -100,7 +119,15 @@ class _CreatureSpriteState extends State<CreatureSprite>
 
   @override
   Widget build(BuildContext context) {
-    if (_spriteAnimation == null) return const _LoadingIndicator();
+    // Error state
+    if (_loadError != null) {
+      return _ErrorIndicator(error: _loadError!);
+    }
+
+    // Loading state
+    if (_spriteAnimation == null) {
+      return Icon(Icons.science, size: 50);
+    }
 
     // Prismatic trumps everything - even albino
     if (widget.isPrismatic && _hueController != null) {
@@ -293,6 +320,43 @@ class _LoadingIndicator extends StatelessWidget {
       child: SizedBox.square(
         dimension: 16,
         child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+    );
+  }
+}
+
+class InstanceSprite extends StatelessWidget {
+  final Creature creature;
+  final CreatureInstance instance;
+  final double size;
+
+  const InstanceSprite({
+    required this.creature,
+    required this.instance,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final genetics = decodeGenetics(instance.geneticsJson);
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CreatureSprite(
+        spritePath: creature.spriteData!.spriteSheetPath,
+        totalFrames: creature.spriteData!.totalFrames,
+        rows: creature.spriteData!.rows,
+        frameSize: Vector2(
+          creature.spriteData!.frameWidth.toDouble(),
+          creature.spriteData!.frameHeight.toDouble(),
+        ),
+        stepTime: creature.spriteData!.frameDurationMs / 1000.0,
+        scale: scaleFromGenes(genetics),
+        hueShift: hueFromGenes(genetics),
+        saturation: satFromGenes(genetics),
+        brightness: briFromGenes(genetics),
+        isPrismatic: instance.isPrismaticSkin,
       ),
     );
   }

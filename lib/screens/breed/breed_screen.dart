@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:alchemons/constants/breed_constants.dart';
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/screens/breed/breed_tab.dart';
+import 'package:alchemons/screens/breed/nursery_tab.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/glowing_icon.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'nursery_tab.dart';
 
 class BreedScreen extends StatefulWidget {
   /// 0 = Breeding, 1 = Incubator (Nursery)
@@ -38,7 +39,6 @@ class _BreedScreenState extends State<BreedScreen>
       initialIndex: widget.initialTab.clamp(0, 1),
     );
 
-    // ADD: drive a soft in-out pulse forever
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -54,8 +54,8 @@ class _BreedScreenState extends State<BreedScreen>
       if (mounted) setState(() {});
     });
 
-    // OPTIONAL: only pulse on the current tab (index 0 here)
     _tabController.addListener(() {
+      // pulse only when on Breeding tab (index 0)
       if (_tabController.index == 0) {
         _pulse.repeat(reverse: true);
       } else {
@@ -105,62 +105,59 @@ class _BreedScreenState extends State<BreedScreen>
 
   @override
   Widget build(BuildContext context) {
-    final factionSvc = context.read<FactionService>();
-    final currentFaction = factionSvc.current;
-    final factionColors = getFactionColors(currentFaction);
-    final primaryColor = factionColors.$1;
-    final secondaryColor = factionColors.$2;
+    final theme = context.read<FactionTheme>();
 
     return Consumer<GameStateNotifier>(
       builder: (context, gameState, child) {
         if (gameState.isLoading) {
-          return _buildLoadingScreen(
-            'Loading specimen database...',
-            primaryColor,
-          );
+          return _buildLoadingScreen(theme, 'Loading specimen database...');
         }
 
         if (gameState.error != null) {
-          return _buildErrorScreen(
-            gameState.error!,
-            gameState.refresh,
-            primaryColor,
-          );
+          return _buildErrorScreen(theme, gameState.error!, gameState.refresh);
         }
 
         return Scaffold(
           backgroundColor: Colors.transparent,
           body: Container(
+            width: double.infinity,
+            height: double.infinity,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+              // dark lab console background with faint faction glow
+              gradient: RadialGradient(
+                center: const Alignment(0, -0.6),
+                radius: 1.2,
                 colors: [
-                  const Color(0xFF0B0F14).withOpacity(0.92),
-                  const Color(0xFF0B0F14).withOpacity(0.92),
+                  theme.surface,
+                  theme.surface,
+                  theme.surfaceAlt.withOpacity(.6),
                 ],
+                stops: const [0.0, 0.6, 1.0],
               ),
             ),
             child: SafeArea(
+              bottom: false,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildHeader(primaryColor, secondaryColor),
-                  _buildTabBar(primaryColor),
+                  _HeaderBar(theme: theme, controller: _pulse),
+                  _TabSelector(theme: theme, tabController: _tabController),
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
+                      physics: const BouncingScrollPhysics(),
                       children: [
                         BreedingTab(
                           discoveredCreatures: gameState.discoveredCreatures,
                           onBreedingComplete: () async {
                             await _bumpHighWaterClock();
-                            setState(() {});
+                            if (mounted) setState(() {});
                           },
                         ),
                         NurseryTab(
                           maxSeenNowUtc: _maxSeenNowUtc,
                           onHatchComplete: () {
-                            setState(() {});
+                            if (mounted) setState(() {});
                           },
                           tabController: _tabController,
                         ),
@@ -176,61 +173,64 @@ class _BreedScreenState extends State<BreedScreen>
     );
   }
 
-  Widget _buildLoadingScreen(String message, Color primaryColor) {
+  // --- Loading / Error panels ----------------------------------------------
+
+  Widget _buildLoadingScreen(FactionTheme theme, String message) {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+          gradient: RadialGradient(
+            center: const Alignment(0, -0.6),
+            radius: 1.2,
             colors: [
-              const Color(0xFF0B0F14).withOpacity(0.92),
-              const Color(0xFF0B0F14).withOpacity(0.92),
+              theme.surface,
+              theme.surface,
+              theme.surfaceAlt.withOpacity(.6),
             ],
+            stops: const [0, .6, 1],
           ),
         ),
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                  child: Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(.3),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: primaryColor.withOpacity(.4),
-                        width: 2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withOpacity(.2),
-                          blurRadius: 16,
-                        ),
-                      ],
-                    ),
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-                      strokeWidth: 3,
-                    ),
+          child: Container(
+            width: 240,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: theme.surfaceAlt,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: theme.border, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.accent.withOpacity(.4),
+                  blurRadius: 28,
+                  spreadRadius: 4,
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(.8),
+                  blurRadius: 40,
+                  spreadRadius: 16,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation(theme.primary),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                message,
-                style: const TextStyle(
-                  color: Color(0xFFE8EAED),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -238,193 +238,119 @@ class _BreedScreenState extends State<BreedScreen>
   }
 
   Widget _buildErrorScreen(
+    FactionTheme theme,
     String error,
     VoidCallback onRetry,
-    Color primaryColor,
   ) {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+          gradient: RadialGradient(
+            center: const Alignment(0, -0.6),
+            radius: 1.2,
             colors: [
-              const Color(0xFF0B0F14).withOpacity(0.92),
-              const Color(0xFF0B0F14).withOpacity(0.92),
+              theme.surface,
+              theme.surface,
+              theme.surfaceAlt.withOpacity(.6),
             ],
+            stops: const [0, .6, 1],
           ),
         ),
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ClipRRect(
+          child: Container(
+            width: 280,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: theme.surfaceAlt,
               borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
+              border: Border.all(color: Colors.red.withOpacity(.4), width: 2),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.redAccent,
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(.3),
-                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.red.withOpacity(.15),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: Colors.red.withOpacity(.4),
-                      width: 2,
+                      width: 1.5,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.red.withOpacity(.2),
-                        blurRadius: 16,
-                      ),
-                    ],
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.error_outline_rounded,
-                          color: Colors.red,
-                          size: 36,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'SYSTEM ERROR DETECTED',
-                        style: TextStyle(
-                          color: Color(0xFFE8EAED),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        error,
-                        style: const TextStyle(
-                          color: Color(0xFFB6C0CC),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: onRetry,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                        ),
-                        child: const Text(
-                          'RETRY CONNECTION',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: const Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.redAccent,
+                    size: 36,
                   ),
                 ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(Color primaryColor, Color secondaryColor) {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(.2),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: primaryColor.withOpacity(.35)),
-              boxShadow: [
-                BoxShadow(
-                  color: primaryColor.withOpacity(.18),
-                  blurRadius: 18,
-                  spreadRadius: 1,
+                const SizedBox(height: 16),
+                Text(
+                  'SYSTEM ERROR DETECTED',
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .8,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
+                const SizedBox(height: 8),
+                Text(
+                  error,
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
                 GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  onTap: onRetry,
                   child: Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.08),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.redAccent.withOpacity(.9),
+                          Colors.redAccent.withOpacity(.7),
+                        ],
+                      ),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white.withOpacity(.25)),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(.3),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.redAccent.withOpacity(.4),
+                          blurRadius: 16,
+                          spreadRadius: 1,
+                        ),
+                      ],
                     ),
-                    child: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Color(0xFFE8EAED),
-                      size: 18,
+                    child: const Text(
+                      'RETRY CONNECTION',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        letterSpacing: .5,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'GENETICS LABORATORY',
-                        style: TextStyle(
-                          color: Color(0xFFE8EAED),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Breeding protocols & incubation systems',
-                        style: TextStyle(
-                          color: Color(0xFFB6C0CC),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                GlowingIcon(
-                  icon: Icons.merge_type_rounded,
-                  color: secondaryColor,
-                  controller: _pulse,
-                  dialogTitle: "Breeding Protocols",
-                  dialogMessage:
-                      "Combine compatible creature species to produce unique offspring with inherited traits. Experiment with different pairings to discover new genetic combinations. After breeding is initiated, the offspring will appear in the Incubator tab.",
                 ),
               ],
             ),
@@ -433,62 +359,122 @@ class _BreedScreenState extends State<BreedScreen>
       ),
     );
   }
+}
 
-  Widget _buildTabBar(Color primaryColor) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: primaryColor.withOpacity(.35)),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    primaryColor.withOpacity(.35),
-                    primaryColor.withOpacity(.25),
-                  ],
+// -----------------------------------------------------------------------------
+// HEADER BAR
+// -----------------------------------------------------------------------------
+
+class _HeaderBar extends StatelessWidget {
+  final FactionTheme theme;
+  final AnimationController controller;
+
+  const _HeaderBar({required this.theme, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      // Sticky chrome top
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      decoration: BoxDecoration(
+        color: theme.surfaceAlt,
+        border: Border(bottom: BorderSide(color: theme.border, width: 1.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.6),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: theme.accent.withOpacity(.25),
+            blurRadius: 24,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // left icon glow / info button
+          GlowingIcon(
+            icon: Icons.merge_type_rounded,
+            color: theme.secondary,
+            controller: controller,
+            dialogTitle: "Breeding Protocols",
+            dialogMessage:
+                "Combine compatible specimens to synthesize new offspring with inherited traits. Offspring are sent to the Incubator. Certain elemental pairings and rare traits can unlock unique results.",
+          ),
+
+          const SizedBox(width: 12),
+
+          // title / subtitle
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'GENETICS LABORATORY',
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .8,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: primaryColor.withOpacity(.4)),
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: const Color(0xFFE8EAED),
-              unselectedLabelColor: const Color(0xFFB6C0CC),
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-                letterSpacing: 0.5,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-              tabs: [
-                Tab(
-                  icon: Icon(Icons.merge_type_rounded, size: 16),
-                  text: 'BREEDING',
-                  height: 48,
-                ),
-                Tab(
-                  icon: Icon(Icons.science_rounded, size: 16),
-                  text: 'INCUBATOR',
-                  height: 48,
+                const SizedBox(height: 2),
+                Text(
+                  'Breeding protocols • Incubation systems',
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// TAB SELECTOR
+// -----------------------------------------------------------------------------
+
+class _TabSelector extends StatelessWidget {
+  final FactionTheme theme;
+  final TabController tabController;
+
+  const _TabSelector({required this.theme, required this.tabController});
+
+  @override
+  Widget build(BuildContext context) {
+    return TabBar(
+      controller: tabController,
+
+      indicatorSize: TabBarIndicatorSize.tab,
+      dividerColor: Colors.transparent,
+      labelColor: theme.text,
+      unselectedLabelColor: theme.textMuted,
+      labelStyle: const TextStyle(
+        fontWeight: FontWeight.w800,
+        fontSize: 12,
+        letterSpacing: 0.5,
+      ),
+      unselectedLabelStyle: const TextStyle(
+        fontWeight: FontWeight.w600,
+        fontSize: 12,
+      ),
+      tabs: const [
+        Tab(text: 'FUSION', height: 48),
+        Tab(text: 'INCUBATOR', height: 48),
+      ],
     );
   }
 }

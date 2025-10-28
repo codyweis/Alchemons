@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
-import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
 
 import 'alchemons_db.dart';
 

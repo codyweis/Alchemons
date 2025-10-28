@@ -1,6 +1,7 @@
 // lib/services/faction_service.dart
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:flutter/material.dart';
 
 /// Each faction can provide perks/traits.
 class FactionInfo {
@@ -15,7 +16,7 @@ class FactionInfo {
   });
 }
 
-class FactionService {
+class FactionService extends ChangeNotifier {
   static const _kFactionKey = 'player_faction_v1';
   final AlchemonsDatabase db;
   String? _cached; // persisted faction id string
@@ -94,11 +95,13 @@ class FactionService {
 
   // ----------- Faction selection -----------
   Future<String?> loadId() async {
+    final before = _cached;
     _cached ??= await db.getSetting(_kFactionKey);
-    // If faction is chosen, make sure perks default states are created
     if (_cached != null && _cached!.isNotEmpty) {
       await ensureDefaultPerkState(current!);
     }
+    // notify only if value changed (prevents redundant rebuilds)
+    if (before != _cached) notifyListeners(); // ⬅️ important
     return _cached;
   }
 
@@ -106,6 +109,7 @@ class FactionService {
     await db.setSetting(_kFactionKey, id.name);
     _cached = id.name;
     await ensureDefaultPerkState(id);
+    notifyListeners(); // ⬅️ important
   }
 
   FactionId? get current {
@@ -160,12 +164,12 @@ class FactionService {
   Future<bool> tryUnlockPerk2({FactionId? forId}) async {
     final id = forId ?? current;
     if (id == null) return false;
-
-    if (await isPerkUnlocked(2, forId: id)) return true; // already unlocked
+    if (await isPerkUnlocked(2, forId: id)) return true;
 
     final discovered = await discoveredCount();
     if (discovered >= perk2DiscoverThreshold) {
       await _setPerkUnlocked(2, true, forId: id);
+      notifyListeners(); // optional, if UI cares
       return true;
     }
     return false;

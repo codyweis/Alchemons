@@ -80,6 +80,6 @@ extension StarterGrant on AlchemonsDatabase {
     final r = math.Random(
       now,
     ).nextInt(0xFFFFFF).toRadixString(16).padLeft(6, '0');
-    return '$prefix\_$now\_$r';
+    return '${prefix}_${now}_$r';
   }
 }

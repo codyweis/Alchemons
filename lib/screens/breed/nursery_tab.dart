@@ -1003,7 +1003,7 @@ class _NurseryTabState extends State<NurseryTab> {
     }
 
     final factionSvc = context.read<FactionService>();
-    final faction = await factionSvc.current;
+    final faction = factionSvc.current;
 
     if (!mounted) return;
     await playHatchCinematic(

@@ -47,6 +47,10 @@ class CreatureInstanceService {
     double? statIntelligence,
     double? statStrength,
     double? statBeauty,
+    double? statSpeedPotential,
+    double? statIntelligencePotential,
+    double? statStrengthPotential,
+    double? statBeautyPotential,
   }) async {
     try {
       final canAdd = await _db.canAddInstance(baseId, cap: speciesCap);
@@ -72,6 +76,10 @@ class CreatureInstanceService {
         statIntelligence: statIntelligence,
         statStrength: statStrength,
         statBeauty: statBeauty,
+        statSpeedPotential: statSpeedPotential,
+        statIntelligencePotential: statIntelligencePotential,
+        statStrengthPotential: statStrengthPotential,
+        statBeautyPotential: statBeautyPotential,
       );
 
       return InstanceFinalizeResult(
@@ -130,7 +138,7 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       return fb.id == tb.id;
     }
 
-    // “same type and family” path (primary element + family)
+    // "same type and family" path (primary element + family)
     final sameFamily = (fb.mutationFamily ?? '') == (tb.mutationFamily ?? '');
     final samePrimaryType = (fb.types.isNotEmpty && tb.types.isNotEmpty)
         ? fb.types.first == tb.types.first
@@ -156,7 +164,6 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     final base = repo.getCreatureById(fodder.baseId);
     // Safety: if catalog missing somehow, default to Common math
     final rarity = base?.rarity.toLowerCase() ?? 'common';
-    final family = (base?.mutationFamily ?? 'Unknown');
 
     // Base XP by rarity
     final rarityBase = switch (rarity) {
@@ -175,6 +182,77 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
 
     // Final XP (family/species bonuses get applied when we know the TARGET)
     return (rarityBase * levelFactor * prismaticMult).round();
+  }
+
+  /// Calculate stat gains from feeding WITH SPECIALIZATION PRESSURE
+  /// - Grants gain to fodder's highest stat
+  /// - Applies penalty to target's lowest stat (specialization pressure)
+  /// - Uses 0.1 increments only
+  static Map<String, double> calculateStatGains({
+    required db.CreatureInstance target,
+    required List<db.CreatureInstance> fodders,
+  }) {
+    final gains = <String, double>{
+      'speed': 0.0,
+      'intelligence': 0.0,
+      'strength': 0.0,
+      'beauty': 0.0,
+    };
+
+    // Current target stats for finding lowest
+    var currentTargetStats = {
+      'speed': target.statSpeed,
+      'intelligence': target.statIntelligence,
+      'strength': target.statStrength,
+      'beauty': target.statBeauty,
+    };
+
+    for (final fodder in fodders) {
+      // Find highest stat in this fodder
+      final fodderStats = {
+        'speed': fodder.statSpeed,
+        'intelligence': fodder.statIntelligence,
+        'strength': fodder.statStrength,
+        'beauty': fodder.statBeauty,
+      };
+
+      String highestStatName = 'speed';
+      double highestStatValue = fodder.statSpeed;
+
+      fodderStats.forEach((name, value) {
+        if (value > highestStatValue) {
+          highestStatValue = value;
+          highestStatName = name;
+        }
+      });
+
+      // Always grant +0.1 to fodder's highest stat
+      const double gain = 0.1;
+      gains[highestStatName] = (gains[highestStatName] ?? 0) + gain;
+
+      // SPECIALIZATION PRESSURE: Find lowest stat and apply penalty
+      String lowestStatName = 'speed';
+      double lowestStatValue = currentTargetStats['speed']!;
+
+      currentTargetStats.forEach((name, value) {
+        if (value < lowestStatValue) {
+          lowestStatValue = value;
+          lowestStatName = name;
+        }
+      });
+
+      // Apply -0.1 penalty to lowest stat
+      const double penalty = 0.1;
+      gains[lowestStatName] = (gains[lowestStatName] ?? 0) - penalty;
+
+      // Update current stats for next iteration (simulate the change)
+      currentTargetStats[highestStatName] =
+          (currentTargetStats[highestStatName]! + gain).clamp(1.0, 5.0);
+      currentTargetStats[lowestStatName] =
+          (currentTargetStats[lowestStatName]! - penalty).clamp(1.0, 5.0);
+    }
+
+    return gains;
   }
 
   /// Convenience: compute a preview of feeding result without mutating the DB.
@@ -218,8 +296,30 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       totalXp += (raw * mult).round();
     }
 
-    // Calculate stat gains
+    // Calculate stat gains with specialization pressure
     final statGains = calculateStatGains(target: target, fodders: fodders);
+
+    // Apply potential caps - can't gain beyond potential
+    final cappedGains = <String, double>{};
+    cappedGains['speed'] = min(
+      statGains['speed']!,
+      target.statSpeedPotential - target.statSpeed,
+    ).clamp(-10.0, 10.0);
+
+    cappedGains['intelligence'] = min(
+      statGains['intelligence']!,
+      target.statIntelligencePotential - target.statIntelligence,
+    ).clamp(-10.0, 10.0);
+
+    cappedGains['strength'] = min(
+      statGains['strength']!,
+      target.statStrengthPotential - target.statStrength,
+    ).clamp(-10.0, 10.0);
+
+    cappedGains['beauty'] = min(
+      statGains['beauty']!,
+      target.statBeautyPotential - target.statBeauty,
+    ).clamp(-10.0, 10.0);
 
     // Simulate level-ups
     int level = target.level;
@@ -235,7 +335,7 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       newLevel: level,
       newXpRemainder: xp,
       fodderConsumed: fodders.length,
-      statGains: statGains, // NEW
+      statGains: cappedGains, // Return capped gains
     );
   }
 
@@ -285,12 +385,34 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     final n = target.natureId != null
         ? NatureCatalog.byId(target.natureId!)
         : null;
-    final xpMult = (n?.effect['xp_gain_mult'] as num?)?.toDouble() ?? 1.0;
+    final xpMult = (n?.effect['xp_gain_mult'])?.toDouble() ?? 1.0;
     final appliedXp =
         ((totalXp * xpMult) * factions.fireXpMultiplierOnLevelGain()).round();
 
-    // Calculate stat gains
+    // Calculate stat gains with specialization pressure
     final statGains = calculateStatGains(target: target, fodders: fodders);
+
+    // Apply potential caps
+    final cappedGains = <String, double>{};
+    cappedGains['speed'] = min(
+      statGains['speed']!,
+      target.statSpeedPotential - target.statSpeed,
+    ).clamp(-10.0, 10.0);
+
+    cappedGains['intelligence'] = min(
+      statGains['intelligence']!,
+      target.statIntelligencePotential - target.statIntelligence,
+    ).clamp(-10.0, 10.0);
+
+    cappedGains['strength'] = min(
+      statGains['strength']!,
+      target.statStrengthPotential - target.statStrength,
+    ).clamp(-10.0, 10.0);
+
+    cappedGains['beauty'] = min(
+      statGains['beauty']!,
+      target.statBeautyPotential - target.statBeauty,
+    ).clamp(-10.0, 10.0);
 
     await _db.transaction(() async {
       // Apply XP and level up
@@ -301,24 +423,21 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
         maxLevel: maxLevel,
       );
 
-      // NEW: Apply stat gains
+      // Apply stat gains with potential caps
       final newStats = {
-        'speed': (target.statSpeed + (statGains['speed'] ?? 0)).clamp(
+        'speed': (target.statSpeed + cappedGains['speed']!).clamp(
           1.0,
-          10.0,
+          target.statSpeedPotential, // Can't exceed potential
         ),
-        'intelligence':
-            (target.statIntelligence + (statGains['intelligence'] ?? 0)).clamp(
-              1.0,
-              10.0,
-            ),
-        'strength': (target.statStrength + (statGains['strength'] ?? 0)).clamp(
+        'intelligence': (target.statIntelligence + cappedGains['intelligence']!)
+            .clamp(1.0, target.statIntelligencePotential),
+        'strength': (target.statStrength + cappedGains['strength']!).clamp(
           1.0,
-          10.0,
+          target.statStrengthPotential,
         ),
-        'beauty': (target.statBeauty + (statGains['beauty'] ?? 0)).clamp(
+        'beauty': (target.statBeauty + cappedGains['beauty']!).clamp(
           1.0,
-          10.0,
+          target.statBeautyPotential,
         ),
       };
 
@@ -345,8 +464,9 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     });
 
     final updated = await _db.getInstance(target.instanceId);
-    if (updated == null)
+    if (updated == null) {
       return FeedResult.fail('Target disappeared after feed');
+    }
 
     return FeedResult(
       ok: true,
@@ -354,49 +474,7 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       newLevel: updated.level,
       newXpRemainder: updated.xp,
       fodderConsumed: fodders.length,
-      statGains: statGains, // NEW
+      statGains: cappedGains, // Return capped gains
     );
-  }
-
-  /// Calculate stat gains from feeding
-  static Map<String, double> calculateStatGains({
-    required db.CreatureInstance target,
-    required List<db.CreatureInstance> fodders,
-  }) {
-    final gains = <String, double>{
-      'speed': 0.0,
-      'intelligence': 0.0,
-      'strength': 0.0,
-      'beauty': 0.0,
-    };
-
-    for (final fodder in fodders) {
-      // Find highest stat in this fodder
-      final fodderStats = {
-        'speed': fodder.statSpeed,
-        'intelligence': fodder.statIntelligence,
-        'strength': fodder.statStrength,
-        'beauty': fodder.statBeauty,
-      };
-
-      // Find the highest stat
-      String highestStatName = 'speed';
-      double highestStatValue = fodder.statSpeed;
-
-      fodderStats.forEach((name, value) {
-        if (value > highestStatValue) {
-          highestStatValue = value;
-          highestStatName = name;
-        }
-      });
-
-      // Calculate gain based on stat value
-      final double gain = highestStatValue >= 8.0 ? 0.1 : 0.01;
-
-      // Add to the corresponding stat
-      gains[highestStatName] = (gains[highestStatName] ?? 0) + gain;
-    }
-
-    return gains;
   }
 }

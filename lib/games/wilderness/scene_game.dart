@@ -1,6 +1,5 @@
 import 'dart:math';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/genetics.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/services/encounter_service.dart';

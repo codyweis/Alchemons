@@ -2,11 +2,13 @@
 import 'package:alchemons/helpers/breeding_config_loaders.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -77,6 +79,11 @@ class AppProviders extends StatelessWidget {
         // Database provider
         Provider<AlchemonsDatabase>.value(value: db),
 
+        // Theme (light/dark/system)
+        ChangeNotifierProvider<ThemeNotifier>(
+          create: (ctx) => ThemeNotifier(ctx.read<AlchemonsDatabase>()),
+        ),
+
         ChangeNotifierProvider<HarvestService>(
           create: (ctx) => HarvestService(ctx.read<AlchemonsDatabase>()),
         ),
@@ -90,14 +97,34 @@ class AppProviders extends StatelessWidget {
         ChangeNotifierProvider<SelectedPartyNotifier>(
           create: (_) => SelectedPartyNotifier(),
         ),
+        ChangeNotifierProvider<FactionService>(
+          create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
+        ),
+
+        ProxyProvider2<FactionService, ThemeNotifier, FactionTheme>(
+          update: (ctx, factionSvc, themeNotifier, __) {
+            final mode = themeNotifier.themeMode;
+
+            // What brightness should the faction skin use?
+            final platformBrightness =
+                MediaQuery.maybeOf(ctx)?.platformBrightness ?? Brightness.light;
+
+            final effectiveBrightness = switch (mode) {
+              ThemeMode.light => Brightness.light,
+              ThemeMode.dark => Brightness.dark,
+              ThemeMode.system => platformBrightness,
+            };
+
+            return factionThemeFor(
+              factionSvc.current,
+              brightness: effectiveBrightness,
+            );
+          },
+        ),
 
         // Stamina service provider
         Provider<StaminaService>(
           create: (ctx) => StaminaService(ctx.read<AlchemonsDatabase>()),
-        ),
-
-        Provider<FactionService>(
-          create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
         ),
 
         // Single loader for all catalogs
@@ -135,15 +162,18 @@ class AppProviders extends StatelessWidget {
           },
         ),
 
-        // Breeding likelihood analyzer - reuses same catalog data
-        ProxyProvider2<
+        // Breeding likelihood analyzer - needs the live engine
+        ProxyProvider3<
           CatalogData?,
           CreatureRepository,
+          BreedingEngine?,
           BreedingLikelihoodAnalyzer?
         >(
-          update: (context, catalogData, repo, previous) {
-            if (catalogData == null || !catalogData.isFullyLoaded) {
-              return null; // Wait for catalogs to load
+          update: (context, catalogData, repo, engine, previous) {
+            if (catalogData == null ||
+                !catalogData.isFullyLoaded ||
+                engine == null) {
+              return null;
             }
 
             final tuning = context.read<BreedingTuning>();
@@ -153,6 +183,7 @@ class AppProviders extends StatelessWidget {
               familyRecipes: catalogData.familyRecipes,
               specialRules: catalogData.specialRules,
               tuning: tuning,
+              engine: engine,
             );
           },
         ),

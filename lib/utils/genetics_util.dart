@@ -132,15 +132,16 @@ String getStatDescriptor(double value, String statType) {
     },
   };
 
-  if (value == 10.0) {
+  // Updated thresholds for 1-5 scale
+  if (value >= 4.9) {
     return descriptors[statType]!['perfect']!;
-  } else if (value >= 8.0) {
-    return descriptors[statType]!['range5']!;
-  } else if (value >= 6.0) {
-    return descriptors[statType]!['range4']!;
   } else if (value >= 4.0) {
-    return descriptors[statType]!['range3']!;
+    return descriptors[statType]!['range5']!;
+  } else if (value >= 3.0) {
+    return descriptors[statType]!['range4']!;
   } else if (value >= 2.0) {
+    return descriptors[statType]!['range3']!;
+  } else if (value >= 1.5) {
     return descriptors[statType]!['range2']!;
   } else {
     return descriptors[statType]!['range1']!;

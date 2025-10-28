@@ -63,10 +63,11 @@ class _AlchemyTapFXPainter extends CustomPainter {
     for (int i = 0; i < 6; i++) {
       final a = (i / 6.0) * math.pi * 2 + t * 3.0; // slow rotation
       final pnt = center + Offset(math.cos(a), math.sin(a)) * glyphRadius;
-      if (i == 0)
+      if (i == 0) {
         hex.moveTo(pnt.dx, pnt.dy);
-      else
+      } else {
         hex.lineTo(pnt.dx, pnt.dy);
+      }
     }
     hex.close();
     canvas.drawPath(hex, stroke);

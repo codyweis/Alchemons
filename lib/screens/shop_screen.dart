@@ -184,6 +184,7 @@ class _ShopScreenState extends State<ShopScreen> with TickerProviderStateMixin {
               ),
             ),
             SafeArea(
+              bottom: false,
               child: Column(
                 children: [
                   // Filter row (Show purchased)
@@ -208,31 +209,18 @@ class _ShopScreenState extends State<ShopScreen> with TickerProviderStateMixin {
                   // Header
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: _Glass(
-                      border: accent,
-                      child: Row(
-                        children: [
-                          Icon(Icons.shopping_bag_rounded, color: accent),
-                          const SizedBox(width: 10),
-                          const Text(
-                            'RESEARCH SHOP',
-                            style: TextStyle(
-                              color: Color(0xFFE8EAED),
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.8,
-                              fontSize: 16,
-                            ),
+                    child: Row(
+                      children: [
+                        const Text(
+                          'RESEARCH SHOP',
+                          style: TextStyle(
+                            color: Color(0xFFE8EAED),
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
+                            fontSize: 24,
                           ),
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              color: Colors.white70,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -317,7 +305,7 @@ class _ShopScreenState extends State<ShopScreen> with TickerProviderStateMixin {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 5, 16, 0),
       child: ListView(
         physics: const BouncingScrollPhysics(),
         children: [
@@ -636,7 +624,7 @@ class _BalancesBarCompact extends StatelessWidget {
                               return _GridResTile(
                                 icon: res.icon,
                                 color: res.color,
-                                label: res.resLabel,
+                                label: res.biomeLabel,
                                 value: v,
                                 fmt: _fmt,
                               );
@@ -874,7 +862,7 @@ class _ShopItemCard extends StatelessWidget {
                           for (final res in ElementResources.all)
                             if ((cost[res.settingsKey] ?? 0) > 0)
                               _CostPill(
-                                label: res.resLabel,
+                                label: res.biomeLabel,
                                 amount: cost[res.settingsKey]!,
                                 currentAmount: enabled
                                     ? balances[res.settingsKey] ?? 0

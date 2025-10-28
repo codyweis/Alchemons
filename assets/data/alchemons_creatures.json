@@ -804,10 +804,10 @@
       "image": "creatures/uncommon/MAN03_earthmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameWidth": 250,
+        "frameHeight": 250,
+        "totalFrames": 6,
+        "frameDurationMs": 100
       }
     },
     {
@@ -1746,11 +1746,11 @@
       "image": "creatures/legendary/WNG04_airwing.png",
       "mutationFamily": "Wing",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "rows": 2,
-        "frameDurationMs": 120
+        "frameWidth": 250,
+        "frameHeight": 250,
+        "totalFrames": 6,
+        "rows": 1,
+        "frameDurationMs": 100
       }
     },
     {
@@ -2297,7 +2297,7 @@
     {
       "id": "LET01",
       "name": "Firelet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Fire"
       ],
@@ -2315,7 +2315,7 @@
     {
       "id": "LET02",
       "name": "Waterlet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Water"
       ],
@@ -2333,7 +2333,7 @@
     {
       "id": "LET03",
       "name": "Earthlet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Earth"
       ],
@@ -2351,7 +2351,7 @@
     {
       "id": "LET04",
       "name": "Airlet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Air"
       ],
@@ -2369,7 +2369,7 @@
     {
       "id": "LET05",
       "name": "Steamlet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Steam"
       ],
@@ -2387,7 +2387,7 @@
     {
       "id": "LET06",
       "name": "Lavalet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Lava"
       ],
@@ -2405,7 +2405,7 @@
     {
       "id": "LET07",
       "name": "Lightninglet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Lightning"
       ],
@@ -2423,7 +2423,7 @@
     {
       "id": "LET08",
       "name": "Mudlet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Mud"
       ],
@@ -2441,7 +2441,7 @@
     {
       "id": "LET09",
       "name": "Icelet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Ice"
       ],
@@ -2459,7 +2459,7 @@
     {
       "id": "LET10",
       "name": "Dustlet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Dust"
       ],
@@ -2477,7 +2477,7 @@
     {
       "id": "LET11",
       "name": "Crystalet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Crystal"
       ],
@@ -2495,7 +2495,7 @@
     {
       "id": "LET12",
       "name": "Leaflet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Plant"
       ],
@@ -2513,7 +2513,7 @@
     {
       "id": "LET13",
       "name": "Poisonlet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Poison"
       ],
@@ -2531,7 +2531,7 @@
     {
       "id": "LET14",
       "name": "Spiritlet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Spirit"
       ],
@@ -2549,7 +2549,7 @@
     {
       "id": "LET15",
       "name": "Darklet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Dark"
       ],
@@ -2567,7 +2567,7 @@
     {
       "id": "LET16",
       "name": "Lightlet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Light"
       ],
@@ -2585,7 +2585,7 @@
     {
       "id": "LET17",
       "name": "Bloodlet",
-      "family": "Let",
+      "mutationFamily": "Let",
       "types": [
         "Blood"
       ],

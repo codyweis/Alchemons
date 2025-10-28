@@ -174,13 +174,9 @@ class _GooOrb extends StatelessWidget {
         stops: const [0.35, 1.0],
       ),
       boxShadow: [
-        BoxShadow(
-          color: tint.withOpacity(0.35),
-          blurRadius: 16,
-          spreadRadius: 1,
-        ),
+        BoxShadow(color: tint.withOpacity(0.5), blurRadius: 1, spreadRadius: 1),
       ],
-      border: Border.all(color: tint.withOpacity(0.6), width: 1.6),
+      border: Border.all(color: tint, width: 1),
     );
 
     return Container(

@@ -1,18 +1,17 @@
-// lib/screens/biome_harvest_screen.dart
-import 'dart:ui';
-import 'dart:math' as math;
+import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/floating_close_button_widget.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/constants/unlock_costs.dart';
+import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/screens/harvest_detail_screen.dart';
-import 'package:alchemons/widgets/glowing_icon.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/harvest_service.dart';
+import 'package:alchemons/widgets/game_card.dart';
 
 class BiomeHarvestScreen extends StatefulWidget {
   const BiomeHarvestScreen({super.key, this.service});
@@ -26,28 +25,11 @@ class BiomeHarvestScreen extends StatefulWidget {
 class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
     with TickerProviderStateMixin {
   late HarvestService svc;
-  late final AnimationController _bg;
-  late final AnimationController _glowController;
 
   @override
   void initState() {
     super.initState();
     svc = widget.service ?? context.read<HarvestService>();
-    _bg = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 20),
-    )..repeat();
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _bg.dispose();
-    _glowController.dispose();
-    super.dispose();
   }
 
   Future<void> _promptUnlock(BiomeFarmState farm) async {
@@ -75,568 +57,73 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.watch<FactionTheme>();
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F14),
-      extendBodyBehindAppBar: true,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(0),
-        child: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      ),
-      body: ListenableBuilder(
-        // ← NEW: Wrap body in ListenableBuilder
-        listenable: svc,
-        builder: (_, __) {
-          final biomes = svc.biomes; // ← NOW reads fresh data on each notify
-          final accentColor = biomes
-              .firstWhere((f) => f.unlocked, orElse: () => biomes.first)
-              .biome
-              .primaryColor;
-
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: AnimatedBuilder(
-                  animation: _bg,
-                  builder: (_, __) => CustomPaint(
-                    painter: _HarvestBackdropPainter(t: _bg.value),
-                  ),
-                ),
-              ),
-              Column(
-                children: [
-                  _buildHeader(accentColor),
-                  Expanded(
-                    child: _buildGrid(biomes), // ← Pass biomes as parameter
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildGrid(List<BiomeFarmState> biomes) {
-    // ← NEW helper method
-    final width = MediaQuery.of(context).size.width;
-    final cross = width >= 900
-        ? 3
-        : width >= 650
-        ? 2
-        : 1;
-    final aspect = width >= 650 ? 1.05 : 1.0;
-
-    return GridView.builder(
-      padding: const EdgeInsets.all(14),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: cross,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 14,
-        childAspectRatio: aspect,
-      ),
-      itemCount: biomes.length,
-      itemBuilder: (_, i) {
-        final f = biomes[i];
-        return _BiomeCard(
-          farm: f,
-          onUnlock: () => _promptUnlock(f),
-          onOpen: () {
-            Navigator.of(context).push(
-              PageRouteBuilder(
-                transitionDuration: const Duration(milliseconds: 450),
-                pageBuilder: (_, a1, __) => FadeTransition(
-                  opacity: CurvedAnimation(parent: a1, curve: Curves.ease),
-                  child: BiomeDetailScreen(biome: f.biome, service: svc),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildHeader(Color accentColor) {
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-        child: _GlassContainer(
-          accentColor: accentColor,
-          glowController: _glowController,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                _IconButton(
-                  icon: Icons.arrow_back_rounded,
-                  accentColor: accentColor,
-                  onTap: () => Navigator.of(context).maybePop(),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'BIOME EXTRACTORS',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                          shadows: [
-                            Shadow(
-                              color: accentColor.withOpacity(0.5),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Extract elemental resources from specialized biomes',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                GlowingIcon(
-                  icon: Icons.agriculture_rounded,
-                  color: accentColor,
-                  controller: _glowController,
-                  dialogTitle: "Biome Extractors",
-                  dialogMessage:
-                      "Each biome specializes in extracting multiple related elements. Unlock biomes to access their elements, then choose which element to extract based on your needs.",
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// =================== Glass Header Components ===================
-
-class _GlassContainer extends StatelessWidget {
-  const _GlassContainer({
-    required this.accentColor,
-    required this.glowController,
-    required this.child,
-  });
-
-  final Color accentColor;
-  final AnimationController glowController;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: glowController,
-      builder: (context, _) {
-        final glowIntensity = 0.15 + (glowController.value * 0.15);
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    accentColor.withOpacity(0.08),
-                    Colors.black.withOpacity(0.25),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: accentColor.withOpacity(0.25),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: accentColor.withOpacity(glowIntensity),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: child,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _IconButton extends StatefulWidget {
-  const _IconButton({
-    required this.icon,
-    required this.accentColor,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final Color accentColor;
-  final VoidCallback onTap;
-
-  @override
-  State<_IconButton> createState() => _IconButtonState();
-}
-
-class _IconButtonState extends State<_IconButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        widget.onTap();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.9 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: widget.accentColor.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: widget.accentColor.withOpacity(0.3),
-              width: 1.5,
-            ),
-          ),
-          child: Icon(
-            widget.icon,
-            color: Colors.white.withOpacity(0.9),
-            size: 20,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// =================== Card ===================
-
-class _BiomeCard extends StatefulWidget {
-  const _BiomeCard({
-    required this.farm,
-    required this.onUnlock,
-    required this.onOpen,
-  });
-
-  final BiomeFarmState farm;
-  final VoidCallback onUnlock;
-  final VoidCallback onOpen;
-
-  @override
-  State<_BiomeCard> createState() => _BiomeCardState();
-}
-
-class _BiomeCardState extends State<_BiomeCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _shine;
-  bool _down = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _shine = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _shine.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final biome = widget.farm.biome;
-    final color = widget.farm.currentColor;
-    final unlocked = widget.farm.unlocked;
-    final hasActive = widget.farm.hasActive;
-    final completed = widget.farm.completed;
-    final remaining = widget.farm.remaining;
-
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _down = true),
-      onTapCancel: () => setState(() => _down = false),
-      onTapUp: (_) => setState(() => _down = false),
-      child: AnimatedScale(
-        duration: const Duration(milliseconds: 120),
-        scale: _down ? .98 : 1,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    color.withOpacity(.10),
-                    Colors.black.withOpacity(.22),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: color.withOpacity(.28), width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(.22),
-                    blurRadius: 22,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: -30,
-                    right: -20,
-                    child: _Orb(color: color.withOpacity(.20), size: 120),
-                  ),
-                  Positioned(
-                    bottom: -26,
-                    left: -16,
-                    child: _Orb(color: color.withOpacity(.16), size: 110),
-                  ),
-                  Positioned.fill(
-                    child: AnimatedBuilder(
-                      animation: _shine,
-                      builder: (_, __) {
-                        final p = _shine.value;
-                        return IgnorePointer(
-                          child: ShaderMask(
-                            blendMode: BlendMode.plus,
-                            shaderCallback: (rect) {
-                              final dx = rect.width * (p * 1.25 - .2);
-                              return LinearGradient(
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                                colors: [
-                                  Colors.transparent,
-                                  color.withOpacity(.18),
-                                  Colors.transparent,
-                                ],
-                                stops: const [0.35, 0.5, 0.65],
-                              ).createShader(
-                                Rect.fromLTWH(
-                                  dx,
-                                  0,
-                                  rect.width * .22,
-                                  rect.height,
-                                ),
-                              );
-                            },
-                            child: Container(color: Colors.transparent),
-                          ),
-                        );
+      extendBody: true,
+      backgroundColor: theme.surface,
+      body: Stack(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: ListenableBuilder(
+              listenable: svc,
+              builder: (_, __) {
+                final biomes = svc.biomes;
+                return Column(
+                  children: [
+                    _HeaderBar(
+                      title: 'Biome Extractors',
+                      subtitle:
+                          'Extract elemental resources from specialized habitats',
+                      theme: theme,
+                      onBack: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.of(context).maybePop();
                       },
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 34,
-                              height: 34,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: RadialGradient(
-                                  colors: [
-                                    color.withOpacity(.50),
-                                    color.withOpacity(.08),
-                                  ],
-                                ),
-                                border: Border.all(
-                                  color: color.withOpacity(.55),
-                                  width: 1.6,
-                                ),
-                              ),
-                              child: Icon(biome.icon, color: color, size: 20),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                biome.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Color(0xFFE8EAED),
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 15,
-                                  letterSpacing: .2,
-                                ),
+                    const SizedBox(height: 12),
+
+                    // CONTENT
+                    Expanded(
+                      child: _BiomeGrid(
+                        biomes: biomes,
+                        theme: theme,
+                        onOpenBiome: (BiomeFarmState f) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => BiomeDetailScreen(
+                                biome: f.biome,
+                                service: svc,
                               ),
                             ),
-                            _StatusChip(
-                              color: color,
-                              text: !unlocked
-                                  ? 'LOCKED'
-                                  : (hasActive
-                                        ? (completed ? 'READY' : 'ACTIVE')
-                                        : 'READY'),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          biome.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(.72),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // Element badges
-                        Wrap(
-                          spacing: 4,
-                          runSpacing: 4,
-                          children: [
-                            for (final name in biome.elementNames)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(.08),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(.15),
-                                  ),
-                                ),
-                                child: Text(
-                                  name,
-                                  style: const TextStyle(
-                                    color: Color(0xFFE8EAED),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: .3,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        if (!unlocked) ...[
-                          const Spacer(),
-                          _AccentBtn(
-                            label: 'Unlock',
-                            icon: Icons.lock_open_rounded,
-                            color: color,
-                            filled: true,
-                            onTap: widget.onUnlock,
-                          ),
-                        ] else ...[
-                          const SizedBox(height: 8),
-                          if (hasActive && widget.farm.activeElementId != null)
-                            _TinyPill(
-                              icon: Icons.science_rounded,
-                              label:
-                                  'Extracting ${biome.resourceNameForElement(widget.farm.activeElementId!)}',
-                            ),
-                          if (hasActive && !completed && remaining != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: _TinyPill(
-                                icon: Icons.schedule_rounded,
-                                label:
-                                    'ETA ${TimeOfDay.fromDateTime(DateTime.now().add(remaining)).format(context)}',
-                              ),
-                            ),
-                          if (hasActive && completed)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 4),
-                              child: _TinyPill(
-                                icon: Icons.check_circle_rounded,
-                                label: 'Ready to collect',
-                              ),
-                            ),
-                          if (!hasActive)
-                            const _TinyPill(
-                              icon: Icons.hourglass_empty_rounded,
-                              label: 'No active extraction',
-                            ),
-                          const Spacer(),
-                          _AccentBtn(
-                            label: 'Open',
-                            icon: Icons.chevron_right_rounded,
-                            color: color,
-                            filled: false,
-                            onTap: widget.onOpen,
-                          ),
-                        ],
-                      ],
+                          );
+                        },
+                        onUnlockBiome: (BiomeFarmState f) {
+                          _promptUnlock(f);
+                        },
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              },
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
 
-// =================== Helper Widgets ===================
-
-class _TinyPill extends StatelessWidget {
-  const _TinyPill({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.06),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withOpacity(.14)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: Colors.white.withOpacity(.9)),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFFE8EAED),
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .2,
+          // Floating close button at bottom center
+          Positioned(
+            bottom: 40,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: FloatingCloseButton(
+                theme: theme,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.of(context).maybePop();
+                },
+                accentColor: theme.text,
+                iconColor: theme.text,
               ),
             ),
           ),
@@ -646,9 +133,348 @@ class _TinyPill extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.color, required this.text});
+// ------------------------------------------------------------
+// HEADER
+// ------------------------------------------------------------
 
+class _HeaderBar extends StatelessWidget {
+  const _HeaderBar({
+    required this.title,
+    required this.subtitle,
+    required this.theme,
+    required this.onBack,
+  });
+
+  final String title;
+  final String subtitle;
+  final FactionTheme theme;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Title / subtitle
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  title.toUpperCase(),
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // simple icon summary for harvest context
+          Container(
+            width: 40,
+            height: 40,
+            decoration: theme.chipDecoration(rim: theme.accent),
+            alignment: Alignment.center,
+            child: Icon(Icons.agriculture_rounded, color: theme.text, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// BIOME GRID (updated sizing / spacing)
+// ------------------------------------------------------------
+
+class _BiomeGrid extends StatelessWidget {
+  const _BiomeGrid({
+    required this.biomes,
+    required this.theme,
+    required this.onOpenBiome,
+    required this.onUnlockBiome,
+  });
+
+  final List<BiomeFarmState> biomes;
+  final FactionTheme theme;
+  final void Function(BiomeFarmState) onOpenBiome;
+  final void Function(BiomeFarmState) onUnlockBiome;
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+
+    // Under ~700px -> 1 col list
+    // 700px+       -> 2 cols
+    final crossAxisCount = w >= 700 ? 2 : 1;
+
+    // We want a short row-ish card, so let height be driven by content.
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        // childAspectRatio trick:
+        // ~3.2 gives something close to a horizontal tile instead of tall.
+        // On 1-col (phone) the tile width is full, so ratio ~3.2 keeps height ~100ish.
+        // On 2-col, width ~1/2, so we nudge it down to ~2.8 so it doesn't get too tall.
+        childAspectRatio: crossAxisCount == 1 ? 3.2 : 2.8,
+      ),
+      itemCount: biomes.length,
+      itemBuilder: (_, i) {
+        final farm = biomes[i];
+        return _BiomeCardCompact(
+          farm: farm,
+          theme: theme,
+          onUnlock: () => onUnlockBiome(farm),
+          onOpen: () => onOpenBiome(farm),
+        );
+      },
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// BIOME CARD (compact horizontal row version)
+// ------------------------------------------------------------
+
+class _BiomeCardCompact extends StatefulWidget {
+  const _BiomeCardCompact({
+    required this.farm,
+    required this.theme,
+    required this.onUnlock,
+    required this.onOpen,
+  });
+
+  final BiomeFarmState farm;
+  final FactionTheme theme;
+  final VoidCallback onUnlock;
+  final VoidCallback onOpen;
+
+  @override
+  State<_BiomeCardCompact> createState() => _BiomeCardCompactState();
+}
+
+class _BiomeCardCompactState extends State<_BiomeCardCompact> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final biome = widget.farm.biome;
+    final accent = widget.farm.currentColor;
+    final unlocked = widget.farm.unlocked;
+    final hasActive = widget.farm.hasActive;
+    final completed = widget.farm.completed;
+    final remaining = widget.farm.remaining;
+
+    // status text
+    final String statusText = !unlocked
+        ? 'LOCKED'
+        : (hasActive ? (completed ? '' : 'ACTIVE') : '');
+
+    // compute ETA chip text if extracting
+    String? etaText;
+    if (hasActive && !completed && remaining != null) {
+      final eta = DateTime.now().add(remaining);
+      final tod = TimeOfDay.fromDateTime(eta).format(context);
+      etaText = 'ETA $tod';
+    }
+
+    // tap behavior
+    void handleTap() {
+      HapticFeedback.lightImpact();
+      if (unlocked) {
+        widget.onOpen();
+      } else {
+        widget.onUnlock();
+      }
+    }
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _down = true),
+      onTapUp: (_) {
+        setState(() => _down = false);
+        handleTap();
+      },
+      onTapCancel: () => setState(() => _down = false),
+      onLongPress: () {
+        HapticFeedback.mediumImpact();
+        widget.onOpen();
+      },
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 120),
+        scale: _down ? .9 : 1,
+        curve: Curves.easeOutCubic,
+        child: GameCard(
+          theme: widget.theme,
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // LEFT COLUMN: icon + main info
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _BiomeIconCircleSmall(color: accent, icon: biome.icon),
+                    const SizedBox(width: 10),
+                    // text stack
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // name row with status chip inline
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  biome.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: widget.theme.text,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                    letterSpacing: .2,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              _StatusChipTiny(
+                                color: widget.theme.text,
+                                text: statusText,
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 4),
+
+                          // description
+                          Text(
+                            biome.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: widget.theme.textMuted,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.25,
+                            ),
+                          ),
+
+                          const SizedBox(height: 6),
+
+                          // element tags row
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: [
+                              for (final name in biome.elementNames)
+                                _ElementChipTiny(
+                                  label: name,
+                                  theme: widget.theme,
+                                ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 6),
+
+                          // Single status badge
+                          if (!unlocked)
+                            _TinyInfoPillRow(
+                              icon: Icons.lock_outline_rounded,
+                              label: 'Requires unlock',
+                              theme: widget.theme,
+                            )
+                          else if (hasActive && !completed && etaText != null)
+                            _TinyInfoPillRow(
+                              icon: Icons.schedule_rounded,
+                              label: etaText,
+                              theme: widget.theme,
+                            )
+                          else if (hasActive && completed)
+                            const _TinyReadyPillRow()
+                          else
+                            _TinyInfoPillRow(
+                              icon: Icons.hourglass_empty_rounded,
+                              label: 'Idle',
+                              theme: widget.theme,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // RIGHT COLUMN: CTA button
+              SizedBox(
+                width: 50,
+                child: _PrimaryActionButtonCompact(
+                  theme: widget.theme,
+                  accent: accent,
+                  label: unlocked ? 'OPEN' : 'UNLOCK',
+                  icon: unlocked
+                      ? Icons.chevron_right_rounded
+                      : Icons.lock_open_rounded,
+                  filled: !unlocked, // locked = filled (accent pop)
+                  onTap: handleTap,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// SMALLER SUBCOMPONENTS FOR COMPACT CARD
+// ------------------------------------------------------------
+
+class _BiomeIconCircleSmall extends StatelessWidget {
+  const _BiomeIconCircleSmall({required this.color, required this.icon});
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: color.withOpacity(.15),
+        shape: BoxShape.circle,
+        border: Border.all(color: color.withOpacity(.5), width: 1.2),
+      ),
+      child: Icon(icon, color: color, size: 18),
+    );
+  }
+}
+
+// tinier status chip for inline next to biome name
+class _StatusChipTiny extends StatelessWidget {
+  const _StatusChipTiny({required this.color, required this.text});
   final Color color;
   final String text;
 
@@ -656,51 +482,30 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = text.toLowerCase();
 
-    late final IconData icon;
-    late final Color bg;
-    late final Color border;
     late final Color fg;
 
     switch (t) {
-      case 'locked':
-        icon = Icons.lock_outline_rounded;
-        bg = Colors.white.withOpacity(.06);
-        border = Colors.white.withOpacity(.16);
-        fg = const Color(0xFFE8EAED).withOpacity(.85);
-        break;
       case 'active':
-        icon = Icons.bolt_rounded;
-        bg = color.withOpacity(.20);
-        border = color.withOpacity(.55);
         fg = Colors.white.withOpacity(.95);
         break;
       default:
-        icon = Icons.check_circle_rounded;
-        bg = color.withOpacity(.14);
-        border = color.withOpacity(.45);
-        fg = Colors.white.withOpacity(.95);
+        fg = Colors.white.withOpacity(.0);
         break;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: border, width: 1.6),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: fg),
-          const SizedBox(width: 6),
           Text(
             text.toUpperCase(),
             style: TextStyle(
               color: fg,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: .5,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .4,
             ),
           ),
         ],
@@ -709,89 +514,150 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-class _AccentBtn extends StatelessWidget {
-  const _AccentBtn({
+// tiny chip for biome.elementNames
+class _ElementChipTiny extends StatelessWidget {
+  const _ElementChipTiny({required this.label, required this.theme});
+  final String label;
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      decoration: theme.chipDecoration(rim: theme.accent.withOpacity(0.18)),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: theme.text,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .3,
+        ),
+      ),
+    );
+  }
+}
+
+// activity/status mini pills (row form)
+class _TinyInfoPillRow extends StatelessWidget {
+  const _TinyInfoPillRow({
+    required this.icon,
+    required this.label,
+    required this.theme,
+  });
+
+  final IconData icon;
+  final String label;
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: theme.chipDecoration(rim: theme.textMuted),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: theme.primary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: theme.primary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TinyReadyPillRow extends StatelessWidget {
+  const _TinyReadyPillRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: const Color.fromARGB(255, 0, 0, 0).withOpacity(.5),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Ready to extract',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Color.fromARGB(255, 255, 255, 255),
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// compact CTA button (sits on right side of row)
+class _PrimaryActionButtonCompact extends StatelessWidget {
+  const _PrimaryActionButtonCompact({
+    required this.theme,
+    required this.accent,
     required this.label,
     required this.icon,
-    required this.color,
     required this.filled,
     required this.onTap,
   });
 
+  final FactionTheme theme;
+  final Color accent;
   final String label;
   final IconData icon;
-  final Color color;
   final bool filled;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final bg = filled ? color.withOpacity(.28) : Colors.white.withOpacity(.06);
+    final bg = filled ? accent.withOpacity(.25) : Colors.white.withOpacity(.03);
     final border = filled
-        ? color.withOpacity(.55)
-        : Colors.white.withOpacity(.18);
+        ? accent.withOpacity(.55)
+        : Colors.white.withOpacity(.12);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 5),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: border, width: 1.6),
-          boxShadow: [
-            if (filled)
-              BoxShadow(color: color.withOpacity(.28), blurRadius: 16),
-          ],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: border, width: 1.2),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: Colors.white.withOpacity(.95)),
-            const SizedBox(width: 8),
-            Text(
-              label.toUpperCase(),
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                letterSpacing: .6,
-              ),
-            ),
-          ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [Icon(icon, size: 15, color: theme.text)],
         ),
       ),
     );
   }
 }
 
-class _Orb extends StatelessWidget {
-  const _Orb({required this.color, required this.size});
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: color,
-              blurRadius: size * .45,
-              spreadRadius: size * .12,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// =================== Unlock dialog ===================
+// ------------------------------------------------------------
+// UNLOCK DIALOG (CLEANED TO MATCH CARD STYLE, NO GLASS)
+// ------------------------------------------------------------
 
 class _UnlockDialog extends StatelessWidget {
   const _UnlockDialog({required this.biome, required this.costDb});
@@ -799,7 +665,7 @@ class _UnlockDialog extends StatelessWidget {
   final Biome biome;
   final Map<String, int> costDb;
 
-  String displayForKey(String k) => ElementResources.byKey[k]?.resLabel ?? k;
+  String displayForKey(String k) => ElementResources.byKey[k]?.biomeLabel ?? k;
   IconData iconForKey(String k) =>
       ElementResources.byKey[k]?.icon ?? Icons.blur_on_rounded;
 
@@ -811,191 +677,180 @@ class _UnlockDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.black.withOpacity(.75),
-                  Colors.black.withOpacity(.55),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: color.withOpacity(.35), width: 1.6),
-              boxShadow: [
-                BoxShadow(color: color.withOpacity(.25), blurRadius: 24),
-              ],
-            ),
-            child: StreamBuilder<Map<String, int>>(
-              stream: db.watchResourceBalances(),
-              builder: (context, snap) {
-                final bal = snap.data ?? {};
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A0E27).withOpacity(.95),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(.4), width: 1.4),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: StreamBuilder<Map<String, int>>(
+          stream: db.watchResourceBalances(),
+          builder: (context, snap) {
+            final bal = snap.data ?? {};
+            bool hasShortage = false;
+            for (final e in costDb.entries) {
+              final have = bal[e.key] ?? 0;
+              if (have < e.value) {
+                hasShortage = true;
+                break;
+              }
+            }
 
-                bool hasShortage = false;
-                for (final e in costDb.entries) {
-                  final have = bal[e.key] ?? 0;
-                  if (have < e.value) {
-                    hasShortage = true;
-                    break;
-                  }
-                }
-
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [
-                                  color.withOpacity(.5),
-                                  color.withOpacity(.08),
-                                ],
-                              ),
-                              border: Border.all(
-                                color: color.withOpacity(.55),
-                                width: 1.6,
-                              ),
-                            ),
-                            child: Icon(biome.icon, color: color, size: 22),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Unlock ${biome.label}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFFE8EAED),
-                                fontWeight: FontWeight.w900,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        biome.description,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(.7),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Title row
+                Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(.15),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: color.withOpacity(.5),
+                          width: 1.4,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Required resources',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(.75),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
+                      child: Icon(biome.icon, color: color, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Unlock ${biome.label}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFFE8EAED),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                          letterSpacing: .2,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      ...costDb.entries.map((e) {
-                        final name = displayForKey(e.key);
-                        final have = bal[e.key] ?? 0;
-                        final need = e.value;
-                        final ok = have >= need;
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
 
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(.06),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: ok
-                                  ? color.withOpacity(.45)
-                                  : Colors.red.withOpacity(.45),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                iconForKey(e.key),
-                                size: 16,
-                                color: ok ? color : Colors.redAccent,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  name,
-                                  style: const TextStyle(
-                                    color: Color(0xFFE8EAED),
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Text(
-                                '$have / $need',
-                                style: TextStyle(
-                                  color: ok
-                                      ? Colors.greenAccent.withOpacity(.9)
-                                      : Colors.redAccent.withOpacity(.9),
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _DialogBtn(
-                              label: 'Cancel',
-                              onTap: () => Navigator.pop(context, false),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _DialogPrimaryBtn(
-                              label: hasShortage
-                                  ? 'Not enough'
-                                  : 'Confirm Unlock',
-                              color: color,
-                              disabled: hasShortage,
-                              onTap: hasShortage
-                                  ? null
-                                  : () => Navigator.pop(context, true),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                Text(
+                  biome.description,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(.7),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
                   ),
-                );
-              },
-            ),
-          ),
+                ),
+
+                const SizedBox(height: 14),
+
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Required resources',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(.75),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      letterSpacing: .2,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                ...costDb.entries.map((e) {
+                  final name = displayForKey(e.key);
+                  final have = bal[e.key] ?? 0;
+                  final need = e.value;
+                  final ok = have >= need;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(.04),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: ok
+                            ? color.withOpacity(.5)
+                            : Colors.redAccent.withOpacity(.5),
+                        width: 1.4,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          iconForKey(e.key),
+                          size: 16,
+                          color: ok ? color : Colors.redAccent,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              color: Color(0xFFE8EAED),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                              letterSpacing: .2,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '$have / $need',
+                          style: TextStyle(
+                            color: ok
+                                ? Colors.greenAccent.withOpacity(.9)
+                                : Colors.redAccent.withOpacity(.9),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+
+                const SizedBox(height: 16),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _DialogBtn(
+                        label: 'Cancel',
+                        onTap: () => Navigator.pop(context, false),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _DialogPrimaryBtn(
+                        label: hasShortage ? 'Not enough' : 'Confirm Unlock',
+                        color: color,
+                        disabled: hasShortage,
+                        onTap: hasShortage
+                            ? null
+                            : () => Navigator.pop(context, true),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
+// buttons in dialog (mostly same logic as your originals, minus glow/blur)
 class _DialogBtn extends StatelessWidget {
   const _DialogBtn({required this.label, required this.onTap});
   final String label;
@@ -1006,16 +861,18 @@ class _DialogBtn extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.06),
+        color: Colors.white.withOpacity(.04),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(.18)),
+        border: Border.all(color: Colors.white.withOpacity(.14)),
       ),
       alignment: Alignment.center,
-      child: Text(
-        label.toUpperCase(),
-        style: const TextStyle(
+      child: const Text(
+        // uppercase in style, like other CTAs
+        'CANCEL',
+        style: TextStyle(
           color: Color(0xFFE8EAED),
           fontWeight: FontWeight.w900,
+          fontSize: 12,
           letterSpacing: .5,
         ),
       ),
@@ -1043,10 +900,9 @@ class _DialogPrimaryBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [color, color.withOpacity(.85)]),
+          color: color.withOpacity(.3),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(.18)),
-          boxShadow: [BoxShadow(color: color.withOpacity(.28), blurRadius: 18)],
+          border: Border.all(color: color.withOpacity(.6), width: 1.4),
         ),
         alignment: Alignment.center,
         child: Text(
@@ -1054,55 +910,11 @@ class _DialogPrimaryBtn extends StatelessWidget {
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w900,
+            fontSize: 12,
             letterSpacing: .5,
           ),
         ),
       ),
     ),
   );
-}
-
-// =================== Background painter ===================
-
-class _HarvestBackdropPainter extends CustomPainter {
-  _HarvestBackdropPainter({required this.t});
-  final double t;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = const Color(0xFF0B0F14);
-    canvas.drawRect(Offset.zero & size, bg);
-
-    final pathPaint = Paint()
-      ..color = Colors.white.withOpacity(.05)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1;
-
-    for (int i = 0; i < 3; i++) {
-      final pth = Path();
-      final amp = 16.0 + i * 10;
-      final spd = (t + i * .2) * 2 * math.pi;
-      for (double x = 0; x <= size.width; x += 12) {
-        final y = size.height * (0.25 + i * .25) + math.sin(x / 80 + spd) * amp;
-        if (x == 0) {
-          pth.moveTo(x, y);
-        } else {
-          pth.lineTo(x, y);
-        }
-      }
-      canvas.drawPath(pth, pathPaint);
-    }
-
-    final dot = Paint()..color = Colors.white.withOpacity(.08);
-    for (int i = 0; i < 40; i++) {
-      final px = (i * 37 + t * size.width) % size.width;
-      final py = (size.height * (0.15 + (i % 5) * .18)) % size.height;
-      final r = 1.2 + math.sin((t + i) * 2 * math.pi) * .6;
-      canvas.drawCircle(Offset(px, py), r, dot);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _HarvestBackdropPainter oldDelegate) =>
-      oldDelegate.t != t;
 }

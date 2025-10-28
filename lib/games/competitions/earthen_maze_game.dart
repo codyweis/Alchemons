@@ -383,8 +383,9 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
                                         FutureBuilder<_SpriteMeta>(
                                           future: _playerSpriteFuture,
                                           builder: (context, snap) {
-                                            if (!snap.hasData)
+                                            if (!snap.hasData) {
                                               return const SizedBox.shrink();
+                                            }
                                             return _SpriteOverlay(
                                               actor: player!,
                                               meta: snap.data!,
@@ -1565,14 +1566,14 @@ class _Actor {
 
   // runtime helpers
   int _cooldown = 1;
-  int _stuckFor = 0;
+  final int _stuckFor = 0;
 
   _Actor(this.name, this.pos, {required this.iq, required this.spd});
 }
 
 class _NPC extends _Actor {
-  _NPC(String name, double iq, double spd, Offset spawn)
-    : super(name, spawn, iq: iq, spd: spd);
+  _NPC(super.name, double iq, double spd, super.spawn)
+    : super(iq: iq, spd: spd);
 
   factory _NPC.fromStats(String name, double iq, double spd, Offset spawn) {
     return _NPC(name, iq.isFinite ? iq : 5, spd.isFinite ? spd : 5, spawn)

@@ -1,42 +1,52 @@
 // models/element_resource.dart
 import 'package:flutter/material.dart';
 
-enum ElementId { fire, water, air, earth }
+enum ElementId { volcanic, oceanic, earthen, verdant, arcane }
 
 extension ElementIdX on ElementId {
+  // key stored in Settings table / DB for this currency
   String get dbKey => switch (this) {
-    ElementId.fire => 'res_embers',
-    ElementId.water => 'res_droplets',
-    ElementId.air => 'res_breeze',
-    ElementId.earth => 'res_shards',
+    ElementId.volcanic => 'res_volcanic',
+    ElementId.oceanic => 'res_oceanic',
+    ElementId.earthen => 'res_earthen',
+    ElementId.verdant => 'res_verdant',
+    ElementId.arcane => 'res_arcane',
   };
 
+  // high-level category name shown in UI headers / chips
   String get label => switch (this) {
-    ElementId.fire => 'Fire',
-    ElementId.water => 'Water',
-    ElementId.air => 'Air',
-    ElementId.earth => 'Earth',
+    ElementId.volcanic => 'Volcanic',
+    ElementId.oceanic => 'Oceanic',
+    ElementId.earthen => 'Earthen',
+    ElementId.verdant => 'Verdant',
+    ElementId.arcane => 'Arcane',
   };
 
+  // "unit" name under that biome. You can keep these 1:1 with label
+  // or give them flair like "Volcanic Essence", etc.
+  // For now, keep same for clarity.
   String get unitName => switch (this) {
-    ElementId.fire => 'Embers',
-    ElementId.water => 'Droplets',
-    ElementId.air => 'Breeze',
-    ElementId.earth => 'Shards',
+    ElementId.volcanic => 'Volcanic',
+    ElementId.oceanic => 'Oceanic',
+    ElementId.earthen => 'Earthen',
+    ElementId.verdant => 'Verdant',
+    ElementId.arcane => 'Arcane',
   };
 
   IconData get icon => switch (this) {
-    ElementId.fire => Icons.local_fire_department_outlined,
-    ElementId.water => Icons.water_drop_outlined,
-    ElementId.air => Icons.air,
-    ElementId.earth => Icons.terrain,
+    ElementId.volcanic => Icons.local_fire_department_rounded,
+    ElementId.oceanic => Icons.water_drop_rounded,
+    ElementId.earthen => Icons.landscape_rounded,
+    ElementId.verdant => Icons.nature_rounded,
+    ElementId.arcane => Icons.auto_awesome_rounded,
   };
 
   Color get color => switch (this) {
-    ElementId.fire => const Color(0xFFFFA726),
-    ElementId.water => const Color(0xFF29B6F6),
-    ElementId.air => const Color(0xFF26C6DA),
-    ElementId.earth => const Color(0xFF8D6E63),
+    ElementId.volcanic => const Color(0xFFFF6B35),
+    ElementId.oceanic => const Color(0xFF4ECDC4),
+    ElementId.earthen => const Color(0xFF8B6F47),
+    ElementId.verdant => const Color(0xFF6BCF7F),
+    ElementId.arcane => const Color(0xFFB388FF),
   };
 }
 
@@ -46,8 +56,14 @@ class ElementResource {
 
   const ElementResource({required this.id, required this.amount});
 
-  String get resourceName => id.label; // e.g., "Fire"
-  String get name => id.unitName; // e.g., "Embers"
+  // For ResourceCollectionWidget pills:
+  // Top line (big bold all-caps)
+  String get resourceName => id.label; // "Volcanic"
+
+  // Smaller subtitle line under it
+  String get name => id
+      .unitName; // "Volcanic" (or "Volcanic Essence" later if you want flavor)
+
   IconData get icon => id.icon;
   Color get color => id.color;
 

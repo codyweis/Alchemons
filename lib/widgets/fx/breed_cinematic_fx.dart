@@ -326,7 +326,7 @@ class _Orbits extends StatelessWidget {
             offset: Offset(lx, ly),
             child: Transform.scale(
               scale: scale,
-              child: _Glow(child: left, color: a, intensity: .55),
+              child: _Glow(color: a, intensity: .55, child: left),
             ),
           ),
         ),
@@ -336,7 +336,7 @@ class _Orbits extends StatelessWidget {
             offset: Offset(rx, ry),
             child: Transform.scale(
               scale: scale,
-              child: _Glow(child: right, color: b, intensity: .55),
+              child: _Glow(color: b, intensity: .55, child: right),
             ),
           ),
         ),

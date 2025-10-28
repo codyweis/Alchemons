@@ -63,6 +63,10 @@ class ParentSnapshot {
         intelligence: inst.statIntelligence,
         strength: inst.statStrength,
         beauty: inst.statBeauty,
+        beautyPotential: inst.statBeautyPotential,
+        intelligencePotential: inst.statIntelligencePotential,
+        speedPotential: inst.statSpeedPotential,
+        strengthPotential: inst.statStrengthPotential,
       ),
     );
   }

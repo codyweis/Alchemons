@@ -1,4 +1,3 @@
-// lib/screens/biome_detail_screen.dart
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -9,6 +8,7 @@ import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/harvest_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
 import 'package:alchemons/widgets/glowing_icon.dart';
@@ -40,20 +40,17 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     with TickerProviderStateMixin {
   late final Ticker _ticker;
   double _tSeconds = 0.0;
-  late AnimationController _tapFxCtrl;
+
+  late final AnimationController _tapFxCtrl;
   Offset? _tapLocal;
 
   late final AnimationController _collectCtrl;
   late final AnimationController _jobCtrl;
   late final AnimationController _glowController;
 
-  Future<Widget>? _creatureFuture;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _prepareCreatureFuture();
-  }
+  /// Cached sprite widget for current active job creature
+  Widget? _creatureWidget;
+  String? _cachedInstanceIdForCreature; // so we know if job changed
 
   @override
   void initState() {
@@ -69,11 +66,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       duration: const Duration(milliseconds: 700),
     );
 
-    _ticker = createTicker((elapsed) {
-      _tSeconds = elapsed.inMicroseconds / 1e6;
-      if (mounted) setState(() {});
-    })..start();
-
     _jobCtrl = AnimationController(
       vsync: this,
       lowerBound: 0,
@@ -85,6 +77,20 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
+
+    // high-frequency ticker JUST updates _tSeconds,
+    // and we only pass _tSeconds into the bubbling tube widget.
+    _ticker = createTicker((elapsed) {
+      _tSeconds = elapsed.inMicroseconds / 1e6;
+      // instead of setState on whole screen, notify only the tube
+      if (mounted) {
+        // we'll trigger a rebuild of the tube sub-tree via setState,
+        // but that subtree is cheap and isolated
+        setState(() {});
+      }
+    })..start();
+
+    _refreshCreatureCache(); // prime cache
   }
 
   @override
@@ -97,369 +103,59 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     super.dispose();
   }
 
-  void _prepareCreatureFuture() {
+  // Rebuild the creature widget cache if the active job's creature changed
+  Future<void> _refreshCreatureCache() async {
     final farm = widget.service.biome(widget.biome);
-    _creatureFuture = _buildCreatureFromFarm(farm);
-  }
-
-  void _syncJobProgress(BiomeFarmState farm) {
-    final j = farm.activeJob;
-
-    if (j == null) {
-      if (_jobCtrl.value != 0) _jobCtrl.value = 0;
-      _jobCtrl.stop();
-      return;
-    }
-
-    final totalMs = j.durationMs;
-    final rem = farm.remaining;
-    final progress = (rem == null || totalMs == 0)
-        ? 0.0
-        : (1.0 - rem.inMilliseconds / totalMs).clamp(0.0, 1.0);
-
-    final total = Duration(milliseconds: totalMs);
-    if (_jobCtrl.duration != total) {
-      _jobCtrl.duration = total;
-    }
-
-    if (farm.completed) {
-      if (_jobCtrl.value != 1.0) _jobCtrl.value = 1.0;
-      _jobCtrl.stop();
-      return;
-    }
-
-    const eps = 0.002;
-    if ((_jobCtrl.value - progress).abs() > eps || !_jobCtrl.isAnimating) {
-      _jobCtrl.forward(from: progress);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final farm = widget.service.biome(widget.biome);
-    final color = farm.currentColor;
-
-    _syncJobProgress(farm);
-
-    final progress = _jobCtrl.value;
-    final targetFill = farm.hasActive
-        ? (0.0 + 0.85 * progress).clamp(0.0, 0.85)
-        : 0.0;
-    final curvedFill = Curves.easeOutCubic.transform(targetFill);
-    final drainP = Curves.easeInOutCubic.transform(_collectCtrl.value);
-    final effectiveFill = curvedFill * (1.0 - drainP);
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B0F14),
-      extendBodyBehindAppBar: true,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(0),
-        child: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      ),
-      body: AnimatedBuilder(
-        animation: _jobCtrl,
-        builder: (_, __) {
-          final Duration? rem = farm.hasActive && _jobCtrl.duration != null
-              ? _jobCtrl.duration! * (1 - _jobCtrl.value)
-              : farm.remaining;
-
-          return Column(
-            children: [
-              _buildHeader(context, color),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  child: Column(
-                    children: [
-                      _HeaderCard(
-                        color: color,
-                        icon: widget.biome.icon,
-                        label: widget.biome.label,
-                        status: !farm.unlocked
-                            ? 'LOCKED'
-                            : (farm.hasActive
-                                  ? (farm.completed ? 'COMPLETE' : 'ACTIVE')
-                                  : 'READY'),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Tube
-                      AspectRatio(
-                        aspectRatio: 3 / 4,
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final size = Size(
-                              constraints.maxWidth,
-                              constraints.maxHeight,
-                            );
-                            final geo = _TubeGeometry.fromSize(size);
-                            final inner = geo.inner;
-
-                            return GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTapDown: (details) {
-                                _handleTapBoost(farm);
-                                final lp = details.localPosition;
-                                final clamped = Offset(
-                                  lp.dx.clamp(inner.left + 6, inner.right - 6),
-                                  lp.dy.clamp(inner.top + 6, inner.bottom - 6),
-                                );
-                                setState(() => _tapLocal = clamped);
-                                _tapFxCtrl.forward(from: 0);
-                              },
-                              child: AnimatedBuilder(
-                                animation: _collectCtrl,
-                                child: Stack(
-                                  children: [
-                                    Positioned.fill(
-                                      child: ClipRRect(
-                                        borderRadius: inner._toBorderRadius(),
-                                        child: Align(
-                                          alignment: Alignment(
-                                            0,
-                                            _creatureY(effectiveFill),
-                                          ),
-                                          child: AnimatedBuilder(
-                                            animation: _tapFxCtrl,
-                                            builder: (context, child) {
-                                              final v = _tapFxCtrl.value;
-                                              final osc = math.sin(
-                                                v * math.pi * 10,
-                                              );
-                                              final decay = (1.0 - v);
-                                              final amp = 6.0 * decay;
-                                              final dx = osc * amp * 0.6;
-                                              final dy = -osc * amp * 0.35;
-                                              final rot = osc * 0.025;
-
-                                              return Transform.translate(
-                                                offset: Offset(dx, dy),
-                                                child: Transform.rotate(
-                                                  angle: rot,
-                                                  child: child,
-                                                ),
-                                              );
-                                            },
-                                            child: FutureBuilder<Widget>(
-                                              future: _creatureFuture,
-                                              builder: (context, snapshot) {
-                                                if (snapshot.connectionState ==
-                                                    ConnectionState.waiting) {
-                                                  return const Center(
-                                                    child:
-                                                        CircularProgressIndicator(),
-                                                  );
-                                                }
-                                                if (snapshot.hasError) {
-                                                  return Icon(
-                                                    widget.biome.icon,
-                                                    size: 28,
-                                                    color: Colors.white
-                                                        .withOpacity(.55),
-                                                  );
-                                                }
-                                                return snapshot.data ??
-                                                    const SizedBox.shrink();
-                                              },
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    CustomPaint(
-                                      painter: _TubeBackgroundPainter(
-                                        tSeconds: _tSeconds,
-                                        fill: effectiveFill,
-                                        color: color,
-                                        active: farm.hasActive,
-                                      ),
-                                      size: size,
-                                    ),
-                                    Positioned.fill(
-                                      child: IgnorePointer(
-                                        child: AnimatedBuilder(
-                                          animation: _tapFxCtrl,
-                                          builder: (_, __) => AlchemyTapFX(
-                                            center: _tapLocal,
-                                            progress: _tapFxCtrl.value,
-                                            color: color,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    CustomPaint(
-                                      painter: _TubeForegroundPainter(
-                                        tSeconds: _tSeconds,
-                                        color: color,
-                                      ),
-                                      size: size,
-                                    ),
-                                  ],
-                                ),
-                                builder: (_, child) {
-                                  final v = _collectCtrl.value;
-                                  final decay = 1.0 - v;
-                                  final dx =
-                                      math.sin(v * math.pi * 10) * 6.0 * decay;
-                                  final dy =
-                                      math.cos(v * math.pi * 8) * 4.0 * decay;
-                                  final rot =
-                                      math.sin(v * math.pi * 6) * 0.015 * decay;
-                                  return Transform.translate(
-                                    offset: Offset(dx, dy),
-                                    child: Transform.rotate(
-                                      angle: rot,
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-
-                      Text(
-                        !farm.unlocked
-                            ? 'This biome is locked.'
-                            : (!farm.hasActive
-                                  ? 'No active extraction. Insert a creature to begin.'
-                                  : (farm.completed
-                                        ? 'Extraction complete — ready to collect.'
-                                        : 'Extracting ${_getResourceName(farm)}... ${_fmt(rem)} left')),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(.82),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      if (!farm.unlocked)
-                        _LockedPanel(
-                          color: color,
-                          onBack: () => Navigator.pop(context),
-                        )
-                      else if (!farm.hasActive)
-                        _StartPanel(
-                          color: color,
-                          biome: widget.biome,
-                          defaultDuration: widget.defaultDuration,
-                          onPickAndStart: _handlePickAndStart,
-                        )
-                      else
-                        _ActivePanel(
-                          color: color,
-                          farm: farm,
-                          biome: widget.biome,
-                          onCollect: farm.completed
-                              ? () async {
-                                  HapticFeedback.mediumImpact();
-                                  await _collectCtrl.forward(from: 0);
-
-                                  final got = await widget.service.collect(
-                                    widget.biome,
-                                  );
-
-                                  if (!mounted) return;
-
-                                  HapticFeedback.lightImpact();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Collected $got ${_getResourceName(farm)}',
-                                      ),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                  _prepareCreatureFuture();
-                                  setState(() {});
-                                }
-                              : null,
-                          onCancel: () async {
-                            if (_collectCtrl.isAnimating) return;
-
-                            HapticFeedback.heavyImpact();
-                            await _collectCtrl.forward(from: 0);
-
-                            await widget.service.cancel(widget.biome);
-
-                            if (!mounted) return;
-
-                            HapticFeedback.lightImpact();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Extraction cancelled'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                            _prepareCreatureFuture();
-                            setState(() {});
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  void _handleTapBoost(BiomeFarmState farm) async {
-    if (!farm.hasActive || farm.completed) return;
-
-    final totalMs = farm.activeJob!.durationMs;
-    final currentMs = (1.0 - _jobCtrl.value) * totalMs;
-    final newMs = (currentMs - 1000).clamp(0, totalMs).toDouble();
-    _jobCtrl.value = 1.0 - (newMs / totalMs);
-
-    unawaited(widget.service.nudge(widget.biome));
-  }
-
-  Future<Widget> _buildCreatureFromFarm(BiomeFarmState farm) async {
     final job = farm.activeJob;
+
     if (job == null) {
-      return Icon(
+      _cachedInstanceIdForCreature = null;
+      _creatureWidget = Icon(
         widget.biome.icon,
         size: 28,
         color: Colors.white.withOpacity(.55),
       );
+      return;
     }
 
-    print('DEBUG: Job creature ID: ${job.creatureInstanceId}'); // Add this
+    if (_cachedInstanceIdForCreature == job.creatureInstanceId &&
+        _creatureWidget != null) {
+      // no change
+      return;
+    }
 
-    final inst = await context.read<AlchemonsDatabase>().getInstance(
-      job.creatureInstanceId,
-    );
+    _cachedInstanceIdForCreature = job.creatureInstanceId;
 
-    print('DEBUG: Instance found: ${inst != null}'); // Add this
-    print('DEBUG: Instance level: ${inst?.level}'); // Add this
-    print('DEBUG: Instance base ID: ${inst?.baseId}'); // Add this
+    final db = context.read<AlchemonsDatabase>();
+    final inst = await db.getInstance(job.creatureInstanceId);
+
+    if (!mounted) return;
 
     if (inst == null) {
-      return Icon(
+      _creatureWidget = Icon(
         widget.biome.icon,
         size: 40,
         color: Colors.white.withOpacity(.75),
       );
+      setState(() {});
+      return;
     }
 
     final repo = context.read<CreatureRepository>();
     final base = repo.getCreatureById(inst.baseId);
     if (base == null || base.spriteData == null) {
-      return Icon(
+      _creatureWidget = Icon(
         widget.biome.icon,
         size: 40,
         color: Colors.white.withOpacity(.75),
       );
+      setState(() {});
+      return;
     }
+
     final genetics = decodeGenetics(inst.geneticsJson);
 
-    return CreatureSprite(
+    _creatureWidget = CreatureSprite(
       spritePath: base.spriteData!.spriteSheetPath,
       totalFrames: base.spriteData!.totalFrames,
       rows: base.spriteData!.rows,
@@ -474,102 +170,77 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       hueShift: hueFromGenes(genetics),
       isPrismatic: inst.isPrismaticSkin,
     );
+
+    setState(() {});
   }
 
-  double _creatureY(double fill) {
-    final y = 0.8 - fill * 1.6;
-    return y.clamp(-0.2, 0.6);
-  }
+  // Sync _jobCtrl with game job state and return computed metrics
+  _ProgressViewModel _syncAndComputeProgress(BiomeFarmState farm) {
+    final job = farm.activeJob;
 
-  Widget _buildHeader(BuildContext context, Color accentColor) {
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-        child: _GlassContainer(
-          accentColor: accentColor,
-          glowController: _glowController,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                _IconButton(
-                  icon: Icons.arrow_back_rounded,
-                  accentColor: accentColor,
-                  onTap: () => Navigator.of(context).maybePop(),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.biome.label.toUpperCase(),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                          shadows: [
-                            Shadow(
-                              color: accentColor.withOpacity(0.5),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Resource Extractor',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                GlowingIcon(
-                  icon: Icons.access_alarm,
-                  color: accentColor,
-                  controller: _glowController,
-                  dialogTitle: "Biome Extraction",
-                  dialogMessage:
-                      "Extract resources from creatures matching this biome's elements. The resource type depends on your creature's element.",
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    if (job == null) {
+      if (_jobCtrl.value != 0) _jobCtrl.value = 0;
+      if (_jobCtrl.isAnimating) _jobCtrl.stop();
+      return const _ProgressViewModel(
+        progress: 0,
+        effectiveFill: 0,
+        remaining: null,
+      );
+    }
+
+    final totalMs = job.durationMs;
+    final rem = farm.remaining;
+    final rawProgress = (rem == null || totalMs == 0)
+        ? 0.0
+        : (1.0 - rem.inMilliseconds / totalMs).clamp(0.0, 1.0);
+
+    final totalDur = Duration(milliseconds: totalMs);
+    if (_jobCtrl.duration != totalDur) {
+      _jobCtrl.duration = totalDur;
+    }
+
+    if (farm.completed) {
+      if (_jobCtrl.value != 1.0) _jobCtrl.value = 1.0;
+      if (_jobCtrl.isAnimating) _jobCtrl.stop();
+    } else {
+      // nudge controller to keep animating toward "now"
+      const eps = 0.002;
+      if ((_jobCtrl.value - rawProgress).abs() > eps || !_jobCtrl.isAnimating) {
+        _jobCtrl.forward(from: rawProgress);
+      }
+    }
+
+    // visual fill math
+    final progress = _jobCtrl.value;
+    final targetFill = farm.hasActive
+        ? (0.0 + 0.85 * progress).clamp(0.0, 0.85)
+        : 0.0;
+    final curvedFill = Curves.easeOutCubic.transform(targetFill);
+    final drainP = Curves.easeInOutCubic.transform(_collectCtrl.value);
+    final effectiveFill = curvedFill * (1.0 - drainP);
+
+    // compute displayed remaining time
+    final Duration? remainingTime = farm.hasActive && _jobCtrl.duration != null
+        ? _jobCtrl.duration! * (1 - _jobCtrl.value)
+        : farm.remaining;
+
+    return _ProgressViewModel(
+      progress: progress,
+      effectiveFill: effectiveFill,
+      remaining: remainingTime,
     );
   }
 
-  void _showToast(
-    String message, {
-    IconData icon = Icons.info_rounded,
-    Color? color,
-  }) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(icon, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: color ?? Colors.indigo.shade400,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        dismissDirection: DismissDirection.horizontal,
-        showCloseIcon: true,
-      ),
-    );
+  void _handleTapBoost(BiomeFarmState farm) {
+    if (!farm.hasActive || farm.completed) return;
+
+    final totalMs = farm.activeJob!.durationMs;
+    final currentMs = (1.0 - _jobCtrl.value) * totalMs;
+    final newMs = (currentMs - 1000).clamp(0, totalMs).toDouble();
+    _jobCtrl.value = 1.0 - (newMs / totalMs);
+
+    // no need to await, nudge can be fire-and-forget
+    widget.service.nudge(widget.biome);
   }
 
   Future<void> _handlePickAndStart() async {
@@ -580,9 +251,8 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     );
     if (instanceId == null) return;
 
-    final inst = await context.read<AlchemonsDatabase>().getInstance(
-      instanceId,
-    );
+    final db = context.read<AlchemonsDatabase>();
+    final inst = await db.getInstance(instanceId);
     if (inst == null) return;
     if (inst.staminaBars == 0) {
       _showToast(
@@ -621,9 +291,55 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
         ),
       );
     } else {
-      _prepareCreatureFuture();
-      setState(() {});
+      await _collectCtrl.forward(from: 0); // little juice pop-in
+      await _refreshCreatureCache(); // show new worker
     }
+  }
+
+  void _handleCollect(BiomeFarmState farm) async {
+    HapticFeedback.mediumImpact();
+    await _collectCtrl.forward(from: 0);
+
+    final got = await widget.service.collect(widget.biome);
+    if (!mounted) return;
+
+    HapticFeedback.lightImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Collected $got ${_getResourceName(farm)}'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    await _refreshCreatureCache();
+  }
+
+  void _handleCancel() async {
+    if (_collectCtrl.isAnimating) return;
+
+    HapticFeedback.heavyImpact();
+    await _collectCtrl.forward(from: 0);
+
+    await widget.service.cancel(widget.biome);
+
+    if (!mounted) return;
+
+    HapticFeedback.lightImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Extraction cancelled'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    await _refreshCreatureCache();
+  }
+
+  // ---------- UI helpers ----------
+
+  double _creatureY(double fill) {
+    final y = 0.8 - fill * 1.6;
+    return y.clamp(-0.2, 0.6);
   }
 
   int _computeRatePerMinute({
@@ -652,17 +368,328 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     if (m > 0) return '${m}m ${s}s';
     return '${s}s';
   }
+
+  void _showToast(
+    String message, {
+    IconData icon = Icons.info_rounded,
+    Color? color,
+  }) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: color ?? Colors.indigo.shade400,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        dismissDirection: DismissDirection.horizontal,
+        showCloseIcon: true,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<FactionTheme>();
+
+    return Scaffold(
+      // use your faction surface instead of hardcoded 0xFF0B0F14
+      backgroundColor: theme.surface,
+      extendBodyBehindAppBar: true,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(0),
+        child: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      ),
+      body: ListenableBuilder(
+        listenable: widget.service,
+        builder: (_, __) {
+          final farm = widget.service.biome(widget.biome);
+          final accent = farm.currentColor;
+
+          final vm = _syncAndComputeProgress(farm);
+
+          final statusLabel = !farm.unlocked
+              ? 'LOCKED'
+              : farm.hasActive
+              ? (farm.completed ? 'COMPLETE' : 'ACTIVE')
+              : 'READY';
+
+          final statusText = !farm.unlocked
+              ? 'This biome is locked.'
+              : (!farm.hasActive
+                    ? 'No active extraction. Insert a creature to begin.'
+                    : (farm.completed
+                          ? 'Extraction complete — ready to collect.'
+                          : 'Extracting ${_getResourceName(farm)}... ${_fmt(vm.remaining)} left'));
+
+          final currentJob = farm.activeJob;
+          if (currentJob?.creatureInstanceId != _cachedInstanceIdForCreature) {
+            _refreshCreatureCache();
+          }
+
+          return Column(
+            children: [
+              _HeaderShell(
+                theme: theme,
+                accentColor: accent,
+                biomeLabel: widget.biome.label,
+                onBack: () => Navigator.of(context).maybePop(),
+                glowController: _glowController,
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  child: Column(
+                    children: [
+                      _HeaderCard(
+                        color: accent,
+                        icon: widget.biome.icon,
+                        label: widget.biome.label,
+                        status: statusLabel,
+                        theme: theme,
+                      ),
+                      const SizedBox(height: 14),
+
+                      AspectRatio(
+                        aspectRatio: 3 / 4,
+                        child: _TubeView(
+                          tSeconds: _tSeconds,
+                          collectCtrl: _collectCtrl,
+                          tapFxCtrl: _tapFxCtrl,
+                          onTapBoost: () {},
+                          farm: farm,
+                          accent: accent,
+                          effectiveFill: vm.effectiveFill,
+                          creatureY: _creatureY(vm.effectiveFill),
+                          creatureWidget: _creatureWidget,
+                          onTapDown: (details, inner) {
+                            _handleTapBoost(farm);
+
+                            final lp = details.localPosition;
+                            final clamped = Offset(
+                              lp.dx.clamp(inner.left + 6, inner.right - 6),
+                              lp.dy.clamp(inner.top + 6, inner.bottom - 6),
+                            );
+                            setState(() => _tapLocal = clamped);
+                            _tapFxCtrl.forward(from: 0);
+                          },
+                          tapLocal: _tapLocal,
+                        ),
+                      ),
+
+                      Text(
+                        statusText,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: theme.text,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      if (!farm.unlocked)
+                        _LockedPanel(
+                          color: accent,
+                          theme: theme,
+                          onBack: () => Navigator.pop(context),
+                        )
+                      else if (!farm.hasActive)
+                        _StartPanel(
+                          color: accent,
+                          theme: theme,
+                          biome: widget.biome,
+                          defaultDuration: widget.defaultDuration,
+                          onPickAndStart: _handlePickAndStart,
+                        )
+                      else
+                        _ActivePanel(
+                          color: accent,
+                          theme: theme,
+                          farm: farm,
+                          biome: widget.biome,
+                          onCollect: farm.completed
+                              ? () => _handleCollect(farm)
+                              : null,
+                          onCancel: _handleCancel,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Small immutable model for computed progress values
+class _ProgressViewModel {
+  const _ProgressViewModel({
+    required this.progress,
+    required this.effectiveFill,
+    required this.remaining,
+  });
+  final double progress;
+  final double effectiveFill;
+  final Duration? remaining;
+}
+
+/// Extracted tube widget so only this subtree rerenders at ticker frequency
+class _TubeView extends StatelessWidget {
+  const _TubeView({
+    required this.tSeconds,
+    required this.collectCtrl,
+    required this.tapFxCtrl,
+    required this.onTapBoost,
+    required this.farm,
+    required this.accent,
+    required this.effectiveFill,
+    required this.creatureY,
+    required this.creatureWidget,
+    required this.onTapDown,
+    required this.tapLocal,
+  });
+
+  final double tSeconds;
+  final AnimationController collectCtrl;
+  final AnimationController tapFxCtrl;
+  final VoidCallback onTapBoost;
+
+  final BiomeFarmState farm;
+  final Color accent;
+  final double effectiveFill;
+  final double creatureY;
+  final Widget? creatureWidget;
+
+  final void Function(TapDownDetails details, RRect inner) onTapDown;
+  final Offset? tapLocal;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        final geo = _TubeGeometry.fromSize(size);
+        final inner = geo.inner;
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (details) {
+            HapticFeedback.lightImpact();
+            onTapBoost();
+            onTapDown(details, inner);
+          },
+          child: AnimatedBuilder(
+            animation: collectCtrl,
+            child: Stack(
+              children: [
+                // CREATURE
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: inner._toBorderRadius(),
+                    child: Align(
+                      alignment: Alignment(0, creatureY),
+                      child: AnimatedBuilder(
+                        animation: tapFxCtrl,
+                        builder: (context, child) {
+                          final v = tapFxCtrl.value;
+                          final osc = math.sin(v * math.pi * 10);
+                          final decay = (1.0 - v);
+                          final amp = 6.0 * decay;
+                          final dx = osc * amp * 0.6;
+                          final dy = -osc * amp * 0.35;
+                          final rot = osc * 0.025;
+
+                          return Transform.translate(
+                            offset: Offset(dx, dy),
+                            child: Transform.rotate(angle: rot, child: child),
+                          );
+                        },
+                        child:
+                            creatureWidget ??
+                            Icon(
+                              farm.biome.icon,
+                              size: 28,
+                              color: Colors.white.withOpacity(.55),
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // LIQUID + bubbles
+                CustomPaint(
+                  painter: _TubeBackgroundPainter(
+                    tSeconds: tSeconds,
+                    fill: effectiveFill,
+                    color: accent,
+                    active: farm.hasActive,
+                  ),
+                  size: size,
+                ),
+
+                // tap FX overlay
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: tapFxCtrl,
+                      builder: (_, __) => AlchemyTapFX(
+                        center: tapLocal,
+                        progress: tapFxCtrl.value,
+                        color: accent,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // GLASS FOREGROUND
+                CustomPaint(
+                  painter: _TubeForegroundPainter(
+                    tSeconds: tSeconds,
+                    color: accent,
+                  ),
+                  size: size,
+                ),
+              ],
+            ),
+            builder: (_, child) {
+              final v = collectCtrl.value;
+              final decay = 1.0 - v;
+              final dx = math.sin(v * math.pi * 10) * 6.0 * decay;
+              final dy = math.cos(v * math.pi * 8) * 4.0 * decay;
+              final rot = math.sin(v * math.pi * 6) * 0.015 * decay;
+              return Transform.translate(
+                offset: Offset(dx, dy),
+                child: Transform.rotate(angle: rot, child: child),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _StartPanel extends StatelessWidget {
   const _StartPanel({
     required this.color,
+    required this.theme,
     required this.biome,
     required this.defaultDuration,
     required this.onPickAndStart,
   });
 
-  final Color color;
+  final Color color; // biome accent
+  final FactionTheme theme;
   final Biome biome;
   final Duration defaultDuration;
   final VoidCallback onPickAndStart;
@@ -674,22 +701,20 @@ class _StartPanel extends StatelessWidget {
         Text(
           'Insert a creature to extract resources from this biome.',
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.white.withOpacity(.72),
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(color: theme.text, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
         _PrimaryBtn(
           label: 'Insert Alchemon',
-          color: color,
+          accent: color,
+          theme: theme,
           onTap: onPickAndStart,
         ),
         const SizedBox(height: 8),
         Text(
           'Duration: ${defaultDuration.inMinutes}m',
           style: TextStyle(
-            color: Colors.white.withOpacity(.6),
+            color: theme.textMuted,
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
@@ -702,6 +727,7 @@ class _StartPanel extends StatelessWidget {
 class _ActivePanel extends StatelessWidget {
   const _ActivePanel({
     required this.color,
+    required this.theme,
     required this.farm,
     required this.biome,
     required this.onCollect,
@@ -709,6 +735,7 @@ class _ActivePanel extends StatelessWidget {
   });
 
   final Color color;
+  final FactionTheme theme;
   final BiomeFarmState farm;
   final Biome biome;
   final VoidCallback? onCollect;
@@ -727,7 +754,7 @@ class _ActivePanel extends StatelessWidget {
         Text(
           'Rate: $rate / min',
           style: TextStyle(
-            color: Colors.white.withOpacity(.78),
+            color: theme.text,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
@@ -735,7 +762,7 @@ class _ActivePanel extends StatelessWidget {
         Text(
           'Total: $total $resourceName',
           style: TextStyle(
-            color: Colors.white.withOpacity(.78),
+            color: theme.text,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
@@ -745,9 +772,12 @@ class _ActivePanel extends StatelessWidget {
           children: [
             Expanded(
               child: _PrimaryBtn(
-                label: farm.completed ? 'Collect' : 'Collect (locked)',
-                color: color,
-                onTap: farm.completed && onCollect != null ? onCollect! : () {},
+                label: 'Collect',
+                accent: color,
+                theme: theme,
+                onTap: (farm.completed && onCollect != null)
+                    ? onCollect!
+                    : null,
                 disabled: !farm.completed,
               ),
             ),
@@ -755,7 +785,8 @@ class _ActivePanel extends StatelessWidget {
             Expanded(
               child: _OutlineBtn(
                 label: 'Cancel',
-                color: color,
+                accent: color,
+                theme: theme,
                 onTap: onCancel,
               ),
             ),
@@ -766,59 +797,168 @@ class _ActivePanel extends StatelessWidget {
   }
 }
 
-// (Include all the helper widgets: _GlassContainer, _IconButton, _TubeGeometry,
-// painters, and panels from the previous version - they remain the same)
-// Continuing with helper widgets...
-
-class _GlassContainer extends StatelessWidget {
-  const _GlassContainer({
-    required this.accentColor,
-    required this.glowController,
-    required this.child,
+class _LockedPanel extends StatelessWidget {
+  const _LockedPanel({
+    required this.color,
+    required this.theme,
+    required this.onBack,
   });
 
-  final Color accentColor;
-  final AnimationController glowController;
-  final Widget child;
+  final Color color;
+  final FactionTheme theme;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: glowController,
-      builder: (context, _) {
-        final glowIntensity = 0.15 + (glowController.value * 0.15);
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    accentColor.withOpacity(0.08),
-                    Colors.black.withOpacity(0.25),
+    return Column(
+      children: [
+        _HintText(
+          'Unlock this extractor from the previous screen.',
+          theme: theme,
+        ),
+        const SizedBox(height: 10),
+        _OutlineBtn(
+          label: 'Go Back',
+          accent: color,
+          theme: theme,
+          onTap: onBack,
+        ),
+      ],
+    );
+  }
+}
+
+class _HintText extends StatelessWidget {
+  const _HintText(this.text, {required this.theme});
+  final String text;
+  final FactionTheme theme;
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      style: TextStyle(color: theme.text, fontWeight: FontWeight.w700),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatefulWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.accentColor,
+    required this.onTap,
+    required this.theme,
+  });
+
+  final IconData icon;
+  final Color accentColor;
+  final VoidCallback onTap;
+  final FactionTheme theme;
+
+  @override
+  State<_HeaderIconButton> createState() => _HeaderIconButtonState();
+}
+
+class _HeaderIconButtonState extends State<_HeaderIconButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.accentColor.withOpacity(.15);
+    final border = widget.accentColor.withOpacity(.4);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.9 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          width: 40,
+          height: 40,
+          child: Icon(widget.icon, color: widget.theme.text, size: 20),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderShell extends StatelessWidget {
+  const _HeaderShell({
+    required this.theme,
+    required this.accentColor,
+    required this.biomeLabel,
+    required this.onBack,
+    required this.glowController,
+  });
+
+  final FactionTheme theme;
+  final Color accentColor;
+  final String biomeLabel;
+  final VoidCallback onBack;
+  final AnimationController glowController;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              _HeaderIconButton(
+                icon: Icons.arrow_back_rounded,
+                accentColor: accentColor,
+                onTap: onBack,
+                theme: theme,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      biomeLabel.toUpperCase(),
+                      style: TextStyle(
+                        color: theme.text,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Resource Extractor',
+                      style: TextStyle(
+                        color: theme.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: accentColor.withOpacity(0.25),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: accentColor.withOpacity(glowIntensity),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
               ),
-              child: child,
-            ),
+              // You can keep your GlowingIcon for help, but let's flatten visuals.
+              GlowingIcon(
+                icon: Icons.info_outline_rounded,
+                color: accentColor,
+                controller: glowController,
+                dialogTitle: "Biome Extraction",
+                dialogMessage:
+                    "Extract resources from creatures aligned with this biome. Output type depends on creature element.",
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -882,13 +1022,13 @@ class _TubeGeometry {
   final RRect inner;
 
   static _TubeGeometry fromSize(Size size) {
-    final w = size.width * .56;
-    final h = size.height * .82;
+    final w = size.width * .48; // narrower like a test tube
+    final h = size.height * .85; // taller
     final cx = size.width / 2;
-    final top = size.height * .06;
+    final top = size.height * .04;
     final rr = RRect.fromRectAndRadius(
       Rect.fromCenter(center: Offset(cx, top + h / 2), width: w, height: h),
-      const Radius.circular(28),
+      const Radius.circular(16), // tighter radius for test tube look
     );
     return _TubeGeometry(rr, rr.deflate(2.0));
   }
@@ -991,17 +1131,7 @@ class _TubeBackgroundPainter extends CustomPainter {
     final fluidPaint = Paint()..shader = fluidGrad;
     canvas.drawPath(surface, fluidPaint);
 
-    // Surface shadow band
-    final shadow = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Colors.black.withOpacity(.18), Colors.transparent],
-      ).createShader(Rect.fromLTRB(left, baseTop - 16, right, baseTop + 16));
-    canvas.drawRect(
-      Rect.fromLTRB(left, baseTop - 16, right, baseTop + 16),
-      shadow,
-    );
+    // REMOVED: Surface shadow band (the horizontal gray line)
 
     // Caustic stripes under the surface
     final caustic = Paint()
@@ -1181,41 +1311,61 @@ class _HeaderCard extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.status,
+    required this.theme,
   });
 
-  final Color color;
+  final Color color; // biome accent
   final IconData icon;
   final String label;
   final String status;
+  final FactionTheme theme;
 
   @override
   Widget build(BuildContext context) {
     final s = status.toLowerCase();
-    (IconData, Color, Color) statusStyle() {
-      return switch (s) {
-        'locked' => (
-          Icons.lock_outline_rounded,
-          Colors.white.withOpacity(.85),
-          Colors.white.withOpacity(.16),
-        ),
-        'active' => (Icons.bolt_rounded, Colors.white, color.withOpacity(.55)),
-        'complete' => (
-          Icons.check_circle_rounded,
-          Colors.white,
-          color.withOpacity(.55),
-        ),
-        _ => (Icons.check_circle_rounded, Colors.white, color.withOpacity(.45)),
-      };
+
+    (IconData, Color, Color, Color) statusStyle() {
+      // returns (icon, fgText, rimBorder, bgFill)
+      switch (s) {
+        case 'locked':
+          return (
+            Icons.lock_outline_rounded,
+            theme.text,
+            theme.text.withOpacity(.2),
+            theme.surface.withOpacity(.4),
+          );
+        case 'active':
+          return (
+            Icons.bolt_rounded,
+            theme.text,
+            color.withOpacity(.55),
+            color.withOpacity(.18),
+          );
+        case 'complete':
+          return (
+            Icons.check_circle_rounded,
+            theme.text,
+            color.withOpacity(.55),
+            color.withOpacity(.18),
+          );
+        default:
+          return (
+            Icons.check_circle_rounded,
+            theme.text,
+            color.withOpacity(.45),
+            color.withOpacity(.14),
+          );
+      }
     }
 
-    final (ic, fg, border) = statusStyle();
+    final (ic, fg, rim, bg) = statusStyle();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(.14),
+        color: bg,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: border, width: 1.6),
+        border: Border.all(color: rim, width: 1.2),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1237,55 +1387,30 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
-class _LockedPanel extends StatelessWidget {
-  const _LockedPanel({required this.color, required this.onBack});
-  final Color color;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _HintText('Unlock this extractor from the previous screen.'),
-        const SizedBox(height: 10),
-        _OutlineBtn(label: 'Go Back', color: color, onTap: onBack),
-      ],
-    );
-  }
-}
-
-class _HintText extends StatelessWidget {
-  const _HintText(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        color: Colors.white.withOpacity(.72),
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
 class _PrimaryBtn extends StatelessWidget {
   const _PrimaryBtn({
     required this.label,
-    required this.color,
+    required this.accent,
+    required this.theme,
     required this.onTap,
     this.disabled = false,
   });
 
   final String label;
-  final Color color;
+  final Color accent; // biome accent
+  final FactionTheme theme;
   final VoidCallback? onTap;
   final bool disabled;
 
   @override
   Widget build(BuildContext context) {
-    final c = disabled ? Colors.grey : color;
+    final bg = disabled
+        ? theme.textMuted.withOpacity(.2)
+        : accent.withOpacity(.3);
+    final border = disabled
+        ? theme.textMuted.withOpacity(.4)
+        : accent.withOpacity(.6);
+
     return Opacity(
       opacity: disabled ? .6 : 1,
       child: GestureDetector(
@@ -1293,16 +1418,15 @@ class _PrimaryBtn extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [c, c.withOpacity(.85)]),
+            color: bg,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(.18)),
-            boxShadow: [BoxShadow(color: c.withOpacity(.28), blurRadius: 18)],
+            border: Border.all(color: border, width: 1.4),
           ),
           alignment: Alignment.center,
           child: Text(
             label.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: theme.text,
               fontWeight: FontWeight.w900,
               letterSpacing: .5,
             ),
@@ -1316,12 +1440,14 @@ class _PrimaryBtn extends StatelessWidget {
 class _OutlineBtn extends StatelessWidget {
   const _OutlineBtn({
     required this.label,
-    required this.color,
+    required this.accent,
+    required this.theme,
     required this.onTap,
   });
 
   final String label;
-  final Color color;
+  final Color accent;
+  final FactionTheme theme;
   final VoidCallback onTap;
 
   @override
@@ -1331,15 +1457,15 @@ class _OutlineBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.04),
+          color: theme.surface.withOpacity(.4),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(.55), width: 2),
+          border: Border.all(color: accent.withOpacity(.55), width: 2),
         ),
         alignment: Alignment.center,
         child: Text(
           label.toUpperCase(),
           style: TextStyle(
-            color: Colors.white.withOpacity(.95),
+            color: theme.text,
             fontWeight: FontWeight.w900,
             letterSpacing: .5,
           ),

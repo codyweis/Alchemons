@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 class FloatingCreature extends StatefulWidget {
-  const FloatingCreature({required this.sprite});
+  const FloatingCreature({super.key, required this.sprite});
   final Widget sprite;
 
   @override
