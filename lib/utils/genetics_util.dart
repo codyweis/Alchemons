@@ -61,21 +61,21 @@ double hueFromGenes(Genetics? g) {
   }
 }
 
-const Map<String, String> tintLabels = {
+const Map<String, String> sizeLabels = {
+  'tiny': 'Tiny',
+  'small': 'Small',
   'normal': 'Normal',
-  'warm': 'Thermal',
-  'cool': 'Cryogenic',
-  'vibrant': 'Saturated',
-  'pale': 'Diminished',
-  'albino': 'Albino',
+  'large': 'Large',
+  'giant': 'Giant',
 };
 
-const Map<String, String> sizeLabels = {
-  'tiny': 'Micro',
-  'small': 'Compact',
-  'normal': 'Standard',
-  'large': 'Enhanced',
-  'giant': 'Gigantic',
+const Map<String, String> tintLabels = {
+  'pale': 'Diminished',
+  'normal': 'Normal',
+  'vibrant': 'Saturated',
+  'warm': 'Thermal',
+  'cool': 'Cryogenic',
+  'albino': 'Albino',
 };
 
 const Map<String, IconData> sizeIcons = {
@@ -94,3 +94,56 @@ const Map<String, IconData> tintIcons = {
   'pale': Icons.blur_on,
   'albino': Icons.brightness_high_outlined,
 };
+
+String getStatDescriptor(double value, String statType) {
+  // Scientific descriptors for each stat type
+  const descriptors = {
+    'speed': {
+      'range1': 'Lethargic',
+      'range2': 'Sluggish',
+      'range3': 'Moderate',
+      'range4': 'Agile',
+      'range5': 'Exceptional',
+      'perfect': 'Peak Velocity',
+    },
+    'intelligence': {
+      'range1': 'Primitive',
+      'range2': 'Limited Cognition',
+      'range3': 'Average Intellect',
+      'range4': 'Advanced Cognition',
+      'range5': 'Superior Intellect',
+      'perfect': 'Genius-Level',
+    },
+    'strength': {
+      'range1': 'Feeble',
+      'range2': 'Weak',
+      'range3': 'Average Fortitude',
+      'range4': 'Robust',
+      'range5': 'Exceptional Power',
+      'perfect': 'Peak Physical Form',
+    },
+    'beauty': {
+      'range1': 'Unremarkable',
+      'range2': 'Plain',
+      'range3': 'Adequate Appeal',
+      'range4': 'Striking',
+      'range5': 'Extraordinary',
+      'perfect': 'Flawless Phenotype',
+    },
+  };
+
+  // Updated thresholds for 1-5 scale
+  if (value >= 4.9) {
+    return descriptors[statType]!['perfect']!;
+  } else if (value >= 4.0) {
+    return descriptors[statType]!['range5']!;
+  } else if (value >= 3.0) {
+    return descriptors[statType]!['range4']!;
+  } else if (value >= 2.0) {
+    return descriptors[statType]!['range3']!;
+  } else if (value >= 1.5) {
+    return descriptors[statType]!['range2']!;
+  } else {
+    return descriptors[statType]!['range1']!;
+  }
+}

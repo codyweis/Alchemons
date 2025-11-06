@@ -1,6 +1,10 @@
+// lib/models/creature.dart
+
 import 'package:alchemons/models/nature.dart';
+import 'package:alchemons/models/offspring_lineage.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/special_breeding.dart';
+import 'package:alchemons/models/creature_stats.dart';
 
 /// Sprite sheet metadata for animated rendering.
 class SpriteData {
@@ -43,9 +47,25 @@ class SpriteData {
 
 class Genetics {
   final Map<String, String> variants;
+
   const Genetics(this.variants);
 
+  // Convenience getters for common genetics tracks
+  String? get size => variants['size'];
+  String? get tinting => variants['tinting'];
+  String? get hue => variants['hue'];
+  String? get saturation => variants['saturation'];
+  String? get brightness => variants['brightness'];
+  String? get scale => variants['scale'];
+
+  // Generic getter (keep this too)
   String? get(String track) => variants[track];
+
+  // Check if a specific track exists
+  bool hasTrack(String track) => variants.containsKey(track);
+
+  // Get all track names
+  Iterable<String> get tracks => variants.keys;
 
   Genetics copyWith({Map<String, String>? variants}) =>
       Genetics(Map.unmodifiable(variants ?? this.variants));
@@ -54,6 +74,29 @@ class Genetics {
       Genetics(Map<String, String>.from(json));
 
   Map<String, dynamic> toJson() => variants;
+
+  @override
+  String toString() =>
+      'Genetics(${variants.entries.map((e) => '${e.key}: ${e.value}').join(', ')})';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Genetics &&
+          runtimeType == other.runtimeType &&
+          _mapsEqual(variants, other.variants);
+
+  @override
+  int get hashCode => variants.hashCode;
+
+  // Helper for deep map equality
+  static bool _mapsEqual(Map<String, String> a, Map<String, String> b) {
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (a[key] != b[key]) return false;
+    }
+    return true;
+  }
 }
 
 class Creature {
@@ -95,6 +138,11 @@ class Creature {
   /// Optional sprite-sheet data for animation.
   final SpriteData? spriteData;
 
+  /// NEW: Hidden stats for the creature
+  final CreatureStats? stats;
+  final OffspringLineageData? lineageData;
+  final bool isPure;
+
   Creature({
     required this.id,
     required this.name,
@@ -112,6 +160,9 @@ class Creature {
     this.genetics,
     this.isPrismaticSkin = false,
     this.parentage,
+    this.stats, // NEW
+    this.lineageData,
+    this.isPure = false,
   });
 
   /// JSON -> Creature (null-safe)
@@ -136,6 +187,9 @@ class Creature {
     final natureJson = json['nature'];
     final parentageJson = json['parentage'];
     final spriteDataJson = json['spriteData'];
+    final statsJson = json['stats']; // NEW
+    final lineageJson = json['lineageData'];
+    final isPure = json['isPure'] as bool?;
 
     // If `spriteData` exists, synthesize a default spriteSheetPath by convention:
     // "<image basename>_spritesheet.png"
@@ -157,7 +211,7 @@ class Creature {
           : null,
 
       guaranteedBreeding: guaranteedBreedingJson is List
-          ? (guaranteedBreedingJson as List)
+          ? (guaranteedBreedingJson)
                 .map((e) => List<String>.from(e as List))
                 .toList()
           : null,
@@ -190,10 +244,18 @@ class Creature {
               if (spritesheetPath != null) 'spriteSheetPath': spritesheetPath,
             })
           : null,
+
+      stats: statsJson is Map<String, dynamic>
+          ? CreatureStats.fromJson(statsJson)
+          : null, // NEW
+      lineageData: lineageJson is Map<String, dynamic>
+          ? OffspringLineageData.fromJson(lineageJson)
+          : null, // NEW
+      isPure: isPure ?? false,
     );
   }
 
-  /// Runtime-built variant derived from a base creature + partner’s type.
+  /// Runtime-built variant derived from a base creature + partner's type.
   factory Creature.variant({
     required String baseId,
     required String baseName,
@@ -202,9 +264,10 @@ class Creature {
     secondaryType, // the partner's primary type that triggered the variant
     required String baseImage,
     SpriteData? spriteVariantData,
+    CreatureStats? stats, // NEW
   }) {
     return Creature(
-      id: "${baseId}_${secondaryType}",
+      id: "${baseId}_$secondaryType",
       name: "$baseName-$secondaryType",
       types: [primaryType, secondaryType],
       rarity: "Variant",
@@ -225,6 +288,9 @@ class Creature {
       specialBreeding: null,
       guaranteedBreeding: null,
       parentage: null,
+      stats: stats, // NEW
+      lineageData: null, // NEW
+      isPure: false,
     );
   }
 
@@ -244,6 +310,9 @@ class Creature {
     if (genetics != null) 'genetics': genetics!.toJson(),
     'isPrismaticSkin': isPrismaticSkin,
     if (parentage != null) 'parentage': parentage!.toJson(),
+    if (stats != null) 'stats': stats!.toJson(), // NEW
+    if (lineageData != null) 'lineageData': lineageData!.toJson(), // NEW
+    'isPure': isPure,
   };
 }
 
@@ -265,6 +334,9 @@ extension CreatureCopy on Creature {
     NatureDef? nature,
     Genetics? genetics,
     Parentage? parentage,
+    CreatureStats? stats, // NEW
+    OffspringLineageData? lineageData, // NEW
+    bool? isPure,
   }) {
     return Creature(
       id: id ?? this.id,
@@ -283,6 +355,9 @@ extension CreatureCopy on Creature {
       nature: nature ?? this.nature,
       genetics: genetics ?? this.genetics,
       parentage: parentage ?? this.parentage,
+      stats: stats ?? this.stats, // NEW
+      lineageData: lineageData ?? this.lineageData, // NEW
+      isPure: isPure ?? this.isPure,
     );
   }
 }

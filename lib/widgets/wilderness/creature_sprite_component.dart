@@ -1,96 +1,98 @@
+import 'dart:ui';
 import 'dart:math' as math;
+
+import 'package:alchemons/games/wilderness/scene_game.dart';
+import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/components.dart';
-import 'package:flutter/material.dart';
 
-class CreatureSpriteComponent extends PositionComponent with HasGameRef {
-  final String spritePath;
-  final int totalFrames;
-  final int rows;
-  final Vector2 frameSize; // frame width/height in px
-  final double stepTime;
-
-  // Genetics-based modifiers
-  final double scaleFactor; // e.g. 0.75, 1.0, 1.3
-  final double saturation; // 1.0 = no change
-  final double brightness; // 1.0 = no change
-  final double baseHueShift; // degrees
-  final bool isPrismatic; // animate hue
+class CreatureSpriteComponent extends PositionComponent
+    with HasGameRef<SceneGame> {
+  final SpriteSheetDef sheet;
+  final SpriteVisuals visuals;
+  final Vector2 desiredSize;
 
   late final SpriteAnimationComponent _anim;
-  double _prismaticHue = 0.0; // animated degrees
+  double _prismaticHue = 0; // degrees
 
   CreatureSpriteComponent({
-    required this.spritePath,
-    required this.totalFrames,
-    required this.rows,
-    required this.frameSize,
-    required this.stepTime,
-    this.scaleFactor = 1.0,
-    this.saturation = 1.0,
-    this.brightness = 1.0,
-    this.baseHueShift = 0.0,
-    this.isPrismatic = false,
-    Vector2? desiredSize, // optional, if you want to force a box size
-  }) {
-    anchor = Anchor.center;
-    if (desiredSize != null) size = desiredSize;
-    priority = 20;
-  }
+    required this.sheet,
+    required this.visuals,
+    required this.desiredSize,
+  });
 
   @override
   Future<void> onLoad() async {
-    try {
-      final image = await game.images.load(spritePath);
-      final fw = frameSize.x;
-      final fh = frameSize.y;
+    size = desiredSize;
 
-      final cols = (image.width / fw).floor();
-      // If caller gave desiredSize, use it; otherwise default to frame size,
-      // then apply gene scale.
-      final baseBox = (size.x == 0 && size.y == 0) ? Vector2(fw, fh) : size;
-      size = baseBox * scaleFactor;
+    final image = game.images.fromCache(sheet.path);
+    final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
 
-      final data = SpriteAnimationData.sequenced(
-        amount: totalFrames,
+    final anim = SpriteAnimation.fromFrameData(
+      image,
+      SpriteAnimationData.sequenced(
+        amount: sheet.totalFrames,
         amountPerRow: cols,
-        textureSize: frameSize,
-        stepTime: stepTime,
+        textureSize: sheet.frameSize,
+        stepTime: sheet.stepTime,
         loop: true,
-      );
+      ),
+    );
 
-      _anim = SpriteAnimationComponent.fromFrameData(image, data)
-        ..anchor = Anchor.center
-        ..position =
-            size /
-            2 // ✅ center inside this component
-        ..size =
-            size // ✅ fill this component’s box
-        ..priority = 20;
+    final fit = _fitScale(sheet.frameSize, desiredSize);
+    final finalScale = fit * visuals.scale;
 
-      _applyColorMatrix();
-      add(_anim);
-    } catch (e, st) {
-      print('[CreatureSpriteComponent] load failed for $spritePath: $e\n$st');
-      // draw a visible error box so it’s obvious
-      add(
-        RectangleComponent(
-          size: size == Vector2.zero() ? Vector2(48, 48) : size,
-          anchor: Anchor.center,
-          position: (size == Vector2.zero() ? Vector2(48, 48) : size) / 2,
-          paint: Paint()..color = Colors.orange.withOpacity(0.5),
-          priority: 999,
+    _anim =
+        SpriteAnimationComponent(
+            animation: anim,
+            size: sheet.frameSize,
+            anchor: Anchor.center,
+            position: size / 2,
+            priority: priority,
+          )
+          ..paint.filterQuality = FilterQuality.high
+          ..scale = Vector2.all(finalScale);
+
+    // Apply initial color filters
+    _applyColorFilters();
+
+    add(_anim);
+  }
+
+  double _fitScale(Vector2 frame, Vector2 box) {
+    final sx = box.x / frame.x;
+    final sy = box.y / frame.y;
+    return sx < sy ? sx : sy;
+  }
+
+  void _applyColorFilters() {
+    final paint = _anim.paint;
+
+    if (visuals.isAlbino && !visuals.isPrismatic) {
+      // Albino: grayscale + brightness
+      paint.colorFilter = ColorFilter.matrix(albinoMatrix(visuals.brightness));
+    } else {
+      // Normal: compute the combined matrix
+      final hue = visuals.isPrismatic
+          ? (visuals.hueShiftDeg + _prismaticHue)
+          : visuals.hueShiftDeg;
+
+      paint.colorFilter = ColorFilter.matrix(
+        _combinedColorMatrix(
+          brightness: visuals.brightness,
+          saturation: visuals.saturation,
+          hueShift: hue,
         ),
       );
-      add(
-        TextComponent(
-          text: 'IMG ERR',
-          anchor: Anchor.center,
-          position: (size == Vector2.zero() ? Vector2(48, 48) : size) / 2,
-          priority: 1000,
-          textRenderer: TextPaint(
-            style: const TextStyle(fontSize: 10, color: Colors.white),
-          ),
-        ),
+    }
+
+    // Apply tint if present (excluding albino cases)
+    if (visuals.tint != null && !(visuals.isAlbino && !visuals.isPrismatic)) {
+      // Since we can't easily stack filters in Flame, we'll apply tint via color
+      final currentColor = paint.color;
+      paint.color = Color.alphaBlend(
+        visuals.tint!.withOpacity(0.3), // adjust opacity as needed
+        currentColor,
       );
     }
   }
@@ -98,103 +100,132 @@ class CreatureSpriteComponent extends PositionComponent with HasGameRef {
   @override
   void update(double dt) {
     super.update(dt);
-    if (isPrismatic) {
-      // cycle 360° every ~8s
-      _prismaticHue = (_prismaticHue + (360 / 8.0) * dt) % 360.0;
-      _applyColorMatrix();
+    if (visuals.isPrismatic) {
+      _prismaticHue = (_prismaticHue + 360 * dt / 8.0) % 360;
+      _applyColorFilters(); // Re-apply with updated hue
     }
   }
 
-  void _applyColorMatrix() {
-    final hue = baseHueShift + _prismaticHue;
-    final m = _composeMatrix(
-      brightness: brightness,
-      saturation: saturation,
-      hueDeg: hue,
-    );
-    _anim.paint = Paint()..colorFilter = ColorFilter.matrix(m);
-  }
-
-  // ---------- Color math (combine brightness, saturation, hue) ----------
-  List<double> _composeMatrix({
+  // Combine brightness, saturation, and hue into one matrix
+  List<double> _combinedColorMatrix({
     required double brightness,
     required double saturation,
-    required double hueDeg,
+    required double hueShift,
   }) {
-    final bs = _brightnessSaturationMatrix(brightness, saturation);
-    final hue = _hueRotationMatrix(hueDeg);
-    return _mul5x4(hue, bs); // hue ∘ (brightness+saturation)
+    // First apply brightness and saturation
+    final bsMat = brightnessSaturationMatrix(brightness, saturation);
+
+    // If no hue shift, return as-is
+    if (hueShift == 0) return bsMat;
+
+    // Otherwise multiply with hue rotation
+    final hueMat = hueRotationMatrix(hueShift);
+    return _multiplyMatrices(bsMat, hueMat);
   }
 
-  List<double> _brightnessSaturationMatrix(double b, double s) {
-    // Same simple model you used in the widget
-    final r = b, g = b, bl = b;
-    return <double>[
-      s * r,
-      0,
-      0,
-      0,
-      0,
-      0,
-      s * g,
-      0,
-      0,
-      0,
-      0,
-      0,
-      s * bl,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-    ];
-  }
+  // Proper 4x5 color matrix multiplication
+  List<double> _multiplyMatrices(List<double> a, List<double> b) {
+    final result = List<double>.filled(20, 0);
 
-  List<double> _hueRotationMatrix(double degrees) {
-    final rad = degrees * (math.pi / 180.0);
-    final c = math.cos(rad);
-    final s = math.sin(rad);
-    return <double>[
-      0.213 + 0.787 * c - 0.213 * s,
-      0.715 - 0.715 * c - 0.715 * s,
-      0.072 - 0.072 * c + 0.928 * s,
-      0,
-      0,
-      0.213 - 0.213 * c + 0.143 * s,
-      0.715 + 0.285 * c + 0.140 * s,
-      0.072 - 0.072 * c - 0.283 * s,
-      0,
-      0,
-      0.213 - 0.213 * c - 0.787 * s,
-      0.715 - 0.715 * c + 0.715 * s,
-      0.072 + 0.928 * c + 0.072 * s,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-    ];
-  }
-
-  // Multiply two 4x5 color matrices (B ∘ A) so we can apply as one filter.
-  List<double> _mul5x4(List<double> b, List<double> a) {
-    // matrices are 4 rows x 5 cols flattened row-major
-    List<double> out = List.filled(20, 0.0);
-    for (int r = 0; r < 4; r++) {
-      for (int c = 0; c < 5; c++) {
-        double sum = 0;
-        for (int k = 0; k < 4; k++) {
-          sum += b[r * 5 + k] * a[k * 5 + c];
+    for (int row = 0; row < 4; row++) {
+      for (int col = 0; col < 5; col++) {
+        if (col == 4) {
+          // Translation column
+          result[row * 5 + 4] = a[row * 5 + 4] + b[row * 5 + 4];
+        } else {
+          // Regular matrix multiply for 4x4 part
+          double sum = 0;
+          for (int k = 0; k < 4; k++) {
+            sum += a[row * 5 + k] * b[k * 5 + col];
+          }
+          result[row * 5 + col] = sum;
         }
-        if (c == 4) sum += b[r * 5 + 4]; // bias term
-        out[r * 5 + c] = sum;
       }
     }
-    return out;
+
+    return result;
   }
+}
+
+// Copy these from creature_sprite.dart if not already accessible
+List<double> brightnessSaturationMatrix(double brightness, double saturation) {
+  final r = brightness, g = brightness, b = brightness, s = saturation;
+  return <double>[
+    s * r,
+    0,
+    0,
+    0,
+    0,
+    0,
+    s * g,
+    0,
+    0,
+    0,
+    0,
+    0,
+    s * b,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ];
+}
+
+List<double> hueRotationMatrix(double degrees) {
+  final radians = degrees * (math.pi / 180.0);
+  final c = math.cos(radians), s = math.sin(radians);
+  return <double>[
+    0.213 + c * 0.787 - s * 0.213,
+    0.715 - c * 0.715 - s * 0.715,
+    0.072 - c * 0.072 + s * 0.928,
+    0,
+    0,
+    0.213 - c * 0.213 + s * 0.143,
+    0.715 + c * 0.285 + s * 0.140,
+    0.072 - c * 0.072 - s * 0.283,
+    0,
+    0,
+    0.213 - c * 0.213 - s * 0.787,
+    0.715 - c * 0.715 + s * 0.715,
+    0.072 + c * 0.928 + s * 0.072,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ];
+}
+
+List<double> albinoMatrix(double brightness) {
+  const double rLum = 0.299;
+  const double gLum = 0.587;
+  const double bLum = 0.114;
+
+  return <double>[
+    rLum * brightness,
+    gLum * brightness,
+    bLum * brightness,
+    0,
+    0,
+    rLum * brightness,
+    gLum * brightness,
+    bLum * brightness,
+    0,
+    0,
+    rLum * brightness,
+    gLum * brightness,
+    bLum * brightness,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ];
 }

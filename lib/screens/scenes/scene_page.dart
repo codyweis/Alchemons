@@ -1,28 +1,35 @@
 // lib/screens/scenes/scene_page.dart
-import 'dart:math' as math;
-
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/wilderness/encounter_sheet.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/encounters/valley_pool.dart';
-import 'package:alchemons/screens/encounter/encounter_screen.dart';
+import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/wilderness_spawn_service.dart';
+import 'package:alchemons/widgets/wilderness/wilderness_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/game.dart';
 
-import 'package:alchemons/models/wilderness.dart' show PartyMember;
+import 'package:alchemons/models/wilderness.dart'
+    show PartyMember, WildEncounter;
 import 'package:alchemons/models/scenes/scene_definition.dart';
-import 'package:alchemons/games/scene_game.dart';
+import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/services/wildlife_generator.dart'; // your WildlifeGenerator file
-import 'package:alchemons/providers/app_providers.dart'; // GameStateNotifier, CatalogData
+import 'package:alchemons/services/wildlife_generator.dart';
 
 class ScenePage extends StatefulWidget {
   final SceneDefinition scene;
   final List<PartyMember> party;
-  const ScenePage({super.key, required this.scene, this.party = const []});
+  final String sceneId;
+  const ScenePage({
+    super.key,
+    required this.scene,
+    this.party = const [],
+    required this.sceneId,
+  });
 
   @override
   State<ScenePage> createState() => _ScenePageState();
@@ -31,16 +38,26 @@ class ScenePage extends StatefulWidget {
 class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   late SceneGame _game;
   late EncounterService _encounters;
-  bool _resolverHooked = false; // only hook resolver once
+  bool _resolverHooked = false;
 
-  late AnimationController _encounterCtrl;
-  bool _transitioning = false; // overlay on/off
+  // Saved references
+  late WildernessSpawnService _spawnService;
+  late EncounterPool _scenePool;
+  late FactionService _factionService;
+  late AlchemonsDatabase _db;
+  late CreatureCatalog _repo;
+
+  // Encounter state
+  bool _inEncounter = false;
+  Creature? _wildCreature;
+
+  String? _usedSpawnPointId;
 
   @override
   void initState() {
     super.initState();
 
-    // lock to landscape while in scene
+    // Lock to landscape
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
@@ -51,119 +68,123 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     _encounters = EncounterService(
       scene: widget.scene,
       party: widget.party,
-      tableBuilder: valleyEncounterPools,
+      tableBuilder: valleyEncounterPools, // or your scene-specific builder
     );
+
     _game.attachEncounters(_encounters);
 
-    // NEW: encounter cinematic
-    _encounterCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 650), // out
-      reverseDuration: const Duration(milliseconds: 520), // in
-    );
-
-    // lib/screens/scenes/scene_page.dart
-    // _game.onStartEncounter = (speciesId, hydrated) async {
-    //   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    //   _game.pauseEngine();
-    //   final result = await Navigator.push<EncounterResult>(
-    //     context,
-    //     MaterialPageRoute(
-    //       builder: (_) => EncounterPage(
-    //         speciesId: speciesId,
-    //         party: widget.party, // your PartyMember list
-    //         hydrated: hydrated,
-    //       ),
-    //     ),
-    //   );
-    //   _game.resumeEngine();
-    //   SystemChrome.setPreferredOrientations([
-    //     DeviceOrientation.landscapeLeft,
-    //     DeviceOrientation.landscapeRight,
-    //   ]);
-
-    //   if (result == EncounterResult.bred) {
-    //     _game.clearWild();
-    //   }
-    // };
-    _game.onStartEncounter = (speciesId, hydrated) async {
-      // If your engine guarantees this is a Creature, cast once:
-      final creature = hydrated as Creature;
-      await _startEncounterWithTransition(speciesId, creature);
+    _game.onStartEncounter = (speciesId, hydrated) {
+      setState(() {
+        _inEncounter = true;
+        _wildCreature = hydrated as Creature;
+      });
+      HapticFeedback.mediumImpact();
     };
+
+    // If your SceneGame calls back with the EncounterRoll (which includes spawnId),
+    // capture the spawn point here:
     _game.onEncounter = (roll) {
-      // Handle the encounter event
+      // EncounterRoll from EncounterService has an optional spawnId
+      _usedSpawnPointId =
+          roll.spawnId; // <- store it for when the overlay closes
     };
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Save references
+    _spawnService = context.read<WildernessSpawnService>();
+    _scenePool = valleyEncounterPools(widget.scene).sceneWide;
+    _factionService = context.read<FactionService>();
+    _db = context.read<AlchemonsDatabase>();
+    _repo = context.read<CreatureCatalog>();
+
+    // Mark active scene in DB (to clean spawns if interrupted)
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _db
+          .into(_db.activeSceneEntry)
+          .insertOnConflictUpdate(
+            ActiveSceneEntryCompanion.insert(
+              sceneId: widget.sceneId,
+              enteredAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+            ),
+          );
+    });
+
+    // Initial sync of persisted spawns -> local encounter service
+    _syncSpawnsFromService();
+
+    // Listen for spawn changes while this page is alive
+    _spawnService.addListener(_onSpawnServiceChanged);
+  }
+
+  @override
   void dispose() {
-    _maybeRestoreWaterParty();
-    // restore portrait when leaving scene
+    // unlock orientation
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
-    _encounterCtrl.dispose();
+
+    _maybeRestoreWaterParty();
+
+    // stop listening
+    _spawnService.removeListener(_onSpawnServiceChanged);
+
+    // Clear active scene marker + tidy spawns for this scene.
+    // Post to next frame to avoid notifyListeners during dispose
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await _db.delete(_db.activeSceneEntry).go();
+      } catch (_) {}
+      await _spawnService.clearSceneSpawns(widget.sceneId);
+    });
+
     super.dispose();
   }
 
-  Future<void> _startEncounterWithTransition(
-    String speciesId,
-    Creature hydrated,
-  ) async {
-    // OUT: shake + fade to black
-    _transitioning = true;
-    setState(() {});
-    HapticFeedback.mediumImpact();
-    await _encounterCtrl.forward(); // 0 -> 1
+  // --- helpers ---------------------------------------------------------------
 
-    // Switch to portrait & pause while fully black
-    await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    _game.pauseEngine();
+  void _onSpawnServiceChanged() {
+    // keep the scene's local spawns in sync with the service
+    _syncSpawnsFromService();
+  }
 
-    final result = await Navigator.push<EncounterResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => EncounterPage(
-          speciesId: speciesId,
-          party: widget.party,
-          hydrated: hydrated,
-        ),
-      ),
-    );
+  void _syncSpawnsFromService() {
+    // wipe local spawns and reconstruct from service
+    _encounters.clearSpawns();
 
-    // Back to scene: resume behind black, then fade in
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    _game.resumeEngine();
+    for (final sp in widget.scene.spawnPoints) {
+      final enc = _spawnService.getSpawnAt(widget.sceneId, sp.id);
+      if (enc == null) continue;
 
-    // IN: fade from black + tiny settle shake
-    await _encounterCtrl.reverse(); // 1 -> 0
-    _transitioning = false;
-    if (mounted) setState(() {});
+      // Convert EncounterRoll (service) -> WildEncounter (EncounterService API)
+      final asWild = WildEncounter(
+        wildBaseId: enc.speciesId,
+        baseBreedChance: 0.12, // TODO: plug rarity-based rate if desired
+        rarity: enc.rarity.name,
+      );
 
-    if (result == EncounterResult.bred) {
-      _game.clearWild();
+      _encounters.forceSpawnAt(sp.id, asWild);
     }
+
+    // ensure the game reads the refreshed encounter list
+    _game.attachEncounters(_encounters);
   }
 
   Future<void> _maybeRestoreWaterParty() async {
-    final factions = context.read<FactionService>();
-    if (!(factions.isWater() && await factions.perk2Active())) return;
-
-    final db = context.read<AlchemonsDatabase>();
-    final repo = context.read<CreatureRepository>();
+    if (!(_factionService.isWater() && await _factionService.perk2Active()))
+      return;
 
     for (final p in widget.party) {
-      final inst = await db.getInstance(p.instanceId);
+      final inst = await _db.creatureDao.getInstance(p.instanceId);
       if (inst == null) continue;
-      final base = repo.getCreatureById(inst.baseId);
+      final base = _repo.getCreatureById(inst.baseId);
       if (base?.types.contains('Water') != true) continue;
 
-      await db.updateStamina(
+      await _db.creatureDao.updateStamina(
         instanceId: inst.instanceId,
         staminaBars: inst.staminaMax,
         staminaLastUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
@@ -171,120 +192,110 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     }
   }
 
+  void _onPartyCreatureSelected(Creature hydrated) {
+    _game.spawnPartyCreature(hydrated);
+  }
+
+  void _exitEncounter({bool clearWild = false}) {
+    setState(() {
+      _inEncounter = false;
+    });
+    _game.exitEncounterMode();
+
+    if (clearWild) {
+      _game.clearWild();
+    }
+
+    HapticFeedback.lightImpact();
+  }
+
+  // --- UI --------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
-    return Consumer<GameStateNotifier>(
+    return Consumer<CreatureCatalog>(
       builder: (context, gameState, _) {
-        // Hook the resolver ONCE, now that catalogs are ready
+        // Hook resolver once
         if (!_resolverHooked) {
-          final repo = context.read<CreatureRepository>();
+          final repo = context.read<CreatureCatalog>();
 
           _game.wildVisualResolver = (speciesId, rarity) async {
-            // Use your existing WildlifeGenerator to hydrate genes/nature/prismatic
             final gen = WildlifeGenerator(repo);
             return gen.generate(speciesId, rarity: rarity.name);
           };
 
           _resolverHooked = true;
 
-          // If the game spawned before resolver existed, force a fresh spawn now
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _game.clearWild();
           });
         }
 
-        return Scaffold(
-          body: Stack(
-            children: [
-              // 1) GAME + screen shake
-              AnimatedBuilder(
-                animation: _encounterCtrl,
-                child: GameWidget(game: _game),
-                builder: (_, child) {
-                  final v = _encounterCtrl.value; // 0..1
-                  final phaseOut = Curves.easeOutCubic.transform(v);
-                  final phaseIn = Curves.easeOutCubic.transform(1 - v);
-                  final outAmp = (1 - phaseOut) * 12.0; // px
-                  final inAmp = (1 - phaseIn) * 4.0; // px
-                  final amp = _encounterCtrl.status == AnimationStatus.reverse
-                      ? inAmp
-                      : outAmp;
-
-                  final t = v;
-                  final dx = math.sin(t * math.pi * 14) * amp;
-                  final dy = math.cos(t * math.pi * 11) * amp * 0.7;
-                  final rot = math.sin(t * math.pi * 9) * (amp * 0.0022);
-
-                  return Transform.translate(
-                    offset: Offset(dx, dy),
-                    child: Transform.rotate(angle: rot, child: child),
-                  );
-                },
-              ),
-
-              // 2) SINGLE overlay: fade-to-black + vignette
-              AnimatedBuilder(
-                animation: _encounterCtrl,
-                builder: (_, __) {
-                  final v = _encounterCtrl.value;
-                  final black = const Interval(
-                    0.15,
-                    1.0,
-                    curve: Curves.easeInExpo,
-                  ).transform(v);
-                  if (!_transitioning && black == 0)
-                    return const SizedBox.shrink();
-                  return IgnorePointer(
-                    ignoring: true,
-                    child: Stack(
-                      children: [
-                        // base blackout layer
-                        Positioned.fill(
-                          child: Opacity(
-                            opacity: black,
-                            child: const ColoredBox(color: Colors.black),
-                          ),
-                        ),
-                        // vignette on top
-                        Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                center: Alignment.center,
-                                radius: 1.15,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withOpacity(black * 0.65),
-                                  Colors.black.withOpacity(black),
-                                ],
-                                stops: const [0.45, 0.78, 1.0],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+        return PopScope(
+          // 1. Prevents the default system back action (pop the route)
+          //    We prevent pop when in an encounter.
+          canPop: false,
+          child: Scaffold(
+            body: Stack(
+              children: [
+                // Game view
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SizedBox(
+                      width: constraints.maxWidth,
+                      height: constraints.maxHeight,
+                      child: GameWidget(game: _game),
+                    );
+                  },
+                ),
+                if (_inEncounter && _wildCreature != null)
+                  EncounterOverlay(
+                    encounter: WildEncounter(
+                      wildBaseId: _wildCreature!.id,
+                      baseBreedChance: 0.12, // or your rarity-based calc
+                      rarity: _wildCreature!.rarity,
                     ),
-                  );
-                },
-              ),
+                    party: widget.party,
+                    onPartyCreatureSelected: _onPartyCreatureSelected,
+                    onClosedWithResult: (success) async {
+                      _exitEncounter(clearWild: success);
 
-              // Back button
-              SafeArea(
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: FloatingActionButton.small(
-                      heroTag: 'back',
-                      backgroundColor: const Color(0xFF6B46C1),
-                      foregroundColor: Colors.white,
-                      onPressed: () => Navigator.pop(context),
-                      child: const Icon(Icons.arrow_back_rounded),
+                      if (success && _usedSpawnPointId != null) {
+                        // 1) remove from service (this also deletes from DB)
+                        await _spawnService.removeSpawn(
+                          widget.sceneId,
+                          _usedSpawnPointId!,
+                        );
+
+                        // 3) resync local encounter list so the UI reflects the change
+                        _syncSpawnsFromService();
+
+                        // clear the remembered id
+                        _usedSpawnPointId = null;
+                      }
+                    },
+                  ),
+                // Back / leave button
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: WildernessControls(
+                        party: widget.party,
+                        onLeave: () async {
+                          // clear ActiveSceneEntry and rotate next spawn
+                          await _db.delete(_db.activeSceneEntry).go();
+                          await _spawnService.clearSceneSpawns(widget.sceneId);
+
+                          if (mounted) Navigator.pop(context);
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

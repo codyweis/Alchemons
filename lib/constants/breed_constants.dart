@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
+enum Rarity { common, uncommon, rare, legendary }
+
 class BreedConstants {
+  // rarity enum
+
   // Rarity → hatch time mapping
   static const Map<String, Duration> rarityHatchTimes = {
     'common': Duration(minutes: 5),
@@ -14,35 +18,35 @@ class BreedConstants {
   static Color getTypeColor(String type) {
     switch (type) {
       case 'Fire':
-        return Colors.red.shade400;
+        return const Color.fromARGB(255, 255, 130, 57);
       case 'Water':
-        return Colors.blue.shade400;
+        return const Color.fromARGB(255, 42, 144, 227);
       case 'Earth':
-        return Colors.brown.shade400;
+        return const Color.fromARGB(255, 137, 88, 71);
       case 'Air':
-        return Colors.cyan.shade400;
+        return const Color.fromARGB(255, 157, 184, 188);
       case 'Steam':
         return Colors.grey.shade400;
       case 'Lava':
-        return Colors.deepOrange.shade400;
+        return const Color.fromARGB(255, 149, 16, 16);
       case 'Lightning':
-        return Colors.yellow.shade600;
+        return const Color.fromARGB(255, 209, 172, 6);
       case 'Mud':
-        return Colors.brown.shade300;
+        return const Color.fromARGB(255, 54, 41, 36);
       case 'Ice':
-        return Colors.lightBlue.shade400;
+        return const Color.fromARGB(255, 102, 207, 255);
       case 'Dust':
         return Colors.brown.shade200;
       case 'Crystal':
-        return Colors.purple.shade300;
+        return const Color.fromARGB(255, 77, 36, 202);
       case 'Plant':
         return Colors.green.shade400;
       case 'Poison':
-        return Colors.green.shade600;
+        return const Color.fromARGB(255, 148, 105, 184);
       case 'Spirit':
-        return Colors.teal.shade400;
+        return const Color.fromARGB(255, 252, 255, 255);
       case 'Dark':
-        return Colors.grey.shade700;
+        return const Color.fromARGB(255, 43, 42, 42);
       case 'Light':
         return Colors.yellow.shade300;
       case 'Blood':

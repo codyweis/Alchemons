@@ -16,13 +16,13 @@ class WildernessAccessService {
   }
 
   Future<bool> canEnter(String sceneId) async {
-    final last = await db.getSetting(_key(sceneId));
+    final last = await db.settingsDao.getSetting(_key(sceneId));
     //return last != _todayStampLocal();
     return true;
   }
 
   Future<void> markEntered(String sceneId) async {
-    await db.setSetting(_key(sceneId), _todayStampLocal());
+    await db.settingsDao.setSetting(_key(sceneId), _todayStampLocal());
   }
 
   /// For countdown UI until reset (midnight local)
@@ -33,7 +33,7 @@ class WildernessAccessService {
   }
 
   Future<void> refreshWilderness(String sceneId) async {
-    await db.setSetting(
+    await db.settingsDao.setSetting(
       'wl_access::$sceneId::last_day_yyyymmdd',
       '',
     ); // or remove

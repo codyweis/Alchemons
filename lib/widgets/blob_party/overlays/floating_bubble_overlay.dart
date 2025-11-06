@@ -5,6 +5,9 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/game_data_service.dart';
+import 'package:alchemons/utils/creature_instance_uti.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/blob_party/bubble_widget.dart';
 import 'package:alchemons/widgets/blob_party/floating_creature.dart';
@@ -23,10 +26,13 @@ class FloatingBubblesOverlay extends StatefulWidget {
     super.key,
     this.regionPadding = const EdgeInsets.fromLTRB(12, 140, 12, 160),
     required this.discoveredCreatures,
+    required this.theme,
   });
 
   final EdgeInsets regionPadding;
-  final List<Map<String, dynamic>> discoveredCreatures;
+  final List<CreatureEntry> discoveredCreatures;
+
+  final FactionTheme theme;
 
   @override
   State<FloatingBubblesOverlay> createState() => _FloatingBubblesOverlayState();
@@ -122,10 +128,10 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
 
   Future<void> _loadFromDb() async {
     final db = context.read<AlchemonsDatabase>();
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
 
-    final slots = await db.getBlobSlotsUnlocked(); // 1..3
-    final ids = await db.getBlobInstanceSlots(); // List<String?>
+    final slots = await db.settingsDao.getBlobSlotsUnlocked(); // 1..3
+    final ids = await db.settingsDao.getBlobInstanceSlots(); // List<String?>
 
     // ensure list length == slots
     final normalized = [
@@ -152,7 +158,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
       // hydrate instance if saved
       final id = normalized[i];
       if (id != null) {
-        final inst = await db.getInstance(id);
+        final inst = await db.creatureDao.getInstance(id);
         if (inst != null) b.instance = inst;
       }
       _bubbles.add(b);
@@ -170,7 +176,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
     final inst = b.instance;
     if (inst == null) return;
 
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
     final base = repo.getCreatureById(inst.baseId);
     if (base == null) return;
 
@@ -185,7 +191,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
 
   // ... _tick() stays the same (integration, damping, collisions) ...
 
-  Color _colorForInstance(CreatureRepository repo, CreatureInstance? inst) {
+  Color _colorForInstance(CreatureCatalog repo, CreatureInstance? inst) {
     if (inst == null) return Colors.white.withOpacity(0.35);
     final base = repo.getCreatureById(inst.baseId);
     final type = (base?.types.isNotEmpty ?? false)
@@ -195,8 +201,16 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
   }
 
   Future<void> _pickInstanceFor(_Bubble b, int index) async {
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
     final db = context.read<AlchemonsDatabase>();
+
+    final available = await db.creatureDao
+        .getSpeciesWithInstances(); // Set<String> baseIds
+
+    final filteredDiscovered = filterByAvailableInstances(
+      widget.discoveredCreatures,
+      available,
+    );
 
     // 1) pick species first
     final pickedSpeciesId = await showModalBottomSheet<String>(
@@ -212,7 +226,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
           builder: (context, scrollController) {
             return CreatureSelectionSheet(
               scrollController: scrollController,
-              discoveredCreatures: widget.discoveredCreatures,
+              discoveredCreatures: filteredDiscovered,
               onSelectCreature: (creatureId) {
                 Navigator.pop(context, creatureId);
               },
@@ -233,6 +247,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
       backgroundColor: Colors.transparent,
       builder: (_) {
         return InstancesSheet(
+          theme: widget.theme,
           species: species,
           onTap: (CreatureInstance ci) {
             Navigator.pop(context, ci);
@@ -247,13 +262,13 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
       b.instance = inst;
       b.expanded = true;
     });
-    await db.setBlobSlotInstance(index, inst.instanceId);
+    await db.settingsDao.setBlobSlotInstance(index, inst.instanceId);
     HapticFeedback.lightImpact();
   }
 
   @override
   Widget build(BuildContext context) {
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
 
     return Positioned.fill(
       child: Padding(
@@ -392,6 +407,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
                         setState(() => b.instance = null);
                         await context
                             .read<AlchemonsDatabase>()
+                            .settingsDao
                             .setBlobSlotInstance(i, null);
                       }
                     },
@@ -412,30 +428,18 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
                         return const SizedBox.shrink();
                       }
                       final base = repo.getCreatureById(b.instance!.baseId);
-                      if (base?.spriteData == null)
+                      if (base?.spriteData == null) {
                         return const SizedBox.shrink();
-                      final g = decodeGenetics(b.instance!.geneticsJson);
+                      }
                       return FloatingCreature(
-                        sprite: CreatureSprite(
-                          spritePath: base!.spriteData!.spriteSheetPath,
-                          totalFrames: base.spriteData!.totalFrames,
-                          rows: base.spriteData!.rows,
-                          frameSize: Vector2(
-                            base.spriteData!.frameWidth.toDouble(),
-                            base.spriteData!.frameHeight.toDouble(),
-                          ),
-                          stepTime: base.spriteData!.frameDurationMs / 1000.0,
-                          scale: scaleFromGenes(g),
-                          saturation: satFromGenes(g),
-                          brightness: briFromGenes(g),
-                          hueShift: hueFromGenes(g),
-                          isPrismatic: b.instance!.isPrismaticSkin,
+                        sprite: InstanceSprite(
+                          creature: base!,
+                          instance: b.instance!,
+                          size: 96,
                         ),
                       );
                     },
                   ),
-
-                // ❌ Removed the “+” button entirely (no add UI)
               ],
             );
           },
@@ -451,7 +455,6 @@ class _Bubble {
     required this.vel,
     required this.radius,
     required this.seed,
-    this.instance,
   });
 
   Offset pos;

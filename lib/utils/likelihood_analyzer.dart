@@ -1,8 +1,12 @@
 // lib/services/breeding_likelihood_analyzer.dart
 //
-// Analyzes breeding combinations to predict likelihood of various traits
-// in offspring based on parent genetics, natures, families, and types.
-// Also supports scoring an actual offspring against those predictions.
+// RUNTIME-AWARE VERSION
+// This version does NOT try to guess odds from scratch.
+// Instead, for each trait (family, element, tint, size, pattern, nature...)
+// it asks the BreedingEngine for that trait's distribution and then
+// reports the % chance of what actually happened.
+//
+// Result: tweak BreedingEngine math → UI updates automatically.
 
 import 'dart:convert';
 import 'dart:math' as math;
@@ -16,6 +20,7 @@ import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/breeding_config.dart';
+import 'package:alchemons/utils/nature_utils.dart';
 
 enum Likelihood {
   improbable, // 0-15%
@@ -24,233 +29,915 @@ enum Likelihood {
   probable, // 66-100%
 }
 
-class LikelihoodResult {
-  final String trait;
-  final String value;
+enum BreedingType {
+  sameSpecies, // p1.id == p2.id (pure lineage)
+  crossSpecies, // p1.id != p2.id (hybrid)
+}
+
+class InheritanceMechanic {
+  final String category; // e.g. "Family Lineage", "Elemental Type"
+  final String result; // e.g. "Wing", "Lava", "Albino"
+  final String mechanism; // human readable explanation
+  final double percentage; // numeric likelihood (0-100)
   final Likelihood likelihood;
-  final double percentage;
-  final String description;
 
-  Map<String, dynamic> toJson() => {
-    'trait': trait,
-    'value': value,
-    'likelihood': likelihood.index,
-    'percentage': percentage,
-    'description': description,
-  };
-
-  const LikelihoodResult({
-    required this.trait,
-    required this.value,
-    required this.likelihood,
+  const InheritanceMechanic({
+    required this.category,
+    required this.result,
+    required this.mechanism,
     required this.percentage,
-    required this.description,
-  });
-}
-
-class OffspringLikelihoodSummary {
-  final Map<String, double>
-  perTraitPct; // e.g. {'Color Tint': 42.1, 'Size': 28.0, ...}
-  final double jointPct; // combined probability across considered traits
-  final Likelihood overall; // mapped from jointPct
-  final List<LikelihoodResult> matched; // matched results per trait (if any)
-
-  const OffspringLikelihoodSummary({
-    required this.perTraitPct,
-    required this.jointPct,
-    required this.overall,
-    required this.matched,
+    required this.likelihood,
   });
 
   Map<String, dynamic> toJson() => {
-    'perTraitPct': perTraitPct,
-    'jointPct': jointPct,
-    'overall': overall.index,
-    'matched': matched.map((r) => r.toJson()).toList(),
+    'category': category,
+    'result': result,
+    'mechanism': mechanism,
+    'percentage': percentage,
+    'likelihood': likelihood.index,
   };
 }
 
-class BreedingLikelihoodAnalysis {
-  final List<LikelihoodResult> colorResults;
-  final List<LikelihoodResult> sizeResults;
-  final List<LikelihoodResult> natureResults;
-  final List<LikelihoodResult> typeResults;
-  final List<LikelihoodResult> familyResults;
-  final List<LikelihoodResult> specialResults;
+class BreedingAnalysisReport {
+  final BreedingType breedingType;
+  final String summaryLine;
+  final List<InheritanceMechanic> inheritanceMechanics;
+  final List<InheritanceMechanic> specialEvents;
+  final String
+  outcomeCategory; // "Expected", "Somewhat Unexpected", "Surprising", "Rare"
+  final String outcomeExplanation; // why it got that label
+  final double overallLikelihood; // rolled-together rough "how expected?"
 
-  /// If provided, this summarizes how likely the actual offspring was,
-  /// given the distributions above.
-  final OffspringLikelihoodSummary? outcome;
-
-  const BreedingLikelihoodAnalysis({
-    required this.colorResults,
-    required this.sizeResults,
-    required this.natureResults,
-    required this.typeResults,
-    required this.familyResults,
-    required this.specialResults,
-    this.outcome,
+  const BreedingAnalysisReport({
+    required this.breedingType,
+    required this.summaryLine,
+    required this.inheritanceMechanics,
+    required this.specialEvents,
+    required this.outcomeCategory,
+    required this.outcomeExplanation,
+    required this.overallLikelihood,
   });
 
-  List<LikelihoodResult> get allResults => [
-    ...colorResults,
-    ...sizeResults,
-    ...natureResults,
-    ...typeResults,
-    ...familyResults,
-    ...specialResults,
-  ];
-
-  BreedingLikelihoodAnalysis copyWithOutcome(
-    OffspringLikelihoodSummary summary,
-  ) {
-    return BreedingLikelihoodAnalysis(
-      colorResults: colorResults,
-      sizeResults: sizeResults,
-      natureResults: natureResults,
-      typeResults: typeResults,
-      familyResults: familyResults,
-      specialResults: specialResults,
-      outcome: summary,
-    );
-  }
-
   Map<String, dynamic> toJson() => {
-    'colorResults': colorResults.map((r) => (r).toJson()).toList(),
-    'sizeResults': sizeResults.map((r) => (r).toJson()).toList(),
-    'natureResults': natureResults.map((r) => (r).toJson()).toList(),
-    'typeResults': typeResults.map((r) => (r).toJson()).toList(),
-    'familyResults': familyResults.map((r) => (r).toJson()).toList(),
-    'specialResults': specialResults.map((r) => (r).toJson()).toList(),
-    'outcome': outcome?.toJson(),
+    'breedingType': breedingType.name,
+    'summaryLine': summaryLine,
+    'inheritanceMechanics': inheritanceMechanics
+        .map((m) => m.toJson())
+        .toList(),
+    'specialEvents': specialEvents.map((m) => m.toJson()).toList(),
+    'outcomeCategory': outcomeCategory,
+    'outcomeExplanation': outcomeExplanation,
+    'overallLikelihood': overallLikelihood,
   };
 }
 
 class BreedingLikelihoodAnalyzer {
-  final CreatureRepository repository;
+  final CreatureCatalog repository;
   final ElementRecipeConfig elementRecipes;
   final FamilyRecipeConfig familyRecipes;
   final SpecialRulesConfig specialRules;
   final BreedingTuning tuning;
+
+  // NEW: we inject the live engine so we can ask it for distributions
+  final BreedingEngine engine;
 
   const BreedingLikelihoodAnalyzer({
     required this.repository,
     required this.elementRecipes,
     required this.familyRecipes,
     required this.specialRules,
+    required this.engine,
     this.tuning = const BreedingTuning(),
   });
 
-  // Tint bias mapping from your breeding engine
-  static const Map<String, Map<String, double>> tintBiasPerType = {
-    'Fire': {'warm': 1.30, 'vibrant': 1.15, 'pale': 0.90, 'cool': 0.60},
-    'Water': {'cool': 1.30, 'pale': 1.15, 'vibrant': 1.05, 'warm': 0.60},
-    'Earth': {'pale': 1.20, 'warm': 1.05, 'vibrant': 0.95},
-    'Air': {'pale': 1.15, 'cool': 1.10},
-    'Lightning': {'vibrant': 1.25, 'warm': 1.10},
-    'Ice': {'cool': 1.3, 'pale': 1.10, 'warm': 0.50},
-    'Lava': {'warm': 1.50, 'vibrant': 1.15, 'cool': 0.50, 'pale': 0.90},
-    'Steam': {'pale': 1.15, 'cool': 1.10, 'warm': 1.05},
-    'Mud': {'pale': 1.20, 'vibrant': 0.70},
-    'Dust': {'pale': 1.30, 'vibrant': 0.95},
-    'Crystal': {'vibrant': 1.30, 'cool': 1.10, 'pale': 1.05},
-    'Plant': {'vibrant': 1.15, 'pale': 1.05},
-    'Poison': {'cool': 1.10, 'pale': 1.10},
-    'Spirit': {'pale': 1.15, 'vibrant': 1.10},
-    'Dark': {'cool': 1.15, 'pale': 1.30, 'warm': 0.80},
-    'Light': {'vibrant': 1.50, 'pale': 1.10},
-    'Blood': {'warm': 1.25, 'vibrant': 1.10, 'cool': 0.90},
-  };
-
-  /// Analyze breeding between two creature instances (distribution only)
-  BreedingLikelihoodAnalysis analyzeInstanceBreeding(
-    db.CreatureInstance a,
-    db.CreatureInstance b,
+  /// Main entry point: Analyze already-produced offspring
+  BreedingAnalysisReport analyzeBreedingResult(
+    Creature p1,
+    Creature p2,
+    Creature offspring,
   ) {
-    final baseA = repository.getCreatureById(a.baseId);
-    final baseB = repository.getCreatureById(b.baseId);
+    final breedingType = (p1.id == p2.id)
+        ? BreedingType.sameSpecies
+        : BreedingType.crossSpecies;
 
-    if (baseA == null || baseB == null) {
-      return _emptyAnalysis();
+    if (breedingType == BreedingType.sameSpecies) {
+      return _analyzeSameSpeciesBreeding(p1, p2, offspring);
+    } else {
+      return _analyzeCrossSpeciesBreeding(p1, p2, offspring);
     }
-
-    final parentA = _buildCreatureFromInstance(a, baseA);
-    final parentB = _buildCreatureFromInstance(b, baseB);
-
-    return _analyzeBreeding(parentA, parentB);
   }
 
-  /// Analyze breeding between catalog creatures (distribution only)
-  BreedingLikelihoodAnalysis analyzeCatalogBreeding(
-    String parent1Id,
-    String parent2Id,
-  ) {
-    final p1 = repository.getCreatureById(parent1Id);
-    final p2 = repository.getCreatureById(parent2Id);
-
-    if (p1 == null || p2 == null) {
-      return _emptyAnalysis();
-    }
-
-    return _analyzeBreeding(p1, p2);
-  }
-
-  /// Analyze breeding between instance and wild creature (distribution only)
-  BreedingLikelihoodAnalysis analyzeInstanceWildBreeding(
-    db.CreatureInstance instance,
-    Creature wild,
-  ) {
-    final base = repository.getCreatureById(instance.baseId);
-    if (base == null) return _emptyAnalysis();
-
-    final parent = _buildCreatureFromInstance(instance, base);
-    return _analyzeBreeding(parent, wild);
-  }
-
-  /// Convenience: distribution + attached outcome summary for a known offspring (instances).
-  BreedingLikelihoodAnalysis analyzeInstanceBreedingWithOutcome(
+  /// Analyze by DB instances (player-owned creatures)
+  BreedingAnalysisReport analyzeInstanceBreedingResult(
     db.CreatureInstance a,
     db.CreatureInstance b,
     Creature offspring,
   ) {
     final baseA = repository.getCreatureById(a.baseId);
     final baseB = repository.getCreatureById(b.baseId);
-    if (baseA == null || baseB == null) return _emptyAnalysis();
+    if (baseA == null || baseB == null) {
+      return _emptyReport(offspring);
+    }
 
     final p1 = _buildCreatureFromInstance(a, baseA);
     final p2 = _buildCreatureFromInstance(b, baseB);
-
-    final analysis = _analyzeBreeding(p1, p2);
-    final outcome = _scoreOffspringLikelihood(
-      analysis: analysis,
-      p1: p1,
-      p2: p2,
-      offspring: offspring,
-    );
-    return analysis.copyWithOutcome(outcome);
+    return analyzeBreedingResult(p1, p2, offspring);
   }
 
-  Creature _buildCreatureFromInstance(
-    db.CreatureInstance instance,
-    Creature base,
+  // ───────────────────────────────────────────────────────────
+  // SAME-SPECIES ANALYSIS
+  // ───────────────────────────────────────────────────────────
+
+  BreedingAnalysisReport _analyzeSameSpeciesBreeding(
+    Creature p1,
+    Creature p2,
+    Creature baby,
   ) {
-    final genetics = _decodeGenetics(instance.geneticsJson);
-    final nature = (instance.natureId != null)
-        ? NatureCatalog.byId(instance.natureId!)
+    final mechanics = <InheritanceMechanic>[];
+    final specials = <InheritanceMechanic>[];
+    final surprises = <String>[];
+
+    final normalPathPct = (100.0 - tuning.globalMutationChance.toDouble())
+        .clamp(0.0, 100.0);
+
+    // Species lock consistency
+    mechanics.add(
+      InheritanceMechanic(
+        category: 'Species',
+        result: baby.name,
+        mechanism: 'Same-species breeding tends to reproduce the same species',
+        percentage: normalPathPct,
+        likelihood: Likelihood.probable,
+      ),
+    );
+
+    // GENETICS (tint, size, pattern/etc)
+    _appendGeneticMechanics(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+    );
+
+    // ELEMENT (elemental type)
+    _appendElementMechanic(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+    );
+
+    // NATURE
+    _appendNatureMechanic(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+    );
+
+    // SPECIAL COSMETICS (prismatic)
+    _maybeAppendPrismatic(
+      baby: baby,
+      specialsOut: specials,
+      surprisesOut: surprises,
+    );
+
+    _maybeAppendVariantFaction(
+      baby: baby,
+      specialsOut: specials,
+      surprisesOut: surprises,
+    );
+
+    // outcome label + explanation
+    final outcomeCategory = _categorizeSameSpeciesOutcome(surprises);
+    final outcomeExplanation = _explainSameSpeciesOutcome(surprises, mechanics);
+
+    // simple "overall likelihood" = multiply key mechanic %s
+    final overallLikelihood = _overallLikelihoodFromMechanics(mechanics);
+
+    return BreedingAnalysisReport(
+      breedingType: BreedingType.sameSpecies,
+      summaryLine:
+          '${p1.name} × ${p2.name} → ${baby.name}: Pure lineage breeding',
+      inheritanceMechanics: mechanics,
+      specialEvents: specials,
+      outcomeCategory: outcomeCategory,
+      outcomeExplanation: outcomeExplanation,
+      overallLikelihood: overallLikelihood,
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // CROSS-SPECIES ANALYSIS
+  // ───────────────────────────────────────────────────────────
+
+  BreedingAnalysisReport _analyzeCrossSpeciesBreeding(
+    Creature p1,
+    Creature p2,
+    Creature baby,
+  ) {
+    final mechanics = <InheritanceMechanic>[];
+    final specials = <InheritanceMechanic>[];
+    final surprises = <String>[];
+
+    // SPECIAL EVENTS (guaranteed pair, cross-variant, parent repeat)
+    _maybeAppendGuaranteedPair(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      specialsOut: specials,
+    );
+
+    _maybeAppendCrossVariant(p1: p1, p2: p2, baby: baby, specialsOut: specials);
+
+    _maybeAppendParentRepeat(p1: p1, p2: p2, baby: baby, specialsOut: specials);
+
+    // FAMILY LINEAGE
+    _appendFamilyMechanic(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+    );
+
+    // ELEMENTAL TYPE
+    _appendElementMechanic(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+    );
+
+    // GENETICS (tint, size, pattern/etc)
+    _appendGeneticMechanics(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+    );
+
+    // NATURE
+    _appendNatureMechanic(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+    );
+
+    // PRISMATIC
+    _maybeAppendPrismatic(
+      baby: baby,
+      specialsOut: specials,
+      surprisesOut: surprises,
+    );
+
+    // Categorize
+    final outcomeCategory = _categorizeCrossSpeciesOutcome(
+      surprises,
+      mechanics,
+      specials,
+    );
+    final outcomeExplanation = _explainCrossSpeciesOutcome(
+      surprises,
+      mechanics,
+      specials,
+    );
+
+    // Overall "how expected"
+    final overallLikelihood = _overallLikelihoodFromMechanics(mechanics);
+
+    return BreedingAnalysisReport(
+      breedingType: BreedingType.crossSpecies,
+      summaryLine:
+          '${p1.name} × ${p2.name} → ${baby.name}: ${_getBreedingSummary(p1, p2, baby)}',
+      inheritanceMechanics: mechanics,
+      specialEvents: specials,
+      outcomeCategory: outcomeCategory,
+      outcomeExplanation: outcomeExplanation,
+      overallLikelihood: overallLikelihood,
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // MECHANIC BUILDERS (these now ask the engine)
+  // ───────────────────────────────────────────────────────────
+
+  void _appendFamilyMechanic({
+    required Creature p1,
+    required Creature p2,
+    required Creature baby,
+    required List<InheritanceMechanic> mechanicsOut,
+    required List<String> surprisesOut,
+  }) {
+    final babyFamily = baby.mutationFamily ?? 'Unknown';
+
+    // ask engine for distribution
+    final familyDist = engine.getBiasedFamilyDistribution(p1, p2);
+
+    // normalize to 0-100
+    final familyPctMap = familyDist.asPercentages();
+    final pct = familyPctMap[babyFamily] ?? 0.0;
+
+    mechanicsOut.add(
+      InheritanceMechanic(
+        category: 'Family Lineage',
+        result: babyFamily,
+        mechanism: _describeFamilyMechanism(p1, p2, babyFamily),
+        percentage: pct,
+        likelihood: _likelihoodFor(pct),
+      ),
+    );
+
+    if (pct < 25.0) {
+      surprisesOut.add('Less common family outcome');
+    }
+  }
+
+  void _appendElementMechanic({
+    required Creature p1,
+    required Creature p2,
+    required Creature baby,
+    required List<InheritanceMechanic> mechanicsOut,
+    required List<String> surprisesOut,
+  }) {
+    final babyElem = baby.types.isNotEmpty ? baby.types.first : 'Unknown';
+
+    final elemDist = engine.getBiasedElementDistribution(p1, p2);
+
+    final elemPctMap = elemDist.asPercentages();
+    final pct = elemPctMap[babyElem] ?? 0.0;
+
+    mechanicsOut.add(
+      InheritanceMechanic(
+        category: 'Elemental Type',
+        result: babyElem,
+        mechanism: _describeElementMechanism(p1, p2, babyElem),
+        percentage: pct,
+        likelihood: _likelihoodFor(pct),
+      ),
+    );
+
+    if (pct < 25.0) {
+      surprisesOut.add('Uncommon elemental outcome');
+    }
+  }
+
+  void _appendGeneticMechanics({
+    required Creature p1,
+    required Creature p2,
+    required Creature baby,
+    required List<InheritanceMechanic> mechanicsOut,
+    required List<String> surprisesOut,
+  }) {
+    final g = baby.genetics;
+    if (g == null) return;
+
+    // TINTING
+    {
+      final childTint = g.get('tinting') ?? 'normal';
+
+      final tintDist = engine.getTintDistribution(p1, p2);
+      final tintPctMap = tintDist.asPercentages();
+      final tintPct = tintPctMap[childTint] ?? 0.0;
+
+      mechanicsOut.add(
+        InheritanceMechanic(
+          category: 'Color Tinting',
+          result: _prettyName(childTint),
+          mechanism: _describeTintMechanism(p1, p2, childTint),
+          percentage: tintPct,
+          likelihood: _likelihoodFor(tintPct),
+        ),
+      );
+
+      if (tintPct < 15.0) {
+        surprisesOut.add('Rare color tint outcome');
+      }
+    }
+
+    // SIZE
+    {
+      final childSize = g.get('size') ?? 'normal';
+
+      final sizeDist = engine.getSizeDistribution(p1, p2);
+      final sizePctMap = sizeDist.asPercentages();
+      final sizePct = sizePctMap[childSize] ?? 0.0;
+
+      mechanicsOut.add(
+        InheritanceMechanic(
+          category: 'Size',
+          result: _prettyName(childSize),
+          mechanism: _describeSizeMechanism(p1, p2, childSize),
+          percentage: sizePct,
+          likelihood: _likelihoodFor(sizePct),
+        ),
+      );
+
+      if (sizePct < 20.0) {
+        surprisesOut.add('Unusual size inheritance');
+      }
+    }
+
+    // PATTERNING (optional)
+    {
+      final childPattern = g.get('patterning');
+      if (childPattern != null) {
+        final patternDist = engine.getPatternDistribution(p1, p2);
+        final patternPctMap = patternDist.asPercentages();
+        final patPct = patternPctMap[childPattern] ?? 0.0;
+
+        mechanicsOut.add(
+          InheritanceMechanic(
+            category: 'Patterning',
+            result: _prettyName(childPattern),
+            mechanism: _describePatternMechanism(p1, p2, childPattern),
+            percentage: patPct,
+            likelihood: _likelihoodFor(patPct),
+          ),
+        );
+
+        if (patPct < 10.0) {
+          surprisesOut.add('Rare pattern recombination');
+        }
+      }
+    }
+  }
+
+  void _appendNatureMechanic({
+    required Creature p1,
+    required Creature p2,
+    required Creature baby,
+    required List<InheritanceMechanic> mechanicsOut,
+    required List<String> surprisesOut,
+  }) {
+    final childNature = baby.nature;
+    if (childNature == null) return;
+
+    final natureDist = engine.getNatureDistribution(p1, p2);
+    final naturePctMap = natureDist.asPercentages();
+    final pct = naturePctMap[childNature.id] ?? 0.0;
+
+    mechanicsOut.add(
+      InheritanceMechanic(
+        category: 'Nature',
+        result: childNature.id,
+        mechanism: _describeNatureMechanism(p1, p2, childNature.id),
+        percentage: pct,
+        likelihood: _likelihoodFor(pct),
+      ),
+    );
+
+    if (pct < 20.0) {
+      surprisesOut.add('Unexpected nature outcome');
+    }
+  }
+
+  void _maybeAppendPrismatic({
+    required Creature baby,
+    required List<InheritanceMechanic> specialsOut,
+    required List<String> surprisesOut,
+  }) {
+    if (baby.isPrismaticSkin == true) {
+      final prismaticPct = tuning.prismaticSkinChance * 100.0;
+      specialsOut.add(
+        InheritanceMechanic(
+          category: 'Cosmetic Mutation',
+          result: 'Prismatic Skin',
+          mechanism:
+              '${prismaticPct.toStringAsFixed(1)}% spontaneous visual mutation',
+          percentage: prismaticPct,
+          likelihood: _likelihoodFor(prismaticPct),
+        ),
+      );
+      surprisesOut.add('Prismatic skin mutation');
+    }
+  }
+
+  void _maybeAppendVariantFaction({
+    required Creature baby,
+    required List<InheritanceMechanic> specialsOut,
+    required List<String> surprisesOut,
+  }) {
+    final odds = engine.computeVariantFactionOdds(child: baby);
+    if (odds == null) return;
+
+    final pct = odds.pickedFactionPct;
+    final factionId = odds.pickedFactionId;
+    final depth = baby.lineageData?.generationDepth ?? 0;
+
+    specialsOut.add(
+      InheritanceMechanic(
+        category: 'Lineage Variant',
+        result: factionId,
+        mechanism:
+            '${pct.toStringAsFixed(2)}% chance to express ancestral faction bloodline (depth $depth)',
+        percentage: pct,
+        likelihood: _likelihoodFor(pct),
+      ),
+    );
+
+    if (pct < 10.0) {
+      surprisesOut.add('Bloodline variant expression');
+    }
+  }
+
+  void _maybeAppendGuaranteedPair({
+    required Creature p1,
+    required Creature p2,
+    required Creature baby,
+    required List<InheritanceMechanic> specialsOut,
+  }) {
+    // mirror engine guaranteedPairs
+    final gk = SpecialRulesConfig.idKey(p1.id, p2.id);
+    final outs = specialRules.guaranteedPairs[gk];
+
+    if (outs != null) {
+      for (final rule in outs) {
+        if (rule.resultId == baby.id) {
+          specialsOut.add(
+            InheritanceMechanic(
+              category: 'Guaranteed Pair',
+              result: baby.name,
+              mechanism:
+                  'Special breeding pair override (${rule.chance.toStringAsFixed(1)}% chance)',
+              percentage: rule.chance.toDouble(),
+              likelihood: _likelihoodFor(rule.chance.toDouble()),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _maybeAppendCrossVariant({
+    required Creature p1,
+    required Creature p2,
+    required Creature baby,
+    required List<InheritanceMechanic> specialsOut,
+  }) {
+    // heuristic: "variant" child from cross typing.
+    // We can't 100% detect with no flag, so here's a rule:
+    final looksVariant = baby.id.contains('_variant_');
+    final t1 = p1.types.isNotEmpty ? p1.types.first : null;
+    final t2 = p2.types.isNotEmpty ? p2.types.first : null;
+    final canMakeVariant =
+        (t1 != null && p1.variantTypes.contains(t2)) ||
+        (t2 != null && p2.variantTypes.contains(t1));
+
+    if (looksVariant && canMakeVariant) {
+      final pct = tuning.variantChanceCross.toDouble();
+      specialsOut.add(
+        InheritanceMechanic(
+          category: 'Cross-Variant',
+          result: 'Generated ${baby.name}',
+          mechanism:
+              'Cross-type variant emerged (${pct.toStringAsFixed(1)}% chance)',
+          percentage: pct,
+          likelihood: _likelihoodFor(pct),
+        ),
+      );
+    }
+  }
+
+  void _maybeAppendParentRepeat({
+    required Creature p1,
+    required Creature p2,
+    required Creature baby,
+    required List<InheritanceMechanic> specialsOut,
+  }) {
+    // engine logic: sometimes we just "return one of the parents"
+    final isParentRepeat = (baby.id == p1.id || baby.id == p2.id);
+    if (!isParentRepeat) return;
+
+    // replicate the math the engine uses so analyzer doesn't get out of sync:
+    final basePr = tuning.parentRepeatChance;
+    final prMult = combinedNatureMult(p1, p2, 'breed_same_species_chance_mult');
+    final pr = (basePr * prMult).clamp(0, 100);
+
+    specialsOut.add(
+      InheritanceMechanic(
+        category: 'Parent Species Repeat',
+        result: baby.name,
+        mechanism:
+            'Offspring reverted to parent species (${pr.toStringAsFixed(1)}% chance, nature-modified)',
+        percentage: pr.toDouble(),
+        likelihood: _likelihoodFor(pr.toDouble()),
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // TEXT HELPERS (non-probability explanations only)
+  // ───────────────────────────────────────────────────────────
+
+  String _describeFamilyMechanism(Creature p1, Creature p2, String babyFamily) {
+    final f1 = p1.mutationFamily ?? 'Unknown';
+    final f2 = p2.mutationFamily ?? 'Unknown';
+
+    if (f1 == f2) {
+      if (babyFamily == f1) {
+        return 'Both parents share $f1 lineage → high inheritance stability';
+      } else {
+        return 'Family mutation occurred despite shared lineage';
+      }
+    }
+
+    // hybrid
+    return 'Hybridization of $f1 × $f2 produced $babyFamily';
+  }
+
+  String _describeElementMechanism(Creature p1, Creature p2, String babyElem) {
+    final t1 = p1.types.isNotEmpty ? p1.types.first : 'Unknown';
+    final t2 = p2.types.isNotEmpty ? p2.types.first : 'Unknown';
+
+    if (t1 == t2 && babyElem == t1) {
+      return 'Both parents share $t1 element → direct inheritance';
+    }
+
+    if (babyElem == t1) {
+      return 'Inherited elemental type from parent 1 ($t1)';
+    }
+    if (babyElem == t2) {
+      return 'Inherited elemental type from parent 2 ($t2)';
+    }
+
+    return '$t1 + $t2 combined into $babyElem via elemental fusion rules';
+  }
+
+  String _describeTintMechanism(Creature p1, Creature p2, String tint) {
+    final p1Tint = p1.genetics?.get('tinting') ?? 'normal';
+    final p2Tint = p2.genetics?.get('tinting') ?? 'normal';
+
+    if (p1Tint == p2Tint && tint == p1Tint) {
+      return 'Both parents shared this tint → sticky inheritance';
+    }
+
+    // else talking weighted bias:
+    final types = {...p1.types, ...p2.types}.join('/');
+    return 'Tint weighted by dominance and $types elemental bias';
+  }
+
+  String _describeSizeMechanism(Creature p1, Creature p2, String size) {
+    final s1 = p1.genetics?.get('size') ?? 'normal';
+    final s2 = p2.genetics?.get('size') ?? 'normal';
+
+    if (s1 == 'giant' && s2 == 'giant') {
+      if (size == 'giant')
+        return 'Extreme size lock-in from both giant parents';
+      return 'Size drifted toward midpoint despite both parents being giant';
+    }
+    if (s1 == 'tiny' && s2 == 'tiny') {
+      if (size == 'tiny') return 'Extreme size lock-in from both tiny parents';
+      return 'Size drifted toward midpoint despite both parents being tiny';
+    }
+
+    return 'Blended physical scale from parental averages';
+  }
+
+  String _describePatternMechanism(Creature p1, Creature p2, String pattern) {
+    final pa = p1.genetics?.get('patterning') ?? 'normal';
+    final pb = p2.genetics?.get('patterning') ?? 'normal';
+
+    if (pa == pb && pattern == pa) {
+      return 'Both parents shared this pattern → sticky inheritance';
+    }
+
+    final pair = {pa, pb};
+    if (pair.contains('spots') &&
+        pair.contains('stripes') &&
+        pattern == 'checkered') {
+      return 'Recombination event: spots + stripes → checkered pattern';
+    }
+
+    return 'Pattern was dominance-weighted and may include mutation drift';
+  }
+
+  String _describeNatureMechanism(Creature p1, Creature p2, String natureId) {
+    final n1 = p1.nature?.id;
+    final n2 = p2.nature?.id;
+
+    if (n1 != null && n1 == n2 && natureId == n1) {
+      return 'Both parents share this nature → lock-in bias';
+    }
+
+    if (natureId == n1 || natureId == n2) {
+      return 'Inherited a parent nature (weighted by dominance)';
+    }
+
+    return 'Rolled a fresh nature from catalog';
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // OUTCOME SUMMARIES / CATEGORIZATION
+  // ───────────────────────────────────────────────────────────
+
+  String _categorizeSameSpeciesOutcome(List<String> surprises) {
+    if (surprises.length >= 2) return 'Surprising';
+    if (surprises.length == 1) return 'Somewhat Unexpected';
+    return 'Expected';
+  }
+
+  String _explainSameSpeciesOutcome(
+    List<String> surprises,
+    List<InheritanceMechanic> mechanics,
+  ) {
+    if (surprises.isEmpty) {
+      return 'All traits followed normal same-species inheritance.';
+    }
+
+    final rareBits = mechanics
+        .where((m) => m.percentage < 30.0)
+        .map(
+          (m) =>
+              '${m.category}: ${m.result} (${m.percentage.toStringAsFixed(1)}%)',
+        )
+        .join(', ');
+
+    if (rareBits.isNotEmpty) {
+      return 'Less common outcomes occurred: $rareBits';
+    }
+
+    return 'Genetic variation appeared but within acceptable range.';
+  }
+
+  String _categorizeCrossSpeciesOutcome(
+    List<String> surprises,
+    List<InheritanceMechanic> mechanics,
+    List<InheritanceMechanic> specials,
+  ) {
+    // guaranteed pair always "Expected" regardless of rarity
+    final hasGuaranteed = specials.any((s) => s.category == 'Guaranteed Pair');
+    if (hasGuaranteed) return 'Expected';
+
+    // any special with <20% chance pushes us toward "Rare"
+    final hasVeryLowSpecial = specials.any((s) => s.percentage < 20.0);
+    if (hasVeryLowSpecial) return 'Rare';
+
+    // more than one mechanic under 15% also counts as rare weird stuff
+    final ultraRares = mechanics.where((m) => m.percentage < 15.0).length;
+    if (ultraRares >= 2) return 'Rare';
+
+    if (surprises.length >= 3) return 'Surprising';
+    if (surprises.isNotEmpty) return 'Somewhat Unexpected';
+    return 'Expected';
+  }
+
+  String _explainCrossSpeciesOutcome(
+    List<String> surprises,
+    List<InheritanceMechanic> mechanics,
+    List<InheritanceMechanic> specials,
+  ) {
+    final hasGuaranteed = specials.any((s) => s.category == 'Guaranteed Pair');
+    if (hasGuaranteed) {
+      return 'Special breeding pair produced a predetermined result.';
+    }
+
+    final lowChanceMechanics = _lessLikelyMechanics(mechanics);
+
+    if (lowChanceMechanics.isEmpty && surprises.isEmpty && specials.isEmpty) {
+      return 'All inheritance followed expected hybridization rules.';
+    }
+
+    final parts = <String>[];
+
+    if (lowChanceMechanics.isNotEmpty) {
+      final mechList = lowChanceMechanics
+          .map(
+            (m) =>
+                '${m.category}: ${m.result} (${m.percentage.toStringAsFixed(1)}%)',
+          )
+          .join(', ');
+      parts.add('Less likely outcomes: $mechList');
+    }
+
+    return parts.join('. ');
+  }
+
+  String _getBreedingSummary(Creature p1, Creature p2, Creature baby) {
+    final f1 = p1.mutationFamily ?? 'Unknown';
+    final f2 = p2.mutationFamily ?? 'Unknown';
+    final cf = baby.mutationFamily ?? 'Unknown';
+
+    if (f1 == f2 && f1 == cf) {
+      return 'Family lineage maintained';
+    } else if (f1 == f2 && f1 != cf) {
+      return 'Family mutation occurred';
+    } else {
+      return 'Hybrid cross';
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // MATH HELPERS
+  // ───────────────────────────────────────────────────────────
+
+  Likelihood _likelihoodFor(double pct) {
+    if (pct >= 66) return Likelihood.probable;
+    if (pct >= 36) return Likelihood.likely;
+    if (pct >= 16) return Likelihood.unlikely;
+    return Likelihood.improbable;
+  }
+
+  double _overallLikelihoodFromMechanics(List<InheritanceMechanic> mechanics) {
+    // We'll consider only the "core" mechanics in this score, not cosmetics.
+    final core = mechanics.where((m) {
+      return m.category == 'Family Lineage' ||
+          m.category == 'Elemental Type' ||
+          m.category == 'Species';
+    }).toList();
+
+    if (core.isEmpty) return 100.0;
+
+    // geometric-ish mean
+    final product = core.fold<double>(
+      1.0,
+      (acc, m) => acc * (m.percentage / 100.0),
+    );
+    return (math.pow(product, 1.0 / core.length) * 100).toDouble();
+  }
+
+  List<InheritanceMechanic> _lessLikelyMechanics(
+    List<InheritanceMechanic> mechanics,
+  ) {
+    // group by category
+    final byCategory = <String, List<InheritanceMechanic>>{};
+    for (final m in mechanics) {
+      byCategory.putIfAbsent(m.category, () => []).add(m);
+    }
+
+    final result = <InheritanceMechanic>[];
+
+    for (final entry in byCategory.entries) {
+      final bucket = entry.value;
+      final bestPct = bucket
+          .map((m) => m.percentage)
+          .fold<double>(0, (a, b) => a > b ? a : b);
+
+      final multipleOptionsInThisCategory = bucket.length > 1;
+
+      for (final m in bucket) {
+        final isCategoryLeader =
+            (m.percentage + 0.0001) >= bestPct; // "tied for best"
+        final isSuperLow = m.percentage < 10.0; // you can tune this
+
+        // Rule:
+        // - if there were multiple options in this category:
+        //     only call out the NOT-best ones that are super low
+        // - if there was only one option in this category:
+        //     call it out if it's super low anyway (2%, 4%, etc.)
+        final shouldFlag = multipleOptionsInThisCategory
+            ? (!isCategoryLeader && isSuperLow)
+            : isSuperLow;
+
+        if (shouldFlag) {
+          result.add(m);
+        }
+      }
+    }
+
+    return result;
+  }
+
+  // ───────────────────────────────────────────────────────────
+  // INSTANCE RECONSTRUCTION / FALLBACKS
+  // ───────────────────────────────────────────────────────────
+
+  BreedingAnalysisReport _emptyReport(Creature baby) {
+    return BreedingAnalysisReport(
+      breedingType: BreedingType.crossSpecies,
+      summaryLine: 'Unable to analyze breeding',
+      inheritanceMechanics: [],
+      specialEvents: [],
+      outcomeCategory: 'Unknown',
+      outcomeExplanation: 'Missing parent data',
+      overallLikelihood: 0.0,
+    );
+  }
+
+  Creature _buildCreatureFromInstance(db.CreatureInstance row, Creature base) {
+    final genetics = _decodeGenetics(row.geneticsJson);
+    final nature = (row.natureId != null)
+        ? NatureCatalog.byId(row.natureId!)
         : base.nature;
 
     return base.copyWith(
       genetics: genetics ?? base.genetics,
       nature: nature,
-      isPrismaticSkin:
-          instance.isPrismaticSkin || (base.isPrismaticSkin ?? false),
+      isPrismaticSkin: row.isPrismaticSkin || (base.isPrismaticSkin ?? false),
     );
   }
 
-  Genetics? _decodeGenetics(String? json) {
-    if (json == null || json.isEmpty) return null;
+  Genetics? _decodeGenetics(String? jsonStr) {
+    if (jsonStr == null || jsonStr.isEmpty) return null;
     try {
-      final decoded = jsonDecode(json) as Map<String, dynamic>;
+      final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
       final map = decoded.map((k, v) => MapEntry(k, v.toString()));
       return Genetics(map);
     } catch (_) {
@@ -258,1331 +945,17 @@ class BreedingLikelihoodAnalyzer {
     }
   }
 
-  BreedingLikelihoodAnalysis _analyzeBreeding(Creature p1, Creature p2) {
-    return BreedingLikelihoodAnalysis(
-      colorResults: _analyzeColorLikelihood(p1, p2),
-      sizeResults: _analyzeSizeLikelihood(p1, p2),
-      natureResults: _analyzeNatureLikelihood(p1, p2),
-      typeResults: _analyzeTypeLikelihood(p1, p2),
-      familyResults: _analyzeFamilyLikelihood(p1, p2),
-      specialResults: _analyzeSpecialLikelihood(p1, p2),
-    );
-  }
-
-  List<LikelihoodResult> _analyzeColorLikelihood(Creature p1, Creature p2) {
-    final results = <LikelihoodResult>[];
-
-    // Get tinting track
-    final tintTrack = GeneticsCatalog.all.firstWhere(
-      (t) => t.key == 'tinting',
-      orElse: () => throw StateError('Tinting track not found'),
-    );
-
-    // Get parent tints
-    final p1Tint = p1.genetics?.get('tinting') ?? 'normal';
-    final p2Tint = p2.genetics?.get('tinting') ?? 'normal';
-
-    // Base dominance weights
-    final baseDominance = <String, double>{};
-    for (final variant in tintTrack.variants) {
-      baseDominance[variant.id] = variant.dominance.toDouble();
-    }
-
-    // Apply elemental bias
-    final biasedWeights = _applyTintBias(
-      baseDom: baseDominance.map((k, v) => MapEntry(k, v.toInt())),
-      p1Types: p1.types,
-      p2Types: p2.types,
-    );
-
-    // Same-variant stickiness (~70% after normalization by weighting)
-    if (p1Tint == p2Tint) {
-      biasedWeights[p1Tint] = (biasedWeights[p1Tint] ?? 0) * 2.33;
-    }
-
-    // Calculate percentages and create results
-    final total = biasedWeights.values.fold<double>(0, (a, b) => a + b);
-
-    for (final entry in biasedWeights.entries) {
-      final percentage = total > 0 ? (entry.value / total) * 100 : 0.0;
-      if (percentage >= 5) {
-        results.add(
-          LikelihoodResult(
-            trait: 'Color Tint',
-            value: _formatTintName(entry.key),
-            likelihood: _getLikelihood(percentage),
-            percentage: percentage,
-            description: _getTintDescription(entry.key, p1, p2),
-          ),
-        );
-      }
-    }
-
-    return results..sort((a, b) => b.percentage.compareTo(a.percentage));
-  }
-
-  List<LikelihoodResult> _analyzeSizeLikelihood(Creature p1, Creature p2) {
-    final results = <LikelihoodResult>[];
-
-    // Get size track
-    final scaleTrack = GeneticsCatalog.all.firstWhere(
-      (t) => t.key == 'size',
-      orElse: () => GeneticsCatalog.all.firstWhere(
-        (t) => t.key == 'size',
-        orElse: () => GeneticsCatalog.all.first,
-      ),
-    );
-
-    // Use 'size' key
-    final p1Scale = p1.genetics?.get('size') ?? 'normal';
-    final p2Scale = p2.genetics?.get('size') ?? 'normal';
-
-    final p1Variant = scaleTrack.byId(p1Scale);
-    final p2Variant = scaleTrack.byId(p2Scale);
-
-    final p1Value = (p1Variant.effect['scale'] ?? 1.0).toDouble();
-    final p2Value = (p2Variant.effect['scale'] ?? 1.0).toDouble();
-
-    // Blended inheritance - average with some variance notion
-    final avgValue = (p1Value + p2Value) / 2.0;
-
-    // Stickiness for extremes
-    final bothGiant = (p1Scale == 'giant' && p2Scale == 'giant');
-    final bothTiny = (p1Scale == 'tiny' && p2Scale == 'tiny');
-
-    if (bothGiant) {
-      results.add(
-        LikelihoodResult(
-          trait: 'Size',
-          value: 'Giant',
-          likelihood: Likelihood.probable,
-          percentage: 70.0,
-          description: 'Both parents are giant-sized',
-        ),
-      );
-    } else if (bothTiny) {
-      results.add(
-        LikelihoodResult(
-          trait: 'Size',
-          value: 'Tiny',
-          likelihood: Likelihood.likely,
-          percentage: 60.0,
-          description: 'Both parents are tiny-sized',
-        ),
-      );
-    } else {
-      // Inverse distance weighting to nearest variants
-      final candidates = <String, double>{};
-      for (final variant in scaleTrack.variants) {
-        final value = (variant.effect['scale'] ?? 1.0).toDouble();
-        final distance = (value - avgValue).abs();
-        candidates[variant.id] = 1.0 / (distance + 0.1);
-      }
-
-      final total = candidates.values.fold<double>(0, (a, b) => a + b);
-      for (final entry in candidates.entries) {
-        final percentage = total > 0 ? (entry.value / total) * 100 : 0.0;
-        if (percentage >= 10) {
-          results.add(
-            LikelihoodResult(
-              trait: 'Size',
-              value: _formatSizeName(entry.key),
-              likelihood: _getLikelihood(percentage),
-              percentage: percentage,
-              description: _getSizeDescription(entry.key, p1Scale, p2Scale),
-            ),
-          );
-        }
-      }
-    }
-
-    return results..sort((a, b) => b.percentage.compareTo(a.percentage));
-  }
-
-  List<LikelihoodResult> _analyzeNatureLikelihood(Creature p1, Creature p2) {
-    final results = <LikelihoodResult>[];
-    final parents = [p1.nature, p2.nature].whereType<NatureDef>().toList();
-
-    if (parents.isEmpty) {
-      results.add(
-        LikelihoodResult(
-          trait: 'Nature',
-          value: 'Random Nature',
-          likelihood: Likelihood.probable,
-          percentage: 100.0,
-          description:
-              'Parents have no nature, offspring will get random nature',
-        ),
-      );
-      return results;
-    }
-
-    final inheritChance = tuning.inheritNatureChance.toDouble(); // e.g. 60%
-    final sameLockInChance = tuning.sameNatureLockInChance
-        .toDouble(); // e.g. 50%
-
-    if (parents.length == 2 && parents[0].id == parents[1].id) {
-      final lockInPercentage = sameLockInChance;
-      results.add(
-        LikelihoodResult(
-          trait: 'Nature',
-          value: parents[0].id,
-          likelihood: _getLikelihood(lockInPercentage),
-          percentage: lockInPercentage,
-          description: 'Both parents share this nature',
-        ),
-      );
-
-      final remaining = 100.0 - lockInPercentage;
-      results.add(
-        LikelihoodResult(
-          trait: 'Nature',
-          value: 'Random Nature',
-          likelihood: _getLikelihood(remaining),
-          percentage: remaining,
-          description: 'Alternative nature from catalog',
-        ),
-      );
-    } else {
-      final inheritPercentage = inheritChance;
-
-      for (final nature in parents) {
-        final dominanceWeight = nature.dominance?.toDouble() ?? 1.0;
-        final totalDominance = parents.fold<double>(
-          0,
-          (sum, n) => sum + (n.dominance?.toDouble() ?? 1.0),
-        );
-        final natureChance =
-            (dominanceWeight / (totalDominance == 0 ? 1 : totalDominance)) *
-            inheritPercentage;
-
-        results.add(
-          LikelihoodResult(
-            trait: 'Nature',
-            value: nature.id,
-            likelihood: _getLikelihood(natureChance),
-            percentage: natureChance,
-            description:
-                'Inherited from parent with dominance ${nature.dominance ?? 1}',
-          ),
-        );
-      }
-
-      final randomChance = 100.0 - inheritPercentage;
-      results.add(
-        LikelihoodResult(
-          trait: 'Nature',
-          value: 'Random Nature',
-          likelihood: _getLikelihood(randomChance),
-          percentage: randomChance,
-          description: 'Fresh nature from catalog',
-        ),
-      );
-    }
-
-    return results..sort((a, b) => b.percentage.compareTo(a.percentage));
-  }
-
-  List<LikelihoodResult> _analyzeTypeLikelihood(Creature p1, Creature p2) {
-    final results = <LikelihoodResult>[];
-    final t1 = p1.types.isNotEmpty ? p1.types.first : 'Unknown';
-    final t2 = p2.types.isNotEmpty ? p2.types.first : 'Unknown';
-
-    if (t1 == t2) {
-      results.add(
-        LikelihoodResult(
-          trait: 'Primary Type',
-          value: t1,
-          likelihood: Likelihood.probable,
-          percentage: 100.0,
-          description: 'Both parents share this type',
-        ),
-      );
-      return results;
-    }
-
-    // Get element recipe
-    final key = ElementRecipeConfig.keyOf(t1, t2);
-    Map<String, int>? weighted = elementRecipes.recipes[key];
-
-    weighted ??=
-        elementRecipes.recipes[t1] ??
-        elementRecipes.recipes[t2] ??
-        {t1: 50, t2: 50};
-
-    // Apply nature bias if applicable (placeholder)
-    weighted = _applyTypeNatureBias(weighted, p1, p2);
-
-    final total = weighted.values.fold<int>(0, (a, b) => a + b);
-
-    for (final entry in weighted.entries) {
-      final percentage = total > 0 ? (entry.value / total) * 100 : 0.0;
-      results.add(
-        LikelihoodResult(
-          trait: 'Primary Type',
-          value: entry.key,
-          likelihood: _getLikelihood(percentage),
-          percentage: percentage,
-          description: _getTypeDescription(entry.key, t1, t2),
-        ),
-      );
-    }
-
-    return results..sort((a, b) => b.percentage.compareTo(a.percentage));
-  }
-
-  List<LikelihoodResult> _analyzeFamilyLikelihood(Creature p1, Creature p2) {
-    final results = <LikelihoodResult>[];
-    final f1 = p1.mutationFamily ?? 'Unknown';
-    final f2 = p2.mutationFamily ?? 'Unknown';
-
-    if (f1 == f2) {
-      final mutationChance = tuning.sameFamilyMutationChancePct.toDouble();
-
-      results.add(
-        LikelihoodResult(
-          trait: 'Family',
-          value: f1,
-          likelihood: _getLikelihood(100.0 - mutationChance),
-          percentage: 100.0 - mutationChance,
-          description: 'Both parents belong to this family',
-        ),
-      );
-
-      if (mutationChance > 0) {
-        results.add(
-          LikelihoodResult(
-            trait: 'Family',
-            value: 'Mutated Family',
-            likelihood: _getLikelihood(mutationChance),
-            percentage: mutationChance,
-            description: 'Family mutation to a different lineage',
-          ),
-        );
-      }
-    } else {
-      final key = FamilyRecipeConfig.keyOf(f1, f2);
-      final recipe = familyRecipes.recipes[key] ?? {f1: 50, f2: 50};
-
-      final total = recipe.values.fold<int>(0, (a, b) => a + b);
-
-      for (final entry in recipe.entries) {
-        final percentage = total > 0 ? (entry.value / total) * 100 : 0.0;
-        results.add(
-          LikelihoodResult(
-            trait: 'Family',
-            value: entry.key,
-            likelihood: _getLikelihood(percentage),
-            percentage: percentage,
-            description: _getFamilyDescription(entry.key, f1, f2),
-          ),
-        );
-      }
-    }
-
-    return results..sort((a, b) => b.percentage.compareTo(a.percentage));
-  }
-
-  List<LikelihoodResult> _analyzeSpecialLikelihood(Creature p1, Creature p2) {
-    final results = <LikelihoodResult>[];
-
-    // Guaranteed pairs
-    final gk = SpecialRulesConfig.idKey(p1.id, p2.id);
-    final outs = specialRules.guaranteedPairs[gk];
-
-    if (outs != null && outs.isNotEmpty) {
-      for (final rule in outs) {
-        final creature = repository.getCreatureById(rule.resultId);
-        if (creature != null) {
-          results.add(
-            LikelihoodResult(
-              trait: 'Guaranteed Result',
-              value: creature.name,
-              likelihood: _getLikelihood(rule.chance.toDouble()),
-              percentage: rule.chance.toDouble(),
-              description: 'Special breeding combination result',
-            ),
-          );
-        }
-      }
-    }
-
-    // Cross-variant chances
-    final t1 = p1.types.isNotEmpty ? p1.types.first : 'Unknown';
-    final t2 = p2.types.isNotEmpty ? p2.types.first : 'Unknown';
-
-    if (p1.variantTypes.contains(t2)) {
-      results.add(
-        LikelihoodResult(
-          trait: 'Cross-Variant',
-          value: '${p1.name} ($t1/$t2)',
-          likelihood: _getLikelihood(tuning.variantChanceCross.toDouble()),
-          percentage: tuning.variantChanceCross.toDouble(),
-          description: 'Cross-variant of ${p1.name} with secondary type $t2',
-        ),
-      );
-    }
-
-    if (p2.variantTypes.contains(t1)) {
-      results.add(
-        LikelihoodResult(
-          trait: 'Cross-Variant',
-          value: '${p2.name} ($t2/$t1)',
-          likelihood: _getLikelihood(tuning.variantChanceCross.toDouble()),
-          percentage: tuning.variantChanceCross.toDouble(),
-          description: 'Cross-variant of ${p2.name} with secondary type $t1',
-        ),
-      );
-    }
-
-    // Parent repeat chance
-    final repeatChance = tuning.parentRepeatChance.toDouble();
-    if (repeatChance > 0) {
-      results.add(
-        LikelihoodResult(
-          trait: 'Parent Species',
-          value: 'Same as Parent',
-          likelihood: _getLikelihood(repeatChance),
-          percentage: repeatChance,
-          description: 'Offspring identical to one parent',
-        ),
-      );
-    }
-
-    // Prismatic skin
-    final prismaticChance = (tuning.prismaticSkinChance * 100);
-    results.add(
-      LikelihoodResult(
-        trait: 'Prismatic Skin',
-        value: 'Enabled',
-        likelihood: _getLikelihood(prismaticChance),
-        percentage: prismaticChance,
-        description: 'Rare cosmetic variant',
-      ),
-    );
-
-    return results..sort((a, b) => b.percentage.compareTo(a.percentage));
-  }
-
-  // ===== Outcome scoring and helpers =====
-
-  OffspringLikelihoodSummary _scoreOffspringLikelihood({
-    required BreedingLikelihoodAnalysis analysis,
-    required Creature p1,
-    required Creature p2,
-    required Creature offspring,
-  }) {
-    final per = <String, double>{};
-    final matched = <LikelihoodResult>[];
-    const eps = 0.0001;
-
-    double safePct(double? v) =>
-        (v == null || v.isNaN) ? 0.0 : v.clamp(0.0, 100.0);
-
-    LikelihoodResult? _pick(
-      List<LikelihoodResult> list,
-      String trait,
-      String value,
-    ) {
-      final exact = list.where((r) => r.trait == trait && r.value == value);
-      if (exact.isNotEmpty) return exact.first;
-
-      // Special case for nature fallback
-      if (trait == 'Nature') {
-        final rn = list.where(
-          (r) => r.trait == 'Nature' && r.value == 'Random Nature',
-        );
-        if (rn.isNotEmpty) return rn.first;
-      }
-      return null;
-    }
-
-    double _pctOf(List<LikelihoodResult> list, String trait, String value) {
-      final m = _pick(list, trait, value);
-      if (m != null) {
-        matched.add(m);
-        return safePct(m.percentage);
-      }
-      // If predictions exist but UI pruned some tails, attribute leftover mass.
-      final forTrait = list.where((r) => r.trait == trait).toList();
-      if (forTrait.isNotEmpty) {
-        final sumForTrait = forTrait.fold<double>(
-          0,
-          (s, r) => s + safePct(r.percentage),
-        );
-        final leftover = (100.0 - sumForTrait).clamp(0.0, 100.0);
-        return leftover > 0 ? leftover : eps;
-      }
-      // If no predictions at all for this trait, use tiny epsilon.
-      return eps;
-    }
-
-    // Color Tint
-    final tint = offspring.genetics?.get('tinting') ?? 'normal';
-    per['Color Tint'] = _pctOf(
-      analysis.colorResults,
-      'Color Tint',
-      _formatTintName(tint),
-    );
-
-    // Size
-    final size = offspring.genetics?.get('size') ?? 'normal';
-    per['Size'] = _pctOf(analysis.sizeResults, 'Size', _formatSizeName(size));
-
-    // Nature
-    final natureId = offspring.nature?.id ?? 'Random Nature';
-    per['Nature'] = _pctOf(analysis.natureResults, 'Nature', natureId);
-
-    // Primary Type
-    final primaryType = offspring.types.isNotEmpty
-        ? offspring.types.first
-        : 'Unknown';
-    per['Primary Type'] = _pctOf(
-      analysis.typeResults,
-      'Primary Type',
-      primaryType,
-    );
-
-    // Family
-    final fam = offspring.mutationFamily ?? 'Unknown';
-    per['Family'] = _pctOf(analysis.familyResults, 'Family', fam);
-
-    // Specials → blend to one "Special" dimension (average)
-    final specialMatches = <double>[];
-    for (final r in analysis.specialResults) {
-      switch (r.trait) {
-        case 'Guaranteed Result':
-          if (r.value == offspring.name) {
-            specialMatches.add(safePct(r.percentage));
-            matched.add(r);
-          }
-          break;
-        case 'Cross-Variant':
-          // Heuristic: offspring name appears in label
-          if (r.value.contains(offspring.name)) {
-            specialMatches.add(safePct(r.percentage));
-            matched.add(r);
-          }
-          break;
-        case 'Parent Species':
-          final sameAsParent = offspring.id == p1.id || offspring.id == p2.id;
-          if (sameAsParent && r.value == 'Same as Parent') {
-            specialMatches.add(safePct(r.percentage));
-            matched.add(r);
-          }
-          break;
-        case 'Prismatic Skin':
-          final isPrismatic = offspring.isPrismaticSkin == true;
-          final prismaticPct = safePct(r.percentage);
-          specialMatches.add(
-            isPrismatic ? prismaticPct : (100.0 - prismaticPct),
-          );
-          matched.add(r);
-          break;
-      }
-    }
-    if (specialMatches.isNotEmpty) {
-      final avgSpecial =
-          specialMatches.reduce((a, b) => a + b) / specialMatches.length;
-      per['Special'] = avgSpecial;
-    }
-
-    // Joint probability (assume independence across buckets)
-    final considered = per.values.where((v) => v > 0).toList();
-    final logSum = considered.fold<double>(
-      0.0,
-      (s, v) => s + ((v / 100.0) <= 0 ? math.log(eps) : math.log(v / 100.0)),
-    );
-    final joint = math.exp(logSum) * 100.0;
-
-    return OffspringLikelihoodSummary(
-      perTraitPct: per,
-      jointPct: joint,
-      overall: _getLikelihood(joint),
-      matched: matched,
-    );
-  }
-
-  // ===== Helpers =====
-
-  Likelihood _getLikelihood(double percentage) {
-    if (percentage >= 66) return Likelihood.probable;
-    if (percentage >= 36) return Likelihood.likely;
-    if (percentage >= 16) return Likelihood.unlikely;
-    return Likelihood.improbable;
-  }
-
-  Map<String, double> _applyTintBias({
-    required Map<String, int> baseDom,
-    required List<String> p1Types,
-    required List<String> p2Types,
-  }) {
-    final w = baseDom.map((k, v) => MapEntry(k, v.toDouble()));
-
-    for (final t in [...p1Types, ...p2Types]) {
-      final b = tintBiasPerType[t];
-      if (b == null) continue;
-      b.forEach((variantId, mult) {
-        w[variantId] = (w[variantId] ?? 0) * mult;
-      });
-    }
-
-    w['normal'] = (w['normal'] ?? 0).clamp(0.01, double.infinity);
-    return w;
-  }
-
-  Map<String, int> _applyTypeNatureBias(
-    Map<String, int> weights,
-    Creature? p1,
-    Creature? p2,
-  ) {
-    // Placeholder for future nature-based type bias.
-    return weights;
-  }
-
-  String _formatTintName(String tintId) {
-    if (tintId.isEmpty) return tintId;
-    return tintId.replaceFirst(tintId[0], tintId[0].toUpperCase());
-  }
-
-  String _formatSizeName(String sizeId) {
-    if (sizeId.isEmpty) return sizeId;
-    return sizeId.replaceFirst(sizeId[0], sizeId[0].toUpperCase());
-  }
-
-  String _getTintDescription(String tintId, Creature p1, Creature p2) {
-    final p1Tint = p1.genetics?.get('tinting') ?? 'normal';
-    final p2Tint = p2.genetics?.get('tinting') ?? 'normal';
-
-    if (tintId == p1Tint && tintId == p2Tint) {
-      return 'Both parents have this tint';
-    } else if (tintId == p1Tint || tintId == p2Tint) {
-      return 'Inherited from one parent';
-    } else {
-      return 'Enhanced by elemental affinity';
-    }
-  }
-
-  String _getSizeDescription(String sizeId, String p1Scale, String p2Scale) {
-    if (sizeId == p1Scale && sizeId == p2Scale) {
-      return 'Both parents are this size';
-    } else if (sizeId == p1Scale || sizeId == p2Scale) {
-      return 'Inherited from one parent';
-    } else {
-      return 'Blended from parent sizes';
-    }
-  }
-
-  String _getTypeDescription(String type, String t1, String t2) {
-    if (type == t1 && type == t2) {
-      return 'Shared parent type';
-    } else if (type == t1) {
-      return 'From first parent';
-    } else if (type == t2) {
-      return 'From second parent';
-    } else {
-      return 'Elemental combination result';
-    }
-  }
-
-  String _getFamilyDescription(String family, String f1, String f2) {
-    if (family == f1 && family == f2) {
-      return 'Shared parent family';
-    } else if (family == f1) {
-      return 'From first parent lineage';
-    } else if (family == f2) {
-      return 'From second parent lineage';
-    } else {
-      return 'Cross-family combination';
-    }
-  }
-
-  BreedingLikelihoodAnalysis _emptyAnalysis() {
-    return const BreedingLikelihoodAnalysis(
-      colorResults: [],
-      sizeResults: [],
-      natureResults: [],
-      typeResults: [],
-      familyResults: [],
-      specialResults: [],
-      outcome: null,
-    );
+  // ───────────────────────────────────────────────────────────
+  // MISC SMALL HELPERS
+  // ───────────────────────────────────────────────────────────
+
+  String _prettyName(String raw) {
+    if (raw.isEmpty) return raw;
+    return raw[0].toUpperCase() + raw.substring(1);
   }
 }
 
-enum JustificationCategory {
-  familyLineage,
-  elementalType,
-  genetics,
-  nature,
-  special,
-  cosmetic,
-}
-
-class TraitJustification {
-  final String trait;
-  final String actualValue;
-  final double actualChance;
-  final String mechanism;
-  final String explanation;
-  final JustificationCategory category;
-  final bool wasUnexpected;
-
-  const TraitJustification({
-    required this.trait,
-    required this.actualValue,
-    required this.actualChance,
-    required this.mechanism,
-    required this.explanation,
-    required this.category,
-    required this.wasUnexpected,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'trait': trait,
-    'actualValue': actualValue,
-    'actualChance': actualChance,
-    'mechanism': mechanism,
-    'explanation': explanation,
-    'category': category.name,
-    'wasUnexpected': wasUnexpected,
-  };
-}
-
-class BreedingResultJustification {
-  final Creature offspring;
-  final List<TraitJustification> traitJustifications;
-  final String overallOutcome; // "Expected", "Surprising", "Rare"
-  final double overallLikelihood;
-  final String summaryExplanation;
-
-  const BreedingResultJustification({
-    required this.offspring,
-    required this.traitJustifications,
-    required this.overallOutcome,
-    required this.overallLikelihood,
-    required this.summaryExplanation,
-  });
-
-  List<TraitJustification> get familyJustifications => traitJustifications
-      .where((t) => t.category == JustificationCategory.familyLineage)
-      .toList();
-
-  List<TraitJustification> get typeJustifications => traitJustifications
-      .where((t) => t.category == JustificationCategory.elementalType)
-      .toList();
-
-  List<TraitJustification> get geneticsJustifications => traitJustifications
-      .where((t) => t.category == JustificationCategory.genetics)
-      .toList();
-
-  Map<String, dynamic> toJson() => {
-    'offspring': {
-      'id': offspring.id,
-      'name': offspring.name,
-      'types': offspring.types,
-      'family': offspring.mutationFamily,
-    },
-    'traitJustifications': traitJustifications.map((t) => t.toJson()).toList(),
-    'overallOutcome': overallOutcome,
-    'overallLikelihood': overallLikelihood,
-    'summaryExplanation': summaryExplanation,
-  };
-}
-
-// Extension to add justification capabilities to existing analyzer
-extension BreedingLikelihoodAnalyzerJustification
-    on BreedingLikelihoodAnalyzer {
-  /// Generate full justification for an offspring result
-  BreedingResultJustification justifyBreedingResult(
-    Creature parent1,
-    Creature parent2,
-    Creature offspring,
-  ) {
-    // Use existing analysis logic
-    final analysis = _analyzeBreeding(parent1, parent2);
-    final outcome = _scoreOffspringLikelihood(
-      analysis: analysis,
-      p1: parent1,
-      p2: parent2,
-      offspring: offspring,
-    );
-    final analysisWithOutcome = analysis.copyWithOutcome(outcome);
-
-    // Generate justifications by interpreting the analysis results
-    return _buildJustificationFromAnalysis(
-      parent1,
-      parent2,
-      offspring,
-      analysisWithOutcome,
-    );
-  }
-
-  /// Justify instance breeding result
-  BreedingResultJustification justifyInstanceBreeding(
-    db.CreatureInstance a,
-    db.CreatureInstance b,
-    Creature offspring,
-  ) {
-    final analysisWithOutcome = analyzeInstanceBreedingWithOutcome(
-      a,
-      b,
-      offspring,
-    );
-
-    final baseA = repository.getCreatureById(a.baseId);
-    final baseB = repository.getCreatureById(b.baseId);
-    if (baseA == null || baseB == null) {
-      return _emptyJustification(offspring);
-    }
-
-    final p1 = _buildCreatureFromInstance(a, baseA);
-    final p2 = _buildCreatureFromInstance(b, baseB);
-
-    return _buildJustificationFromAnalysis(
-      p1,
-      p2,
-      offspring,
-      analysisWithOutcome,
-    );
-  }
-
-  BreedingResultJustification _buildJustificationFromAnalysis(
-    Creature p1,
-    Creature p2,
-    Creature offspring,
-    BreedingLikelihoodAnalysis analysis,
-  ) {
-    final justifications = <TraitJustification>[];
-
-    // Family Lineage - use existing family results
-    if (analysis.familyResults.isNotEmpty) {
-      final actualFamily = offspring.mutationFamily ?? 'Unknown';
-      final matchingResult = analysis.familyResults.firstWhere(
-        (r) => r.value == actualFamily,
-        orElse: () => analysis.familyResults.first,
-      );
-
-      justifications.add(
-        TraitJustification(
-          trait: 'Family Lineage',
-          actualValue: actualFamily,
-          actualChance: matchingResult.percentage,
-          mechanism: _getFamilyMechanism(p1, p2, actualFamily),
-          explanation: _getFamilyExplanation(
-            p1,
-            p2,
-            actualFamily,
-            matchingResult.percentage,
-          ),
-          category: JustificationCategory.familyLineage,
-          wasUnexpected: matchingResult.percentage < 30.0,
-        ),
-      );
-    }
-
-    // Elemental Type - use existing type results
-    if (analysis.typeResults.isNotEmpty) {
-      final actualType = offspring.types.isNotEmpty
-          ? offspring.types.first
-          : 'Unknown';
-      final matchingResult = analysis.typeResults.firstWhere(
-        (r) => r.value == actualType,
-        orElse: () => analysis.typeResults.first,
-      );
-
-      justifications.add(
-        TraitJustification(
-          trait: 'Elemental Type',
-          actualValue: actualType,
-          actualChance: matchingResult.percentage,
-          mechanism: _getTypeMechanism(p1, p2, actualType),
-          explanation: _getTypeExplanation(
-            p1,
-            p2,
-            actualType,
-            matchingResult.percentage,
-          ),
-          category: JustificationCategory.elementalType,
-          wasUnexpected: matchingResult.percentage < 35.0,
-        ),
-      );
-    }
-
-    // Genetics - use existing color/size results
-    if (analysis.colorResults.isNotEmpty) {
-      final actualTint = offspring.genetics?.get('tinting') ?? 'normal';
-      final matchingResult = analysis.colorResults.firstWhere(
-        (r) =>
-            r.value.toLowerCase() == _formatTintName(actualTint).toLowerCase(),
-        orElse: () => analysis.colorResults.first,
-      );
-
-      justifications.add(
-        TraitJustification(
-          trait: 'Color Tinting',
-          actualValue: _formatTintName(actualTint),
-          actualChance: matchingResult.percentage,
-          mechanism: _getTintMechanism(p1, p2, actualTint),
-          explanation: _getTintExplanation(
-            p1,
-            p2,
-            actualTint,
-            matchingResult.percentage,
-          ),
-          category: JustificationCategory.genetics,
-          wasUnexpected: matchingResult.percentage < 25.0,
-        ),
-      );
-    }
-
-    if (analysis.sizeResults.isNotEmpty) {
-      final actualSize = offspring.genetics?.get('size') ?? 'normal';
-      final matchingResult = analysis.sizeResults.firstWhere(
-        (r) =>
-            r.value.toLowerCase() == _formatSizeName(actualSize).toLowerCase(),
-        orElse: () => analysis.sizeResults.first,
-      );
-
-      justifications.add(
-        TraitJustification(
-          trait: 'Size',
-          actualValue: _formatSizeName(actualSize),
-          actualChance: matchingResult.percentage,
-          mechanism: _getSizeMechanism(p1, p2, actualSize),
-          explanation: _getSizeExplanation(
-            p1,
-            p2,
-            actualSize,
-            matchingResult.percentage,
-          ),
-          category: JustificationCategory.genetics,
-          wasUnexpected: matchingResult.percentage < 20.0,
-        ),
-      );
-    }
-
-    if (analysis.natureResults.isNotEmpty) {
-      final actualNature = offspring.nature?.id ?? 'Random Nature';
-      final matchingResult = analysis.natureResults.firstWhere(
-        (r) => r.value == actualNature,
-        orElse: () => analysis.natureResults.first,
-      );
-
-      justifications.add(
-        TraitJustification(
-          trait: 'Nature',
-          actualValue: actualNature,
-          actualChance: matchingResult.percentage,
-          mechanism: _getNatureMechanism(p1, p2, actualNature),
-          explanation: _getNatureExplanation(
-            p1,
-            p2,
-            actualNature,
-            matchingResult.percentage,
-          ),
-          category: JustificationCategory.nature,
-          wasUnexpected: matchingResult.percentage < 30.0,
-        ),
-      );
-    }
-
-    // Special results - interpret existing special results
-    for (final special in analysis.specialResults) {
-      if (_isSpecialRelevant(special, offspring, p1, p2)) {
-        justifications.add(
-          TraitJustification(
-            trait: special.trait,
-            actualValue: special.value,
-            actualChance: special.percentage,
-            mechanism: _getSpecialMechanism(special.trait),
-            explanation: special.description,
-            category: JustificationCategory.special,
-            wasUnexpected: special.percentage < 20.0,
-          ),
-        );
-      }
-    }
-
-    // Use simple outcome categorization based on individual traits
-    final outcomeCategory = _categorizeOutcomeByTraits(justifications);
-    final summary = _generateSimpleSummary(
-      p1,
-      p2,
-      offspring,
-      justifications,
-      outcomeCategory,
-    );
-
-    return BreedingResultJustification(
-      offspring: offspring,
-      traitJustifications: justifications,
-      overallOutcome: outcomeCategory,
-      overallLikelihood: 0.0, // No longer using flawed joint probability
-      summaryExplanation: summary,
-    );
-  }
-
-  // Helper methods for generating explanations
-  String _getFamilyMechanism(Creature p1, Creature p2, String actualFamily) {
-    final f1 = p1.mutationFamily ?? 'Unknown';
-    final f2 = p2.mutationFamily ?? 'Unknown';
-
-    if (f1 == f2) {
-      return actualFamily == f1
-          ? "Same-Family Inheritance"
-          : "Same-Family Mutation";
-    }
-    return "Cross-Family Breeding";
-  }
-
-  String _getNatureMechanism(Creature p1, Creature p2, String actualNature) {
-    final n1 = p1.nature?.id;
-    final n2 = p2.nature?.id;
-
-    if (n1 == null && n2 == null) return "Random Assignment";
-    if (n1 != null && n2 != null && n1 == n2) return "Same-Nature Lock-in";
-    return "Nature Inheritance";
-  }
-
-  String _getNatureExplanation(
-    Creature p1,
-    Creature p2,
-    String actualNature,
-    double chance,
-  ) {
-    final n1 = p1.nature?.id;
-    final n2 = p2.nature?.id;
-
-    if (n1 == null && n2 == null) {
-      return "Both parents lack nature traits. Offspring received random nature from catalog (${chance.toStringAsFixed(1)}% chance).";
-    }
-
-    if (n1 != null && n2 != null && n1 == n2) {
-      return actualNature == n1
-          ? "Both parents share $n1 nature. Same-nature lock-in succeeded (${chance.toStringAsFixed(1)}% chance)."
-          : "Despite both parents having $n1 nature, lock-in was overcome by catalog randomization (${chance.toStringAsFixed(1)}% chance).";
-    }
-
-    return actualNature == n1 || actualNature == n2
-        ? "Inherited from parent with dominance weighting (${chance.toStringAsFixed(1)}% chance)."
-        : "Fresh nature selected from catalog (${chance.toStringAsFixed(1)}% chance).";
-  }
-
-  String _getFamilyExplanation(
-    Creature p1,
-    Creature p2,
-    String actualFamily,
-    double chance,
-  ) {
-    final f1 = p1.mutationFamily ?? 'Unknown';
-    final f2 = p2.mutationFamily ?? 'Unknown';
-
-    if (f1 == f2) {
-      if (actualFamily == f1) {
-        return "Both parents belong to the $f1 family. Same-family stickiness resulted in offspring inheriting the shared lineage (${chance.toStringAsFixed(1)}% chance).";
-      } else {
-        return "Despite both parents being $f1 family, a rare mutation occurred, resulting in $actualFamily lineage (${chance.toStringAsFixed(1)}% chance).";
-      }
-    } else {
-      return "Cross-breeding between $f1 and $f2 families. Family recipes determined $actualFamily outcome (${chance.toStringAsFixed(1)}% chance).";
-    }
-  }
-
-  String _getTypeMechanism(Creature p1, Creature p2, String actualType) {
-    final t1 = p1.types.isNotEmpty ? p1.types.first : 'Unknown';
-    final t2 = p2.types.isNotEmpty ? p2.types.first : 'Unknown';
-
-    if (t1 == t2) return "Same-Type Inheritance";
-    if (actualType != t1 && actualType != t2) return "Elemental Fusion";
-    return "Elemental Inheritance";
-  }
-
-  String _getTypeExplanation(
-    Creature p1,
-    Creature p2,
-    String actualType,
-    double chance,
-  ) {
-    final t1 = p1.types.isNotEmpty ? p1.types.first : 'Unknown';
-    final t2 = p2.types.isNotEmpty ? p2.types.first : 'Unknown';
-
-    if (t1 == t2) {
-      return "Both parents share the $t1 element, guaranteeing offspring inherits this type.";
-    } else if (actualType != t1 && actualType != t2) {
-      return "$t1 + $t2 elements fused to create $actualType through alchemical combination (${chance.toStringAsFixed(1)}% chance).";
-    } else {
-      return "Despite elemental rules, offspring inherited pure $actualType element from parents (${chance.toStringAsFixed(1)}% chance).";
-    }
-  }
-
-  String _getTintMechanism(Creature p1, Creature p2, String actualTint) {
-    final p1Tint = p1.genetics?.get('tinting') ?? 'normal';
-    final p2Tint = p2.genetics?.get('tinting') ?? 'normal';
-
-    if (p1Tint == p2Tint && actualTint == p1Tint) return "Same-Tint Stickiness";
-
-    // Check for elemental bias
-    final types = [...p1.types, ...p2.types];
-    final hasBias = types.any(
-      (t) => BreedingLikelihoodAnalyzer.tintBiasPerType.containsKey(t),
-    );
-
-    return hasBias ? "Elemental Tint Bias" : "Weighted Dominance";
-  }
-
-  String _getTintExplanation(
-    Creature p1,
-    Creature p2,
-    String actualTint,
-    double chance,
-  ) {
-    final p1Tint = p1.genetics?.get('tinting') ?? 'normal';
-    final p2Tint = p2.genetics?.get('tinting') ?? 'normal';
-
-    if (p1Tint == p2Tint && actualTint == p1Tint) {
-      return "Both parents share $p1Tint tinting. Same-tint stickiness (~70%) successfully maintained parental coloration.";
-    }
-
-    var explanation = "Tint determined by dominance weights";
-
-    // Check for elemental bias
-    final types = [...p1.types, ...p2.types];
-    final biasTypes = types
-        .where((t) => BreedingLikelihoodAnalyzer.tintBiasPerType.containsKey(t))
-        .toList();
-
-    if (biasTypes.isNotEmpty) {
-      explanation += " enhanced by ${biasTypes.join(', ')} elemental affinity";
-    }
-
-    return "$explanation. Result: ${chance.toStringAsFixed(1)}% likelihood.";
-  }
-
-  String _getSizeMechanism(Creature p1, Creature p2, String actualSize) {
-    final p1Size = p1.genetics?.get('size') ?? 'normal';
-    final p2Size = p2.genetics?.get('size') ?? 'normal';
-
-    if ((p1Size == 'giant' && p2Size == 'giant') ||
-        (p1Size == 'tiny' && p2Size == 'tiny')) {
-      return "Extreme Size Stickiness";
-    }
-    return "Blended Inheritance";
-  }
-
-  String _getSizeExplanation(
-    Creature p1,
-    Creature p2,
-    String actualSize,
-    double chance,
-  ) {
-    final p1Size = p1.genetics?.get('size') ?? 'normal';
-    final p2Size = p2.genetics?.get('size') ?? 'normal';
-
-    if ((p1Size == 'giant' && p2Size == 'giant') ||
-        (p1Size == 'tiny' && p2Size == 'tiny')) {
-      final stickyPct = p1Size == 'giant' ? 70.0 : 60.0;
-      if (actualSize == p1Size) {
-        return "Both parents are $p1Size size. Extreme size stickiness (~${stickyPct}%) successfully maintained parental size.";
-      } else {
-        return "Both parents are $p1Size size, but extreme size stickiness was overcome, resulting in size drift toward center.";
-      }
-    }
-
-    return "Parent sizes blended through genetic averaging with slight random variance. Result represents blend with ${chance.toStringAsFixed(1)}% likelihood.";
-  }
-
-  String _getSpecialMechanism(String trait) {
-    switch (trait) {
-      case 'Guaranteed Result':
-        return "Special Breeding Pair";
-      case 'Cross-Variant':
-        return "Cross-Variant Generation";
-      case 'Parent Species':
-        return "Parent Repeat Chance";
-      case 'Prismatic Skin':
-        return "Cosmetic Mutation";
-      default:
-        return "Special Event";
-    }
-  }
-
-  bool _isSpecialRelevant(
-    LikelihoodResult special,
-    Creature offspring,
-    Creature p1,
-    Creature p2,
-  ) {
-    switch (special.trait) {
-      case 'Guaranteed Result':
-        return special.value == offspring.name;
-      case 'Cross-Variant':
-        return special.value.contains(offspring.name);
-      case 'Parent Species':
-        return offspring.id == p1.id || offspring.id == p2.id;
-      case 'Prismatic Skin':
-        return offspring.isPrismaticSkin == true;
-      default:
-        return false;
-    }
-  }
-
-  // New simple categorization based on individual trait probabilities
-  String _categorizeOutcomeByTraits(List<TraitJustification> justifications) {
-    final unexpectedCount = justifications.where((j) => j.wasUnexpected).length;
-    final veryLowChance = justifications
-        .where((j) => j.actualChance < 15.0)
-        .length;
-
-    if (veryLowChance >= 2) return "Rare";
-    if (unexpectedCount >= 2) return "Surprising";
-    if (unexpectedCount == 1) return "Surprising";
-    return "Expected";
-  }
-
-  String _generateSimpleSummary(
-    Creature p1,
-    Creature p2,
-    Creature offspring,
-    List<TraitJustification> justifications,
-    String outcome,
-  ) {
-    final unexpected = justifications.where((j) => j.wasUnexpected).toList();
-
-    String summary = "Breeding ${p1.name} × ${p2.name} → ${offspring.name}: ";
-
-    switch (outcome) {
-      case "Expected":
-        summary += "This outcome followed typical breeding patterns. ";
-        break;
-      case "Surprising":
-        summary += "This outcome had some unexpected traits. ";
-        break;
-      case "Rare":
-        summary += "This was an extremely rare outcome! ";
-        break;
-    }
-
-    // Add individual trait breakdown
-    final mainTraits = justifications
-        .where(
-          (j) =>
-              j.category == JustificationCategory.familyLineage ||
-              j.category == JustificationCategory.elementalType,
-        )
-        .toList();
-
-    if (mainTraits.isNotEmpty) {
-      summary += "\nKey Results:";
-      for (final trait in mainTraits) {
-        summary +=
-            "\n• ${trait.trait}: ${trait.actualValue} (${trait.actualChance.toStringAsFixed(1)}% chance)";
-      }
-    }
-
-    if (unexpected.isNotEmpty) {
-      summary +=
-          "\nUnexpected aspects: ${unexpected.map((j) => "${j.trait} (${j.actualChance.toStringAsFixed(1)}%)").join(', ')}.";
-    }
-
-    return summary;
-  }
-
-  BreedingResultJustification _emptyJustification(Creature offspring) {
-    return BreedingResultJustification(
-      offspring: offspring,
-      traitJustifications: [],
-      overallOutcome: "Unknown",
-      overallLikelihood: 0.0,
-      summaryExplanation:
-          "Unable to analyze breeding result due to missing parent data.",
-    );
-  }
-}
-
-// Combined result class for breeding with justification
-class BreedingResultWithJustification {
-  final BreedingResult result;
-  final BreedingResultJustification? justification;
-  final bool success;
-
-  const BreedingResultWithJustification({
-    required this.result,
-    this.justification,
-    this.success = true,
-  });
-
-  BreedingResultWithJustification.failure()
-    : result = BreedingResult.failure(),
-      justification = null,
-      success = false;
-}
-
-// Extension to add justification to breeding engine
-extension BreedingEngineJustification on BreedingEngine {
-  BreedingResultWithJustification breedWithJustification(
-    String parent1Id,
-    String parent2Id,
-  ) {
-    final result = breed(parent1Id, parent2Id);
-    if (!result.success || result.creature == null) {
-      return BreedingResultWithJustification.failure();
-    }
-
-    final analyzer = BreedingLikelihoodAnalyzer(
-      repository: repository,
-      elementRecipes: elementRecipes,
-      familyRecipes: familyRecipes,
-      specialRules: specialRules,
-      tuning: tuning,
-    );
-
-    final p1 = repository.getCreatureById(parent1Id)!;
-    final p2 = repository.getCreatureById(parent2Id)!;
-
-    final justification = analyzer.justifyBreedingResult(
-      p1,
-      p2,
-      result.creature!,
-    );
-
-    return BreedingResultWithJustification(
-      result: result,
-      justification: justification,
-    );
-  }
-
-  BreedingResultWithJustification breedInstancesWithJustification(
-    db.CreatureInstance a,
-    db.CreatureInstance b,
-  ) {
-    final result = breedInstances(a, b);
-    if (!result.success || result.creature == null) {
-      return BreedingResultWithJustification.failure();
-    }
-
-    final analyzer = BreedingLikelihoodAnalyzer(
-      repository: repository,
-      elementRecipes: elementRecipes,
-      familyRecipes: familyRecipes,
-      specialRules: specialRules,
-      tuning: tuning,
-    );
-
-    final justification = analyzer.justifyInstanceBreeding(
-      a,
-      b,
-      result.creature!,
-    );
-
-    return BreedingResultWithJustification(
-      result: result,
-      justification: justification,
-    );
-  }
-}
-
-// ===== Extension for easy likelihood display =====
+// Extension for UI badges/emoji
 extension LikelihoodDisplay on Likelihood {
   String get displayName {
     switch (this) {
@@ -1594,19 +967,6 @@ extension LikelihoodDisplay on Likelihood {
         return 'Likely';
       case Likelihood.probable:
         return 'Probable';
-    }
-  }
-
-  String get emoji {
-    switch (this) {
-      case Likelihood.improbable:
-        return '🔮';
-      case Likelihood.unlikely:
-        return '🎲';
-      case Likelihood.likely:
-        return '⚖️';
-      case Likelihood.probable:
-        return '🎯';
     }
   }
 }

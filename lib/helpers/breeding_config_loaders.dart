@@ -12,13 +12,13 @@ Future<ElementRecipeConfig> loadElementRecipes() async {
   final out = <String, Map<String, int>>{};
 
   for (final e in src.entries) {
-    final rawKey = (e.key as String).trim();
+    final rawKey = (e.key).trim();
     final rawVal = e.value as Map<String, dynamic>;
 
     // normalize inner map
     final inner = <String, int>{};
     for (final e2 in rawVal.entries) {
-      inner[(e2.key as String).trim()] = (e2.value as num).toInt();
+      inner[(e2.key).trim()] = (e2.value as num).toInt();
     }
 
     // canonicalize pair keys
@@ -66,15 +66,14 @@ Future<SpecialRulesConfig> loadSpecialRules() async {
 
   final gpRaw = (map['guaranteedPairs'] as Map<String, dynamic>? ?? {});
   final guaranteedPairs = gpRaw.map((k, v) {
-    final list =
-        (v as List)
-            .map(
-              (e) => GuaranteedOutcome(
-                resultId: e['resultId'] as String,
-                chance: (e['chance'] as num?)?.toInt() ?? 100,
-              ),
-            )
-            .toList();
+    final list = (v as List)
+        .map(
+          (e) => GuaranteedOutcome(
+            resultId: e['resultId'] as String,
+            chance: (e['chance'] as num?)?.toInt() ?? 100,
+          ),
+        )
+        .toList();
     return MapEntry(k, list);
   });
 

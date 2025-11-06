@@ -1,41 +1,61 @@
 // lib/screens/home_screen.dart
-import 'dart:ui';
 
+import 'dart:async' as async;
+
+import 'package:alchemons/models/encounters/pools/valley_pool.dart';
+import 'package:alchemons/models/scenes/sky/sky_scene.dart';
+import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
+import 'package:alchemons/models/scenes/valley/valley_scene.dart';
+import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
+import 'package:alchemons/screens/competition_hub_screen.dart';
+import 'package:alchemons/screens/game_screen.dart';
+import 'package:alchemons/screens/inventory_screen.dart';
+import 'package:alchemons/screens/map_screen.dart';
+import 'package:alchemons/services/game_data_service.dart';
+import 'package:alchemons/services/wilderness_spawn_service.dart';
+import 'package:alchemons/utils/creature_instance_uti.dart';
+import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/game_data_gate.dart';
+import 'package:alchemons/widgets/avatar_widget.dart';
+import 'package:alchemons/widgets/blob_party/overlays/floating_bubble_overlay.dart';
+import 'package:alchemons/widgets/creature_showcase_widget.dart';
+import 'package:alchemons/widgets/currency_display_widget.dart';
+import 'package:alchemons/widgets/loading_widget.dart';
+import 'package:alchemons/widgets/notification_banner_system.dart';
+import 'package:alchemons/widgets/side_dock_widget.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/screens/feeding_screen.dart';
-import 'package:alchemons/screens/field_screen.dart';
 import 'package:alchemons/screens/harvest_screen.dart';
-import 'package:alchemons/screens/map_screen.dart';
 import 'package:alchemons/screens/profile_screen.dart';
-import 'package:alchemons/screens/shop_screen.dart';
+import 'package:alchemons/screens/shop/shop_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
-import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/starter_grant_service.dart';
-import 'package:alchemons/test/dev_seeder.dart';
-import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/animations/router/push_soft.dart';
 import 'package:alchemons/widgets/background/interactive_background_widget.dart';
-import 'package:alchemons/widgets/blob_party/overlays/floating_bubble_overlay.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
-import 'package:alchemons/widgets/kpi/kpi_chip_widget.dart';
-import 'package:flutter/foundation.dart';
-import 'dart:math' as math;
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/nav_bar.dart';
+import 'package:alchemons/widgets/creature_selection_sheet.dart';
+import 'package:alchemons/widgets/creature_instances_sheet.dart';
+import 'package:alchemons/widgets/creature_dialog.dart';
 import '../providers/app_providers.dart';
 import 'breed/breed_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
+
+const double _kNavHeight = 92;
+const double _kNavReserve = _kNavHeight + 12;
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _breathingController;
@@ -43,39 +63,52 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _particleController;
   late AnimationController _waveController;
   late AnimationController _glowController;
+  late AnimationController _navAnimController;
 
   bool _isInitialized = false;
+  NavSection _currentSection = NavSection.home;
+  int? _pendingBreedInitialTab;
 
-  Color get _softTextOnDark => Colors.white70;
+  // Notification banners
+  final List<NotificationBanner> _activeNotifications = [];
+
+  // Stream subscriptions for reactive notifications
+  async.StreamSubscription<List<IncubatorSlot>>? _slotsSubscription;
+  async.StreamSubscription<List<BiomeFarm>>? _biomesSubscription;
+  async.Timer? _notificationCheckTimer;
+
+  // FEATURED HERO STATE
+  PresentationData? _featuredData;
+  String? _featuredInstanceId;
+  async.Timer? _spawnTimer;
 
   @override
   void initState() {
     super.initState();
-
     _breathingController = AnimationController(
       duration: const Duration(seconds: 3),
       vsync: this,
     )..repeat(reverse: true);
-
     _rotationController = AnimationController(
       duration: const Duration(seconds: 20),
       vsync: this,
     )..repeat();
-
     _particleController = AnimationController(
       duration: const Duration(seconds: 15),
       vsync: this,
     )..repeat();
-
     _waveController = AnimationController(
       duration: const Duration(seconds: 4),
       vsync: this,
     )..repeat();
-
     _glowController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 1600),
       vsync: this,
     )..repeat(reverse: true);
+    _navAnimController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _initializeApp();
@@ -89,19 +122,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _particleController.dispose();
     _waveController.dispose();
     _glowController.dispose();
+    _navAnimController.dispose();
+    _slotsSubscription?.cancel();
+    _biomesSubscription?.cancel();
+    _notificationCheckTimer?.cancel();
+    _spawnTimer?.cancel();
     super.dispose();
+  }
+
+  void _goToSection(NavSection section, {int? breedInitialTab}) {
+    debugPrint(
+      '📱 Navigating to: $section (active notifications: ${_activeNotifications.length})',
+    );
+    setState(() {
+      _currentSection = section;
+      if (section == NavSection.breed) {
+        _pendingBreedInitialTab = breedInitialTab;
+      }
+    });
+    HapticFeedback.mediumImpact();
   }
 
   Future<void> _initializeApp() async {
     try {
       await _initializeRepository();
-
       final factionSvc = context.read<FactionService>();
-      final db = context.read<AlchemonsDatabase>();
 
-      // Warm the cache, then read the enum
       await factionSvc.loadId();
-      FactionId? faction = factionSvc.current;
+      var faction = factionSvc.current;
 
       if (!mounted) return;
 
@@ -113,19 +161,101 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
         if (!mounted || selected == null) return;
         await factionSvc.setId(selected);
-        faction = selected; // <-- FactionId
+        faction = selected;
       }
 
-      // Any per-faction unlocks you do at start:
       await factionSvc.ensureAirExtraSlotUnlocked();
+      await _grantStarterIfNeeded(faction);
 
-      // 🔑 Now that we definitely have a faction, do the one-time starter grant.
-      await _grantStarterIfNeeded(faction!); // <-- pass FactionId
+      // Load featured hero
+      final featuredInstance = await _loadFeaturedInstanceOrAuto();
+      if (featuredInstance != null) {
+        final repo = context.read<CreatureCatalog>();
+        _featuredInstanceId = featuredInstance.instanceId;
+        _featuredData = _presentationFromInstance(featuredInstance, repo);
+      } else {
+        _featuredInstanceId = null;
+        _featuredData = null;
+      }
 
       if (!mounted) return;
       setState(() => _isInitialized = true);
-    } catch (e) {
+
+      // Set up reactive notification watchers
+      _setupNotificationWatchers();
+
+      final spawnService = context.read<WildernessSpawnService>();
+
+      // ✅ await initialization
+      await spawnService.initializeActiveSpawns(
+        scenes: {
+          'valley': (
+            scene: valleyScene,
+            pool: valleyEncounterPools(valleyScene).sceneWide,
+          ),
+          'sky': (
+            scene: skyScene,
+            pool: valleyEncounterPools(skyScene).sceneWide,
+          ),
+          'volcano': (
+            scene: volcanoScene,
+            pool: valleyEncounterPools(volcanoScene).sceneWide,
+          ),
+          'swamp': (
+            scene: swampScene,
+            pool: valleyEncounterPools(swampScene).sceneWide,
+          ),
+        },
+      );
+
+      // ✅ fire once right away so overdue spawns appear instantly
+      await spawnService.processDueScenes({
+        'valley': (
+          scene: valleyScene,
+          pool: valleyEncounterPools(valleyScene).sceneWide,
+        ),
+        'sky': (
+          scene: skyScene,
+          pool: valleyEncounterPools(skyScene).sceneWide,
+        ),
+        'volcano': (
+          scene: volcanoScene,
+          pool: valleyEncounterPools(volcanoScene).sceneWide,
+        ),
+        'swamp': (
+          scene: swampScene,
+          pool: valleyEncounterPools(swampScene).sceneWide,
+        ),
+      });
+
+      // 🔁 lightweight periodic check
+      _spawnTimer = async.Timer.periodic(const Duration(minutes: 1), (_) async {
+        try {
+          await spawnService.processDueScenes({
+            'valley': (
+              scene: valleyScene,
+              pool: valleyEncounterPools(valleyScene).sceneWide,
+            ),
+            'sky': (
+              scene: skyScene,
+              pool: valleyEncounterPools(skyScene).sceneWide,
+            ),
+            'volcano': (
+              scene: volcanoScene,
+              pool: valleyEncounterPools(volcanoScene).sceneWide,
+            ),
+            'swamp': (
+              scene: swampScene,
+              pool: valleyEncounterPools(swampScene).sceneWide,
+            ),
+          });
+        } catch (e, st) {
+          debugPrint('processDueScenes error: $e\n$st');
+        }
+      });
+    } catch (e, st) {
       debugPrint('Error during app initialization: $e');
+      debugPrint('Error during app initialization: $e\n$st'); // <—
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -138,10 +268,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _initializeRepository() async {
-    try {
-      final repository = context.read<CreatureRepository>();
-      await repository.loadCreatures();
-    } catch (e) {
+    try {} catch (e) {
       debugPrint('Error loading creature repository: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,6 +279,123 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       );
     }
+  }
+
+  // ============================================================
+  // REACTIVE NOTIFICATION SYSTEM
+  // ============================================================
+
+  void _setupNotificationWatchers() {
+    final db = context.read<AlchemonsDatabase>();
+
+    // Watch incubator slots for ready eggs
+    _slotsSubscription = db.incubatorDao.watchSlots().listen(
+      _checkEggNotifications,
+    );
+
+    // Watch biomes for harvest opportunities
+    _biomesSubscription = db.biomeDao.watchBiomes().listen(
+      _checkBiomeNotifications,
+    );
+
+    // Set up a timer to check time-based conditions (like eggs becoming ready)
+    // This is lighter than full polling - just checks if NOW crosses any thresholds
+    _notificationCheckTimer = async.Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _checkTimeBasedNotifications(),
+    );
+  }
+
+  void _checkEggNotifications(List<IncubatorSlot> slots) {
+    if (!mounted || _currentSection != NavSection.home) return;
+
+    int readyEggs = 0;
+    final now = DateTime.now();
+
+    for (final slot in slots) {
+      if (slot.unlocked && slot.eggId != null && slot.hatchAtUtcMs != null) {
+        final hatchTime = DateTime.fromMillisecondsSinceEpoch(
+          slot.hatchAtUtcMs!,
+          isUtc: true,
+        );
+        if (hatchTime.isBefore(now) || hatchTime.isAtSameMomentAs(now)) {
+          readyEggs++;
+        }
+      }
+    }
+
+    debugPrint('🥚 Egg notification check: $readyEggs eggs ready');
+
+    if (readyEggs > 0) {
+      _showNotification(
+        NotificationBanner(
+          type: NotificationBannerType.eggReady,
+          title: 'EGG READY TO HATCH',
+          subtitle: 'Tap to view incubator',
+          count: readyEggs,
+          onTap: () {
+            _goToSection(NavSection.breed, breedInitialTab: 1);
+          },
+        ),
+      );
+    } else {
+      debugPrint('🥚 Clearing egg notification (no eggs ready)');
+      // Clear notification if no eggs are ready
+      _clearNotification(NotificationBannerType.eggReady);
+    }
+  }
+
+  void _checkBiomeNotifications(List<BiomeFarm> biomes) {
+    if (!mounted || _currentSection != NavSection.home) return;
+
+    // Example: Check for completed harvest jobs
+    // You'll need to expand this based on your actual BiomeJob tracking
+
+    // For now, this is a placeholder
+    // In a full implementation, you'd watch BiomeJobs and check completion
+  }
+
+  void _checkTimeBasedNotifications() {
+    if (!mounted || _currentSection != NavSection.home) return;
+
+    // This is called periodically to catch eggs that just became ready
+    // The stream won't fire unless the slot data changes, but eggs become
+    // ready based on time, so we need this lightweight check
+
+    final db = context.read<AlchemonsDatabase>();
+    db.incubatorDao.watchSlots().first.then(_checkEggNotifications);
+  }
+
+  void _showNotification(NotificationBanner banner) {
+    if (!mounted) return;
+    setState(() {
+      // Remove duplicates of same type
+      _activeNotifications.removeWhere((n) => n.type == banner.type);
+      _activeNotifications.add(banner);
+      debugPrint('📢 Showing notification: ${banner.type} (${banner.title})');
+    });
+  }
+
+  void _clearNotification(NotificationBannerType type) async {
+    if (!mounted) return;
+
+    // Clear from database if it was dismissed
+    try {
+      final db = context.read<AlchemonsDatabase>();
+      await (db.delete(
+        db.notificationDismissals,
+      )..where((t) => t.notificationType.equals(type.toKey()))).go();
+    } catch (e) {
+      debugPrint('Error clearing notification dismissal: $e');
+    }
+
+    setState(() {
+      final hadAny = _activeNotifications.any((n) => n.type == type);
+      _activeNotifications.removeWhere((n) => n.type == type);
+      if (hadAny) {
+        debugPrint('🗑️  Cleared notification: $type');
+      }
+    });
   }
 
   ({double particle, double rotation, double elemental}) _speedFor(
@@ -169,1106 +413,550 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  void _navigateToSection(NavSection section) {
+    _goToSection(section);
+    // Notifications persist across navigation - they're only cleared when:
+    // 1. User manually dismisses them
+    // 2. The underlying condition resolves (e.g., egg is hatched)
+  }
+
+  // ============================================================
+  // FEATURED HERO HELPERS
+  // ============================================================
+
+  Future<CreatureInstance?> _loadFeaturedInstanceOrAuto() async {
+    final db = context.read<AlchemonsDatabase>();
+
+    // Attempt to load saved featured instance
+    final savedId = await db.settingsDao.getFeaturedInstanceId();
+    if (savedId != null && savedId.isNotEmpty) {
+      final chosen = await db.creatureDao.getInstance(savedId);
+      if (chosen != null) {
+        return chosen;
+      }
+    }
+
+    // Auto-pick fallback
+    final all = await db.creatureDao.listAllInstances();
+    if (all.isEmpty) return null;
+
+    // prefer prismatic
+    final prismatics = all.where((ci) => ci.isPrismaticSkin == true).toList();
+    if (prismatics.isNotEmpty) {
+      return prismatics.first;
+    }
+
+    // else best "rarity" via stat potential heuristic
+    all.sort((a, b) {
+      final aScore =
+          (a.statSpeedPotential +
+                  a.statIntelligencePotential +
+                  a.statStrengthPotential +
+                  a.statBeautyPotential)
+              .toDouble();
+      final bScore =
+          (b.statSpeedPotential +
+                  b.statIntelligencePotential +
+                  b.statStrengthPotential +
+                  b.statBeautyPotential)
+              .toDouble();
+      return bScore.compareTo(aScore);
+    });
+
+    return all.first;
+  }
+
+  PresentationData? _presentationFromInstance(
+    CreatureInstance pick,
+    CreatureCatalog repo,
+  ) {
+    final base = repo.getCreatureById(pick.baseId);
+    if (base == null) {
+      debugPrint(
+        'FeaturedPresentation: could not find base creature for ${pick.baseId}',
+      );
+      return null;
+    }
+
+    final sprite = base.spriteData;
+    if (sprite == null) {
+      debugPrint('FeaturedPresentation: no spriteData for ${base.id}');
+      return null;
+    }
+
+    // Title line: nickname or species name
+    final displayTitle =
+        (pick.nickname != null && pick.nickname!.trim().isNotEmpty)
+        ? pick.nickname!.trim()
+        : base.name;
+
+    // Flavor subtitle
+    final primaryType = (base.types.isNotEmpty) ? base.types.first : '???';
+
+    // specimen short tag
+    final shortTag = (pick.instanceId.length <= 4)
+        ? pick.instanceId.toUpperCase()
+        : pick.instanceId.substring(pick.instanceId.length - 4).toUpperCase();
+
+    final subtitleLine = [
+      'LVL ${pick.level}',
+      primaryType.toUpperCase(),
+      'SPECIMEN #$shortTag',
+    ].join(' • ');
+
+    final finalSubtitle = pick.isPrismaticSkin
+        ? 'PRISMATIC VARIANT • $subtitleLine'
+        : subtitleLine;
+
+    return PresentationData(
+      displayName: displayTitle,
+      subtitle: finalSubtitle,
+      instance: pick,
+      creature: base,
+    );
+  }
+
+  Future<void> _handleChooseFeaturedInstance() async {
+    HapticFeedback.mediumImpact();
+
+    final db = context.read<AlchemonsDatabase>();
+    final repo = context.read<CreatureCatalog>();
+    final theme = context.read<FactionTheme>();
+
+    final available = await db.creatureDao.getSpeciesWithInstances();
+
+    // Build typed discovered list from DB + catalog
+    final playerRows = await db.creatureDao.getAllCreatures();
+    final discoveredIds = playerRows
+        .where((p) => p.discovered)
+        .map((p) => p.id)
+        .toSet();
+
+    final discoveredTyped = repo.creatures
+        .where((c) => discoveredIds.contains(c.id))
+        .map(
+          (c) => CreatureEntry(
+            creature: c,
+            player: playerRows.firstWhere((p) => p.id == c.id),
+          ),
+        )
+        .toList(growable: false);
+
+    // Filter to species that actually have instances
+    final filteredDiscovered = filterByAvailableInstances(
+      discoveredTyped,
+      available,
+    );
+
+    // Step 1: pick species
+    final pickedSpeciesId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return CreatureSelectionSheet(
+              scrollController: scrollController,
+              discoveredCreatures: filteredDiscovered,
+              onSelectCreature: (creatureId) {
+                Navigator.pop(context, creatureId);
+              },
+            );
+          },
+        );
+      },
+    );
+
+    if (pickedSpeciesId == null) return;
+
+    final species = repo.getCreatureById(pickedSpeciesId);
+    if (species == null) return;
+
+    // Step 2: pick instance of that species
+    final pickedInstance = await showModalBottomSheet<CreatureInstance>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return InstancesSheet(
+          theme: theme,
+          species: species,
+          onTap: (CreatureInstance ci) {
+            Navigator.pop(context, ci);
+          },
+        );
+      },
+    );
+
+    if (pickedInstance == null) return;
+
+    // Step 3: persist choice
+    await db.settingsDao.setFeaturedInstanceId(pickedInstance.instanceId);
+
+    // Step 4: update local state
+    final newPresentation = _presentationFromInstance(pickedInstance, repo);
+    if (!mounted) return;
+    setState(() {
+      _featuredInstanceId = pickedInstance.instanceId;
+      _featuredData = newPresentation;
+    });
+
+    HapticFeedback.lightImpact();
+  }
+
+  Future<void> _handleOpenFeaturedDetails() async {
+    final repo = context.read<CreatureCatalog>();
+    final db = context.read<AlchemonsDatabase>();
+
+    final id = _featuredInstanceId;
+    if (id == null) return;
+
+    final inst = await db.creatureDao.getInstance(id);
+    if (inst == null) return;
+
+    final base = repo.getCreatureById(inst.baseId);
+    if (base == null) return;
+
+    CreatureDetailsDialog.show(
+      context,
+      base,
+      true,
+      instanceId: inst.instanceId,
+    );
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
-    return Consumer2<GameStateNotifier, CatalogData?>(
-      builder: (context, gameState, catalogData, child) {
-        if (catalogData == null ||
-            !catalogData.isFullyLoaded ||
-            !_isInitialized) {
-          return _buildLoadingScreen('Initializing research facility...');
-        }
+    return withGameData(
+      context,
+      isInitialized: _isInitialized,
+      loadingBuilder: buildLoadingScreen,
+      builder:
+          (
+            context, {
+            required theme,
+            required catalog,
+            required entries,
+            required discovered,
+          }) {
+            final factionSvc = context.watch<FactionService>();
+            final currentFaction = factionSvc.current ?? FactionId.water;
+            final speeds = _speedFor(currentFaction);
 
-        if (gameState.isLoading) {
-          return _buildLoadingScreen('Loading specimen database...');
-        }
+            return Scaffold(
+              extendBody: true,
+              body: Stack(
+                children: [
+                  // Background
+                  InteractiveBackground(
+                    particleController: _particleController,
+                    rotationController: _rotationController,
+                    waveController: _waveController,
+                    primaryColor: theme.primary,
+                    secondaryColor: theme.secondary,
+                    accentColor: theme.accent,
+                    factionType: currentFaction,
+                    particleSpeed: speeds.particle,
+                    rotationSpeed: speeds.rotation,
+                    elementalSpeed: speeds.elemental,
+                  ),
 
-        if (gameState.error != null) {
-          return _buildErrorScreen(gameState.error!, gameState.refresh);
-        }
+                  // Main content
+                  SafeArea(
+                    top: _currentSection == NavSection.home,
+                    bottom: false,
+                    child: Column(
+                      children: [
+                        if (_currentSection == NavSection.home)
+                          _buildHeader(theme),
 
-        final factionSvc = context.read<FactionService>();
-        //factionSvc.setBlobSlotsUnlockedTest(); // DEV TEST
+                        if (_featuredData != null &&
+                            _currentSection == NavSection.home) ...[
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            height: 260,
+                            child: Center(
+                              child: FeaturedHeroInteractive(
+                                data: _featuredData!,
+                                theme: theme,
+                                breathing: _breathingController,
+                                onLongPressChoose:
+                                    _handleChooseFeaturedInstance,
+                                onTapDetails: _handleOpenFeaturedDetails,
+                                instance: _featuredData!.instance,
+                                creature: _featuredData!.creature,
+                              ),
+                            ),
+                          ),
+                        ],
 
-        final currentFaction = factionSvc.current;
-        final (primary, secondary, accent) = getFactionColors(currentFaction);
-        final speeds = _speedFor(currentFaction!);
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 240),
+                            child: _buildSectionContent(
+                              theme,
+                              key: ValueKey(_currentSection),
+                            ),
+                          ),
+                        ),
 
-        return Scaffold(
-          body: Stack(
-            children: [
-              InteractiveBackground(
-                particleController: _particleController,
-                rotationController: _rotationController,
-                waveController: _waveController,
-                primaryColor: primary,
-                secondaryColor: secondary,
-                accentColor: accent,
-                factionType: currentFaction,
-                particleSpeed: speeds.particle,
-                rotationSpeed: speeds.rotation,
-                elementalSpeed: speeds.elemental,
-              ),
-              SafeArea(
-                child: Column(
-                  children: [
-                    _buildEnhancedHeader(),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 20),
-                            _buildNavigationBubbles(),
-                            const SizedBox(height: 20),
-                            _buildStatsHUD(gameState),
-                            const SizedBox(height: 20),
-                            ResourceCollectionWidget(accentColor: accent),
-                          ],
+                        BottomNav(
+                          current: _currentSection,
+                          onSelect: (s) => _navigateToSection(s),
+                          theme: theme,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (_currentSection == NavSection.home)
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 140,
+                      left: 0,
+                      child: Consumer<WildernessSpawnService>(
+                        builder: (context, spawnService, child) {
+                          final hasSpawns = spawnService.hasAnyActiveSpawns;
+
+                          return Stack(
+                            children: [
+                              child!, // The actual map button
+                              if (hasSpawns)
+                                Positioned(
+                                  top: 10,
+                                  right: 10,
+                                  child: Container(
+                                    width: 15,
+                                    height: 15,
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.red.withOpacity(0.6),
+                                          blurRadius: 8,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                        // 👇 Everything below should be INSIDE SideDockFloating
+                        child: SideDockFloating(
+                          theme: theme,
+                          onField: () {
+                            final spawnService = context
+                                .read<WildernessSpawnService>();
+                            final hasSpawns = spawnService.hasAnyActiveSpawns;
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const MapScreen(),
+                              ),
+                            );
+                          },
+                          onEnhance: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.push(
+                              context,
+                              CupertinoPageRoute(
+                                builder: (_) => const FeedingScreen(),
+                                fullscreenDialog: true,
+                              ),
+                            );
+                          },
+                          onHarvest: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.push(
+                              context,
+                              CupertinoPageRoute(
+                                builder: (_) => const BiomeHarvestScreen(),
+                                fullscreenDialog: true,
+                              ),
+                            );
+                          },
+                          onCompetitions: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.push(
+                              context,
+                              CupertinoPageRoute(
+                                builder: (_) => const CompetitionHubScreen(),
+                                fullscreenDialog: true,
+                              ),
+                            );
+                          },
+                          onBattle: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.push(
+                              context,
+                              CupertinoPageRoute(
+                                builder: (_) => const GameScreen(),
+                                fullscreenDialog: true,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
-                  ],
-                ),
+
+                  if (_currentSection == NavSection.home)
+                    FloatingBubblesOverlay(
+                      regionPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+                      discoveredCreatures:
+                          discovered, // <-- typed CreatureEntry list
+                      theme: theme,
+                    ),
+
+                  if (_currentSection == NavSection.home &&
+                      _activeNotifications.isNotEmpty)
+                    NotificationBannerStack(
+                      notifications: _activeNotifications,
+                    ),
+                ],
               ),
-              FloatingBubblesOverlay(
-                regionPadding: const EdgeInsets.fromLTRB(12, 140, 12, 140),
-                discoveredCreatures:
-                    gameState.discoveredCreatures, // 👈 add this
-              ),
-            ],
-          ),
-        );
-      },
+            );
+          },
+    );
+  }
+
+  Widget _buildSectionContent(FactionTheme theme, {Key? key}) {
+    switch (_currentSection) {
+      case NavSection.home:
+        return _buildHomeContent(theme);
+      case NavSection.creatures:
+        return const CreaturesScreen();
+      case NavSection.shop:
+        return const ShopScreen();
+      case NavSection.breed:
+        return const BreedScreen();
+      case NavSection.enhance:
+        return const FeedingScreen();
+      case NavSection.inventory:
+        return InventoryScreen(accent: theme.surface);
+    }
+  }
+
+  Widget _buildHomeContent(FactionTheme theme) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: const Column(
+        children: [SizedBox(height: 16), SizedBox(height: 80)],
+      ),
     );
   }
 
   Future<void> _grantStarterIfNeeded(FactionId faction) async {
     final db = context.read<AlchemonsDatabase>();
+    final starterService = context.read<StarterGrantService>(); // Add this
+    final theme = context.read<FactionTheme>();
 
-    // Make sure at least one chamber is usable before we try to place an egg.
-    final slots = await db.watchSlots().first; // first emission is fine here
+    // Ensure at least one slot is unlocked
+    final slots = await db.incubatorDao.watchSlots().first;
     final anyUnlocked = slots.any((s) => s.unlocked);
     if (!anyUnlocked) {
-      await db.unlockSlot(0); // guarantees Chamber 1 is available
+      await db.incubatorDao.unlockSlot(0);
     }
 
-    final granted = await db.ensureStarterGranted(
+    final granted = await starterService.ensureStarterGranted(
       faction,
-      tutorialHatch: const Duration(seconds: 10),
+      tutorialHatch: const Duration(seconds: 20),
     );
 
     if (!mounted) return;
+
     if (granted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Starter specimen added to your incubator!'),
-          behavior: SnackBarBehavior.floating,
+      // Show dialog instead of SnackBar, then go to Breed
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: Text(
+            'Starter secured',
+            style: TextStyle(color: theme.text, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'Your starter Alchemon has been placed in the Extraction Chamber.',
+            style: TextStyle(fontSize: 16, color: theme.text),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
         ),
       );
+
+      if (!mounted) return;
+
+      // Navigate to Breed screen (optionally with incubator tab preselected)
+      _goToSection(NavSection.breed, breedInitialTab: 1);
     }
   }
 
-  Widget _buildLoadingScreen(String message) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Dark gradient veil so the background isn't blinding
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xCC0B0F14), Color(0x990B0F14)],
-                ),
-              ),
-            ),
-          ),
-          Center(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: _glass(
-                    tint: Colors.black,
-                    stroke: Colors.cyanAccent,
-                    opacity: 0.18,
-                  ),
-                  width: 260,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        width: 34,
-                        height: 34,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 3,
-                          valueColor: const AlwaysStoppedAnimation(
-                            Colors.cyanAccent,
-                          ),
-                          backgroundColor: Colors.white.withOpacity(0.08),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        message,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: _softTextOnDark,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorScreen(String error, VoidCallback onRetry) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xCC140B0B), Color(0x99140B0B)],
-                ),
-              ),
-            ),
-          ),
-          Center(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  width: 300,
-                  decoration: _glass(
-                    tint: Colors.black,
-                    stroke: Colors.redAccent,
-                    opacity: 0.16,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        color: Colors.redAccent,
-                        size: 34,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'System Error',
-                        style: TextStyle(
-                          color: _softTextOnDark,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        error,
-                        style: TextStyle(color: _mutedTextOnDark, fontSize: 12),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      GestureDetector(
-                        onTap: onRetry,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.06),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.redAccent.withOpacity(0.6),
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.refresh,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Retry',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEnhancedHeader() {
-    final f = context.read<FactionService>().current ?? FactionId.water;
-    final accent = accentForFaction(f);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: AnimatedBuilder(
-        animation: _glowController,
-        builder: (context, _) {
-          return Row(
-            children: [
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: accent.withOpacity(0.6)),
-                  ),
-                  child: Icon(Icons.person_rounded, color: accent, size: 24),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Title & subtitle
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ALCHEMONS',
-                    style: TextStyle(
-                      color: _softTextOnDark,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 40,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  Text(
-                    'Research Facility',
-                    style: TextStyle(
-                      color: _mutedTextOnDark,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildStatsHUD(GameStateNotifier gameState) {
-    final f = context.read<FactionService>().current ?? FactionId.water;
-    final accent = accentForFaction(f);
-
-    final total = gameState.creatures.length;
-    final discovered = gameState.discoveredCreatures.length;
-
-    final completion = (total == 0)
-        ? 0.0
-        : (discovered / total).clamp(0.0, 1.0);
-
-    // a subtle animated value so the ring gently “breathes”
-    final breathe = _breathingController.value; // 0..1
-    final shimmer = 0.85 + math.sin(breathe * math.pi) * 0.15; // 0.7..1.0
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_glowController, _breathingController]),
-          builder: (context, _) {
-            return _PulsingBorder(
-              anim: _glowController,
-              color: accent,
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: _glass(
-                  tint: Colors.black,
-                  stroke: accent,
-                  opacity: 0.14,
-                ),
-                child: Row(
-                  children: [
-                    // Progress ring
-                    SizedBox(
-                      width: 86,
-                      height: 86,
-                      child: CustomPaint(
-                        painter: _ProgressArcPainter(
-                          progress: completion,
-                          accent: accent,
-                          glow: shimmer,
-                        ),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${(completion * 100).round()}%',
-                                style: TextStyle(
-                                  color: _softTextOnDark,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 16,
-                                  letterSpacing: 0.6,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Database',
-                                style: TextStyle(
-                                  color: _mutedTextOnDark,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 14),
-
-                    // KPI stack
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _KpiRow(
-                            label: 'Discovered',
-                            value: '$discovered / $total',
-                            accent: accent,
-                          ),
-                          const SizedBox(height: 8),
-                          _BarMeter(
-                            value: completion,
-                            accent: accent,
-                            labelLeft: '0%',
-                            labelRight: '100%',
-                          ),
-                          const SizedBox(height: 12),
-
-                          // KPIs: Incubating + Harvest (new KpiChip)
-                          Builder(
-                            builder: (context) {
-                              final harvestSvc = context
-                                  .watch<HarvestService>();
-
-                              return StreamBuilder<List<IncubatorSlot>>(
-                                stream: context
-                                    .read<AlchemonsDatabase>()
-                                    .watchSlots(),
-                                builder: (context, snap) {
-                                  final slots =
-                                      snap.data ?? const <IncubatorSlot>[];
-                                  final nowMs = DateTime.now()
-                                      .toUtc()
-                                      .millisecondsSinceEpoch;
-
-                                  // ----- Incubator stats -----
-                                  final unlockedSlots = slots
-                                      .where((s) => s.unlocked)
-                                      .toList();
-                                  final totalUnlockedInc = unlockedSlots.length;
-
-                                  final withEgg = unlockedSlots
-                                      .where((s) => s.eggId != null)
-                                      .toList();
-
-                                  final readyIncubating = withEgg.where((s) {
-                                    return s.hatchAtUtcMs != null &&
-                                        nowMs >= s.hatchAtUtcMs!;
-                                  }).length;
-
-                                  final activeIncubating =
-                                      (withEgg.length - readyIncubating).clamp(
-                                        0,
-                                        999,
-                                      );
-
-                                  final openInc =
-                                      (totalUnlockedInc - withEgg.length).clamp(
-                                        0,
-                                        999,
-                                      );
-
-                                  // ✅ AVAILABLE = OPEN + READY
-
-                                  // 👇 STATUS-ONLY STRINGS (what you asked for)
-                                  final statusIncubating = (readyIncubating > 0)
-                                      ? 'READY'
-                                      : (totalUnlockedInc > 0 &&
-                                            openInc == totalUnlockedInc)
-                                      ? 'ALL AVAILABLE'
-                                      : 'INCUBATING';
-
-                                  final incubatorLines =
-                                      _sentencesForIncubators(
-                                        ready: readyIncubating,
-                                        open: openInc,
-                                        active: activeIncubating,
-                                      );
-
-                                  // ----- Harvest stats (exclude locked farms for counts) -----
-                                  final biomes = harvestSvc.biomes
-                                      .where((b) => b.unlocked)
-                                      .toList();
-                                  final totalUnlockedBiomes = biomes.length;
-                                  final activeHarvestTotal = biomes
-                                      .where((b) => b.activeJob != null)
-                                      .length;
-
-                                  final readyHarvest = biomes.where((b) {
-                                    final j = b.activeJob;
-                                    if (j == null) return false;
-                                    final endMs = j.startUtcMs + j.durationMs;
-                                    return nowMs >= endMs;
-                                  }).length;
-
-                                  final activeHarvest =
-                                      (activeHarvestTotal - readyHarvest).clamp(
-                                        0,
-                                        999,
-                                      );
-
-                                  final openBiomes =
-                                      (totalUnlockedBiomes - activeHarvestTotal)
-                                          .clamp(0, 999);
-
-                                  final statusHarvest = (readyHarvest > 0)
-                                      ? 'COLLECT'
-                                      : (openBiomes > 0)
-                                      ? 'OPEN'
-                                      : (activeHarvest > 0)
-                                      ? 'EXTRACTING'
-                                      : 'IDLE';
-
-                                  final harvestLines = _sentencesForHarvest(
-                                    ready: readyHarvest,
-                                    open: openBiomes,
-                                    active: activeHarvest,
-                                  );
-
-                                  return Row(
-                                    children: [
-                                      Expanded(
-                                        child: KpiChip(
-                                          heroTag: 'kpi-incubating',
-                                          icon: Icons.egg_rounded,
-                                          label: 'Incubating',
-                                          // ✅ STATUS ONLY
-                                          compactValue: statusIncubating,
-                                          readyCount:
-                                              readyIncubating, // blink only if READY
-                                          accent: accentForFaction(
-                                            context
-                                                    .read<FactionService>()
-                                                    .current ??
-                                                FactionId.water,
-                                          ),
-                                          details: incubatorLines,
-                                          breathe: _breathingController.value,
-                                          onOpen: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const BreedScreen(
-                                                      initialTab: 1,
-                                                    ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: KpiChip(
-                                          heroTag: 'kpi-harvest',
-                                          icon: Icons.agriculture_rounded,
-                                          label: 'Harvest',
-                                          compactValue:
-                                              statusHarvest, // status ONLY ("COLLECT"/"OPEN"/"EXTRACTING"/"IDLE")
-                                          readyCount: readyHarvest,
-                                          accent: accentForFaction(
-                                            context
-                                                    .read<FactionService>()
-                                                    .current ??
-                                                FactionId.water,
-                                          ),
-                                          details: harvestLines,
-                                          breathe: _breathingController.value,
-                                          onOpen: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const BiomeHarvestScreen(),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavigationBubbles() {
-    final f = context.read<FactionService>().current ?? FactionId.water;
-    final accent = accentForFaction(f);
-
-    final items = <({String title, IconData icon, VoidCallback onTap})>[
-      (
-        title: 'Database',
-        icon: Icons.storage_rounded,
-        onTap: () {
-          HapticFeedback.lightImpact();
-          context.pushSoft(const CreaturesScreen());
-        },
-      ),
-      (
-        title: 'Breed',
-        icon: Icons.merge_type_rounded,
-        onTap: () {
-          HapticFeedback.lightImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const BreedScreen()),
-          );
-        },
-      ),
-      (
-        title: 'Enhance',
-        icon: Icons.science_outlined,
-        onTap: () {
-          HapticFeedback.lightImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const FeedingScreen()),
-          );
-        },
-      ),
-      (
-        title: 'Field',
-        icon: Icons.explore_rounded,
-        onTap: () {
-          HapticFeedback.lightImpact();
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const FieldScreen()),
-          );
-        },
-      ),
-      (
-        title: 'Shop',
-        icon: Icons.shopping_bag_rounded,
-        onTap: () {
-          HapticFeedback.lightImpact();
-          context.pushSoft(const ShopScreen());
-        },
-      ),
-    ];
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_glowController, _breathingController]),
-          builder: (context, _) {
-            final pulse = 0.35 + _glowController.value * 0.4;
-            return _PulsingBorder(
-              anim: _glowController,
-              color: accent,
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                decoration: _glass(
-                  tint: Colors.black,
-                  stroke: accent,
-                  opacity: 0.14,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    for (final it in items)
-                      _DockButton(
-                        icon: it.icon,
-                        label: it.title,
-                        accent: accent,
-                        pulse: pulse,
-                        onTap: it.onTap,
-                        breathe: _breathingController.value,
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  String _cardinal(int n) => n == 1 ? 'One' : n.toString();
-  String _isAre(int n) => n == 1 ? 'is' : 'are';
-  String _plural(int n, String singular, String plural) =>
-      n == 1 ? singular : plural;
-
-  /// More “scientific” phrasing for incubators.
-  /// - “ready” and “active” are mutually exclusive (already enforced above).
-  List<String> _sentencesForIncubators({
-    required int ready,
-    required int open,
-    required int active,
-  }) {
-    final lines = <String>[];
-    if (ready > 0) {
-      lines.add(
-        '${_cardinal(ready)} ${_plural(ready, "chamber", "chambers")} ready to hatch.',
-      );
-    }
-    if (active > 0) {
-      lines.add(
-        '${_cardinal(active)} ${_plural(active, "specimen", "specimens")} ${_isAre(active)} incubating.',
-      );
-    }
-    if (open > 0) {
-      lines.add(
-        '${_cardinal(open)} ${_plural(open, "chamber", "chambers")} available.',
-      );
-    }
-    if (lines.isEmpty) lines.add('No active incubation detected.');
-    return lines;
-  }
-
-  /// Scientific phrasing for harvest sites (no “unlocked” line).
-  List<String> _sentencesForHarvest({
-    required int ready,
-    required int open,
-    required int active,
-  }) {
-    final lines = <String>[];
-    if (ready > 0) {
-      lines.add(
-        '${_cardinal(ready)} ${_plural(ready, "site", "sites")} ready for collection.',
-      );
-    }
-    if (active > 0) {
-      lines.add(
-        '${_cardinal(active)} ${_plural(active, "site", "sites")} ${_isAre(active)} harvesting in progress.',
-      );
-    }
-    if (open > 0) {
-      lines.add(
-        '${_cardinal(open)} idle ${_plural(open, "site", "sites")} available.',
-      );
-    }
-    if (lines.isEmpty) lines.add('No active harvesting detected.');
-    return lines;
-  }
-}
-
-class _KpiRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color accent;
-  const _KpiRow({
-    required this.label,
-    required this.value,
-    required this.accent,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            color: _mutedTextOnDark,
-            fontSize: 10,
-            letterSpacing: 0.8,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: accent.withOpacity(0.6)),
-          ),
-          child: Text(
-            value,
-            style: TextStyle(
-              color: _softTextOnDark,
-              fontWeight: FontWeight.w800,
-              fontSize: 11,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BarMeter extends StatelessWidget {
-  final double value; // 0..1
-  final Color accent;
-  final String labelLeft;
-  final String labelRight;
-  const _BarMeter({
-    required this.value,
-    required this.accent,
-    required this.labelLeft,
-    required this.labelRight,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final v = value.clamp(0.0, 1.0);
-
+  Widget _buildHeader(FactionTheme theme) {
     return Column(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: SizedBox(
-            height: 8,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // Compute pixel width; ensure a tiny visible sliver if v>0
-                double w = constraints.maxWidth * v;
-                if (v > 0 && w < 2) w = 2;
-
-                return Stack(
-                  children: [
-                    // Background track
-                    Positioned.fill(
-                      child: Container(color: Colors.white.withOpacity(0.06)),
-                    ),
-                    // Filled segment, anchored left
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        width: w,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [accent.withOpacity(0.18), accent],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            AvatarButton(
+              theme: theme,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
                 );
               },
             ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Text(
-              labelLeft,
-              style: TextStyle(
-                color: _mutedTextOnDark,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              labelRight,
-              style: TextStyle(
-                color: _mutedTextOnDark,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: ResourceCollectionWidget(theme: theme),
               ),
             ),
           ],
         ),
-      ],
-    );
-  }
-}
-
-/// Circular progress arc with soft glow
-class _ProgressArcPainter extends CustomPainter {
-  final double progress; // 0..1
-  final Color accent;
-  final double glow; // ~0.7..1.0
-  _ProgressArcPainter({
-    required this.progress,
-    required this.accent,
-    required this.glow,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = (size.shortestSide / 2) - 4;
-
-    final bg = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 8
-      ..color = Colors.white.withOpacity(0.08);
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2,
-      math.pi * 2,
-      false,
-      bg,
-    );
-
-    final arc = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 8
-      ..shader = SweepGradient(
-        startAngle: -math.pi / 2,
-        endAngle: -math.pi / 2 + math.pi * 2,
-        colors: [accent.withOpacity(0.25), accent, accent.withOpacity(0.9)],
-        stops: const [0.0, 0.7, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: radius));
-
-    final sweep = (progress.clamp(0.0, 1.0)) * math.pi * 2;
-    // glow pass
-    final glowPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 10
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)
-      ..color = accent.withOpacity(0.4 * glow);
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2,
-      sweep,
-      false,
-      glowPaint,
-    );
-
-    // main arc
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -math.pi / 2,
-      sweep,
-      false,
-      arc,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _ProgressArcPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.accent != accent ||
-        oldDelegate.glow != glow;
-  }
-}
-
-class _DockButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color accent;
-  final double pulse; // 0..1 shimmer
-  final double breathe; // 0..1 float
-  final VoidCallback onTap;
-
-  const _DockButton({
-    required this.icon,
-    required this.label,
-    required this.accent,
-    required this.pulse,
-    required this.breathe,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final floatY = -2 * math.sin(breathe * math.pi);
-    return Transform.translate(
-      offset: Offset(0, floatY),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        Column(
           children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.06),
-                border: Border.all(
-                  color: accent.withOpacity(0.6 + pulse * 0.2),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: accent.withOpacity(0.20 + pulse * 0.15),
-                    blurRadius: 16,
-                  ),
-                ],
-              ),
-              child: Icon(icon, color: _softTextOnDark, size: 22),
-            ),
-            const SizedBox(height: 6),
             Text(
-              label,
-              style: TextStyle(
-                color: _mutedTextOnDark,
-                fontWeight: FontWeight.w700,
-                fontSize: 10,
+              'ALCHEMONS',
+              style: GoogleFonts.cinzelDecorative(
+                color: theme.text,
+                fontWeight: FontWeight.w800,
+                fontSize: 40,
+                letterSpacing: 1,
+              ),
+            ),
+            Text(
+              'Research Facility',
+              style: GoogleFonts.cinzelDecorative(
+                color: theme.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
                 letterSpacing: 0.4,
               ),
             ),
+            const SizedBox(height: 10),
+            CurrencyDisplayWidget(),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// Custom Painters
-class LoadingParticlePainter extends CustomPainter {
-  final double animation;
-
-  LoadingParticlePainter({required this.animation});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.indigo.withOpacity(0.4)
-      ..style = PaintingStyle.fill;
-
-    for (int i = 0; i < 20; i++) {
-      final x = (size.width / 20 * i + animation * 100) % size.width;
-      final y =
-          (size.height / 20 * i + math.sin(animation * 2 * math.pi + i) * 80) %
-          size.height;
-      final radius = 4 + math.sin(animation * 2 * math.pi + i) * 2;
-
-      canvas.drawCircle(Offset(x, y), radius, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(LoadingParticlePainter oldDelegate) => true;
-}
-
-Color _softTextOnDark = const Color(0xFFE8EAED); // warm white
-Color _mutedTextOnDark = const Color(0xFFB6C0CC);
-
-BoxDecoration _glass({
-  required Color tint,
-  required Color stroke,
-  double opacity = 0.10,
-}) {
-  return BoxDecoration(
-    color: tint.withOpacity(opacity),
-    borderRadius: BorderRadius.circular(16),
-    border: Border.all(color: stroke.withOpacity(0.35), width: 1),
-    boxShadow: [
-      BoxShadow(
-        color: stroke.withOpacity(0.18),
-        blurRadius: 18,
-        spreadRadius: 1,
-      ),
-    ],
-  );
-}
-
-/// A thin animated border “energy” ring
-class _PulsingBorder extends StatelessWidget {
-  final Animation<double> anim;
-  final BorderRadius borderRadius;
-  final Color color;
-  final Widget child;
-  const _PulsingBorder({
-    required this.anim,
-    required this.borderRadius,
-    required this.color,
-    required this.child,
-  });
-  @override
-  Widget build(BuildContext context) {
-    final glow = 0.35 + anim.value * 0.4; // 0.35..0.75
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: borderRadius,
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(glow * 0.4),
-            blurRadius: 20 + anim.value * 14,
-          ),
-        ],
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: borderRadius,
-          border: Border.all(color: color.withOpacity(glow), width: 1),
-        ),
-        child: child,
-      ),
+      ],
     );
   }
 }

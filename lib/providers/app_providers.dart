@@ -2,11 +2,21 @@
 import 'package:alchemons/helpers/breeding_config_loaders.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/egg/egg_payload.dart';
+import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
+import 'package:alchemons/services/inventory_service.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/services/black_market_service.dart'; // ADD THIS
+import 'package:alchemons/services/starter_grant_service.dart';
+import 'package:alchemons/services/wild_breed_randomizer.dart';
+import 'package:alchemons/services/wilderness_catch_service.dart';
+import 'package:alchemons/services/wilderness_spawn_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -77,27 +87,97 @@ class AppProviders extends StatelessWidget {
         // Database provider
         Provider<AlchemonsDatabase>.value(value: db),
 
+        // Theme (light/dark/system)
+        ChangeNotifierProvider<ThemeNotifier>(
+          create: (ctx) => ThemeNotifier(ctx.read<AlchemonsDatabase>()),
+        ),
+
         ChangeNotifierProvider<HarvestService>(
           create: (ctx) => HarvestService(ctx.read<AlchemonsDatabase>()),
+        ),
+
+        ChangeNotifierProvider<BlackMarketService>(
+          create: (_) => BlackMarketService(),
+        ),
+
+        ChangeNotifierProvider(
+          create: (ctx) => ShopService(ctx.read<AlchemonsDatabase>()),
+        ),
+        ChangeNotifierProvider(
+          create: (ctx) => InventoryService(ctx.read<AlchemonsDatabase>()),
         ),
 
         // Game data service provider (already initialized)
         Provider<GameDataService>.value(value: gameDataService),
 
+        // AppProviders.providers
+        StreamProvider<List<CreatureEntry>?>(
+          create: (ctx) => ctx.read<GameDataService>().watchAllEntries(),
+          initialData: null, // null = "loading" in UI
+        ),
+        StreamProvider<Set<String>?>(
+          create: (ctx) => ctx
+              .read<AlchemonsDatabase>()
+              .creatureDao
+              .watchSpeciesWithInstances(),
+          initialData: null,
+        ),
+
         // Creature repository provider
-        Provider<CreatureRepository>(create: (_) => CreatureRepository()),
+        Provider<CreatureCatalog>.value(value: gameDataService.catalog),
+
+        ChangeNotifierProvider(
+          create: (context) =>
+              WildernessSpawnService(context.read<AlchemonsDatabase>()),
+        ),
+
+        Provider(
+          create: (context) => CatchService(context.read<AlchemonsDatabase>()),
+        ),
 
         ChangeNotifierProvider<SelectedPartyNotifier>(
           create: (_) => SelectedPartyNotifier(),
+        ),
+        ChangeNotifierProvider<FactionService>(
+          create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
+        ),
+
+        ProxyProvider2<FactionService, ThemeNotifier, FactionTheme>(
+          update: (ctx, factionSvc, themeNotifier, __) {
+            final mode = themeNotifier.themeMode;
+
+            // What brightness should the faction skin use?
+            final platformBrightness =
+                MediaQuery.maybeOf(ctx)?.platformBrightness ?? Brightness.light;
+
+            final effectiveBrightness = switch (mode) {
+              ThemeMode.light => Brightness.light,
+              ThemeMode.dark => Brightness.dark,
+              ThemeMode.system => platformBrightness,
+            };
+
+            return factionThemeFor(
+              factionSvc.current,
+              brightness: effectiveBrightness,
+            );
+          },
         ),
 
         // Stamina service provider
         Provider<StaminaService>(
           create: (ctx) => StaminaService(ctx.read<AlchemonsDatabase>()),
         ),
-
-        Provider<FactionService>(
-          create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
+        Provider<EggPayloadFactory>(
+          create: (ctx) => EggPayloadFactory(ctx.read<CreatureCatalog>()),
+        ),
+        Provider<WildCreatureRandomizer>(
+          create: (ctx) => WildCreatureRandomizer(),
+        ),
+        Provider<StarterGrantService>(
+          create: (ctx) => StarterGrantService(
+            db: ctx.read<AlchemonsDatabase>(),
+            payloadFactory: ctx.read<EggPayloadFactory>(),
+          ),
         ),
 
         // Single loader for all catalogs
@@ -107,17 +187,10 @@ class AppProviders extends StatelessWidget {
         ),
 
         // Breeding tuning knobs
-        Provider<BreedingTuning>(
-          create: (_) => const BreedingTuning(
-            variantChanceCross: 1,
-            parentRepeatChance: 20,
-            variantChanceOnPure: 5,
-            variantBlockedTypes: {"Blood"},
-          ),
-        ),
+        Provider<BreedingTuning>(create: (_) => const BreedingTuning()),
 
         // Breeding engine - waits for catalogs to load
-        ProxyProvider2<CatalogData?, CreatureRepository, BreedingEngine?>(
+        ProxyProvider2<CatalogData?, CreatureCatalog, BreedingEngine?>(
           update: (context, catalogData, repo, previous) {
             if (catalogData == null || !catalogData.isFullyLoaded) {
               return null; // Wait for catalogs to load
@@ -135,15 +208,18 @@ class AppProviders extends StatelessWidget {
           },
         ),
 
-        // Breeding likelihood analyzer - reuses same catalog data
-        ProxyProvider2<
+        // Breeding likelihood analyzer - needs the live engine
+        ProxyProvider3<
           CatalogData?,
-          CreatureRepository,
+          CreatureCatalog,
+          BreedingEngine?,
           BreedingLikelihoodAnalyzer?
         >(
-          update: (context, catalogData, repo, previous) {
-            if (catalogData == null || !catalogData.isFullyLoaded) {
-              return null; // Wait for catalogs to load
+          update: (context, catalogData, repo, engine, previous) {
+            if (catalogData == null ||
+                !catalogData.isFullyLoaded ||
+                engine == null) {
+              return null;
             }
 
             final tuning = context.read<BreedingTuning>();
@@ -153,67 +229,12 @@ class AppProviders extends StatelessWidget {
               familyRecipes: catalogData.familyRecipes,
               specialRules: catalogData.specialRules,
               tuning: tuning,
+              engine: engine,
             );
           },
-        ),
-
-        // Game state provider for reactive UI updates
-        ChangeNotifierProvider<GameStateNotifier>(
-          create: (_) => GameStateNotifier(gameDataService),
         ),
       ],
       child: child,
     );
-  }
-}
-
-/// Game state notifier for reactive updates
-class GameStateNotifier extends ChangeNotifier {
-  final GameDataService _gameDataService;
-  List<Map<String, dynamic>> _creatures = [];
-  bool _isLoading = true;
-  String? _error;
-
-  GameStateNotifier(this._gameDataService) {
-    _loadCreatures();
-  }
-
-  // Getters
-  List<Map<String, dynamic>> get creatures => _creatures;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
-
-  List<Map<String, dynamic>> get discoveredCreatures =>
-      _creatures.where((c) => c['player'].discovered == true).toList();
-
-  Future<void> _loadCreatures() async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
-
-      final data = await _gameDataService.getMergedCreatureData();
-      _creatures = data;
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> markDiscovered(String creatureId) async {
-    try {
-      await _gameDataService.markDiscovered(creatureId);
-      await _loadCreatures();
-    } catch (e) {
-      _error = e.toString();
-      notifyListeners();
-    }
-  }
-
-  Future<void> refresh() async {
-    await _loadCreatures();
   }
 }

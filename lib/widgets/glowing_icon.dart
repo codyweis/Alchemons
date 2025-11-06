@@ -51,9 +51,7 @@ class GlowingIcon extends StatelessWidget {
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [color.withOpacity(.3), Colors.transparent],
-            ),
+
             border: Border.all(color: color.withOpacity(glow)),
             boxShadow: [
               BoxShadow(

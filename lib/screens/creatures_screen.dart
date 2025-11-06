@@ -1,15 +1,17 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui';
-import 'package:alchemons/services/faction_service.dart';
-import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/glowing_icon.dart';
+import 'package:alchemons/services/game_data_service.dart';
+import 'package:alchemons/utils/creature_filter_util.dart';
+import 'package:alchemons/utils/game_data_gate.dart';
+import 'package:alchemons/widgets/bottom_sheet_shell.dart';
+import 'package:alchemons/widgets/creature_image.dart';
+import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:alchemons/utils/faction_util.dart'; // FactionTheme
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/widgets/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 
@@ -33,89 +35,81 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   bool _isGrid = true;
   String _query = '';
   String? _typeFilter;
+  AnimationController? _pulse;
 
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1800),
-  )..repeat(reverse: true);
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+  }
 
   @override
   void dispose() {
     _debounce?.cancel();
     _searchCtrl.dispose();
-    _pulse.dispose();
+    _pulse?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final factionSvc = context.read<FactionService>();
-    final currentFaction = factionSvc.current;
+    return withGameData(
+      context, // keep your local init flag
+      loadingBuilder: buildLoadingScreen,
+      builder:
+          (
+            context, {
+            required theme,
+            required catalog,
+            required entries,
+            required discovered,
+          }) {
+            // stats
+            final total = entries.length;
+            final discoveredCount = discovered.length;
+            final pct = total == 0
+                ? 0.0
+                : (discoveredCount / total).clamp(0.0, 1.0);
 
-    // Get faction colors - replace with actual faction from game state
-    final factionColors = getFactionColors(currentFaction);
-    final primaryColor = factionColors.$1;
-    final secondaryColor = factionColors.$2;
-    return Consumer<GameStateNotifier>(
-      builder: (context, game, _) {
-        if (game.isLoading) return const _LoadingScaffold();
-        if (game.error != null) {
-          return _ErrorScaffold(error: game.error!, onRetry: game.refresh);
-        }
+            // apply your filters/sorting to the typed entries
+            final filtered = _filterAndSort(discovered);
 
-        final filtered = _filterAndSort(game.creatures);
-        final discovered = game.discoveredCreatures.length;
-        final total = game.creatures.length;
-        final pct = total == 0 ? 0.0 : (discovered / total).clamp(0.0, 1.0);
-
-        return RefreshIndicator.adaptive(
-          onRefresh: () async => game.refresh(),
-          edgeOffset: 100,
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            body: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF0B0F14).withOpacity(0.92),
-                    const Color(0xFF0B0F14).withOpacity(0.92),
-                  ],
-                ),
-              ),
-              child: SafeArea(
+            return Scaffold(
+              backgroundColor: theme.surfaceAlt,
+              body: SafeArea(
+                bottom: false,
                 child: CustomScrollView(
                   physics: const BouncingScrollPhysics(
                     parent: AlwaysScrollableScrollPhysics(),
                   ),
                   slivers: [
-                    _GlassAppBar(pulse: _pulse, accentColor: primaryColor),
+                    _SolidHeader(theme: theme),
                     SliverToBoxAdapter(
-                      child: _StatsHeader(
+                      child: _StatsHeaderSolid(
+                        theme: theme,
                         percent: pct,
-                        discovered: discovered,
+                        discovered: discoveredCount,
                         total: total,
-                        pulse: _pulse,
-                        primaryColor: primaryColor,
-                        secondaryColor: secondaryColor,
                       ),
                     ),
                     SliverPersistentHeader(
                       pinned: true,
                       delegate: _StickyFilterBar(
-                        height: 124,
+                        height: 126,
                         scope: _scope,
                         typeFilter: _typeFilter,
                         isGrid: _isGrid,
-                        child: _FilterBar(
+                        child: _FilterBarSolid(
+                          theme: theme,
                           query: _query,
                           controller: _searchCtrl,
                           scope: _scope,
                           sort: _sort,
                           isGrid: _isGrid,
                           typeFilter: _typeFilter,
-                          accentColor: primaryColor,
                           onQueryChanged: _onQueryChanged,
                           onScopeChanged: _showScopeSheet,
                           onSortTap: _showSortSheet,
@@ -134,24 +128,24 @@ class _CreaturesScreenState extends State<CreaturesScreen>
                       )
                     else
                       SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
+                        padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
                         sliver: _isGrid
                             ? _CreatureGrid(
-                                creatures: filtered,
+                                theme: theme,
+                                creatures: filtered, // List<CreatureEntry>
                                 onTap: _handleTap,
                               )
                             : _CreatureList(
-                                creatures: filtered,
+                                theme: theme,
+                                creatures: filtered, // List<CreatureEntry>
                                 onTap: _handleTap,
                               ),
                       ),
                   ],
                 ),
               ),
-            ),
-          ),
-        );
-      },
+            );
+          },
     );
   }
 
@@ -163,103 +157,49 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   }
 
   Future<void> _showSortSheet() async {
-    final factionSvc = context.read<FactionService>();
-    final currentFaction = factionSvc.current;
-    final factionColors = getFactionColors(currentFaction);
-    final accentColor = factionColors.$1;
-
+    final theme = context.read<FactionTheme>();
     const options = ['Name', 'Classification', 'Type', 'Acquisition Order'];
     final picked = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return _GlassSheet(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 6),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.25),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Sort by',
-                style: TextStyle(
-                  color: Color(0xFFE8EAED),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...options.map(
-                (o) => _RadioTile(
-                  label: o,
-                  selected: o == _sort,
-                  accentColor: accentColor,
-                  onTap: () => Navigator.pop(ctx, o),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
+      builder: (ctx) => _BottomSheetSolid(
+        theme: theme,
+        title: 'Sort by',
+        children: [
+          ...options.map(
+            (o) => _RadioTileSolid(
+              theme: theme,
+              label: o,
+              selected: o == _sort,
+              onTap: () => Navigator.pop(ctx, o),
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
     if (picked != null) setState(() => _sort = picked);
   }
 
   Future<void> _showScopeSheet() async {
-    final factionSvc = context.read<FactionService>();
-    final currentFaction = factionSvc.current;
-    final factionColors = getFactionColors(currentFaction);
-    final accentColor = factionColors.$1;
-
+    final theme = context.read<FactionTheme>();
     const scopes = ['All', 'Catalogued', 'Unknown'];
     final picked = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return _GlassSheet(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 6),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.25),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Discovery Scope',
-                style: TextStyle(
-                  color: Color(0xFFE8EAED),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...scopes.map(
-                (s) => _RadioTile(
-                  label: s,
-                  accentColor: accentColor,
-                  selected: s == _scope,
-                  onTap: () => Navigator.pop(ctx, s),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
+      builder: (ctx) => _BottomSheetSolid(
+        theme: theme,
+        title: 'Discovery Scope',
+        children: [
+          ...scopes.map(
+            (s) => _RadioTileSolid(
+              theme: theme,
+              label: s,
+              selected: s == _scope,
+              onTap: () => Navigator.pop(ctx, s),
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
     if (picked != null) setState(() => _scope = picked);
   }
@@ -272,9 +212,9 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     }
   }
 
-  List<Map<String, dynamic>> _filterAndSort(List<Map<String, dynamic>> all) {
+  List<CreatureEntry> _filterAndSort(List<CreatureEntry> all) {
     final scoped = all.where((m) {
-      final isDiscovered = m['player'].discovered == true;
+      final isDiscovered = m.player.discovered == true;
       switch (_scope) {
         case 'All':
           return true;
@@ -289,15 +229,13 @@ class _CreaturesScreenState extends State<CreaturesScreen>
 
     final typed = _typeFilter == null
         ? scoped
-        : scoped.where(
-            (m) => (m['creature'] as Creature).types.contains(_typeFilter),
-          );
+        : scoped.where((m) => (m.creature).types.contains(_typeFilter));
 
     final q = _query.toLowerCase();
     final searched = q.isEmpty
         ? typed
         : typed.where((m) {
-            final c = m['creature'] as Creature;
+            final c = m.creature;
             return c.id.toLowerCase().contains(q) ||
                 c.name.toLowerCase().contains(q) ||
                 c.types.any((t) => t.toLowerCase().contains(q)) ||
@@ -307,8 +245,8 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     final list = searched.toList();
 
     list.sort((a, b) {
-      final A = a['creature'] as Creature;
-      final B = b['creature'] as Creature;
+      final A = a.creature;
+      final B = b.creature;
       switch (_sort) {
         case 'Name':
           return A.name.compareTo(B.name);
@@ -317,8 +255,8 @@ class _CreaturesScreenState extends State<CreaturesScreen>
         case 'Type':
           return A.types.first.compareTo(B.types.first);
         case 'Acquisition Order':
-          final ad = a['player'].discovered == true;
-          final bd = b['player'].discovered == true;
+          final ad = a.player.discovered == true;
+          final bd = b.player.discovered == true;
           if (ad && !bd) return -1;
           if (!ad && bd) return 1;
           return A.name.compareTo(B.name);
@@ -352,14 +290,19 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   }
 
   void _showInstancesSheet(Creature species) {
+    final theme = context.read<FactionTheme>();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) {
-        return _GlassSheet(
+        return BottomSheetShell(
+          theme: theme,
+          title: '${species.name} Specimens',
           child: InstancesSheet(
             species: species,
+            theme: theme,
             onTap: (inst) {
               Navigator.of(context).pop();
               _openDetailsForInstance(species, inst);
@@ -380,226 +323,161 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   }
 }
 
-// =============== UI building blocks ===============
-class _GlassAppBar extends StatelessWidget {
-  final AnimationController pulse;
-  final Color accentColor;
-  const _GlassAppBar({required this.pulse, required this.accentColor});
+/// ---------------------------- SOLID UI --------------------------------
+
+class _SolidHeader extends StatelessWidget {
+  final FactionTheme theme;
+  const _SolidHeader({required this.theme});
 
   @override
   Widget build(BuildContext context) {
     return SliverAppBar(
-      pinned: true,
+      pinned: false,
       elevation: 0,
-      backgroundColor: Colors.transparent,
+      backgroundColor: theme.surface,
       automaticallyImplyLeading: false,
-      expandedHeight: 77,
-      collapsedHeight: 77,
-      flexibleSpace: ClipRect(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-          child: _Glass(
-            borderRadius: 16,
-            stroke: accentColor,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(
+      toolbarHeight: 72,
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          color: theme.surface,
+          border: Border(bottom: BorderSide(color: theme.border, width: 1)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _IconButtonGlass(
-                    icon: Icons.arrow_back_rounded,
-                    onTap: () => Navigator.of(context).maybePop(),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ALCHEMON DATABASE',
-                          style: TextStyle(
-                            color: Color(0xFFE8EAED),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.8,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Specimen cataloguing system',
-                          style: TextStyle(
-                            color: Color(0xFFB6C0CC),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                  Text(
+                    'ALCHEMON DATABASE',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: theme.text,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .8,
                     ),
                   ),
-                  GlowingIcon(
-                    controller: pulse,
-                    color: accentColor,
-                    icon: Icons.storage_rounded,
-                    dialogTitle: "Alchemon Database",
-                    dialogMessage:
-                        "Explore the Alchemon Database to view detailed information about acquired species, including natures, genetics, parental information and more.",
+                  const SizedBox(height: 2),
+                  Text(
+                    'Specimen cataloguing system',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  const SizedBox(width: 4),
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _StatsHeader extends StatelessWidget {
+class _StatsHeaderSolid extends StatelessWidget {
+  final FactionTheme theme;
   final double percent;
   final int discovered;
   final int total;
-  final AnimationController pulse;
-  final Color primaryColor;
-  final Color secondaryColor;
-  const _StatsHeader({
+  const _StatsHeaderSolid({
+    required this.theme,
     required this.percent,
     required this.discovered,
     required this.total,
-    required this.pulse,
-    required this.primaryColor,
-    required this.secondaryColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-      child: _Glass(
-        borderRadius: 18,
-        stroke: primaryColor,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 56,
-                height: 56,
-                child: CustomPaint(
-                  painter: _ArcPainter(progress: percent, color: primaryColor),
-                  child: Center(
-                    child: Text(
-                      '$discovered',
-                      style: const TextStyle(
-                        color: Color(0xFFE8EAED),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
-                      ),
-                    ),
+    return SectionCard(
+      theme: theme,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 56,
+            height: 56,
+            child: CustomPaint(
+              painter: _ArcPainter(progress: percent, color: theme.accent),
+              child: Center(
+                child: Text(
+                  '$discovered',
+                  style: TextStyle(
+                    color: theme.text,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        const Text(
-                          'DISCOVERY PROGRESS',
-                          style: TextStyle(
-                            color: Color(0xFFB6C0CC),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '$discovered / $total',
-                          style: const TextStyle(
-                            color: Color(0xFFE8EAED),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 20,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(.35),
-                          width: 1.5,
-                        ),
+                    Text(
+                      'DISCOVERY PROGRESS',
+                      style: TextStyle(
+                        color: theme.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .6,
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(2),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: Container(
-                            color: Colors.white.withOpacity(.12),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: FractionallySizedBox(
-                                widthFactor: percent.clamp(0.0, 1.0),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        primaryColor.withOpacity(.7),
-                                        secondaryColor,
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '$discovered / $total',
+                      style: TextStyle(
+                        color: theme.text,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                ProgressBar(theme: theme, value: percent),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _FilterBar extends StatelessWidget {
+class _FilterBarSolid extends StatelessWidget {
+  final FactionTheme theme;
   final String query;
   final TextEditingController controller;
   final String scope;
   final String sort;
   final bool isGrid;
   final String? typeFilter;
-  final Color accentColor;
   final ValueChanged<String> onQueryChanged;
   final VoidCallback onScopeChanged;
   final VoidCallback onSortTap;
   final VoidCallback onToggleView;
   final ValueChanged<String> onTypeChanged;
 
-  const _FilterBar({
+  const _FilterBarSolid({
+    required this.theme,
     required this.query,
     required this.controller,
     required this.scope,
     required this.sort,
     required this.isGrid,
     required this.typeFilter,
-    required this.accentColor,
     required this.onQueryChanged,
     required this.onScopeChanged,
     required this.onSortTap,
@@ -610,90 +488,101 @@ class _FilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final types = CreatureFilterUtils.filterOptions;
-    return _Glass(
-      borderRadius: 16,
-      stroke: accentColor,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _SearchField(
-                    controller: controller,
-                    hint: 'Search creatures…',
-                    onChanged: onQueryChanged,
-                  ),
+    return SectionCard(
+      theme: theme,
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: SearchFieldSolid(
+                  theme: theme,
+                  controller: controller,
+                  hint: 'Search creatures…',
+                  onChanged: onQueryChanged,
                 ),
-                const SizedBox(width: 6),
-                _ToggleChip(
-                  label: scope,
-                  icon: Icons.filter_list_rounded,
-                  onTap: onScopeChanged,
-                  accentColor: accentColor,
-                ),
-                const SizedBox(width: 6),
-                _IconButtonGlass(
-                  icon: isGrid
-                      ? Icons.view_list_rounded
-                      : Icons.grid_view_rounded,
-                  onTap: onToggleView,
-                ),
-                const SizedBox(width: 6),
-                _IconButtonGlass(icon: Icons.sort_rounded, onTap: onSortTap),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 38,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                itemCount: types.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 6),
-                itemBuilder: (_, i) {
-                  final t = types[i];
-                  final selected = (typeFilter ?? 'All') == t;
-                  final color = t == 'All'
-                      ? accentColor
-                      : BreedConstants.getTypeColor(t);
-                  return _TypeChip(
-                    label: t,
-                    color: color,
-                    selected: selected,
-                    onTap: () => onTypeChanged(t),
-                  );
-                },
               ),
+              const SizedBox(width: 4),
+              PillButton(
+                theme: theme,
+                label: scope,
+                icon: Icons.filter_list_rounded,
+                onTap: onScopeChanged,
+              ),
+              const SizedBox(width: 4),
+              IconButtonSolid(
+                theme: theme,
+                icon: isGrid
+                    ? Icons.view_list_rounded
+                    : Icons.grid_view_rounded,
+                onTap: onToggleView,
+              ),
+              const SizedBox(width: 4),
+              IconButtonSolid(
+                theme: theme,
+                icon: Icons.sort_rounded,
+                onTap: onSortTap,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 38,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: types.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final t = types[i];
+                final selected = (typeFilter ?? 'All') == t;
+                final color = t == 'All'
+                    ? theme.accent
+                    : BreedConstants.getTypeColor(t);
+                return FilterChipSolid(
+                  label: t,
+                  color: color,
+                  selected: selected,
+                  onTap: () => onTypeChanged(t),
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
+/// --------------------------- LIST / GRID ----------------------------
+
 class _CreatureGrid extends StatelessWidget {
-  final List<Map<String, dynamic>> creatures;
+  final FactionTheme theme;
+  final List<CreatureEntry> creatures;
   final void Function(Creature, bool) onTap;
-  const _CreatureGrid({required this.creatures, required this.onTap});
+  const _CreatureGrid({
+    required this.theme,
+    required this.creatures,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SliverGrid(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
+        crossAxisSpacing: 1,
+        mainAxisSpacing: 1,
         childAspectRatio: .88,
       ),
       delegate: SliverChildBuilderDelegate((ctx, i) {
         final data = creatures[i];
-        final c = data['creature'] as Creature;
-        final isDiscovered = data['player'].discovered == true;
+        final c = data.creature;
+        final isDiscovered = data.player.discovered == true;
         return _CreatureCard(
+          theme: theme,
           c: c,
           discovered: isDiscovered,
           onTap: () => onTap(c, isDiscovered),
@@ -704,20 +593,26 @@ class _CreatureGrid extends StatelessWidget {
 }
 
 class _CreatureList extends StatelessWidget {
-  final List<Map<String, dynamic>> creatures;
+  final FactionTheme theme;
+  final List<CreatureEntry> creatures;
   final void Function(Creature, bool) onTap;
-  const _CreatureList({required this.creatures, required this.onTap});
+  const _CreatureList({
+    required this.theme,
+    required this.creatures,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SliverList(
       delegate: SliverChildBuilderDelegate((ctx, i) {
         final data = creatures[i];
-        final c = data['creature'] as Creature;
-        final isDiscovered = data['player'].discovered == true;
+        final c = data.creature;
+        final isDiscovered = data.player.discovered == true;
         return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: 1),
           child: _CreatureRow(
+            theme: theme,
             c: c,
             discovered: isDiscovered,
             onTap: () => onTap(c, isDiscovered),
@@ -729,10 +624,12 @@ class _CreatureList extends StatelessWidget {
 }
 
 class _CreatureCard extends StatelessWidget {
+  final FactionTheme theme;
   final Creature c;
   final bool discovered;
   final VoidCallback onTap;
   const _CreatureCard({
+    required this.theme,
     required this.c,
     required this.discovered,
     required this.onTap,
@@ -740,77 +637,60 @@ class _CreatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<GameStateNotifier>(
-      builder: (context, game, _) {
-        final variants = game.discoveredCreatures.where((m) {
-          final v = m['creature'] as Creature;
-          return v.rarity == 'Variant' && v.id.startsWith('${c.id}_');
-        }).length;
-
-        final border = discovered
-            ? BreedConstants.getTypeColor(c.types.first).withOpacity(.55)
-            : Colors.grey.shade400;
-
-        return GestureDetector(
-          onTap: onTap,
-          child: _Glass(
-            borderRadius: 12,
-            stroke: border,
-            fillOpacity: .12,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Column(
-                    children: [
-                      // Image container with aspect ratio
-                      Expanded(
-                        child: Center(
-                          child: _CreatureImage(c: c, discovered: discovered),
-                        ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(color: theme.surface),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(6),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: CreatureImage(
+                        c: c,
+                        discovered: discovered,
+                        rounded: 10,
                       ),
-                      const SizedBox(height: 4),
-                      // Text content at bottom
-                      Text(
-                        discovered ? c.name : 'Unknown',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: discovered
-                              ? const Color(0xFFE8EAED)
-                              : Colors.grey.shade500,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _RarityPill(rarity: discovered ? c.rarity : 'Class ?'),
-                      const SizedBox(height: 4),
-                    ],
+                    ),
                   ),
-                ),
-                if (variants > 0 && discovered)
-                  Positioned(
-                    top: -4,
-                    right: -4,
-                    child: _Badge(text: '+$variants'),
+                  const SizedBox(height: 6),
+                  Text(
+                    discovered ? c.name : 'Unknown',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: discovered
+                          ? theme.text
+                          : theme.textMuted.withOpacity(.6),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-              ],
+                  const SizedBox(height: 4),
+                  _RarityPill(rarity: discovered ? c.rarity : 'Class ?'),
+                  const SizedBox(height: 4),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }
 
 class _CreatureRow extends StatelessWidget {
+  final FactionTheme theme;
   final Creature c;
   final bool discovered;
   final VoidCallback onTap;
   const _CreatureRow({
+    required this.theme,
     required this.c,
     required this.discovered,
     required this.onTap,
@@ -818,14 +698,17 @@ class _CreatureRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = discovered
+    final typeColor = discovered
         ? BreedConstants.getTypeColor(c.types.first)
-        : Colors.grey.shade400;
+        : theme.textMuted.withOpacity(.5);
     return GestureDetector(
       onTap: onTap,
-      child: _Glass(
-        borderRadius: 12,
-        stroke: color,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.surface,
+          borderRadius: BorderRadius.circular(2),
+          border: Border.all(color: theme.border),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Row(
@@ -833,7 +716,7 @@ class _CreatureRow extends StatelessWidget {
               SizedBox(
                 width: 46,
                 height: 46,
-                child: _CreatureImage(c: c, discovered: discovered, rounded: 8),
+                child: CreatureImage(c: c, discovered: discovered, rounded: 8),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -849,44 +732,43 @@ class _CreatureRow extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: discovered
-                                  ? const Color(0xFFE8EAED)
-                                  : Colors.grey.shade500,
+                              color: discovered ? theme.text : theme.textMuted,
                               fontWeight: FontWeight.w800,
                               fontSize: 14,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        _RarityPill(
-                          small: true,
-                          rarity: discovered ? c.rarity : 'Class ?',
-                        ),
                       ],
                     ),
                     const SizedBox(height: 6),
                     if (discovered)
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: c.types
-                            .take(2)
-                            .map((t) => _TypeTiny(label: t))
-                            .toList(),
+                      Row(
+                        children: [
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: c.types
+                                .take(2)
+                                .map((t) => _TypeTiny(label: t))
+                                .toList(),
+                          ),
+                          const SizedBox(width: 8),
+                          _RarityPill(
+                            small: true,
+                            rarity: discovered ? c.rarity : 'Class ?',
+                          ),
+                        ],
                       )
                     else
-                      const Text(
+                      Text(
                         '— —',
-                        style: TextStyle(
-                          color: Color(0xFFB6C0CC),
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: theme.textMuted, fontSize: 12),
                       ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded, color: Color(0xFFB6C0CC)),
+              Icon(Icons.chevron_right_rounded, color: theme.textMuted),
             ],
           ),
         ),
@@ -895,83 +777,284 @@ class _CreatureRow extends StatelessWidget {
   }
 }
 
-class _CreatureImage extends StatelessWidget {
-  final Creature c;
-  final bool discovered;
-  final double rounded;
-  const _CreatureImage({
-    required this.c,
-    required this.discovered,
-    this.rounded = 10,
+/// -------------------------- SMALL PIECES ----------------------------
+
+class SectionCard extends StatelessWidget {
+  final FactionTheme theme;
+  final EdgeInsets padding;
+  final Widget child;
+  const SectionCard({
+    super.key,
+    required this.theme,
+    required this.child,
+    this.padding = const EdgeInsets.all(12),
   });
 
   @override
   Widget build(BuildContext context) {
-    if (!discovered) {
-      return Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.06),
-          borderRadius: BorderRadius.circular(rounded),
-        ),
-        child: const Center(
-          child: Icon(
-            Icons.help_outline_rounded,
-            color: Color(0xFFB6C0CC),
-            size: 24,
-          ),
-        ),
-      );
-    }
     return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(rounded),
-        boxShadow: [
-          BoxShadow(
-            color: BreedConstants.getTypeColor(c.types.first).withOpacity(.18),
-            blurRadius: 6,
-          ),
-        ],
+      color: theme.surface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(5, 8, 5, 6),
+        child: Container(padding: padding, child: child),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(rounded),
-        child: Image.asset(
-          'assets/images/creatures/${c.rarity.toLowerCase()}/${c.id.toUpperCase()}_${c.name.toLowerCase()}.png',
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-            decoration: BoxDecoration(
-              color: BreedConstants.getTypeColor(
-                c.types.first,
-              ).withOpacity(.12),
-              borderRadius: BorderRadius.circular(rounded),
-            ),
-            child: Icon(
-              BreedConstants.getTypeIcon(c.types.first),
-              color: BreedConstants.getTypeColor(c.types.first),
-            ),
-          ),
+    );
+  }
+}
+
+class ProgressBar extends StatelessWidget {
+  final FactionTheme theme;
+  final double value;
+  const ProgressBar({super.key, required this.theme, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final v = value.clamp(0.0, 1.0);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        height: 10,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            double w = constraints.maxWidth * v;
+            if (v > 0 && w < 2) w = 2;
+            return Stack(
+              children: [
+                Positioned.fill(child: Container(color: theme.meterTrack)),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    width: w,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: theme.meterFill,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-// =============== tiny widgets ===============
+class SearchFieldSolid extends StatelessWidget {
+  final FactionTheme theme;
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+  const SearchFieldSolid({
+    super.key,
+    required this.theme,
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: theme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.border),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 10),
+          Icon(Icons.search_rounded, color: theme.textMuted, size: 18),
+          const SizedBox(width: 6),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              style: TextStyle(
+                color: theme.text,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+          if (controller.text.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                controller.clear();
+                onChanged('');
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Icon(
+                  Icons.close_rounded,
+                  color: theme.textMuted,
+                  size: 18,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class IconButtonSolid extends StatelessWidget {
+  final FactionTheme theme;
+  final IconData icon;
+  final VoidCallback onTap;
+  const IconButtonSolid({
+    super.key,
+    required this.theme,
+    required this.icon,
+    required this.onTap,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: theme.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: theme.border),
+        ),
+        child: Icon(icon, color: theme.text, size: 18),
+      ),
+    );
+  }
+}
+
+class PillButton extends StatelessWidget {
+  final FactionTheme theme;
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const PillButton({
+    super.key,
+    required this.theme,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: theme.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: theme.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: theme.accent),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: theme.text,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class FilterChipSolid extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+  const FilterChipSolid({
+    super.key,
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: selected ? color : Colors.transparent),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (label != 'All')
+              Icon(BreedConstants.getTypeIcon(label), size: 14, color: color)
+            else
+              Icon(Icons.all_inclusive, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: theme.text,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _Badge extends StatelessWidget {
   final String text;
   const _Badge({required this.text});
   @override
   Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.orange.shade600,
+        color: theme.accent,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white, width: 1.5),
+        border: Border.all(color: Colors.black.withOpacity(.2), width: 1.5),
       ),
       child: Text(
         text,
         style: const TextStyle(
-          color: Colors.white,
+          color: Colors.black,
           fontSize: 9,
           fontWeight: FontWeight.w800,
         ),
@@ -986,21 +1069,17 @@ class _RarityPill extends StatelessWidget {
   const _RarityPill({required this.rarity, this.small = false});
   @override
   Widget build(BuildContext context) {
-    final color = _rarityColor(rarity);
+    final bg = _rarityColor(rarity);
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: small ? 6 : 8,
         vertical: small ? 2 : 3,
       ),
-      decoration: BoxDecoration(
-        color: color.withOpacity(.85),
-        borderRadius: BorderRadius.circular(8),
-      ),
       child: Text(
         rarity,
         style: TextStyle(
-          color: Colors.white,
-          fontSize: small ? 9 : 10,
+          color: bg, // keeps strong contrast on rarity colors
+          fontSize: small ? 8 : 9,
           fontWeight: FontWeight.w700,
         ),
         maxLines: 1,
@@ -1012,9 +1091,9 @@ class _RarityPill extends StatelessWidget {
   static Color _rarityColor(String rarity) {
     switch (rarity.toLowerCase()) {
       case 'common':
-        return Colors.grey.shade600;
+        return Colors.grey.shade700;
       case 'uncommon':
-        return Colors.green.shade500;
+        return Colors.green.shade600;
       case 'rare':
         return Colors.blue.shade600;
       case 'mythic':
@@ -1033,17 +1112,17 @@ class _TypeTiny extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = BreedConstants.getTypeColor(label);
+    final theme = context.read<FactionTheme>();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(.18),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color.withOpacity(.5)),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: color,
+          color: theme.text,
           fontSize: 10,
           fontWeight: FontWeight.w700,
         ),
@@ -1054,199 +1133,133 @@ class _TypeTiny extends StatelessWidget {
   }
 }
 
-class _TypeChip extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-  const _TypeChip({
-    required this.label,
-    required this.color,
-    required this.selected,
-    required this.onTap,
+class _BottomSheetSolid extends StatelessWidget {
+  final FactionTheme theme;
+  final String title;
+
+  // Use ONE of these:
+  final List<Widget>? children; // short, static options (Sort, Scope, etc.)
+  final Widget? child; // big content (InstancesSheet, etc.)
+
+  const _BottomSheetSolid({
+    super.key,
+    required this.theme,
+    required this.title,
+    this.children,
+    this.child,
   });
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? color.withOpacity(.22)
-              : Colors.white.withOpacity(.06),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? color : Colors.white.withOpacity(.25),
-          ),
+    // we'll cap height so scrollables behave
+    final maxH = MediaQuery.of(context).size.height * 0.75;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    final bool hasScrollableBody = child != null;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        constraints: BoxConstraints(
+          // important: give Column a finite vertical budget
+          maxHeight: maxH,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (label != 'All')
-              Icon(BreedConstants.getTypeIcon(label), size: 14, color: color)
-            else
-              Icon(Icons.all_inclusive, size: 14, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
+        decoration: BoxDecoration(
+          color: theme.surfaceAlt,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.45),
+              blurRadius: 24,
+              offset: const Offset(0, 14),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _SearchField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hint;
-  final ValueChanged<String> onChanged;
-  const _SearchField({
-    required this.controller,
-    required this.hint,
-    required this.onChanged,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 38,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.06),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(.25)),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 8),
-          const Icon(Icons.search_rounded, color: Color(0xFFB6C0CC), size: 18),
-          const SizedBox(width: 6),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              style: const TextStyle(
-                color: Color(0xFFE8EAED),
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: const TextStyle(
-                  color: Color(0xFF9AA6B2),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+        child: SafeArea(
+          top: false,
+          child: Column(
+            // if we might show scrollable content below, we want the column
+            // to expand to our maxHeight so Expanded works.
+            // if it's just short children, max vs min both work because
+            // constraints.maxHeight is finite.
+            mainAxisSize: hasScrollableBody
+                ? MainAxisSize.max
+                : MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              // grab handle
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.textMuted.withOpacity(.35),
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
               ),
-            ),
+              const SizedBox(height: 10),
+
+              // title
+              Text(
+                title,
+                style: TextStyle(
+                  color: theme.text,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              // BODY REGION
+              if (hasScrollableBody) ...[
+                // Long / scrolly content path
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      color: theme.surface,
+                      child: SingleChildScrollView(
+                        // This lets InstancesSheet (which might itself build
+                        // columns/lists) lay out without the sheet freaking out.
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+                          child: child!,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                // Short list-of-options path (Sort, Scope)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: children ?? const [],
+                  ),
+                ),
+              ],
+            ],
           ),
-          if (controller.text.isNotEmpty)
-            GestureDetector(
-              onTap: () {
-                controller.clear();
-                onChanged('');
-              },
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8.0),
-                child: Icon(
-                  Icons.close_rounded,
-                  color: Color(0xFFB6C0CC),
-                  size: 18,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _IconButtonGlass extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _IconButtonGlass({required this.icon, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.06),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(.25)),
-        ),
-        child: Icon(icon, color: const Color(0xFFE8EAED), size: 18),
-      ),
-    );
-  }
-}
-
-class _ToggleChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  final Color accentColor;
-  const _ToggleChip({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    required this.accentColor,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.06),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(.25)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: accentColor),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
         ),
       ),
     );
   }
 }
 
-class _RadioTile extends StatelessWidget {
+class _RadioTileSolid extends StatelessWidget {
+  final FactionTheme theme;
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  final Color accentColor;
-  const _RadioTile({
+  const _RadioTileSolid({
+    super.key,
+    required this.theme,
     required this.label,
     required this.selected,
     required this.onTap,
-    required this.accentColor,
   });
   @override
   Widget build(BuildContext context) {
@@ -1255,57 +1268,15 @@ class _RadioTile extends StatelessWidget {
       dense: true,
       leading: Icon(
         selected ? Icons.radio_button_checked : Icons.radio_button_off,
-        color: selected ? accentColor : Colors.white.withOpacity(.35),
+        color: selected ? theme.accent : theme.textMuted.withOpacity(.55),
       ),
       title: Text(
         label,
-        style: TextStyle(color: accentColor, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          color: selected ? theme.accent : theme.text,
+          fontWeight: FontWeight.w700,
+        ),
       ),
-    );
-  }
-}
-
-class _Kpi extends StatelessWidget {
-  final String label;
-  final String value;
-  const _Kpi({required this.label, required this.value});
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFFB6C0CC),
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: .6,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(.06),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white.withOpacity(.25)),
-          ),
-          child: Text(
-            value,
-            style: const TextStyle(
-              color: Color(0xFFE8EAED),
-              fontWeight: FontWeight.w900,
-              fontSize: 14,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1335,8 +1306,7 @@ class _ArcPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 10
       ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)
-      ..color = color.withOpacity(.4);
+      ..color = color.withOpacity(.35);
     final sweep = progress.clamp(0.0, 1.0) * math.pi * 2;
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: r),
@@ -1370,6 +1340,111 @@ class _ArcPainter extends CustomPainter {
       old.progress != progress || old.color != color;
 }
 
+/// ------------------------ States -----------------------------
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<FactionTheme>();
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off_rounded, size: 40, color: theme.textMuted),
+            const SizedBox(height: 10),
+            Text(
+              'No matching specimens',
+              style: TextStyle(
+                color: theme.text,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Try a different search, adjust filters, or clear the type chip.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: theme.textMuted, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class LoadingScaffold extends StatelessWidget {
+  const LoadingScaffold();
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<FactionTheme>();
+    return Scaffold(
+      backgroundColor: theme.surface,
+      body: const Center(child: CircularProgressIndicator.adaptive()),
+    );
+  }
+}
+
+class _ErrorScaffold extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+  const _ErrorScaffold({required this.error, required this.onRetry});
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<FactionTheme>();
+    return Scaffold(
+      backgroundColor: theme.surface,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SectionCard(
+            theme: theme,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.redAccent,
+                    size: 34,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Database Connection Error',
+                    style: TextStyle(
+                      color: theme.text,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    error,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: theme.textMuted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// --------------------- Sticky Filter Header -------------------
+
 class _StickyFilterBar extends SliverPersistentHeaderDelegate {
   final double height;
   final Widget child;
@@ -1396,160 +1471,14 @@ class _StickyFilterBar extends SliverPersistentHeaderDelegate {
     bool overlapsContent,
   ) => ClipRect(
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 2),
       child: child,
     ),
   );
+
   @override
   bool shouldRebuild(covariant _StickyFilterBar old) =>
       old.scope != scope ||
       old.typeFilter != typeFilter ||
       old.isGrid != isGrid;
-}
-
-class _Glass extends StatelessWidget {
-  final Widget child;
-  final double borderRadius;
-  final Color stroke;
-  final double fillOpacity;
-  const _Glass({
-    required this.child,
-    this.borderRadius = 16,
-    this.stroke = Colors.white,
-    this.fillOpacity = .14,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(fillOpacity),
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: stroke.withOpacity(.35)),
-            boxShadow: [
-              BoxShadow(
-                color: stroke.withOpacity(.18),
-                blurRadius: 18,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
-class _GlassSheet extends StatelessWidget {
-  final Widget child;
-  const _GlassSheet({required this.child});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: _Glass(child: child),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off_rounded, size: 40, color: Color(0xFFB6C0CC)),
-            SizedBox(height: 10),
-            Text(
-              'No matching specimens',
-              style: TextStyle(
-                color: Color(0xFFE8EAED),
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-              ),
-            ),
-            SizedBox(height: 6),
-            Text(
-              'Try a different search, adjust filters, or clear the type chip.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFFB6C0CC), fontSize: 14),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LoadingScaffold extends StatelessWidget {
-  const _LoadingScaffold();
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator.adaptive()),
-    );
-  }
-}
-
-class _ErrorScaffold extends StatelessWidget {
-  final String error;
-  final VoidCallback onRetry;
-  const _ErrorScaffold({required this.error, required this.onRetry});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: _Glass(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.error_outline_rounded,
-                    color: Colors.redAccent,
-                    size: 34,
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Database Connection Error',
-                    style: TextStyle(
-                      color: Color(0xFFE8EAED),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    error,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFFB6C0CC),
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: onRetry,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

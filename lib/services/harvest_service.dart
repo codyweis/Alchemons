@@ -16,7 +16,7 @@ class HarvestService extends ChangeNotifier {
 
   HarvestService(this._adb) {
     // Watch biome changes
-    _biomeSub = _adb.watchBiomes().listen(
+    _biomeSub = _adb.biomeDao.watchBiomes().listen(
       (rows) async => _syncFromDb(rows),
       onError: (_) {},
     );
@@ -37,14 +37,14 @@ class HarvestService extends ChangeNotifier {
 
   /// Unlock biome via DB
   Future<bool> unlock(Biome biome, {required Map<String, int> cost}) async {
-    final ok = await _adb.unlockBiome(biomeId: biome.id, cost: cost);
+    final ok = await _adb.biomeDao.unlockBiome(biomeId: biome.id, cost: cost);
     if (ok) await _refreshOne(biome);
     return ok;
   }
 
   /// Set which element is active for this biome
   Future<bool> setActiveElement(Biome biome, String elementId) async {
-    await _adb.setBiomeActiveElement(biome.id, elementId);
+    await _adb.biomeDao.setBiomeActiveElement(biome.id, elementId);
     await _refreshOne(biome);
     return true;
   }
@@ -59,7 +59,7 @@ class HarvestService extends ChangeNotifier {
     final farm = this.biome(biome);
     if (!farm.unlocked || farm.activeElementId == null) return false;
 
-    final ok = await _adb.startBiomeJob(
+    final ok = await _adb.biomeDao.startBiomeJob(
       biomeId: biome.id,
       jobId: 'job_${DateTime.now().toUtc().millisecondsSinceEpoch}',
       creatureInstanceId: creatureInstanceId,
@@ -74,7 +74,7 @@ class HarvestService extends ChangeNotifier {
     Biome biome, {
     Duration by = const Duration(seconds: 1),
   }) async {
-    final ok = await _adb.nudgeBiomeJob(biome.id, -by.inMilliseconds);
+    final ok = await _adb.biomeDao.nudgeBiomeJob(biome.id, -by.inMilliseconds);
     if (ok) {
       await _refreshOne(biome);
     }
@@ -83,14 +83,14 @@ class HarvestService extends ChangeNotifier {
 
   /// Collect completed job
   Future<int> collect(Biome biome) async {
-    final payout = await _adb.collectBiomeJob(biomeId: biome.id);
+    final payout = await _adb.biomeDao.collectBiomeJob(biomeId: biome.id);
     if (payout > 0) await _refreshOne(biome);
     return payout;
   }
 
   /// Cancel current job
   Future<void> cancel(Biome biome) async {
-    await _adb.cancelBiomeJob(biome.id);
+    await _adb.biomeDao.cancelBiomeJob(biome.id);
     await _refreshOne(biome);
   }
 
@@ -101,7 +101,7 @@ class HarvestService extends ChangeNotifier {
       final biome = _biomeFromId(r.biomeId);
       if (biome == null) continue;
 
-      final job = await _adb.getActiveJobForBiome(r.id);
+      final job = await _adb.biomeDao.getActiveJobForBiome(r.id);
 
       _biomes[biome] = BiomeFarmState(
         biome: biome,
@@ -115,9 +115,9 @@ class HarvestService extends ChangeNotifier {
   }
 
   Future<void> _refreshOne(Biome biome) async {
-    final farm = await _adb.getBiomeByBiomeId(biome.id);
+    final farm = await _adb.biomeDao.getBiomeByBiomeId(biome.id);
     if (farm == null) return;
-    final job = await _adb.getActiveJobForBiome(farm.id);
+    final job = await _adb.biomeDao.getActiveJobForBiome(farm.id);
 
     _biomes[biome] = BiomeFarmState(
       biome: biome,

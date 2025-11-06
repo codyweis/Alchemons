@@ -1,153 +1,48 @@
 import 'dart:convert';
-import 'package:drift/drift.dart';
 import 'package:flutter/services.dart';
 import '../models/creature.dart';
-import '../database/alchemons_db.dart';
 
-class CreatureRepository {
-  List<Creature> _creatures = [];
-  List<Creature> _discoveredVariants = [];
-  final AlchemonsDatabase? db;
+/// Read-only catalog sourced from assets.
+/// Load once at app start, then pass into services.
+class CreatureCatalog {
+  List<Creature>? _all;
 
-  CreatureRepository({this.db});
+  bool get isLoaded => _all?.isNotEmpty ?? false;
+  List<Creature> get creatures => _all ?? const [];
 
-  /// Load all creatures from JSON asset AND discovered variants from DB
-  Future<void> loadCreatures({
+  Future<void> load({
     String path = 'assets/data/alchemons_creatures.json',
   }) async {
-    // Load base creatures from JSON
-    final String response = await rootBundle.loadString(path);
-    final Map<String, dynamic> data = jsonDecode(response);
-
-    _creatures = (data['creatures'] as List)
+    final raw = await rootBundle.loadString(path);
+    final Map<String, dynamic> data = jsonDecode(raw);
+    _all = (data['creatures'] as List)
         .map((json) => Creature.fromJson(json))
-        .toList();
-
-    // Load discovered variants from database
-    if (db != null) {
-      await _loadDiscoveredVariants();
-    }
+        .toList(growable: false);
   }
 
-  /// Load variants that have been discovered and stored in DB
-  Future<void> _loadDiscoveredVariants() async {
-    if (db == null) return;
+  Creature? getCreatureById(String id) =>
+      _all!.firstWhereOrNull((c) => c.id == id);
 
-    try {
-      // Use the correct database method
-      final allPlayerCreatures = await db?.getAllCreatures();
+  List<Creature> byType(String type) =>
+      _all!.where((c) => c.types.contains(type)).toList(growable: false);
 
-      // Find variant IDs (ones with underscore indicating they're variants)
-      final variantIds = allPlayerCreatures
-          ?.where((creature) => creature.id.contains('_'))
-          .map((creature) => creature.id)
-          .toList();
+  List<String> allRarities() =>
+      _all!.map((c) => c.rarity).toSet().toList()..sort();
 
-      // Create variant objects from IDs
-      _discoveredVariants.clear();
-      for (final variantId in variantIds!) {
-        final variant = _createVariantFromId(variantId);
-        if (variant != null) {
-          _discoveredVariants.add(variant);
-        }
-      }
+  List<String> allFamilies() =>
+      _all!.map((c) => c.mutationFamily).whereType<String>().toSet().toList()
+        ..sort();
 
-      print('Loaded ${_discoveredVariants.length} variants from database');
-    } catch (e) {
-      print('Error loading variants: $e');
-    }
-  }
-
-  /// Create a variant creature from its ID (e.g., "CR003_Ice")
-  Creature? _createVariantFromId(String variantId) {
-    final parts = variantId.split('_');
-    if (parts.length != 2) return null;
-
-    final baseId = parts[0];
-    final secondaryType = parts[1];
-
-    // Find the base creature
-    final baseCreature = _creatures.where((c) => c.id == baseId).firstOrNull;
-    if (baseCreature == null) return null;
-
-    // Create variant using the factory constructor
-    return Creature.variant(
-      baseId: baseCreature.id,
-      baseName: baseCreature.name,
-      primaryType: baseCreature.types.first,
-      secondaryType: secondaryType,
-      baseImage: baseCreature.image,
-    );
-  }
-
-  /// Add a newly discovered variant to the repository
-  void addDiscoveredVariant(Creature variant) {
-    // Check if variant already exists
-    final exists = _discoveredVariants.any((v) => v.id == variant.id);
-    if (!exists) {
-      _discoveredVariants.add(variant);
-      print('Added variant to repository: ${variant.id}');
-    }
-  }
-
-  /// Find a creature by its ID (checks both base creatures and variants)
-  Creature? getCreatureById(String id) {
-    // First check base creatures
-    final baseCreature = _creatures.where((c) => c.id == id).firstOrNull;
-    if (baseCreature != null) return baseCreature;
-
-    // Then check variants
-    final variant = _discoveredVariants.where((c) => c.id == id).firstOrNull;
-    return variant;
-  }
-
-  /// Return ALL creatures (base + discovered variants)
-  List<Creature> get creatures => [..._creatures, ..._discoveredVariants];
-
-  /// Return only base creatures (from JSON)
-  List<Creature> get baseCreatures => _creatures;
-
-  /// Return only discovered variants
-  List<Creature> get discoveredVariants => _discoveredVariants;
-
-  /// Return creatures filtered by type
-  List<Creature> getCreaturesByType(String type) {
-    return creatures.where((c) => c.types.contains(type)).toList();
-  }
-
-  /// Return creatures that have a special breeding requirement
-  List<Creature> get specialBreedingCreatures =>
-      creatures.where((c) => c.specialBreeding != null).toList();
-
-  /// Refresh variants from database (useful after new discoveries)
-  Future<void> refreshVariants() async {
-    if (db != null) {
-      await _loadDiscoveredVariants();
-    }
-  }
+  List<String> allElements() =>
+      _all!.expand((c) => c.types).toSet().toList()..sort();
 }
 
-extension NatureRepo on CreatureRepository {
-  // wire to DB
-  Future<String?> getNatureFor(String creatureId) async {
-    final db = dbOrThrow();
-    final row = await db.getCreature(creatureId);
-    return row?.natureId;
-  }
-
-  Future<void> setNatureFor(String creatureId, String natureId) async {
-    final db = dbOrThrow();
-    await db.addOrUpdateCreature(
-      PlayerCreaturesCompanion(
-        id: Value(creatureId),
-        discovered: const Value(true),
-        natureId: Value(natureId),
-      ),
-    );
-  }
-
-  AlchemonsDatabase dbOrThrow() {
-    if (db == null) throw Exception('DB not attached to CreatureRepository');
-    return db!;
+/// Tiny helpers you may reuse project-wide.
+extension FirstWhereOrNull<E> on Iterable<E> {
+  E? firstWhereOrNull(bool Function(E) test) {
+    for (final e in this) {
+      if (test(e)) return e;
+    }
+    return null;
   }
 }

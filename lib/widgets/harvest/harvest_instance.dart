@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'dart:convert';
+import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:flutter/material.dart';
@@ -56,8 +57,8 @@ class _InstancePickerState extends State<_InstancePicker> {
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
-    final repo = context.read<CreatureRepository>();
-    final accent = _getColorForType(widget.allowedTypes.first);
+    final repo = context.read<CreatureCatalog>();
+    final accent = BreedConstants.getTypeColor(widget.allowedTypes.first);
 
     return DraggableScrollableSheet(
       initialChildSize: .88,
@@ -82,7 +83,7 @@ class _InstancePickerState extends State<_InstancePicker> {
                   ],
                 ),
                 child: StreamBuilder<List<CreatureInstance>>(
-                  stream: db.watchAllInstances(),
+                  stream: db.creatureDao.watchAllInstances(),
                   builder: (context, instSnap) {
                     if (!instSnap.hasData) {
                       return const Center(
@@ -123,20 +124,29 @@ class _InstancePickerState extends State<_InstancePicker> {
                           }).toList();
                         }
 
-                        // Apply filters
                         pool = pool.where((inst) {
-                          if (_filterPrismatic && inst.isPrismaticSkin != true)
+                          // Prismatic filter
+                          if (_filterPrismatic &&
+                              inst.isPrismaticSkin != true) {
                             return false;
-                          final genetics = _parseGenetics(inst);
+                          }
+
+                          // Genetics-based filters
+                          final genetics = decodeGenetics(inst.geneticsJson);
                           if (_filterSize != null &&
-                              genetics?['size'] != _filterSize)
+                              genetics?.size != _filterSize) {
                             return false;
+                          }
                           if (_filterTint != null &&
-                              genetics?['tinting'] != _filterTint)
+                              genetics?.tinting != _filterTint) {
                             return false;
+                          }
+                          // Nature filter
                           if (_filterNature != null &&
-                              inst.natureId != _filterNature)
+                              inst.natureId != _filterNature) {
                             return false;
+                          }
+
                           return true;
                         }).toList();
 
@@ -363,40 +373,12 @@ class _InstancePickerState extends State<_InstancePicker> {
                                                                         64)
                                                                     .toDouble(),
                                                             child: (sd != null)
-                                                                ? CreatureSprite(
-                                                                    spritePath:
-                                                                        sd.spriteSheetPath,
-                                                                    totalFrames:
-                                                                        sd.totalFrames,
-                                                                    rows:
-                                                                        sd.rows,
-                                                                    frameSize: Vector2(
-                                                                      sd.frameWidth
-                                                                          .toDouble(),
-                                                                      sd.frameHeight
-                                                                          .toDouble(),
-                                                                    ),
-                                                                    stepTime:
-                                                                        sd.frameDurationMs /
-                                                                        1000.0,
-                                                                    scale:
-                                                                        scaleFromGenes(
-                                                                          g,
-                                                                        ),
-                                                                    saturation:
-                                                                        satFromGenes(
-                                                                          g,
-                                                                        ),
-                                                                    brightness:
-                                                                        briFromGenes(
-                                                                          g,
-                                                                        ),
-                                                                    hueShift:
-                                                                        hueFromGenes(
-                                                                          g,
-                                                                        ),
-                                                                    isPrismatic:
-                                                                        inst.isPrismaticSkin,
+                                                                ? InstanceSprite(
+                                                                    creature:
+                                                                        sp!,
+                                                                    instance:
+                                                                        inst,
+                                                                    size: 72,
                                                                   )
                                                                 : (sp?.image !=
                                                                           null
@@ -669,7 +651,7 @@ class _InstancePickerState extends State<_InstancePicker> {
   }
 
   bool _matchesAllowedTypes(
-    CreatureRepository repo,
+    CreatureCatalog repo,
     CreatureInstance inst,
     List<String> allowedTypes,
   ) {
@@ -678,7 +660,7 @@ class _InstancePickerState extends State<_InstancePicker> {
     return allowedTypes.contains(sp.types.first);
   }
 
-  int _previewRate(CreatureRepository repo, CreatureInstance inst) {
+  int _previewRate(CreatureCatalog repo, CreatureInstance inst) {
     var base = 3;
     base += (inst.level - 1);
     base = (base * 1.25).round();
@@ -702,14 +684,6 @@ class _InstancePickerState extends State<_InstancePicker> {
     } catch (e) {
       return null;
     }
-  }
-
-  Color _getColorForType(String typeId) {
-    for (final biome in Biome.values) {
-      if (biome.elementIds.contains(typeId))
-        return biome.colorForElement(typeId);
-    }
-    return const Color(0xFF6BCF7F);
   }
 }
 

@@ -42,15 +42,17 @@ final valleyScene = SceneDefinition(
   spawnPoints: [
     SpawnPoint(
       id: 'SP_valley_01',
-      normalizedPos: const Offset(0.40, 0.65),
+      normalizedPos: const Offset(0.35, 0.65), // Wild creature on left
       anchor: SceneLayer.layer3,
-      size: Vector2(80, 80),
+      size: Vector2(100, 100),
+      battlePos: const Offset(0.65, 0.65), // Party creature on right
     ),
     SpawnPoint(
       id: 'SP_valley_02',
-      normalizedPos: const Offset(0.58, 0.80),
+      normalizedPos: const Offset(0.58, 0.80), // Wild creature right-center
       anchor: SceneLayer.layer4,
-      size: Vector2(80, 80),
+      size: Vector2(100, 100),
+      battlePos: const Offset(0.28, 0.80), // Party creature left-center
     ),
   ],
 );

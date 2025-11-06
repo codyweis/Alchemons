@@ -94,137 +94,121 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
       insetPadding: const EdgeInsets.all(16),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            width: double.infinity,
-            height: screenSize.height * 0.85,
-            constraints: const BoxConstraints(maxWidth: 420, maxHeight: 720),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(.25),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withOpacity(.15),
-                width: 2,
+        child: Container(
+          width: double.infinity,
+          height: screenSize.height * 0.85,
+          constraints: const BoxConstraints(maxWidth: 420, maxHeight: 720),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(.15), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white.withOpacity(.08),
+                blurRadius: 18,
+                spreadRadius: 1,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.white.withOpacity(.08),
-                  blurRadius: 18,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                // Animated particle background
-                Positioned.fill(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: AnimatedBuilder(
-                      animation: _particleController,
-                      builder: (context, child) {
-                        return CustomPaint(
-                          painter: ParticlePainter(
-                            animation: _particleController.value,
-                            color: Colors.white.withOpacity(0.10),
-                          ),
-                        );
-                      },
-                    ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Animated particle background
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: AnimatedBuilder(
+                    animation: _particleController,
+                    builder: (context, child) {
+                      return CustomPaint(
+                        painter: ParticlePainter(
+                          animation: _particleController.value,
+                          color: Colors.white.withOpacity(0.10),
+                        ),
+                      );
+                    },
                   ),
                 ),
+              ),
 
-                // Main content
-                Column(
-                  children: [
-                    // Header with DNA helix animation
-                    _AnimatedHeader(isSmallScreen: isSmallScreen),
+              // Main content
+              Column(
+                children: [
+                  // Header with DNA helix animation
+                  _AnimatedHeader(isSmallScreen: isSmallScreen),
 
-                    // Content area
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          // Main faction list
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            transform: Matrix4.identity()
-                              ..translate(
-                                _selectedFaction != null
-                                    ? -screenSize.width
-                                    : 0.0,
-                              ),
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: ListView.builder(
-                                padding: const EdgeInsets.all(12),
-                                physics: const BouncingScrollPhysics(),
-                                itemCount: Factions.all.length,
-                                itemBuilder: (context, index) {
-                                  final faction = Factions.all[index];
-                                  final isSelected =
-                                      _selectedFaction?.id == faction.id;
-                                  return _FactionCard(
-                                    faction: faction,
-                                    isSelected: isSelected,
-                                    isCompact: false,
-                                    onTap: () => _selectFaction(faction),
-                                    color: _getFactionColor(faction),
-                                    pulseAnimation: _pulseController,
-                                  );
-                                },
-                              ),
+                  // Content area
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        // Main faction list
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          transform: Matrix4.identity()
+                            ..translate(
+                              _selectedFaction != null
+                                  ? -screenSize.width
+                                  : 0.0,
+                            ),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(12),
+                              physics: const BouncingScrollPhysics(),
+                              itemCount: Factions.all.length,
+                              itemBuilder: (context, index) {
+                                final faction = Factions.all[index];
+                                final isSelected =
+                                    _selectedFaction?.id == faction.id;
+                                return _FactionCard(
+                                  faction: faction,
+                                  isSelected: isSelected,
+                                  isCompact: false,
+                                  onTap: () => _selectFaction(faction),
+                                  color: _getFactionColor(faction),
+                                  pulseAnimation: _pulseController,
+                                );
+                              },
                             ),
                           ),
+                        ),
 
-                          // Details panel
-                          if (_selectedFaction != null)
-                            SlideTransition(
-                              position: _slideAnimation,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(14),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 8,
-                                    sigmaY: 8,
+                        // Details panel
+                        if (_selectedFaction != null)
+                          SlideTransition(
+                            position: _slideAnimation,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: Container(
+                                width: double.infinity,
+                                height: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(.28),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(.12),
                                   ),
-                                  child: Container(
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(.28),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(.12),
-                                      ),
-                                    ),
-                                    child: _DetailsPanel(
-                                      faction: _selectedFaction!,
-                                      color: _getFactionColor(
-                                        _selectedFaction!,
-                                      ),
-                                      onConfirm: () => Navigator.pop(
-                                        context,
-                                        _selectedFaction!.id,
-                                      ),
-                                      onBack: () {
-                                        _slideController.reverse().then((_) {
-                                          setState(
-                                            () => _selectedFaction = null,
-                                          );
-                                        });
-                                      },
-                                    ),
+                                ),
+                                child: _DetailsPanel(
+                                  faction: _selectedFaction!,
+                                  color: _getFactionColor(_selectedFaction!),
+                                  onConfirm: () => Navigator.pop(
+                                    context,
+                                    _selectedFaction!.id,
                                   ),
+                                  onBack: () {
+                                    _slideController.reverse().then((_) {
+                                      setState(() => _selectedFaction = null);
+                                    });
+                                  },
                                 ),
                               ),
                             ),
-                        ],
-                      ),
+                          ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -281,18 +265,13 @@ class _AnimatedHeaderState extends State<_AnimatedHeader>
                 topLeft: Radius.circular(14),
                 topRight: Radius.circular(14),
               ),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                child: AnimatedBuilder(
-                  animation: _helixController,
-                  builder: (context, child) {
-                    return CustomPaint(
-                      painter: DNAHelixPainter(
-                        animation: _helixController.value,
-                      ),
-                    );
-                  },
-                ),
+              child: AnimatedBuilder(
+                animation: _helixController,
+                builder: (context, child) {
+                  return CustomPaint(
+                    painter: DNAHelixPainter(animation: _helixController.value),
+                  );
+                },
               ),
             ),
           ),

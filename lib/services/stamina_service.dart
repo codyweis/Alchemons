@@ -28,19 +28,19 @@ class StaminaService {
     String instanceId, {
     DateTime? nowUtc,
   }) async {
-    final row = await db.getInstance(instanceId);
+    final row = await db.creatureDao.getInstance(instanceId);
     if (row == null) return null;
     final refreshed = _applyRegen(
       row,
       nowUtc: nowUtc ?? DateTime.now().toUtc(),
     );
     if (refreshed != null) {
-      await db.updateStamina(
+      await db.creatureDao.updateStamina(
         instanceId: row.instanceId,
         staminaBars: refreshed.$1,
         staminaLastUtcMs: refreshed.$2,
       );
-      return (await db.getInstance(instanceId));
+      return (await db.creatureDao.getInstance(instanceId));
     }
     return row;
   }
@@ -80,13 +80,13 @@ class StaminaService {
     final nowMs = (nowUtc ?? DateTime.now().toUtc()).millisecondsSinceEpoch;
 
     // Spending resets the regen anchor so next bar regens from now.
-    await db.updateStamina(
+    await db.creatureDao.updateStamina(
       instanceId: row.instanceId,
       staminaBars: newBars,
       staminaLastUtcMs: nowMs,
     );
 
-    return db.getInstance(instanceId);
+    return db.creatureDao.getInstance(instanceId);
   }
 
   /// Spend stamina for wilderness (default: drain to zero).
@@ -114,13 +114,13 @@ class StaminaService {
     final newBars = row.staminaBars - charge;
     final nowMs = (nowUtc ?? DateTime.now().toUtc()).millisecondsSinceEpoch;
 
-    await db.updateStamina(
+    await db.creatureDao.updateStamina(
       instanceId: row.instanceId,
       staminaBars: newBars,
       staminaLastUtcMs: nowMs,
     );
 
-    return db.getInstance(instanceId);
+    return db.creatureDao.getInstance(instanceId);
   }
 
   // ---------- Internals ----------

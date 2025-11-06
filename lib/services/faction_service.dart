@@ -1,6 +1,7 @@
 // lib/services/faction_service.dart
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:flutter/material.dart';
 
 /// Each faction can provide perks/traits.
 class FactionInfo {
@@ -15,7 +16,7 @@ class FactionInfo {
   });
 }
 
-class FactionService {
+class FactionService extends ChangeNotifier {
   static const _kFactionKey = 'player_faction_v1';
   final AlchemonsDatabase db;
   String? _cached; // persisted faction id string
@@ -25,7 +26,7 @@ class FactionService {
   Future<bool> perk2Active() async {
     // however you're gating perk2 on Profile — replace with your real check
     // e.g., read a Settings key or use your ProfileViewModel
-    final v = await db.getSetting('perk2_unlocked_v1');
+    final v = await db.settingsDao.getSetting('perk2_unlocked_v1');
     return v == '1';
   }
 
@@ -94,18 +95,21 @@ class FactionService {
 
   // ----------- Faction selection -----------
   Future<String?> loadId() async {
-    _cached ??= await db.getSetting(_kFactionKey);
-    // If faction is chosen, make sure perks default states are created
+    final before = _cached;
+    _cached ??= await db.settingsDao.getSetting(_kFactionKey);
     if (_cached != null && _cached!.isNotEmpty) {
       await ensureDefaultPerkState(current!);
     }
+    // notify only if value changed (prevents redundant rebuilds)
+    if (before != _cached) notifyListeners(); // ⬅️ important
     return _cached;
   }
 
   Future<void> setId(FactionId id) async {
-    await db.setSetting(_kFactionKey, id.name);
+    await db.settingsDao.setSetting(_kFactionKey, id.name);
     _cached = id.name;
     await ensureDefaultPerkState(id);
+    notifyListeners(); // ⬅️ important
   }
 
   FactionId? get current {
@@ -125,47 +129,50 @@ class FactionService {
 
   Future<void> ensureDefaultPerkState(FactionId id) async {
     // By design: Perk 1 unlocked, Perk 2 locked
-    final p1 = await db.getSetting(_perkKey(id, 1));
-    final p2 = await db.getSetting(_perkKey(id, 2));
-    if (p1 == null) await db.setSetting(_perkKey(id, 1), '1');
-    if (p2 == null) await db.setSetting(_perkKey(id, 2), '0');
+    final p1 = await db.settingsDao.getSetting(_perkKey(id, 1));
+    final p2 = await db.settingsDao.getSetting(_perkKey(id, 2));
+    if (p1 == null) await db.settingsDao.setSetting(_perkKey(id, 1), '1');
+    if (p2 == null) await db.settingsDao.setSetting(_perkKey(id, 2), '0');
   }
 
   Future<bool> isPerkUnlocked(int perkIndex, {FactionId? forId}) async {
     final id = forId ?? current;
     if (id == null) return false;
-    final v = await db.getSetting(_perkKey(id, perkIndex));
+    final v = await db.settingsDao.getSetting(_perkKey(id, perkIndex));
     return v == '1';
   }
 
   Future<bool> setBlobSlotsUnlockedTest() async {
-    await db.setSetting('blob_slots_unlocked', '3');
+    await db.settingsDao.setSetting('blob_slots_unlocked', '3');
     return true;
   }
 
   Future<void> _setPerkUnlocked(int perkIndex, bool value, {FactionId? forId}) {
     final id = forId ?? current;
     if (id == null) return Future.value();
-    return db.setSetting(_perkKey(id, perkIndex), value ? '1' : '0');
+    return db.settingsDao.setSetting(
+      _perkKey(id, perkIndex),
+      value ? '1' : '0',
+    );
   }
 
   /// Example condition: unlock perk2 when discovering >= 10 creatures
   static const int perk2DiscoverThreshold = 10;
 
   Future<int> discoveredCount() async {
-    final all = await db.getAllCreatures();
+    final all = await db.creatureDao.getAllCreatures();
     return all.where((pc) => pc.discovered).length;
   }
 
   Future<bool> tryUnlockPerk2({FactionId? forId}) async {
     final id = forId ?? current;
     if (id == null) return false;
-
-    if (await isPerkUnlocked(2, forId: id)) return true; // already unlocked
+    if (await isPerkUnlocked(2, forId: id)) return true;
 
     final discovered = await discoveredCount();
     if (discovered >= perk2DiscoverThreshold) {
       await _setPerkUnlocked(2, true, forId: id);
+      notifyListeners(); // optional, if UI cares
       return true;
     }
     return false;
@@ -199,10 +206,10 @@ class FactionService {
   // ---- Air
   Future<bool> ensureAirExtraSlotUnlocked() async {
     if (!isAir() || !perk1Active) return false;
-    final flag = await db.getSetting('air_slot_applied_v1');
+    final flag = await db.settingsDao.getSetting('air_slot_applied_v1');
     if (flag == '1') return false;
-    await db.unlockSlot(2); // unlock 3rd slot (id=2 in your seed)
-    await db.setSetting('air_slot_applied_v1', '1');
+    await db.incubatorDao.unlockSlot(2); // unlock 3rd slot (id=2 in your seed)
+    await db.settingsDao.setSetting('air_slot_applied_v1', '1');
     return true;
   }
 
@@ -218,12 +225,12 @@ class FactionService {
 
   Future<bool> earthCanRefreshToday(String sceneId) async {
     if (!(isEarth() && perk1Active)) return false;
-    final used = await db.getSetting(_earthKey(sceneId));
+    final used = await db.settingsDao.getSetting(_earthKey(sceneId));
     return (used ?? '').isEmpty;
   }
 
   Future<void> earthMarkRefreshedToday(String sceneId) async {
-    await db.setSetting(_earthKey(sceneId), 'used');
+    await db.settingsDao.setSetting(_earthKey(sceneId), 'used');
   }
 
   double earthWildernessSuccessBoost({required bool perk2}) =>

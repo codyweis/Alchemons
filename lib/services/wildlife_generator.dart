@@ -24,7 +24,7 @@ class WildlifeTuning {
 /// - fresh weighted nature
 /// - optional prismatic flag
 class WildlifeGenerator {
-  final CreatureRepository repo;
+  final CreatureCatalog repo;
   final WildlifeTuning tuning;
   final Random _rng;
 
@@ -88,13 +88,15 @@ class WildlifeGenerator {
             final baseDom = {for (final v in track.variants) v.id: v.dominance};
             final biased = _applyTintBias(baseDom, types);
             resultId = _weightedPickMap(biased);
-            if (mutates)
+            if (mutates) {
               resultId = _mutateAwayFromNormal(track, from: resultId);
+            }
           } else {
             // generic dominance weighted
             resultId = _weightedPickByDominance(track);
-            if (mutates)
+            if (mutates) {
               resultId = _mutateAwayFromNormal(track, from: resultId);
+            }
           }
           break;
 

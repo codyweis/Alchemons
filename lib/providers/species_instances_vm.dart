@@ -8,14 +8,14 @@ class SpeciesInstancesVM extends ChangeNotifier {
   StreamSubscription<List<CreatureInstance>>? _sub;
 
   SpeciesInstancesVM(this.db, this.baseId) {
-    _sub = db.watchInstancesBySpecies(baseId).listen((rows) {
+    _sub = db.creatureDao.watchInstancesBySpecies(baseId).listen((rows) {
       _instances = rows;
       notifyListeners();
     });
     _initCount();
   }
 
-  static const int cap = AlchemonsDatabase.defaultSpeciesCap;
+  static const int cap = 100;
 
   List<CreatureInstance> _instances = [];
   List<CreatureInstance> get instances => _instances;
@@ -24,7 +24,7 @@ class SpeciesInstancesVM extends ChangeNotifier {
   int get count => _count;
 
   Future<void> _initCount() async {
-    _count = await db.countBySpecies(baseId);
+    _count = await db.creatureDao.countBySpecies(baseId);
     notifyListeners();
   }
 

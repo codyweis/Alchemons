@@ -1,11 +1,11 @@
 // lib/screens/profile_screen.dart
 import 'dart:ui';
-import 'package:alchemons/screens/faction_picker.dart';
+// import 'package:alchemons/screens/faction_picker.dart'; // REMOVED: No longer needed
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/theme_switch_widget.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -72,38 +72,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final sz = MediaQuery.of(context).size;
-
-    final f = context.read<FactionService>().current ?? FactionId.water;
-    final accent = accentForFaction(f);
+    final theme = context.read<FactionTheme>();
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text('PROFILE'),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: const Color(0xFFE8EAED),
-        flexibleSpace: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-            child: Container(color: Colors.black.withOpacity(.12)),
-          ),
-        ),
-      ),
       body: Stack(
         children: [
-          // Subtle dark gradient background
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF0B0E12), Color(0xFF10141A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-
           // Content
           FutureBuilder<_ProfileData>(
             future: _load,
@@ -139,59 +112,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 16 + 8, 16, 24),
                   children: [
-                    // Faction switcher chip (glass)
-                    GestureDetector(
-                      onTap: () async {
-                        HapticFeedback.lightImpact();
-                        final selected = await showDialog<FactionId>(
-                          context: context,
-                          builder: (_) => const FactionPickerDialog(),
-                        );
-                        if (selected != null) {
-                          await context.read<FactionService>().setId(selected);
-                          if (mounted) setState(() {});
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: accent.withOpacity(0.6)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              switch (f) {
-                                FactionId.fire =>
-                                  Icons.local_fire_department_rounded,
-                                FactionId.water => Icons.water_drop_rounded,
-                                FactionId.air => Icons.air_rounded,
-                                FactionId.earth => Icons.terrain_rounded,
-                              },
-                              size: 16,
-                              color: accent,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              f.name[0].toUpperCase() + f.name.substring(1),
-                              style: TextStyle(
-                                color: accent,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    // MOVED: Faction header is now the first item
+                    _factionHeader(data.faction!, data.discoveredCount, accent),
+                    const SizedBox(height: 20),
+
+                    // ADDED: General Settings section
+                    _sectionLabel('GENERAL', accent),
+                    const SizedBox(height: 10),
+                    _settingTile(
+                      title: 'Appearance',
+                      trailing: ThemeModeSelector(),
+                      accent: accent,
                     ),
                     const SizedBox(height: 20),
-                    _factionHeader(data.faction!, data.discoveredCount, accent),
-                    const SizedBox(height: 14),
+
+                    // REMOVED: Faction switcher chip
+                    // GestureDetector(...)
 
                     // Section label
                     _sectionLabel('DIVISION PERKS', accent),
@@ -339,6 +275,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             _chip(text: 'ACTIVE', color: color.shade400),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ADDED: A new generic tile for settings like the theme selector
+  Widget _settingTile({
+    required String title,
+    required Widget trailing,
+    required Color accent,
+  }) {
+    return _glassCard(
+      borderColor: Colors.white.withOpacity(.25), // Neutral border
+      glowColor: Colors.black.withOpacity(.2), // Neutral glow
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 8,
+        ), // Tighter padding
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                  letterSpacing: .3,
+                  color: Color(0xFFE8EAED),
+                ),
+              ),
+            ),
+            trailing,
           ],
         ),
       ),

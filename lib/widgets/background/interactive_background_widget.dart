@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/widgets/animations/shaders/fire_animation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 class InteractiveBackground extends StatefulWidget {
@@ -162,6 +164,13 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
   }
 
   Widget _buildFactionEffect() {
+    final themeNotifier = context.watch<ThemeNotifier>();
+    final current = themeNotifier.themeMode;
+    final isDark = current == ThemeMode.dark;
+    final intensity = isDark ? 1.0 : 5.0;
+    final rise = isDark ? 0.68 : 1.0;
+    final noise = isDark ? 2.0 : 5.0;
+    final speedFactor = isDark ? 1.0 : .5;
     final c = widget.waveController;
     switch (widget.factionType) {
       case FactionId.fire:
@@ -185,12 +194,12 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
                   defaultTargetPlatform != TargetPlatform.android &&
                   (defaultTargetPlatform == TargetPlatform.iOS),
               child: FireFX(
-                intensity: 1.15,
-                rise: 0.68,
+                intensity: intensity,
+                rise: rise,
                 turbulence: 1.25,
-                noiseScale: 2.0,
+                noiseScale: noise,
                 softEdge: 0.22,
-                speedFactor: 1.0,
+                speedFactor: speedFactor,
               ),
             ),
           ],
@@ -256,9 +265,9 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    widget.primaryColor.withOpacity(0.15),
-                    widget.secondaryColor.withOpacity(0.15),
-                    widget.accentColor.withOpacity(0.15),
+                    widget.primaryColor.withOpacity(.2),
+                    widget.secondaryColor.withOpacity(0.5),
+                    widget.accentColor.withOpacity(0.05),
                   ],
                 ),
               ),
@@ -629,8 +638,7 @@ class FirePainter extends CustomPainter {
         canvas.drawCircle(Offset(x, y), emberSize, paint);
 
         final glowPaint = Paint()
-          ..color = primaryColor.withOpacity(opacity * 0.4)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+          ..color = primaryColor.withOpacity(opacity * 0.4);
         canvas.drawCircle(Offset(x, y), emberSize * 2.5, glowPaint);
       }
     }
@@ -689,10 +697,10 @@ class RainSplashPainter extends CustomPainter {
     final alpha = dt <= 0 ? 1.0 : (1 - math.exp(-dt / tau));
 
     // optional mild deadzone to avoid micro-jitter near flat
-    double _deadzone(double v, [double d = 0.02]) => (v.abs() < d) ? 0.0 : v;
+    double deadzone(double v, [double d = 0.02]) => (v.abs() < d) ? 0.0 : v;
 
-    _tiltXSmooth += (_deadzone(tiltX) - _tiltXSmooth) * alpha;
-    _tiltYSmooth += (_deadzone(tiltY) - _tiltYSmooth) * alpha;
+    _tiltXSmooth += (deadzone(tiltX) - _tiltXSmooth) * alpha;
+    _tiltYSmooth += (deadzone(tiltY) - _tiltYSmooth) * alpha;
 
     final easedTiltX = _ease01(_tiltXSmooth.abs()) * _tiltXSmooth.sign;
     final easedTiltY = _ease01(_tiltYSmooth.abs()) * _tiltYSmooth.sign;
@@ -712,7 +720,7 @@ class RainSplashPainter extends CustomPainter {
     final downhill = easedTiltX; // [-1..1], not just {-1,0,1}
 
     // Base linear waterline (no waves)
-    double _yLinear(double x) {
+    double yLinear(double x) {
       final tx = (x / size.width).clamp(0.0, 1.0);
       final yL = baseTop + slope;
       final yR = baseTop - slope;
@@ -735,16 +743,16 @@ class RainSplashPainter extends CustomPainter {
     _adv1Acc += v1 * dt;
     _adv2Acc += v2 * dt;
 
-    double _ySurface(double x) {
-      final base = _yLinear(x);
+    double ySurface(double x) {
+      final base = yLinear(x);
       final a = A1 * math.sin(k1 * (x + _adv1Acc) + w1 * t);
       final b = A2 * math.sin(k2 * (x - _adv2Acc) - w2 * t);
       return base + 0.6 * a + 0.4 * b;
     }
 
     final featherPx = size.height * poolFeather;
-    double _poolMask(double x, double y) {
-      final top = _ySurface(x);
+    double poolMask(double x, double y) {
+      final top = ySurface(x);
       if (y <= top) return 0.0;
       if (y >= top + featherPx) return 1.0;
       final f = (y - top) / featherPx;
@@ -752,10 +760,10 @@ class RainSplashPainter extends CustomPainter {
     }
 
     // ----- Draw pool
-    final top = Path()..moveTo(0, _ySurface(0));
+    final top = Path()..moveTo(0, ySurface(0));
     const step = 8.0;
     for (double x = step; x <= size.width; x += step) {
-      top.lineTo(x, _ySurface(x));
+      top.lineTo(x, ySurface(x));
     }
     final pool = Path.from(top)
       ..lineTo(size.width, size.height)
@@ -773,7 +781,7 @@ class RainSplashPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          primaryColor.withOpacity(0.10),
+          primaryColor.withOpacity(.5),
           primaryColor.withOpacity(0.18),
           primaryColor.withOpacity(0.26),
         ],
@@ -808,9 +816,7 @@ class RainSplashPainter extends CustomPainter {
     final foamStroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    final foamBlob = Paint()
-      ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    final foamBlob = Paint()..style = PaintingStyle.fill;
 
     // Physics
     const double g = 900.0;
@@ -875,7 +881,7 @@ class RainSplashPainter extends CustomPainter {
         final phaseHit = (phase - u) + uHitFlat;
         final xHit =
             rx * size.width + math.sin(phaseHit * math.pi) * sway + wind;
-        final ySurf = _ySurface(xHit);
+        final ySurf = ySurface(xHit);
         final origin = Offset(xHit, ySurf + 8.0);
 
         // Central jet
@@ -927,7 +933,7 @@ class RainSplashPainter extends CustomPainter {
           final x = origin.dx + vx * dts;
           final y = origin.dy - (vy * dts - 0.5 * g * dts * dts);
 
-          if (y < _ySurface(x) - 2 && x > -10 && x < size.width + 10) {
+          if (y < ySurface(x) - 2 && x > -10 && x < size.width + 10) {
             final r = 1.2 + 0.9 * life + 0.4 * _seededRandom(idx, 10);
             dropletPaint.color = Color.lerp(
               primaryColor,
@@ -940,7 +946,7 @@ class RainSplashPainter extends CustomPainter {
 
         final foamR = 5.0 + 22.0 * (1.0 - life);
         final foamAlpha =
-            (_poolMask(origin.dx, origin.dy) * 0.75 + 0.25) * (life * life);
+            (poolMask(origin.dx, origin.dy) * 0.75 + 0.25) * (life * life);
 
         foamBlob.color = Colors.white.withOpacity(0.10 * foamAlpha);
         canvas.drawCircle(Offset(xHit, ySurf + 6.0), foamR, foamBlob);
@@ -953,9 +959,9 @@ class RainSplashPainter extends CustomPainter {
     }
 
     // Sheen band (unchanged)
-    final sheenPath = Path()..moveTo(0, _ySurface(0) + 10);
+    final sheenPath = Path()..moveTo(0, ySurface(0) + 10);
     for (double x = step; x <= size.width; x += step) {
-      sheenPath.lineTo(x, _ySurface(x) + 10);
+      sheenPath.lineTo(x, ySurface(x) + 10);
     }
     final sheenPaint = Paint()
       ..style = PaintingStyle.stroke
@@ -1039,7 +1045,7 @@ class AirPainter extends CustomPainter {
               opacity,
             )
             ..style = PaintingStyle.fill
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 25);
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
 
           canvas.drawPath(cloudPath, cloudPaint);
         }
@@ -1087,7 +1093,7 @@ class EarthPlantsPainter extends CustomPainter {
     final bandFadePx = size.height * bandFeather;
     final groundY = size.height - 2.0;
 
-    double _verticalBandFade(double y) {
+    double verticalBandFade(double y) {
       if (y <= bandTopY) return 0.0;
       if (y >= bandTopY + bandFadePx) return 1.0;
       final x = (y - bandTopY) / bandFadePx;
@@ -1151,7 +1157,7 @@ class EarthPlantsPainter extends CustomPainter {
 
       final tipSample =
           metric.getTangentForOffset(drawLen)?.position ?? stemTip;
-      final bandAlpha = _verticalBandFade(tipSample.dy);
+      final bandAlpha = verticalBandFade(tipSample.dy);
       final lifeAlpha = (1.0 - fadeOut);
       final alpha = (bandAlpha * lifeAlpha).clamp(0.0, 1.0);
 
@@ -1232,9 +1238,7 @@ class EarthPlantsPainter extends CustomPainter {
         canvas.drawCircle(pos, budSize, budPaint);
       }
 
-      final baseGlow = Paint()
-        ..color = primaryColor.withOpacity(0.06 * alpha)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+      final baseGlow = Paint()..color = primaryColor.withOpacity(0.06 * alpha);
       canvas.drawCircle(stemBase, 6.0, baseGlow);
     }
 
