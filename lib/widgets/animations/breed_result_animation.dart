@@ -189,6 +189,10 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
     _scanController.removeStatusListener(_onScanStatus);
     _discoveryController.removeStatusListener(_onDiscoveryStatus);
 
+    // Mark as externally handled to prevent any pending callbacks
+    _externalHandled = true;
+    _completionQueued = false;
+
     for (final c in [_scanController, _gridController, _discoveryController]) {
       c.stop(canceled: true);
       c.dispose();

@@ -1283,14 +1283,14 @@ class _NPCSpriteOverlayState extends State<_NPCSpriteOverlay> {
   }
 
   Future<_SpriteMeta> _loadRandomNPCSprite() async {
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
 
     // ✅ Try to find creature by exact name match first
-    final exactMatch = repo.baseCreatures.firstWhere(
+    final exactMatch = repo.creatures.firstWhere(
       (c) => c.name.toLowerCase() == widget.actor.name.toLowerCase(),
       orElse: () {
         // Fallback: random compatible creature if name not found
-        final compatible = repo.baseCreatures.where((creature) {
+        final compatible = repo.creatures.where((creature) {
           if (creature.spriteData == null) return false;
           return CompetitionBiome.earthen.canCompete(creature.types);
         }).toList();
@@ -1420,8 +1420,8 @@ class _SpriteMeta {
 
 Future<_SpriteMeta> _loadSpriteMeta(BuildContext ctx, String instanceId) async {
   final db = ctx.read<AlchemonsDatabase>();
-  final repo = ctx.read<CreatureRepository>();
-  final inst = await db.getInstance(instanceId);
+  final repo = ctx.read<CreatureCatalog>();
+  final inst = await db.creatureDao.getInstance(instanceId);
   if (inst == null) throw Exception('Instance missing');
 
   final base = repo.getCreatureById(inst.baseId);

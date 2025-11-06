@@ -1,0 +1,340 @@
+// lib/services/wilderness_spawn_service.dart
+
+import 'dart:math';
+import 'package:alchemons/services/encounter_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/scenes/scene_definition.dart';
+import 'package:drift/drift.dart';
+
+/// Service that manages active wild creature spawns across all scenes.
+/// Spawns are persisted to the database so they survive app restarts.
+class WildernessSpawnService extends ChangeNotifier {
+  final AlchemonsDatabase _db;
+  final Random _rng = Random();
+
+  // sceneId -> spawnPointId -> roll
+  final Map<String, Map<String, EncounterRoll>> _activeSpawns = {};
+
+  // in-memory cache of schedules (sceneId -> dueAt)
+  final Map<String, int> _nextDueUtcMs = {};
+
+  WildernessSpawnService(this._db);
+
+  // ------------------------------------------------------------
+  // INIT
+  // ------------------------------------------------------------
+  Future<void> initializeActiveSpawns({
+    required Map<String, ({SceneDefinition scene, EncounterPool pool})> scenes,
+  }) async {
+    // 1) Clear interrupted scene
+    final activeEntry = await _db
+        .select(_db.activeSceneEntry)
+        .getSingleOrNull();
+    if (activeEntry != null) {
+      await clearSceneSpawns(activeEntry.sceneId);
+      await _db.delete(_db.activeSceneEntry).go();
+    }
+
+    // 2) Load active spawns
+    final stored = await _db.select(_db.activeSpawns).get();
+    for (final s in stored) {
+      final rarity = EncounterRarity.values.firstWhere(
+        (r) => r.name == s.rarity,
+        orElse: () => EncounterRarity.common,
+      );
+      _activeSpawns.putIfAbsent(
+        s.sceneId,
+        () => {},
+      )[s.spawnPointId] = EncounterRoll(
+        speciesId: s.speciesId,
+        rarity: rarity,
+        spawnId: s.spawnPointId,
+      );
+    }
+
+    // 3) Load schedules
+    final scheduled = await _db.select(_db.spawnSchedule).get();
+    for (final row in scheduled) {
+      _nextDueUtcMs[row.sceneId] = row.dueAtUtcMs;
+    }
+
+    // 4) Ensure every known scene has either:
+    //    - at least one active spawn, OR
+    //    - a scheduled time in the future
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    for (final entry in scenes.entries) {
+      final sceneId = entry.key;
+      final hasSpawns = hasAnySpawnsInScene(sceneId);
+      final due = _nextDueUtcMs[sceneId];
+
+      if (!hasSpawns && (due == null || due <= now)) {
+        // nothing active and no valid due -> schedule a new time (within next 4h)
+        await scheduleNextSpawnTime(
+          sceneId,
+          windowMax: const Duration(hours: 4),
+        );
+      }
+    }
+
+    // 5) Immediately process any scenes whose due time has already passed (app was closed)
+    await processDueScenes(scenes);
+
+    notifyListeners();
+  }
+
+  // ------------------------------------------------------------
+  // SCHEDULING (time only)
+  // ------------------------------------------------------------
+  Future<void> scheduleNextSpawnTime(
+    String sceneId, {
+    Duration windowMax = const Duration(minutes: 1),
+  }) async {
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final extraMs = _rng.nextInt(windowMax.inMilliseconds + 1);
+    final dueAt = now + extraMs;
+
+    _nextDueUtcMs[sceneId] = dueAt;
+    await _db
+        .into(_db.spawnSchedule)
+        .insertOnConflictUpdate(
+          SpawnScheduleCompanion.insert(sceneId: sceneId, dueAtUtcMs: dueAt),
+        );
+  }
+
+  // ------------------------------------------------------------
+  // PROCESS: turn due schedules into a single spawn
+  // ------------------------------------------------------------
+  Future<void> processDueScenes(
+    Map<String, ({SceneDefinition scene, EncounterPool pool})> scenes,
+  ) async {
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+
+    for (final entry in scenes.entries) {
+      final sceneId = entry.key;
+      final due = _nextDueUtcMs[sceneId];
+
+      // Only start a new spawn event when the scene is empty.
+      if (due != null && due <= now && !hasAnySpawnsInScene(sceneId)) {
+        final scene = entry.value.scene;
+        final pool = entry.value.pool;
+
+        // Spawn a random count across available points
+        await _spawnBatchAtRandomFreePoints(sceneId, scene, pool);
+
+        // Schedule the next event time (e.g., within 4 hours)
+        await scheduleNextSpawnTime(
+          sceneId,
+          windowMax: const Duration(hours: 4),
+        );
+      }
+    }
+  }
+
+  Future<void> _spawnBatchAtRandomFreePoints(
+    String sceneId,
+    SceneDefinition scene,
+    EncounterPool pool,
+  ) async {
+    final freePoints = scene.spawnPoints
+        .where((sp) => sp.enabled && !hasSpawnAt(sceneId, sp.id))
+        .toList();
+
+    if (freePoints.isEmpty) {
+      debugPrint('⚠️  No available spawn points in $sceneId for due spawn');
+      return;
+    }
+
+    // Roll how many to spawn: 1..freePoints.length
+    final spawnCount = 1 + _rng.nextInt(freePoints.length);
+
+    // Shuffle to sample distinct points without repetition
+    freePoints.shuffle(_rng);
+    final selected = freePoints.take(spawnCount);
+
+    for (final point in selected) {
+      final encounter = _rollEncounter(pool, point.id);
+
+      _activeSpawns.putIfAbsent(sceneId, () => {})[point.id] = encounter;
+
+      final id = '${sceneId}_${point.id}';
+      await _db
+          .into(_db.activeSpawns)
+          .insert(
+            ActiveSpawnsCompanion.insert(
+              id: id,
+              sceneId: sceneId,
+              spawnPointId: point.id,
+              speciesId: encounter.speciesId,
+              rarity: encounter.rarity.name,
+              spawnedAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
+
+      debugPrint('✨ Spawned ${encounter.speciesId} at $sceneId/${point.id}');
+    }
+
+    notifyListeners();
+  }
+
+  // ------------------------------------------------------------
+  // REMOVE / CLEAR
+  // ------------------------------------------------------------
+  Future<void> removeSpawn(String sceneId, String spawnPointId) async {
+    final removed = _activeSpawns[sceneId]?.remove(spawnPointId);
+    if (removed == null) return;
+
+    final id = '${sceneId}_$spawnPointId';
+    await (_db.delete(_db.activeSpawns)..where((t) => t.id.equals(id))).go();
+    debugPrint('❌ Removed spawn: $sceneId/$spawnPointId');
+
+    // If this scene now has zero active spawns, ensure a future schedule exists
+    if (!hasAnySpawnsInScene(sceneId)) {
+      await scheduleNextSpawnTime(sceneId, windowMax: const Duration(hours: 4));
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> clearSceneSpawns(String sceneId) async {
+    _activeSpawns.remove(sceneId);
+    await (_db.delete(
+      _db.activeSpawns,
+    )..where((t) => t.sceneId.equals(sceneId))).go();
+
+    debugPrint('🧹 Cleared spawns from $sceneId');
+
+    // Always schedule a future time when a scene is cleared (leave scene case)
+    await scheduleNextSpawnTime(sceneId, windowMax: const Duration(hours: 4));
+
+    notifyListeners();
+  }
+
+  /// Check if a specific spawn point has an active spawn
+  bool hasSpawnAt(String sceneId, String spawnPointId) {
+    return _activeSpawns[sceneId]?.containsKey(spawnPointId) ?? false;
+  }
+
+  /// Check if a scene has any active spawns
+  bool hasAnySpawnsInScene(String sceneId) {
+    final spawns = _activeSpawns[sceneId];
+    return spawns != null && spawns.isNotEmpty;
+  }
+
+  /// Get the encounter at a specific spawn point (if any)
+  EncounterRoll? getSpawnAt(String sceneId, String spawnPointId) {
+    return _activeSpawns[sceneId]?[spawnPointId];
+  }
+
+  /// Check if ANY scene has active spawns (for home screen indicator)
+  bool get hasAnyActiveSpawns {
+    return _activeSpawns.values.any((spawns) => spawns.isNotEmpty);
+  }
+
+  /// Get count of active spawns in a scene
+  int getSceneSpawnCount(String sceneId) {
+    return _activeSpawns[sceneId]?.length ?? 0;
+  }
+
+  /// Get all spawn points that have active spawns in a scene
+  List<String> getActiveSpawnPoints(String sceneId) {
+    return _activeSpawns[sceneId]?.keys.toList() ?? [];
+  }
+
+  /// Force a specific encounter at a spawn point (used when loading from service)
+  void forceSpawnAt(
+    String sceneId,
+    String spawnPointId,
+    EncounterRoll encounter,
+  ) {
+    _activeSpawns.putIfAbsent(sceneId, () => {})[spawnPointId] = encounter;
+    notifyListeners();
+  }
+
+  // ============================================================
+  // ENCOUNTER ROLLING
+  // ============================================================
+
+  /// Roll a random encounter from the pool
+  EncounterRoll _rollEncounter(EncounterPool pool, String spawnId) {
+    // Roll rarity based on weights
+    final rarityRoll = _rng.nextDouble();
+    final weights = pool.rarityWeights;
+
+    EncounterRarity rarity;
+    if (rarityRoll < weights.legendary) {
+      rarity = EncounterRarity.legendary;
+    } else if (rarityRoll < weights.rare) {
+      rarity = EncounterRarity.rare;
+    } else if (rarityRoll < weights.uncommon) {
+      rarity = EncounterRarity.uncommon;
+    } else {
+      rarity = EncounterRarity.common;
+    }
+
+    // Pick random species from that rarity
+    final speciesList = pool.speciesByRarity[rarity] ?? [];
+    final speciesId = speciesList.isEmpty
+        ? 'fallback_creature'
+        : speciesList[_rng.nextInt(speciesList.length)];
+
+    return EncounterRoll(
+      speciesId: speciesId,
+      rarity: rarity,
+      spawnId: spawnId,
+    );
+  }
+
+  // ============================================================
+  // DEBUG
+  // ============================================================
+
+  /// Get debug info about current spawn state
+  Map<String, dynamic> getDebugInfo() {
+    final sceneInfo = <String, dynamic>{};
+
+    for (final entry in _activeSpawns.entries) {
+      sceneInfo[entry.key] = {
+        'count': entry.value.length,
+        'spawns': entry.value.entries.map((spawn) {
+          return {
+            'point': spawn.key,
+            'species': spawn.value.speciesId,
+            'rarity': spawn.value.rarity.name,
+          };
+        }).toList(),
+      };
+    }
+
+    return {
+      'total_spawns': _activeSpawns.values.fold<int>(
+        0,
+        (sum, spawns) => sum + spawns.length,
+      ),
+      'scenes_with_spawns': _activeSpawns.keys.length,
+      'scenes': sceneInfo,
+    };
+  }
+
+  void printDebugInfo() {
+    final info = getDebugInfo();
+    debugPrint('🌲 SPAWN DEBUG INFO:');
+    debugPrint('  Total spawns: ${info['total_spawns']}');
+    debugPrint('  Scenes with spawns: ${info['scenes_with_spawns']}');
+
+    final scenes = info['scenes'] as Map<String, dynamic>;
+    for (final entry in scenes.entries) {
+      final sceneInfo = entry.value as Map<String, dynamic>;
+      debugPrint('  📍 ${entry.key}: ${sceneInfo['count']} spawn(s)');
+
+      final spawns = sceneInfo['spawns'] as List;
+      for (final spawn in spawns) {
+        debugPrint(
+          '     - ${spawn['point']}: ${spawn['species']} (${spawn['rarity']})',
+        );
+      }
+    }
+  }
+}

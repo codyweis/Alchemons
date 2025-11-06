@@ -25,7 +25,7 @@ class FloatingCloseButton extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: theme.text,
-          border: Border.all(color: theme.accent, width: 1.5),
+          border: Border.all(color: theme.text, width: 1.5),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.15),

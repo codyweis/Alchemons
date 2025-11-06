@@ -1,6 +1,11 @@
 // lib/models/biome.dart
 import 'package:flutter/material.dart';
 
+/// Biome system for resource gathering and creature habitats
+///
+/// Design Decision: Biomes are game mechanics/UI concepts, not creature data.
+/// They define WHERE players gather resources, not WHAT creatures exist.
+/// The JSON defines creature types; this defines the resource economy.
 enum Biome {
   volcanic,
   oceanic,
@@ -19,24 +24,16 @@ enum Biome {
   };
 
   String get description => switch (this) {
-    volcanic => 'Harness intense heat and raw energy',
-    oceanic => 'Extract fluid essences and frozen power',
-    earthen => 'Mine solid matter and crystalline structures',
-    verdant => 'Cultivate living forces and atmospheric currents',
-    arcane => 'Channel mystical and primal energies',
+    volcanic => 'Intense heat and raw energy',
+    oceanic => 'Fluid essences and frozen power',
+    earthen => 'Solid matter and crystalline structures',
+    verdant => 'Living forces and atmospheric currents',
+    arcane => 'Mystical and primal energies',
   };
 
-  /// Elements that thematically live under this biome.
-  /// (For UI chips, flavor text, etc. This can stay.)
-  List<String> get elementIds => switch (this) {
-    volcanic => ['T001', 'T006', 'T007'], // Fire, Lava, Lightning
-    oceanic => ['T002', 'T009', 'T005'], // Water, Ice, Steam
-    earthen => ['T003', 'T008', 'T010', 'T011'], // Earth, Mud, Dust, Crystal
-    verdant => ['T004', 'T012', 'T013'], // Air, Plant, Poison
-    arcane => ['T014', 'T016', 'T015', 'T017'], // Spirit, Light, Dark, Blood
-  };
-
-  List<String> get elementNames => switch (this) {
+  /// Elements grouped by biome for resource gathering
+  /// Note: These match the type names from alchemons_creatures.json
+  List<String> get elementTypes => switch (this) {
     volcanic => ['Fire', 'Lava', 'Lightning'],
     oceanic => ['Water', 'Ice', 'Steam'],
     earthen => ['Earth', 'Mud', 'Dust', 'Crystal'],
@@ -68,84 +65,54 @@ enum Biome {
     arcane => const Color(0xFFD4B3FF),
   };
 
-  // =========================================================
-  // NEW CORE: unified biome resource identity
-  // =========================================================
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UNIFIED RESOURCE SYSTEM
+  // ═══════════════════════════════════════════════════════════════════════════
+  // One resource pool per biome (simplified from 17 element-specific resources)
 
-  /// This is the settings key / db key to store this biome's currency.
-  /// You will only have 5 of these in Settings now.
-  String get resourceKey => switch (this) {
-    volcanic => 'res_volcanic',
-    oceanic => 'res_oceanic',
-    earthen => 'res_earthen',
-    verdant => 'res_verdant',
-    arcane => 'res_arcane',
-  };
+  /// Database key for storing this biome's resource amount
+  String get resourceKey => 'res_$name';
 
-  /// Player-facing display name of that resource
-  String get resourceLabel => switch (this) {
-    volcanic => 'Volcanic',
-    oceanic => 'Oceanic',
-    earthen => 'Earthen',
-    verdant => 'Verdant',
-    arcane => 'Arcane',
-  };
+  /// Display name for the resource
+  String get resourceLabel => label;
 
-  /// Icon representing that biome's resource in UI (for payouts/unlock/etc)
+  /// Icon for resource display
   IconData get resourceIcon => icon;
 
-  /// Accent color for that resource (can just reuse primaryColor)
+  /// Color for resource display
   Color get resourceColor => primaryColor;
 
-  // =========================================================
-  // LEGACY COMPAT SHIMS (OPTIONAL, for screens still expecting elementId)
-  // =========================================================
-  //
-  // Before: a specific elementId like 'T001' mapped to a unique resource key,
-  // e.g. 'res_fire', 'res_water', etc.
-  //
-  // Now: ANY elementId under this biome maps to this biome's single resource pool.
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ELEMENT TYPE HELPERS
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  String resourceKeyForElement(String elementId) {
-    // ignore which element exactly, just route to biome pool:
-    return resourceKey;
+  /// Check if an element type belongs to this biome
+  bool containsElement(String elementType) {
+    return elementTypes.contains(elementType);
   }
 
-  String resourceNameForElement(String elementId) {
-    // same idea — always show the biome resource name
-    return resourceLabel;
+  /// Get the biome for a given element type
+  static Biome? forElementType(String elementType) {
+    for (final biome in Biome.values) {
+      if (biome.containsElement(elementType)) {
+        return biome;
+      }
+    }
+    return null;
   }
 
-  // You *can* keep color/icon variations per element for flavor in the UI,
-  // but they should NOT imply different currencies anymore.
-  Color colorForElement(String elementId) {
-    // Option A: still do per-element flair like before.
-    // Option B (simpler): always biome color.
-    return primaryColor;
+  /// Get resource key for any element type (routes to biome pool)
+  static String resourceKeyForElementType(String elementType) {
+    final biome = forElementType(elementType);
+    return biome?.resourceKey ?? 'res_arcane'; // fallback to arcane
   }
+}
 
-  IconData iconForElement(String elementId) {
-    // Same: either keep per-element icons, or simplify.
-    // I'll keep the cool per-element icons for chips/active extraction pill.
-    return switch (elementId) {
-      'T001' => Icons.local_fire_department_rounded, // Fire
-      'T002' => Icons.water_drop_rounded, // Water
-      'T003' => Icons.landscape_rounded, // Earth
-      'T004' => Icons.air_rounded, // Air
-      'T005' => Icons.cloud_rounded, // Steam
-      'T006' => Icons.volcano_rounded, // Lava
-      'T007' => Icons.bolt_rounded, // Lightning
-      'T008' => Icons.terrain_rounded, // Mud
-      'T009' => Icons.ac_unit_rounded, // Ice
-      'T010' => Icons.grain_rounded, // Dust
-      'T011' => Icons.diamond_rounded, // Crystal
-      'T012' => Icons.grass_rounded, // Plant
-      'T013' => Icons.science_rounded, // Poison
-      'T014' => Icons.wind_power_rounded, // Spirit
-      'T015' => Icons.nightlight_rounded, // Dark
-      'T016' => Icons.wb_sunny_rounded, // Light
-      'T017' => Icons.bloodtype_rounded, // Blood
-      _ => icon,
-    };
-  }
+/// Helper extension to get biome info from element type strings
+extension ElementTypeBiome on String {
+  /// Get the biome this element type belongs to
+  Biome? get biome => Biome.forElementType(this);
+
+  /// Get the resource key for this element type
+  String get resourceKey => Biome.resourceKeyForElementType(this);
 }

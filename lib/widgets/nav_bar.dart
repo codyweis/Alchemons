@@ -2,7 +2,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-enum NavSection { home, creatures, field, shop, enhance, breed }
+enum NavSection { home, creatures, shop, enhance, breed, inventory }
 
 class BottomNav extends StatefulWidget {
   const BottomNav({
@@ -60,6 +60,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = widget.theme!.isDark;
     return Container(
       decoration: BoxDecoration(color: widget.theme?.surfaceAlt),
       clipBehavior: Clip.none,
@@ -71,29 +72,31 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildNavButton(
+                NavSection.inventory,
+                'assets/images/ui/inventorylight.png',
+                'INVENTORY',
+              ),
+              _buildNavButton(
                 NavSection.creatures,
-                'assets/images/ui/bookicon.png',
+                isDark
+                    ? 'assets/images/ui/dexicon_light.png'
+                    : 'assets/images/ui/dexicon.png',
                 'CREATURES',
               ),
               _buildNavButton(
-                NavSection.breed,
-                'assets/images/ui/eggicon.png',
-                'BREED',
-              ),
-              _buildNavButton(
                 NavSection.home,
-                'assets/images/ui/homeicon.png',
+                'assets/images/ui/homeicon2.png',
                 'HOME',
               ),
               _buildNavButton(
-                NavSection.field,
-                'assets/images/ui/fieldicon.png',
-                'FIELD',
+                NavSection.breed,
+                'assets/images/ui/breedicon.png',
+                'FUSION',
               ),
 
               _buildNavButton(
                 NavSection.shop,
-                'assets/images/ui/shopicon.png',
+                'assets/images/ui/shopicon2.png',
                 'SHOP',
               ),
             ],

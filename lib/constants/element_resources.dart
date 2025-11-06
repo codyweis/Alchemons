@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-class ElementRes {
+class ElementResource {
   final String biomeId; // 'volcanic'
   final String biomeLabel; // 'Volcanic'
   final String settingsKey; // 'res_volcanic' (used in Settings table)
   final IconData icon; // biome icon
   final Color color; // biome primary color
 
-  const ElementRes({
+  const ElementResource({
     required this.biomeId,
     required this.biomeLabel,
     required this.settingsKey,
@@ -18,36 +18,36 @@ class ElementRes {
 
 class ElementResources {
   // The 5 currencies in the whole game now.
-  static const List<ElementRes> all = [
-    ElementRes(
+  static const List<ElementResource> all = [
+    ElementResource(
       biomeId: 'volcanic',
       biomeLabel: 'Volcanic',
       settingsKey: 'res_volcanic',
       icon: Icons.local_fire_department_rounded,
       color: Color(0xFFFF6B35),
     ),
-    ElementRes(
+    ElementResource(
       biomeId: 'oceanic',
       biomeLabel: 'Oceanic',
       settingsKey: 'res_oceanic',
       icon: Icons.water_drop_rounded,
       color: Color(0xFF4ECDC4),
     ),
-    ElementRes(
+    ElementResource(
       biomeId: 'earthen',
       biomeLabel: 'Earthen',
       settingsKey: 'res_earthen',
       icon: Icons.landscape_rounded,
       color: Color(0xFF8B6F47),
     ),
-    ElementRes(
+    ElementResource(
       biomeId: 'verdant',
       biomeLabel: 'Verdant',
       settingsKey: 'res_verdant',
       icon: Icons.nature_rounded,
       color: Color(0xFF6BCF7F),
     ),
-    ElementRes(
+    ElementResource(
       biomeId: 'arcane',
       biomeLabel: 'Arcane',
       settingsKey: 'res_arcane',
@@ -57,11 +57,11 @@ class ElementResources {
   ];
 
   // lookups
-  static final Map<String, ElementRes> byBiomeId = {
+  static final Map<String, ElementResource> byBiomeId = {
     for (final e in all) e.biomeId: e,
   };
 
-  static final Map<String, ElementRes> byKey = {
+  static final Map<String, ElementResource> byKey = {
     for (final e in all) e.settingsKey: e,
   };
 

@@ -6,6 +6,8 @@ class SideDockFloating extends StatelessWidget {
   final VoidCallback onEnhance;
   final VoidCallback onHarvest;
   final VoidCallback onCompetitions;
+  final VoidCallback onBattle;
+  final VoidCallback onField;
 
   const SideDockFloating({
     super.key,
@@ -13,6 +15,8 @@ class SideDockFloating extends StatelessWidget {
     required this.onEnhance,
     required this.onHarvest,
     required this.onCompetitions,
+    required this.onBattle,
+    required this.onField,
   });
 
   @override
@@ -21,6 +25,15 @@ class SideDockFloating extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        _FloatingSideButton(
+          theme: theme,
+          label: 'Field',
+          assetPath: 'assets/images/ui/fieldicon.png',
+          onTap: onField,
+          size: 60,
+        ),
+
+        const SizedBox(height: 16),
         _FloatingSideButton(
           theme: theme,
           label: 'Enhance',
@@ -34,12 +47,20 @@ class SideDockFloating extends StatelessWidget {
           assetPath: 'assets/images/ui/extracticon.png',
           onTap: onHarvest,
         ),
+        // const SizedBox(height: 16),
+        // _FloatingSideButton(
+        //   theme: theme,
+        //   label: 'Compete',
+        //   assetPath: 'assets/images/ui/competeicon.png',
+        //   onTap: onCompetitions,
+        //   size: 80,
+        // ),
         const SizedBox(height: 16),
         _FloatingSideButton(
           theme: theme,
           label: 'Compete',
           assetPath: 'assets/images/ui/competeicon.png',
-          onTap: onCompetitions,
+          onTap: onBattle,
           size: 80,
         ),
       ],

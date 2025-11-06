@@ -1,326 +1,160 @@
-import 'dart:convert';
+import 'dart:async';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:drift/drift.dart';
-import 'package:flutter/services.dart';
 import '../database/alchemons_db.dart';
 import '../models/creature.dart';
 
+/// View model for UI: typed + easy to consume.
+class CreatureEntry {
+  final Creature creature;
+  final PlayerCreature player;
+  const CreatureEntry({required this.creature, required this.player});
+}
+
+extension _PlayerRowsLookup on List<PlayerCreature> {
+  PlayerCreature byIdOrDefault(String id) => firstWhere(
+    (p) => p.id == id,
+    orElse: () => PlayerCreature(id: id, discovered: false),
+  );
+}
+
 class GameDataService {
   final AlchemonsDatabase db;
-  late List<Creature> allCreatures;
-  final List<Creature> _discoveredVariants = []; // New: Track variants
-  bool _isInitialized = false;
+  final CreatureCatalog catalog;
 
-  GameDataService({required this.db});
+  /// Optional: discovered variant species that aren’t in the base catalog yet.
+  /// Persist later via a Drift table if you need them across restarts.
+  final List<Creature> _discoveredVariants = [];
 
-  /// Check if service has been initialized
-  bool get isInitialized => _isInitialized;
+  bool _initialized = false;
+  bool get isInitialized => _initialized;
 
+  GameDataService({required this.db, required this.catalog});
+
+  /// Call after catalog.load().
   Future<void> init() async {
-    if (_isInitialized) return; // Prevent double initialization
-
-    try {
-      // Load base creatures from JSON
-      final jsonString = await rootBundle.loadString(
-        'assets/data/alchemons_creatures.json',
-      );
-      final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
-      allCreatures = (jsonMap['creatures'] as List)
-          .map((e) => Creature.fromJson(e))
-          .toList();
-
-      // Ensure all base creatures exist in database
-      for (var c in allCreatures) {
-        final existing = await db.getCreature(c.id);
-        if (existing == null) {
-          await db.addOrUpdateCreature(
-            PlayerCreaturesCompanion.insert(id: c.id),
-          );
-        }
-      }
-
-      // Load discovered variants from database
-      await _loadDiscoveredVariants();
-
-      _isInitialized = true;
-    } catch (e) {
-      // Re-throw with more context
-      throw Exception('Failed to initialize GameDataService: $e');
-    }
-  }
-
-  /// Load variants that have been discovered and stored in DB
-  Future<void> _loadDiscoveredVariants() async {
-    try {
-      final allPlayerData = await db.getAllCreatures();
-
-      // Find variant IDs (ones with underscore)
-      final variantIds = allPlayerData
-          .where((creature) => creature.id.contains('_'))
-          .map((creature) => creature.id)
-          .toList();
-
-      // Create variant objects from IDs
-      _discoveredVariants.clear();
-      for (final variantId in variantIds) {
-        final variant = _createVariantFromId(variantId);
-        if (variant != null) {
-          _discoveredVariants.add(variant);
-        }
-      }
-
-      print('Loaded ${_discoveredVariants.length} variants from database');
-    } catch (e) {
-      print('Error loading variants: $e');
-    }
-  }
-
-  /// Create a variant creature from its ID (e.g., "CR003_Ice")
-  Creature? _createVariantFromId(String variantId) {
-    final parts = variantId.split('_');
-    if (parts.length != 2) return null;
-
-    final baseId = parts[0];
-    final secondaryType = parts[1];
-
-    // Find the base creature
-    final baseCreature = allCreatures.where((c) => c.id == baseId).firstOrNull;
-    if (baseCreature == null) return null;
-
-    // Create variant using the factory constructor
-    return Creature.variant(
-      baseId: baseCreature.id,
-      baseName: baseCreature.name,
-      primaryType: baseCreature.types.first,
-      secondaryType: secondaryType,
-      baseImage: baseCreature.image,
-    );
-  }
-
-  /// Add a newly discovered variant (call this when breeding creates a variant)
-  Future<void> addDiscoveredVariant(Creature variant) async {
-    if (!_isInitialized) {
-      throw StateError('GameDataService not initialized. Call init() first.');
+    if (_initialized) return;
+    if (!catalog.isLoaded) {
+      throw StateError('CreatureCatalog must be loaded before init().');
     }
 
-    try {
-      // Add to database
-      await markDiscovered(variant.id);
-
-      // Add to memory if not already there
-      final exists = _discoveredVariants.any((v) => v.id == variant.id);
-      if (!exists) {
-        _discoveredVariants.add(variant);
-        print('Added variant: ${variant.id}');
-      }
-    } catch (e) {
-      throw Exception('Failed to add discovered variant: $e');
-    }
-  }
-
-  /// Returns merged list: includes base creatures AND discovered variants
-  Future<List<Map<String, dynamic>>> getMergedCreatureData() async {
-    if (!_isInitialized) {
-      throw StateError('GameDataService not initialized. Call init() first.');
-    }
-
-    try {
-      final playerData = await db.getAllCreatures();
-
-      // Combine base creatures and discovered variants
-      final allCreaturesIncludingVariants = [
-        ...allCreatures,
-        ..._discoveredVariants,
-      ];
-
-      return allCreaturesIncludingVariants.map((c) {
-        // Find player data or create default if missing
-        final save = playerData.cast<PlayerCreature?>().firstWhere(
-          (p) => p?.id == c.id,
-          orElse: () => null,
+    // Ensure a row exists for each catalog species.
+    for (final c in catalog.creatures) {
+      final existing = await db.creatureDao.getCreature(c.id);
+      if (existing == null) {
+        await db.creatureDao.addOrUpdateCreature(
+          PlayerCreaturesCompanion.insert(id: c.id),
         );
-
-        // Handle case where player data might be missing
-        return {
-          'creature': c,
-          'player': save ?? PlayerCreature(id: c.id, discovered: false),
-        };
-      }).toList();
-    } catch (e) {
-      throw Exception('Failed to get merged creature data: $e');
-    }
-  }
-
-  /// Mark a creature as discovered (works for both base creatures and variants)
-  Future<void> markDiscovered(String id) async {
-    if (!_isInitialized) {
-      throw StateError('GameDataService not initialized. Call init() first.');
-    }
-
-    try {
-      await db.addOrUpdateCreature(
-        PlayerCreaturesCompanion(id: Value(id), discovered: const Value(true)),
-      );
-
-      // If this is a variant being marked as discovered, and we don't have it in memory yet,
-      // try to create it and add it to our variants list
-      if (id.contains('_')) {
-        final existsInMemory = _discoveredVariants.any((v) => v.id == id);
-        if (!existsInMemory) {
-          final variant = _createVariantFromId(id);
-          if (variant != null) {
-            _discoveredVariants.add(variant);
-            print('Auto-added variant to memory: ${variant.id}');
-          }
-        }
       }
-    } catch (e) {
-      throw Exception('Failed to mark creature $id as discovered: $e');
     }
+
+    _initialized = true;
   }
 
-  /// Get a specific creature by ID (checks both base creatures and variants)
-  Creature? getCreatureById(String id) {
-    if (!_isInitialized) return null;
+  // ----------------------------
+  // Read models
+  // ----------------------------
 
-    // Check base creatures first
-    final baseCreature = allCreatures.where((c) => c.id == id).firstOrNull;
-    if (baseCreature != null) return baseCreature;
-
-    // Then check variants
-    final variant = _discoveredVariants.where((c) => c.id == id).firstOrNull;
-    return variant;
-  }
-
-  /// Get all creatures of a specific type (includes variants)
-  List<Creature> getCreaturesByType(String type) {
-    if (!_isInitialized) return [];
-
-    final allCreaturesIncludingVariants = [
-      ...allCreatures,
-      ..._discoveredVariants,
-    ];
-    return allCreaturesIncludingVariants
-        .where((c) => c.types.contains(type))
-        .toList();
-  }
-
-  /// Get discovery statistics (includes variants)
-  Future<Map<String, int>> getDiscoveryStats() async {
-    if (!_isInitialized) {
-      return {'discovered': 0, 'total': 0, 'percentage': 0};
-    }
-
-    try {
-      final playerData = await db.getAllCreatures();
-      final discoveredCount = playerData.where((p) => p.discovered).length;
-      final totalCount = allCreatures.length + _discoveredVariants.length;
-      final percentage = totalCount > 0
-          ? (discoveredCount * 100 / totalCount).round()
-          : 0;
-
-      return {
-        'discovered': discoveredCount,
-        'total': totalCount,
-        'percentage': percentage,
-      };
-    } catch (e) {
-      return {'discovered': 0, 'total': allCreatures.length, 'percentage': 0};
-    }
-  }
-
-  /// Mark multiple creatures as discovered (batch operation)
-  Future<void> markMultipleDiscovered(List<String> ids) async {
-    if (!_isInitialized) {
-      throw StateError('GameDataService not initialized. Call init() first.');
-    }
-
-    try {
-      // Use a transaction for better performance
-      await db.transaction(() async {
-        for (final id in ids) {
-          await db.addOrUpdateCreature(
-            PlayerCreaturesCompanion(
-              id: Value(id),
-              discovered: const Value(true),
-            ),
-          );
-        }
-      });
-
-      // Handle any variants in the batch
-      for (final id in ids) {
-        if (id.contains('_')) {
-          final existsInMemory = _discoveredVariants.any((v) => v.id == id);
-          if (!existsInMemory) {
-            final variant = _createVariantFromId(id);
-            if (variant != null) {
-              _discoveredVariants.add(variant);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      throw Exception('Failed to mark multiple creatures as discovered: $e');
-    }
-  }
-
-  /// Reset all discovery progress (for testing or new game)
-  Future<void> resetDiscoveryProgress() async {
-    if (!_isInitialized) {
-      throw StateError('GameDataService not initialized. Call init() first.');
-    }
-
-    try {
-      await db.transaction(() async {
-        final allCreaturesIncludingVariants = [
-          ...allCreatures,
-          ..._discoveredVariants,
-        ];
-        for (final creature in allCreaturesIncludingVariants) {
-          await db.addOrUpdateCreature(
-            PlayerCreaturesCompanion(
-              id: Value(creature.id),
-              discovered: const Value(false),
-            ),
-          );
-        }
-      });
-
-      // Clear variants from memory since they're no longer discovered
-      _discoveredVariants.clear();
-    } catch (e) {
-      throw Exception('Failed to reset discovery progress: $e');
-    }
-  }
-
-  /// Get all base creatures (from JSON only)
-  List<Creature> get baseCreatures => allCreatures;
-
-  /// Get all discovered variants
-  List<Creature> get discoveredVariants => _discoveredVariants;
-
-  /// Get all creatures (base + variants)
-  List<Creature> get allCreaturesIncludingVariants => [
-    ...allCreatures,
+  List<Creature> get _allCreatures => [
+    ...catalog.creatures,
     ..._discoveredVariants,
   ];
 
-  /// Refresh variants from database (useful if external changes happen)
-  Future<void> refreshVariants() async {
-    if (!_isInitialized) return;
-    await _loadDiscoveredVariants();
+  /// Live stream of all entries (base + variants) joined with player rows.
+  Stream<List<CreatureEntry>> watchAllEntries() {
+    return db.creatureDao.watchAllCreatures().map((playerRows) {
+      return _allCreatures
+          .map(
+            (c) => CreatureEntry(
+              creature: c,
+              player: playerRows.byIdOrDefault(c.id),
+            ),
+          )
+          .toList(growable: false);
+    });
   }
 
-  /// Get variants for a specific base creature
-  List<Creature> getVariantsForCreature(String baseCreatureId) {
-    return _discoveredVariants
-        .where((variant) => variant.id.startsWith('${baseCreatureId}_'))
-        .toList();
+  /// Live stream filtered to discovered entries only.
+  Stream<List<CreatureEntry>> watchDiscoveredEntries() => watchAllEntries().map(
+    (list) => list.where((e) => e.player.discovered).toList(growable: false),
+  );
+
+  /// One-shot stats (if you prefer a stream, map from watchAllEntries()).
+  Future<Map<String, int>> getDiscoveryStats() async {
+    final playerData = await db.creatureDao.getAllCreatures();
+    final discoveredCount = playerData.where((p) => p.discovered).length;
+    final total = _allCreatures.length;
+    final pct = total == 0 ? 0 : ((discoveredCount * 100) / total).round();
+    return {'discovered': discoveredCount, 'total': total, 'percentage': pct};
   }
 
-  /// Check if a variant exists for a base creature + secondary type
-  bool hasVariant(String baseCreatureId, String secondaryType) {
-    final variantId = '${baseCreatureId}_$secondaryType';
-    return _discoveredVariants.any((v) => v.id == variantId);
+  // ----------------------------
+  // Queries / helpers
+  // ----------------------------
+
+  Creature? getCreatureById(String id) =>
+      catalog.getCreatureById(id) ??
+      _discoveredVariants.firstWhereOrNull((c) => c.id == id);
+
+  List<Creature> getCreaturesByType(String type) => _allCreatures
+      .where((c) => c.types.contains(type))
+      .toList(growable: false);
+
+  List<Creature> get baseCreatures => catalog.creatures;
+  List<Creature> get discoveredVariants =>
+      List.unmodifiable(_discoveredVariants);
+  List<Creature> get allCreaturesIncludingVariants =>
+      List.unmodifiable(_allCreatures);
+
+  // ----------------------------
+  // Mutations
+  // ----------------------------
+
+  Future<void> markDiscovered(String id) async {
+    await db.creatureDao.addOrUpdateCreature(
+      PlayerCreaturesCompanion(id: Value(id), discovered: const Value(true)),
+    );
+  }
+
+  Future<void> markMultipleDiscovered(List<String> ids) async {
+    if (ids.isEmpty) return;
+    await db.transaction(() async {
+      for (final id in ids) {
+        await db.creatureDao.addOrUpdateCreature(
+          PlayerCreaturesCompanion(
+            id: Value(id),
+            discovered: const Value(true),
+          ),
+        );
+      }
+    });
+  }
+
+  /// Resets the discovered flag for all known species (base + variants).
+  Future<void> resetDiscoveryProgress() async {
+    await db.transaction(() async {
+      for (final c in _allCreatures) {
+        await db.creatureDao.addOrUpdateCreature(
+          PlayerCreaturesCompanion(
+            id: Value(c.id),
+            discovered: const Value(false),
+          ),
+        );
+      }
+    });
+    _discoveredVariants.clear();
+  }
+
+  // ----------------------------
+  // Variant management (optional)
+  // ----------------------------
+
+  /// Adds a variant species to the in-memory list (not persisted).
+  void addDiscoveredVariant(Creature variant) {
+    if (_discoveredVariants.any((c) => c.id == variant.id)) return;
+    _discoveredVariants.add(variant);
+    // UI will reflect this as soon as the next db change or on a manual refresh.
+    // If you want an immediate push without a DB write, expose a dedicated
+    // BehaviorSubject/StreamController and rebuild off that instead.
   }
 }

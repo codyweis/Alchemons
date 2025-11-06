@@ -1,3 +1,5 @@
+import 'package:alchemons/services/wilderness_spawn_service.dart';
+import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/pulsing_hitbox_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,6 +39,7 @@ class _MapScreenState extends State<MapScreen> {
         child: Column(
           children: [
             _HeaderBar(
+              onBack: () => Navigator.pop(context),
               theme: theme,
               onInfo: () {
                 showDialog(
@@ -87,6 +90,17 @@ class _MapScreenState extends State<MapScreen> {
     final db = context.read<AlchemonsDatabase>();
     final access = WildernessAccessService(db);
     final factions = context.read<FactionService>();
+    final spawnService = context.read<WildernessSpawnService>();
+
+    if (spawnService.getSceneSpawnCount(biomeId) == 0) {
+      _showToast(
+        context,
+        'No creatures detected in this area',
+        Icons.search_off_rounded,
+        Colors.orange.shade400,
+      );
+      return;
+    }
 
     // check access / refresh if earth faction perk
     var ok = await access.canEnter(biomeId);
@@ -142,7 +156,8 @@ class _MapScreenState extends State<MapScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ScenePage(scene: scene, party: selectedParty),
+        builder: (_) =>
+            ScenePage(scene: scene, sceneId: biomeId, party: selectedParty),
       ),
     );
   }
@@ -163,6 +178,8 @@ class _MapScreenState extends State<MapScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: color,
+        duration: const Duration(seconds: 2),
+        showCloseIcon: true,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         margin: const EdgeInsets.all(16),
@@ -192,10 +209,15 @@ class _MapScreenState extends State<MapScreen> {
 // =====================================================
 
 class _HeaderBar extends StatelessWidget {
-  const _HeaderBar({required this.theme, required this.onInfo});
+  const _HeaderBar({
+    required this.theme,
+    required this.onInfo,
+    required this.onBack,
+  });
 
   final FactionTheme theme;
   final VoidCallback onInfo;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -207,6 +229,10 @@ class _HeaderBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back), // Use a standard back icon
+                onPressed: onBack,
+              ),
               // center title/subtitle
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,24 +303,6 @@ class _PartyStatusCard extends StatelessWidget {
         decoration: theme.chipDecoration(rim: theme.accent),
         child: Row(
           children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: Colors.greenAccent.withOpacity(.15),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.greenAccent.withOpacity(.5),
-                  width: 1.5,
-                ),
-              ),
-              child: Icon(
-                Icons.groups_rounded,
-                size: 18,
-                color: Colors.greenAccent.withOpacity(.9),
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -363,25 +371,31 @@ class _ExpeditionMap extends StatelessWidget {
           final dx = mapW * leftPct;
           final dy = mapH * topPct;
 
+          // Check if this scene has any active spawns
+          final spawnService = context.watch<WildernessSpawnService>();
+          final hasSpawns = scene.spawnPoints.any(
+            (sp) => spawnService.hasSpawnAt(biomeId, sp.id),
+          );
+
           return Positioned(
-            left: dx - 70, // center the 140x140 box around the coord
+            left: dx - 70,
             top: dy - 70,
             child: GestureDetector(
-              behavior:
-                  HitTestBehavior.opaque, // <- captures taps even if empty
+              behavior: HitTestBehavior.opaque,
               onTap: () => onSelectRegion(biomeId, scene),
               child: SizedBox(
                 width: 140,
                 height: 140,
-                //debug area
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    PulsingDebugHitbox(
-                      size: 100,
-                      color: Colors.red,
-                      clipOval: true,
-                    ),
+                    // Only show pulse if spawns exist
+                    if (hasSpawns)
+                      PulsingDebugHitbox(
+                        size: 125,
+                        color: Colors.red,
+                        clipOval: true,
+                      ),
                   ],
                 ),
               ),
@@ -399,25 +413,6 @@ class _ExpeditionMap extends StatelessWidget {
                   child: Image.asset(
                     'assets/images/ui/map.png',
                     fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            ),
-
-            // OPTIONAL vignette so touch zones pop visually (keeps the vibe)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 1.0,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withOpacity(0.35),
-                      ],
-                      stops: const [0.6, 1.0],
-                    ),
                   ),
                 ),
               ),
@@ -527,14 +522,14 @@ class _MapHintBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline_rounded, size: 14, color: theme.textMuted),
+          Icon(Icons.info_outline_rounded, size: 16, color: theme.textMuted),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Tap a region to send a breeding party. Locked regions refresh daily at 00:00 UTC.',
+              'Wild creatures detected here! Tap to explore.',
               style: TextStyle(
                 color: theme.textMuted,
-                fontSize: 11,
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
                 height: 1.3,
               ),
@@ -582,7 +577,7 @@ class _InfoDialog extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Venture into diverse biomes to discover and research wild creatures. When you encounter a wild creature, you can choose a party member to attempt breeding. Successful breeding will create an offspring you can extract in the Incubator.',
+              'Wild areas will light up when a creature has been detected. Venture into diverse biomes to discover new creatures. Successful breeding or harvesting will create an offspring you can extract in the Incubator.',
               style: TextStyle(
                 color: theme.textMuted,
                 fontSize: 12,

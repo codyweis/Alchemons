@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:alchemons/database/models/stored_theme_mode.dart';
 import 'package:flutter/material.dart';
 import '../database/alchemons_db.dart';
 
@@ -17,12 +18,12 @@ class ThemeNotifier extends ChangeNotifier {
 
   Future<void> _init() async {
     // Get current from DB
-    final stored = await _db.getStoredThemeMode();
+    final stored = await _db.settingsDao.getStoredThemeMode();
     _themeMode = _toFlutter(stored);
     notifyListeners();
 
     // Listen for future changes (in case something else flips it)
-    _sub = _db.watchStoredThemeMode().listen((storedMode) {
+    _sub = _db.settingsDao.watchStoredThemeMode().listen((storedMode) {
       final nextMode = _toFlutter(storedMode);
       if (nextMode != _themeMode) {
         _themeMode = nextMode;
@@ -42,7 +43,7 @@ class ThemeNotifier extends ChangeNotifier {
     _themeMode = mode;
     notifyListeners();
 
-    await _db.setStoredThemeMode(_fromFlutter(mode));
+    await _db.settingsDao.setStoredThemeMode(_fromFlutter(mode));
   }
 
   // convenience toggles
@@ -73,8 +74,9 @@ class ThemeNotifier extends ChangeNotifier {
       case ThemeMode.dark:
         return StoredThemeMode.dark;
       case ThemeMode.system:
+        return StoredThemeMode.dark;
       default:
-        return StoredThemeMode.system;
+        return StoredThemeMode.dark;
     }
   }
 

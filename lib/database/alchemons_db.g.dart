@@ -1715,6 +1715,76 @@ class $CreatureInstancesTable extends CreatureInstances
         requiredDuringInsert: false,
         defaultValue: const Constant(4.0),
       );
+  static const VerificationMeta _generationDepthMeta = const VerificationMeta(
+    'generationDepth',
+  );
+  @override
+  late final GeneratedColumn<int> generationDepth = GeneratedColumn<int>(
+    'generation_depth',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _factionLineageJsonMeta =
+      const VerificationMeta('factionLineageJson');
+  @override
+  late final GeneratedColumn<String> factionLineageJson =
+      GeneratedColumn<String>(
+        'faction_lineage_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _variantFactionMeta = const VerificationMeta(
+    'variantFaction',
+  );
+  @override
+  late final GeneratedColumn<String> variantFaction = GeneratedColumn<String>(
+    'variant_faction',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isPureMeta = const VerificationMeta('isPure');
+  @override
+  late final GeneratedColumn<bool> isPure = GeneratedColumn<bool>(
+    'is_pure',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_pure" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _elementLineageJsonMeta =
+      const VerificationMeta('elementLineageJson');
+  @override
+  late final GeneratedColumn<String> elementLineageJson =
+      GeneratedColumn<String>(
+        'element_lineage_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _familyLineageJsonMeta = const VerificationMeta(
+    'familyLineageJson',
+  );
+  @override
+  late final GeneratedColumn<String> familyLineageJson =
+      GeneratedColumn<String>(
+        'family_lineage_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     instanceId,
@@ -1740,6 +1810,12 @@ class $CreatureInstancesTable extends CreatureInstances
     statIntelligencePotential,
     statStrengthPotential,
     statBeautyPotential,
+    generationDepth,
+    factionLineageJson,
+    variantFaction,
+    isPure,
+    elementLineageJson,
+    familyLineageJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1931,6 +2007,57 @@ class $CreatureInstancesTable extends CreatureInstances
         ),
       );
     }
+    if (data.containsKey('generation_depth')) {
+      context.handle(
+        _generationDepthMeta,
+        generationDepth.isAcceptableOrUnknown(
+          data['generation_depth']!,
+          _generationDepthMeta,
+        ),
+      );
+    }
+    if (data.containsKey('faction_lineage_json')) {
+      context.handle(
+        _factionLineageJsonMeta,
+        factionLineageJson.isAcceptableOrUnknown(
+          data['faction_lineage_json']!,
+          _factionLineageJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('variant_faction')) {
+      context.handle(
+        _variantFactionMeta,
+        variantFaction.isAcceptableOrUnknown(
+          data['variant_faction']!,
+          _variantFactionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_pure')) {
+      context.handle(
+        _isPureMeta,
+        isPure.isAcceptableOrUnknown(data['is_pure']!, _isPureMeta),
+      );
+    }
+    if (data.containsKey('element_lineage_json')) {
+      context.handle(
+        _elementLineageJsonMeta,
+        elementLineageJson.isAcceptableOrUnknown(
+          data['element_lineage_json']!,
+          _elementLineageJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('family_lineage_json')) {
+      context.handle(
+        _familyLineageJsonMeta,
+        familyLineageJson.isAcceptableOrUnknown(
+          data['family_lineage_json']!,
+          _familyLineageJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2032,6 +2159,30 @@ class $CreatureInstancesTable extends CreatureInstances
         DriftSqlType.double,
         data['${effectivePrefix}stat_beauty_potential'],
       )!,
+      generationDepth: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}generation_depth'],
+      )!,
+      factionLineageJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}faction_lineage_json'],
+      ),
+      variantFaction: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}variant_faction'],
+      ),
+      isPure: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_pure'],
+      )!,
+      elementLineageJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}element_lineage_json'],
+      ),
+      familyLineageJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}family_lineage_json'],
+      ),
     );
   }
 
@@ -2066,6 +2217,12 @@ class CreatureInstance extends DataClass
   final double statIntelligencePotential;
   final double statStrengthPotential;
   final double statBeautyPotential;
+  final int generationDepth;
+  final String? factionLineageJson;
+  final String? variantFaction;
+  final bool isPure;
+  final String? elementLineageJson;
+  final String? familyLineageJson;
   const CreatureInstance({
     required this.instanceId,
     required this.baseId,
@@ -2090,6 +2247,12 @@ class CreatureInstance extends DataClass
     required this.statIntelligencePotential,
     required this.statStrengthPotential,
     required this.statBeautyPotential,
+    required this.generationDepth,
+    this.factionLineageJson,
+    this.variantFaction,
+    required this.isPure,
+    this.elementLineageJson,
+    this.familyLineageJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2131,6 +2294,20 @@ class CreatureInstance extends DataClass
     );
     map['stat_strength_potential'] = Variable<double>(statStrengthPotential);
     map['stat_beauty_potential'] = Variable<double>(statBeautyPotential);
+    map['generation_depth'] = Variable<int>(generationDepth);
+    if (!nullToAbsent || factionLineageJson != null) {
+      map['faction_lineage_json'] = Variable<String>(factionLineageJson);
+    }
+    if (!nullToAbsent || variantFaction != null) {
+      map['variant_faction'] = Variable<String>(variantFaction);
+    }
+    map['is_pure'] = Variable<bool>(isPure);
+    if (!nullToAbsent || elementLineageJson != null) {
+      map['element_lineage_json'] = Variable<String>(elementLineageJson);
+    }
+    if (!nullToAbsent || familyLineageJson != null) {
+      map['family_lineage_json'] = Variable<String>(familyLineageJson);
+    }
     return map;
   }
 
@@ -2169,6 +2346,20 @@ class CreatureInstance extends DataClass
       statIntelligencePotential: Value(statIntelligencePotential),
       statStrengthPotential: Value(statStrengthPotential),
       statBeautyPotential: Value(statBeautyPotential),
+      generationDepth: Value(generationDepth),
+      factionLineageJson: factionLineageJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(factionLineageJson),
+      variantFaction: variantFaction == null && nullToAbsent
+          ? const Value.absent()
+          : Value(variantFaction),
+      isPure: Value(isPure),
+      elementLineageJson: elementLineageJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(elementLineageJson),
+      familyLineageJson: familyLineageJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(familyLineageJson),
     );
   }
 
@@ -2211,6 +2402,18 @@ class CreatureInstance extends DataClass
       statBeautyPotential: serializer.fromJson<double>(
         json['statBeautyPotential'],
       ),
+      generationDepth: serializer.fromJson<int>(json['generationDepth']),
+      factionLineageJson: serializer.fromJson<String?>(
+        json['factionLineageJson'],
+      ),
+      variantFaction: serializer.fromJson<String?>(json['variantFaction']),
+      isPure: serializer.fromJson<bool>(json['isPure']),
+      elementLineageJson: serializer.fromJson<String?>(
+        json['elementLineageJson'],
+      ),
+      familyLineageJson: serializer.fromJson<String?>(
+        json['familyLineageJson'],
+      ),
     );
   }
   @override
@@ -2244,6 +2447,12 @@ class CreatureInstance extends DataClass
       ),
       'statStrengthPotential': serializer.toJson<double>(statStrengthPotential),
       'statBeautyPotential': serializer.toJson<double>(statBeautyPotential),
+      'generationDepth': serializer.toJson<int>(generationDepth),
+      'factionLineageJson': serializer.toJson<String?>(factionLineageJson),
+      'variantFaction': serializer.toJson<String?>(variantFaction),
+      'isPure': serializer.toJson<bool>(isPure),
+      'elementLineageJson': serializer.toJson<String?>(elementLineageJson),
+      'familyLineageJson': serializer.toJson<String?>(familyLineageJson),
     };
   }
 
@@ -2271,6 +2480,12 @@ class CreatureInstance extends DataClass
     double? statIntelligencePotential,
     double? statStrengthPotential,
     double? statBeautyPotential,
+    int? generationDepth,
+    Value<String?> factionLineageJson = const Value.absent(),
+    Value<String?> variantFaction = const Value.absent(),
+    bool? isPure,
+    Value<String?> elementLineageJson = const Value.absent(),
+    Value<String?> familyLineageJson = const Value.absent(),
   }) => CreatureInstance(
     instanceId: instanceId ?? this.instanceId,
     baseId: baseId ?? this.baseId,
@@ -2300,6 +2515,20 @@ class CreatureInstance extends DataClass
         statIntelligencePotential ?? this.statIntelligencePotential,
     statStrengthPotential: statStrengthPotential ?? this.statStrengthPotential,
     statBeautyPotential: statBeautyPotential ?? this.statBeautyPotential,
+    generationDepth: generationDepth ?? this.generationDepth,
+    factionLineageJson: factionLineageJson.present
+        ? factionLineageJson.value
+        : this.factionLineageJson,
+    variantFaction: variantFaction.present
+        ? variantFaction.value
+        : this.variantFaction,
+    isPure: isPure ?? this.isPure,
+    elementLineageJson: elementLineageJson.present
+        ? elementLineageJson.value
+        : this.elementLineageJson,
+    familyLineageJson: familyLineageJson.present
+        ? familyLineageJson.value
+        : this.familyLineageJson,
   );
   CreatureInstance copyWithCompanion(CreatureInstancesCompanion data) {
     return CreatureInstance(
@@ -2358,6 +2587,22 @@ class CreatureInstance extends DataClass
       statBeautyPotential: data.statBeautyPotential.present
           ? data.statBeautyPotential.value
           : this.statBeautyPotential,
+      generationDepth: data.generationDepth.present
+          ? data.generationDepth.value
+          : this.generationDepth,
+      factionLineageJson: data.factionLineageJson.present
+          ? data.factionLineageJson.value
+          : this.factionLineageJson,
+      variantFaction: data.variantFaction.present
+          ? data.variantFaction.value
+          : this.variantFaction,
+      isPure: data.isPure.present ? data.isPure.value : this.isPure,
+      elementLineageJson: data.elementLineageJson.present
+          ? data.elementLineageJson.value
+          : this.elementLineageJson,
+      familyLineageJson: data.familyLineageJson.present
+          ? data.familyLineageJson.value
+          : this.familyLineageJson,
     );
   }
 
@@ -2386,7 +2631,13 @@ class CreatureInstance extends DataClass
           ..write('statSpeedPotential: $statSpeedPotential, ')
           ..write('statIntelligencePotential: $statIntelligencePotential, ')
           ..write('statStrengthPotential: $statStrengthPotential, ')
-          ..write('statBeautyPotential: $statBeautyPotential')
+          ..write('statBeautyPotential: $statBeautyPotential, ')
+          ..write('generationDepth: $generationDepth, ')
+          ..write('factionLineageJson: $factionLineageJson, ')
+          ..write('variantFaction: $variantFaction, ')
+          ..write('isPure: $isPure, ')
+          ..write('elementLineageJson: $elementLineageJson, ')
+          ..write('familyLineageJson: $familyLineageJson')
           ..write(')'))
         .toString();
   }
@@ -2416,6 +2667,12 @@ class CreatureInstance extends DataClass
     statIntelligencePotential,
     statStrengthPotential,
     statBeautyPotential,
+    generationDepth,
+    factionLineageJson,
+    variantFaction,
+    isPure,
+    elementLineageJson,
+    familyLineageJson,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -2443,7 +2700,13 @@ class CreatureInstance extends DataClass
           other.statSpeedPotential == this.statSpeedPotential &&
           other.statIntelligencePotential == this.statIntelligencePotential &&
           other.statStrengthPotential == this.statStrengthPotential &&
-          other.statBeautyPotential == this.statBeautyPotential);
+          other.statBeautyPotential == this.statBeautyPotential &&
+          other.generationDepth == this.generationDepth &&
+          other.factionLineageJson == this.factionLineageJson &&
+          other.variantFaction == this.variantFaction &&
+          other.isPure == this.isPure &&
+          other.elementLineageJson == this.elementLineageJson &&
+          other.familyLineageJson == this.familyLineageJson);
 }
 
 class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
@@ -2470,6 +2733,12 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
   final Value<double> statIntelligencePotential;
   final Value<double> statStrengthPotential;
   final Value<double> statBeautyPotential;
+  final Value<int> generationDepth;
+  final Value<String?> factionLineageJson;
+  final Value<String?> variantFaction;
+  final Value<bool> isPure;
+  final Value<String?> elementLineageJson;
+  final Value<String?> familyLineageJson;
   final Value<int> rowid;
   const CreatureInstancesCompanion({
     this.instanceId = const Value.absent(),
@@ -2495,6 +2764,12 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.statIntelligencePotential = const Value.absent(),
     this.statStrengthPotential = const Value.absent(),
     this.statBeautyPotential = const Value.absent(),
+    this.generationDepth = const Value.absent(),
+    this.factionLineageJson = const Value.absent(),
+    this.variantFaction = const Value.absent(),
+    this.isPure = const Value.absent(),
+    this.elementLineageJson = const Value.absent(),
+    this.familyLineageJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CreatureInstancesCompanion.insert({
@@ -2521,6 +2796,12 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.statIntelligencePotential = const Value.absent(),
     this.statStrengthPotential = const Value.absent(),
     this.statBeautyPotential = const Value.absent(),
+    this.generationDepth = const Value.absent(),
+    this.factionLineageJson = const Value.absent(),
+    this.variantFaction = const Value.absent(),
+    this.isPure = const Value.absent(),
+    this.elementLineageJson = const Value.absent(),
+    this.familyLineageJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : instanceId = Value(instanceId),
        baseId = Value(baseId);
@@ -2548,6 +2829,12 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Expression<double>? statIntelligencePotential,
     Expression<double>? statStrengthPotential,
     Expression<double>? statBeautyPotential,
+    Expression<int>? generationDepth,
+    Expression<String>? factionLineageJson,
+    Expression<String>? variantFaction,
+    Expression<bool>? isPure,
+    Expression<String>? elementLineageJson,
+    Expression<String>? familyLineageJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2579,6 +2866,14 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
         'stat_strength_potential': statStrengthPotential,
       if (statBeautyPotential != null)
         'stat_beauty_potential': statBeautyPotential,
+      if (generationDepth != null) 'generation_depth': generationDepth,
+      if (factionLineageJson != null)
+        'faction_lineage_json': factionLineageJson,
+      if (variantFaction != null) 'variant_faction': variantFaction,
+      if (isPure != null) 'is_pure': isPure,
+      if (elementLineageJson != null)
+        'element_lineage_json': elementLineageJson,
+      if (familyLineageJson != null) 'family_lineage_json': familyLineageJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2607,6 +2902,12 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Value<double>? statIntelligencePotential,
     Value<double>? statStrengthPotential,
     Value<double>? statBeautyPotential,
+    Value<int>? generationDepth,
+    Value<String?>? factionLineageJson,
+    Value<String?>? variantFaction,
+    Value<bool>? isPure,
+    Value<String?>? elementLineageJson,
+    Value<String?>? familyLineageJson,
     Value<int>? rowid,
   }) {
     return CreatureInstancesCompanion(
@@ -2636,6 +2937,12 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       statStrengthPotential:
           statStrengthPotential ?? this.statStrengthPotential,
       statBeautyPotential: statBeautyPotential ?? this.statBeautyPotential,
+      generationDepth: generationDepth ?? this.generationDepth,
+      factionLineageJson: factionLineageJson ?? this.factionLineageJson,
+      variantFaction: variantFaction ?? this.variantFaction,
+      isPure: isPure ?? this.isPure,
+      elementLineageJson: elementLineageJson ?? this.elementLineageJson,
+      familyLineageJson: familyLineageJson ?? this.familyLineageJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2720,6 +3027,24 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
         statBeautyPotential.value,
       );
     }
+    if (generationDepth.present) {
+      map['generation_depth'] = Variable<int>(generationDepth.value);
+    }
+    if (factionLineageJson.present) {
+      map['faction_lineage_json'] = Variable<String>(factionLineageJson.value);
+    }
+    if (variantFaction.present) {
+      map['variant_faction'] = Variable<String>(variantFaction.value);
+    }
+    if (isPure.present) {
+      map['is_pure'] = Variable<bool>(isPure.value);
+    }
+    if (elementLineageJson.present) {
+      map['element_lineage_json'] = Variable<String>(elementLineageJson.value);
+    }
+    if (familyLineageJson.present) {
+      map['family_lineage_json'] = Variable<String>(familyLineageJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2752,6 +3077,12 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
           ..write('statIntelligencePotential: $statIntelligencePotential, ')
           ..write('statStrengthPotential: $statStrengthPotential, ')
           ..write('statBeautyPotential: $statBeautyPotential, ')
+          ..write('generationDepth: $generationDepth, ')
+          ..write('factionLineageJson: $factionLineageJson, ')
+          ..write('variantFaction: $variantFaction, ')
+          ..write('isPure: $isPure, ')
+          ..write('elementLineageJson: $elementLineageJson, ')
+          ..write('familyLineageJson: $familyLineageJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4337,6 +4668,1623 @@ class CompetitionProgressCompanion
   }
 }
 
+class $ShopPurchasesTable extends ShopPurchases
+    with TableInfo<$ShopPurchasesTable, ShopPurchase> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ShopPurchasesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _offerIdMeta = const VerificationMeta(
+    'offerId',
+  );
+  @override
+  late final GeneratedColumn<String> offerId = GeneratedColumn<String>(
+    'offer_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _purchaseCountMeta = const VerificationMeta(
+    'purchaseCount',
+  );
+  @override
+  late final GeneratedColumn<int> purchaseCount = GeneratedColumn<int>(
+    'purchase_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastPurchaseUtcMsMeta = const VerificationMeta(
+    'lastPurchaseUtcMs',
+  );
+  @override
+  late final GeneratedColumn<int> lastPurchaseUtcMs = GeneratedColumn<int>(
+    'last_purchase_utc_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    offerId,
+    purchaseCount,
+    lastPurchaseUtcMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'shop_purchases';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ShopPurchase> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('offer_id')) {
+      context.handle(
+        _offerIdMeta,
+        offerId.isAcceptableOrUnknown(data['offer_id']!, _offerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_offerIdMeta);
+    }
+    if (data.containsKey('purchase_count')) {
+      context.handle(
+        _purchaseCountMeta,
+        purchaseCount.isAcceptableOrUnknown(
+          data['purchase_count']!,
+          _purchaseCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_purchase_utc_ms')) {
+      context.handle(
+        _lastPurchaseUtcMsMeta,
+        lastPurchaseUtcMs.isAcceptableOrUnknown(
+          data['last_purchase_utc_ms']!,
+          _lastPurchaseUtcMsMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {offerId};
+  @override
+  ShopPurchase map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ShopPurchase(
+      offerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}offer_id'],
+      )!,
+      purchaseCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}purchase_count'],
+      )!,
+      lastPurchaseUtcMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_purchase_utc_ms'],
+      ),
+    );
+  }
+
+  @override
+  $ShopPurchasesTable createAlias(String alias) {
+    return $ShopPurchasesTable(attachedDatabase, alias);
+  }
+}
+
+class ShopPurchase extends DataClass implements Insertable<ShopPurchase> {
+  final String offerId;
+  final int purchaseCount;
+  final int? lastPurchaseUtcMs;
+  const ShopPurchase({
+    required this.offerId,
+    required this.purchaseCount,
+    this.lastPurchaseUtcMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['offer_id'] = Variable<String>(offerId);
+    map['purchase_count'] = Variable<int>(purchaseCount);
+    if (!nullToAbsent || lastPurchaseUtcMs != null) {
+      map['last_purchase_utc_ms'] = Variable<int>(lastPurchaseUtcMs);
+    }
+    return map;
+  }
+
+  ShopPurchasesCompanion toCompanion(bool nullToAbsent) {
+    return ShopPurchasesCompanion(
+      offerId: Value(offerId),
+      purchaseCount: Value(purchaseCount),
+      lastPurchaseUtcMs: lastPurchaseUtcMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPurchaseUtcMs),
+    );
+  }
+
+  factory ShopPurchase.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ShopPurchase(
+      offerId: serializer.fromJson<String>(json['offerId']),
+      purchaseCount: serializer.fromJson<int>(json['purchaseCount']),
+      lastPurchaseUtcMs: serializer.fromJson<int?>(json['lastPurchaseUtcMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'offerId': serializer.toJson<String>(offerId),
+      'purchaseCount': serializer.toJson<int>(purchaseCount),
+      'lastPurchaseUtcMs': serializer.toJson<int?>(lastPurchaseUtcMs),
+    };
+  }
+
+  ShopPurchase copyWith({
+    String? offerId,
+    int? purchaseCount,
+    Value<int?> lastPurchaseUtcMs = const Value.absent(),
+  }) => ShopPurchase(
+    offerId: offerId ?? this.offerId,
+    purchaseCount: purchaseCount ?? this.purchaseCount,
+    lastPurchaseUtcMs: lastPurchaseUtcMs.present
+        ? lastPurchaseUtcMs.value
+        : this.lastPurchaseUtcMs,
+  );
+  ShopPurchase copyWithCompanion(ShopPurchasesCompanion data) {
+    return ShopPurchase(
+      offerId: data.offerId.present ? data.offerId.value : this.offerId,
+      purchaseCount: data.purchaseCount.present
+          ? data.purchaseCount.value
+          : this.purchaseCount,
+      lastPurchaseUtcMs: data.lastPurchaseUtcMs.present
+          ? data.lastPurchaseUtcMs.value
+          : this.lastPurchaseUtcMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ShopPurchase(')
+          ..write('offerId: $offerId, ')
+          ..write('purchaseCount: $purchaseCount, ')
+          ..write('lastPurchaseUtcMs: $lastPurchaseUtcMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(offerId, purchaseCount, lastPurchaseUtcMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ShopPurchase &&
+          other.offerId == this.offerId &&
+          other.purchaseCount == this.purchaseCount &&
+          other.lastPurchaseUtcMs == this.lastPurchaseUtcMs);
+}
+
+class ShopPurchasesCompanion extends UpdateCompanion<ShopPurchase> {
+  final Value<String> offerId;
+  final Value<int> purchaseCount;
+  final Value<int?> lastPurchaseUtcMs;
+  final Value<int> rowid;
+  const ShopPurchasesCompanion({
+    this.offerId = const Value.absent(),
+    this.purchaseCount = const Value.absent(),
+    this.lastPurchaseUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ShopPurchasesCompanion.insert({
+    required String offerId,
+    this.purchaseCount = const Value.absent(),
+    this.lastPurchaseUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : offerId = Value(offerId);
+  static Insertable<ShopPurchase> custom({
+    Expression<String>? offerId,
+    Expression<int>? purchaseCount,
+    Expression<int>? lastPurchaseUtcMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (offerId != null) 'offer_id': offerId,
+      if (purchaseCount != null) 'purchase_count': purchaseCount,
+      if (lastPurchaseUtcMs != null) 'last_purchase_utc_ms': lastPurchaseUtcMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ShopPurchasesCompanion copyWith({
+    Value<String>? offerId,
+    Value<int>? purchaseCount,
+    Value<int?>? lastPurchaseUtcMs,
+    Value<int>? rowid,
+  }) {
+    return ShopPurchasesCompanion(
+      offerId: offerId ?? this.offerId,
+      purchaseCount: purchaseCount ?? this.purchaseCount,
+      lastPurchaseUtcMs: lastPurchaseUtcMs ?? this.lastPurchaseUtcMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (offerId.present) {
+      map['offer_id'] = Variable<String>(offerId.value);
+    }
+    if (purchaseCount.present) {
+      map['purchase_count'] = Variable<int>(purchaseCount.value);
+    }
+    if (lastPurchaseUtcMs.present) {
+      map['last_purchase_utc_ms'] = Variable<int>(lastPurchaseUtcMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ShopPurchasesCompanion(')
+          ..write('offerId: $offerId, ')
+          ..write('purchaseCount: $purchaseCount, ')
+          ..write('lastPurchaseUtcMs: $lastPurchaseUtcMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $InventoryItemsTable extends InventoryItems
+    with TableInfo<$InventoryItemsTable, InventoryItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $InventoryItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _qtyMeta = const VerificationMeta('qty');
+  @override
+  late final GeneratedColumn<int> qty = GeneratedColumn<int>(
+    'qty',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, qty];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'inventory_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<InventoryItem> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('qty')) {
+      context.handle(
+        _qtyMeta,
+        qty.isAcceptableOrUnknown(data['qty']!, _qtyMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  InventoryItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return InventoryItem(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      qty: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}qty'],
+      )!,
+    );
+  }
+
+  @override
+  $InventoryItemsTable createAlias(String alias) {
+    return $InventoryItemsTable(attachedDatabase, alias);
+  }
+}
+
+class InventoryItem extends DataClass implements Insertable<InventoryItem> {
+  final String key;
+  final int qty;
+  const InventoryItem({required this.key, required this.qty});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['qty'] = Variable<int>(qty);
+    return map;
+  }
+
+  InventoryItemsCompanion toCompanion(bool nullToAbsent) {
+    return InventoryItemsCompanion(key: Value(key), qty: Value(qty));
+  }
+
+  factory InventoryItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return InventoryItem(
+      key: serializer.fromJson<String>(json['key']),
+      qty: serializer.fromJson<int>(json['qty']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'qty': serializer.toJson<int>(qty),
+    };
+  }
+
+  InventoryItem copyWith({String? key, int? qty}) =>
+      InventoryItem(key: key ?? this.key, qty: qty ?? this.qty);
+  InventoryItem copyWithCompanion(InventoryItemsCompanion data) {
+    return InventoryItem(
+      key: data.key.present ? data.key.value : this.key,
+      qty: data.qty.present ? data.qty.value : this.qty,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InventoryItem(')
+          ..write('key: $key, ')
+          ..write('qty: $qty')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, qty);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is InventoryItem &&
+          other.key == this.key &&
+          other.qty == this.qty);
+}
+
+class InventoryItemsCompanion extends UpdateCompanion<InventoryItem> {
+  final Value<String> key;
+  final Value<int> qty;
+  final Value<int> rowid;
+  const InventoryItemsCompanion({
+    this.key = const Value.absent(),
+    this.qty = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  InventoryItemsCompanion.insert({
+    required String key,
+    this.qty = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : key = Value(key);
+  static Insertable<InventoryItem> custom({
+    Expression<String>? key,
+    Expression<int>? qty,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (qty != null) 'qty': qty,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  InventoryItemsCompanion copyWith({
+    Value<String>? key,
+    Value<int>? qty,
+    Value<int>? rowid,
+  }) {
+    return InventoryItemsCompanion(
+      key: key ?? this.key,
+      qty: qty ?? this.qty,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (qty.present) {
+      map['qty'] = Variable<int>(qty.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InventoryItemsCompanion(')
+          ..write('key: $key, ')
+          ..write('qty: $qty, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ActiveSpawnsTable extends ActiveSpawns
+    with TableInfo<$ActiveSpawnsTable, ActiveSpawn> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ActiveSpawnsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sceneIdMeta = const VerificationMeta(
+    'sceneId',
+  );
+  @override
+  late final GeneratedColumn<String> sceneId = GeneratedColumn<String>(
+    'scene_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _spawnPointIdMeta = const VerificationMeta(
+    'spawnPointId',
+  );
+  @override
+  late final GeneratedColumn<String> spawnPointId = GeneratedColumn<String>(
+    'spawn_point_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _speciesIdMeta = const VerificationMeta(
+    'speciesId',
+  );
+  @override
+  late final GeneratedColumn<String> speciesId = GeneratedColumn<String>(
+    'species_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rarityMeta = const VerificationMeta('rarity');
+  @override
+  late final GeneratedColumn<String> rarity = GeneratedColumn<String>(
+    'rarity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _spawnedAtUtcMsMeta = const VerificationMeta(
+    'spawnedAtUtcMs',
+  );
+  @override
+  late final GeneratedColumn<int> spawnedAtUtcMs = GeneratedColumn<int>(
+    'spawned_at_utc_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sceneId,
+    spawnPointId,
+    speciesId,
+    rarity,
+    spawnedAtUtcMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'active_spawns';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ActiveSpawn> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('scene_id')) {
+      context.handle(
+        _sceneIdMeta,
+        sceneId.isAcceptableOrUnknown(data['scene_id']!, _sceneIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sceneIdMeta);
+    }
+    if (data.containsKey('spawn_point_id')) {
+      context.handle(
+        _spawnPointIdMeta,
+        spawnPointId.isAcceptableOrUnknown(
+          data['spawn_point_id']!,
+          _spawnPointIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_spawnPointIdMeta);
+    }
+    if (data.containsKey('species_id')) {
+      context.handle(
+        _speciesIdMeta,
+        speciesId.isAcceptableOrUnknown(data['species_id']!, _speciesIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_speciesIdMeta);
+    }
+    if (data.containsKey('rarity')) {
+      context.handle(
+        _rarityMeta,
+        rarity.isAcceptableOrUnknown(data['rarity']!, _rarityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rarityMeta);
+    }
+    if (data.containsKey('spawned_at_utc_ms')) {
+      context.handle(
+        _spawnedAtUtcMsMeta,
+        spawnedAtUtcMs.isAcceptableOrUnknown(
+          data['spawned_at_utc_ms']!,
+          _spawnedAtUtcMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_spawnedAtUtcMsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ActiveSpawn map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ActiveSpawn(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      sceneId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scene_id'],
+      )!,
+      spawnPointId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}spawn_point_id'],
+      )!,
+      speciesId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}species_id'],
+      )!,
+      rarity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rarity'],
+      )!,
+      spawnedAtUtcMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}spawned_at_utc_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $ActiveSpawnsTable createAlias(String alias) {
+    return $ActiveSpawnsTable(attachedDatabase, alias);
+  }
+}
+
+class ActiveSpawn extends DataClass implements Insertable<ActiveSpawn> {
+  /// Composite primary key: "sceneId_spawnPointId"
+  /// Example: "valley_spawn_1", "volcano_spawn_3"
+  final String id;
+
+  /// The scene/biome where this spawn exists
+  /// Example: "valley", "volcano", "sky", "swamp"
+  final String sceneId;
+
+  /// The specific spawn point ID within the scene
+  /// Example: "spawn_1", "spawn_2", etc.
+  final String spawnPointId;
+
+  /// The species ID of the spawned creature
+  /// Example: "aetherwing", "emberfox"
+  final String speciesId;
+
+  /// The rarity of this encounter
+  /// Values: "common", "uncommon", "rare", "epic", "legendary", "mythic"
+  final String rarity;
+
+  /// When this spawn was created (UTC milliseconds)
+  /// Used for potential future features like spawn expiry
+  final int spawnedAtUtcMs;
+  const ActiveSpawn({
+    required this.id,
+    required this.sceneId,
+    required this.spawnPointId,
+    required this.speciesId,
+    required this.rarity,
+    required this.spawnedAtUtcMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['scene_id'] = Variable<String>(sceneId);
+    map['spawn_point_id'] = Variable<String>(spawnPointId);
+    map['species_id'] = Variable<String>(speciesId);
+    map['rarity'] = Variable<String>(rarity);
+    map['spawned_at_utc_ms'] = Variable<int>(spawnedAtUtcMs);
+    return map;
+  }
+
+  ActiveSpawnsCompanion toCompanion(bool nullToAbsent) {
+    return ActiveSpawnsCompanion(
+      id: Value(id),
+      sceneId: Value(sceneId),
+      spawnPointId: Value(spawnPointId),
+      speciesId: Value(speciesId),
+      rarity: Value(rarity),
+      spawnedAtUtcMs: Value(spawnedAtUtcMs),
+    );
+  }
+
+  factory ActiveSpawn.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ActiveSpawn(
+      id: serializer.fromJson<String>(json['id']),
+      sceneId: serializer.fromJson<String>(json['sceneId']),
+      spawnPointId: serializer.fromJson<String>(json['spawnPointId']),
+      speciesId: serializer.fromJson<String>(json['speciesId']),
+      rarity: serializer.fromJson<String>(json['rarity']),
+      spawnedAtUtcMs: serializer.fromJson<int>(json['spawnedAtUtcMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'sceneId': serializer.toJson<String>(sceneId),
+      'spawnPointId': serializer.toJson<String>(spawnPointId),
+      'speciesId': serializer.toJson<String>(speciesId),
+      'rarity': serializer.toJson<String>(rarity),
+      'spawnedAtUtcMs': serializer.toJson<int>(spawnedAtUtcMs),
+    };
+  }
+
+  ActiveSpawn copyWith({
+    String? id,
+    String? sceneId,
+    String? spawnPointId,
+    String? speciesId,
+    String? rarity,
+    int? spawnedAtUtcMs,
+  }) => ActiveSpawn(
+    id: id ?? this.id,
+    sceneId: sceneId ?? this.sceneId,
+    spawnPointId: spawnPointId ?? this.spawnPointId,
+    speciesId: speciesId ?? this.speciesId,
+    rarity: rarity ?? this.rarity,
+    spawnedAtUtcMs: spawnedAtUtcMs ?? this.spawnedAtUtcMs,
+  );
+  ActiveSpawn copyWithCompanion(ActiveSpawnsCompanion data) {
+    return ActiveSpawn(
+      id: data.id.present ? data.id.value : this.id,
+      sceneId: data.sceneId.present ? data.sceneId.value : this.sceneId,
+      spawnPointId: data.spawnPointId.present
+          ? data.spawnPointId.value
+          : this.spawnPointId,
+      speciesId: data.speciesId.present ? data.speciesId.value : this.speciesId,
+      rarity: data.rarity.present ? data.rarity.value : this.rarity,
+      spawnedAtUtcMs: data.spawnedAtUtcMs.present
+          ? data.spawnedAtUtcMs.value
+          : this.spawnedAtUtcMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ActiveSpawn(')
+          ..write('id: $id, ')
+          ..write('sceneId: $sceneId, ')
+          ..write('spawnPointId: $spawnPointId, ')
+          ..write('speciesId: $speciesId, ')
+          ..write('rarity: $rarity, ')
+          ..write('spawnedAtUtcMs: $spawnedAtUtcMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, sceneId, spawnPointId, speciesId, rarity, spawnedAtUtcMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ActiveSpawn &&
+          other.id == this.id &&
+          other.sceneId == this.sceneId &&
+          other.spawnPointId == this.spawnPointId &&
+          other.speciesId == this.speciesId &&
+          other.rarity == this.rarity &&
+          other.spawnedAtUtcMs == this.spawnedAtUtcMs);
+}
+
+class ActiveSpawnsCompanion extends UpdateCompanion<ActiveSpawn> {
+  final Value<String> id;
+  final Value<String> sceneId;
+  final Value<String> spawnPointId;
+  final Value<String> speciesId;
+  final Value<String> rarity;
+  final Value<int> spawnedAtUtcMs;
+  final Value<int> rowid;
+  const ActiveSpawnsCompanion({
+    this.id = const Value.absent(),
+    this.sceneId = const Value.absent(),
+    this.spawnPointId = const Value.absent(),
+    this.speciesId = const Value.absent(),
+    this.rarity = const Value.absent(),
+    this.spawnedAtUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ActiveSpawnsCompanion.insert({
+    required String id,
+    required String sceneId,
+    required String spawnPointId,
+    required String speciesId,
+    required String rarity,
+    required int spawnedAtUtcMs,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       sceneId = Value(sceneId),
+       spawnPointId = Value(spawnPointId),
+       speciesId = Value(speciesId),
+       rarity = Value(rarity),
+       spawnedAtUtcMs = Value(spawnedAtUtcMs);
+  static Insertable<ActiveSpawn> custom({
+    Expression<String>? id,
+    Expression<String>? sceneId,
+    Expression<String>? spawnPointId,
+    Expression<String>? speciesId,
+    Expression<String>? rarity,
+    Expression<int>? spawnedAtUtcMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sceneId != null) 'scene_id': sceneId,
+      if (spawnPointId != null) 'spawn_point_id': spawnPointId,
+      if (speciesId != null) 'species_id': speciesId,
+      if (rarity != null) 'rarity': rarity,
+      if (spawnedAtUtcMs != null) 'spawned_at_utc_ms': spawnedAtUtcMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ActiveSpawnsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? sceneId,
+    Value<String>? spawnPointId,
+    Value<String>? speciesId,
+    Value<String>? rarity,
+    Value<int>? spawnedAtUtcMs,
+    Value<int>? rowid,
+  }) {
+    return ActiveSpawnsCompanion(
+      id: id ?? this.id,
+      sceneId: sceneId ?? this.sceneId,
+      spawnPointId: spawnPointId ?? this.spawnPointId,
+      speciesId: speciesId ?? this.speciesId,
+      rarity: rarity ?? this.rarity,
+      spawnedAtUtcMs: spawnedAtUtcMs ?? this.spawnedAtUtcMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (sceneId.present) {
+      map['scene_id'] = Variable<String>(sceneId.value);
+    }
+    if (spawnPointId.present) {
+      map['spawn_point_id'] = Variable<String>(spawnPointId.value);
+    }
+    if (speciesId.present) {
+      map['species_id'] = Variable<String>(speciesId.value);
+    }
+    if (rarity.present) {
+      map['rarity'] = Variable<String>(rarity.value);
+    }
+    if (spawnedAtUtcMs.present) {
+      map['spawned_at_utc_ms'] = Variable<int>(spawnedAtUtcMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ActiveSpawnsCompanion(')
+          ..write('id: $id, ')
+          ..write('sceneId: $sceneId, ')
+          ..write('spawnPointId: $spawnPointId, ')
+          ..write('speciesId: $speciesId, ')
+          ..write('rarity: $rarity, ')
+          ..write('spawnedAtUtcMs: $spawnedAtUtcMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ActiveSceneEntryTable extends ActiveSceneEntry
+    with TableInfo<$ActiveSceneEntryTable, ActiveSceneEntryData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ActiveSceneEntryTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _sceneIdMeta = const VerificationMeta(
+    'sceneId',
+  );
+  @override
+  late final GeneratedColumn<String> sceneId = GeneratedColumn<String>(
+    'scene_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _enteredAtUtcMsMeta = const VerificationMeta(
+    'enteredAtUtcMs',
+  );
+  @override
+  late final GeneratedColumn<int> enteredAtUtcMs = GeneratedColumn<int>(
+    'entered_at_utc_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [sceneId, enteredAtUtcMs];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'active_scene_entry';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ActiveSceneEntryData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('scene_id')) {
+      context.handle(
+        _sceneIdMeta,
+        sceneId.isAcceptableOrUnknown(data['scene_id']!, _sceneIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sceneIdMeta);
+    }
+    if (data.containsKey('entered_at_utc_ms')) {
+      context.handle(
+        _enteredAtUtcMsMeta,
+        enteredAtUtcMs.isAcceptableOrUnknown(
+          data['entered_at_utc_ms']!,
+          _enteredAtUtcMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_enteredAtUtcMsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {sceneId};
+  @override
+  ActiveSceneEntryData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ActiveSceneEntryData(
+      sceneId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scene_id'],
+      )!,
+      enteredAtUtcMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}entered_at_utc_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $ActiveSceneEntryTable createAlias(String alias) {
+    return $ActiveSceneEntryTable(attachedDatabase, alias);
+  }
+}
+
+class ActiveSceneEntryData extends DataClass
+    implements Insertable<ActiveSceneEntryData> {
+  /// The scene ID the user is currently in
+  /// Example: "valley", "volcano", "sky", "swamp"
+  final String sceneId;
+
+  /// When the user entered this scene (UTC milliseconds)
+  final int enteredAtUtcMs;
+  const ActiveSceneEntryData({
+    required this.sceneId,
+    required this.enteredAtUtcMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['scene_id'] = Variable<String>(sceneId);
+    map['entered_at_utc_ms'] = Variable<int>(enteredAtUtcMs);
+    return map;
+  }
+
+  ActiveSceneEntryCompanion toCompanion(bool nullToAbsent) {
+    return ActiveSceneEntryCompanion(
+      sceneId: Value(sceneId),
+      enteredAtUtcMs: Value(enteredAtUtcMs),
+    );
+  }
+
+  factory ActiveSceneEntryData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ActiveSceneEntryData(
+      sceneId: serializer.fromJson<String>(json['sceneId']),
+      enteredAtUtcMs: serializer.fromJson<int>(json['enteredAtUtcMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'sceneId': serializer.toJson<String>(sceneId),
+      'enteredAtUtcMs': serializer.toJson<int>(enteredAtUtcMs),
+    };
+  }
+
+  ActiveSceneEntryData copyWith({String? sceneId, int? enteredAtUtcMs}) =>
+      ActiveSceneEntryData(
+        sceneId: sceneId ?? this.sceneId,
+        enteredAtUtcMs: enteredAtUtcMs ?? this.enteredAtUtcMs,
+      );
+  ActiveSceneEntryData copyWithCompanion(ActiveSceneEntryCompanion data) {
+    return ActiveSceneEntryData(
+      sceneId: data.sceneId.present ? data.sceneId.value : this.sceneId,
+      enteredAtUtcMs: data.enteredAtUtcMs.present
+          ? data.enteredAtUtcMs.value
+          : this.enteredAtUtcMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ActiveSceneEntryData(')
+          ..write('sceneId: $sceneId, ')
+          ..write('enteredAtUtcMs: $enteredAtUtcMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(sceneId, enteredAtUtcMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ActiveSceneEntryData &&
+          other.sceneId == this.sceneId &&
+          other.enteredAtUtcMs == this.enteredAtUtcMs);
+}
+
+class ActiveSceneEntryCompanion extends UpdateCompanion<ActiveSceneEntryData> {
+  final Value<String> sceneId;
+  final Value<int> enteredAtUtcMs;
+  final Value<int> rowid;
+  const ActiveSceneEntryCompanion({
+    this.sceneId = const Value.absent(),
+    this.enteredAtUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ActiveSceneEntryCompanion.insert({
+    required String sceneId,
+    required int enteredAtUtcMs,
+    this.rowid = const Value.absent(),
+  }) : sceneId = Value(sceneId),
+       enteredAtUtcMs = Value(enteredAtUtcMs);
+  static Insertable<ActiveSceneEntryData> custom({
+    Expression<String>? sceneId,
+    Expression<int>? enteredAtUtcMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (sceneId != null) 'scene_id': sceneId,
+      if (enteredAtUtcMs != null) 'entered_at_utc_ms': enteredAtUtcMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ActiveSceneEntryCompanion copyWith({
+    Value<String>? sceneId,
+    Value<int>? enteredAtUtcMs,
+    Value<int>? rowid,
+  }) {
+    return ActiveSceneEntryCompanion(
+      sceneId: sceneId ?? this.sceneId,
+      enteredAtUtcMs: enteredAtUtcMs ?? this.enteredAtUtcMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (sceneId.present) {
+      map['scene_id'] = Variable<String>(sceneId.value);
+    }
+    if (enteredAtUtcMs.present) {
+      map['entered_at_utc_ms'] = Variable<int>(enteredAtUtcMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ActiveSceneEntryCompanion(')
+          ..write('sceneId: $sceneId, ')
+          ..write('enteredAtUtcMs: $enteredAtUtcMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SpawnScheduleTable extends SpawnSchedule
+    with TableInfo<$SpawnScheduleTable, SpawnScheduleData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SpawnScheduleTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _sceneIdMeta = const VerificationMeta(
+    'sceneId',
+  );
+  @override
+  late final GeneratedColumn<String> sceneId = GeneratedColumn<String>(
+    'scene_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dueAtUtcMsMeta = const VerificationMeta(
+    'dueAtUtcMs',
+  );
+  @override
+  late final GeneratedColumn<int> dueAtUtcMs = GeneratedColumn<int>(
+    'due_at_utc_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [sceneId, dueAtUtcMs];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'spawn_schedule';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SpawnScheduleData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('scene_id')) {
+      context.handle(
+        _sceneIdMeta,
+        sceneId.isAcceptableOrUnknown(data['scene_id']!, _sceneIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sceneIdMeta);
+    }
+    if (data.containsKey('due_at_utc_ms')) {
+      context.handle(
+        _dueAtUtcMsMeta,
+        dueAtUtcMs.isAcceptableOrUnknown(
+          data['due_at_utc_ms']!,
+          _dueAtUtcMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_dueAtUtcMsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {sceneId};
+  @override
+  SpawnScheduleData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SpawnScheduleData(
+      sceneId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scene_id'],
+      )!,
+      dueAtUtcMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}due_at_utc_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $SpawnScheduleTable createAlias(String alias) {
+    return $SpawnScheduleTable(attachedDatabase, alias);
+  }
+}
+
+class SpawnScheduleData extends DataClass
+    implements Insertable<SpawnScheduleData> {
+  final String sceneId;
+  final int dueAtUtcMs;
+  const SpawnScheduleData({required this.sceneId, required this.dueAtUtcMs});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['scene_id'] = Variable<String>(sceneId);
+    map['due_at_utc_ms'] = Variable<int>(dueAtUtcMs);
+    return map;
+  }
+
+  SpawnScheduleCompanion toCompanion(bool nullToAbsent) {
+    return SpawnScheduleCompanion(
+      sceneId: Value(sceneId),
+      dueAtUtcMs: Value(dueAtUtcMs),
+    );
+  }
+
+  factory SpawnScheduleData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SpawnScheduleData(
+      sceneId: serializer.fromJson<String>(json['sceneId']),
+      dueAtUtcMs: serializer.fromJson<int>(json['dueAtUtcMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'sceneId': serializer.toJson<String>(sceneId),
+      'dueAtUtcMs': serializer.toJson<int>(dueAtUtcMs),
+    };
+  }
+
+  SpawnScheduleData copyWith({String? sceneId, int? dueAtUtcMs}) =>
+      SpawnScheduleData(
+        sceneId: sceneId ?? this.sceneId,
+        dueAtUtcMs: dueAtUtcMs ?? this.dueAtUtcMs,
+      );
+  SpawnScheduleData copyWithCompanion(SpawnScheduleCompanion data) {
+    return SpawnScheduleData(
+      sceneId: data.sceneId.present ? data.sceneId.value : this.sceneId,
+      dueAtUtcMs: data.dueAtUtcMs.present
+          ? data.dueAtUtcMs.value
+          : this.dueAtUtcMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SpawnScheduleData(')
+          ..write('sceneId: $sceneId, ')
+          ..write('dueAtUtcMs: $dueAtUtcMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(sceneId, dueAtUtcMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SpawnScheduleData &&
+          other.sceneId == this.sceneId &&
+          other.dueAtUtcMs == this.dueAtUtcMs);
+}
+
+class SpawnScheduleCompanion extends UpdateCompanion<SpawnScheduleData> {
+  final Value<String> sceneId;
+  final Value<int> dueAtUtcMs;
+  final Value<int> rowid;
+  const SpawnScheduleCompanion({
+    this.sceneId = const Value.absent(),
+    this.dueAtUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SpawnScheduleCompanion.insert({
+    required String sceneId,
+    required int dueAtUtcMs,
+    this.rowid = const Value.absent(),
+  }) : sceneId = Value(sceneId),
+       dueAtUtcMs = Value(dueAtUtcMs);
+  static Insertable<SpawnScheduleData> custom({
+    Expression<String>? sceneId,
+    Expression<int>? dueAtUtcMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (sceneId != null) 'scene_id': sceneId,
+      if (dueAtUtcMs != null) 'due_at_utc_ms': dueAtUtcMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SpawnScheduleCompanion copyWith({
+    Value<String>? sceneId,
+    Value<int>? dueAtUtcMs,
+    Value<int>? rowid,
+  }) {
+    return SpawnScheduleCompanion(
+      sceneId: sceneId ?? this.sceneId,
+      dueAtUtcMs: dueAtUtcMs ?? this.dueAtUtcMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (sceneId.present) {
+      map['scene_id'] = Variable<String>(sceneId.value);
+    }
+    if (dueAtUtcMs.present) {
+      map['due_at_utc_ms'] = Variable<int>(dueAtUtcMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SpawnScheduleCompanion(')
+          ..write('sceneId: $sceneId, ')
+          ..write('dueAtUtcMs: $dueAtUtcMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $NotificationDismissalsTable extends NotificationDismissals
+    with TableInfo<$NotificationDismissalsTable, NotificationDismissal> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NotificationDismissalsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _notificationTypeMeta = const VerificationMeta(
+    'notificationType',
+  );
+  @override
+  late final GeneratedColumn<String> notificationType = GeneratedColumn<String>(
+    'notification_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dismissedAtUtcMsMeta = const VerificationMeta(
+    'dismissedAtUtcMs',
+  );
+  @override
+  late final GeneratedColumn<int> dismissedAtUtcMs = GeneratedColumn<int>(
+    'dismissed_at_utc_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [notificationType, dismissedAtUtcMs];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'notification_dismissals';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NotificationDismissal> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('notification_type')) {
+      context.handle(
+        _notificationTypeMeta,
+        notificationType.isAcceptableOrUnknown(
+          data['notification_type']!,
+          _notificationTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_notificationTypeMeta);
+    }
+    if (data.containsKey('dismissed_at_utc_ms')) {
+      context.handle(
+        _dismissedAtUtcMsMeta,
+        dismissedAtUtcMs.isAcceptableOrUnknown(
+          data['dismissed_at_utc_ms']!,
+          _dismissedAtUtcMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_dismissedAtUtcMsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {notificationType};
+  @override
+  NotificationDismissal map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NotificationDismissal(
+      notificationType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notification_type'],
+      )!,
+      dismissedAtUtcMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}dismissed_at_utc_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $NotificationDismissalsTable createAlias(String alias) {
+    return $NotificationDismissalsTable(attachedDatabase, alias);
+  }
+}
+
+class NotificationDismissal extends DataClass
+    implements Insertable<NotificationDismissal> {
+  final String notificationType;
+  final int dismissedAtUtcMs;
+  const NotificationDismissal({
+    required this.notificationType,
+    required this.dismissedAtUtcMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['notification_type'] = Variable<String>(notificationType);
+    map['dismissed_at_utc_ms'] = Variable<int>(dismissedAtUtcMs);
+    return map;
+  }
+
+  NotificationDismissalsCompanion toCompanion(bool nullToAbsent) {
+    return NotificationDismissalsCompanion(
+      notificationType: Value(notificationType),
+      dismissedAtUtcMs: Value(dismissedAtUtcMs),
+    );
+  }
+
+  factory NotificationDismissal.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NotificationDismissal(
+      notificationType: serializer.fromJson<String>(json['notificationType']),
+      dismissedAtUtcMs: serializer.fromJson<int>(json['dismissedAtUtcMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'notificationType': serializer.toJson<String>(notificationType),
+      'dismissedAtUtcMs': serializer.toJson<int>(dismissedAtUtcMs),
+    };
+  }
+
+  NotificationDismissal copyWith({
+    String? notificationType,
+    int? dismissedAtUtcMs,
+  }) => NotificationDismissal(
+    notificationType: notificationType ?? this.notificationType,
+    dismissedAtUtcMs: dismissedAtUtcMs ?? this.dismissedAtUtcMs,
+  );
+  NotificationDismissal copyWithCompanion(
+    NotificationDismissalsCompanion data,
+  ) {
+    return NotificationDismissal(
+      notificationType: data.notificationType.present
+          ? data.notificationType.value
+          : this.notificationType,
+      dismissedAtUtcMs: data.dismissedAtUtcMs.present
+          ? data.dismissedAtUtcMs.value
+          : this.dismissedAtUtcMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationDismissal(')
+          ..write('notificationType: $notificationType, ')
+          ..write('dismissedAtUtcMs: $dismissedAtUtcMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(notificationType, dismissedAtUtcMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NotificationDismissal &&
+          other.notificationType == this.notificationType &&
+          other.dismissedAtUtcMs == this.dismissedAtUtcMs);
+}
+
+class NotificationDismissalsCompanion
+    extends UpdateCompanion<NotificationDismissal> {
+  final Value<String> notificationType;
+  final Value<int> dismissedAtUtcMs;
+  final Value<int> rowid;
+  const NotificationDismissalsCompanion({
+    this.notificationType = const Value.absent(),
+    this.dismissedAtUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NotificationDismissalsCompanion.insert({
+    required String notificationType,
+    required int dismissedAtUtcMs,
+    this.rowid = const Value.absent(),
+  }) : notificationType = Value(notificationType),
+       dismissedAtUtcMs = Value(dismissedAtUtcMs);
+  static Insertable<NotificationDismissal> custom({
+    Expression<String>? notificationType,
+    Expression<int>? dismissedAtUtcMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (notificationType != null) 'notification_type': notificationType,
+      if (dismissedAtUtcMs != null) 'dismissed_at_utc_ms': dismissedAtUtcMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NotificationDismissalsCompanion copyWith({
+    Value<String>? notificationType,
+    Value<int>? dismissedAtUtcMs,
+    Value<int>? rowid,
+  }) {
+    return NotificationDismissalsCompanion(
+      notificationType: notificationType ?? this.notificationType,
+      dismissedAtUtcMs: dismissedAtUtcMs ?? this.dismissedAtUtcMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (notificationType.present) {
+      map['notification_type'] = Variable<String>(notificationType.value);
+    }
+    if (dismissedAtUtcMs.present) {
+      map['dismissed_at_utc_ms'] = Variable<int>(dismissedAtUtcMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotificationDismissalsCompanion(')
+          ..write('notificationType: $notificationType, ')
+          ..write('dismissedAtUtcMs: $dismissedAtUtcMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   _$AlchemonsDatabase(QueryExecutor e) : super(e);
   $AlchemonsDatabaseManager get managers => $AlchemonsDatabaseManager(this);
@@ -4353,6 +6301,26 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   late final $BiomeJobsTable biomeJobs = $BiomeJobsTable(this);
   late final $CompetitionProgressTable competitionProgress =
       $CompetitionProgressTable(this);
+  late final $ShopPurchasesTable shopPurchases = $ShopPurchasesTable(this);
+  late final $InventoryItemsTable inventoryItems = $InventoryItemsTable(this);
+  late final $ActiveSpawnsTable activeSpawns = $ActiveSpawnsTable(this);
+  late final $ActiveSceneEntryTable activeSceneEntry = $ActiveSceneEntryTable(
+    this,
+  );
+  late final $SpawnScheduleTable spawnSchedule = $SpawnScheduleTable(this);
+  late final $NotificationDismissalsTable notificationDismissals =
+      $NotificationDismissalsTable(this);
+  late final SettingsDao settingsDao = SettingsDao(this as AlchemonsDatabase);
+  late final CurrencyDao currencyDao = CurrencyDao(this as AlchemonsDatabase);
+  late final CreatureDao creatureDao = CreatureDao(this as AlchemonsDatabase);
+  late final IncubatorDao incubatorDao = IncubatorDao(
+    this as AlchemonsDatabase,
+  );
+  late final InventoryDao inventoryDao = InventoryDao(
+    this as AlchemonsDatabase,
+  );
+  late final BiomeDao biomeDao = BiomeDao(this as AlchemonsDatabase);
+  late final ShopDao shopDao = ShopDao(this as AlchemonsDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4367,6 +6335,12 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
     biomeFarms,
     biomeJobs,
     competitionProgress,
+    shopPurchases,
+    inventoryItems,
+    activeSpawns,
+    activeSceneEntry,
+    spawnSchedule,
+    notificationDismissals,
   ];
 }
 
@@ -5195,6 +7169,12 @@ typedef $$CreatureInstancesTableCreateCompanionBuilder =
       Value<double> statIntelligencePotential,
       Value<double> statStrengthPotential,
       Value<double> statBeautyPotential,
+      Value<int> generationDepth,
+      Value<String?> factionLineageJson,
+      Value<String?> variantFaction,
+      Value<bool> isPure,
+      Value<String?> elementLineageJson,
+      Value<String?> familyLineageJson,
       Value<int> rowid,
     });
 typedef $$CreatureInstancesTableUpdateCompanionBuilder =
@@ -5222,6 +7202,12 @@ typedef $$CreatureInstancesTableUpdateCompanionBuilder =
       Value<double> statIntelligencePotential,
       Value<double> statStrengthPotential,
       Value<double> statBeautyPotential,
+      Value<int> generationDepth,
+      Value<String?> factionLineageJson,
+      Value<String?> variantFaction,
+      Value<bool> isPure,
+      Value<String?> elementLineageJson,
+      Value<String?> familyLineageJson,
       Value<int> rowid,
     });
 
@@ -5346,6 +7332,36 @@ class $$CreatureInstancesTableFilterComposer
 
   ColumnFilters<double> get statBeautyPotential => $composableBuilder(
     column: $table.statBeautyPotential,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get generationDepth => $composableBuilder(
+    column: $table.generationDepth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get factionLineageJson => $composableBuilder(
+    column: $table.factionLineageJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get variantFaction => $composableBuilder(
+    column: $table.variantFaction,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isPure => $composableBuilder(
+    column: $table.isPure,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get elementLineageJson => $composableBuilder(
+    column: $table.elementLineageJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get familyLineageJson => $composableBuilder(
+    column: $table.familyLineageJson,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5473,6 +7489,36 @@ class $$CreatureInstancesTableOrderingComposer
     column: $table.statBeautyPotential,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get generationDepth => $composableBuilder(
+    column: $table.generationDepth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get factionLineageJson => $composableBuilder(
+    column: $table.factionLineageJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get variantFaction => $composableBuilder(
+    column: $table.variantFaction,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isPure => $composableBuilder(
+    column: $table.isPure,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get elementLineageJson => $composableBuilder(
+    column: $table.elementLineageJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get familyLineageJson => $composableBuilder(
+    column: $table.familyLineageJson,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CreatureInstancesTableAnnotationComposer
@@ -5584,6 +7630,34 @@ class $$CreatureInstancesTableAnnotationComposer
     column: $table.statBeautyPotential,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get generationDepth => $composableBuilder(
+    column: $table.generationDepth,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get factionLineageJson => $composableBuilder(
+    column: $table.factionLineageJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get variantFaction => $composableBuilder(
+    column: $table.variantFaction,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isPure =>
+      $composableBuilder(column: $table.isPure, builder: (column) => column);
+
+  GeneratedColumn<String> get elementLineageJson => $composableBuilder(
+    column: $table.elementLineageJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get familyLineageJson => $composableBuilder(
+    column: $table.familyLineageJson,
+    builder: (column) => column,
+  );
 }
 
 class $$CreatureInstancesTableTableManager
@@ -5649,6 +7723,12 @@ class $$CreatureInstancesTableTableManager
                 Value<double> statIntelligencePotential = const Value.absent(),
                 Value<double> statStrengthPotential = const Value.absent(),
                 Value<double> statBeautyPotential = const Value.absent(),
+                Value<int> generationDepth = const Value.absent(),
+                Value<String?> factionLineageJson = const Value.absent(),
+                Value<String?> variantFaction = const Value.absent(),
+                Value<bool> isPure = const Value.absent(),
+                Value<String?> elementLineageJson = const Value.absent(),
+                Value<String?> familyLineageJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreatureInstancesCompanion(
                 instanceId: instanceId,
@@ -5674,6 +7754,12 @@ class $$CreatureInstancesTableTableManager
                 statIntelligencePotential: statIntelligencePotential,
                 statStrengthPotential: statStrengthPotential,
                 statBeautyPotential: statBeautyPotential,
+                generationDepth: generationDepth,
+                factionLineageJson: factionLineageJson,
+                variantFaction: variantFaction,
+                isPure: isPure,
+                elementLineageJson: elementLineageJson,
+                familyLineageJson: familyLineageJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5701,6 +7787,12 @@ class $$CreatureInstancesTableTableManager
                 Value<double> statIntelligencePotential = const Value.absent(),
                 Value<double> statStrengthPotential = const Value.absent(),
                 Value<double> statBeautyPotential = const Value.absent(),
+                Value<int> generationDepth = const Value.absent(),
+                Value<String?> factionLineageJson = const Value.absent(),
+                Value<String?> variantFaction = const Value.absent(),
+                Value<bool> isPure = const Value.absent(),
+                Value<String?> elementLineageJson = const Value.absent(),
+                Value<String?> familyLineageJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreatureInstancesCompanion.insert(
                 instanceId: instanceId,
@@ -5726,6 +7818,12 @@ class $$CreatureInstancesTableTableManager
                 statIntelligencePotential: statIntelligencePotential,
                 statStrengthPotential: statStrengthPotential,
                 statBeautyPotential: statBeautyPotential,
+                generationDepth: generationDepth,
+                factionLineageJson: factionLineageJson,
+                variantFaction: variantFaction,
+                isPure: isPure,
+                elementLineageJson: elementLineageJson,
+                familyLineageJson: familyLineageJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -6608,6 +8706,1032 @@ typedef $$CompetitionProgressTableProcessedTableManager =
       CompetitionProgressData,
       PrefetchHooks Function()
     >;
+typedef $$ShopPurchasesTableCreateCompanionBuilder =
+    ShopPurchasesCompanion Function({
+      required String offerId,
+      Value<int> purchaseCount,
+      Value<int?> lastPurchaseUtcMs,
+      Value<int> rowid,
+    });
+typedef $$ShopPurchasesTableUpdateCompanionBuilder =
+    ShopPurchasesCompanion Function({
+      Value<String> offerId,
+      Value<int> purchaseCount,
+      Value<int?> lastPurchaseUtcMs,
+      Value<int> rowid,
+    });
+
+class $$ShopPurchasesTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $ShopPurchasesTable> {
+  $$ShopPurchasesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get offerId => $composableBuilder(
+    column: $table.offerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get purchaseCount => $composableBuilder(
+    column: $table.purchaseCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastPurchaseUtcMs => $composableBuilder(
+    column: $table.lastPurchaseUtcMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ShopPurchasesTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $ShopPurchasesTable> {
+  $$ShopPurchasesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get offerId => $composableBuilder(
+    column: $table.offerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get purchaseCount => $composableBuilder(
+    column: $table.purchaseCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastPurchaseUtcMs => $composableBuilder(
+    column: $table.lastPurchaseUtcMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ShopPurchasesTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $ShopPurchasesTable> {
+  $$ShopPurchasesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get offerId =>
+      $composableBuilder(column: $table.offerId, builder: (column) => column);
+
+  GeneratedColumn<int> get purchaseCount => $composableBuilder(
+    column: $table.purchaseCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastPurchaseUtcMs => $composableBuilder(
+    column: $table.lastPurchaseUtcMs,
+    builder: (column) => column,
+  );
+}
+
+class $$ShopPurchasesTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $ShopPurchasesTable,
+          ShopPurchase,
+          $$ShopPurchasesTableFilterComposer,
+          $$ShopPurchasesTableOrderingComposer,
+          $$ShopPurchasesTableAnnotationComposer,
+          $$ShopPurchasesTableCreateCompanionBuilder,
+          $$ShopPurchasesTableUpdateCompanionBuilder,
+          (
+            ShopPurchase,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $ShopPurchasesTable,
+              ShopPurchase
+            >,
+          ),
+          ShopPurchase,
+          PrefetchHooks Function()
+        > {
+  $$ShopPurchasesTableTableManager(
+    _$AlchemonsDatabase db,
+    $ShopPurchasesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ShopPurchasesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ShopPurchasesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ShopPurchasesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> offerId = const Value.absent(),
+                Value<int> purchaseCount = const Value.absent(),
+                Value<int?> lastPurchaseUtcMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ShopPurchasesCompanion(
+                offerId: offerId,
+                purchaseCount: purchaseCount,
+                lastPurchaseUtcMs: lastPurchaseUtcMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String offerId,
+                Value<int> purchaseCount = const Value.absent(),
+                Value<int?> lastPurchaseUtcMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ShopPurchasesCompanion.insert(
+                offerId: offerId,
+                purchaseCount: purchaseCount,
+                lastPurchaseUtcMs: lastPurchaseUtcMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ShopPurchasesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $ShopPurchasesTable,
+      ShopPurchase,
+      $$ShopPurchasesTableFilterComposer,
+      $$ShopPurchasesTableOrderingComposer,
+      $$ShopPurchasesTableAnnotationComposer,
+      $$ShopPurchasesTableCreateCompanionBuilder,
+      $$ShopPurchasesTableUpdateCompanionBuilder,
+      (
+        ShopPurchase,
+        BaseReferences<_$AlchemonsDatabase, $ShopPurchasesTable, ShopPurchase>,
+      ),
+      ShopPurchase,
+      PrefetchHooks Function()
+    >;
+typedef $$InventoryItemsTableCreateCompanionBuilder =
+    InventoryItemsCompanion Function({
+      required String key,
+      Value<int> qty,
+      Value<int> rowid,
+    });
+typedef $$InventoryItemsTableUpdateCompanionBuilder =
+    InventoryItemsCompanion Function({
+      Value<String> key,
+      Value<int> qty,
+      Value<int> rowid,
+    });
+
+class $$InventoryItemsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $InventoryItemsTable> {
+  $$InventoryItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get qty => $composableBuilder(
+    column: $table.qty,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$InventoryItemsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $InventoryItemsTable> {
+  $$InventoryItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get qty => $composableBuilder(
+    column: $table.qty,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$InventoryItemsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $InventoryItemsTable> {
+  $$InventoryItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<int> get qty =>
+      $composableBuilder(column: $table.qty, builder: (column) => column);
+}
+
+class $$InventoryItemsTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $InventoryItemsTable,
+          InventoryItem,
+          $$InventoryItemsTableFilterComposer,
+          $$InventoryItemsTableOrderingComposer,
+          $$InventoryItemsTableAnnotationComposer,
+          $$InventoryItemsTableCreateCompanionBuilder,
+          $$InventoryItemsTableUpdateCompanionBuilder,
+          (
+            InventoryItem,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $InventoryItemsTable,
+              InventoryItem
+            >,
+          ),
+          InventoryItem,
+          PrefetchHooks Function()
+        > {
+  $$InventoryItemsTableTableManager(
+    _$AlchemonsDatabase db,
+    $InventoryItemsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$InventoryItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$InventoryItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$InventoryItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> key = const Value.absent(),
+                Value<int> qty = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => InventoryItemsCompanion(key: key, qty: qty, rowid: rowid),
+          createCompanionCallback:
+              ({
+                required String key,
+                Value<int> qty = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => InventoryItemsCompanion.insert(
+                key: key,
+                qty: qty,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$InventoryItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $InventoryItemsTable,
+      InventoryItem,
+      $$InventoryItemsTableFilterComposer,
+      $$InventoryItemsTableOrderingComposer,
+      $$InventoryItemsTableAnnotationComposer,
+      $$InventoryItemsTableCreateCompanionBuilder,
+      $$InventoryItemsTableUpdateCompanionBuilder,
+      (
+        InventoryItem,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $InventoryItemsTable,
+          InventoryItem
+        >,
+      ),
+      InventoryItem,
+      PrefetchHooks Function()
+    >;
+typedef $$ActiveSpawnsTableCreateCompanionBuilder =
+    ActiveSpawnsCompanion Function({
+      required String id,
+      required String sceneId,
+      required String spawnPointId,
+      required String speciesId,
+      required String rarity,
+      required int spawnedAtUtcMs,
+      Value<int> rowid,
+    });
+typedef $$ActiveSpawnsTableUpdateCompanionBuilder =
+    ActiveSpawnsCompanion Function({
+      Value<String> id,
+      Value<String> sceneId,
+      Value<String> spawnPointId,
+      Value<String> speciesId,
+      Value<String> rarity,
+      Value<int> spawnedAtUtcMs,
+      Value<int> rowid,
+    });
+
+class $$ActiveSpawnsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $ActiveSpawnsTable> {
+  $$ActiveSpawnsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sceneId => $composableBuilder(
+    column: $table.sceneId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get spawnPointId => $composableBuilder(
+    column: $table.spawnPointId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speciesId => $composableBuilder(
+    column: $table.speciesId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rarity => $composableBuilder(
+    column: $table.rarity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get spawnedAtUtcMs => $composableBuilder(
+    column: $table.spawnedAtUtcMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ActiveSpawnsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $ActiveSpawnsTable> {
+  $$ActiveSpawnsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sceneId => $composableBuilder(
+    column: $table.sceneId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get spawnPointId => $composableBuilder(
+    column: $table.spawnPointId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get speciesId => $composableBuilder(
+    column: $table.speciesId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rarity => $composableBuilder(
+    column: $table.rarity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get spawnedAtUtcMs => $composableBuilder(
+    column: $table.spawnedAtUtcMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ActiveSpawnsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $ActiveSpawnsTable> {
+  $$ActiveSpawnsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sceneId =>
+      $composableBuilder(column: $table.sceneId, builder: (column) => column);
+
+  GeneratedColumn<String> get spawnPointId => $composableBuilder(
+    column: $table.spawnPointId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get speciesId =>
+      $composableBuilder(column: $table.speciesId, builder: (column) => column);
+
+  GeneratedColumn<String> get rarity =>
+      $composableBuilder(column: $table.rarity, builder: (column) => column);
+
+  GeneratedColumn<int> get spawnedAtUtcMs => $composableBuilder(
+    column: $table.spawnedAtUtcMs,
+    builder: (column) => column,
+  );
+}
+
+class $$ActiveSpawnsTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $ActiveSpawnsTable,
+          ActiveSpawn,
+          $$ActiveSpawnsTableFilterComposer,
+          $$ActiveSpawnsTableOrderingComposer,
+          $$ActiveSpawnsTableAnnotationComposer,
+          $$ActiveSpawnsTableCreateCompanionBuilder,
+          $$ActiveSpawnsTableUpdateCompanionBuilder,
+          (
+            ActiveSpawn,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $ActiveSpawnsTable,
+              ActiveSpawn
+            >,
+          ),
+          ActiveSpawn,
+          PrefetchHooks Function()
+        > {
+  $$ActiveSpawnsTableTableManager(
+    _$AlchemonsDatabase db,
+    $ActiveSpawnsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ActiveSpawnsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ActiveSpawnsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ActiveSpawnsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> sceneId = const Value.absent(),
+                Value<String> spawnPointId = const Value.absent(),
+                Value<String> speciesId = const Value.absent(),
+                Value<String> rarity = const Value.absent(),
+                Value<int> spawnedAtUtcMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ActiveSpawnsCompanion(
+                id: id,
+                sceneId: sceneId,
+                spawnPointId: spawnPointId,
+                speciesId: speciesId,
+                rarity: rarity,
+                spawnedAtUtcMs: spawnedAtUtcMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String sceneId,
+                required String spawnPointId,
+                required String speciesId,
+                required String rarity,
+                required int spawnedAtUtcMs,
+                Value<int> rowid = const Value.absent(),
+              }) => ActiveSpawnsCompanion.insert(
+                id: id,
+                sceneId: sceneId,
+                spawnPointId: spawnPointId,
+                speciesId: speciesId,
+                rarity: rarity,
+                spawnedAtUtcMs: spawnedAtUtcMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ActiveSpawnsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $ActiveSpawnsTable,
+      ActiveSpawn,
+      $$ActiveSpawnsTableFilterComposer,
+      $$ActiveSpawnsTableOrderingComposer,
+      $$ActiveSpawnsTableAnnotationComposer,
+      $$ActiveSpawnsTableCreateCompanionBuilder,
+      $$ActiveSpawnsTableUpdateCompanionBuilder,
+      (
+        ActiveSpawn,
+        BaseReferences<_$AlchemonsDatabase, $ActiveSpawnsTable, ActiveSpawn>,
+      ),
+      ActiveSpawn,
+      PrefetchHooks Function()
+    >;
+typedef $$ActiveSceneEntryTableCreateCompanionBuilder =
+    ActiveSceneEntryCompanion Function({
+      required String sceneId,
+      required int enteredAtUtcMs,
+      Value<int> rowid,
+    });
+typedef $$ActiveSceneEntryTableUpdateCompanionBuilder =
+    ActiveSceneEntryCompanion Function({
+      Value<String> sceneId,
+      Value<int> enteredAtUtcMs,
+      Value<int> rowid,
+    });
+
+class $$ActiveSceneEntryTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $ActiveSceneEntryTable> {
+  $$ActiveSceneEntryTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get sceneId => $composableBuilder(
+    column: $table.sceneId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get enteredAtUtcMs => $composableBuilder(
+    column: $table.enteredAtUtcMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ActiveSceneEntryTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $ActiveSceneEntryTable> {
+  $$ActiveSceneEntryTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get sceneId => $composableBuilder(
+    column: $table.sceneId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get enteredAtUtcMs => $composableBuilder(
+    column: $table.enteredAtUtcMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ActiveSceneEntryTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $ActiveSceneEntryTable> {
+  $$ActiveSceneEntryTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get sceneId =>
+      $composableBuilder(column: $table.sceneId, builder: (column) => column);
+
+  GeneratedColumn<int> get enteredAtUtcMs => $composableBuilder(
+    column: $table.enteredAtUtcMs,
+    builder: (column) => column,
+  );
+}
+
+class $$ActiveSceneEntryTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $ActiveSceneEntryTable,
+          ActiveSceneEntryData,
+          $$ActiveSceneEntryTableFilterComposer,
+          $$ActiveSceneEntryTableOrderingComposer,
+          $$ActiveSceneEntryTableAnnotationComposer,
+          $$ActiveSceneEntryTableCreateCompanionBuilder,
+          $$ActiveSceneEntryTableUpdateCompanionBuilder,
+          (
+            ActiveSceneEntryData,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $ActiveSceneEntryTable,
+              ActiveSceneEntryData
+            >,
+          ),
+          ActiveSceneEntryData,
+          PrefetchHooks Function()
+        > {
+  $$ActiveSceneEntryTableTableManager(
+    _$AlchemonsDatabase db,
+    $ActiveSceneEntryTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ActiveSceneEntryTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ActiveSceneEntryTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ActiveSceneEntryTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> sceneId = const Value.absent(),
+                Value<int> enteredAtUtcMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ActiveSceneEntryCompanion(
+                sceneId: sceneId,
+                enteredAtUtcMs: enteredAtUtcMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String sceneId,
+                required int enteredAtUtcMs,
+                Value<int> rowid = const Value.absent(),
+              }) => ActiveSceneEntryCompanion.insert(
+                sceneId: sceneId,
+                enteredAtUtcMs: enteredAtUtcMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ActiveSceneEntryTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $ActiveSceneEntryTable,
+      ActiveSceneEntryData,
+      $$ActiveSceneEntryTableFilterComposer,
+      $$ActiveSceneEntryTableOrderingComposer,
+      $$ActiveSceneEntryTableAnnotationComposer,
+      $$ActiveSceneEntryTableCreateCompanionBuilder,
+      $$ActiveSceneEntryTableUpdateCompanionBuilder,
+      (
+        ActiveSceneEntryData,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $ActiveSceneEntryTable,
+          ActiveSceneEntryData
+        >,
+      ),
+      ActiveSceneEntryData,
+      PrefetchHooks Function()
+    >;
+typedef $$SpawnScheduleTableCreateCompanionBuilder =
+    SpawnScheduleCompanion Function({
+      required String sceneId,
+      required int dueAtUtcMs,
+      Value<int> rowid,
+    });
+typedef $$SpawnScheduleTableUpdateCompanionBuilder =
+    SpawnScheduleCompanion Function({
+      Value<String> sceneId,
+      Value<int> dueAtUtcMs,
+      Value<int> rowid,
+    });
+
+class $$SpawnScheduleTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $SpawnScheduleTable> {
+  $$SpawnScheduleTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get sceneId => $composableBuilder(
+    column: $table.sceneId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get dueAtUtcMs => $composableBuilder(
+    column: $table.dueAtUtcMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SpawnScheduleTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $SpawnScheduleTable> {
+  $$SpawnScheduleTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get sceneId => $composableBuilder(
+    column: $table.sceneId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get dueAtUtcMs => $composableBuilder(
+    column: $table.dueAtUtcMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SpawnScheduleTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $SpawnScheduleTable> {
+  $$SpawnScheduleTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get sceneId =>
+      $composableBuilder(column: $table.sceneId, builder: (column) => column);
+
+  GeneratedColumn<int> get dueAtUtcMs => $composableBuilder(
+    column: $table.dueAtUtcMs,
+    builder: (column) => column,
+  );
+}
+
+class $$SpawnScheduleTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $SpawnScheduleTable,
+          SpawnScheduleData,
+          $$SpawnScheduleTableFilterComposer,
+          $$SpawnScheduleTableOrderingComposer,
+          $$SpawnScheduleTableAnnotationComposer,
+          $$SpawnScheduleTableCreateCompanionBuilder,
+          $$SpawnScheduleTableUpdateCompanionBuilder,
+          (
+            SpawnScheduleData,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $SpawnScheduleTable,
+              SpawnScheduleData
+            >,
+          ),
+          SpawnScheduleData,
+          PrefetchHooks Function()
+        > {
+  $$SpawnScheduleTableTableManager(
+    _$AlchemonsDatabase db,
+    $SpawnScheduleTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SpawnScheduleTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SpawnScheduleTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SpawnScheduleTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> sceneId = const Value.absent(),
+                Value<int> dueAtUtcMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SpawnScheduleCompanion(
+                sceneId: sceneId,
+                dueAtUtcMs: dueAtUtcMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String sceneId,
+                required int dueAtUtcMs,
+                Value<int> rowid = const Value.absent(),
+              }) => SpawnScheduleCompanion.insert(
+                sceneId: sceneId,
+                dueAtUtcMs: dueAtUtcMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SpawnScheduleTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $SpawnScheduleTable,
+      SpawnScheduleData,
+      $$SpawnScheduleTableFilterComposer,
+      $$SpawnScheduleTableOrderingComposer,
+      $$SpawnScheduleTableAnnotationComposer,
+      $$SpawnScheduleTableCreateCompanionBuilder,
+      $$SpawnScheduleTableUpdateCompanionBuilder,
+      (
+        SpawnScheduleData,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $SpawnScheduleTable,
+          SpawnScheduleData
+        >,
+      ),
+      SpawnScheduleData,
+      PrefetchHooks Function()
+    >;
+typedef $$NotificationDismissalsTableCreateCompanionBuilder =
+    NotificationDismissalsCompanion Function({
+      required String notificationType,
+      required int dismissedAtUtcMs,
+      Value<int> rowid,
+    });
+typedef $$NotificationDismissalsTableUpdateCompanionBuilder =
+    NotificationDismissalsCompanion Function({
+      Value<String> notificationType,
+      Value<int> dismissedAtUtcMs,
+      Value<int> rowid,
+    });
+
+class $$NotificationDismissalsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $NotificationDismissalsTable> {
+  $$NotificationDismissalsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get notificationType => $composableBuilder(
+    column: $table.notificationType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get dismissedAtUtcMs => $composableBuilder(
+    column: $table.dismissedAtUtcMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NotificationDismissalsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $NotificationDismissalsTable> {
+  $$NotificationDismissalsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get notificationType => $composableBuilder(
+    column: $table.notificationType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get dismissedAtUtcMs => $composableBuilder(
+    column: $table.dismissedAtUtcMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NotificationDismissalsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $NotificationDismissalsTable> {
+  $$NotificationDismissalsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get notificationType => $composableBuilder(
+    column: $table.notificationType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get dismissedAtUtcMs => $composableBuilder(
+    column: $table.dismissedAtUtcMs,
+    builder: (column) => column,
+  );
+}
+
+class $$NotificationDismissalsTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $NotificationDismissalsTable,
+          NotificationDismissal,
+          $$NotificationDismissalsTableFilterComposer,
+          $$NotificationDismissalsTableOrderingComposer,
+          $$NotificationDismissalsTableAnnotationComposer,
+          $$NotificationDismissalsTableCreateCompanionBuilder,
+          $$NotificationDismissalsTableUpdateCompanionBuilder,
+          (
+            NotificationDismissal,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $NotificationDismissalsTable,
+              NotificationDismissal
+            >,
+          ),
+          NotificationDismissal,
+          PrefetchHooks Function()
+        > {
+  $$NotificationDismissalsTableTableManager(
+    _$AlchemonsDatabase db,
+    $NotificationDismissalsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NotificationDismissalsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$NotificationDismissalsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$NotificationDismissalsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> notificationType = const Value.absent(),
+                Value<int> dismissedAtUtcMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationDismissalsCompanion(
+                notificationType: notificationType,
+                dismissedAtUtcMs: dismissedAtUtcMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String notificationType,
+                required int dismissedAtUtcMs,
+                Value<int> rowid = const Value.absent(),
+              }) => NotificationDismissalsCompanion.insert(
+                notificationType: notificationType,
+                dismissedAtUtcMs: dismissedAtUtcMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NotificationDismissalsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $NotificationDismissalsTable,
+      NotificationDismissal,
+      $$NotificationDismissalsTableFilterComposer,
+      $$NotificationDismissalsTableOrderingComposer,
+      $$NotificationDismissalsTableAnnotationComposer,
+      $$NotificationDismissalsTableCreateCompanionBuilder,
+      $$NotificationDismissalsTableUpdateCompanionBuilder,
+      (
+        NotificationDismissal,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $NotificationDismissalsTable,
+          NotificationDismissal
+        >,
+      ),
+      NotificationDismissal,
+      PrefetchHooks Function()
+    >;
 
 class $AlchemonsDatabaseManager {
   final _$AlchemonsDatabase _db;
@@ -6629,4 +9753,19 @@ class $AlchemonsDatabaseManager {
       $$BiomeJobsTableTableManager(_db, _db.biomeJobs);
   $$CompetitionProgressTableTableManager get competitionProgress =>
       $$CompetitionProgressTableTableManager(_db, _db.competitionProgress);
+  $$ShopPurchasesTableTableManager get shopPurchases =>
+      $$ShopPurchasesTableTableManager(_db, _db.shopPurchases);
+  $$InventoryItemsTableTableManager get inventoryItems =>
+      $$InventoryItemsTableTableManager(_db, _db.inventoryItems);
+  $$ActiveSpawnsTableTableManager get activeSpawns =>
+      $$ActiveSpawnsTableTableManager(_db, _db.activeSpawns);
+  $$ActiveSceneEntryTableTableManager get activeSceneEntry =>
+      $$ActiveSceneEntryTableTableManager(_db, _db.activeSceneEntry);
+  $$SpawnScheduleTableTableManager get spawnSchedule =>
+      $$SpawnScheduleTableTableManager(_db, _db.spawnSchedule);
+  $$NotificationDismissalsTableTableManager get notificationDismissals =>
+      $$NotificationDismissalsTableTableManager(
+        _db,
+        _db.notificationDismissals,
+      );
 }

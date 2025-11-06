@@ -44,7 +44,7 @@ class CreatureFilterUtils {
 
   static List<CreatureInstance> filterAndSortInstances(
     List<CreatureInstance> instances,
-    CreatureRepository repo, {
+    CreatureCatalog repo, {
     String typeFilter = 'All',
     String rarityFilter = 'All Rarities',
     String sortBy = 'Name',

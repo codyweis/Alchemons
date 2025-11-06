@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/components.dart';
@@ -10,42 +12,19 @@ class FeaturedCreaturePresentation extends StatelessWidget {
   final AnimationController breathing;
   final FactionTheme theme;
 
-  // Data for the chosen creature's sprite
-  final String spritePath;
-  final int totalFrames;
-  final int rows;
-  final Vector2 frameSize;
-  final double stepTime;
-
-  // Cosmetic DNA
-  final double scale;
-  final double saturation;
-  final double brightness;
-  final double hueShift;
-  final bool isPrismatic;
-  final Color? tint;
-
   // Creature label
   final String displayName;
   final String subtitle; // e.g. "Specimen #12" or element/faction
-
+  final CreatureInstance instance;
+  final Creature creature;
   const FeaturedCreaturePresentation({
     super.key,
     required this.breathing,
     required this.theme,
-    required this.spritePath,
-    required this.totalFrames,
-    required this.rows,
-    required this.frameSize,
-    required this.stepTime,
-    required this.scale,
-    required this.saturation,
-    required this.brightness,
-    required this.hueShift,
-    required this.isPrismatic,
-    required this.tint,
     required this.displayName,
     required this.subtitle,
+    required this.instance,
+    required this.creature,
   });
 
   @override
@@ -86,18 +65,10 @@ class FeaturedCreaturePresentation extends StatelessWidget {
                 // the animated sprite
                 Transform.scale(
                   scale: 2.5,
-                  child: CreatureSprite(
-                    spritePath: spritePath,
-                    totalFrames: totalFrames,
-                    rows: rows,
-                    frameSize: frameSize,
-                    stepTime: stepTime,
-                    scale: scale,
-                    saturation: saturation,
-                    brightness: brightness,
-                    hueShift: hueShift,
-                    isPrismatic: isPrismatic,
-                    tint: tint,
+                  child: InstanceSprite(
+                    creature: creature,
+                    instance: instance,
+                    size: 72,
                   ),
                 ),
               ],
@@ -182,6 +153,8 @@ class FeaturedHeroInteractive extends StatelessWidget {
   final AnimationController breathing;
   final VoidCallback onLongPressChoose;
   final VoidCallback onTapDetails;
+  final CreatureInstance instance;
+  final Creature creature;
 
   const FeaturedHeroInteractive({
     super.key,
@@ -190,6 +163,8 @@ class FeaturedHeroInteractive extends StatelessWidget {
     required this.breathing,
     required this.onLongPressChoose,
     required this.onTapDetails,
+    required this.instance,
+    required this.creature,
   });
 
   @override
@@ -202,17 +177,8 @@ class FeaturedHeroInteractive extends StatelessWidget {
         child: FeaturedCreaturePresentation(
           breathing: breathing,
           theme: theme,
-          spritePath: data.spritePath,
-          totalFrames: data.totalFrames,
-          rows: data.rows,
-          frameSize: data.frameSize,
-          stepTime: data.stepTime,
-          scale: data.scale,
-          saturation: data.saturation,
-          brightness: data.brightness,
-          hueShift: data.hueShift,
-          isPrismatic: data.isPrismatic,
-          tint: data.tint,
+          instance: instance,
+          creature: creature,
           displayName: data.displayName,
           subtitle: data.subtitle,
         ),
@@ -225,31 +191,13 @@ class FeaturedHeroInteractive extends StatelessWidget {
 class PresentationData {
   final String displayName;
   final String subtitle;
-  final String spritePath;
-  final int totalFrames;
-  final int rows;
-  final Vector2 frameSize;
-  final double stepTime;
-  final double scale;
-  final double saturation;
-  final double brightness;
-  final double hueShift;
-  final bool isPrismatic;
-  final Color? tint;
+  final CreatureInstance instance;
+  final Creature creature;
 
   PresentationData({
     required this.displayName,
     required this.subtitle,
-    required this.spritePath,
-    required this.totalFrames,
-    required this.rows,
-    required this.frameSize,
-    required this.stepTime,
-    required this.scale,
-    required this.saturation,
-    required this.brightness,
-    required this.hueShift,
-    required this.isPrismatic,
-    required this.tint,
+    required this.instance,
+    required this.creature,
   });
 }

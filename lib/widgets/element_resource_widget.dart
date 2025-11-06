@@ -63,7 +63,7 @@ class _ResourceCollectionWidgetState extends State<ResourceCollectionWidget>
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
     return StreamBuilder<Map<String, int>>(
-      stream: db.watchResourceBalances(),
+      stream: db.currencyDao.watchResourceBalances(),
       builder: (context, snap) {
         if (!snap.hasData) return const SizedBox.shrink();
         final res =
@@ -105,7 +105,7 @@ class _ResourceCollectionWidgetState extends State<ResourceCollectionWidget>
                           theme: widget.theme,
                         ),
                         separatorBuilder: (_, __) => SizedBox(
-                          width: lerpDouble(compactSpacing, 12, _t.value)!,
+                          width: lerpDouble(compactSpacing, 0, _t.value)!,
                         ),
                         itemCount: res.length,
                         cacheExtent: 1000,
@@ -141,83 +141,127 @@ class _ResourcePill extends StatelessWidget {
     const compactSize = 38.0;
     final showDetails = t >= 0.30;
 
-    final iconWrap = lerpDouble(38.0, 52, t)!;
+    // Only drive the image itself
     final hPad = lerpDouble(0, 10, t)!;
     final vPad = lerpDouble(0, 8, t)!;
-    final iconSize = lerpDouble(20, 24, t)!;
-    final radius = lerpDouble(compactSize / 2, 5, t)!;
-
-    final baseWidth = iconWrap + (hPad * 2);
-    const detailsSpacing = 8.0;
+    final iconSize = lerpDouble(30, 40, t)!; // <- image grows here
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutQuart,
       padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-
+      constraints: const BoxConstraints(minHeight: compactSize),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Icon bubble
-          Container(
-            width: iconWrap,
-            height: iconWrap,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: theme.surface,
-              border: Border.all(color: r.color.withOpacity(0.55), width: 1.5),
-            ),
-            child: Icon(r.icon, size: iconSize, color: r.color),
-          ),
+          // No wrapper — the image itself grows
+          _GlowyIcon(image: r.icon, size: iconSize, color: r.color, t: t),
 
-          if (showDetails) const SizedBox(width: detailsSpacing),
           if (showDetails)
-            Flexible(
-              child: Opacity(
-                opacity: t,
-                child: Transform.translate(
-                  offset: Offset(0, 8 * (1 - t)),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        r.name,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: theme.textMuted,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          height: 1.05,
+            SizedBox(width: lerpDouble(4, 8, t)!), // subtle spacing growth
+          if (showDetails)
+            Opacity(
+              opacity: t,
+              child: Transform.translate(
+                offset: Offset(0, 8 * (1 - t)),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      r.name,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: theme.textMuted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        height: 1.05,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: r.color,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        '${r.amount}',
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: r.color,
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Text(
-                          '${r.amount}',
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlowyIcon extends StatelessWidget {
+  final ImageProvider image;
+  final double size; // icon size
+  final Color color; // glow color
+  final double t; // 0..1 from parent anim
+  const _GlowyIcon({
+    required this.image,
+    required this.size,
+    required this.color,
+    required this.t,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Animate intensity as we expand
+    final glowOpacity = lerpDouble(0.10, 0.35, t)!;
+    final glowScale = lerpDouble(1.2, 1.6, t)!; // radius growth
+    final blur = lerpDouble(6, 18, t)!;
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          // Actual image on top
+          Stack(
+            children: [
+              Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(lerpDouble(0.15, 0.35, t)!),
+                      blurRadius: lerpDouble(10, 22, t)!,
+                      spreadRadius: lerpDouble(2, 6, t)!,
+                    ),
+                  ],
+                ),
+              ),
+              Image(
+                image: image,
+                width: size,
+                height: size,
+                colorBlendMode: BlendMode.srcIn,
+                filterQuality: FilterQuality.high,
+              ),
+            ],
+          ),
         ],
       ),
     );

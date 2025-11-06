@@ -33,12 +33,12 @@ extension ElementIdX on ElementId {
     ElementId.arcane => 'Arcane',
   };
 
-  IconData get icon => switch (this) {
-    ElementId.volcanic => Icons.local_fire_department_rounded,
-    ElementId.oceanic => Icons.water_drop_rounded,
-    ElementId.earthen => Icons.landscape_rounded,
-    ElementId.verdant => Icons.nature_rounded,
-    ElementId.arcane => Icons.auto_awesome_rounded,
+  AssetImage get imageProvider => switch (this) {
+    ElementId.volcanic => const AssetImage('assets/images/ui/volcanic.png'),
+    ElementId.oceanic => const AssetImage('assets/images/ui/oceanic.png'),
+    ElementId.earthen => const AssetImage('assets/images/ui/earthen.png'),
+    ElementId.verdant => const AssetImage('assets/images/ui/verdant.png'),
+    ElementId.arcane => const AssetImage('assets/images/ui/arcane.png'),
   };
 
   Color get color => switch (this) {
@@ -64,7 +64,7 @@ class ElementResource {
   String get name => id
       .unitName; // "Volcanic" (or "Volcanic Essence" later if you want flavor)
 
-  IconData get icon => id.icon;
+  ImageProvider get icon => id.imageProvider;
   Color get color => id.color;
 
   factory ElementResource.fromDbMap(Map<String, int> db, ElementId id) {

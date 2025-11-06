@@ -1,7 +1,9 @@
 import 'package:alchemons/providers/theme_provider.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'database/alchemons_db.dart';
@@ -13,10 +15,20 @@ import 'screens/home_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 1. Create the database
   final db = constructDb();
-  final gameData = GameDataService(db: db);
+
+  // 2. Load the catalog from assets
+  final catalog = CreatureCatalog();
+  await catalog.load(); // this reads assets/data/alchemons_creatures.json
+
+  // 3. Create the game data service with the catalog and db
+  final gameData = GameDataService(db: db, catalog: catalog);
   await gameData.init();
 
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+  // 4. Run the app
   runApp(AlchemonsApp(db: db, gameDataService: gameData));
 }
 
@@ -30,7 +42,6 @@ class AlchemonsApp extends StatelessWidget {
     required this.gameDataService,
   });
 
-  @override
   @override
   Widget build(BuildContext context) {
     return AppProviders(

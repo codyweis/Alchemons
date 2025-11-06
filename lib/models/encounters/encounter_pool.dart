@@ -1,10 +1,11 @@
 // lib/models/encounters/encounter_pool.dart
 import 'dart:convert';
 
-enum EncounterRarity { common, uncommon, rare, epic, legendary }
+enum EncounterRarity { common, uncommon, rare, legendary }
 
 extension EncounterRarityX on EncounterRarity {
   String get label => toString().split('.').last;
+
   static EncounterRarity parse(String v) =>
       EncounterRarity.values.firstWhere((e) => e.label == v);
 
@@ -16,10 +17,8 @@ extension EncounterRarityX on EncounterRarity {
         return 25;
       case EncounterRarity.rare:
         return 10;
-      case EncounterRarity.epic:
-        return 4;
       case EncounterRarity.legendary:
-        return 1;
+        return 2;
     }
   }
 }
@@ -44,7 +43,6 @@ class EncounterEntry {
     return rarity.baseWeight * weightMul;
   }
 
-  // JSON helpers (condition is code, so it’s not serialized)
   Map<String, dynamic> toJson() => {
     'speciesId': speciesId,
     'rarity': rarity.label,
@@ -56,6 +54,20 @@ class EncounterEntry {
     rarity: EncounterRarityX.parse(json['rarity'] as String),
     weightMul: (json['weightMul'] as num?)?.toDouble() ?? 1.0,
   );
+}
+
+/// Cumulative thresholds for a roll in [0,1):
+/// compare in order: legendary → rare → uncommon; else common.
+class RarityWeights {
+  final double legendary;
+  final double rare;
+  final double uncommon;
+
+  const RarityWeights({
+    required this.legendary,
+    required this.rare,
+    required this.uncommon,
+  });
 }
 
 class EncounterPool {
@@ -90,4 +102,72 @@ class EncounterPool {
   static EncounterPool fromJsonString(String s) =>
       EncounterPool.fromJson(jsonDecode(s) as Map<String, dynamic>);
   String toJsonString() => jsonEncode(toJson());
+
+  // ---- support for WildernessSpawnService ----
+
+  /// Species grouped by rarity (filters out gated/zero-weight entries).
+  Map<EncounterRarity, List<String>> get speciesByRarity {
+    final map = {for (final r in EncounterRarity.values) r: <String>[]};
+    final now = DateTime.now();
+    for (final e in entries) {
+      if (e.effectiveWeight(now) <= 0) continue;
+      map[e.rarity]!.add(e.speciesId);
+    }
+    return map;
+  }
+
+  /// Cumulative thresholds in [0,1) for: legendary → rare → uncommon.
+  RarityWeights get rarityWeights {
+    final now = DateTime.now();
+
+    double sumFor(EncounterRarity r) => entries
+        .where((e) => e.rarity == r)
+        .map((e) => e.effectiveWeight(now))
+        .fold<double>(0, (a, b) => a + b);
+
+    final wCommon = sumFor(EncounterRarity.common);
+    final wUncommon = sumFor(EncounterRarity.uncommon);
+    final wRare = sumFor(EncounterRarity.rare);
+    final wLegendary = sumFor(EncounterRarity.legendary);
+
+    final total = wCommon + wUncommon + wRare + wLegendary;
+
+    if (total <= 0) {
+      // fallback to base proportions
+      final base = {
+        EncounterRarity.legendary: EncounterRarity.legendary.baseWeight,
+        EncounterRarity.rare: EncounterRarity.rare.baseWeight,
+        EncounterRarity.uncommon: EncounterRarity.uncommon.baseWeight,
+        EncounterRarity.common: EncounterRarity.common.baseWeight,
+      };
+      final baseTotal = base.values.fold<double>(0, (a, b) => a + b);
+      double p(EncounterRarity r) => base[r]! / baseTotal;
+
+      final tLegendary = p(EncounterRarity.legendary);
+      final tRare = tLegendary + p(EncounterRarity.rare);
+      final tUncommon = tRare + p(EncounterRarity.uncommon);
+
+      return RarityWeights(
+        legendary: tLegendary,
+        rare: tRare,
+        uncommon: tUncommon,
+      );
+    }
+
+    double norm(double w) => w / total;
+
+    final pLegendary = norm(wLegendary);
+    final pRare = norm(wRare);
+    final pUncommon = norm(wUncommon);
+
+    final tLegendary = pLegendary;
+    final tRare = tLegendary + pRare;
+    final tUncommon = tRare + pUncommon;
+
+    return RarityWeights(
+      legendary: tLegendary,
+      rare: tRare,
+      uncommon: tUncommon,
+    );
+  }
 }

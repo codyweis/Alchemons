@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
+enum Rarity { common, uncommon, rare, legendary }
+
 class BreedConstants {
+  // rarity enum
+
   // Rarity → hatch time mapping
   static const Map<String, Duration> rarityHatchTimes = {
     'common': Duration(minutes: 5),

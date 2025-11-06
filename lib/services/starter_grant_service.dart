@@ -1,11 +1,18 @@
-// lib/services/starter_grant.dart
-import 'dart:convert';
+// lib/services/starter_grant_service.dart
 import 'dart:math' as math;
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 
-extension StarterGrant on AlchemonsDatabase {
+/// Service for granting starter creatures to new players.
+/// Uses the standardized EggPayload system for consistency.
+class StarterGrantService {
+  final AlchemonsDatabase db;
+  final EggPayloadFactory payloadFactory;
+
+  StarterGrantService({required this.db, required this.payloadFactory});
+
   /// Grants exactly one starter egg that matches the chosen faction.
   /// - If an incubator is free: places egg there.
   /// - Else: enqueues to storage.
@@ -15,48 +22,57 @@ extension StarterGrant on AlchemonsDatabase {
     Duration? tutorialHatch,
   }) async {
     // Prevent double-grants (in case user re-opens picker)
-    final already = await getSetting('starter_granted_v1');
+    final already = await db.settingsDao.getSetting('starter_granted_v1');
     if (already == '1') return false;
 
     final baseId = _pickLetForFaction(faction);
-    final rarity = 'common'; // lower-case plays nice with your UI maps
+
+    // Keep the actual egg rarity as "common" so hatch time uses your UI map.
+    final rarity = 'common';
     final hatchDur =
         tutorialHatch ??
         (BreedConstants.rarityHatchTimes[rarity] ?? const Duration(minutes: 5));
 
     final eggId = _makeEggId('START');
 
-    // Optional payload to tag the egg as starter (and carry defaults through)
-    final payload = jsonEncode({
-      'source': 'starter',
-      'baseId': baseId,
-      'rarity': 'Common', // base creature rarity label (cosmetic)
-      // 'genetics': {...} // add later if you want random genes
-    });
+    // Deterministic RNG so results are stable for a given egg
+    final seed =
+        int.tryParse(eggId.split('_')[1]) ??
+        DateTime.now().millisecondsSinceEpoch;
 
-    final free = await firstFreeSlot();
+    // --- CREATE STANDARDIZED PAYLOAD ---
+    final payload = payloadFactory.createStarterPayload(
+      baseId,
+      faction,
+      seed: seed,
+    );
+
+    final payloadJson = payload.toJsonString();
+
+    // --- PLACE OR ENQUEUE EGG ---
+    final free = await db.incubatorDao.firstFreeSlot();
     if (free != null) {
-      await placeEgg(
+      await db.incubatorDao.placeEgg(
         slotId: free.id,
         eggId: eggId,
         resultCreatureId: baseId,
         bonusVariantId: null,
         rarity: rarity, // UI expects lower-case key for hatch-time map
         hatchAtUtc: DateTime.now().toUtc().add(hatchDur),
-        payloadJson: payload,
+        payloadJson: payloadJson,
       );
     } else {
-      await enqueueEgg(
+      await db.incubatorDao.enqueueEgg(
         eggId: eggId,
         resultCreatureId: baseId,
         bonusVariantId: null,
         rarity: rarity,
         remaining: hatchDur,
-        payloadJson: payload,
+        payloadJson: payloadJson,
       );
     }
 
-    await setSetting('starter_granted_v1', '1');
+    await db.settingsDao.setSetting('starter_granted_v1', '1');
     return true;
   }
 

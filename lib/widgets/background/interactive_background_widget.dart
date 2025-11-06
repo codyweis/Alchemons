@@ -638,8 +638,7 @@ class FirePainter extends CustomPainter {
         canvas.drawCircle(Offset(x, y), emberSize, paint);
 
         final glowPaint = Paint()
-          ..color = primaryColor.withOpacity(opacity * 0.4)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+          ..color = primaryColor.withOpacity(opacity * 0.4);
         canvas.drawCircle(Offset(x, y), emberSize * 2.5, glowPaint);
       }
     }
@@ -817,9 +816,7 @@ class RainSplashPainter extends CustomPainter {
     final foamStroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    final foamBlob = Paint()
-      ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    final foamBlob = Paint()..style = PaintingStyle.fill;
 
     // Physics
     const double g = 900.0;
@@ -1048,7 +1045,7 @@ class AirPainter extends CustomPainter {
               opacity,
             )
             ..style = PaintingStyle.fill
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 25);
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
 
           canvas.drawPath(cloudPath, cloudPaint);
         }
@@ -1241,9 +1238,7 @@ class EarthPlantsPainter extends CustomPainter {
         canvas.drawCircle(pos, budSize, budPaint);
       }
 
-      final baseGlow = Paint()
-        ..color = primaryColor.withOpacity(0.06 * alpha)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+      final baseGlow = Paint()..color = primaryColor.withOpacity(0.06 * alpha);
       canvas.drawCircle(stemBase, 6.0, baseGlow);
     }
 

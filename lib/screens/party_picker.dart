@@ -1,27 +1,16 @@
-import 'dart:convert';
-import 'dart:ui';
-import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
-import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/creature_sprite.dart' hide InstanceSprite;
+import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_image.dart';
-import 'package:alchemons/widgets/floating_close_button_widget.dart';
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../database/alchemons_db.dart';
-import '../widgets/stamina_bar.dart';
-import '../providers/app_providers.dart';
 
 class PartyPickerPage extends StatefulWidget {
   const PartyPickerPage({super.key});
@@ -55,7 +44,7 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
   // Helper to build species summary list
   List<Map<String, dynamic>> buildSpeciesListData({
     required List<CreatureInstance> instances,
-    required CreatureRepository repo,
+    required CreatureCatalog repo,
   }) {
     final countBySpecies = <String, int>{};
     for (final inst in instances) {
@@ -115,7 +104,7 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
                   // Main content
                   Expanded(
                     child: StreamBuilder<List<CreatureInstance>>(
-                      stream: db.watchAllInstances(),
+                      stream: db.creatureDao.watchAllInstances(),
                       builder: (context, snap) {
                         final instances = snap.data ?? [];
                         return _buildStageContent(theme, instances);
@@ -129,22 +118,6 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
               ),
             ),
           ),
-
-          // Close button
-          Positioned(
-            right: 10,
-            top: 40,
-            child: FloatingCloseButton(
-              size: 50,
-              theme: theme,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.of(context).maybePop();
-              },
-              accentColor: theme.text,
-              iconColor: theme.text,
-            ),
-          ),
         ],
       ),
     );
@@ -156,7 +129,7 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
     FactionTheme theme,
     List<CreatureInstance> instances,
   ) {
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
 
     if (_isPickingSpecies) {
       return _buildSpeciesStage(theme, instances, repo);
@@ -170,7 +143,7 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
   Widget _buildSpeciesStage(
     FactionTheme theme,
     List<CreatureInstance> instances,
-    CreatureRepository repo,
+    CreatureCatalog repo,
   ) {
     final speciesData = buildSpeciesListData(instances: instances, repo: repo);
 
@@ -304,7 +277,7 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
   }
 
   // Stage 2: Choose which specific instances to add to party
-  Widget _buildInstanceStage(FactionTheme theme, CreatureRepository repo) {
+  Widget _buildInstanceStage(FactionTheme theme, CreatureCatalog repo) {
     final species = repo.getCreatureById(_selectedSpeciesId!);
     if (species == null) {
       return Center(
@@ -319,16 +292,17 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
       theme: theme,
       selectionMode: true,
       initialDetailMode: InstanceDetailMode.stats,
-      selectedInstanceId1: party.members.isNotEmpty
-          ? party.members[0].instanceId
-          : null,
-      selectedInstanceId2: party.members.length > 1
-          ? party.members[1].instanceId
-          : null,
-      selectedInstanceId3: party.members.length > 2
-          ? party.members[2].instanceId
-          : null,
+      selectedInstanceIds: [
+        if (party.members.isNotEmpty) party.members[0].instanceId,
+        if (party.members.length > 1) party.members[1].instanceId,
+        if (party.members.length > 2) party.members[2].instanceId,
+      ],
       onTap: (inst) {
+        // Check if trying to add (not remove)
+        final isCurrentlySelected = party.members.any(
+          (m) => m.instanceId == inst.instanceId,
+        );
+
         context.read<SelectedPartyNotifier>().toggle(inst.instanceId);
       },
     );
@@ -385,6 +359,24 @@ class _StageHeader extends StatelessWidget {
               ),
             ),
           if (canGoBack) const SizedBox(width: 12),
+
+          if (!canGoBack)
+            GestureDetector(
+              onTap: () => {
+                HapticFeedback.lightImpact(),
+                Navigator.of(context).maybePop(),
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: theme.border),
+                ),
+                child: Icon(Icons.arrow_back, color: theme.text, size: 18),
+              ),
+            ),
+          if (!canGoBack) SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,7 +442,10 @@ class _PartyFooter extends StatelessWidget {
         children: [
           // Current team display
           StreamBuilder<List<CreatureInstance>>(
-            stream: context.watch<AlchemonsDatabase>().watchAllInstances(),
+            stream: context
+                .watch<AlchemonsDatabase>()
+                .creatureDao
+                .watchAllInstances(),
             builder: (context, snapshot) {
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return const SizedBox.shrink();
@@ -489,10 +484,141 @@ class _PartyFooter extends StatelessWidget {
             enabled: canDeploy,
             selectedCount: count,
             onTap: canDeploy
-                ? () => Navigator.pop(context, party.members)
+                ? () async {
+                    // Show the confirmation dialog
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => _DeployConfirmDialog(theme: theme),
+                      barrierDismissible: false, // User must make a choice
+                    );
+
+                    // Only pop if the user confirmed
+                    if (confirmed == true && context.mounted) {
+                      Navigator.pop(context, party.members);
+                    }
+                  }
                 : null,
           ),
         ],
+      ),
+    );
+  }
+}
+// [File: party_picker.dart]
+// ... (at the very end of the file, after the _SpeciesRow class)
+
+// ---------- DEPLOY CONFIRM DIALOG ----------
+
+class _DeployConfirmDialog extends StatelessWidget {
+  const _DeployConfirmDialog({required this.theme});
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A0E27).withOpacity(.95),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.amber.withOpacity(.5), // Alert color
+            width: 1.4,
+          ),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.warning_amber_rounded, // Warning icon
+              color: Colors.amber.withOpacity(.9),
+              size: 28,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Deploy Team?',
+              style: TextStyle(
+                color: theme.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Are you sure you want to deploy this team to the wild? Creatures in the wild are unique and will not be there again after leaving.",
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                // Cancel button
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, false), // Return false
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.04),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(.14),
+                          width: 1.4,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'CANCEL',
+                        style: TextStyle(
+                          color: theme.text,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          letterSpacing: .5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Deploy button
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, true), // Return true
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent.withOpacity(.2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.greenAccent.withOpacity(.6),
+                          width: 1.4,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'DEPLOY',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          letterSpacing: .5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -506,7 +632,7 @@ class _TeamDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repo = context.watch<CreatureRepository>();
+    final repo = context.watch<CreatureCatalog>();
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -597,7 +723,7 @@ class _TeamSlotFilled extends StatelessWidget {
 
   final CreatureInstance instance;
   final FactionTheme theme;
-  final CreatureRepository repo;
+  final CreatureCatalog repo;
   final VoidCallback onRemove;
 
   @override

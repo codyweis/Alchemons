@@ -42,7 +42,7 @@ class BiomeFarmState {
 
   Color get currentColor {
     if (activeElementId == null) return biome.primaryColor;
-    return biome.colorForElement(activeElementId!);
+    return biome.resourceColor;
   }
 }
 

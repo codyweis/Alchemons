@@ -4,7 +4,9 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/likelihood_analyzer.dart';
@@ -25,7 +27,7 @@ import '../../services/breeding_engine.dart';
 import '../../services/creature_repository.dart';
 
 class BreedingTab extends StatefulWidget {
-  final List<Map<String, dynamic>> discoveredCreatures;
+  final List<CreatureEntry> discoveredCreatures;
   final VoidCallback onBreedingComplete;
 
   const BreedingTab({
@@ -269,7 +271,7 @@ class _BreedingTabState extends State<BreedingTab>
     final hasParents = selectedParent1 != null && selectedParent2 != null;
 
     // grab base species + their colors up front so we can feed them to orb
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
     final baseA = selectedParent1 != null
         ? repo.getCreatureById(selectedParent1!.baseId)
         : null;
@@ -354,7 +356,7 @@ class _BreedingTabState extends State<BreedingTab>
     required FactionTheme theme,
     required AnimationController controller,
   }) {
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
     final base = inst != null ? repo.getCreatureById(inst.baseId) : null;
     final genetics = decodeGenetics(inst?.geneticsJson);
 
@@ -492,66 +494,6 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
-  // little dashed capsule hint for empty slot
-  Widget _dashedHint(FactionTheme theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.border.withOpacity(.5),
-          width: 1,
-          style: BorderStyle.solid,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.add_rounded,
-            color: theme.textMuted.withOpacity(.7),
-            size: 14,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // badge that says ONLINE / EMPTY
-  Widget _buildStatusChip({
-    required bool isEmpty,
-    required FactionTheme theme,
-    required Color activeColor,
-  }) {
-    final bg = isEmpty
-        ? theme.surfaceAlt.withOpacity(.4)
-        : activeColor.withOpacity(.2);
-    final border = isEmpty
-        ? theme.border.withOpacity(.4)
-        : activeColor.withOpacity(.6);
-    final textColor = isEmpty
-        ? theme.textMuted.withOpacity(.8)
-        : activeColor.withOpacity(.9);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: border, width: 1),
-      ),
-      child: Text(
-        isEmpty ? 'EMPTY' : 'ONLINE',
-        style: TextStyle(
-          color: textColor,
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          letterSpacing: .6,
-        ),
-      ),
-    );
-  }
-
   // empty avatar ring (inactive state)
   Widget _buildEmptyAvatar(FactionTheme theme) {
     final primary = Theme.of(context).colorScheme.primary;
@@ -640,21 +582,7 @@ class _BreedingTabState extends State<BreedingTab>
       child: base.spriteData != null
           ? Transform.scale(
               scale: 1.4,
-              child: CreatureSprite(
-                spritePath: base.spriteData!.spriteSheetPath,
-                totalFrames: base.spriteData!.totalFrames,
-                rows: base.spriteData!.rows,
-                frameSize: Vector2(
-                  base.spriteData!.frameWidth * 1.0,
-                  base.spriteData!.frameHeight * 1.0,
-                ),
-                stepTime: base.spriteData!.frameDurationMs / 1000.0,
-                scale: scaleFromGenes(genetics),
-                saturation: satFromGenes(genetics),
-                brightness: briFromGenes(genetics),
-                hueShift: hueFromGenes(genetics),
-                isPrismatic: inst.isPrismaticSkin,
-              ),
+              child: InstanceSprite(creature: base, instance: inst, size: 72),
             )
           : Icon(
               Icons.image_not_supported_rounded,
@@ -960,7 +888,7 @@ class _BreedingTabState extends State<BreedingTab>
     }
 
     try {
-      final repo = context.read<CreatureRepository>();
+      final repo = context.read<CreatureCatalog>();
       final speciesA = repo.getCreatureById(selectedParent1!.baseId);
       final speciesB = repo.getCreatureById(selectedParent2!.baseId);
 
@@ -979,25 +907,10 @@ class _BreedingTabState extends State<BreedingTab>
             size: 64,
           );
         }
-        final g = decodeGenetics(inst.geneticsJson);
         return SizedBox(
           width: 120,
           height: 120,
-          child: CreatureSprite(
-            spritePath: base!.spriteData!.spriteSheetPath,
-            totalFrames: base.spriteData!.totalFrames,
-            rows: base.spriteData!.rows,
-            frameSize: Vector2(
-              base.spriteData!.frameWidth * 1.0,
-              base.spriteData!.frameHeight * 1.0,
-            ),
-            stepTime: base.spriteData!.frameDurationMs / 1000.0,
-            scale: scaleFromGenes(g),
-            saturation: satFromGenes(g),
-            brightness: briFromGenes(g),
-            hueShift: hueFromGenes(g),
-            isPrismatic: inst.isPrismaticSkin,
-          ),
+          child: InstanceSprite(creature: base!, instance: inst, size: 72),
         );
       }
 
@@ -1103,6 +1016,7 @@ class _BreedingTabState extends State<BreedingTab>
             milliseconds: (baseHatchDelay.inMilliseconds * hatchMult * fireMult)
                 .round(),
           );
+          final lineage = offspring.lineageData;
 
           final payload = {
             'baseId': offspring.id,
@@ -1113,17 +1027,31 @@ class _BreedingTabState extends State<BreedingTab>
             'isPrismaticSkin': offspring.isPrismaticSkin,
             'likelihoodAnalysis': analysisJson,
             'stats': offspring.stats?.toJson(),
+            'lineage': {
+              'generationDepth': lineage?.generationDepth,
+              'nativeFaction': lineage?.nativeFaction,
+              'variantFaction': lineage?.variantFaction,
+              'factionLineage': lineage?.factionLineage,
+              'elementLineage': lineage?.elementLineage,
+              'familyLineage': lineage?.familyLineage,
+              'isPure': offspring.isPure,
+            },
+            'statPotentials': {
+              'speed': offspring.stats?.speedPotential ?? 3.0,
+              'intelligence': offspring.stats?.intelligencePotential ?? 3.0,
+              'strength': offspring.stats?.strengthPotential ?? 3.0,
+              'beauty': offspring.stats?.beautyPotential ?? 3.0,
+            },
           };
           final payloadJson = jsonEncode(payload);
 
-          final free = await db.firstFreeSlot();
+          final free = await db.incubatorDao.firstFreeSlot();
           final eggId = 'egg_${DateTime.now().millisecondsSinceEpoch}';
 
           if (free == null) {
-            await db.enqueueEgg(
+            await db.incubatorDao.enqueueEgg(
               eggId: eggId,
               resultCreatureId: offspring.id,
-              bonusVariantId: breedResult.variantUnlocked?.id,
               rarity: offspring.rarity,
               remaining: adjustedHatchDelay,
               payloadJson: payloadJson,
@@ -1135,11 +1063,10 @@ class _BreedingTabState extends State<BreedingTab>
             );
           } else {
             final hatchAtUtc = DateTime.now().toUtc().add(adjustedHatchDelay);
-            await db.placeEgg(
+            await db.incubatorDao.placeEgg(
               slotId: free.id,
               eggId: eggId,
               resultCreatureId: offspring.id,
-              bonusVariantId: breedResult.variantUnlocked?.id,
               rarity: offspring.rarity,
               hatchAtUtc: hatchAtUtc,
               payloadJson: payloadJson,
@@ -1185,7 +1112,16 @@ class _BreedingTabState extends State<BreedingTab>
   }
 
   // ================== CREATURE SELECTION (unchanged logic) ==================
-  void _showCreatureSelection(int slotNumber) {
+  void _showCreatureSelection(int slotNumber) async {
+    final db = context.read<AlchemonsDatabase>();
+    final available = await db.creatureDao
+        .getSpeciesWithInstances(); // Set<String> baseIds
+
+    final filteredDiscovered = filterByAvailableInstances(
+      widget.discoveredCreatures,
+      available,
+    );
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1199,10 +1135,11 @@ class _BreedingTabState extends State<BreedingTab>
           builder: (context, scrollController) {
             return CreatureSelectionSheet(
               scrollController: scrollController,
-              discoveredCreatures: widget.discoveredCreatures,
+              discoveredCreatures: filteredDiscovered,
+              showOnlyAvailableTypes: true,
               onSelectCreature: (creatureId) async {
                 Navigator.pop(context);
-                final repo = context.read<CreatureRepository>();
+                final repo = context.read<CreatureCatalog>();
                 final species = repo.getCreatureById(creatureId);
                 if (species == null) return;
                 _showInstancePicker(slotNumber, species);
@@ -1228,8 +1165,12 @@ class _BreedingTabState extends State<BreedingTab>
           child: InstancesSheet(
             species: species,
             theme: theme,
-            selectedInstanceId1: selectedParent1?.instanceId,
-            selectedInstanceId2: selectedParent2?.instanceId,
+            selectedInstanceIds: [
+              if (selectedParent1?.instanceId != null)
+                selectedParent1!.instanceId,
+              if (selectedParent2?.instanceId != null)
+                selectedParent2!.instanceId,
+            ],
             onTap: (CreatureInstance inst) async {
               final stamina = context.read<StaminaService>();
 

@@ -2,21 +2,18 @@
   "recipes": {
     "let+let":  { "let": 50, "mane": 25, "pip": 25 },
 
-    "let+pip":  { "let": 30, "pip": 30, "mask": 40 },
-    "let+mane": { "pip": 30, "mane": 30, "horn": 40 },
-    "let+mask": { "pip": 60, "mask": 20, "let": 20 },
-    "let+horn": { "mane": 60, "horn": 20, "let": 20 },
+    "let+pip":  { "mask": 40, "let": 30, "pip": 30 },
+    "let+mane": { "horn": 40, "pip": 30, "mane": 30 },
+    "let+mask": { "pip": 60, "let": 20, "mask": 20 },
+    "let+horn": { "mane": 60, "let": 20, "horn": 20 },
 
     "pip+mane":  { "pip": 30, "mane": 30, "mask": 15, "horn": 15 },
 
-    "pip+horn": { "kin": 20, "horn": 30, "pip": 30, "mane": 20 },
+    "pip+horn": { "horn": 30, "pip": 30, "kin": 20, "mane": 20 },
 
-    "mane+horn": { "wing": 20, "horn": 30, "mane": 30, "mask": 20 },
+    "mane+horn": { "horn": 30, "mane": 30, "mask": 20, "wing": 20 },
 
     "mask+kin": { "wing": 50, "mask": 20, "kin": 20, "mane": 10 },
     "mask+wing": { "kin": 50, "mask": 20, "wing": 20, "mane": 10 }
   }
 }
-
-
-

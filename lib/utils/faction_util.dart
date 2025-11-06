@@ -198,8 +198,8 @@ FactionTheme factionThemeFor(
   if (brightness == Brightness.dark) {
     // Custom dark overrides you had for Fire/Earth surfaces preserved
     final surface = switch (id) {
-      FactionId.fire => const Color.fromARGB(255, 27, 18, 18),
-      FactionId.earth => const Color.fromARGB(255, 29, 25, 21),
+      FactionId.fire => const Color.fromARGB(255, 18, 12, 12),
+      FactionId.earth => const Color.fromARGB(255, 9, 14, 8),
       _ => _darkSurface,
     };
     final surfaceAlt = switch (id) {

@@ -1,3 +1,5 @@
+import 'dart:math' show sin;
+
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:flutter/material.dart';
@@ -64,6 +66,29 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
       backgroundColor: theme.surface,
       body: Stack(
         children: [
+          // BIOME BACKGROUND WITH EXTRACTION EQUIPMENT
+          Positioned.fill(
+            child: ListenableBuilder(
+              listenable: svc,
+              builder: (_, __) {
+                // Show unlocked biomes in background, or all if none unlocked
+                final unlockedBiomes = svc.biomes
+                    .where((f) => f.unlocked)
+                    .map((f) => f.biome)
+                    .toList();
+
+                final biomesToShow = unlockedBiomes.isNotEmpty
+                    ? unlockedBiomes
+                    : svc.biomes.map((f) => f.biome).toList();
+
+                return BiomeExtractionBackground(
+                  biomes: biomesToShow,
+                  opacity: 0.25, // Adjust this to make more/less subtle
+                );
+              },
+            ),
+          ),
+
           SafeArea(
             bottom: false,
             child: ListenableBuilder(
@@ -74,8 +99,7 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
                   children: [
                     _HeaderBar(
                       title: 'Biome Extractors',
-                      subtitle:
-                          'Extract elemental resources from specialized habitats',
+                      subtitle: 'Extract elemental resources from Alchemons',
                       theme: theme,
                       onBack: () {
                         HapticFeedback.lightImpact();
@@ -95,6 +119,7 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
                               builder: (_) => BiomeDetailScreen(
                                 biome: f.biome,
                                 service: svc,
+                                discoveredCreatures: [],
                               ),
                             ),
                           );
@@ -184,15 +209,6 @@ class _HeaderBar extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-
-          // simple icon summary for harvest context
-          Container(
-            width: 40,
-            height: 40,
-            decoration: theme.chipDecoration(rim: theme.accent),
-            alignment: Alignment.center,
-            child: Icon(Icons.agriculture_rounded, color: theme.text, size: 20),
           ),
         ],
       ),
@@ -388,7 +404,7 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
                             spacing: 4,
                             runSpacing: 4,
                             children: [
-                              for (final name in biome.elementNames)
+                              for (final name in biome.elementTypes)
                                 _ElementChipTiny(
                                   label: name,
                                   theme: widget.theme,
@@ -685,7 +701,7 @@ class _UnlockDialog extends StatelessWidget {
         ),
         padding: const EdgeInsets.all(16),
         child: StreamBuilder<Map<String, int>>(
-          stream: db.watchResourceBalances(),
+          stream: db.currencyDao.watchResourceBalances(),
           builder: (context, snap) {
             final bal = snap.data ?? {};
             bool hasShortage = false;
@@ -917,4 +933,350 @@ class _DialogPrimaryBtn extends StatelessWidget {
       ),
     ),
   );
+}
+
+// ------------------------------------------------------------//
+/// Animated background for biome extraction screens
+/// Shows themed gradient + particle effects for each biome type
+class BiomeExtractionBackground extends StatefulWidget {
+  const BiomeExtractionBackground({
+    super.key,
+    required this.biomes,
+    this.opacity = 0.3,
+  });
+
+  final List<Biome> biomes;
+  final double opacity;
+
+  @override
+  State<BiomeExtractionBackground> createState() =>
+      _BiomeExtractionBackgroundState();
+}
+
+class _BiomeExtractionBackgroundState extends State<BiomeExtractionBackground>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    ); // <-- REMOVE .repeat() from here
+
+    // Add this Future.delayed
+    Future.delayed(const Duration(milliseconds: 400), () {
+      // Check if the widget is still on screen before starting
+      if (mounted) {
+        _controller.repeat();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Base gradient for biome atmosphere
+        Positioned.fill(
+          child: _BiomeGradientLayer(
+            biomes: widget.biomes,
+            opacity: widget.opacity,
+          ),
+        ),
+
+        // Animated particles/elements floating
+        Positioned.fill(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              return CustomPaint(
+                painter: _BiomeParticlePainter(
+                  biomes: widget.biomes,
+                  animation: _controller.value,
+                  opacity: widget.opacity * 0.4,
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Test tube/extraction equipment overlay
+        Positioned.fill(
+          child: _ExtractionEquipmentOverlay(
+            biomes: widget.biomes,
+            opacity: widget.opacity * 0.6,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Gradient layer that blends colors from active biomes
+class _BiomeGradientLayer extends StatelessWidget {
+  const _BiomeGradientLayer({required this.biomes, required this.opacity});
+
+  final List<Biome> biomes;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    // Get colors from biomes (use first 3 for gradient)
+    final colors = biomes.take(3).map((b) => b.primaryColor).toList();
+
+    if (colors.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Pad to at least 2 colors for gradient
+    while (colors.length < 2) {
+      colors.add(colors.first);
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colors[0].withOpacity(opacity),
+            if (colors.length > 1) colors[1].withOpacity(opacity * 0.7),
+            if (colors.length > 2) colors[2].withOpacity(opacity * 0.5),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.4, 0.7, 1.0],
+        ),
+      ),
+    );
+  }
+}
+
+/// Floating particle effect painter
+class _BiomeParticlePainter extends CustomPainter {
+  _BiomeParticlePainter({
+    required this.biomes,
+    required this.animation,
+    required this.opacity,
+  });
+
+  final List<Biome> biomes;
+  final double animation;
+  final double opacity;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (biomes.isEmpty) return;
+
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    // Generate particles for each biome
+    for (
+      int biomeIdx = 0;
+      biomeIdx < biomes.length && biomeIdx < 3;
+      biomeIdx++
+    ) {
+      final biome = biomes[biomeIdx];
+      final color = biome.primaryColor.withOpacity(opacity);
+      paint.color = color;
+
+      // Create floating particles with different patterns per biome
+      final particleCount = 8 + (biomeIdx * 4);
+
+      for (int i = 0; i < particleCount; i++) {
+        final t = (animation + (i / particleCount)) % 1.0;
+        final phase = (biomeIdx * 0.3) + (i * 0.1);
+
+        // Position with sine wave motion
+        final x = size.width * (0.2 + (0.6 * i / particleCount));
+        final y = size.height * t;
+        final wobble =
+            20 * (1 + biomeIdx) * (0.5 + 0.5 * sin(animation * 2 + phase));
+
+        final offset = Offset(x + wobble, y);
+
+        // Size varies by particle and biome
+        final radius =
+            (2.0 + biomeIdx * 1.5) * (0.7 + 0.3 * sin(animation * 3 + i));
+
+        canvas.drawCircle(offset, radius, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BiomeParticlePainter oldDelegate) =>
+      animation != oldDelegate.animation;
+}
+
+/// Test tube and extraction equipment overlay
+class _ExtractionEquipmentOverlay extends StatelessWidget {
+  const _ExtractionEquipmentOverlay({
+    required this.biomes,
+    required this.opacity,
+  });
+
+  final List<Biome> biomes;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
+    return Stack(
+      children: [
+        // Large test tubes in background (subtle)
+        Positioned(
+          right: -40,
+          top: size.height * 0.15,
+          child: Opacity(
+            opacity: opacity * 0.3,
+            child: _TestTubeShape(
+              height: size.height * 0.5,
+              width: 80,
+              color: biomes.isNotEmpty
+                  ? biomes.first.primaryColor
+                  : Colors.cyan,
+            ),
+          ),
+        ),
+
+        Positioned(
+          left: -30,
+          bottom: size.height * 0.1,
+          child: Opacity(
+            opacity: opacity * 0.25,
+            child: _TestTubeShape(
+              height: size.height * 0.4,
+              width: 70,
+              color: biomes.length > 1 ? biomes[1].primaryColor : Colors.green,
+            ),
+          ),
+        ),
+
+        // Extraction grid lines (subtle tech feel)
+        Positioned.fill(
+          child: Opacity(
+            opacity: opacity * 0.15,
+            child: CustomPaint(painter: _GridOverlayPainter()),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Test tube shape widget
+class _TestTubeShape extends StatelessWidget {
+  const _TestTubeShape({
+    required this.height,
+    required this.width,
+    required this.color,
+  });
+
+  final double height;
+  final double width;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            color.withOpacity(0.1),
+            color.withOpacity(0.3),
+            color.withOpacity(0.5),
+          ],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(width * 0.4),
+          bottomRight: Radius.circular(width * 0.4),
+        ),
+        border: Border.all(color: color.withOpacity(0.4), width: 2),
+      ),
+      child: Stack(
+        children: [
+          // Liquid level indicator
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: height * 0.6,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [color.withOpacity(0.2), color.withOpacity(0.6)],
+                ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(width * 0.4),
+                  bottomRight: Radius.circular(width * 0.4),
+                ),
+              ),
+            ),
+          ),
+
+          // Shine effect
+          Positioned(
+            left: width * 0.15,
+            top: height * 0.1,
+            child: Container(
+              width: width * 0.2,
+              height: height * 0.3,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withOpacity(0.3),
+                    Colors.white.withOpacity(0.0),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(width * 0.1),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Grid overlay painter for tech/extraction facility feel
+class _GridOverlayPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+
+    const spacing = 40.0;
+
+    // Vertical lines
+    for (double x = 0; x < size.width; x += spacing) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+
+    // Horizontal lines
+    for (double y = 0; y < size.height; y += spacing) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

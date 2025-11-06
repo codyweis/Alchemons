@@ -222,7 +222,7 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
   @override
   Widget build(BuildContext context) {
     print('EnhancementDisplay.build() called - isAnimating=$_isAnimating');
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
     final creature = repo.getCreatureById(widget.instance.baseId);
     if (creature == null) return const SizedBox.shrink();
 

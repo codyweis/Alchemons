@@ -1,9 +1,18 @@
 import 'dart:convert';
-import 'dart:ui';
-
+import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/components.dart';
+
+import 'package:alchemons/screens/creatures_screen.dart';
+import 'package:alchemons/services/game_data_service.dart';
+import 'package:alchemons/widgets/creature_detail/detail_helper_widgets.dart';
+import 'package:alchemons/widgets/creature_detail/lineage_block_widget.dart';
+import 'package:alchemons/widgets/creature_detail/outcome_widget.dart';
+import 'package:alchemons/widgets/creature_detail/parent_display_widget.dart';
+import 'package:alchemons/widgets/creature_detail/section_block.dart';
+import 'package:alchemons/widgets/creature_detail/stats_potential_widget.dart';
+import 'package:alchemons/widgets/creature_detail/unknow_helper.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
@@ -11,12 +20,9 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/providers/app_providers.dart';
-import 'package:alchemons/screens/instance_selection_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
-import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 
 import '../models/creature.dart';
@@ -60,18 +66,25 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   late PageController _pageController;
   late ScrollController _analysisScrollController;
 
-  Future<Creature>? _resolvedCreature;
-  final Set<String> _expandedParents = {};
+  /// We render immediately with the base creature; if an instance is provided
+  /// we hydrate it and update this field (with a soft fade) without changing the
+  /// dialog size/layout.
+  late Creature _effectiveCreature;
 
+  /// While we’re hydrating the instance variant, show subtle placeholders but do
+  /// NOT change the outer dialog.
+  bool _hydratingInstance = false;
+
+  final Set<String> _expandedParents = {};
   int _currentImageIndex = 0;
 
+  CreatureInstance? _instance; // << keep instance row once
   int? _instanceLevel;
-  int? _instanceXp;
-  int? _instanceXpToNext;
 
   @override
   void initState() {
     super.initState();
+    _effectiveCreature = widget.creature;
 
     _tabController = TabController(
       length: widget.isDiscovered ? 2 : 1,
@@ -81,36 +94,46 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     _pageController = PageController(viewportFraction: 1.0);
     _analysisScrollController = ScrollController();
 
+    // If we have an instance, hydrate asynchronously but keep the same shell.
     if (widget.instanceId != null) {
-      _resolvedCreature = _displayCreatureForInstance(widget.instanceId!);
+      _hydrateFromInstance(widget.instanceId!);
     }
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _pageController.dispose();
-    _analysisScrollController.dispose();
-    super.dispose();
+  Future<void> _hydrateFromInstance(String instanceId) async {
+    _hydratingInstance = true;
+    if (mounted) setState(() {});
+
+    try {
+      final db = context.read<AlchemonsDatabase>();
+      final repo = context.read<CreatureCatalog>();
+
+      final row = await db.creatureDao.getInstance(instanceId);
+      if (row == null) throw Exception('Instance not found');
+
+      _instance = row; // store for children
+      _instanceLevel = row.level;
+
+      final base = repo.getCreatureById(row.baseId);
+      if (base == null) {
+        throw Exception('Catalog creature ${row.baseId} not loaded');
+      }
+
+      _effectiveCreature = _hydrateCatalogCreature(base, row, repo);
+    } catch (_) {
+      // Fall back to base creature; still stop the "hydrating" state.
+    } finally {
+      if (!mounted) return;
+      _hydratingInstance = false;
+      setState(() {});
+    }
   }
 
-  // ---- data prep helpers ----------------------------------------------------
-
-  Future<Creature> _displayCreatureForInstance(String instanceId) async {
-    final db = context.read<AlchemonsDatabase>();
-    final repo = context.read<CreatureRepository>();
-
-    final row = await db.getInstance(instanceId);
-    if (row == null) throw Exception('Instance not found');
-
-    _instanceLevel = row.level;
-    _instanceXp = row.xp;
-
-    final base = repo.getCreatureById(row.baseId);
-    if (base == null) {
-      throw Exception('Catalog creature ${row.baseId} not loaded');
-    }
-
+  Creature _hydrateCatalogCreature(
+    Creature base,
+    CreatureInstance row,
+    CreatureCatalog repo,
+  ) {
     var out = base;
 
     if (row.isPrismaticSkin == true) {
@@ -132,6 +155,16 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     return out;
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _pageController.dispose();
+    _analysisScrollController.dispose();
+    super.dispose();
+  }
+
+  // ---- data prep helpers ----------------------------------------------------
+
   Parentage? _decodeParentage(String? jsonStr) {
     if (jsonStr == null || jsonStr.isEmpty) return null;
     try {
@@ -141,41 +174,29 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     }
   }
 
-  String _sizeName(Creature c) =>
-      sizeLabels[c.genetics?.get('size') ?? 'normal'] ?? 'Standard';
-
-  String _tintName(Creature c) =>
-      tintLabels[c.genetics?.get('tinting') ?? 'normal'] ?? 'Standard';
-
   // ---- build root -----------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     final factionTheme = context.read<FactionTheme>();
 
-    if (widget.instanceId == null) {
-      // static species view
-      return _buildDialogShell(factionTheme, widget.creature);
-    }
-
-    // instance view (hydrate first)
-    return FutureBuilder<Creature>(
-      future: _resolvedCreature,
-      builder: (ctx, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return _buildLoadingDialog(factionTheme);
-        }
-        if (snap.hasError || !snap.hasData) {
-          return _buildDialogShell(factionTheme, widget.creature);
-        }
-        return _buildDialogShell(factionTheme, snap.data!);
-      },
+    // Always render the full dialog shell. Internals can show loading states.
+    return _buildDialogShell(
+      factionTheme,
+      _effectiveCreature,
+      hydrating: _hydratingInstance,
+      instance: _instance,
     );
   }
 
   // ---- outer shell (header + tabs + body scroll) ---------------------------
 
-  Widget _buildDialogShell(FactionTheme theme, Creature effective) {
+  Widget _buildDialogShell(
+    FactionTheme theme,
+    Creature effective, {
+    required bool hydrating,
+    required CreatureInstance? instance,
+  }) {
     final discovered = widget.isDiscovered;
 
     return Dialog(
@@ -186,18 +207,15 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
         height: MediaQuery.of(context).size.height * 0.85,
         decoration: BoxDecoration(
           color: theme.surface,
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: theme.border, width: 2),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.border, width: 1.5),
+          // Slightly lighter shadows to avoid GPU stalls on first frame.
           boxShadow: [
             BoxShadow(
-              color: theme.accent.withOpacity(.4),
-              blurRadius: 32,
-              spreadRadius: 4,
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(.8),
-              blurRadius: 48,
-              spreadRadius: 16,
+              color: Colors.black.withOpacity(.55),
+              blurRadius: 28,
+              spreadRadius: 6,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
@@ -210,40 +228,48 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
               level: _instanceLevel,
               onClose: () => Navigator.of(context).pop(),
             ),
-
             if (discovered)
               _DialogTabSelector(theme: theme, tabController: _tabController),
-
             Expanded(
               child: discovered
                   ? TabBarView(
                       controller: _tabController,
                       children: [
-                        _OverviewScrollArea(
-                          theme: theme,
-                          instanceId: widget.instanceId,
-                          instanceLevel: _instanceLevel,
-                          creature: effective,
-                          pageController: _pageController,
-                          currentImageIndex: _currentImageIndex,
-                          onPageChanged: (i) {
-                            setState(() {
-                              _currentImageIndex = i;
-                            });
-                          },
+                        // Use AnimatedSwitcher so hydrated content fades in
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          switchInCurve: Curves.easeOut,
+                          switchOutCurve: Curves.easeIn,
+                          child: _OverviewScrollArea(
+                            key: ValueKey(
+                              '${effective.id}-${hydrating ? 'loading' : 'ready'}',
+                            ),
+                            theme: theme,
+                            instanceId: widget.instanceId,
+                            instanceLevel: _instanceLevel,
+                            instance: instance,
+                            creature: effective,
+                            pageController: _pageController,
+                            currentImageIndex: _currentImageIndex,
+                            onPageChanged: (i) {
+                              setState(() {
+                                _currentImageIndex = i;
+                              });
+                            },
+                          ),
                         ),
                         _AnalysisScrollArea(
                           theme: theme,
                           controller: _analysisScrollController,
                           creature: effective,
-                          isInstance: widget.instanceId != null,
+                          isInstance: instance != null,
+                          instance: instance,
                           isExpandedMap: _expandedParents,
                           onToggleParent: (parentKey) {
                             double? oldOffset;
                             if (_analysisScrollController.hasClients) {
                               oldOffset = _analysisScrollController.offset;
                             }
-
                             setState(() {
                               if (_expandedParents.contains(parentKey)) {
                                 _expandedParents.remove(parentKey);
@@ -251,7 +277,6 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                                 _expandedParents.add(parentKey);
                               }
                             });
-
                             if (oldOffset != null) {
                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                 if (_analysisScrollController.hasClients) {
@@ -264,41 +289,9 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                         ),
                       ],
                     )
-                  : _UnknownScrollArea(theme: theme),
+                  : UnknownScrollArea(theme: theme),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingDialog(FactionTheme theme) {
-    return Dialog(
-      insetPadding: const EdgeInsets.all(12),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        height: 200,
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: theme.border, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: theme.accent.withOpacity(.4),
-              blurRadius: 32,
-              spreadRadius: 4,
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(.8),
-              blurRadius: 48,
-              spreadRadius: 16,
-            ),
-          ],
-        ),
-        alignment: Alignment.center,
-        child: CircularProgressIndicator(
-          strokeWidth: 3,
-          valueColor: AlwaysStoppedAnimation(theme.primary),
         ),
       ),
     );
@@ -306,7 +299,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
 }
 
 // ============================================================================
-// HEADER BAR
+// HEADER BAR (unchanged except lighter shadow)
 // ============================================================================
 
 class _DialogHeaderBar extends StatelessWidget {
@@ -328,12 +321,12 @@ class _DialogHeaderBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: BoxDecoration(
         color: theme.surfaceAlt,
-        border: Border(bottom: BorderSide(color: theme.border, width: 1.5)),
+        border: Border(bottom: BorderSide(color: theme.border, width: 1.2)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.6),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(.35),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -351,13 +344,12 @@ class _DialogHeaderBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: theme.primary.withOpacity(.45),
-                width: 1.5,
+                width: 1.2,
               ),
             ),
             child: Icon(Icons.biotech_rounded, color: theme.primary, size: 18),
           ),
           const SizedBox(width: 12),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,10 +388,10 @@ class _DialogHeaderBar extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          'LV $level',
+                          level != null ? 'LV ${level}' : 'LV',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 11,
+                            fontSize: 9,
                             fontWeight: FontWeight.w900,
                             letterSpacing: .5,
                           ),
@@ -419,9 +411,7 @@ class _DialogHeaderBar extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(width: 12),
-
           GestureDetector(
             onTap: onClose,
             child: Container(
@@ -445,7 +435,7 @@ class _DialogHeaderBar extends StatelessWidget {
 }
 
 // ============================================================================
-// TAB SELECTOR
+// TAB SELECTOR (unchanged)
 // ============================================================================
 
 class _DialogTabSelector extends StatelessWidget {
@@ -481,7 +471,7 @@ class _DialogTabSelector extends StatelessWidget {
             borderRadius: BorderRadius.circular(7),
             border: Border.all(
               color: theme.primary.withOpacity(.45),
-              width: 1.5,
+              width: 1.2,
             ),
           ),
           indicatorSize: TabBarIndicatorSize.tab,
@@ -504,7 +494,7 @@ class _DialogTabSelector extends StatelessWidget {
 }
 
 // ============================================================================
-// OVERVIEW TAB
+// OVERVIEW TAB (now consumes the instance directly)
 // ============================================================================
 
 class _OverviewScrollArea extends StatelessWidget {
@@ -512,16 +502,19 @@ class _OverviewScrollArea extends StatelessWidget {
   final Creature creature;
   final String? instanceId;
   final int? instanceLevel;
+  final CreatureInstance? instance; // << NEW
 
   final PageController pageController;
   final int currentImageIndex;
   final ValueChanged<int> onPageChanged;
 
   const _OverviewScrollArea({
+    super.key,
     required this.theme,
     required this.creature,
     required this.instanceId,
     required this.instanceLevel,
+    required this.instance,
     required this.pageController,
     required this.currentImageIndex,
     required this.onPageChanged,
@@ -529,57 +522,41 @@ class _OverviewScrollArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final List<Creature> entries = [creature];
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Consumer<GameStateNotifier>(
-            builder: (context, gameState, child) {
-              final variants = gameState.discoveredCreatures.where((data) {
-                final c2 = data['creature'] as Creature;
-                return c2.rarity == 'Variant' &&
-                    c2.id.startsWith('${creature.id}_');
-              }).toList();
-
-              final allVersions = [
-                {'creature': creature, 'isVariant': false},
-                ...variants.map(
-                  (v) => {'creature': v['creature'], 'isVariant': true},
-                ),
-              ];
-
-              return Center(
-                child: _CreatureCarousel(
-                  theme: theme,
-                  entries: allVersions,
-                  pageController: pageController,
-                  currentIndex: currentImageIndex,
-                  onChanged: onPageChanged,
-                ),
-              );
-            },
+          Center(
+            child: _CreatureCarousel(
+              theme: theme,
+              entries: entries,
+              pageController: pageController,
+              currentIndex: currentImageIndex,
+              onChanged: onPageChanged,
+              instance: instance,
+            ),
           ),
-
           const SizedBox(height: 20),
 
-          if (instanceId != null) ...[
-            _SectionBlock(
+          if (instance != null) ...[
+            SectionBlock(
               theme: theme,
               title: 'Specimen Status',
               child: Column(
                 children: [
                   if (instanceLevel != null)
-                    _LabeledInlineValue(
+                    LabeledInlineValue(
                       label: 'Level',
                       valueText: '$instanceLevel',
                       valueColor: theme.primary,
                     ),
-                  _StaminaInlineRow(
+                  StaminaInlineRow(
                     theme: theme,
                     label: 'Energy Level',
-                    instanceId: instanceId!,
+                    instanceId: instance!.instanceId,
                   ),
                 ],
               ),
@@ -587,23 +564,41 @@ class _OverviewScrollArea extends StatelessWidget {
             const SizedBox(height: 16),
           ],
 
-          _SectionBlock(
+          if (instance?.variantFaction != null &&
+              instance!.variantFaction!.isNotEmpty)
+            Column(
+              children: [
+                SectionBlock(
+                  theme: theme,
+                  title: 'VARIANT',
+                  child: LabeledInlineValue(
+                    label: 'Type',
+                    valueText: (instance!.variantFaction ?? 'Unknown')
+                        .toUpperCase(),
+                    valueColor: theme.text,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+
+          SectionBlock(
             theme: theme,
             title: 'Specimen Classification',
             child: Column(
               children: [
-                _LabeledInlineValue(
+                LabeledInlineValue(
                   label: 'Classification',
                   valueText: creature.rarity,
                   valueColor: theme.text,
                 ),
-                _LabeledInlineValue(
+                LabeledInlineValue(
                   label: 'Type Categories',
                   valueText: creature.types.join(', '),
                   valueColor: theme.text,
                 ),
                 if (creature.description.isNotEmpty)
-                  _LabeledInlineValue(
+                  LabeledInlineValue(
                     label: 'Description',
                     valueText: creature.description,
                     valueColor: theme.text,
@@ -613,75 +608,64 @@ class _OverviewScrollArea extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          if (instanceId != null)
-            FutureBuilder<CreatureInstance?>(
-              future: context.read<AlchemonsDatabase>().getInstance(
-                instanceId!,
-              ),
-              builder: (context, snap) {
-                if (snap.hasData && snap.data != null) {
-                  final inst = snap.data!;
-                  return Column(
+          if (instance != null)
+            Column(
+              children: [
+                SectionBlock(
+                  theme: theme,
+                  title: 'Physical Attributes',
+                  child: Column(
                     children: [
-                      _SectionBlock(
+                      StatBarRow(
                         theme: theme,
-                        title: 'Physical Attributes',
-                        child: Column(
-                          children: [
-                            _StatBarRow(
-                              theme: theme,
-                              label: 'Speed',
-                              value: inst.statSpeed,
-                            ),
-                            _StatBarRow(
-                              theme: theme,
-                              label: 'Intelligence',
-                              value: inst.statIntelligence,
-                            ),
-                            _StatBarRow(
-                              theme: theme,
-                              label: 'Strength',
-                              value: inst.statStrength,
-                            ),
-                            _StatBarRow(
-                              theme: theme,
-                              label: 'Beauty',
-                              value: inst.statBeauty,
-                            ),
-                          ],
-                        ),
+                        label: 'Speed',
+                        value: instance!.statSpeed,
                       ),
-                      const SizedBox(height: 16),
+                      StatBarRow(
+                        theme: theme,
+                        label: 'Intelligence',
+                        value: instance!.statIntelligence,
+                      ),
+                      StatBarRow(
+                        theme: theme,
+                        label: 'Strength',
+                        value: instance!.statStrength,
+                      ),
+                      StatBarRow(
+                        theme: theme,
+                        label: 'Beauty',
+                        value: instance!.statBeauty,
+                      ),
                     ],
-                  );
-                }
-                return const SizedBox.shrink();
-              },
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
             ),
 
-          _SectionBlock(
+          SectionBlock(
             theme: theme,
             title: 'Genetic Profile',
             child: Column(
               children: [
-                _LabeledInlineValue(
+                LabeledInlineValue(
                   label: 'Size Variant',
                   valueText: _sizeLabels(creature),
                   valueColor: theme.text,
                 ),
-                _LabeledInlineValue(
+                LabeledInlineValue(
                   label: 'Pigmentation',
                   valueText: _tintLabels(creature),
                   valueColor: theme.text,
                 ),
                 if (creature.nature != null)
-                  _LabeledInlineValue(
+                  LabeledInlineValue(
                     label: 'Behavioral Pattern',
                     valueText: creature.nature!.id,
                     valueColor: theme.text,
                   ),
                 if (creature.isPrismaticSkin == true)
-                  _LabeledInlineValue(
+                  LabeledInlineValue(
                     label: 'Special Trait',
                     valueText: 'Prismatic Phenotype',
                     valueColor: theme.text,
@@ -692,16 +676,16 @@ class _OverviewScrollArea extends StatelessWidget {
 
           if (creature.specialBreeding != null) ...[
             const SizedBox(height: 16),
-            _SectionBlock(
+            SectionBlock(
               theme: theme,
               title: 'Synthesis Requirements',
               child: Column(
                 children: [
-                  _LabeledInlineValue(
+                  const LabeledInlineValue(
                     label: 'Method',
                     valueText: 'Specialized Genetic Fusion',
                   ),
-                  _LabeledInlineValue(
+                  LabeledInlineValue(
                     label: 'Required Components',
                     valueText: creature.specialBreeding!.requiredParentNames
                         .join(' + '),
@@ -727,7 +711,7 @@ class _OverviewScrollArea extends StatelessWidget {
 }
 
 // ============================================================================
-// ANALYSIS TAB
+// ANALYSIS TAB (reads the same instance)
 // ============================================================================
 
 class _AnalysisScrollArea extends StatelessWidget {
@@ -735,6 +719,7 @@ class _AnalysisScrollArea extends StatelessWidget {
   final ScrollController controller;
   final Creature creature;
   final bool isInstance;
+  final CreatureInstance? instance; // << NEW
   final Set<String> isExpandedMap;
   final void Function(String parentKey) onToggleParent;
   final String? instanceId;
@@ -744,6 +729,7 @@ class _AnalysisScrollArea extends StatelessWidget {
     required this.controller,
     required this.creature,
     required this.isInstance,
+    required this.instance,
     required this.isExpandedMap,
     required this.onToggleParent,
     required this.instanceId,
@@ -760,38 +746,44 @@ class _AnalysisScrollArea extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionBlock(
+          SectionBlock(
             theme: theme,
             title: 'Behavioral Analysis',
             child: _BehaviorBlock(creature: creature, textColor: theme.text),
           ),
-
           const SizedBox(height: 16),
-
-          _SectionBlock(
+          SectionBlock(
             theme: theme,
             title: 'Genetic Analysis',
             child: _GeneticsBlock(creature: creature, textColor: theme.text),
           ),
-
           const SizedBox(height: 16),
 
-          if (isInstance)
-            _StatPotentialBlock(theme: theme, instanceId: instanceId),
+          if (isInstance && instanceId != null)
+            StatPotentialBlock(theme: theme, instanceId: instanceId),
           if (isInstance) const SizedBox(height: 16),
 
+          if (isInstance && instance != null) ...[
+            SectionBlock(
+              theme: theme,
+              title: 'Lineage',
+              child: LineageBlock(theme: theme, instance: instance!),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           if (parentage != null) ...[
-            _SectionBlock(
+            SectionBlock(
               theme: theme,
               title: 'Synthesis Information',
               child: Column(
                 children: [
-                  _LabeledInlineValue(
+                  LabeledInlineValue(
                     label: 'Method',
                     valueText: 'Genetic Fusion',
                     valueColor: theme.text,
                   ),
-                  _LabeledInlineValue(
+                  LabeledInlineValue(
                     label: 'Date',
                     valueText: _formatBreedLine(parentage),
                     valueColor: theme.text,
@@ -812,7 +804,7 @@ class _AnalysisScrollArea extends StatelessWidget {
             ),
             const SizedBox(height: 8),
 
-            _ParentCard(
+            ParentCard(
               theme: theme,
               snap: parentage.parentA,
               parentKey: 'parentA',
@@ -820,7 +812,7 @@ class _AnalysisScrollArea extends StatelessWidget {
               onToggle: () => onToggleParent('parentA'),
             ),
             const SizedBox(height: 10),
-            _ParentCard(
+            ParentCard(
               theme: theme,
               snap: parentage.parentB,
               parentKey: 'parentB',
@@ -828,16 +820,16 @@ class _AnalysisScrollArea extends StatelessWidget {
               onToggle: () => onToggleParent('parentB'),
             ),
           ] else ...[
-            _SectionBlock(
+            SectionBlock(
               theme: theme,
               title: 'Acquisition Method',
               child: Column(
                 children: const [
-                  _LabeledInlineValue(
+                  LabeledInlineValue(
                     label: 'Source',
                     valueText: 'Field Research',
                   ),
-                  _LabeledInlineValue(
+                  LabeledInlineValue(
                     label: 'Discovery',
                     valueText: 'Wild specimen - no synthesis data available',
                   ),
@@ -863,61 +855,6 @@ class _AnalysisScrollArea extends StatelessWidget {
 }
 
 // ============================================================================
-// UNKNOWN TAB
-// ============================================================================
-
-class _UnknownScrollArea extends StatelessWidget {
-  final FactionTheme theme;
-  const _UnknownScrollArea({required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.06),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(.15)),
-              ),
-              child: Icon(
-                Icons.help_outline_rounded,
-                color: Colors.white.withOpacity(.4),
-                size: 48,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Unknown Specimen',
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Specimen data unavailable\nContinue research to unlock analysis',
-              style: TextStyle(
-                color: theme.text.withOpacity(0.7),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
 // SMALL BUILDING BLOCKS / SUBWIDGETS
 // ============================================================================
 
@@ -925,8 +862,9 @@ class _CreatureCarousel extends StatelessWidget {
   final FactionTheme theme;
   final PageController pageController;
   final int currentIndex;
-  final List<Map<String, dynamic>> entries;
+  final List<Creature> entries;
   final ValueChanged<int> onChanged;
+  final CreatureInstance? instance; // << NEW
 
   const _CreatureCarousel({
     required this.theme,
@@ -934,6 +872,7 @@ class _CreatureCarousel extends StatelessWidget {
     required this.currentIndex,
     required this.entries,
     required this.onChanged,
+    this.instance,
   });
 
   @override
@@ -948,18 +887,13 @@ class _CreatureCarousel extends StatelessWidget {
             itemCount: entries.length,
             onPageChanged: onChanged,
             itemBuilder: (_, i) {
-              final data = entries[i];
-              final creature = data['creature'] as Creature;
-              final isVariant = data['isVariant'] as bool;
-
+              final creature = entries[i];
               return ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: CreatureSprite(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: instance == null
+                      ? CreatureSprite(
                           spritePath: creature.spriteData!.spriteSheetPath,
                           totalFrames: creature.spriteData!.totalFrames,
                           rows: creature.spriteData!.rows,
@@ -974,82 +908,17 @@ class _CreatureCarousel extends StatelessWidget {
                           brightness: briFromGenes(creature.genetics),
                           hueShift: hueFromGenes(creature.genetics),
                           isPrismatic: creature.isPrismaticSkin,
+                        )
+                      : InstanceSprite(
+                          creature: creature,
+                          instance: instance!, // **always use instance sprite**
+                          size: 72,
                         ),
-                      ),
-                    ),
-
-                    if (creature.isPrismaticSkin == true)
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.purple.shade400,
-                                Colors.purple.shade600,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(.3),
-                            ),
-                          ),
-                          child: const Text(
-                            'PRISMATIC',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    if (isVariant)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.orange.shade500,
-                                Colors.orange.shade600,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(.3),
-                            ),
-                          ),
-                          child: const Text(
-                            'VARIANT',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
                 ),
               );
             },
           ),
         ),
-
         if (entries.length > 1) ...[
           const SizedBox(height: 10),
           Row(
@@ -1075,241 +944,8 @@ class _CreatureCarousel extends StatelessWidget {
   }
 }
 
-class _SectionBlock extends StatelessWidget {
-  final FactionTheme theme;
-  final String title;
-  final Widget child;
-
-  const _SectionBlock({
-    required this.theme,
-    required this.title,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            color: theme.primary,
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            letterSpacing: .8,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.surfaceAlt,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: theme.border),
-          ),
-          child: child,
-        ),
-      ],
-    );
-  }
-}
-
-class _LabeledInlineValue extends StatelessWidget {
-  final String label;
-  final String valueText;
-  final Color? valueColor;
-
-  const _LabeledInlineValue({
-    required this.label,
-    required this.valueText,
-    this.valueColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final vc = valueColor ?? const Color(0xFFE8EAED);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: vc,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(valueText, style: TextStyle(color: vc, fontSize: 11)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StaminaInlineRow extends StatelessWidget {
-  final FactionTheme theme;
-  final String label;
-  final String instanceId;
-  const _StaminaInlineRow({
-    required this.theme,
-    required this.label,
-    required this.instanceId,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: theme.text.withOpacity(0.7),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Expanded(
-            child: StaminaBadge(instanceId: instanceId, showCountdown: true),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatBarRow extends StatelessWidget {
-  final FactionTheme theme;
-  final String label;
-  final double value;
-
-  const _StatBarRow({
-    required this.theme,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final descriptor = getStatDescriptor(value, label.toLowerCase());
-    final fill = (value / 5.0).clamp(0.0, 1.0);
-    final isMaxed = value == 5.0;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: theme.text.withOpacity(0.7),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.07),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: fill,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: isMaxed
-                                    ? [Colors.amber, Colors.amber.shade600]
-                                    : [
-                                        theme.primary,
-                                        theme.secondary.withOpacity(.7),
-                                      ],
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isMaxed
-                            ? Colors.amber.withOpacity(.2)
-                            : theme.primary.withOpacity(.15),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: isMaxed
-                              ? Colors.amber.withOpacity(.4)
-                              : theme.primary.withOpacity(.3),
-                        ),
-                      ),
-                      child: Text(
-                        value.toStringAsFixed(1),
-                        style: TextStyle(
-                          color: isMaxed ? Colors.amber : theme.primary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.only(left: 100),
-            child: Text(
-              descriptor,
-              style: TextStyle(
-                color: isMaxed
-                    ? Colors.amber.withOpacity(.9)
-                    : const Color(0xFF9AA6B2),
-                fontSize: 10,
-                fontStyle: FontStyle.italic,
-                fontWeight: isMaxed ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ============================================================================
-// Behavior / Genetics blocks
+// Behavior / Genetics / Breeding (unchanged from your version)
 // ============================================================================
 
 class _BehaviorBlock extends StatelessWidget {
@@ -1327,19 +963,19 @@ class _BehaviorBlock extends StatelessWidget {
     if (n != null) {
       return Column(
         children: [
-          _LabeledInlineValue(
+          LabeledInlineValue(
             label: 'Nature Type',
             valueText: n.id,
             valueColor: textColor,
           ),
           if (n.effect.modifiers.isNotEmpty)
-            _LabeledInlineValue(
+            LabeledInlineValue(
               label: 'Active Effects',
               valueText: _formatNatureEffects(n.effect),
               valueColor: textColor,
             )
           else
-            _LabeledInlineValue(
+            LabeledInlineValue(
               label: 'Effects',
               valueText: 'No special behavioral modifications known',
               valueColor: textColor,
@@ -1347,7 +983,7 @@ class _BehaviorBlock extends StatelessWidget {
         ],
       );
     } else {
-      return _LabeledInlineValue(
+      return LabeledInlineValue(
         label: 'Nature',
         valueText: 'Unspecified - Standard behavioral pattern',
         valueColor: textColor,
@@ -1426,12 +1062,12 @@ class _GeneticsBlock extends StatelessWidget {
     if (g == null) {
       return Column(
         children: [
-          _LabeledInlineValue(
+          LabeledInlineValue(
             label: 'Genetic Profile',
             valueText: 'Standard genotype - no variants detected',
             valueColor: textColor,
           ),
-          _LabeledInlineValue(
+          LabeledInlineValue(
             label: 'Inheritance',
             valueText: 'Wild-type characteristics',
             valueColor: textColor,
@@ -1446,41 +1082,41 @@ class _GeneticsBlock extends StatelessWidget {
     return Column(
       children: [
         if (sizeGene != null) ...[
-          _LabeledInlineValue(
+          LabeledInlineValue(
             label: 'Size Gene',
             valueText: sizeGene,
             valueColor: textColor,
           ),
         ] else ...[
-          _LabeledInlineValue(
+          LabeledInlineValue(
             label: 'Size Gene',
             valueText: 'normal (default)',
             valueColor: textColor,
           ),
-          _LabeledInlineValue(
+          LabeledInlineValue(
             label: 'Size Expression',
             valueText: 'Standard morphology',
             valueColor: textColor,
           ),
         ],
         if (tintGene != null) ...[
-          _LabeledInlineValue(
+          LabeledInlineValue(
             label: 'Coloration',
             valueText: tintLabels[tintGene] ?? 'Unknown',
             valueColor: textColor,
           ),
-          _LabeledInlineValue(
+          LabeledInlineValue(
             label: 'Color',
             valueText: _getGeneticDescription('tinting', tintGene),
             valueColor: textColor,
           ),
         ] else ...[
-          _LabeledInlineValue(
+          LabeledInlineValue(
             label: 'Coloration Gene',
             valueText: 'normal (default)',
             valueColor: textColor,
           ),
-          _LabeledInlineValue(
+          LabeledInlineValue(
             label: 'Color Expression',
             valueText: 'Natural pigmentation',
             valueColor: textColor,
@@ -1502,385 +1138,7 @@ class _GeneticsBlock extends StatelessWidget {
 }
 
 // ============================================================================
-// STAT POTENTIAL SECTION
-// ============================================================================
-
-class _StatPotentialBar extends StatelessWidget {
-  final FactionTheme theme;
-  final String statName;
-  final double currentValue;
-  final double potential;
-  final IconData icon;
-
-  const _StatPotentialBar({
-    required this.theme,
-    required this.statName,
-    required this.currentValue,
-    required this.potential,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final currentPercent = (currentValue / 5.0).clamp(0.0, 1.0);
-    final potentialPercent = (potential / 5.0).clamp(0.0, 1.0);
-    final roomForGrowth = potential - currentValue;
-    final isNearMax = roomForGrowth < 0.3;
-    final isPerfectPotential = potential >= 4.8;
-
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: theme.textMuted),
-        const SizedBox(width: 8),
-
-        SizedBox(
-          width: 85,
-          child: Text(
-            statName,
-            style: TextStyle(
-              color: theme.text,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final availableWidth = constraints.maxWidth;
-              return Stack(
-                children: [
-                  Container(
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: theme.surfaceAlt,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: theme.border, width: 1),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: availableWidth * potentialPercent,
-                            decoration: BoxDecoration(
-                              color: isPerfectPotential
-                                  ? Colors.purple.withOpacity(.15)
-                                  : Colors.grey.withOpacity(.1),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  Container(
-                    height: 20,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: availableWidth * currentPercent,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  theme.accent,
-                                  theme.accent.withOpacity(.7),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-
-        const SizedBox(width: 8),
-
-        SizedBox(
-          width: 70,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${currentValue.toStringAsFixed(1)} / ${potential.toStringAsFixed(1)}',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                ),
-                overflow: TextOverflow.clip,
-                maxLines: 1,
-              ),
-              if (isNearMax)
-                Text(
-                  'Near Max',
-                  style: TextStyle(
-                    color: Colors.orange,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-              else
-                Text(
-                  '+${roomForGrowth.toStringAsFixed(1)}',
-                  style: TextStyle(color: theme.textMuted, fontSize: 8),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PotentialSummary extends StatelessWidget {
-  final FactionTheme theme;
-  final CreatureInstance instance;
-
-  const _PotentialSummary({required this.theme, required this.instance});
-
-  @override
-  Widget build(BuildContext context) {
-    final totalPotential =
-        instance.statSpeedPotential +
-        instance.statIntelligencePotential +
-        instance.statStrengthPotential +
-        instance.statBeautyPotential;
-
-    final totalCurrent =
-        instance.statSpeed +
-        instance.statIntelligence +
-        instance.statStrength +
-        instance.statBeauty;
-
-    final potentials = {
-      'Speed': instance.statSpeedPotential,
-      'Intelligence': instance.statIntelligencePotential,
-      'Strength': instance.statStrengthPotential,
-      'Beauty': instance.statBeautyPotential,
-    };
-
-    final highestPotential = potentials.entries.reduce(
-      (a, b) => a.value > b.value ? a : b,
-    );
-
-    final isHighPotential = totalPotential >= 18.0;
-    final isLegendaryPotential = totalPotential >= 19.0;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: isLegendaryPotential
-            ? Colors.purple.withOpacity(.08)
-            : isHighPotential
-            ? Colors.blue.withOpacity(.08)
-            : theme.surfaceAlt.withOpacity(.5),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isLegendaryPotential
-              ? Colors.purple.withOpacity(.3)
-              : isHighPotential
-              ? Colors.blue.withOpacity(.3)
-              : theme.border,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Growth Potential',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isLegendaryPotential
-                      ? Colors.purple.withOpacity(.2)
-                      : isHighPotential
-                      ? Colors.blue.withOpacity(.2)
-                      : Colors.grey.withOpacity(.2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  isLegendaryPotential
-                      ? 'LEGENDARY'
-                      : isHighPotential
-                      ? 'EXCEPTIONAL'
-                      : 'AVERAGE',
-                  style: TextStyle(
-                    color: isLegendaryPotential
-                        ? Colors.purple
-                        : isHighPotential
-                        ? Colors.blue
-                        : Colors.grey,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Total: ${totalCurrent.toStringAsFixed(1)} / ${totalPotential.toStringAsFixed(1)}',
-            style: TextStyle(color: theme.textMuted, fontSize: 10),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Best Gene: ${highestPotential.key} (${highestPotential.value.toStringAsFixed(1)})',
-            style: TextStyle(
-              color: theme.primary,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatPotentialBlock extends StatelessWidget {
-  final FactionTheme theme;
-  final String? instanceId;
-
-  const _StatPotentialBlock({required this.theme, this.instanceId});
-
-  Future<CreatureInstance?> _getInstance(BuildContext context) async {
-    if (instanceId == null) return null;
-    final db = context.read<AlchemonsDatabase>();
-    return await db.getInstance(instanceId!);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (instanceId == null) {
-      return const SizedBox.shrink();
-    }
-
-    return FutureBuilder<CreatureInstance?>(
-      future: _getInstance(context),
-      builder: (ctx, snap) {
-        if (!snap.hasData || snap.data == null) {
-          return const SizedBox.shrink();
-        }
-
-        final instance = snap.data!;
-
-        return _SectionBlock(
-          theme: theme,
-          title: 'Stat Potential',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: theme.primary.withOpacity(.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.primary.withOpacity(.2)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 14,
-                          color: theme.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Understanding Potential',
-                          style: TextStyle(
-                            color: theme.primary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Each creature has a genetic potential cap for every stat. Feeding can increase stats up to their potential, but never beyond. Breed creatures with high potential to create powerful offspring!',
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 10,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              _StatPotentialBar(
-                theme: theme,
-                statName: 'Speed',
-                currentValue: instance.statSpeed,
-                potential: instance.statSpeedPotential,
-                icon: Icons.flash_on,
-              ),
-              const SizedBox(height: 8),
-              _StatPotentialBar(
-                theme: theme,
-                statName: 'Intelligence',
-                currentValue: instance.statIntelligence,
-                potential: instance.statIntelligencePotential,
-                icon: Icons.psychology,
-              ),
-              const SizedBox(height: 8),
-              _StatPotentialBar(
-                theme: theme,
-                statName: 'Strength',
-                currentValue: instance.statStrength,
-                potential: instance.statStrengthPotential,
-                icon: Icons.fitness_center,
-              ),
-              const SizedBox(height: 8),
-              _StatPotentialBar(
-                theme: theme,
-                statName: 'Beauty',
-                currentValue: instance.statBeauty,
-                potential: instance.statBeautyPotential,
-                icon: Icons.auto_awesome,
-              ),
-
-              const SizedBox(height: 12),
-
-              _PotentialSummary(theme: theme, instance: instance),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ============================================================================
-// BREEDING ANALYSIS SECTION (the "final" version you want to ship)
+// BREEDING (unchanged, reads the same instanceId)
 // ============================================================================
 
 class _BreedingAnalysisSection extends StatelessWidget {
@@ -1897,13 +1155,11 @@ class _BreedingAnalysisSection extends StatelessWidget {
   ) async {
     try {
       final db = context.read<AlchemonsDatabase>();
-      final instance = await db.getInstance(instanceId);
-
+      final instance = await db.creatureDao.getInstance(instanceId);
       if (instance?.likelihoodAnalysisJson == null ||
           instance!.likelihoodAnalysisJson!.isEmpty) {
         return null;
       }
-
       return jsonDecode(instance.likelihoodAnalysisJson!)
           as Map<String, dynamic>;
     } catch (_) {
@@ -1917,7 +1173,7 @@ class _BreedingAnalysisSection extends StatelessWidget {
       future: _loadAnalysisReport(context),
       builder: (ctx, snap) {
         if (!snap.hasData || snap.data == null) {
-          return _SectionBlock(
+          return SectionBlock(
             theme: theme,
             title: 'Breeding Analysis',
             child: Column(
@@ -1942,33 +1198,20 @@ class _BreedingAnalysisSection extends StatelessWidget {
         }
 
         final report = snap.data!;
-
-        return _SectionBlock(
+        return SectionBlock(
           theme: theme,
           title: 'Breeding Analysis',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _SummaryBanner(theme: theme, report: report),
-
               const SizedBox(height: 12),
-
-              _OutcomeBadge(theme: theme, report: report),
-
+              OutcomeBadge(theme: theme, report: report),
               const SizedBox(height: 10),
-
-              _OutcomeExplanation(theme: theme, report: report),
-
+              OutcomeExplanation(theme: theme, report: report),
               const SizedBox(height: 14),
-
               _InheritanceMechanicsSection(theme: theme, report: report),
-
-              // if ((report['specialEvents'] as List?)?.isNotEmpty ?? false) ...[
-              //   const SizedBox(height: 14),
-              //   _SpecialEventsSection(theme: theme, report: report),
-              // ],
               const SizedBox(height: 14),
-
               _InheritedTraitsSimple(theme: theme, analysis: report),
             ],
           ),
@@ -1977,10 +1220,6 @@ class _BreedingAnalysisSection extends StatelessWidget {
     );
   }
 }
-
-// ============================================================================
-// Summary Banner
-// ============================================================================
 
 class _SummaryBanner extends StatelessWidget {
   final FactionTheme theme;
@@ -1991,103 +1230,24 @@ class _SummaryBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summaryLine = report['summaryLine'] as String? ?? '';
-
     if (summaryLine.isEmpty) return const SizedBox.shrink();
-
     final parts = summaryLine.split(':');
     final cross = parts.isNotEmpty ? parts[0].trim() : summaryLine;
-    final description = parts.length > 1 ? parts[1].trim() : '';
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 5),
       decoration: BoxDecoration(color: theme.surfaceAlt),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            cross,
-            style: TextStyle(
-              color: theme.text,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Outcome Badge
-// ============================================================================
-
-class _OutcomeBadge extends StatelessWidget {
-  final FactionTheme theme;
-  final Map<String, dynamic> report;
-
-  const _OutcomeBadge({required this.theme, required this.report});
-
-  @override
-  Widget build(BuildContext context) {
-    final outcomeCategory = report['outcomeCategory'] as String? ?? 'Unknown';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
-
       child: Text(
-        outcomeCategory,
+        cross,
         style: TextStyle(
-          color: _outcomeColor(outcomeCategory),
+          color: theme.text,
           fontSize: 12,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
   }
-
-  static Color _outcomeColor(String category) {
-    switch (category) {
-      case 'Expected':
-        return Colors.green;
-      case 'Somewhat Unexpected':
-        return Colors.lightBlue;
-      case 'Surprising':
-        return Colors.orange;
-      case 'Rare':
-        return Colors.purple;
-      default:
-        return Colors.grey;
-    }
-  }
 }
-
-// ============================================================================
-// Outcome Explanation
-// ============================================================================
-
-class _OutcomeExplanation extends StatelessWidget {
-  final FactionTheme theme;
-  final Map<String, dynamic> report;
-
-  const _OutcomeExplanation({required this.theme, required this.report});
-
-  @override
-  Widget build(BuildContext context) {
-    final explanation = report['outcomeExplanation'] as String? ?? '';
-
-    if (explanation.isEmpty) return const SizedBox.shrink();
-
-    return Text(
-      explanation,
-      style: TextStyle(color: theme.text, fontSize: 11, height: 1.4),
-    );
-  }
-}
-
-// ============================================================================
-// Inheritance Mechanics Section
-// ============================================================================
 
 class _InheritanceMechanicsSection extends StatelessWidget {
   final FactionTheme theme;
@@ -2105,10 +1265,6 @@ class _InheritanceMechanicsSection extends StatelessWidget {
             ?.map((m) => m as Map<String, dynamic>)
             .toList() ??
         [];
-
-    // IMPORTANT: we are NOT filtering anything out anymore.
-    // Every mechanic (Size, Color Tinting, etc.) shows.
-
     if (mechanics.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -2124,17 +1280,11 @@ class _InheritanceMechanicsSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        ...mechanics.map((mechanic) {
-          return _MechanicCard(theme: theme, mechanic: mechanic);
-        }).toList(),
+        ...mechanics.map((m) => _MechanicCard(theme: theme, mechanic: m)),
       ],
     );
   }
 }
-
-// ============================================================================
-// Mechanic Card
-// ============================================================================
 
 class _MechanicCard extends StatelessWidget {
   final FactionTheme theme;
@@ -2156,7 +1306,7 @@ class _MechanicCard extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: theme.surface,
-          borderRadius: BorderRadius.circular(3),
+          borderRadius: BorderRadius.circular(6),
           border: Border.all(color: theme.border.withOpacity(.1)),
         ),
         child: Column(
@@ -2183,9 +1333,7 @@ class _MechanicCard extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 6),
-
             Text(
               mechanism,
               style: TextStyle(
@@ -2222,10 +1370,6 @@ class _MechanicCard extends StatelessWidget {
   }
 }
 
-// ============================================================================
-// Likelihood Badge
-// ============================================================================
-
 class _LikelihoodBadge extends StatelessWidget {
   final FactionTheme theme;
   final int likelihood;
@@ -2240,22 +1384,15 @@ class _LikelihoodBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _likelihoodColor(likelihood);
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '${percentage.toStringAsFixed(0)}%',
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+      child: Text(
+        '${percentage.toStringAsFixed(0)}%',
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -2276,23 +1413,19 @@ class _LikelihoodBadge extends StatelessWidget {
   }
 }
 
-// ============================================================================
-// Inherited trait justifications
-// ============================================================================
-
 class _InheritedTraitsSimple extends StatelessWidget {
   final FactionTheme theme;
   final Map<String, dynamic> analysis;
 
   const _InheritedTraitsSimple({required this.theme, required this.analysis});
 
+  IconData categoryIcon(String category) =>
+      _MechanicCard._categoryIcon(category);
+
   @override
   Widget build(BuildContext context) {
     final traitJustifications = analysis['traitJustifications'] as List? ?? [];
-
-    if (traitJustifications.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (traitJustifications.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2313,7 +1446,6 @@ class _InheritedTraitsSimple extends StatelessWidget {
           final actualValue = trait['actualValue'] as String;
           final category = trait['category'] as String;
           final mechanism = trait['mechanism'] as String;
-
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
@@ -2326,13 +1458,12 @@ class _InheritedTraitsSimple extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Icon(
-                    _categoryIcon(category),
+                    categoryIcon(category),
                     size: 12,
                     color: theme.primary,
                   ),
                 ),
                 const SizedBox(width: 8),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2360,272 +1491,6 @@ class _InheritedTraitsSimple extends StatelessWidget {
             ),
           );
         }).toList(),
-      ],
-    );
-  }
-
-  static IconData _categoryIcon(String category) {
-    switch (category) {
-      case 'familyLineage':
-        return Icons.family_restroom;
-      case 'elementalType':
-        return Icons.whatshot;
-      case 'genetics':
-        return Icons.biotech;
-      case 'nature':
-        return Icons.psychology;
-      case 'special':
-        return Icons.star;
-      default:
-        return Icons.info;
-    }
-  }
-}
-
-// ============================================================================
-// PARENT CARD
-// ============================================================================
-
-class _ParentCard extends StatelessWidget {
-  final FactionTheme theme;
-  final ParentSnapshot snap;
-  final String parentKey;
-  final bool isExpanded;
-  final VoidCallback onToggle;
-
-  const _ParentCard({
-    required this.theme,
-    required this.snap,
-    required this.parentKey,
-    required this.isExpanded,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.border),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: onToggle,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.04),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withOpacity(.12)),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(7),
-                      child: snap.spriteData != null
-                          ? CreatureSprite(
-                              spritePath: snap.spriteData!.spriteSheetPath,
-                              totalFrames: snap.spriteData!.totalFrames,
-                              rows: snap.spriteData!.rows,
-                              frameSize: Vector2(
-                                snap.spriteData!.frameWidth.toDouble(),
-                                snap.spriteData!.frameHeight.toDouble(),
-                              ),
-                              stepTime:
-                                  snap.spriteData!.frameDurationMs / 1000.0,
-                              scale: scaleFromGenes(snap.genetics),
-                              saturation: satFromGenes(snap.genetics),
-                              brightness: briFromGenes(snap.genetics),
-                              hueShift: hueFromGenes(snap.genetics),
-                              isPrismatic: snap.isPrismaticSkin,
-                            )
-                          : Image.asset(snap.image, fit: BoxFit.cover),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          snap.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: theme.text,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          snap.types.join(' • '),
-                          style: TextStyle(
-                            color: theme.text.withOpacity(0.7),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          snap.rarity,
-                          style: TextStyle(
-                            color: theme.text.withOpacity(0.6),
-                            fontSize: 9,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Row(
-                    children: [
-                      if (snap.isPrismaticSkin)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.purple.shade400.withOpacity(.3),
-                                Colors.purple.shade600.withOpacity(.3),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: Colors.purple.withOpacity(.4),
-                            ),
-                          ),
-                          child: const Text(
-                            'P',
-                            style: TextStyle(
-                              color: Colors.purple,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(width: 8),
-                      AnimatedRotation(
-                        turns: isExpanded ? 0.5 : 0,
-                        duration: const Duration(milliseconds: 200),
-                        child: Icon(
-                          Icons.expand_more,
-                          color: theme.primary.withOpacity(.6),
-                          size: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          ClipRect(
-            child: AnimatedCrossFade(
-              duration: const Duration(milliseconds: 250),
-              sizeCurve: Curves.easeInOut,
-              crossFadeState: isExpanded
-                  ? CrossFadeState.showSecond
-                  : CrossFadeState.showFirst,
-              firstChild: const SizedBox(width: double.infinity, height: 0),
-              secondChild: Column(
-                children: [
-                  Divider(color: theme.border, height: 1),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      children: [
-                        _ParentSubSection(
-                          theme: theme,
-                          title: 'Genetic Profile',
-                          children: [
-                            if (snap.genetics?.get('size') != null)
-                              _LabeledInlineValue(
-                                label: 'Size Variant',
-                                valueColor: theme.text,
-                                valueText:
-                                    sizeLabels[snap.genetics!.get('size')] ??
-                                    'Standard',
-                              ),
-                            if (snap.genetics?.get('tinting') != null)
-                              _LabeledInlineValue(
-                                label: 'Pigmentation',
-                                valueColor: theme.text,
-                                valueText:
-                                    tintLabels[snap.genetics!.get('tinting')] ??
-                                    'Standard',
-                              ),
-                            if (snap.nature != null)
-                              _LabeledInlineValue(
-                                valueColor: theme.text,
-                                label: 'Behavior',
-                                valueText: snap.nature!.id,
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// PARENT SUBSECTION
-// ============================================================================
-
-class _ParentSubSection extends StatelessWidget {
-  final FactionTheme theme;
-  final String title;
-  final List<Widget> children;
-
-  const _ParentSubSection({
-    required this.theme,
-    required this.title,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            color: theme.primary,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: .6,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(.02),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(children: children),
-        ),
       ],
     );
   }

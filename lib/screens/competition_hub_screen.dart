@@ -58,8 +58,8 @@ class _CompetitionHubScreenState extends State<CompetitionHubScreen>
               children: [
                 _buildHeader(),
                 //coming soon
-                Text('Coming Soon', style: TextStyle(color: Colors.white)),
-                //Expanded(child: _buildArenaGrid()),
+                // Text('Coming Soon', style: TextStyle(color: Colors.white)),
+                Expanded(child: _buildArenaGrid()),
               ],
             ),
           ),

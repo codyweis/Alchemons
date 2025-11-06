@@ -145,6 +145,11 @@ class BreedingTuning {
   final double elementalBiasPenalty;
   final int familyBiasPenalty;
 
+  final double elementLineageBiasPerPoint; // e.g. 0.05 => +5% weight per point
+  final double elementLineageBiasCapMult; // e.g. 1.50  => max x1.5
+  final double familyLineageBiasPerPoint; // e.g. 0.05
+  final double familyLineageBiasCapMult; // e.g. 1.50
+
   const BreedingTuning({
     this.inheritNatureChance =
         60, // 60% chance to inherit nature from one parent
@@ -160,5 +165,10 @@ class BreedingTuning {
         2, // 2% chance for any breeding to trigger mutation
     this.elementalBiasPenalty = .5, // double the chance
     this.familyBiasPenalty = 2, // halve the chance
+
+    this.elementLineageBiasPerPoint = 0.05,
+    this.elementLineageBiasCapMult = 1.5,
+    this.familyLineageBiasPerPoint = 0.05,
+    this.familyLineageBiasCapMult = 1.5,
   });
 }

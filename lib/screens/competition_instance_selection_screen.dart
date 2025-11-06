@@ -40,10 +40,10 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
 
   Future<List<_Candidate>> _loadCandidates() async {
     final db = context.read<AlchemonsDatabase>();
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
 
     // Pull all instances
-    final instances = await db.listAllInstances();
+    final instances = await db.creatureDao.listAllInstances();
 
     final out = <_Candidate>[];
     for (final inst in instances) {
@@ -66,20 +66,7 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
       // Build the sprite if available
       Widget? sprite;
       if (base.spriteData != null) {
-        final s = base.spriteData!;
-        final genes = decodeGenetics(inst.geneticsJson);
-        sprite = CreatureSprite(
-          spritePath: s.spriteSheetPath,
-          totalFrames: s.totalFrames,
-          rows: s.rows,
-          frameSize: Vector2(s.frameWidth.toDouble(), s.frameHeight.toDouble()),
-          stepTime: s.frameDurationMs / 1000.0,
-          scale: scaleFromGenes(genes),
-          saturation: satFromGenes(genes),
-          brightness: briFromGenes(genes),
-          hueShift: hueFromGenes(genes),
-          isPrismatic: inst.isPrismaticSkin,
-        );
+        sprite = InstanceSprite(creature: base, instance: inst, size: 72);
       }
 
       out.add(

@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
+import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_image.dart';
+import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -53,86 +56,96 @@ class _CreaturesScreenState extends State<CreaturesScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
-    return Consumer<GameStateNotifier>(
-      builder: (context, game, _) {
-        if (game.isLoading) return const _LoadingScaffold();
-        if (game.error != null) {
-          return _ErrorScaffold(error: game.error!, onRetry: game.refresh);
-        }
+    return withGameData(
+      context, // keep your local init flag
+      loadingBuilder: buildLoadingScreen,
+      builder:
+          (
+            context, {
+            required theme,
+            required catalog,
+            required entries,
+            required discovered,
+          }) {
+            // stats
+            final total = entries.length;
+            final discoveredCount = discovered.length;
+            final pct = total == 0
+                ? 0.0
+                : (discoveredCount / total).clamp(0.0, 1.0);
 
-        final filtered = _filterAndSort(game.creatures);
-        final discovered = game.discoveredCreatures.length;
-        final total = game.creatures.length;
-        final pct = total == 0 ? 0.0 : (discovered / total).clamp(0.0, 1.0);
+            // apply your filters/sorting to the typed entries
+            final filtered = _filterAndSort(discovered);
 
-        return Scaffold(
-          backgroundColor: theme.surfaceAlt, // subtle, solid background
-          body: SafeArea(
-            bottom: false,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
-              slivers: [
-                _SolidHeader(theme: theme),
-                SliverToBoxAdapter(
-                  child: _StatsHeaderSolid(
-                    theme: theme,
-                    percent: pct,
-                    discovered: discovered,
-                    total: total,
+            return Scaffold(
+              backgroundColor: theme.surfaceAlt,
+              body: SafeArea(
+                bottom: false,
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
                   ),
-                ),
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _StickyFilterBar(
-                    height: 126,
-                    scope: _scope,
-                    typeFilter: _typeFilter,
-                    isGrid: _isGrid,
-                    child: _FilterBarSolid(
-                      theme: theme,
-                      query: _query,
-                      controller: _searchCtrl,
-                      scope: _scope,
-                      sort: _sort,
-                      isGrid: _isGrid,
-                      typeFilter: _typeFilter,
-                      onQueryChanged: _onQueryChanged,
-                      onScopeChanged: _showScopeSheet,
-                      onSortTap: _showSortSheet,
-                      onToggleView: () => setState(() => _isGrid = !_isGrid),
-                      onTypeChanged: (t) =>
-                          setState(() => _typeFilter = t == 'All' ? null : t),
+                  slivers: [
+                    _SolidHeader(theme: theme),
+                    SliverToBoxAdapter(
+                      child: _StatsHeaderSolid(
+                        theme: theme,
+                        percent: pct,
+                        discovered: discoveredCount,
+                        total: total,
+                      ),
                     ),
-                  ),
-                ),
-                if (filtered.isEmpty)
-                  const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: _EmptyState(),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
-                    sliver: _isGrid
-                        ? _CreatureGrid(
-                            theme: theme,
-                            creatures: filtered,
-                            onTap: _handleTap,
-                          )
-                        : _CreatureList(
-                            theme: theme,
-                            creatures: filtered,
-                            onTap: _handleTap,
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _StickyFilterBar(
+                        height: 126,
+                        scope: _scope,
+                        typeFilter: _typeFilter,
+                        isGrid: _isGrid,
+                        child: _FilterBarSolid(
+                          theme: theme,
+                          query: _query,
+                          controller: _searchCtrl,
+                          scope: _scope,
+                          sort: _sort,
+                          isGrid: _isGrid,
+                          typeFilter: _typeFilter,
+                          onQueryChanged: _onQueryChanged,
+                          onScopeChanged: _showScopeSheet,
+                          onSortTap: _showSortSheet,
+                          onToggleView: () =>
+                              setState(() => _isGrid = !_isGrid),
+                          onTypeChanged: (t) => setState(
+                            () => _typeFilter = t == 'All' ? null : t,
                           ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
+                        ),
+                      ),
+                    ),
+                    if (filtered.isEmpty)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _EmptyState(),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
+                        sliver: _isGrid
+                            ? _CreatureGrid(
+                                theme: theme,
+                                creatures: filtered, // List<CreatureEntry>
+                                onTap: _handleTap,
+                              )
+                            : _CreatureList(
+                                theme: theme,
+                                creatures: filtered, // List<CreatureEntry>
+                                onTap: _handleTap,
+                              ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
     );
   }
 
@@ -199,9 +212,9 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     }
   }
 
-  List<Map<String, dynamic>> _filterAndSort(List<Map<String, dynamic>> all) {
+  List<CreatureEntry> _filterAndSort(List<CreatureEntry> all) {
     final scoped = all.where((m) {
-      final isDiscovered = m['player'].discovered == true;
+      final isDiscovered = m.player.discovered == true;
       switch (_scope) {
         case 'All':
           return true;
@@ -216,15 +229,13 @@ class _CreaturesScreenState extends State<CreaturesScreen>
 
     final typed = _typeFilter == null
         ? scoped
-        : scoped.where(
-            (m) => (m['creature'] as Creature).types.contains(_typeFilter),
-          );
+        : scoped.where((m) => (m.creature).types.contains(_typeFilter));
 
     final q = _query.toLowerCase();
     final searched = q.isEmpty
         ? typed
         : typed.where((m) {
-            final c = m['creature'] as Creature;
+            final c = m.creature;
             return c.id.toLowerCase().contains(q) ||
                 c.name.toLowerCase().contains(q) ||
                 c.types.any((t) => t.toLowerCase().contains(q)) ||
@@ -234,8 +245,8 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     final list = searched.toList();
 
     list.sort((a, b) {
-      final A = a['creature'] as Creature;
-      final B = b['creature'] as Creature;
+      final A = a.creature;
+      final B = b.creature;
       switch (_sort) {
         case 'Name':
           return A.name.compareTo(B.name);
@@ -244,8 +255,8 @@ class _CreaturesScreenState extends State<CreaturesScreen>
         case 'Type':
           return A.types.first.compareTo(B.types.first);
         case 'Acquisition Order':
-          final ad = a['player'].discovered == true;
-          final bd = b['player'].discovered == true;
+          final ad = a.player.discovered == true;
+          final bd = b.player.discovered == true;
           if (ad && !bd) return -1;
           if (!ad && bd) return 1;
           return A.name.compareTo(B.name);
@@ -321,7 +332,7 @@ class _SolidHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverAppBar(
-      pinned: true,
+      pinned: false,
       elevation: 0,
       backgroundColor: theme.surface,
       automaticallyImplyLeading: false,
@@ -549,7 +560,7 @@ class _FilterBarSolid extends StatelessWidget {
 
 class _CreatureGrid extends StatelessWidget {
   final FactionTheme theme;
-  final List<Map<String, dynamic>> creatures;
+  final List<CreatureEntry> creatures;
   final void Function(Creature, bool) onTap;
   const _CreatureGrid({
     required this.theme,
@@ -568,8 +579,8 @@ class _CreatureGrid extends StatelessWidget {
       ),
       delegate: SliverChildBuilderDelegate((ctx, i) {
         final data = creatures[i];
-        final c = data['creature'] as Creature;
-        final isDiscovered = data['player'].discovered == true;
+        final c = data.creature;
+        final isDiscovered = data.player.discovered == true;
         return _CreatureCard(
           theme: theme,
           c: c,
@@ -583,7 +594,7 @@ class _CreatureGrid extends StatelessWidget {
 
 class _CreatureList extends StatelessWidget {
   final FactionTheme theme;
-  final List<Map<String, dynamic>> creatures;
+  final List<CreatureEntry> creatures;
   final void Function(Creature, bool) onTap;
   const _CreatureList({
     required this.theme,
@@ -596,8 +607,8 @@ class _CreatureList extends StatelessWidget {
     return SliverList(
       delegate: SliverChildBuilderDelegate((ctx, i) {
         final data = creatures[i];
-        final c = data['creature'] as Creature;
-        final isDiscovered = data['player'].discovered == true;
+        final c = data.creature;
+        final isDiscovered = data.player.discovered == true;
         return Padding(
           padding: const EdgeInsets.only(bottom: 1),
           child: _CreatureRow(
@@ -626,64 +637,49 @@ class _CreatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<GameStateNotifier>(
-      builder: (context, game, _) {
-        final variants = game.discoveredCreatures.where((m) {
-          final v = m['creature'] as Creature;
-          return v.rarity == 'Variant' && v.id.startsWith('${c.id}_');
-        }).length;
-
-        return GestureDetector(
-          onTap: onTap,
-          child: Container(
-            decoration: BoxDecoration(color: theme.surface),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Center(
-                          child: CreatureImage(
-                            c: c,
-                            discovered: discovered,
-                            rounded: 10,
-                          ),
-                        ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(color: theme.surface),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(6),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: CreatureImage(
+                        c: c,
+                        discovered: discovered,
+                        rounded: 10,
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        discovered ? c.name : 'Unknown',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: discovered
-                              ? theme.text
-                              : theme.textMuted.withOpacity(.6),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _RarityPill(rarity: discovered ? c.rarity : 'Class ?'),
-                      const SizedBox(height: 4),
-                    ],
+                    ),
                   ),
-                ),
-                if (variants > 0 && discovered)
-                  Positioned(
-                    top: -4,
-                    right: -4,
-                    child: _Badge(text: '+$variants'),
+                  const SizedBox(height: 6),
+                  Text(
+                    discovered ? c.name : 'Unknown',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: discovered
+                          ? theme.text
+                          : theme.textMuted.withOpacity(.6),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-              ],
+                  const SizedBox(height: 4),
+                  _RarityPill(rarity: discovered ? c.rarity : 'Class ?'),
+                  const SizedBox(height: 4),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1310,7 +1306,6 @@ class _ArcPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 10
       ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)
       ..color = color.withOpacity(.35);
     final sweep = progress.clamp(0.0, 1.0) * math.pi * 2;
     canvas.drawArc(
@@ -1381,8 +1376,8 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _LoadingScaffold extends StatelessWidget {
-  const _LoadingScaffold();
+class LoadingScaffold extends StatelessWidget {
+  const LoadingScaffold();
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();

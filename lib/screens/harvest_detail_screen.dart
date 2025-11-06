@@ -6,14 +6,22 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
+import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/widgets/bottom_sheet_shell.dart';
+import 'package:alchemons/widgets/creature_instances_sheet.dart';
+import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
 import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:alchemons/widgets/harvest/harvest_instance.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -26,11 +34,13 @@ class BiomeDetailScreen extends StatefulWidget {
     required this.biome,
     required this.service,
     this.defaultDuration = const Duration(minutes: 30),
+    required this.discoveredCreatures,
   });
 
   final Biome biome;
   final HarvestService service;
   final Duration defaultDuration;
+  final List<Map<String, dynamic>> discoveredCreatures;
 
   @override
   State<BiomeDetailScreen> createState() => _BiomeDetailScreenState();
@@ -103,6 +113,10 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     super.dispose();
   }
 
+  String _getBackgroundAsset() {
+    return '';
+  }
+
   // Rebuild the creature widget cache if the active job's creature changed
   Future<void> _refreshCreatureCache() async {
     final farm = widget.service.biome(widget.biome);
@@ -127,7 +141,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     _cachedInstanceIdForCreature = job.creatureInstanceId;
 
     final db = context.read<AlchemonsDatabase>();
-    final inst = await db.getInstance(job.creatureInstanceId);
+    final inst = await db.creatureDao.getInstance(job.creatureInstanceId);
 
     if (!mounted) return;
 
@@ -141,7 +155,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       return;
     }
 
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
     final base = repo.getCreatureById(inst.baseId);
     if (base == null || base.spriteData == null) {
       _creatureWidget = Icon(
@@ -153,23 +167,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       return;
     }
 
-    final genetics = decodeGenetics(inst.geneticsJson);
-
-    _creatureWidget = CreatureSprite(
-      spritePath: base.spriteData!.spriteSheetPath,
-      totalFrames: base.spriteData!.totalFrames,
-      rows: base.spriteData!.rows,
-      frameSize: Vector2(
-        base.spriteData!.frameWidth.toDouble(),
-        base.spriteData!.frameHeight.toDouble(),
-      ),
-      stepTime: base.spriteData!.frameDurationMs / 1000.0,
-      scale: scaleFromGenes(genetics),
-      saturation: satFromGenes(genetics),
-      brightness: briFromGenes(genetics),
-      hueShift: hueFromGenes(genetics),
-      isPrismatic: inst.isPrismaticSkin,
-    );
+    _creatureWidget = InstanceSprite(creature: base, instance: inst, size: 72);
 
     setState(() {});
   }
@@ -243,17 +241,113 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     widget.service.nudge(widget.biome);
   }
 
-  Future<void> _handlePickAndStart() async {
-    final instanceId = await pickInstanceForHarvest(
-      context: context,
-      allowedTypes: widget.biome.elementNames,
-      duration: widget.defaultDuration,
+  Future<void> _handlePickAndStart(
+    List<CreatureEntry> discoveredCreatures,
+  ) async {
+    final theme = context.read<FactionTheme>();
+    final db = context.read<AlchemonsDatabase>();
+    final repo = context.read<CreatureCatalog>();
+
+    // Get busy instance IDs
+    final farm = widget.service.biome(widget.biome);
+    final busyIds = farm.activeJob != null
+        ? [farm.activeJob!.creatureInstanceId]
+        : <String>[];
+
+    // Get all instances that match the allowed types
+    final allInstances = await db.creatureDao.getAllInstances();
+    final eligibleSpeciesIds = <String>{};
+
+    for (final inst in allInstances) {
+      if (busyIds.contains(inst.instanceId)) continue;
+
+      final base = repo.getCreatureById(inst.baseId);
+      if (base != null &&
+          base.types.isNotEmpty &&
+          widget.biome.elementTypes.contains(base.types.first)) {
+        eligibleSpeciesIds.add(inst.baseId);
+      }
+    }
+
+    if (eligibleSpeciesIds.isEmpty) {
+      _showToast(
+        'No eligible creatures found for this biome.',
+        icon: Icons.error_outline,
+        color: Colors.red.shade400,
+      );
+      return;
+    }
+
+    final available = await db.creatureDao
+        .getSpeciesWithInstances(); // Set<String> baseIds
+
+    final filteredDiscovered = filterByAvailableInstances(
+      discoveredCreatures,
+      available,
     );
+
+    // Show species picker
+    final selectedSpeciesId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            // Filter to only show eligible species
+            final eligibleDiscovered = filteredDiscovered.where((entry) {
+              final creature = entry.creature; // Get the Creature object
+              final creatureId = creature.id;
+              return eligibleSpeciesIds.contains(creatureId);
+            }).toList();
+
+            return CreatureSelectionSheet(
+              scrollController: scrollController,
+              discoveredCreatures: eligibleDiscovered,
+              onSelectCreature: (creatureId) {
+                Navigator.pop(context, creatureId);
+              },
+              showOnlyAvailableTypes: true,
+            );
+          },
+        );
+      },
+    );
+
+    if (selectedSpeciesId == null) return;
+
+    final selectedSpecies = repo.getCreatureById(selectedSpeciesId);
+    if (selectedSpecies == null) return;
+
+    // Show instance picker with harvest stats
+    final instanceId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => BottomSheetShell(
+        title: 'Choose ${selectedSpecies.name}',
+        theme: theme,
+        child: InstancesSheet(
+          species: selectedSpecies,
+          theme: theme,
+          harvestDuration: widget.defaultDuration,
+          busyInstanceIds: busyIds,
+          onTap: (inst) {
+            Navigator.pop(context, inst.instanceId);
+          },
+        ),
+      ),
+    );
+
     if (instanceId == null) return;
 
-    final db = context.read<AlchemonsDatabase>();
-    final inst = await db.getInstance(instanceId);
+    final inst = await db.creatureDao.getInstance(instanceId);
     if (inst == null) return;
+
     if (inst.staminaBars == 0) {
       _showToast(
         'This creature is too exhausted to work right now.',
@@ -263,22 +357,20 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       return;
     }
 
-    final repo = context.read<CreatureRepository>();
     final base = repo.getCreatureById(inst.baseId);
     if (base == null || base.types.isEmpty) return;
 
     final creatureTypeId = base.types.first;
     await widget.service.setActiveElement(widget.biome, creatureTypeId);
 
-    final farm = widget.service.biome(widget.biome);
     final ok = await widget.service.startJob(
       biome: widget.biome,
       creatureInstanceId: instanceId,
       duration: widget.defaultDuration,
       ratePerMinute: _computeRatePerMinute(
-        hasMatchingElement: true,
-        natureBonusPct: 10,
-        level: farm.level,
+        hasMatchingElement: widget.biome.elementTypes.contains(creatureTypeId),
+        natureBonusPct: _getNatureBonus(inst.natureId),
+        level: inst.level,
       ),
     );
 
@@ -291,9 +383,33 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
         ),
       );
     } else {
-      await _collectCtrl.forward(from: 0); // little juice pop-in
-      await _refreshCreatureCache(); // show new worker
+      await _collectCtrl.forward(from: 0);
+      await _refreshCreatureCache();
     }
+  }
+
+  // Helper to get nature bonus
+  int _getNatureBonus(String? natureId) {
+    final nature = (natureId ?? '').toLowerCase();
+    return switch (nature) {
+      'metabolic' => 10,
+      'diligent' => 8,
+      'sluggish' => -10,
+      _ => 0,
+    };
+  }
+
+  // Update _computeRatePerMinute to accept actual level
+  int _computeRatePerMinute({
+    required bool hasMatchingElement,
+    required int natureBonusPct,
+    required int level,
+  }) {
+    var base = 3;
+    base += (level - 1);
+    if (hasMatchingElement) base = (base * 1.25).round();
+    base = (base * (1 + natureBonusPct / 100)).round();
+    return base.clamp(1, 999);
   }
 
   void _handleCollect(BiomeFarmState farm) async {
@@ -306,7 +422,9 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Collected $got ${_getResourceName(farm)}'),
+        content: Text(
+          'Collected $got ${widget.biome.resourceLabel}',
+        ), // UPDATED: simplified
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -327,6 +445,8 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
+        duration: Duration(seconds: 2),
+        showCloseIcon: true,
         content: Text('Extraction cancelled'),
         behavior: SnackBarBehavior.floating,
       ),
@@ -340,23 +460,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
   double _creatureY(double fill) {
     final y = 0.8 - fill * 1.6;
     return y.clamp(-0.2, 0.6);
-  }
-
-  int _computeRatePerMinute({
-    required bool hasMatchingElement,
-    required int natureBonusPct,
-    required int level,
-  }) {
-    var base = 3;
-    base += (level - 1);
-    if (hasMatchingElement) base = (base * 1.25).round();
-    base = (base * (1 + natureBonusPct / 100)).round();
-    return base.clamp(1, 999);
-  }
-
-  String _getResourceName(BiomeFarmState farm) {
-    if (farm.activeElementId == null) return 'Resources';
-    return widget.biome.resourceNameForElement(farm.activeElementId!);
   }
 
   String _fmt(Duration? d) {
@@ -399,133 +502,165 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     final theme = context.watch<FactionTheme>();
 
     return Scaffold(
-      // use your faction surface instead of hardcoded 0xFF0B0F14
       backgroundColor: theme.surface,
       extendBodyBehindAppBar: true,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(0),
+        preferredSize: const Size.fromHeight(0),
         child: AppBar(backgroundColor: Colors.transparent, elevation: 0),
       ),
-      body: ListenableBuilder(
-        listenable: widget.service,
-        builder: (_, __) {
-          final farm = widget.service.biome(widget.biome);
-          final accent = farm.currentColor;
+      body: withGameData(
+        context,
+        loadingBuilder: buildLoadingScreen,
+        builder:
+            (
+              context, {
+              required theme,
+              required catalog,
+              required entries,
+              required discovered,
+            }) {
+              return ListenableBuilder(
+                listenable: widget.service,
+                builder: (_, __) {
+                  final farm = widget.service.biome(widget.biome);
+                  final accent = farm.currentColor;
+                  final vm = _syncAndComputeProgress(farm);
 
-          final vm = _syncAndComputeProgress(farm);
+                  final statusLabel = !farm.unlocked
+                      ? 'LOCKED'
+                      : farm.hasActive
+                      ? (farm.completed ? 'COMPLETE' : 'ACTIVE')
+                      : 'READY';
 
-          final statusLabel = !farm.unlocked
-              ? 'LOCKED'
-              : farm.hasActive
-              ? (farm.completed ? 'COMPLETE' : 'ACTIVE')
-              : 'READY';
+                  final statusText = !farm.unlocked
+                      ? 'This biome is locked.'
+                      : (!farm.hasActive
+                            ? 'No active extraction. Insert a creature to begin.'
+                            : (farm.completed
+                                  ? 'Extraction complete — ready to collect.'
+                                  : 'Extracting ${widget.biome.resourceLabel} ... ${_fmt(vm.remaining)} left'));
 
-          final statusText = !farm.unlocked
-              ? 'This biome is locked.'
-              : (!farm.hasActive
-                    ? 'No active extraction. Insert a creature to begin.'
-                    : (farm.completed
-                          ? 'Extraction complete — ready to collect.'
-                          : 'Extracting ${_getResourceName(farm)}... ${_fmt(vm.remaining)} left'));
+                  final currentJob = farm.activeJob;
+                  if (currentJob?.creatureInstanceId !=
+                      _cachedInstanceIdForCreature) {
+                    _refreshCreatureCache();
+                  }
 
-          final currentJob = farm.activeJob;
-          if (currentJob?.creatureInstanceId != _cachedInstanceIdForCreature) {
-            _refreshCreatureCache();
-          }
-
-          return Column(
-            children: [
-              _HeaderShell(
-                theme: theme,
-                accentColor: accent,
-                biomeLabel: widget.biome.label,
-                onBack: () => Navigator.of(context).maybePop(),
-                glowController: _glowController,
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  child: Column(
+                  return Stack(
                     children: [
-                      _HeaderCard(
-                        color: accent,
-                        icon: widget.biome.icon,
-                        label: widget.biome.label,
-                        status: statusLabel,
-                        theme: theme,
-                      ),
-                      const SizedBox(height: 14),
-
-                      AspectRatio(
-                        aspectRatio: 3 / 4,
-                        child: _TubeView(
-                          tSeconds: _tSeconds,
-                          collectCtrl: _collectCtrl,
-                          tapFxCtrl: _tapFxCtrl,
-                          onTapBoost: () {},
-                          farm: farm,
-                          accent: accent,
-                          effectiveFill: vm.effectiveFill,
-                          creatureY: _creatureY(vm.effectiveFill),
-                          creatureWidget: _creatureWidget,
-                          onTapDown: (details, inner) {
-                            _handleTapBoost(farm);
-
-                            final lp = details.localPosition;
-                            final clamped = Offset(
-                              lp.dx.clamp(inner.left + 6, inner.right - 6),
-                              lp.dy.clamp(inner.top + 6, inner.bottom - 6),
-                            );
-                            setState(() => _tapLocal = clamped);
-                            _tapFxCtrl.forward(from: 0);
-                          },
-                          tapLocal: _tapLocal,
+                      // Biome background layer
+                      Positioned.fill(
+                        child: _BiomeBackground(
+                          assetPath: _getBackgroundAsset(),
+                          accentColor: accent,
                         ),
                       ),
 
-                      Text(
-                        statusText,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: theme.text,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+                      // Main content
+                      Column(
+                        children: [
+                          _HeaderShell(
+                            theme: theme,
+                            accentColor: accent,
+                            biomeLabel: widget.biome.label,
+                            onBack: () => Navigator.of(context).maybePop(),
+                            glowController: _glowController,
+                          ),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                              child: Column(
+                                children: [
+                                  _HeaderCard(
+                                    color: accent,
+                                    icon: widget.biome.icon,
+                                    label: widget.biome.label,
+                                    status: statusLabel,
+                                    theme: theme,
+                                  ),
+                                  const SizedBox(height: 14),
 
-                      if (!farm.unlocked)
-                        _LockedPanel(
-                          color: accent,
-                          theme: theme,
-                          onBack: () => Navigator.pop(context),
-                        )
-                      else if (!farm.hasActive)
-                        _StartPanel(
-                          color: accent,
-                          theme: theme,
-                          biome: widget.biome,
-                          defaultDuration: widget.defaultDuration,
-                          onPickAndStart: _handlePickAndStart,
-                        )
-                      else
-                        _ActivePanel(
-                          color: accent,
-                          theme: theme,
-                          farm: farm,
-                          biome: widget.biome,
-                          onCollect: farm.completed
-                              ? () => _handleCollect(farm)
-                              : null,
-                          onCancel: _handleCancel,
-                        ),
+                                  AspectRatio(
+                                    aspectRatio: 3 / 4,
+                                    child: _TubeView(
+                                      tSeconds: _tSeconds,
+                                      collectCtrl: _collectCtrl,
+                                      tapFxCtrl: _tapFxCtrl,
+                                      onTapBoost: () {},
+                                      farm: farm,
+                                      accent: accent,
+                                      effectiveFill: vm.effectiveFill,
+                                      creatureY: _creatureY(vm.effectiveFill),
+                                      creatureWidget: _creatureWidget,
+                                      onTapDown: (details, inner) {
+                                        _handleTapBoost(farm);
+                                        final lp = details.localPosition;
+                                        final clamped = Offset(
+                                          lp.dx.clamp(
+                                            inner.left + 6,
+                                            inner.right - 6,
+                                          ),
+                                          lp.dy.clamp(
+                                            inner.top + 6,
+                                            inner.bottom - 6,
+                                          ),
+                                        );
+                                        setState(() => _tapLocal = clamped);
+                                        _tapFxCtrl.forward(from: 0);
+                                      },
+                                      tapLocal: _tapLocal,
+                                    ),
+                                  ),
+
+                                  Text(
+                                    statusText,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: theme.text,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  if (!farm.unlocked)
+                                    _LockedPanel(
+                                      color: accent,
+                                      theme: theme,
+                                      onBack: () => Navigator.pop(context),
+                                    )
+                                  else if (!farm.hasActive)
+                                    _StartPanel(
+                                      color: accent,
+                                      theme: theme,
+                                      biome: widget.biome,
+                                      defaultDuration: widget.defaultDuration,
+                                      // PASS TYPED discovered entries here
+                                      onPickAndStart: () =>
+                                          _handlePickAndStart(discovered),
+                                    )
+                                  else
+                                    _ActivePanel(
+                                      color: accent,
+                                      theme: theme,
+                                      farm: farm,
+                                      biome: widget.biome,
+                                      onCollect: farm.completed
+                                          ? () => _handleCollect(farm)
+                                          : null,
+                                      onCancel: _handleCancel,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
+                  );
+                },
+              );
+            },
       ),
     );
   }
@@ -688,11 +823,12 @@ class _StartPanel extends StatelessWidget {
     required this.onPickAndStart,
   });
 
-  final Color color; // biome accent
+  final Color color;
   final FactionTheme theme;
   final Biome biome;
   final Duration defaultDuration;
-  final VoidCallback onPickAndStart;
+  final VoidCallback
+  onPickAndStart; // Keep as VoidCallback since we pass discoveredCreatures in the call
 
   @override
   Widget build(BuildContext context) {
@@ -747,7 +883,6 @@ class _ActivePanel extends StatelessWidget {
     final duration = Duration(milliseconds: j.durationMs);
     final rate = j.ratePerMinute;
     final total = rate * duration.inMinutes;
-    final resourceName = biome.resourceNameForElement(farm.activeElementId!);
 
     return Column(
       children: [
@@ -760,7 +895,7 @@ class _ActivePanel extends StatelessWidget {
           ),
         ),
         Text(
-          'Total: $total $resourceName',
+          'Total: $total ${biome.resourceLabel}', // UPDATED: simplified
           style: TextStyle(
             color: theme.text,
             fontSize: 12,
@@ -1174,9 +1309,7 @@ class _TubeBackgroundPainter extends CustomPainter {
       canvas.drawCircle(Offset(x, y), size, bubble);
 
       if (active && i % 5 == 0) {
-        final trail = Paint()
-          ..color = Colors.white.withOpacity(.10)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+        final trail = Paint()..color = Colors.white.withOpacity(.10);
         canvas.drawCircle(Offset(x, y + 6), size * .8, trail);
       }
     }
@@ -1471,6 +1604,77 @@ class _OutlineBtn extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Background widget that creates an atmospheric biome environment
+class _BiomeBackground extends StatelessWidget {
+  const _BiomeBackground({required this.assetPath, required this.accentColor});
+
+  final String assetPath;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // The biome image
+        Image.asset(
+          assetPath,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            // Fallback if image fails to load
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    accentColor.withOpacity(0.1),
+                    accentColor.withOpacity(0.05),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+
+        // Atmospheric overlay - darkens and adds color tint
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withOpacity(0.3),
+                accentColor.withOpacity(0.15),
+                Colors.black.withOpacity(0.5),
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
+        ),
+
+        // Vignette effect for depth
+        Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 1.0,
+              colors: [Colors.transparent, Colors.black.withOpacity(0.4)],
+              stops: const [0.3, 1.0],
+            ),
+          ),
+        ),
+
+        // Optional: Blur effect for depth of field
+        BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
+          child: Container(color: Colors.transparent),
+        ),
+      ],
     );
   }
 }

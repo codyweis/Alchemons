@@ -11,53 +11,6 @@ import 'package:alchemons/widgets/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 
-// helper so we reuse the animated sprite genetics-aware
-class InstanceSprite extends StatelessWidget {
-  final Creature creature;
-  final CreatureInstance instance;
-  final double size;
-
-  const InstanceSprite({
-    super.key,
-    required this.creature,
-    required this.instance,
-    required this.size,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final genetics = decodeGenetics(instance.geneticsJson);
-    final sd = creature.spriteData;
-
-    if (sd == null) {
-      // fallback to the static image on Creature if no sprite data
-      return Image.asset(
-        creature.image,
-        fit: BoxFit.contain,
-        width: size,
-        height: size,
-      );
-    }
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CreatureSprite(
-        spritePath: sd.spriteSheetPath,
-        totalFrames: sd.totalFrames,
-        rows: sd.rows,
-        frameSize: Vector2(sd.frameWidth.toDouble(), sd.frameHeight.toDouble()),
-        stepTime: sd.frameDurationMs / 1000.0,
-        scale: scaleFromGenes(genetics),
-        hueShift: hueFromGenes(genetics),
-        saturation: satFromGenes(genetics),
-        brightness: briFromGenes(genetics),
-        isPrismatic: instance.isPrismaticSkin,
-      ),
-    );
-  }
-}
-
 /// Quick-look dialog that shows level, XP, stats, genetics/traits.
 /// UPDATED: now also has a DETAILS button that opens the full CreatureDetailsDialog.
 Future<void> showQuickInstanceDialog({

@@ -92,7 +92,7 @@ class BreedingAnalysisReport {
 }
 
 class BreedingLikelihoodAnalyzer {
-  final CreatureRepository repository;
+  final CreatureCatalog repository;
   final ElementRecipeConfig elementRecipes;
   final FamilyRecipeConfig familyRecipes;
   final SpecialRulesConfig specialRules;
@@ -200,6 +200,12 @@ class BreedingLikelihoodAnalyzer {
 
     // SPECIAL COSMETICS (prismatic)
     _maybeAppendPrismatic(
+      baby: baby,
+      specialsOut: specials,
+      surprisesOut: surprises,
+    );
+
+    _maybeAppendVariantFaction(
       baby: baby,
       specialsOut: specials,
       surprisesOut: surprises,
@@ -511,6 +517,34 @@ class BreedingLikelihoodAnalyzer {
         ),
       );
       surprisesOut.add('Prismatic skin mutation');
+    }
+  }
+
+  void _maybeAppendVariantFaction({
+    required Creature baby,
+    required List<InheritanceMechanic> specialsOut,
+    required List<String> surprisesOut,
+  }) {
+    final odds = engine.computeVariantFactionOdds(child: baby);
+    if (odds == null) return;
+
+    final pct = odds.pickedFactionPct;
+    final factionId = odds.pickedFactionId;
+    final depth = baby.lineageData?.generationDepth ?? 0;
+
+    specialsOut.add(
+      InheritanceMechanic(
+        category: 'Lineage Variant',
+        result: factionId,
+        mechanism:
+            '${pct.toStringAsFixed(2)}% chance to express ancestral faction bloodline (depth $depth)',
+        percentage: pct,
+        likelihood: _likelihoodFor(pct),
+      ),
+    );
+
+    if (pct < 10.0) {
+      surprisesOut.add('Bloodline variant expression');
     }
   }
 

@@ -90,12 +90,6 @@ class _FireFXState extends State<FireFX> with SingleTickerProviderStateMixin {
               bgPaint: _bgClear,
               blendOnTop: widget.blendOnTop,
             ),
-            foregroundPainter: FireEmbersPainter(
-              controller: _controller,
-              speedFactor: widget.speedFactor,
-              primaryColor: widget.primaryColor,
-              secondaryColor: widget.secondaryColor,
-            ),
           );
         },
       ),
@@ -204,9 +198,7 @@ class FireEmbersPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final t = _timeSeconds() * speedFactor;
 
-    final glowPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    final glowPaint = Paint()..style = PaintingStyle.fill;
 
     final emberPaint = Paint()..style = PaintingStyle.fill;
 

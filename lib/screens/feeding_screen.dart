@@ -15,10 +15,11 @@ import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/creature_stats.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_dialog.dart';
-import 'package:alchemons/widgets/creature_sprite.dart' hide InstanceSprite;
+import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/enhancement_display.dart';
 
@@ -62,7 +63,7 @@ class _FeedingScreenState extends State<FeedingScreen>
   // helper to build species summary list
   List<Map<String, dynamic>> buildSpeciesListData({
     required List<CreatureInstance> instances,
-    required CreatureRepository repo,
+    required CreatureCatalog repo,
   }) {
     final countBySpecies = <String, int>{};
     for (final inst in instances) {
@@ -127,7 +128,7 @@ class _FeedingScreenState extends State<FeedingScreen>
                   // main content
                   Expanded(
                     child: StreamBuilder<List<CreatureInstance>>(
-                      stream: db.watchAllInstances(),
+                      stream: db.creatureDao.watchAllInstances(),
                       builder: (context, snap) {
                         final instances = snap.data ?? [];
                         return _buildStageContent(theme, instances);
@@ -140,10 +141,11 @@ class _FeedingScreenState extends State<FeedingScreen>
                     StreamBuilder<CreatureInstance?>(
                       stream: context
                           .read<AlchemonsDatabase>()
+                          .creatureDao
                           .watchInstanceById(_targetInstanceId!),
                       builder: (context, snapshot) {
                         final targetInstance = snapshot.data;
-                        final repo = context.read<CreatureRepository>();
+                        final repo = context.read<CreatureCatalog>();
                         final targetCreature = targetInstance == null
                             ? null
                             : repo.getCreatureById(targetInstance.baseId);
@@ -169,8 +171,9 @@ class _FeedingScreenState extends State<FeedingScreen>
 
           // close button
           Positioned(
-            right: 10,
-            top: 40,
+            right: 0,
+            left: 0,
+            bottom: 20,
             child: FloatingCloseButton(
               size: 50,
               theme: theme,
@@ -193,7 +196,7 @@ class _FeedingScreenState extends State<FeedingScreen>
     FactionTheme theme,
     List<CreatureInstance> instances,
   ) {
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
 
     if (_isPickingSpecies) {
       return _buildSpeciesStage(theme, instances, repo);
@@ -211,7 +214,7 @@ class _FeedingScreenState extends State<FeedingScreen>
   Widget _buildSpeciesStage(
     FactionTheme theme,
     List<CreatureInstance> instances,
-    CreatureRepository repo,
+    CreatureCatalog repo,
   ) {
     final speciesData = buildSpeciesListData(instances: instances, repo: repo);
 
@@ -348,7 +351,7 @@ class _FeedingScreenState extends State<FeedingScreen>
   }
 
   // Stage 2: choose which specific instance gets fed
-  Widget _buildInstanceStage(FactionTheme theme, CreatureRepository repo) {
+  Widget _buildInstanceStage(FactionTheme theme, CreatureCatalog repo) {
     final species = repo.getCreatureById(_targetSpeciesId!);
     if (species == null) {
       return Center(
@@ -377,7 +380,7 @@ class _FeedingScreenState extends State<FeedingScreen>
     FactionTheme theme,
     List<CreatureInstance> instances,
   ) {
-    final repo = context.read<CreatureRepository>();
+    final repo = context.read<CreatureCatalog>();
 
     final candidates =
         instances
@@ -388,7 +391,22 @@ class _FeedingScreenState extends State<FeedingScreen>
                   !inst.locked,
             )
             .toList()
-          ..sort((a, b) => b.level.compareTo(a.level));
+          ..sort((a, b) {
+            // Sort by highest stat value (best fodder first)
+            final aMax = [
+              a.statSpeed,
+              a.statIntelligence,
+              a.statStrength,
+              a.statBeauty,
+            ].reduce((a, b) => a > b ? a : b);
+            final bMax = [
+              b.statSpeed,
+              b.statIntelligence,
+              b.statStrength,
+              b.statBeauty,
+            ].reduce((a, b) => a > b ? a : b);
+            return bMax.compareTo(aMax);
+          });
 
     if (candidates.isEmpty) {
       return Center(
@@ -408,18 +426,29 @@ class _FeedingScreenState extends State<FeedingScreen>
     }
 
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 100),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 180),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
         crossAxisSpacing: 4,
         mainAxisSpacing: 4,
-        childAspectRatio: .8,
+        childAspectRatio: .75,
       ),
       itemCount: candidates.length,
       itemBuilder: (context, i) {
         final inst = candidates[i];
         final isSelected = _selectedFodder.contains(inst.instanceId);
         final baseCreature = repo.getCreatureById(inst.baseId);
+
+        // Find highest stat for this fodder
+        final stats = {
+          'SPD': inst.statSpeed,
+          'INT': inst.statIntelligence,
+          'STR': inst.statStrength,
+          'BEA': inst.statBeauty,
+        };
+        final highestEntry = stats.entries.reduce(
+          (a, b) => a.value > b.value ? a : b,
+        );
 
         return GestureDetector(
           onTap: () => _toggleFodder(inst.instanceId),
@@ -434,7 +463,7 @@ class _FeedingScreenState extends State<FeedingScreen>
                   );
                 },
           child: Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: isSelected
                   ? Colors.green.withOpacity(0.15)
@@ -452,24 +481,24 @@ class _FeedingScreenState extends State<FeedingScreen>
                   InstanceSprite(
                     creature: baseCreature,
                     instance: inst,
-                    size: 40,
+                    size: 36,
                   )
                 else
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: theme.surfaceAlt,
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 if (baseCreature != null)
                   Text(
                     baseCreature.name,
                     style: TextStyle(
                       color: isSelected ? Colors.green : theme.text,
-                      fontSize: 9,
+                      fontSize: 8,
                       fontWeight: FontWeight.w600,
                     ),
                     maxLines: 1,
@@ -480,8 +509,30 @@ class _FeedingScreenState extends State<FeedingScreen>
                   'Lv ${inst.level}',
                   style: TextStyle(
                     color: isSelected ? Colors.green.shade300 : theme.textMuted,
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                // Show highest stat
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.green.withOpacity(0.2)
+                        : theme.surfaceAlt,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    '${highestEntry.key} ${highestEntry.value.toStringAsFixed(1)}',
+                    style: TextStyle(
+                      color: isSelected ? Colors.green : theme.primary,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ],
@@ -491,7 +542,6 @@ class _FeedingScreenState extends State<FeedingScreen>
       },
     );
   }
-
   // ---------- Actions ----------
 
   void _handleBack() {
@@ -525,13 +575,14 @@ class _FeedingScreenState extends State<FeedingScreen>
 
     try {
       final db = context.read<AlchemonsDatabase>();
-      final repo = context.read<CreatureRepository>();
+      final repo = context.read<CreatureCatalog>();
       final feedService = CreatureInstanceService(db);
 
       final result = await feedService.previewFeed(
         targetInstanceId: _targetInstanceId!,
         fodderInstanceIds: _selectedFodder.toList(),
         repo: repo,
+        maxLevel: 10,
         strictSpecies: true,
       );
 
@@ -546,14 +597,16 @@ class _FeedingScreenState extends State<FeedingScreen>
 
     setState(() => _busy = true);
 
-    // capture current stats for animation
+    // capture current stats for animation BEFORE feeding
     final db = context.read<AlchemonsDatabase>();
-    final currentInstance = await db.getInstance(_targetInstanceId!);
+    final currentInstance = await db.creatureDao.getInstance(
+      _targetInstanceId!,
+    );
     final preFeedLevel = currentInstance?.level ?? 0;
     final preFeedXp = currentInstance?.xp ?? 0;
 
     try {
-      final repo = context.read<CreatureRepository>();
+      final repo = context.read<CreatureCatalog>();
       final factions = context.read<FactionService>();
       final feedService = CreatureInstanceService(db);
 
@@ -562,28 +615,21 @@ class _FeedingScreenState extends State<FeedingScreen>
         fodderInstanceIds: _selectedFodder.toList(),
         repo: repo,
         factions: factions,
+        maxLevel: 10,
         strictSpecies: true,
       );
 
       if (!mounted) return;
 
       if (result.ok) {
-        // prep animation
+        // Set pre-feed values and trigger animation flag
         setState(() {
-          _shouldAnimateEnhancement = false;
           _preFeedLevel = preFeedLevel;
           _preFeedXp = preFeedXp;
-        });
-
-        // tiny delay so EnhancementDisplay can see false then true
-        await Future.delayed(const Duration(milliseconds: 50));
-        if (!mounted) return;
-
-        setState(() {
           _shouldAnimateEnhancement = true;
         });
 
-        // wait animation duration
+        // Wait for animation to complete
         await Future.delayed(const Duration(milliseconds: 1500));
         if (!mounted) return;
 
@@ -705,8 +751,318 @@ class _StageHeader extends StatelessWidget {
   }
 }
 
-// ---------- Footer ----------
+// Add this new widget for the XP bar display
+class _XPBarDisplay extends StatefulWidget {
+  final FactionTheme theme;
+  final CreatureInstance instance;
+  final bool isAnimating;
+  final int? preFeedLevel;
+  final int? preFeedXp;
 
+  const _XPBarDisplay({
+    required this.theme,
+    required this.instance,
+    required this.isAnimating,
+    this.preFeedLevel,
+    this.preFeedXp,
+  });
+
+  @override
+  State<_XPBarDisplay> createState() => _XPBarDisplayState();
+}
+
+class _XPBarDisplayState extends State<_XPBarDisplay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _xpAnimation;
+  late Animation<int> _levelAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    _setupAnimations();
+  }
+
+  void _setupAnimations() {
+    final startLevel = widget.preFeedLevel ?? widget.instance.level;
+    final endLevel = widget.instance.level;
+    final startXp = widget.preFeedXp ?? widget.instance.xp;
+    final endXp = widget.instance.xp;
+
+    // For level animation
+    _levelAnimation = IntTween(begin: startLevel, end: endLevel).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+    );
+
+    // For XP bar animation - needs to handle level ups
+    if (startLevel == endLevel) {
+      // Same level, just animate XP
+      final xpNeeded = CreatureInstanceServiceFeeding.xpNeededForLevel(
+        startLevel,
+      );
+      final startPercent = startXp / xpNeeded;
+      final endPercent = endXp / xpNeeded;
+
+      _xpAnimation = Tween<double>(begin: startPercent, end: endPercent)
+          .animate(
+            CurvedAnimation(
+              parent: _animController,
+              curve: Curves.easeOutCubic,
+            ),
+          );
+    } else {
+      // Level up happened - animate from start XP to full, then show new level
+      _xpAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+      );
+    }
+  }
+
+  @override
+  void didUpdateWidget(_XPBarDisplay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.isAnimating && !oldWidget.isAnimating) {
+      _setupAnimations();
+      _animController.forward(from: 0.0);
+    } else if (!widget.isAnimating && oldWidget.isAnimating) {
+      _animController.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentLevel = widget.instance.level;
+    final currentXp = widget.instance.xp;
+    final xpNeeded = CreatureInstanceServiceFeeding.xpNeededForLevel(
+      currentLevel,
+    );
+
+    return AnimatedBuilder(
+      animation: _animController,
+      builder: (context, child) {
+        final displayLevel = widget.isAnimating
+            ? _levelAnimation.value
+            : currentLevel;
+
+        final displayXpPercent = widget.isAnimating
+            ? _xpAnimation.value
+            : (currentXp / xpNeeded).clamp(0.0, 1.0);
+
+        final displayXp = widget.isAnimating
+            ? (displayXpPercent * xpNeeded).round()
+            : currentXp;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Level $displayLevel',
+                  style: TextStyle(
+                    color: widget.theme.text,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (currentLevel < 10) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Container(
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: widget.theme.surface,
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(
+                          color: widget.theme.border,
+                          width: 0.5,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2.5),
+                        child: Stack(
+                          children: [
+                            FractionallySizedBox(
+                              widthFactor: displayXpPercent.clamp(0.0, 1.0),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.blue.shade400,
+                                      Colors.blue.shade600,
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$displayXp/$xpNeeded',
+                    style: TextStyle(
+                      color: widget.theme.textMuted,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+                if (currentLevel >= 10)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: Colors.amber.withOpacity(0.5),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        'MAX',
+                        style: TextStyle(
+                          color: Colors.amber,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// Update _CurrentStatsDisplay to include the XP bar
+class _CurrentStatsDisplay extends StatelessWidget {
+  final FactionTheme theme;
+  final CreatureInstance instance;
+  final Creature creature;
+  final bool isAnimating;
+  final int? preFeedLevel;
+  final int? preFeedXp;
+
+  const _CurrentStatsDisplay({
+    required this.theme,
+    required this.instance,
+    required this.creature,
+    this.isAnimating = false,
+    this.preFeedLevel,
+    this.preFeedXp,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.border),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onLongPress: () {
+              showQuickInstanceDialog(
+                context: context,
+                theme: theme,
+                creature: creature,
+                instance: instance,
+              );
+            },
+            child: InstanceSprite(
+              creature: creature,
+              instance: instance,
+              size: 50,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  creature.name,
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                _XPBarDisplay(
+                  theme: theme,
+                  instance: instance,
+                  isAnimating: isAnimating,
+                  preFeedLevel: preFeedLevel,
+                  preFeedXp: preFeedXp,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Quick stat summary
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _StatMiniBar(
+                label: 'SPD',
+                value: instance.statSpeed,
+                potential: instance.statSpeedPotential,
+                theme: theme,
+              ),
+              _StatMiniBar(
+                label: 'INT',
+                value: instance.statIntelligence,
+                potential: instance.statIntelligencePotential,
+                theme: theme,
+              ),
+              _StatMiniBar(
+                label: 'STR',
+                value: instance.statStrength,
+                potential: instance.statStrengthPotential,
+                theme: theme,
+              ),
+              _StatMiniBar(
+                label: 'BEA',
+                value: instance.statBeauty,
+                potential: instance.statBeautyPotential,
+                theme: theme,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Update _FeedFooter to pass animation state to _CurrentStatsDisplay
 class _FeedFooter extends StatelessWidget {
   final FactionTheme theme;
   final CreatureInstance? targetInstance;
@@ -734,8 +1090,10 @@ class _FeedFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMaxLevel = targetInstance?.level == 10;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.surface,
         border: Border(top: BorderSide(color: theme.border)),
@@ -744,40 +1102,293 @@ class _FeedFooter extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (targetInstance != null && targetCreature != null) ...[
-            EnhancementDisplay(
-              theme: theme,
-              instance: targetInstance!,
-              preview: preview,
-              instanceSprite: GestureDetector(
-                onLongPress: () {
-                  showQuickInstanceDialog(
-                    context: context,
-                    theme: theme,
-                    creature: targetCreature!,
-                    instance: targetInstance!,
-                  );
-                },
-                child: InstanceSprite(
-                  creature: targetCreature!,
-                  instance: targetInstance!,
-                  size: 70,
+            if (isMaxLevel)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.withOpacity(0.3)),
                 ),
+                child: Row(
+                  children: [
+                    Icon(Icons.stars, color: Colors.amber, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Max Level Reached!\nThis creature can no longer be enhanced.',
+                        style: TextStyle(
+                          color: Colors.amber,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              // Current stats display with XP bar animation
+              _CurrentStatsDisplay(
+                theme: theme,
+                instance: targetInstance!,
+                creature: targetCreature!,
+                isAnimating: shouldAnimate,
+                preFeedLevel: preFeedLevel,
+                preFeedXp: preFeedXp,
               ),
-              shouldAnimate: shouldAnimate,
-              preFeedLevel: preFeedLevel,
-              preFeedXp: preFeedXp,
-            ),
+              if (preview != null && preview!.ok) ...[
+                const SizedBox(height: 8),
+                _StatGainsPreview(
+                  theme: theme,
+                  preview: preview!,
+                  instance: targetInstance!,
+                ),
+              ],
+            ],
             const SizedBox(height: 12),
           ],
           _EnhanceButton(
             theme: theme,
-            enabled: selectedCount > 0 && !busy,
+            enabled:
+                selectedCount > 0 && !busy && !(targetInstance?.level == 10),
             busy: busy,
             selectedCount: selectedCount,
             onTap: onEnhance,
           ),
         ],
       ),
+    );
+  }
+}
+
+class _StatMiniBar extends StatelessWidget {
+  final String label;
+  final double value;
+  final double potential;
+  final FactionTheme theme;
+
+  const _StatMiniBar({
+    required this.label,
+    required this.value,
+    required this.potential,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final percentage = (value / 5.0).clamp(0.0, 1.0);
+    final potentialPercentage = (potential / 5.0).clamp(0.0, 1.0);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: theme.textMuted,
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Container(
+            width: 60,
+            height: 8,
+            decoration: BoxDecoration(
+              color: theme.surface,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Stack(
+              children: [
+                // Potential bar (background)
+                FractionallySizedBox(
+                  widthFactor: potentialPercentage,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.border,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                // Current value bar (foreground)
+                FractionallySizedBox(
+                  widthFactor: percentage,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.primary,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            value.toStringAsFixed(1),
+            style: TextStyle(
+              color: theme.text,
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// New widget to preview stat gains
+class _StatGainsPreview extends StatelessWidget {
+  final FactionTheme theme;
+  final FeedResult preview;
+  final CreatureInstance instance;
+
+  const _StatGainsPreview({
+    required this.theme,
+    required this.preview,
+    required this.instance,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final gains = preview.statGains ?? {};
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.green.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.trending_up, color: Colors.green, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                'Predicted Changes',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _StatGainIndicator(
+                label: 'SPD',
+                gain: gains['speed'] ?? 0,
+                current: instance.statSpeed,
+                potential: instance.statSpeedPotential,
+                theme: theme,
+              ),
+              _StatGainIndicator(
+                label: 'INT',
+                gain: gains['intelligence'] ?? 0,
+                current: instance.statIntelligence,
+                potential: instance.statIntelligencePotential,
+                theme: theme,
+              ),
+              _StatGainIndicator(
+                label: 'STR',
+                gain: gains['strength'] ?? 0,
+                current: instance.statStrength,
+                potential: instance.statStrengthPotential,
+                theme: theme,
+              ),
+              _StatGainIndicator(
+                label: 'BEA',
+                gain: gains['beauty'] ?? 0,
+                current: instance.statBeauty,
+                potential: instance.statBeautyPotential,
+                theme: theme,
+              ),
+            ],
+          ),
+          if (preview.newLevel > instance.level) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.star, color: Colors.amber, size: 12),
+                const SizedBox(width: 4),
+                Text(
+                  'Level ${instance.level} → ${preview.newLevel}',
+                  style: TextStyle(
+                    color: Colors.amber,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StatGainIndicator extends StatelessWidget {
+  final String label;
+  final double gain;
+  final double current;
+  final double potential;
+  final FactionTheme theme;
+
+  const _StatGainIndicator({
+    required this.label,
+    required this.gain,
+    required this.current,
+    required this.potential,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final newValue = (current + gain).clamp(0.0, potential);
+    final color = gain > 0
+        ? Colors.green
+        : (gain < 0 ? Colors.red : theme.textMuted);
+    final arrow = gain > 0 ? '↑' : (gain < 0 ? '↓' : '•');
+
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: theme.textMuted,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Text(
+          '$arrow${gain.abs().toStringAsFixed(2)}',
+          style: TextStyle(
+            color: color,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        Text(
+          '→ ${newValue.toStringAsFixed(1)}',
+          style: TextStyle(
+            color: theme.text,
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

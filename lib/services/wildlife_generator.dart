@@ -24,7 +24,7 @@ class WildlifeTuning {
 /// - fresh weighted nature
 /// - optional prismatic flag
 class WildlifeGenerator {
-  final CreatureRepository repo;
+  final CreatureCatalog repo;
   final WildlifeTuning tuning;
   final Random _rng;
 
