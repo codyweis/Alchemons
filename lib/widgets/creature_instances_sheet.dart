@@ -18,7 +18,7 @@ import 'package:alchemons/widgets/creature_sprite.dart';
 
 // needs sizeLabels, tintLabels, sizeIcons, tintIcons in scope
 // enum for card mode
-enum InstanceDetailMode { stats, genetics }
+enum InstanceDetailMode { info, stats, genetics } // +info
 
 enum SortBy { newest, oldest, levelHigh, levelLow }
 
@@ -46,7 +46,7 @@ class InstancesSheet extends StatefulWidget {
     required this.onTap,
     this.selectedInstanceIds = const [],
     this.selectionMode = false,
-    this.initialDetailMode = InstanceDetailMode.genetics,
+    this.initialDetailMode = InstanceDetailMode.info,
     this.harvestDuration,
     this.busyInstanceIds,
     this.requireStamina = false,
@@ -195,6 +195,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                   nat,
                   'LV ${inst.level}',
                   inst.instanceId,
+                  inst.nickname ?? inst.baseId, // ← added
                 ].join(' ').toLowerCase();
 
                 return tokens.contains(query);
@@ -329,10 +330,14 @@ class _InstancesSheetState extends State<InstancesSheet> {
                         GestureDetector(
                           onTap: () {
                             setState(() {
-                              _detailMode =
-                                  _detailMode == InstanceDetailMode.stats
-                                  ? InstanceDetailMode.genetics
-                                  : InstanceDetailMode.stats;
+                              _detailMode = switch (_detailMode) {
+                                InstanceDetailMode.info =>
+                                  InstanceDetailMode.stats,
+                                InstanceDetailMode.stats =>
+                                  InstanceDetailMode.genetics,
+                                InstanceDetailMode.genetics =>
+                                  InstanceDetailMode.info,
+                              };
                             });
                           },
                           child: Container(
@@ -348,7 +353,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
                             ),
                             child: Center(
                               child: Text(
-                                _detailMode == InstanceDetailMode.stats
+                                _detailMode == InstanceDetailMode.info
+                                    ? 'INFO'
+                                    : _detailMode == InstanceDetailMode.stats
                                     ? 'STATS'
                                     : 'GENETICS',
                                 style: TextStyle(
@@ -361,7 +368,6 @@ class _InstancesSheetState extends State<InstancesSheet> {
                             ),
                           ),
                         ),
-
                       if (!_isHarvestMode) const SizedBox(width: 8),
 
                       // Filters pill
@@ -1365,24 +1371,31 @@ class _InstanceCard extends StatelessWidget {
             isSelected: isSelected,
             selectionNumber: selectionNumber,
           )
-        : (detailMode == InstanceDetailMode.stats)
-        ? _StatsBlock(
-            theme: theme,
-            instance: instance,
-            isSelected: isSelected,
-            selectionNumber: selectionNumber,
-          )
-        : _GeneticsBlock(
-            theme: theme,
-            instance: instance,
-            genetics: genetics,
-            getSizeIcon: _getSizeIcon,
-            getSizeName: _getSizeName,
-            getTintIcon: _getTintIcon,
-            getTintName: _getTintName,
-            isSelected: isSelected,
-            selectionNumber: selectionNumber,
-          );
+        : switch (detailMode) {
+            InstanceDetailMode.info => _InfoBlock(
+              theme: theme,
+              instance: instance,
+              isSelected: isSelected,
+              selectionNumber: selectionNumber,
+            ),
+            InstanceDetailMode.stats => _StatsBlock(
+              theme: theme,
+              instance: instance,
+              isSelected: isSelected,
+              selectionNumber: selectionNumber,
+            ),
+            InstanceDetailMode.genetics => _GeneticsBlock(
+              theme: theme,
+              instance: instance,
+              genetics: genetics,
+              getSizeIcon: _getSizeIcon,
+              getSizeName: _getSizeName,
+              getTintIcon: _getTintIcon,
+              getTintName: _getTintName,
+              isSelected: isSelected,
+              selectionNumber: selectionNumber,
+            ),
+          };
 
     Color borderColor = isSelected
         ? selectionNumber == 1
@@ -1490,6 +1503,93 @@ class _InstanceCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _InfoBlock extends StatelessWidget {
+  final FactionTheme theme;
+  final CreatureInstance instance;
+  final bool isSelected;
+  final int? selectionNumber;
+
+  const _InfoBlock({
+    required this.theme,
+    required this.instance,
+    required this.isSelected,
+    required this.selectionNumber,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasNick =
+        (instance.nickname != null && instance.nickname!.trim().isNotEmpty);
+    final nick = hasNick ? instance.nickname!.trim() : '—';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isSelected && selectionNumber != null) ...[
+          _ParentChip(selectionNumber: selectionNumber),
+          const SizedBox(height: 4),
+        ],
+
+        // Nickname row (with lock if locked)
+        Row(
+          children: [
+            Icon(
+              instance.locked ? Icons.lock_rounded : Icons.lock_open_rounded,
+              size: 12,
+              color: instance.locked ? theme.primary : theme.textMuted,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                nick,
+                style: TextStyle(
+                  color: theme.text,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 6),
+
+        // Stamina badge with countdown
+        StaminaBadge(instanceId: instance.instanceId, showCountdown: true),
+
+        // Optional: show quick level line below (tiny)
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Icon(Icons.stars_rounded, size: 12, color: Colors.green.shade400),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                'Lv ${instance.level}',
+                style: TextStyle(
+                  color: theme.text,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+
+        if (instance.isPrismaticSkin == true) ...[
+          const SizedBox(height: 4),
+          const _PrismaticChip(),
+        ],
+      ],
     );
   }
 }

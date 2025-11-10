@@ -598,7 +598,7 @@ class _InstancePickerState extends State<_InstancePicker> {
                         'normal': 'Normal',
                         'warm': 'Thermal',
                         'cool': 'Cryogenic',
-                        'vibrant': 'Saturated',
+                        'vibrant': 'Vibrant',
                         'pale': 'Diminished',
                         'albino': 'Albino',
                       },

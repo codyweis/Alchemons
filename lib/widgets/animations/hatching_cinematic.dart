@@ -457,7 +457,8 @@ class _CoreAndGeometryPainter extends CustomPainter {
     required this.whiteout,
     ui.Picture? flowerPic,
     ui.Picture? cubePic,
-  });
+  }) : _flowerPic = flowerPic,
+       _cubePic = cubePic;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -482,8 +483,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
 
     // ====== Sacred Geometry (cached pictures) ======
     if (geoOpacity > 0) {
-      _ensurePictures(size, base);
-      // Rotations derive from original code (breathe removed from geometry layout; still in opacity)
+      // no rebuilding here
       final rot1 =
           2 * pi * Curves.easeOutCubic.transform((t - 0.40).clamp(0.0, .5) * 2);
       final rot2 =
@@ -491,8 +491,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
           pi *
           Curves.easeOutCubic.transform((t - 0.48).clamp(0.0, .5) * 2);
 
-      // Draw with simple alpha layer (much cheaper than nested gradients + strokes every frame)
-      final alphaPaint = Paint()..color = Colors.white.withOpacity(geoOpacity);
+      final alphaLayer = Paint()..color = Colors.white.withOpacity(geoOpacity);
 
       // Flower (outer)
       if (_flowerPic != null) {
@@ -500,19 +499,18 @@ class _CoreAndGeometryPainter extends CustomPainter {
         canvas.translate(center.dx, center.dy);
         canvas.rotate(rot1);
         canvas.translate(-center.dx, -center.dy);
-        canvas.saveLayer(null, alphaPaint);
+        canvas.saveLayer(null, alphaLayer);
         canvas.drawPicture(_flowerPic!);
         canvas.restore();
         canvas.restore();
       }
 
-      // Cube-ish inner lines
       if (_cubePic != null) {
         canvas.save();
         canvas.translate(center.dx, center.dy);
         canvas.rotate(rot2);
         canvas.translate(-center.dx, -center.dy);
-        canvas.saveLayer(null, alphaPaint);
+        canvas.saveLayer(null, alphaLayer);
         canvas.drawPicture(_cubePic!);
         canvas.restore();
         canvas.restore();

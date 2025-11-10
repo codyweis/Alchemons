@@ -1236,7 +1236,7 @@ class BreedingEngine {
 
     // Each lineage point = +1%, capped at 10%
     double chancePct = score * 1.0; // 1 point -> 1%
-    if (chancePct < 10.0) {
+    if (chancePct > 10.0) {
       chancePct = 10.0;
     }
 

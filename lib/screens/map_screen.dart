@@ -1,4 +1,6 @@
+import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
+import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/pulsing_hitbox_widget.dart';
 import 'package:flutter/material.dart';
@@ -21,7 +23,9 @@ import 'package:alchemons/widgets/wilderness/countdown_badge.dart';
 import '../providers/app_providers.dart'; // for FactionTheme
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  final bool isTutorial;
+
+  const MapScreen({super.key, this.isTutorial = false});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -32,48 +36,205 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
 
-    return Scaffold(
-      backgroundColor: theme.surfaceAlt,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _HeaderBar(
-              onBack: () => Navigator.pop(context),
-              theme: theme,
-              onInfo: () {
-                showDialog(
-                  context: context,
-                  builder: (_) => _InfoDialog(theme: theme),
-                );
-              },
+    final spawnService = context.watch<WildernessSpawnService>();
+
+    final anySpawns = const [
+      'valley',
+      'sky',
+      'volcano',
+      'swamp',
+    ].any((biomeId) => spawnService.getSceneSpawnCount(biomeId) > 0);
+
+    return ParticleBackgroundScaffold(
+      whiteBackground: theme.brightness == Brightness.light,
+      body: WillPopScope(
+        onWillPop: () async {
+          // Prevent back navigation during tutorial
+          if (widget.isTutorial) {
+            _showTutorialBlockedDialog();
+            return false;
+          }
+          return true;
+        },
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _HeaderBar(
+                  onBack: widget.isTutorial
+                      ? () => _showTutorialBlockedDialog()
+                      : () => Navigator.pop(context),
+                  theme: theme,
+                  onInfo: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => _InfoDialog(theme: theme),
+                    );
+                  },
+                  isTutorial: widget.isTutorial,
+                ),
+
+                const SizedBox(height: 12),
+
+                _PartyStatusCard(
+                  theme: theme,
+                  onTap: () async {
+                    HapticFeedback.selectionClick();
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PartyPickerPage(),
+                      ),
+                    );
+                  },
+                ),
+
+                if (!widget.isTutorial) const SizedBox(height: 16),
+
+                // Show tutorial hint
+                if (widget.isTutorial) ...[
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.accent.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: theme.accent, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.accent.withOpacity(0.3),
+                          blurRadius: 12,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.explore_rounded,
+                          color: theme.accent,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'TAP A GLOWING AREA TO ENTER A REALM.',
+                            style: TextStyle(
+                              color: theme.text,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // MAP AREA
+                Expanded(
+                  child: _ExpeditionMap(
+                    theme: theme,
+                    isTutorial: widget.isTutorial,
+                    onSelectRegion: (biomeId, scene) {
+                      _handleRegionTap(context, biomeId, scene);
+                    },
+                  ),
+                ),
+                // Hint bar pinned to bottom
+                if (!widget.isTutorial)
+                  anySpawns
+                      ? _MapHintBar(theme: theme)
+                      : Container(
+                          decoration: BoxDecoration(
+                            color: theme.surfaceAlt,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: theme.accent.withOpacity(.35),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              'No wild creatures detected at this time.',
+                              style: TextStyle(color: theme.textMuted),
+                            ),
+                          ),
+                        ),
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(height: 12),
+  void _showTutorialBlockedDialog() {
+    final theme = context.read<FactionTheme>();
 
-            _PartyStatusCard(
-              theme: theme,
-              onTap: () async {
-                HapticFeedback.selectionClick();
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PartyPickerPage()),
-                );
-              },
-            ),
-
-            const SizedBox(height: 16),
-
-            // MAP AREA
-            Expanded(
-              child: _ExpeditionMap(
-                theme: theme,
-                onSelectRegion: (biomeId, scene) {
-                  _handleRegionTap(context, biomeId, scene);
-                },
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A0E27).withOpacity(.95),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.accent, width: 1.4),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_outline, color: theme.accent, size: 28),
+              const SizedBox(height: 12),
+              Text(
+                'Tutorial In Progress',
+                style: TextStyle(
+                  color: theme.text,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'Please complete your first expedition to continue.',
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 12,
+                  height: 1.3,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: theme.accentSoft,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: theme.accent, width: 1.4),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'OK',
+                    style: TextStyle(
+                      color: theme.text,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -102,64 +263,71 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    // check access / refresh if earth faction perk
-    var ok = await access.canEnter(biomeId);
-    if (!ok && await factions.earthCanRefreshToday(biomeId)) {
-      final useRefresh = await _showRefreshDialog(context);
-      if (useRefresh == true) {
-        await access.refreshWilderness(biomeId);
-        await factions.earthMarkRefreshedToday(biomeId);
+    // During tutorial, skip access checks
+    if (!widget.isTutorial) {
+      // check access / refresh if earth faction perk
+      var ok = await access.canEnter(biomeId);
+      if (!ok && await factions.earthCanRefreshToday(biomeId)) {
+        final useRefresh = await _showRefreshDialog(context);
+        if (useRefresh == true) {
+          await access.refreshWilderness(biomeId);
+          await factions.earthMarkRefreshedToday(biomeId);
+
+          if (!context.mounted) return;
+          _showToast(
+            context,
+            'LandExplorer activated: breeding ground refreshed.',
+            Icons.forest_rounded,
+            Colors.green.shade400,
+          );
+
+          ok = true;
+        }
+      }
+
+      if (!ok) {
+        final left = access.timeUntilReset();
+        final hh = left.inHours;
+        final mm = left.inMinutes.remainder(60);
+        final ss = left.inSeconds.remainder(60);
 
         if (!context.mounted) return;
         _showToast(
           context,
-          'LandExplorer activated: breeding ground refreshed.',
-          Icons.forest_rounded,
-          Colors.green.shade400,
+          'Breeding ground refreshes in ${hh}h ${mm}m ${ss}s',
+          Icons.schedule_rounded,
+          Colors.orange.shade400,
         );
-
-        ok = true;
+        return;
       }
     }
 
-    if (!ok) {
-      final left = access.timeUntilReset();
-      final hh = left.inHours;
-      final mm = left.inMinutes.remainder(60);
-      final ss = left.inSeconds.remainder(60);
+    // choose party (skip during tutorial - use auto party)
+    List<PartyMember> selectedParty;
 
-      if (!context.mounted) return;
-      _showToast(
-        context,
-        'Breeding ground refreshes in ${hh}h ${mm}m ${ss}s',
-        Icons.schedule_rounded,
-        Colors.orange.shade400,
-      );
-      return;
-    }
-
-    // choose party
     if (!context.mounted) return;
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PartyPickerPage()),
     );
     if (result == null) return;
+    selectedParty = (result as List).cast<PartyMember>();
 
-    final selectedParty = (result as List).cast<PartyMember>();
+    // consume entry (skip during tutorial)
 
-    // consume entry
     await access.markEntered(biomeId);
 
     // go to biome scene
     if (!context.mounted) return;
-    await Navigator.push(
+    await pushWorld(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            ScenePage(scene: scene, sceneId: biomeId, party: selectedParty),
-      ),
+      page: ScenePage(scene: scene, sceneId: biomeId, party: selectedParty),
     );
+
+    // After successful scene completion, if in tutorial mode, return success
+    if (widget.isTutorial && mounted) {
+      Navigator.pop(context, true);
+    }
   }
 
   Future<bool?> _showRefreshDialog(BuildContext context) {
@@ -213,11 +381,13 @@ class _HeaderBar extends StatelessWidget {
     required this.theme,
     required this.onInfo,
     required this.onBack,
+    this.isTutorial = false,
   });
 
   final FactionTheme theme;
   final VoidCallback onInfo;
   final VoidCallback onBack;
+  final bool isTutorial;
 
   @override
   Widget build(BuildContext context) {
@@ -230,33 +400,41 @@ class _HeaderBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.arrow_back), // Use a standard back icon
+                icon: Icon(
+                  isTutorial ? Icons.lock_outline : Icons.arrow_back,
+                  color: isTutorial ? theme.textMuted : theme.text,
+                ),
                 onPressed: onBack,
               ),
               // center title/subtitle
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'BREEDING EXPEDITIONS',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: .8,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      isTutorial ? 'FIRST EXPEDITION' : 'BREEDING EXPEDITIONS',
+                      style: TextStyle(
+                        color: theme.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .8,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Discover wild creatures & attempt crossbreeds',
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: .4,
+                    const SizedBox(height: 2),
+                    Text(
+                      isTutorial
+                          ? 'Begin your journey into the wilderness'
+                          : 'Discover wild creatures & attempt crossbreeds',
+                      style: TextStyle(
+                        color: theme.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: .4,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
 
               // info
@@ -342,37 +520,36 @@ class _PartyStatusCard extends StatelessWidget {
 // MAP + MARKERS
 // =====================================================
 class _ExpeditionMap extends StatelessWidget {
-  const _ExpeditionMap({required this.theme, required this.onSelectRegion});
+  const _ExpeditionMap({
+    required this.theme,
+    required this.onSelectRegion,
+    this.isTutorial = false,
+  });
 
   final FactionTheme theme;
   final void Function(String biomeId, SceneDefinition scene) onSelectRegion;
+  final bool isTutorial;
 
   @override
   Widget build(BuildContext context) {
-    // We still grab access here if you want to later show “locked”
-    // info in tooltips/etc. For now we’re not drawing those bubbles,
-    // so we don’t actually need the futures.
-    final db = context.read<AlchemonsDatabase>();
-    final access = WildernessAccessService(db);
-
+    final spawnService = context.watch<WildernessSpawnService>();
     return LayoutBuilder(
       builder: (context, constraints) {
-        // This is the actual rendered size of the map stack.
-        final mapW = constraints.maxWidth;
-        final mapH = constraints.maxHeight;
+        // Calculate the actual size the map will occupy (square/circular)
+        final size = constraints.maxWidth < constraints.maxHeight
+            ? constraints.maxWidth
+            : constraints.maxHeight;
 
-        // Helper: create a positioned, invisible-but-tappable area.
         Widget hotspot({
           required double leftPct,
           required double topPct,
           required String biomeId,
           required SceneDefinition scene,
         }) {
-          final dx = mapW * leftPct;
-          final dy = mapH * topPct;
+          // Use the calculated size instead of separate width/height
+          final dx = size * leftPct;
+          final dy = size * topPct;
 
-          // Check if this scene has any active spawns
-          final spawnService = context.watch<WildernessSpawnService>();
           final hasSpawns = scene.spawnPoints.any(
             (sp) => spawnService.hasSpawnAt(biomeId, sp.id),
           );
@@ -389,7 +566,6 @@ class _ExpeditionMap extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Only show pulse if spawns exist
                     if (hasSpawns)
                       PulsingDebugHitbox(
                         size: 125,
@@ -403,55 +579,53 @@ class _ExpeditionMap extends StatelessWidget {
           );
         }
 
-        return Stack(
-          children: [
-            ClipOval(
-              child: Container(
-                color: const Color.fromARGB(255, 48, 69, 82),
-                child: Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Image.asset(
-                    'assets/images/ui/map.png',
-                    fit: BoxFit.cover,
+        return Center(
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Stack(
+              children: [
+                ClipOval(
+                  child: Container(
+                    color: const Color.fromARGB(255, 48, 69, 82),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10.0),
+                      child: Image.asset(
+                        'assets/images/ui/map.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
 
-            // === HOTSPOTS =================================================
-            hotspot(
-              leftPct: 0.3,
-              topPct: 0.2,
-              biomeId: 'valley',
-              scene: valleyScene,
+                // HOTSPOTS
+                hotspot(
+                  leftPct: 0.3,
+                  topPct: 0.3,
+                  biomeId: 'valley',
+                  scene: valleyScene,
+                ),
+                hotspot(
+                  leftPct: 0.72,
+                  topPct: 0.3,
+                  biomeId: 'sky',
+                  scene: skyScene,
+                ),
+                hotspot(
+                  leftPct: 0.25,
+                  topPct: 0.75,
+                  biomeId: 'volcano',
+                  scene: volcanoScene,
+                ),
+                hotspot(
+                  leftPct: 0.75,
+                  topPct: 0.72,
+                  biomeId: 'swamp',
+                  scene: swampScene,
+                ),
+              ],
             ),
-            hotspot(
-              leftPct: 0.72,
-              topPct: 0.2,
-              biomeId: 'sky',
-              scene: skyScene,
-            ),
-            hotspot(
-              leftPct: 0.25,
-              topPct: 0.48,
-              biomeId: 'volcano',
-              scene: volcanoScene,
-            ),
-            hotspot(
-              leftPct: 0.72,
-              topPct: 0.48,
-              biomeId: 'swamp',
-              scene: swampScene,
-            ),
-
-            // Hint bar pinned to bottom
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 12,
-              child: _MapHintBar(theme: theme),
-            ),
-          ],
+          ),
         );
       },
     );
@@ -514,7 +688,8 @@ class _MapHintBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 40),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(.45),
         borderRadius: BorderRadius.circular(10),
@@ -529,7 +704,7 @@ class _MapHintBar extends StatelessWidget {
               'Wild creatures detected here! Tap to explore.',
               style: TextStyle(
                 color: theme.textMuted,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
                 height: 1.3,
               ),
@@ -556,7 +731,7 @@ class _InfoDialog extends StatelessWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF0A0E27).withOpacity(.95),
+          color: theme.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: theme.accent, width: 1.4),
         ),

@@ -22,25 +22,26 @@ class UnlockCosts {
     Biome.volcanic: {
       // Maybe volcanic is first/cheap?
       // e.g. needs a little Oceanic to cool vents:
-      'oceanic': 60,
+      'oceanic': 100,
     },
 
     Biome.oceanic: {
       // Needs Volcanic + Earthen to stabilize turbines, etc.
-      'volcanic': 60,
+      'verdant': 100,
+      'volcanic': 100,
+      'earthen': 100,
     },
 
-    Biome.earthen: {'volcanic': 40, 'oceanic': 40, 'verdant': 60, 'earthen': 0},
+    Biome.earthen: {'volcanic': 100, 'oceanic': 100, 'verdant': 100},
 
-    Biome.verdant: {'volcanic': 40, 'oceanic': 60, 'earthen': 40, 'verdant': 0},
+    Biome.verdant: {'volcanic': 100, 'oceanic': 100, 'earthen': 100},
 
     Biome.arcane: {
       // late-game, wants a chunk of everything:
-      'volcanic': 80,
-      'oceanic': 80,
-      'earthen': 80,
-      'verdant': 80,
-      'arcane': 80,
+      'volcanic': 1000,
+      'oceanic': 1000,
+      'earthen': 1000,
+      'verdant': 1000,
     },
   };
 

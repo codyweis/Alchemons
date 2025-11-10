@@ -1,5 +1,6 @@
 // lib/screens/inventory_screen.dart - REDESIGNED
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -47,19 +48,22 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
 
-    return Scaffold(
-      backgroundColor: theme.surfaceAlt,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(theme),
-            _buildTabSelector(theme),
-            Expanded(
-              child: _selectedTab == 0
-                  ? _buildItemsTab(theme)
-                  : _buildVialsTab(theme),
-            ),
-          ],
+    return ParticleBackgroundScaffold(
+      whiteBackground: theme.brightness == Brightness.light,
+      body: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(theme),
+              _buildTabSelector(theme),
+              Expanded(
+                child: _selectedTab == 0
+                    ? _buildVialsTab(theme)
+                    : _buildItemsTab(theme),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -103,8 +107,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             children: [
               Expanded(
                 child: _TabButton(
-                  label: 'Items',
-                  icon: Icons.inventory_2_rounded,
+                  label: 'Vials',
                   isActive: _selectedTab == 0,
                   accent: widget.accent,
                   onTap: () {
@@ -116,8 +119,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               const SizedBox(width: 4),
               Expanded(
                 child: _TabButton(
-                  label: 'Vials',
-                  icon: Icons.science_rounded,
+                  label: 'Items',
                   isActive: _selectedTab == 1,
                   accent: widget.accent,
                   onTap: () {
@@ -273,7 +275,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             Text(
               message,
               style: TextStyle(
-                color: theme.textMuted,
+                color: theme.text,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
@@ -319,7 +321,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: widget.accent.withOpacity(0.1),
+                  color: widget.accent,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(18),
                     topRight: Radius.circular(18),
@@ -331,7 +333,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       child: Text(
                         'ITEM DETAILS',
                         style: TextStyle(
-                          color: widget.accent,
+                          color: theme.text,
                           fontSize: 14,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1.2,
@@ -569,7 +571,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       child: Text(
                         'VIAL DETAILS',
                         style: TextStyle(
-                          color: widget.accent,
+                          color: theme.text,
                           fontSize: 14,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1.2,
@@ -617,7 +619,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     Text(
                       'Available: x${vial.quantity}',
                       style: TextStyle(
-                        color: widget.accent,
+                        color: theme.text,
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1079,6 +1081,7 @@ class _CleanVialCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
     return GestureDetector(
       onTap: onTap,
       child: Stack(
@@ -1102,8 +1105,8 @@ class _CleanVialCard extends StatelessWidget {
               ),
               child: Text(
                 'x${vial.quantity}',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: theme.text,
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.3,
@@ -1120,14 +1123,12 @@ class _CleanVialCard extends StatelessWidget {
 // ===== TAB BUTTON =====
 class _TabButton extends StatelessWidget {
   final String label;
-  final IconData icon;
   final bool isActive;
   final Color accent;
   final VoidCallback onTap;
 
   const _TabButton({
     required this.label,
-    required this.icon,
     required this.isActive,
     required this.accent,
     required this.onTap,
@@ -1153,12 +1154,6 @@ class _TabButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isActive ? theme.text : theme.text.withOpacity(0.6),
-            ),
-            const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(

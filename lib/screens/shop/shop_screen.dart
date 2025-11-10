@@ -6,10 +6,12 @@ import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/screens/black_market_screen.dart';
+import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/screens/shop/shop_widgets.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/black_market_button.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
 import 'package:flutter/cupertino.dart';
@@ -115,25 +117,28 @@ class _ShopScreenState extends State<ShopScreen> {
     final theme = context.read<FactionTheme>();
     final db = context.read<AlchemonsDatabase>();
 
-    return Scaffold(
-      backgroundColor: theme.surfaceAlt,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // Header with currencies
-            StreamBuilder<Map<String, int>>(
-              stream: db.currencyDao.watchAllCurrencies(),
-              builder: (context, currencySnap) {
-                final allCurrencies =
-                    currencySnap.data ?? {'gold': 0, 'silver': 0, 'soft': 0};
-                return _buildHeader(theme, allCurrencies);
-              },
-            ),
+    return ParticleBackgroundScaffold(
+      whiteBackground: theme.brightness == Brightness.light,
+      body: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              // Header with currencies
+              StreamBuilder<Map<String, int>>(
+                stream: db.currencyDao.watchAllCurrencies(),
+                builder: (context, currencySnap) {
+                  final allCurrencies =
+                      currencySnap.data ?? {'gold': 0, 'silver': 0, 'soft': 0};
+                  return _buildHeader(theme, allCurrencies);
+                },
+              ),
 
-            // Main Content - Single Scrollable View
-            Expanded(child: _buildShopContent(theme, db)),
-          ],
+              // Main Content - Single Scrollable View
+              Expanded(child: _buildShopContent(theme, db)),
+            ],
+          ),
         ),
       ),
     );
@@ -153,7 +158,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 child: Text(
                   'RESEARCH SHOP',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: theme.text,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1,
                     fontSize: 20,
@@ -183,7 +188,6 @@ class _ShopScreenState extends State<ShopScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: theme.accent.withOpacity(0.4),
@@ -205,7 +209,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   ),
                   CurrencyPill(
                     icon: Icons.monetization_on_rounded,
-                    color: const Color(0xFFC0C0C0),
+                    color: theme.text,
                     amount: allCurrencies['silver'] ?? 0,
                   ),
                 ],
@@ -275,11 +279,15 @@ class _ShopScreenState extends State<ShopScreen> {
 
                       // SECTION 3: CURRENCY EXCHANGE
                       _buildSectionHeader(
-                        'CURRENCY EXCHANGE',
+                        'EXCHANGE',
                         theme.text,
                         Icons.currency_exchange_rounded,
                       ),
-                      _buildCurrencyExchangeGrid(theme, allCurrencies),
+                      _buildCurrencyExchangeGrid(
+                        theme,
+                        allCurrencies,
+                        resourceBalances,
+                      ), // NEW
 
                       const SizedBox(height: 16),
 
@@ -454,10 +462,10 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
+            crossAxisCount: 3,
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
-            childAspectRatio: 0.6,
+            childAspectRatio: 0.8,
             children: cards,
           ),
         );
@@ -468,27 +476,50 @@ class _ShopScreenState extends State<ShopScreen> {
   Widget _buildCurrencyExchangeGrid(
     FactionTheme theme,
     Map<String, int> allCurrencies,
+    Map<String, int> resourceBalances,
   ) {
+    final mergedBalances = <String, int>{}
+      ..addAll(allCurrencies)
+      ..addAll(resourceBalances);
+
     return Consumer<ShopService>(
       builder: (context, shopService, _) {
-        final exchangeOffers = ShopService.allOffers
-            .where((o) => o.id.startsWith('fx.'))
-            .toList();
+        // use the dynamic daily offers from the service
+        final exchangeOffers = shopService.getActiveExchangeOffers();
 
         final cards = exchangeOffers.map((offer) {
           final canPurchase = shopService.canPurchase(offer.id);
+
+          // determine affordability across currencies + resources
           final canAffordUnit = offer.cost.entries.every(
-            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+            (e) => (mergedBalances[e.key] ?? 0) >= e.value,
           );
 
-          final costWidgets = <Widget>[
-            for (final entry in offer.cost.entries)
-              CostChip(
-                currencyType: entry.key,
-                amount: entry.value,
-                available: allCurrencies[entry.key] ?? 0,
-              ),
-          ];
+          // Build cost widgets: currency costs use CostChip, resource costs use MiniCostChip
+          final List<Widget> costWidgets = [];
+          offer.cost.forEach((key, amount) {
+            if (key.startsWith('res_')) {
+              final res = ElementResources.all.firstWhere(
+                (r) => r.settingsKey == key,
+                orElse: () => ElementResources.all.first,
+              );
+              costWidgets.add(
+                MiniCostChip(
+                  resource: res,
+                  required: amount,
+                  current: resourceBalances[key] ?? 0,
+                ),
+              );
+            } else {
+              costWidgets.add(
+                CostChip(
+                  currencyType: key,
+                  amount: amount,
+                  available: allCurrencies[key] ?? 0,
+                ),
+              );
+            }
+          });
 
           return GameShopCard(
             key: ValueKey('fx-${offer.id}'),
@@ -500,7 +531,7 @@ class _ShopScreenState extends State<ShopScreen> {
             costWidgets: costWidgets,
             enabled: canPurchase,
             canAfford: canAffordUnit,
-            onPressed: () => _handlePurchase(context, offer, allCurrencies),
+            onPressed: () => _handlePurchase(context, offer, mergedBalances),
           );
         }).toList();
 
@@ -509,10 +540,10 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
+            crossAxisCount: 3,
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
-            childAspectRatio: 0.7,
+            childAspectRatio: 0.8,
             children: cards,
           ),
         );
@@ -529,6 +560,36 @@ class _ShopScreenState extends State<ShopScreen> {
         final specialOffers = ShopService.allOffers.where((o) {
           return o.id.startsWith('unlock.') || o.id == 'boost.faction_change';
         }).toList();
+
+        // === Collapse the 4 fusion-step offers into a single visible card ===
+        const fusionIds = [
+          'unlock.fusion_slot.1',
+          'unlock.fusion_slot.2',
+          'unlock.fusion_slot.3',
+          'unlock.fusion_slot.4',
+        ];
+
+        // Determine the next visible fusion offer (first one that can be purchased)
+        String? nextFusionId;
+        for (final id in fusionIds) {
+          if (shopService.canPurchase(id)) {
+            nextFusionId = id;
+            break;
+          }
+        }
+
+        // Remove all fusion offers; add back only the next one if any
+        specialOffers.removeWhere((o) => fusionIds.contains(o.id));
+        if (nextFusionId != null) {
+          final next = ShopService.allOffers.firstWhere(
+            (o) => o.id == nextFusionId,
+          );
+          specialOffers.insert(0, next); // keep it visible and prominent
+        } else {
+          // If all fusion steps are purchased and "Show Purchased" is off, do nothing.
+          // If "Show Purchased" is ON, we still keep them hidden as requested: "only show one card".
+          // So no-op here.
+        }
 
         if (!_showPurchased) {
           specialOffers.removeWhere((o) => !shopService.canPurchase(o.id));
@@ -569,6 +630,7 @@ class _ShopScreenState extends State<ShopScreen> {
             costWidgets: costWidgets,
             enabled: canPurchase,
             canAfford: canAffordUnit,
+            // Quantity selector is NOT needed; these are once-only steps
             onPressed: () => _handlePurchase(context, offer, allCurrencies),
           );
         }).toList();
@@ -695,7 +757,7 @@ class _ShopScreenState extends State<ShopScreen> {
         ? shopService.inventoryCountForOffer(offer.id)
         : 0;
 
-    // STEP 1: Show item detail dialog
+    // STEP 1: Item detail dialog
     final shouldProceed = await showItemDetailDialog(
       context: context,
       offer: offer,
@@ -703,24 +765,22 @@ class _ShopScreenState extends State<ShopScreen> {
       currencies: currencies,
       inventoryQty: invQty,
     );
-
     if (!shouldProceed || !context.mounted) return;
 
-    // STEP 2: Show purchase confirmation (with quantity selection)
+    // STEP 2: Purchase confirmation (qty for eligible items)
     final qty = await showPurchaseConfirmationDialog(
       context: context,
       offer: offer,
       theme: theme,
       currencies: currencies,
     );
-
     if (qty == null || !context.mounted) return;
 
     HapticFeedback.lightImpact();
     final success = await shopService.purchase(offer.id, qty: qty);
-
     if (!context.mounted) return;
 
+    // Feedback
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -745,6 +805,28 @@ class _ShopScreenState extends State<ShopScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
+
+    // If this was the faction change, open the picker now
+    if (success && offer.id == 'boost.faction_change') {
+      HapticFeedback.mediumImpact();
+      _toast(
+        'Opening faction selector...',
+        icon: Icons.flag_rounded,
+        color: Colors.deepPurpleAccent,
+      );
+
+      await Navigator.of(context).push(
+        CupertinoPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const FactionPickerDialog(),
+        ),
+      );
+
+      // Optional refresh after returning
+      if (context.mounted) {
+        // await _refreshAll();
+      }
+    }
   }
 
   Widget _buildBlackMarketFloatingButton(BuildContext context, Color accent) {
@@ -785,7 +867,7 @@ class _ShopScreenState extends State<ShopScreen> {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        backgroundColor: theme.accent,
+        backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(color: accent.withOpacity(0.5), width: 2),
@@ -831,7 +913,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   child: Text(
                     'OKAY',
                     style: TextStyle(
-                      color: accent,
+                      color: theme.text,
                       fontWeight: FontWeight.w900,
                       fontSize: 13,
                       letterSpacing: 0.6,

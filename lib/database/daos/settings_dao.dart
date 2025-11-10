@@ -101,4 +101,63 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
   Future<void> setShopShowPurchased(bool value) async {
     await setSetting('shop_show_purchased', value ? '1' : '0');
   }
+
+  /// Reactive stream of a single setting value (or null if unset)
+  Stream<String?> watchSetting(String key) {
+    final q = select(settings)..where((t) => t.key.equals(key));
+    return q.watch().map((rows) => rows.isEmpty ? null : rows.first.value);
+  }
+
+  /// Convenience helpers for the nav lock used by BottomNav / extraction flow
+  Future<bool> getNavLocked() async {
+    final v = await getSetting('nav_locked_until_extraction_ack');
+    return v == '1' || (v != null && v.toLowerCase() == 'true');
+  }
+
+  Future<void> setNavLocked(bool locked) async {
+    await setSetting('nav_locked_until_extraction_ack', locked ? '1' : '0');
+  }
+
+  Future<void> deleteSetting(String key) async {
+    await (delete(settings)..where((t) => t.key.equals(key))).go();
+  }
+
+  Future<bool> hasCompletedFieldTutorial() async {
+    final v = await getSetting('tutorial_field_completed');
+    return v == '1';
+  }
+
+  Future<void> setFieldTutorialCompleted() async {
+    await setSetting('tutorial_field_completed', '1');
+  }
+
+  Future<bool> hasCompletedExtractionTutorial() async {
+    final v = await getSetting('first_extraction_done');
+    return v == '1';
+  }
+
+  Stream<bool> watchFieldTutorialState() {
+    return watchSetting('tutorial_field_completed').map((v) => v == '1');
+  }
+
+  Stream<bool> watchExtractionTutorialState() {
+    return watchSetting('first_extraction_done').map((v) => v == '1');
+  }
+
+  /// If true, app should force-open the FactionPicker until user selects one.
+  Future<bool> getMustPickFaction() async {
+    final v = await getSetting('require_faction_picker');
+    return v == '1' || (v != null && v.toLowerCase() == 'true');
+  }
+
+  Future<void> setMustPickFaction(bool value) async {
+    await setSetting('require_faction_picker', value ? '1' : '0');
+  }
+
+  /// Reactive stream to observe the lock (useful at app shell level).
+  Stream<bool> watchMustPickFaction() {
+    return watchSetting(
+      'require_faction_picker',
+    ).map((v) => v == '1' || (v != null && v.toLowerCase() == 'true'));
+  }
 }

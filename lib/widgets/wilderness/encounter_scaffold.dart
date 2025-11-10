@@ -222,7 +222,6 @@ class EncounterScaffold extends StatelessWidget {
               final selected = m.instanceId == chosenInstanceId;
               return _PartyMemberTile(
                 instanceId: m.instanceId,
-                luck: m.luck,
                 selected: selected,
                 onTap: () => onSelectParty(m.instanceId),
               );
@@ -275,13 +274,11 @@ class EncounterScaffold extends StatelessWidget {
 
 class _PartyMemberTile extends StatelessWidget {
   final String instanceId;
-  final double luck;
   final bool selected;
   final VoidCallback onTap;
 
   const _PartyMemberTile({
     required this.instanceId,
-    required this.luck,
     required this.selected,
     required this.onTap,
   });
@@ -407,15 +404,6 @@ class _PartyMemberTile extends StatelessWidget {
                             Icons.auto_awesome_rounded,
                             size: 14,
                             color: Colors.purple.shade600,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '+${(luck * 100).toStringAsFixed(0)}% luck',
-                            style: TextStyle(
-                              color: Colors.purple.shade700,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
                           ),
                         ],
                       ),

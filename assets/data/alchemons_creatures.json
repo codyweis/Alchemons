@@ -2304,7 +2304,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Lively and ember-bright, it leaves warm smudges where its paws tap the ground.",
-      "image": "assets/sprites/Let/LET01.png",
+      "image": "creatures/common/LET01_firelet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2322,7 +2322,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Smooth and glimmering, it paddles through puddles and hums like a quiet stream.",
-      "image": "assets/sprites/Let/LET02.png",
+      "image": "creatures/common/LET02_waterlet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2358,7 +2358,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Feather-light and fidgety, it zips about as if the wind were tugging its tail.",
-      "image": "assets/sprites/Let/LET04.png",
+      "image": "creatures/common/LET04_airlet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2376,7 +2376,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Wrapped in gentle vapor, it fogs up anything it noses with cheerful puffs.",
-      "image": "assets/sprites/Let/LET05.png",
+      "image": "creatures/common/LET05_steamlet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2430,7 +2430,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Mirthful and splattery, it decorates friends and footpaths with muddy polka-dots.",
-      "image": "assets/sprites/Let/LET08.png",
+      "image": "creatures/common/LET08_mudlet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2535,10 +2535,10 @@
       "types": [
         "Spirit"
       ],
-      "rarity": "Common",
+      "rarity": "Uncommon",
       "variant": [],
       "description": "Half here, half hush, it peeks from the corner of your eye and waves anyway.",
-      "image": "assets/sprites/Let/LET14.png",
+      "image": "creatures/uncommon/LET14_spiritlet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,

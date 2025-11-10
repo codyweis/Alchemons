@@ -73,6 +73,7 @@ class StarterGrantService {
     }
 
     await db.settingsDao.setSetting('starter_granted_v1', '1');
+    await db.settingsDao.setSetting('nav_locked_until_extraction_ack', '1');
     return true;
   }
 

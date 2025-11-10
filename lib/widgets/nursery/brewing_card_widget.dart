@@ -109,15 +109,16 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = widget.theme;
     return GestureDetector(
       onTap: widget.onTap,
       child: Container(
         decoration: BoxDecoration(
+          color: theme!.brightness == Brightness.light
+              ? const Color.fromARGB(255, 18, 18, 18)
+              : Colors.black,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: const Color.fromARGB(255, 41, 41, 41),
-            width: .5,
-          ),
+          border: Border.all(color: theme!.text, width: .2),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(14),

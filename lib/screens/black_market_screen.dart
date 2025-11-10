@@ -2,6 +2,7 @@
 import 'dart:ui';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
+import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
@@ -32,7 +33,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     with SingleTickerProviderStateMixin {
   final List<CreatureInstance> _selectedForSale = [];
   int _totalValue = 0;
-  int _activeTab = 0;
+  int _activeTab = 1;
 
   @override
   void initState() {
@@ -108,23 +109,24 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             children: [
               Expanded(
                 child: _TabButton(
-                  label: 'SELL',
-                  icon: Icons.sell_rounded,
-                  isActive: _activeTab == 0,
-                  onTap: () {
-                    setState(() => _activeTab = 0);
-                    HapticFeedback.selectionClick();
-                  },
-                ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: _TabButton(
                   label: 'BUY',
                   icon: Icons.shopping_bag_rounded,
                   isActive: _activeTab == 1,
                   onTap: () {
                     setState(() => _activeTab = 1);
+                    HapticFeedback.selectionClick();
+                  },
+                ),
+              ),
+              const SizedBox(width: 4),
+
+              Expanded(
+                child: _TabButton(
+                  label: 'SELL ALCHEMONS',
+                  icon: Icons.sell_rounded,
+                  isActive: _activeTab == 0,
+                  onTap: () {
+                    setState(() => _activeTab = 0);
                     HapticFeedback.selectionClick();
                   },
                 ),
@@ -152,7 +154,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               ),
               const SizedBox(height: 20),
               Text(
-                "Loading today's deals...",
+                "Loading weekly deals...",
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.4),
                   fontSize: 16,
@@ -174,13 +176,8 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
-              children: const [
-                Icon(
-                  Icons.bubble_chart_rounded,
-                  size: 18,
-                  color: Color(0xFFD8BFD8),
-                ),
-                SizedBox(width: 8),
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 Text(
                   'EXTRACTION VIALS',
                   style: TextStyle(
@@ -188,6 +185,36 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.6,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.timer_rounded,
+                        size: 12,
+                        color: Colors.orange.shade300,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Resets Weekly',
+                        style: TextStyle(
+                          color: Colors.orange.shade300,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -289,7 +316,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               ),
               const SizedBox(width: 8),
               const Text(
-                "TODAY'S DEALS",
+                "WEEKLY DEALS",
                 style: TextStyle(
                   color: Color(0xFFD8BFD8),
                   fontSize: 13,
@@ -298,33 +325,6 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                 ),
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.orange.withOpacity(0.5)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.timer_rounded,
-                      size: 12,
-                      color: Colors.orange.shade300,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Resets Daily',
-                      style: TextStyle(
-                        color: Colors.orange.shade300,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),
@@ -409,7 +409,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     _showToast(
       '${vial.name} added to your inventory!',
       icon: Icons.check_circle_rounded,
-      color: theme.surfaceAlt,
+      color: theme.text,
     );
   }
 
@@ -683,7 +683,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      "TODAY'S PREMIUM",
+                      "WEEKLY PREMIUM",
                       style: TextStyle(
                         color: Color(0xFFE8EAED),
                         fontSize: 11,
@@ -836,6 +836,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             level: inst.level,
             isPrismatic: inst.isPrismaticSkin,
             natureId: inst.natureId,
+            tintId: decodeGenetics(inst.geneticsJson)!.tinting,
           );
 
           return Padding(
@@ -1199,6 +1200,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         level: inst.level,
         isPrismatic: inst.isPrismaticSkin,
         natureId: inst.natureId,
+        tintId: decodeGenetics(inst.geneticsJson)!.tinting,
       );
     }).toList();
 
@@ -1688,7 +1690,7 @@ class _OfferCard extends StatelessWidget {
                                   ),
                                   SizedBox(width: 4),
                                   Text(
-                                    'OWNED',
+                                    'PURCHASED',
                                     style: TextStyle(
                                       color: Colors.greenAccent,
                                       fontSize: 9,

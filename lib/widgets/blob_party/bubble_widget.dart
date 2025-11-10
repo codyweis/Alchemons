@@ -119,11 +119,11 @@ class BubbleWidgetState extends State<BubbleWidget>
               scale: scale,
               child: Transform.scale(
                 scaleY: squish,
-                child: _GooOrb(
-                  size: r * 2,
-                  tint: widget.color,
-                  highlight: widget.color.withOpacity(0.85),
-                  expanded: widget.bubble.expanded as bool,
+                // --- THIS IS THE REPLACED WIDGET ---
+                child: AlchemicalOrb(
+                  color: widget.color,
+                  radius: r,
+                  pulseDriver: widget.bubble.life as double,
                   child: IgnorePointer(
                     ignoring: !widget.bubble.expanded,
                     child: ClipOval(
@@ -139,6 +139,7 @@ class BubbleWidgetState extends State<BubbleWidget>
                     ),
                   ),
                 ),
+                // --- END REPLACEMENT ---
               ),
             );
           },
@@ -148,81 +149,111 @@ class BubbleWidgetState extends State<BubbleWidget>
   }
 }
 
-class _GooOrb extends StatelessWidget {
-  const _GooOrb({
-    required this.size,
-    required this.tint,
-    required this.highlight,
-    required this.expanded,
+// --- NEW ALCHEMICAL ORB (MOVED FROM OTHER FILE) ---
+class AlchemicalOrb extends StatelessWidget {
+  /// The base color for the orb and its glow.
+  final Color color;
+
+  /// The radius of the orb's "glass" body.
+  final double radius;
+
+  /// Pass the bubble's life/seed to drive the pulse.
+  final double pulseDriver;
+
+  /// The content to display "inside" the orb.
+  final Widget? child;
+
+  const AlchemicalOrb({
+    super.key,
+    required this.color,
+    required this.radius,
+    required this.pulseDriver,
     this.child,
   });
-  final double size;
-  final Color tint;
-  final Color highlight;
-  final bool expanded;
-  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
-    final glass = BoxDecoration(
-      shape: BoxShape.circle,
-      gradient: RadialGradient(
-        colors: [
-          tint.withOpacity(0.22),
-          tint.withOpacity(expanded ? 0.34 : 0.26),
-        ],
-        stops: const [0.35, 1.0],
-      ),
-      boxShadow: [
-        BoxShadow(color: tint.withOpacity(0.5), blurRadius: 1, spreadRadius: 1),
-      ],
-      border: Border.all(color: tint, width: 1),
-    );
+    // A slow, gentle pulse from 0.8 to 1.2
+    final pulse = 1.0 + (math.sin(pulseDriver * 1.5) * 0.2);
 
-    return Container(
-      width: size,
-      height: size,
-      decoration: glass,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.white.withOpacity(expanded ? 0.22 : 0.14),
-                      Colors.transparent,
-                    ],
-                    radius: 0.85,
-                  ),
-                ),
-              ),
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // 1. Outer Aura/Glow (pulsing)
+        Container(
+          width: radius * 2.5 * pulse,
+          height: radius * 2.5 * pulse,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                color.withOpacity(0.2), // Inner glow
+                color.withOpacity(0.0), // Fades to nothing
+              ],
+              stops: const [0.3, 1.0], // Glow is 30% of radius
             ),
           ),
-          Positioned(
-            left: size * 0.18,
-            top: size * 0.18,
-            child: Container(
-              width: size * 0.28,
-              height: size * 0.18,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.25),
-                borderRadius: BorderRadius.circular(size),
-                boxShadow: [
-                  BoxShadow(
-                    color: highlight.withOpacity(0.35),
-                    blurRadius: 14,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
+        ),
+
+        // 2. The "Glass" Orb Body
+        Container(
+          width: radius * 2.0,
+          height: radius * 2.0,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            // Main body gradient (gives it 3D depth)
+            gradient: RadialGradient(
+              colors: [
+                _lighten(color, 0.2), // Center highlight
+                color,
+                _darken(color, 0.4), // Darker edge
+              ],
+              stops: const [0.0, 0.7, 1.0],
             ),
           ),
-          if (child != null) Positioned.fill(child: child!),
-        ],
-      ),
+        ),
+
+        // 3. Child content (rendered before the highlight)
+        if (child != null) Positioned.fill(child: child!),
+
+        // 4. Specular Highlight (the "sheen")
+        Container(
+          width: radius * 2.0,
+          height: radius * 2.0,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            // A white gradient, offset to the top-left
+            gradient: RadialGradient(
+              center: const Alignment(-0.6, -0.6), // Top-left
+              radius: 0.7,
+              colors: [
+                Colors.white.withOpacity(0.4), // Highlight
+                Colors.white.withOpacity(0.0), // Fades
+              ],
+              stops: const [0.0, 0.6],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper functions to adjust color
+  Color _lighten(Color c, double amount) {
+    return Color.fromARGB(
+      c.alpha,
+      (c.red + (255 - c.red) * amount).round().clamp(0, 255),
+      (c.green + (255 - c.green) * amount).round().clamp(0, 255),
+      (c.blue + (255 - c.blue) * amount).round().clamp(0, 255),
+    );
+  }
+
+  Color _darken(Color c, double amount) {
+    return Color.fromARGB(
+      c.alpha,
+      (c.red * (1 - amount)).round().clamp(0, 255),
+      (c.green * (1 - amount)).round().clamp(0, 255),
+      (c.blue * (1 - amount)).round().clamp(0, 255),
     );
   }
 }

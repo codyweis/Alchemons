@@ -384,6 +384,11 @@ class EggHatching {
     required Map<String, bool> undiscoveredCache,
   }) async {
     final db = context.read<AlchemonsDatabase>();
+    final repo = context.read<CreatureCatalog>();
+
+    // 👇 Capture a stable, root-level context up front
+    final NavigatorState nav = Navigator.of(context, rootNavigator: true);
+    final BuildContext safeContext = nav.context;
 
     // Clear egg & cache
     await db.incubatorDao.clearEgg(slot.id);
@@ -392,8 +397,8 @@ class EggHatching {
     }
 
     final instance = await db.creatureDao.getInstance(instanceId);
+    final creature = repo.getCreatureById(instance?.baseId ?? '');
 
-    // Particle-driven cinematic (shared)
     final elementName = offspring.types.first;
     final palette = paletteForElement(elementName);
 
@@ -416,12 +421,13 @@ class EggHatching {
     if (p2Types != null && p2Types.isNotEmpty)
       types.add(p2Types.first.toString());
 
+    final instancePath = creature!.image;
     final Color primaryHue = BreedConstants.getRarityColor(offspring.rarity);
-    ImageProvider? silhouette = const AssetImage(
-      'assets/images/creatures/legendary/WNG04_airwing.png',
-    );
+    ImageProvider? silhouette = AssetImage('assets/images/$instancePath');
 
     try {
+      // ✅ still use the original context for the cinematic if you want
+      if (!context.mounted) return;
       await playHatchingCinematicAlchemy(
         context: context,
         parentATypeId: types.isNotEmpty ? types[0] : offspring.types.first,
@@ -441,7 +447,9 @@ class EggHatching {
       );
     }
 
-    await _showExtractionResult(context, instanceId, isNewDiscovery);
+    if (!nav.mounted) return;
+
+    await _showExtractionResult(safeContext, instanceId, isNewDiscovery);
   }
 
   /// Extract and normalize lineage data from payload
@@ -937,13 +945,21 @@ class EggHatching {
                                       scanAnimationKey.currentState
                                           ?.takeAction();
 
+                                      try {
+                                        final db = context
+                                            .read<AlchemonsDatabase>();
+                                        db.settingsDao.setSetting(
+                                          'nav_locked_until_extraction_ack',
+                                          '0',
+                                        );
+                                      } catch (_) {}
+
                                       // Update state to stop all tickers/animations
                                       setDialogState(() {
                                         closing = true;
                                         ctaTouchable = false;
                                       });
 
-                                      // Pop on next frame after state updates
                                       WidgetsBinding.instance
                                           .addPostFrameCallback((_) {
                                             if (Navigator.of(
@@ -953,6 +969,7 @@ class EggHatching {
                                             }
                                           });
                                     },
+
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 22,
@@ -1007,6 +1024,7 @@ class EggHatching {
                                 GestureDetector(
                                   onTap: () {
                                     if (closing) return;
+
                                     CreatureDetailsDialog.show(
                                       context,
                                       offspring,

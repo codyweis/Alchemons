@@ -20,7 +20,56 @@ class WildernessSpawnService extends ChangeNotifier {
   // in-memory cache of schedules (sceneId -> dueAt)
   final Map<String, int> _nextDueUtcMs = {};
 
-  WildernessSpawnService(this._db);
+  // ------------------------------------------------------------
+  // GLOBAL CONFIG (for testing and customization)
+  // ------------------------------------------------------------
+  final Duration _defaultWindowMin; // 💡 NEW
+  final Duration _defaultWindowMax;
+
+  Duration? _overrideWindowMin; // 💡 NEW
+  Duration? _overrideWindowMax;
+
+  /// The current effective spawn window max for scheduling.
+  Duration get windowMax => _overrideWindowMax ?? _defaultWindowMax;
+
+  /// The current effective spawn window min for scheduling.
+  Duration get windowMin => _overrideWindowMin ?? _defaultWindowMin; // 💡 NEW
+
+  WildernessSpawnService(
+    this._db, {
+    Duration defaultWindowMin = const Duration(minutes: 1), // 💡 NEW DEFAULT
+    Duration defaultWindowMax = const Duration(hours: 4),
+  }) : _defaultWindowMin = defaultWindowMin, // 💡 NEW
+       _defaultWindowMax = defaultWindowMax {
+    assert(
+      _defaultWindowMax >= _defaultWindowMin,
+      'Default spawn window max must be >= min',
+    );
+  }
+
+  /// Override the global spawn window (e.g., for tests).
+  void setGlobalSpawnWindow(Duration min, Duration max) {
+    // 💡 UPDATED
+    assert(max >= min, 'Spawn window max must be >= min');
+    _overrideWindowMin = min;
+    _overrideWindowMax = max;
+    notifyListeners();
+  }
+
+  /// Clear any override and revert to the default.
+  void clearGlobalSpawnWindow() {
+    _overrideWindowMin = null; // 💡 NEW
+    _overrideWindowMax = null;
+    notifyListeners();
+  }
+
+  /// Re-schedule every known scene using the current global window.
+  Future<void> rescheduleAllScenes() async {
+    for (final sceneId in _nextDueUtcMs.keys) {
+      await scheduleNextSpawnTime(sceneId);
+    }
+    notifyListeners();
+  }
 
   // ------------------------------------------------------------
   // INIT
@@ -28,6 +77,7 @@ class WildernessSpawnService extends ChangeNotifier {
   Future<void> initializeActiveSpawns({
     required Map<String, ({SceneDefinition scene, EncounterPool pool})> scenes,
   }) async {
+    // ... (rest of this function is fine)
     // 1) Clear interrupted scene
     final activeEntry = await _db
         .select(_db.activeSceneEntry)
@@ -70,15 +120,11 @@ class WildernessSpawnService extends ChangeNotifier {
       final due = _nextDueUtcMs[sceneId];
 
       if (!hasSpawns && (due == null || due <= now)) {
-        // nothing active and no valid due -> schedule a new time (within next 4h)
-        await scheduleNextSpawnTime(
-          sceneId,
-          windowMax: const Duration(hours: 4),
-        );
+        await scheduleNextSpawnTime(sceneId);
       }
     }
 
-    // 5) Immediately process any scenes whose due time has already passed (app was closed)
+    // 5) Immediately process any scenes whose due time has already passed
     await processDueScenes(scenes);
 
     notifyListeners();
@@ -89,11 +135,31 @@ class WildernessSpawnService extends ChangeNotifier {
   // ------------------------------------------------------------
   Future<void> scheduleNextSpawnTime(
     String sceneId, {
-    Duration windowMax = const Duration(minutes: 1),
+    Duration? windowMin, // 💡 NEW
+    Duration? windowMax,
   }) async {
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-    final extraMs = _rng.nextInt(windowMax.inMilliseconds + 1);
-    final dueAt = now + extraMs;
+
+    final maxMs = (windowMax ?? this.windowMax).inMilliseconds;
+    final minMs = (windowMin ?? this.windowMin).inMilliseconds;
+
+    // Ensure min is never > max
+    final effectiveMin = min(minMs, maxMs);
+
+    // Calculate the random *additional* time *on top of* the minimum.
+    final range = max(0, maxMs - effectiveMin);
+
+    // Add 1 to range so the upper bound (maxMs) is inclusive
+    final extraMs = (range == 0) ? 0 : _rng.nextInt(range + 1);
+
+    final dueAt = now + effectiveMin + extraMs; // 💡 UPDATED LOGIC
+
+    // print readable time for debug
+    final dueDate = DateTime.fromMillisecondsSinceEpoch(dueAt, isUtc: true);
+    debugPrint(
+      '⏱ Scheduled next spawn for scene $sceneId at $dueDate '
+      '(in ${(dueAt - now) ~/ 60000} minutes)',
+    );
 
     _nextDueUtcMs[sceneId] = dueAt;
     await _db
@@ -109,6 +175,8 @@ class WildernessSpawnService extends ChangeNotifier {
   Future<void> processDueScenes(
     Map<String, ({SceneDefinition scene, EncounterPool pool})> scenes,
   ) async {
+    // ... (rest of the file is fine)
+    // ... (rest of file)
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
 
     for (final entry in scenes.entries) {
@@ -123,11 +191,8 @@ class WildernessSpawnService extends ChangeNotifier {
         // Spawn a random count across available points
         await _spawnBatchAtRandomFreePoints(sceneId, scene, pool);
 
-        // Schedule the next event time (e.g., within 4 hours)
-        await scheduleNextSpawnTime(
-          sceneId,
-          windowMax: const Duration(hours: 4),
-        );
+        // Schedule the next event time using the global window
+        await scheduleNextSpawnTime(sceneId);
       }
     }
   }
@@ -190,9 +255,8 @@ class WildernessSpawnService extends ChangeNotifier {
     await (_db.delete(_db.activeSpawns)..where((t) => t.id.equals(id))).go();
     debugPrint('❌ Removed spawn: $sceneId/$spawnPointId');
 
-    // If this scene now has zero active spawns, ensure a future schedule exists
     if (!hasAnySpawnsInScene(sceneId)) {
-      await scheduleNextSpawnTime(sceneId, windowMax: const Duration(hours: 4));
+      await scheduleNextSpawnTime(sceneId);
     }
 
     notifyListeners();
@@ -206,9 +270,7 @@ class WildernessSpawnService extends ChangeNotifier {
 
     debugPrint('🧹 Cleared spawns from $sceneId');
 
-    // Always schedule a future time when a scene is cleared (leave scene case)
-    await scheduleNextSpawnTime(sceneId, windowMax: const Duration(hours: 4));
-
+    await scheduleNextSpawnTime(sceneId);
     notifyListeners();
   }
 
@@ -228,7 +290,7 @@ class WildernessSpawnService extends ChangeNotifier {
     return _activeSpawns[sceneId]?[spawnPointId];
   }
 
-  /// Check if ANY scene has active spawns (for home screen indicator)
+  /// Check if ANY scene has active spawns
   bool get hasAnyActiveSpawns {
     return _activeSpawns.values.any((spawns) => spawns.isNotEmpty);
   }
@@ -243,7 +305,7 @@ class WildernessSpawnService extends ChangeNotifier {
     return _activeSpawns[sceneId]?.keys.toList() ?? [];
   }
 
-  /// Force a specific encounter at a spawn point (used when loading from service)
+  /// Force a specific encounter at a spawn point
   void forceSpawnAt(
     String sceneId,
     String spawnPointId,
@@ -256,10 +318,7 @@ class WildernessSpawnService extends ChangeNotifier {
   // ============================================================
   // ENCOUNTER ROLLING
   // ============================================================
-
-  /// Roll a random encounter from the pool
   EncounterRoll _rollEncounter(EncounterPool pool, String spawnId) {
-    // Roll rarity based on weights
     final rarityRoll = _rng.nextDouble();
     final weights = pool.rarityWeights;
 
@@ -274,7 +333,6 @@ class WildernessSpawnService extends ChangeNotifier {
       rarity = EncounterRarity.common;
     }
 
-    // Pick random species from that rarity
     final speciesList = pool.speciesByRarity[rarity] ?? [];
     final speciesId = speciesList.isEmpty
         ? 'fallback_creature'
@@ -290,8 +348,6 @@ class WildernessSpawnService extends ChangeNotifier {
   // ============================================================
   // DEBUG
   // ============================================================
-
-  /// Get debug info about current spawn state
   Map<String, dynamic> getDebugInfo() {
     final sceneInfo = <String, dynamic>{};
 

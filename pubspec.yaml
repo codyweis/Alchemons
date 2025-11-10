@@ -41,6 +41,7 @@ flutter:
     - assets/images/backgrounds/scenes/swamp/
     - assets/images/backgrounds/scenes/sky/
     - assets/images/creatures/
+    - assets/images/creatures/common/
     - assets/images/creatures/uncommon/
     - assets/images/creatures/rare/
     - assets/images/creatures/legendary/

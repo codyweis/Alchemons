@@ -23,20 +23,25 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
 
   Future<bool> unlockBiome({
     required String biomeId,
-    required Map<String, int> cost,
+    Map<String, int> cost = const {},
+    bool free = false,
   }) async {
-    final farm = await getBiomeByBiomeId(biomeId);
-    if (farm == null) return false;
-    if (farm.unlocked) return true;
+    return transaction(() async {
+      final farm = await getBiomeByBiomeId(biomeId);
+      if (farm == null) return false;
+      if (farm.unlocked) return true;
 
-    // Call CurrencyDao to spend resources
-    final ok = await db.currencyDao.spendResources(cost);
-    if (!ok) return false;
+      // Only spend if not free and there *is* a cost
+      if (!free && cost.isNotEmpty) {
+        final ok = await db.currencyDao.spendResources(cost);
+        if (!ok) return false;
+      }
 
-    await (update(biomeFarms)..where((t) => t.id.equals(farm.id))).write(
-      const BiomeFarmsCompanion(unlocked: Value(true)),
-    );
-    return true;
+      await (update(biomeFarms)..where((t) => t.id.equals(farm.id))).write(
+        const BiomeFarmsCompanion(unlocked: Value(true)),
+      );
+      return true;
+    });
   }
 
   Future<void> setBiomeActiveElement(String biomeId, String elementId) async {

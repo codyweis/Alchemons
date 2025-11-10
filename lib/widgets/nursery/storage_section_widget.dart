@@ -89,7 +89,7 @@ class _StorageSectionState extends State<StorageSection> {
 
   Widget _buildFactionChip(ElementalGroup? group, String label) {
     final isSelected = _selectedFaction == group;
-    final color = group?.color ?? Colors.white;
+    final color = group?.color ?? Colors.black;
 
     return GestureDetector(
       onTap: () => setState(() => _selectedFaction = group),
@@ -97,9 +97,7 @@ class _StorageSectionState extends State<StorageSection> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected
-              ? color.withOpacity(0.2)
-              : Colors.black.withOpacity(0.15),
+          color: isSelected ? color.withOpacity(1) : color.withOpacity(0.15),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
@@ -111,7 +109,7 @@ class _StorageSectionState extends State<StorageSection> {
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? color : Colors.white.withOpacity(0.7),
+            color: isSelected ? Colors.white : Colors.white.withOpacity(0.7),
             fontSize: 10,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.5,

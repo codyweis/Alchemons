@@ -1,15 +1,17 @@
 // lib/screens/profile_screen.dart
 import 'dart:ui';
-// import 'package:alchemons/screens/faction_picker.dart'; // REMOVED: No longer needed
+import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/theme_switch_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen(void Function() param0, {super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -28,7 +30,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final svc = context.read<FactionService>();
     final fid = svc.current;
     if (fid == null) {
-      // If no faction yet, force picker upstream before entering profile.
       return const _ProfileData(null, false, false, 0);
     }
     await svc.ensureDefaultPerkState(fid);
@@ -42,14 +43,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final svc = context.read<FactionService>();
     final didUnlock = await svc.tryUnlockPerk2();
     if (!mounted) return;
+
+    final cs = Theme.of(context).colorScheme;
+
     if (didUnlock) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Second perk unlocked!'),
-          backgroundColor: Colors.green.shade700,
+          backgroundColor: cs.secondaryContainer,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: cs.outlineVariant),
           ),
         ),
       );
@@ -59,25 +64,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Discover $need creatures to unlock the second perk.'),
-          backgroundColor: Colors.orange.shade700,
+          backgroundColor: cs.tertiaryContainer,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: cs.outlineVariant),
           ),
         ),
       );
     }
   }
 
+  Future<void> _replayStory() async {
+    HapticFeedback.mediumImpact();
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const StoryIntroScreen()),
+    );
+    if (!mounted) return;
+  }
+
   @override
   Widget build(BuildContext context) {
     final sz = MediaQuery.of(context).size;
-    final theme = context.read<FactionTheme>();
+    final factionTheme = context.read<FactionTheme>(); // you already use this
+
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
 
     return Scaffold(
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: FloatingCloseButton(
+        onTap: () => Navigator.pop(context),
+        theme: factionTheme,
+      ),
       body: Stack(
         children: [
-          // Content
           FutureBuilder<_ProfileData>(
             future: _load,
             builder: (context, snap) {
@@ -90,13 +112,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (data.faction == null) {
                 return Center(
                   child: _glassCard(
-                    child: const Padding(
-                      padding: EdgeInsets.all(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
                       child: Text(
                         'Choose a faction to begin.',
-                        style: TextStyle(
-                          color: Color(0xFFE8EAED),
-                          fontSize: 14,
+                        style: tt.bodyMedium?.copyWith(
+                          color: cs.onSurface,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -110,13 +131,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               return SafeArea(
                 child: ListView(
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 16 + 8, 16, 24),
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
                   children: [
-                    // MOVED: Faction header is now the first item
                     _factionHeader(data.faction!, data.discoveredCount, accent),
                     const SizedBox(height: 20),
 
-                    // ADDED: General Settings section
                     _sectionLabel('GENERAL', accent),
                     const SizedBox(height: 10),
                     _settingTile(
@@ -126,14 +145,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // REMOVED: Faction switcher chip
-                    // GestureDetector(...)
-
-                    // Section label
                     _sectionLabel('DIVISION PERKS', accent),
                     const SizedBox(height: 10),
 
-                    // Perk 1
                     Builder(
                       builder: (_) {
                         final perks =
@@ -149,7 +163,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 10),
 
-                    // Perk 2
                     Builder(
                       builder: (_) {
                         final perks =
@@ -170,8 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               : null,
                           footer: !data.perk2
                               ? _reqText(
-                                  'Requirement: Discover '
-                                  '${FactionService.perk2DiscoverThreshold} creatures',
+                                  'Requirement: Discover ${FactionService.perk2DiscoverThreshold} creatures',
                                 )
                               : _activeText(),
                         );
@@ -180,11 +192,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                     const SizedBox(height: 20),
 
-                    // Discovery progress mini-card
                     _progressCard(
                       discovered: data.discoveredCount,
                       accent: accent,
                       width: sz.width,
+                    ),
+                    const SizedBox(height: 30),
+                    _settingTile(
+                      title: 'Replay Intro',
+                      trailing: _glassButton(
+                        label: 'WATCH',
+                        onTap: _replayStory,
+                        accent: accent,
+                        compact: true,
+                      ),
+                      accent: accent,
                     ),
                   ],
                 ),
@@ -199,21 +221,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // --- helpers ----
 
   Color _accentFor(FactionId id) {
-    // Reuse global faction palette
+    // Keep faction accent, but everything else is theme-driven
     final colors = getFactionColors(id);
-    return colors.$1; // primary accent color
+    return colors.$1;
   }
 
   Widget _sectionLabel(String text, Color accent) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
     return Row(
       children: [
         Icon(Icons.dataset_outlined, size: 16, color: accent),
         const SizedBox(width: 8),
         Text(
           text,
-          style: const TextStyle(
-            color: Color(0xFFE8EAED),
-            fontSize: 12,
+          style: tt.labelSmall?.copyWith(
+            color: cs.onSurface,
             fontWeight: FontWeight.w900,
             letterSpacing: .6,
           ),
@@ -223,14 +246,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _factionHeader(FactionId id, int discovered, Color accent) {
-    final (icon, color) = switch (id) {
-      FactionId.fire => (Icons.local_fire_department_rounded, Colors.red),
-      FactionId.water => (Icons.water_drop_rounded, Colors.blue),
-      FactionId.air => (Icons.air_rounded, Colors.cyan),
-      FactionId.earth => (Icons.terrain_rounded, Colors.brown),
-    };
-
     final name = id.name[0].toUpperCase() + id.name.substring(1);
+    final factionTheme = context.read<FactionTheme>();
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
 
     return _glassCard(
       borderColor: accent.withOpacity(.45),
@@ -239,25 +258,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: accent.withOpacity(.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: accent.withOpacity(.35)),
-              ),
-              child: Icon(icon, color: accent, size: 22),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'FACTION: $name',
-                    style: const TextStyle(
-                      color: Color(0xFFE8EAED),
-                      fontSize: 14,
+                    style: tt.titleSmall?.copyWith(
+                      color: cs.onSurface,
                       fontWeight: FontWeight.w900,
                       letterSpacing: .5,
                     ),
@@ -265,46 +273,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'Discovered creatures: $discovered',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(.75),
-                      fontSize: 12,
+                    style: tt.bodySmall?.copyWith(
+                      color: factionTheme.text.withOpacity(.85),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ),
-            _chip(text: 'ACTIVE', color: color.shade400),
+            _chip(text: 'ACTIVE', color: accent),
           ],
         ),
       ),
     );
   }
 
-  // ADDED: A new generic tile for settings like the theme selector
   Widget _settingTile({
     required String title,
     required Widget trailing,
     required Color accent,
   }) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
     return _glassCard(
-      borderColor: Colors.white.withOpacity(.25), // Neutral border
-      glowColor: Colors.black.withOpacity(.2), // Neutral glow
+      borderColor: cs.outlineVariant,
+      glowColor: cs.shadow.withOpacity(.2),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 8,
-        ), // Tighter padding
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           children: [
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: tt.titleSmall?.copyWith(
                   fontWeight: FontWeight.w900,
-                  fontSize: 14,
                   letterSpacing: .3,
-                  color: Color(0xFFE8EAED),
+                  color: cs.onSurface,
                 ),
               ),
             ),
@@ -323,34 +328,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Widget? trailing,
     Widget? footer,
   }) {
-    final statusColor = unlocked ? accent : Colors.white.withOpacity(.35);
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final factionTheme = context.read<FactionTheme>();
+
+    final border = (unlocked ? accent : cs.outlineVariant).withOpacity(.45);
+    final glow = unlocked ? accent.withOpacity(.16) : cs.shadow.withOpacity(.2);
 
     return _glassCard(
-      borderColor: statusColor.withOpacity(.45),
-      glowColor: unlocked
-          ? accent.withOpacity(.16)
-          : Colors.black.withOpacity(.2),
+      borderColor: border,
+      glowColor: glow,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top row: badge + title + action
             Row(
               children: [
                 _chip(
                   text: unlocked ? 'UNLOCKED' : 'LOCKED',
-                  color: unlocked ? accent : Colors.grey,
+                  color: unlocked ? accent : cs.secondary,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
+                    style: tt.titleSmall?.copyWith(
                       fontWeight: FontWeight.w900,
-                      fontSize: 14,
                       letterSpacing: .3,
-                      color: Color(0xFFE8EAED),
+                      color: cs.onSurface,
                     ),
                   ),
                 ),
@@ -360,9 +366,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 8),
             Text(
               description,
-              style: TextStyle(
-                color: Colors.white.withOpacity(.85),
-                fontSize: 13,
+              style: tt.bodyMedium?.copyWith(
+                color: factionTheme.text.withOpacity(.85),
                 height: 1.28,
                 fontWeight: FontWeight.w600,
               ),
@@ -374,24 +379,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _reqText(String text) => Text(
-    text,
-    style: TextStyle(
-      fontSize: 12,
-      color: Colors.orange.shade200,
-      fontWeight: FontWeight.w700,
-    ),
-  );
+  Widget _reqText(String text) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    return Text(
+      text,
+      style: tt.bodySmall?.copyWith(
+        color: cs.tertiary,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
 
-  Widget _activeText() => Text(
-    'Active',
-    style: TextStyle(
-      fontSize: 12,
-      color: Colors.green.shade300,
-      fontWeight: FontWeight.w800,
-      letterSpacing: .3,
-    ),
-  );
+  Widget _activeText() {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    return Text(
+      'Active',
+      style: tt.bodySmall?.copyWith(
+        color: cs.secondary,
+        fontWeight: FontWeight.w800,
+        letterSpacing: .3,
+      ),
+    );
+  }
 
   Widget _glassButton({
     required String label,
@@ -399,6 +410,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required Color accent,
     bool compact = false,
   }) {
+    final cs = Theme.of(context).colorScheme;
+    final factionTheme = context.read<FactionTheme>();
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -407,11 +420,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           vertical: compact ? 6 : 10,
         ),
         decoration: BoxDecoration(
+          // keep a subtle accent feel, still theme-compliant
           gradient: LinearGradient(
             colors: [accent.withOpacity(.95), accent.withOpacity(.8)],
           ),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(.18)),
+          border: Border.all(color: cs.outlineVariant),
           boxShadow: [
             BoxShadow(
               color: accent.withOpacity(.25),
@@ -422,8 +436,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         child: Text(
           label,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: factionTheme.text, // your existing dynamic text color
             fontWeight: FontWeight.w900,
             fontSize: 11,
             letterSpacing: .6,
@@ -434,18 +448,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _chip({required String text, required Color color}) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    // draw chip using theme containers for good contrast
+    final bg = color.withOpacity(.18);
+    final border = color.withOpacity(.45);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(.18),
+        color: bg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(.45)),
+        border: Border.all(color: border),
       ),
       child: Text(
         text,
-        style: const TextStyle(
-          color: Color(0xFFE8EAED),
-          fontSize: 10,
+        style: tt.labelSmall?.copyWith(
+          color: cs.onSurface,
           fontWeight: FontWeight.w800,
           letterSpacing: .5,
         ),
@@ -458,12 +476,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required Color accent,
     required double width,
   }) {
-    // simple soft progress visualization; scale is arbitrary here
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
     final totalHint = FactionService.perk2DiscoverThreshold;
     final p = (discovered / (totalHint == 0 ? 1 : totalHint)).clamp(0.0, 1.0);
 
     return _glassCard(
-      borderColor: Colors.white.withOpacity(.14),
+      borderColor: cs.outlineVariant,
       glowColor: accent.withOpacity(.12),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -474,11 +494,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Icon(Icons.insights_rounded, size: 16, color: accent),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'DISCOVERY PROGRESS',
-                  style: TextStyle(
-                    color: Color(0xFFE8EAED),
-                    fontSize: 12,
+                  style: tt.labelSmall?.copyWith(
+                    color: cs.onSurface,
                     fontWeight: FontWeight.w900,
                     letterSpacing: .6,
                   ),
@@ -490,14 +509,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               height: 10,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withOpacity(.14)),
+                border: Border.all(color: cs.outlineVariant),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(7),
                 child: LinearProgressIndicator(
                   value: p,
                   minHeight: 10,
-                  backgroundColor: Colors.white.withOpacity(.06),
+                  backgroundColor: cs.surfaceVariant,
                   valueColor: AlwaysStoppedAnimation<Color>(accent),
                 ),
               ),
@@ -508,19 +527,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Expanded(
                   child: Text(
                     '$discovered discovered',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(.8),
+                    style: tt.bodySmall?.copyWith(
+                      color: cs.onSurface.withOpacity(.8),
                       fontWeight: FontWeight.w700,
-                      fontSize: 12,
                     ),
                   ),
                 ),
                 Text(
                   'Goal: $totalHint',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(.6),
+                  style: tt.bodySmall?.copyWith(
+                    color: cs.onSurface.withOpacity(.6),
                     fontWeight: FontWeight.w600,
-                    fontSize: 12,
                   ),
                 ),
               ],
@@ -536,16 +553,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Color? borderColor,
     Color? glowColor,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(.22),
+            color: cs.surface.withOpacity(.22),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: (borderColor ?? Colors.white.withOpacity(.14)),
+              color: (borderColor ?? cs.outlineVariant),
               width: 2,
             ),
             boxShadow: glowColor == null

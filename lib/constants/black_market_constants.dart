@@ -2,7 +2,7 @@
 class BlackMarketConstants {
   // Base silver values by rarity
   static const Map<String, int> baseValues = {
-    'common': 100000,
+    'common': 10,
     'uncommon': 25,
     'rare': 50,
     'epic': 100,
@@ -13,16 +13,16 @@ class BlackMarketConstants {
   // Level multiplier: each level adds 5% to base value
   static double levelMultiplier(int level) => 1.0 + (level - 1) * 0.05;
 
-  // Prismatic bonus: +50% value
-  static const double prismaticBonus = 1.5;
+  // Prismatic bonus: +1000% value
+  static const double prismaticBonus = 10;
 
   // Nature bonus: certain natures fetch higher prices
   static const Map<String, double> natureMultipliers = {
-    'adamant': 1.2,
-    'brave': 1.15,
-    'modest': 1.1,
+    'Elegant': 2.0,
     // Add more as desired
   };
+
+  static const Map<String, double> tintMultipliers = {'vibrant': 1.5};
 
   // Calculate total sell price
   static int calculateSellPrice({
@@ -30,6 +30,7 @@ class BlackMarketConstants {
     required int level,
     required bool isPrismatic,
     String? natureId,
+    String? tintId,
   }) {
     final base = baseValues[rarity.toLowerCase()] ?? baseValues['common']!;
     final levelMult = levelMultiplier(level);
@@ -37,8 +38,9 @@ class BlackMarketConstants {
     final natureMult = natureId != null
         ? (natureMultipliers[natureId] ?? 1.0)
         : 1.0;
+    final tintMult = tintId != null ? (tintMultipliers[tintId] ?? 1.0) : 1.0;
 
-    return (base * levelMult * prismaMult * natureMult).round();
+    return (base * levelMult * prismaMult * natureMult * tintMult).round();
   }
 
   // Bulk sale bonus: 5% extra per creature after the first

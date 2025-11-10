@@ -50,15 +50,6 @@ class EncounterService extends ChangeNotifier {
     return base ^ partyHash ^ sceneHash;
   }
 
-  /// Party luck ∈ [0, +∞). Typically keep small, e.g. 0.0..0.5.
-  double get partyLuck {
-    if (party.isEmpty) return 0;
-    final avg =
-        party.map((m) => m.luck).fold<double>(0, (a, b) => a + b) /
-        party.length;
-    return avg;
-  }
-
   /// Slightly increases the odds of high-rarity the longer we go without it.
   double get pityMul {
     if (_dryStreak <= 3) return 1.0;
@@ -85,7 +76,7 @@ class EncounterService extends ChangeNotifier {
         EncounterRarity.rare => 0.8,
         EncounterRarity.legendary => 1.6,
       };
-      w *= (1.0 + partyLuck * rarityBias);
+      w *= (1.0 + 0.0 * rarityBias);
 
       if (e.rarity.index >= EncounterRarity.rare.index) {
         w *= pityMul;

@@ -5,7 +5,10 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
+import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
+import 'package:alchemons/widgets/background/daynight_filter.dart';
 import 'package:alchemons/widgets/wilderness/wilderness_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,12 +60,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
-    // Lock to landscape
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-
     _game = SceneGame(scene: widget.scene);
 
     _encounters = EncounterService(
@@ -73,20 +70,13 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
     _game.attachEncounters(_encounters);
 
-    _game.onStartEncounter = (speciesId, hydrated) {
+    _game.onStartEncounter = (spawnId, speciesId, hydrated) {
+      _usedSpawnPointId = spawnId; // <-- 🔑 STORE THE ID HERE
       setState(() {
         _inEncounter = true;
         _wildCreature = hydrated as Creature;
       });
       HapticFeedback.mediumImpact();
-    };
-
-    // If your SceneGame calls back with the EncounterRoll (which includes spawnId),
-    // capture the spawn point here:
-    _game.onEncounter = (roll) {
-      // EncounterRoll from EncounterService has an optional spawnId
-      _usedSpawnPointId =
-          roll.spawnId; // <- store it for when the overlay closes
     };
   }
 
@@ -122,12 +112,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    // unlock orientation
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
-
     _maybeRestoreWaterParty();
 
     // stop listening
@@ -153,25 +137,25 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   }
 
   void _syncSpawnsFromService() {
-    // wipe local spawns and reconstruct from service
     _encounters.clearSpawns();
 
     for (final sp in widget.scene.spawnPoints) {
       final enc = _spawnService.getSpawnAt(widget.sceneId, sp.id);
       if (enc == null) continue;
 
-      // Convert EncounterRoll (service) -> WildEncounter (EncounterService API)
       final asWild = WildEncounter(
         wildBaseId: enc.speciesId,
-        baseBreedChance: 0.12, // TODO: plug rarity-based rate if desired
+        baseBreedChance: breedChanceForRarity(enc.rarity),
         rarity: enc.rarity.name,
       );
 
       _encounters.forceSpawnAt(sp.id, asWild);
     }
 
-    // ensure the game reads the refreshed encounter list
     _game.attachEncounters(_encounters);
+
+    // 🔑 NEW: mirror EncounterService -> actual on-screen wilds
+    _game.syncWildFromEncounters();
   }
 
   Future<void> _maybeRestoreWaterParty() async {
@@ -196,81 +180,103 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     _game.spawnPartyCreature(hydrated);
   }
 
-  void _exitEncounter({bool clearWild = false}) {
+  void _exitEncounter({String? clearSpawnId}) {
     setState(() {
       _inEncounter = false;
     });
     _game.exitEncounterMode();
 
-    if (clearWild) {
-      _game.clearWild();
+    if (clearSpawnId != null) {
+      _game.clearWildAt(clearSpawnId); // <- remove only that one
     }
 
     HapticFeedback.lightImpact();
   }
 
   // --- UI --------------------------------------------------------------------
+  bool isNight(DateTime now) => now.hour >= 20 || now.hour < 5;
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final bool night = isNight(now);
+
     return Consumer<CreatureCatalog>(
       builder: (context, gameState, _) {
-        // Hook resolver once
         if (!_resolverHooked) {
           final repo = context.read<CreatureCatalog>();
-
           _game.wildVisualResolver = (speciesId, rarity) async {
             final gen = WildlifeGenerator(repo);
             return gen.generate(speciesId, rarity: rarity.name);
           };
-
           _resolverHooked = true;
-
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _game.clearWild();
-          });
         }
 
         return PopScope(
-          // 1. Prevents the default system back action (pop the route)
-          //    We prevent pop when in an encounter.
           canPop: false,
           child: Scaffold(
             body: Stack(
               children: [
-                // Game view
+                // 🎮 Game view with binary night filter
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    return SizedBox(
+                    final game = SizedBox(
                       width: constraints.maxWidth,
                       height: constraints.maxHeight,
                       child: GameWidget(game: _game),
                     );
+
+                    return DayNightFilter(
+                      intensity: night ? 1.0 : 0.0, // YES/NO filter
+                      tint: const Color(0xFF081028), // darker blue tone
+                      minLuma: 0.45, // 45 % brightness at night
+                      child: game,
+                    );
                   },
+                ),
+
+                // ✨ Always show particles
+                IgnorePointer(
+                  child: AlchemicalParticleBackground(
+                    opacity: 0.9,
+                    backgroundColor: Colors.transparent,
+                  ),
                 ),
                 if (_inEncounter && _wildCreature != null)
                   EncounterOverlay(
                     encounter: WildEncounter(
                       wildBaseId: _wildCreature!.id,
-                      baseBreedChance: 0.12, // or your rarity-based calc
+                      baseBreedChance: breedChanceForRarity(
+                        EncounterRarity.values.byName(
+                          _wildCreature!.rarity.toLowerCase(),
+                        ),
+                      ),
                       rarity: _wildCreature!.rarity,
                     ),
                     party: widget.party,
+                    onPreRollShake: () {
+                      _game.shake(
+                        duration: const Duration(milliseconds: 800),
+                        amplitude: 14,
+                      );
+                    },
                     onPartyCreatureSelected: _onPartyCreatureSelected,
                     onClosedWithResult: (success) async {
-                      _exitEncounter(clearWild: success);
+                      final id = _usedSpawnPointId;
 
-                      if (success && _usedSpawnPointId != null) {
-                        // 1) remove from service (this also deletes from DB)
-                        await _spawnService.removeSpawn(
-                          widget.sceneId,
-                          _usedSpawnPointId!,
-                        );
+                      // exit encounter first (don’t clear anything yet)
+                      _exitEncounter();
 
-                        // 3) resync local encounter list so the UI reflects the change
+                      if (success && id != null) {
+                        // a) remove visual immediately (snappy UX)
+                        _game.clearWildAt(id);
+
+                        // b) remove from the spawn service (DB + memory)
+                        await _spawnService.removeSpawn(widget.sceneId, id);
+
+                        // c) re-sync EncounterService -> visuals (no-ops for others)
                         _syncSpawnsFromService();
 
-                        // clear the remembered id
                         _usedSpawnPointId = null;
                       }
                     },

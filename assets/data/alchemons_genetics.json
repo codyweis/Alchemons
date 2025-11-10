@@ -41,7 +41,7 @@
         },
         { 
           "id": "vibrant", 
-          "name": "Saturated", 
+          "name": "Vibrant", 
           "dominance": 2, 
           "effect": { "hue_shift": 0,  "saturation": 1.4, "brightness": 1.1 },  
           "description": "Vivid chromatic intensity, especially common in vibrant types" 

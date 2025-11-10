@@ -722,8 +722,19 @@ class CostChip extends StatelessWidget {
         return (Icons.monetization_on_rounded, Colors.grey.shade300);
       case 'soft':
         return (Icons.paid_rounded, Colors.lightBlue);
+      // resources (fall through to correct icons/colors)
+      case 'res_volcanic':
+        return (Icons.local_fire_department_rounded, Colors.orange.shade400);
+      case 'res_oceanic':
+        return (Icons.water_drop_rounded, Colors.blue.shade400);
+      case 'res_verdant':
+        return (Icons.eco_rounded, Colors.green.shade400);
+      case 'res_earthen':
+        return (Icons.terrain_rounded, Colors.brown.shade400);
+      case 'res_arcane':
+        return (Icons.auto_awesome_rounded, Colors.purple.shade400);
       default:
-        return (Icons.circle, Colors.white);
+        return (Icons.circle, Colors.white70);
     }
   }
 }

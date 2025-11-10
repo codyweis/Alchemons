@@ -189,18 +189,13 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
                 willChange: true,
               ),
             ),
-            Visibility(
-              visible:
-                  defaultTargetPlatform != TargetPlatform.android &&
-                  (defaultTargetPlatform == TargetPlatform.iOS),
-              child: FireFX(
-                intensity: intensity,
-                rise: rise,
-                turbulence: 1.25,
-                noiseScale: noise,
-                softEdge: 0.22,
-                speedFactor: speedFactor,
-              ),
+            FireFX(
+              intensity: intensity,
+              rise: rise,
+              turbulence: 1.25,
+              noiseScale: noise,
+              softEdge: 0.22,
+              speedFactor: speedFactor,
             ),
           ],
         );
@@ -999,11 +994,13 @@ class AirPainter extends CustomPainter {
   double _timeSeconds() =>
       (controller.lastElapsedDuration ?? Duration.zero).inMicroseconds / 1e6;
 
+  final Paint cloudPaint = Paint()..style = PaintingStyle.fill;
+
   @override
   void paint(Canvas canvas, Size size) {
     final t = _timeSeconds() * speedFactor;
 
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 6; i++) {
       final randomY =
           _seededRandom(i, 0) * size.height * 0.6 + size.height * 0.2;
       final speed = 0.08 + _seededRandom(i, 1) * 0.12;
@@ -1029,13 +1026,13 @@ class AirPainter extends CustomPainter {
       }
 
       if (fadeOpacity > 0) {
-        for (int j = 0; j < 4; j++) {
+        for (int j = 0; j < 2; j++) {
           final cloudPath = Path()
             ..addOval(
               Rect.fromCenter(
                 center: Offset(x + j * 20, y + j * 6),
-                width: 90 + math.sin(phase * 3 * math.pi + j) * 20,
-                height: 45 + j * 6,
+                width: 120 + math.sin(phase * 3 * math.pi + j) * 20,
+                height: 60 + j * 6,
               ),
             );
 

@@ -192,7 +192,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     await _setSetting('wallet_silver', '100');
 
     // Seed settings
-    await _setSetting('blob_slots_unlocked', '2');
+    await _setSetting('blob_slots_unlocked', '1');
     await _setSetting('blob_instances', '[]');
     await _setSetting('wallet_soft', '100');
     await _setSetting('shop_show_purchased', '0');

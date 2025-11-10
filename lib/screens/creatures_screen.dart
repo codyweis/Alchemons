@@ -5,7 +5,9 @@ import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_image.dart';
+import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
+import 'package:flame/image_composition.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -582,6 +584,7 @@ class _CreatureGrid extends StatelessWidget {
         final c = data.creature;
         final isDiscovered = data.player.discovered == true;
         return _CreatureCard(
+          key: ValueKey<String>('species:${c.id}'),
           theme: theme,
           c: c,
           discovered: isDiscovered,
@@ -612,6 +615,7 @@ class _CreatureList extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(bottom: 1),
           child: _CreatureRow(
+            key: ValueKey<String>('species:${c.id}'),
             theme: theme,
             c: c,
             discovered: isDiscovered,
@@ -629,6 +633,7 @@ class _CreatureCard extends StatelessWidget {
   final bool discovered;
   final VoidCallback onTap;
   const _CreatureCard({
+    super.key,
     required this.theme,
     required this.c,
     required this.discovered,
@@ -650,10 +655,15 @@ class _CreatureCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Center(
-                      child: CreatureImage(
-                        c: c,
-                        discovered: discovered,
-                        rounded: 10,
+                      child: CreatureSprite(
+                        spritePath: c.spriteData!.spriteSheetPath,
+                        totalFrames: c.spriteData!.totalFrames,
+                        rows: c.spriteData!.rows,
+                        frameSize: Vector2(
+                          c.spriteData!.frameWidth.toDouble(),
+                          c.spriteData!.frameHeight.toDouble(),
+                        ),
+                        stepTime: c.spriteData!.frameDurationMs / 1000.0,
                       ),
                     ),
                   ),
@@ -690,6 +700,7 @@ class _CreatureRow extends StatelessWidget {
   final bool discovered;
   final VoidCallback onTap;
   const _CreatureRow({
+    super.key,
     required this.theme,
     required this.c,
     required this.discovered,

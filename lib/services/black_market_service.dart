@@ -1,10 +1,14 @@
 // lib/services/black_market_service.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
+
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/database/alchemons_db.dart'; // <-- use Settings table
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
+import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -29,45 +33,62 @@ class DailyOffer {
 }
 
 class BlackMarketService extends ChangeNotifier {
+  BlackMarketService(this._db) {
+    _checkStatus();
+    _updateWeeklyContent();
+    _initFromSettings(); // fire-and-forget: restores week + purchased set
+
+    _checkTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _checkStatus();
+      _checkWeeklyReset();
+    });
+  }
+
+  // ----------------- deps -----------------
+  final AlchemonsDatabase _db;
+
+  // ----------------- constants ------------
+  static const int _openHour = 18; // 6 PM
+  static const int _closeHour = 6; // 6 AM
+
+  // ----------------- state ----------------
   bool _isOpen = false;
   Timer? _checkTimer;
 
-  // Premium items that rotate daily
+  // Premium (weekly)
   String _premiumRarity = '';
   String _premiumType = '';
   double _premiumBonus = 1.0;
 
-  // Daily offers
+  // Offers/Vials (weekly; names kept to avoid refactors)
   List<DailyOffer> _dailyOffers = [];
+  List<ExtractionVial> _dailyVials = [];
 
-  // Purchased items (resets daily)
-  final Set<String> _purchasedToday = {};
-  String _lastPurchaseDate = '';
+  // Purchases (reset weekly)
+  final Set<String> _purchasedToday = {}; // = purchasedThisWeek
+  String _lastPurchaseDate = ''; // = lastWeekKey (yyyy-MM-dd of Monday)
 
-  bool get isOpen => !_isOpen;
+  // ----------------- public API -----------
+  bool get isOpen => _isOpen;
   String get premiumRarity => _premiumRarity;
   String get premiumType => _premiumType;
   double get premiumBonus => _premiumBonus;
   List<DailyOffer> get dailyOffers => _dailyOffers;
+  List<ExtractionVial> get dailyVials => _dailyVials;
 
   bool isPurchased(String offerId) => _purchasedToday.contains(offerId);
 
-  List<ExtractionVial> _dailyVials = [];
-  List<ExtractionVial> get dailyVials => _dailyVials;
-
-  BlackMarketService() {
+  /// Force a manual check (call when navigating to shop)
+  void checkNow() {
     _checkStatus();
-    _updateDailyContent();
-    _checkTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      _checkStatus();
-      _checkDailyReset();
-    });
+    _checkWeeklyReset();
   }
 
+  // ----------------- schedule/open window -----------
   void _checkStatus() {
     final now = DateTime.now();
-    // Black Market open from 8 PM to 4 AM (20:00 - 04:00)
-    final newStatus = now.hour >= 20 || now.hour < 4;
+    // Black Market open from 4 PM to 4 AM (16:00 - 04:00)
+    final newStatus = now.hour >= _openHour || now.hour < _closeHour;
 
     if (newStatus != _isOpen) {
       _isOpen = newStatus;
@@ -75,58 +96,186 @@ class BlackMarketService extends ChangeNotifier {
     }
   }
 
-  void _checkDailyReset() {
-    final today = DateTime.now().toString().substring(0, 10);
-    if (_lastPurchaseDate != today) {
+  bool _isOpenAt(DateTime t) => t.hour >= _openHour || t.hour < _closeHour;
+
+  DateTime _at(DateTime base, int hour, {int addDays = 0}) => DateTime(
+    base.year,
+    base.month,
+    base.day,
+    hour,
+  ).add(Duration(days: addDays));
+
+  DateTime getNextOpenTime() {
+    final now = DateTime.now();
+
+    // Today’s and tomorrow’s open anchors
+    final todayOpen = _at(now, _openHour);
+    final tomorrowOpen = _at(now, _openHour, addDays: 1);
+
+    // If currently closed (04:00–15:59), open next is today at 16:00 (if not passed)
+    if (!_isOpenAt(now)) {
+      return now.isBefore(todayOpen) ? todayOpen : tomorrowOpen;
+    }
+
+    // If currently open (16:00–03:59), next open is tomorrow 16:00
+    return tomorrowOpen;
+  }
+
+  DateTime getNextCloseTime() {
+    final now = DateTime.now();
+
+    // If open and before 04:00, close is today 04:00
+    if (now.hour < _closeHour) return _at(now, _closeHour);
+
+    // If open and >= 16:00, close is tomorrow 04:00
+    if (now.hour >= _openHour) return _at(now, _closeHour, addDays: 1);
+
+    // If currently closed (04:00–15:59), the next close corresponds to upcoming open window
+    return _at(now, _closeHour, addDays: 1);
+  }
+
+  Duration _nonNeg(Duration d) => d.isNegative ? Duration.zero : d;
+  Duration getTimeUntilOpen() =>
+      _nonNeg(getNextOpenTime().difference(DateTime.now()));
+  Duration getTimeUntilClose() =>
+      _nonNeg(getNextCloseTime().difference(DateTime.now()));
+
+  // ----------------- weekly helpers ----------------
+  // Monday-start week key (yyyy-MM-dd of Monday)
+  String _currentWeekKey([DateTime? at]) {
+    final now = at ?? DateTime.now();
+    final weekStart = now.subtract(
+      Duration(days: now.weekday - DateTime.monday),
+    );
+    final monday = DateTime(weekStart.year, weekStart.month, weekStart.day);
+    return monday.toIso8601String().substring(0, 10);
+  }
+
+  // Seed constant for the whole week
+  int _weeklySeed() {
+    final key = _currentWeekKey(); // e.g., 2025-11-03
+    return int.parse(key.replaceAll('-', '')); // -> 20251103
+  }
+
+  // ----------------- persistence (Settings) --------
+  static const String _bmLastWeekKey = 'bm_last_week_key';
+  static String _bmPurchasesKeyFor(String weekKey) => 'bm_purchased_$weekKey';
+
+  Future<void> _initFromSettings() async {
+    // load last week; default to this week if not set
+    final lastWeekRow = await (_db.select(
+      _db.settings,
+    )..where((t) => t.key.equals(_bmLastWeekKey))).getSingleOrNull();
+
+    final currentWeek = _currentWeekKey();
+    _lastPurchaseDate = lastWeekRow?.value ?? currentWeek;
+
+    if (_lastPurchaseDate != currentWeek) {
+      // New week since last run: clear purchases and write the new week key
       _purchasedToday.clear();
-      _lastPurchaseDate = today;
-      _updateDailyContent();
+      _lastPurchaseDate = currentWeek;
+      await _saveWeekKey(_lastPurchaseDate);
+      await _savePurchasedSet(); // writes empty list for this week
+    } else {
+      // Same week: restore purchased set
+      final purchaseRow =
+          await (_db.select(_db.settings)
+                ..where((t) => t.key.equals(_bmPurchasesKeyFor(currentWeek))))
+              .getSingleOrNull();
+      final ids = purchaseRow == null || purchaseRow.value.isEmpty
+          ? const <String>[]
+          : List<String>.from(jsonDecode(purchaseRow.value) as List);
+      _purchasedToday
+        ..clear()
+        ..addAll(ids);
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> _saveWeekKey(String weekKey) async {
+    await _db
+        .into(_db.settings)
+        .insertOnConflictUpdate(
+          SettingsCompanion(key: Value(_bmLastWeekKey), value: Value(weekKey)),
+        );
+  }
+
+  Future<void> _savePurchasedSet() async {
+    final key = _bmPurchasesKeyFor(_lastPurchaseDate);
+    final json = jsonEncode(_purchasedToday.toList());
+    await _db
+        .into(_db.settings)
+        .insertOnConflictUpdate(
+          SettingsCompanion(key: Value(key), value: Value(json)),
+        );
+  }
+
+  // ----------------- weekly reset & content --------
+  void _checkWeeklyReset() async {
+    final weekKey = _currentWeekKey();
+
+    if (_lastPurchaseDate != weekKey) {
+      _purchasedToday.clear();
+      _lastPurchaseDate = weekKey;
+      await _saveWeekKey(weekKey);
+      await _savePurchasedSet(); // persist cleared set for the new week
+
+      _updateWeeklyContent();
       notifyListeners();
     }
   }
 
-  void _updateDailyContent() {
-    final now = DateTime.now();
-    // Use date as seed for consistent daily values
-    final seed = now.year * 10000 + now.month * 100 + now.day;
+  void _updateWeeklyContent() {
+    final seed = _weeklySeed();
 
-    // Update premium selling bonus
+    // Weekly premium
     final element = Elements.values.map((r) => r.name).toList();
     _premiumRarity = element[seed % element.length];
 
     final species = CreatureFamily.values
         .map((f) => f.displayName)
-        .toList()
         .where((s) => s != CreatureFamily.mystic.displayName)
         .toList();
     _premiumType = species[(seed ~/ 3) % species.length];
 
     _premiumBonus = 2 + ((seed % 10) / 10.0);
 
-    // Generate daily offers
+    // Weekly offers & vials (names kept)
     _dailyOffers = _generateDailyOffers(seed);
     _dailyVials = _generateDailyVials(seed);
   }
 
+  // ----------------- purchase flow -----------------
+  Future<bool> purchaseOffer(String offerId) async {
+    if (_purchasedToday.contains(offerId)) return false;
+
+    _purchasedToday.add(offerId);
+    await _savePurchasedSet();
+    notifyListeners();
+    return true;
+  }
+
+  // ----------------- content generation ------------
   List<DailyOffer> _generateDailyOffers(int seed) {
     final offers = <DailyOffer>[];
 
     // Offer 1: Currency exchange
-    final goldAmount = 500 + ((seed % 5) * 100);
+    final goldAmount = 10 + ((seed % 5) * 100);
     offers.add(
       DailyOffer(
         id: 'gold_exchange_$seed',
         name: 'Gold Exchange',
         description: 'Convert silver to gold at a premium rate',
         icon: Icons.swap_horiz_rounded,
-        cost: {'silver': goldAmount * 3},
+        cost: {'silver': goldAmount},
         rewardType: 'currency',
         reward: {'gold': goldAmount},
       ),
     );
 
     // Offer 2: Resource pack
-    final resourceAmount = 50 + ((seed % 10) * 10);
+    final resourceAmount = 25 + ((seed % 10) * 10);
     offers.add(
       DailyOffer(
         id: 'resource_pack_$seed',
@@ -143,136 +292,16 @@ class BlackMarketService extends ChangeNotifier {
       ),
     );
 
-    // Offer 3: XP Boost
-    offers.add(
-      DailyOffer(
-        id: 'xp_boost_$seed',
-        name: 'Experience Elixir',
-        description: '2x XP for 1 hour',
-        icon: Icons.trending_up_rounded,
-        cost: {'silver': 500},
-        rewardType: 'boost',
-        reward: {'type': 'xp', 'multiplier': 2.0, 'duration': 3600},
-      ),
-    );
-
-    // Offer 4: Rare item (more expensive)
-    offers.add(
-      DailyOffer(
-        id: 'rare_item_$seed',
-        name: 'Mysterious Egg',
-        description: 'Contains a random rare creature',
-        icon: Icons.egg_rounded,
-        cost: {'gold': 100 + ((seed % 3) * 50)},
-        rewardType: 'item',
-        reward: {'type': 'egg', 'rarity': 'rare'},
-      ),
-    );
-
     return offers;
   }
 
-  Future<bool> purchaseOffer(String offerId) async {
-    if (_purchasedToday.contains(offerId)) {
-      return false;
-    }
-
-    // Mark as purchased
-    _purchasedToday.add(offerId);
-    notifyListeners();
-    return true;
-  }
-
-  /// Force a manual check (call when navigating to shop)
-  void checkNow() {
-    _checkStatus();
-    _checkDailyReset();
-  }
-
-  /// Get the next time the market will open
-  DateTime getNextOpenTime() {
-    final now = DateTime.now();
-    if (now.hour < 4) {
-      return DateTime(now.year, now.month, now.day, 20);
-    } else if (now.hour < 20) {
-      return DateTime(now.year, now.month, now.day, 20);
-    } else {
-      return DateTime(now.year, now.month, now.day + 1, 20);
-    }
-  }
-
-  /// Get duration until the market opens
-  Duration getTimeUntilOpen() {
-    final now = DateTime.now();
-    final nextOpen = getNextOpenTime();
-    return nextOpen.difference(now);
-  }
-
-  /// Get the time the market will close (4 AM)
-  DateTime getNextCloseTime() {
-    final now = DateTime.now();
-    if (now.hour < 4) {
-      return DateTime(now.year, now.month, now.day, 4);
-    } else {
-      return DateTime(now.year, now.month, now.day + 1, 4);
-    }
-  }
-
-  /// Get duration until the market closes
-  Duration getTimeUntilClose() {
-    final now = DateTime.now();
-    final nextClose = getNextCloseTime();
-    return nextClose.difference(now);
-  }
-
-  // Map your Elements enum to the widget's ElementalGroup
-  ElementalGroup _mapElementToGroup(String elementName) {
-    switch (elementName.toLowerCase()) {
-      case 'fire':
-      case 'lava':
-      case 'lightning':
-        return ElementalGroup.volcanic;
-      case 'water':
-      case 'ice':
-      case 'steam':
-        return ElementalGroup.oceanic;
-      case 'earth':
-      case 'mud':
-      case 'crystal':
-        return ElementalGroup.earthen;
-      case 'plant':
-      case 'poison':
-        return ElementalGroup.verdant;
-      default:
-        // spirit/light/dark etc. → arcane
-        return ElementalGroup.arcane;
-    }
-  }
-
-  VialRarity _rarityFromIndex(int i) {
-    switch (i.clamp(0, 4)) {
-      case 0:
-        return VialRarity.common;
-      case 1:
-        return VialRarity.uncommon;
-      case 2:
-        return VialRarity.rare;
-      case 3:
-        return VialRarity.legendary;
-      default:
-        return VialRarity.mythic;
-    }
-  }
-
   VialRarity _pickRarity(math.Random rng) {
-    // Tune these weights to taste; they sum to 100.
     const weights = <VialRarity, int>{
       VialRarity.common: 62,
       VialRarity.uncommon: 27,
       VialRarity.rare: 9,
       VialRarity.legendary: 2,
-      VialRarity.mythic:
-          0, // set to 1 for ~1% *if* you want mythics to exist here
+      VialRarity.mythic: 0,
     };
     final total = weights.values.reduce((a, b) => a + b);
     int roll = rng.nextInt(total);
@@ -284,18 +313,17 @@ class BlackMarketService extends ChangeNotifier {
   }
 
   int _priceFor(VialRarity r) {
-    // tune to your economy; uses silver for most, gold for mythic
     switch (r) {
       case VialRarity.common:
-        return 150; // silver
+        return 150;
       case VialRarity.uncommon:
-        return 300; // silver
+        return 300;
       case VialRarity.rare:
-        return 650; // silver
+        return 650;
       case VialRarity.legendary:
-        return 1200; // silver
+        return 10;
       case VialRarity.mythic:
-        return 100; // gold (handled specially on buy)
+        return 100;
     }
   }
 
@@ -303,18 +331,17 @@ class BlackMarketService extends ChangeNotifier {
     final rng = math.Random(seed);
     final groups = ElementalGroup.values;
     final list = <ExtractionVial>[];
-    bool gaveLegendaryToday = false;
+    bool gaveLegendaryThisWeek = false;
 
     for (int i = 0; i < 6; i++) {
       final g = groups[rng.nextInt(groups.length)];
       var rarity = _pickRarity(rng);
 
       if (rarity == VialRarity.legendary) {
-        if (gaveLegendaryToday) {
-          // downgrade to Rare on the second+ legendary roll
+        if (gaveLegendaryThisWeek) {
           rarity = VialRarity.rare;
         } else {
-          gaveLegendaryToday = true;
+          gaveLegendaryThisWeek = true;
         }
       }
 
@@ -337,7 +364,7 @@ class BlackMarketService extends ChangeNotifier {
           name: name,
           group: g,
           rarity: rarity,
-          quantity: 1,
+          quantity: qty,
           price: price,
         ),
       );

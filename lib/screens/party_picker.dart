@@ -441,6 +441,7 @@ class _PartyFooter extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Current team display
+          // Current team display + deploy button (moved inside to inspect stamina)
           StreamBuilder<List<CreatureInstance>>(
             stream: context
                 .watch<AlchemonsDatabase>()
@@ -466,6 +467,10 @@ class _PartyFooter extends StatelessWidget {
                 return const SizedBox.shrink();
               }
 
+              final hasZeroStamina = selectedInstances.any(
+                (i) => i.staminaBars == 0,
+              );
+
               return Column(
                 children: [
                   _TeamDisplay(
@@ -473,31 +478,44 @@ class _PartyFooter extends StatelessWidget {
                     selectedInstances: selectedInstances,
                   ),
                   const SizedBox(height: 12),
+
+                  // Deploy button (uses zero-stamina pre-check)
+                  _DeployButton(
+                    theme: theme,
+                    enabled: canDeploy,
+                    selectedCount: count,
+                    onTap: canDeploy
+                        ? () async {
+                            bool proceed = true;
+
+                            if (hasZeroStamina) {
+                              final warn = await showDialog<bool>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) =>
+                                    _ZeroStaminaWarningDialog(theme: theme),
+                              );
+                              proceed = warn == true;
+                            }
+
+                            if (!proceed) return;
+
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (_) =>
+                                  _DeployConfirmDialog(theme: theme),
+                            );
+
+                            if (confirmed == true && context.mounted) {
+                              Navigator.pop(context, party.members);
+                            }
+                          }
+                        : null,
+                  ),
                 ],
               );
             },
-          ),
-
-          // Deploy button
-          _DeployButton(
-            theme: theme,
-            enabled: canDeploy,
-            selectedCount: count,
-            onTap: canDeploy
-                ? () async {
-                    // Show the confirmation dialog
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (_) => _DeployConfirmDialog(theme: theme),
-                      barrierDismissible: false, // User must make a choice
-                    );
-
-                    // Only pop if the user confirmed
-                    if (confirmed == true && context.mounted) {
-                      Navigator.pop(context, party.members);
-                    }
-                  }
-                : null,
           ),
         ],
       ),
@@ -1066,6 +1084,116 @@ class _SpeciesRow extends StatelessWidget {
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ZeroStaminaWarningDialog extends StatelessWidget {
+  const _ZeroStaminaWarningDialog({required this.theme});
+  final FactionTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0A0E27).withOpacity(.95),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.amber.withOpacity(.6), width: 1.4),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.amber.withOpacity(.95),
+              size: 28,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Low Stamina Detected',
+              style: TextStyle(
+                color: theme.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Are you sure you want to proceed? One or more Alchemons has 0 stamina.',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, false),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(.04),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(.14),
+                          width: 1.4,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'CANCEL',
+                        style: TextStyle(
+                          color: theme.text,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          letterSpacing: .5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, true),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(.18),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.amber.withOpacity(.7),
+                          width: 1.4,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'PROCEED',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          letterSpacing: .5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

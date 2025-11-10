@@ -353,7 +353,7 @@ class _AddButtonState extends State<_AddButton>
             const Icon(Icons.add, size: 16),
             const SizedBox(width: 6),
             Text(
-              'Add',
+              'Buy',
               style: TextStyle(
                 fontSize: widget.compact ? 12 : 13,
                 fontWeight: FontWeight.w700,

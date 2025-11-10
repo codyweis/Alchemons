@@ -141,23 +141,6 @@ class LineageBlock extends StatelessWidget {
                 'Let / Horn / Kin / Mane / Mask / Pip / Wing / Mystic',
           ),
         ],
-        // Simple stat tile: total number of factions represented
-        if (factionMap.isNotEmpty) ...[
-          _SectionHeader('Factions Present', theme.text),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: factionMap.entries.map((e) {
-              final name =
-                  e.key; // replace with FactionUtil.getName(e.key) if available
-              final count = e.value;
-              final color = FactionColors.of(e.key);
-              return _FactionTile(name: name, count: count, color: color);
-            }).toList(),
-          ),
-          const SizedBox(height: 12),
-        ],
       ],
     );
   }

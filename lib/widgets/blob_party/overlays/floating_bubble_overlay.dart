@@ -11,6 +11,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/blob_party/bubble_widget.dart';
 import 'package:alchemons/widgets/blob_party/floating_creature.dart';
+import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
@@ -46,6 +47,8 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
   Size _regionSize = Size.zero;
   int _slotsUnlocked = 1;
 
+  final List<_Spark> _sparks = [];
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +67,33 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
       1 / 20,
     );
     _lastElapsed = elapsed;
+
+    // --- 1. UPDATE SPARKS (ADD THIS SECTION) ---
+    const sparkGravity = 250.0;
+    _sparks.removeWhere((s) => s.life <= 0);
+    for (final s in _sparks) {
+      s.update(dt);
+
+      // keep softly in-bounds
+      const bounce = 0.6;
+      final r = s.radius;
+      final maxX = _regionSize.width - r, maxY = _regionSize.height - r;
+      if (s.pos.dx < r) {
+        s.pos = Offset(r, s.pos.dy);
+        s.vel = Offset(s.vel.dx.abs() * bounce, s.vel.dy);
+      } else if (s.pos.dx > maxX) {
+        s.pos = Offset(maxX, s.pos.dy);
+        s.vel = Offset(-s.vel.dx.abs() * bounce, s.vel.dy);
+      }
+      if (s.pos.dy < r) {
+        s.pos = Offset(s.pos.dx, r);
+        s.vel = Offset(s.vel.dx, s.vel.dy.abs() * bounce);
+      } else if (s.pos.dy > maxY) {
+        s.pos = Offset(s.pos.dx, maxY);
+        s.vel = Offset(s.vel.dx, -s.vel.dy.abs() * bounce);
+      }
+    }
+    // --- END SPARK UPDATE ---
 
     // 1) integrate motion + wall bounce + damping
     for (final b in _bubbles) {
@@ -108,6 +138,11 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
         final dist = delta.distance;
         final minDist = a.radius + c.radius - 2; // slight overlap tolerance
         if (dist > 0 && dist < minDist) {
+          _spawnSparks(
+            (a.pos + c.pos) / 2.0, // Midpoint
+            a.color, // Color from bubble A
+            c.color, // Color from bubble C
+          );
           final n = delta / dist;
           final push = (minDist - dist) * 0.6;
           a.pos -= n * push * 0.5;
@@ -241,20 +276,26 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
     if (species == null) return;
 
     // 2) pick instance
+    // 2) pick instance  (in _pickInstanceFor)
     final inst = await showModalBottomSheet<CreatureInstance>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) {
-        return InstancesSheet(
+        return BottomSheetShell(
           theme: widget.theme,
-          species: species,
-          onTap: (CreatureInstance ci) {
-            Navigator.pop(context, ci);
-          },
+          title: '${species.name} Specimens',
+          child: InstancesSheet(
+            theme: widget.theme,
+            species: species,
+            onTap: (CreatureInstance ci) {
+              Navigator.pop(context, ci);
+            },
+          ),
         );
       },
     );
+
     if (inst == null) return;
 
     // 3) assign & persist
@@ -264,6 +305,58 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
     });
     await db.settingsDao.setBlobSlotInstance(index, inst.instanceId);
     HapticFeedback.lightImpact();
+  }
+
+  void _spawnSparks(Offset pos, Color c1, Color c2) {
+    final rng = math.Random();
+
+    // helper: keep the exact hue; only nudge saturation/value (no hue shift)
+    Color _boostSameHue(
+      Color src, {
+      double satMul = 1.06,
+      double valMul = 1.12,
+    }) {
+      final hsv = HSVColor.fromColor(src);
+      return hsv
+          .withSaturation((hsv.saturation * satMul).clamp(0.0, 1.0))
+          .withValue((hsv.value * valMul).clamp(0.0, 1.0))
+          .toColor();
+    }
+
+    // fewer, weightier sparks
+    final count = 3 + rng.nextInt(4); // 3..6
+    for (int i = 0; i < count; i++) {
+      // upward-ish with spread
+      final baseAngle = -math.pi / 2; // up
+      final jitter = (rng.nextDouble() - 0.5) * math.pi * 0.6; // +/- ~54°
+      final angle = baseAngle + jitter;
+
+      final speed = 60.0 + rng.nextDouble() * 110.0;
+      final vel = Offset(math.cos(angle) * speed, math.sin(angle) * speed);
+
+      final life = 0.8 + rng.nextDouble() * 0.7; // 0.8..1.5 s
+      final radius = 2.2 + rng.nextDouble() * 2.6; // 2.2..4.8 px
+
+      // strictly use only the touching elements’ colors
+      final base = (i.isEven ? c1 : c2);
+      final color = _boostSameHue(base).withOpacity(1.0);
+
+      final spin = (rng.nextDouble() - 0.5) * 2.2; // -1.1..1.1 rad/s
+      final damping = 0.30 + rng.nextDouble() * 0.25; // gentle drift
+
+      _sparks.add(
+        _Spark(
+          pos: pos,
+          vel: vel,
+          color: color,
+          life: life,
+          radius: radius,
+          spin: spin,
+          damping: damping,
+          seed: rng.nextDouble() * 1000.0,
+        ),
+      );
+    }
   }
 
   @override
@@ -279,167 +372,188 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
             return Stack(
               clipBehavior: Clip.none,
               children: [
+                // --- 1. MODIFIED BUBBLE LOOP ---
                 for (int i = 0; i < _bubbles.length; i++)
-                  BubbleWidget(
-                    key: ValueKey('bubble_$i'),
-                    bubble: _bubbles[i],
-                    color: _colorForInstance(repo, _bubbles[i].instance),
+                  // We use a closure here to calculate the color
+                  // and assign it to the bubble in one go.
+                  () {
+                    final b = _bubbles[i];
+                    // CALCULATE AND CACHE THE COLOR
+                    final color = _colorForInstance(repo, b.instance);
+                    b.color = color; // <-- Store color on the model
 
-                    // NEW
-                    onDragStart: () {
-                      final b = _bubbles[i];
-                      b.dragAccum = Offset.zero;
-                      b.totalDrag = 0;
-                      b.lastMoveAtMs = DateTime.now().millisecondsSinceEpoch;
-                      b.vel = Offset.zero; // kill residual while dragging
-                    },
-                    onDragUpdate: (delta) {
-                      final b = _bubbles[i];
-                      b.pos += delta;
-
-                      // Only accumulate if it’s real motion (filters jitter while holding still)
-                      const moveEps = 0.8; // px
-                      final d = delta.distance;
-                      if (d > moveEps) {
-                        b.dragAccum += delta;
-                        b.totalDrag += d;
+                    return BubbleWidget(
+                      key: ValueKey('bubble_$i'),
+                      bubble: _bubbles[i],
+                      color: color, // <-- Use the calculated color
+                      // NEW
+                      onDragStart: () {
+                        final b = _bubbles[i];
+                        b.dragAccum = Offset.zero;
+                        b.totalDrag = 0;
                         b.lastMoveAtMs = DateTime.now().millisecondsSinceEpoch;
-                      }
+                        b.vel = Offset.zero; // kill residual while dragging
+                      },
+                      onDragUpdate: (delta) {
+                        final b = _bubbles[i];
+                        b.pos += delta;
 
-                      setState(() {});
-                    },
-                    onDragEnd: (details) {
-                      final b = _bubbles[i];
+                        // Only accumulate if it’s real motion (filters jitter while holding still)
+                        const moveEps = 0.8; // px
+                        final d = delta.distance;
+                        if (d > moveEps) {
+                          b.dragAccum += delta;
+                          b.totalDrag += d;
+                          b.lastMoveAtMs =
+                              DateTime.now().millisecondsSinceEpoch;
+                        }
 
-                      // If we were stationary just before lift, treat as place (no flight)
-                      const quietMs =
-                          140; // how long we must be still to cancel glide
-                      final now = DateTime.now().millisecondsSinceEpoch;
-                      final quiet = (now - b.lastMoveAtMs) >= quietMs;
-                      if (quiet) {
-                        b.vel = Offset.zero;
-                        return;
-                      }
+                        setState(() {});
+                      },
+                      onDragEnd: (details) {
+                        final b = _bubbles[i];
 
-                      // Gesture velocity in logical px/s
-                      var v = details.pixelsPerSecond;
-                      final speed = v.distance;
+                        // If we were stationary just before lift, treat as place (no flight)
+                        const quietMs =
+                            140; // how long we must be still to cancel glide
+                        final now = DateTime.now().millisecondsSinceEpoch;
+                        final quiet = (now - b.lastMoveAtMs) >= quietMs;
+                        if (quiet) {
+                          b.vel = Offset.zero;
+                          return;
+                        }
 
-                      // Tunables
-                      const gain = 1.0; // fling strength scaling
-                      const maxSpeed = 700.0; // hard cap
-                      const minThrow =
-                          90.0; // below this we consider it a slow drag
-                      const minFlight = 180.0; // floor for real flings
-                      const glideSpeed = 240.0; // speed for slow-drag glides
-                      const dragDirMin =
-                          18.0; // need at least this much total drag to glide
+                        // Gesture velocity in logical px/s
+                        var v = details.pixelsPerSecond;
+                        final speed = v.distance;
 
-                      if (speed >= minThrow) {
-                        // Real fling → keep direction, floor/ceiling speed
-                        var applied = (speed * gain).clamp(minFlight, maxSpeed);
-                        b.vel = (v / speed) * applied;
-                      } else if (b.totalDrag >= dragDirMin) {
-                        // Slow drag → glide along accumulated drag direction
-                        final dirLen = b.dragAccum.distance;
-                        if (dirLen > 0) {
-                          b.vel = (b.dragAccum / dirLen) * glideSpeed;
+                        // Tunables
+                        const gain = 1.0; // fling strength scaling
+                        const maxSpeed = 700.0; // hard cap
+                        const minThrow =
+                            90.0; // below this we consider it a slow drag
+                        const minFlight = 180.0; // floor for real flings
+                        const glideSpeed = 240.0; // speed for slow-drag glides
+                        const dragDirMin =
+                            18.0; // need at least this much total drag to glide
+
+                        if (speed >= minThrow) {
+                          // Real fling → keep direction, floor/ceiling speed
+                          var applied = (speed * gain).clamp(
+                            minFlight,
+                            maxSpeed,
+                          );
+                          b.vel = (v / speed) * applied;
+                        } else if (b.totalDrag >= dragDirMin) {
+                          // Slow drag → glide along accumulated drag direction
+                          final dirLen = b.dragAccum.distance;
+                          if (dirLen > 0) {
+                            b.vel = (b.dragAccum / dirLen) * glideSpeed;
+                          } else {
+                            b.vel = Offset.zero;
+                          }
                         } else {
+                          // Basically a tap/place
                           b.vel = Offset.zero;
                         }
-                      } else {
-                        // Basically a tap/place
-                        b.vel = Offset.zero;
-                      }
-                    },
-                    // context menu
-                    onLongPress: () async {
-                      final b = _bubbles[i];
+                      },
+                      // context menu
+                      onLongPress: () async {
+                        final b = _bubbles[i];
 
-                      final items = <PopupMenuEntry<String>>[];
+                        final items = <PopupMenuEntry<String>>[];
 
-                      if (b.instance != null) {
-                        items.add(
-                          const PopupMenuItem(
-                            value: 'details',
-                            child: Text('View details'),
+                        if (b.instance != null) {
+                          items.add(
+                            const PopupMenuItem(
+                              value: 'details',
+                              child: Text('View details'),
+                            ),
+                          );
+                          items.add(
+                            const PopupMenuItem(
+                              value: 'reassign',
+                              child: Text('Reassign creature'),
+                            ),
+                          );
+                          items.add(
+                            const PopupMenuItem(
+                              value: 'clear',
+                              child: Text('Remove creature'),
+                            ),
+                          );
+                        } else {
+                          items.add(
+                            const PopupMenuItem(
+                              value: 'reassign',
+                              child: Text('Assign creature'),
+                            ),
+                          );
+                        }
+
+                        final choice = await showMenu<String>(
+                          context: context,
+                          position: RelativeRect.fromLTRB(
+                            b.pos.dx,
+                            b.pos.dy,
+                            _regionSize.width - b.pos.dx,
+                            _regionSize.height - b.pos.dy,
+                          ),
+                          items: items,
+                        );
+
+                        if (choice == null) return;
+
+                        if (choice == 'details') {
+                          _openDetailsFor(b);
+                        } else if (choice == 'reassign') {
+                          await _pickInstanceFor(b, i);
+                        } else if (choice == 'clear') {
+                          setState(() => b.instance = null);
+                          await context
+                              .read<AlchemonsDatabase>()
+                              .settingsDao
+                              .setBlobSlotInstance(i, null);
+                        }
+                      },
+                      // tap (toggle / pick first)
+                      onTap: () async {
+                        final b = _bubbles[i];
+                        if (!b.expanded && b.instance == null) {
+                          await _pickInstanceFor(b, i);
+                          return;
+                        }
+                        b.toggle();
+                        HapticFeedback.selectionClick();
+                        setState(() {});
+                      },
+                      builderInside: (pub) {
+                        final b = _bubbles[i];
+                        if (!pub.expanded || b.instance == null) {
+                          return const SizedBox.shrink();
+                        }
+                        final base = repo.getCreatureById(b.instance!.baseId);
+                        if (base?.spriteData == null) {
+                          return const SizedBox.shrink();
+                        }
+                        return FloatingCreature(
+                          sprite: InstanceSprite(
+                            creature: base!,
+                            instance: b.instance!,
+                            size: 45, // You changed this, looks good.
                           ),
                         );
-                        items.add(
-                          const PopupMenuItem(
-                            value: 'reassign',
-                            child: Text('Reassign creature'),
-                          ),
-                        );
-                        items.add(
-                          const PopupMenuItem(
-                            value: 'clear',
-                            child: Text('Remove creature'),
-                          ),
-                        );
-                      } else {
-                        items.add(
-                          const PopupMenuItem(
-                            value: 'reassign',
-                            child: Text('Assign creature'),
-                          ),
-                        );
-                      }
-
-                      final choice = await showMenu<String>(
-                        context: context,
-                        position: RelativeRect.fromLTRB(
-                          b.pos.dx,
-                          b.pos.dy,
-                          _regionSize.width - b.pos.dx,
-                          _regionSize.height - b.pos.dy,
-                        ),
-                        items: items,
-                      );
-
-                      if (choice == null) return;
-
-                      if (choice == 'details') {
-                        _openDetailsFor(b);
-                      } else if (choice == 'reassign') {
-                        await _pickInstanceFor(b, i);
-                      } else if (choice == 'clear') {
-                        setState(() => b.instance = null);
-                        await context
-                            .read<AlchemonsDatabase>()
-                            .settingsDao
-                            .setBlobSlotInstance(i, null);
-                      }
-                    },
-                    // tap (toggle / pick first)
-                    onTap: () async {
-                      final b = _bubbles[i];
-                      if (!b.expanded && b.instance == null) {
-                        await _pickInstanceFor(b, i);
-                        return;
-                      }
-                      b.toggle();
-                      HapticFeedback.selectionClick();
-                      setState(() {});
-                    },
-                    builderInside: (pub) {
-                      final b = _bubbles[i];
-                      if (!pub.expanded || b.instance == null) {
-                        return const SizedBox.shrink();
-                      }
-                      final base = repo.getCreatureById(b.instance!.baseId);
-                      if (base?.spriteData == null) {
-                        return const SizedBox.shrink();
-                      }
-                      return FloatingCreature(
-                        sprite: InstanceSprite(
-                          creature: base!,
-                          instance: b.instance!,
-                          size: 96,
-                        ),
-                      );
-                    },
+                      },
+                    );
+                  }(), // <-- Note the () to invoke the closure
+                // --- 2. NEW SPARK RENDERING LOOP ---
+                IgnorePointer(
+                  ignoring: true,
+                  child: CustomPaint(
+                    size: Size.infinite,
+                    painter: _AlchemySparkPainter(_sparks),
                   ),
+                ),
               ],
             );
           },
@@ -467,9 +581,135 @@ class _Bubble {
   bool dragging = false;
   double totalDrag = 0; // NEW: total path length this drag
   int lastMoveAtMs = 0; // NEW: last time we saw real movement
-
+  Color color = Colors.white;
   // NEW: accumulate drag direction for slow drags
   Offset dragAccum = Offset.zero;
 
   void toggle() => expanded = !expanded;
+}
+
+class _Spark {
+  _Spark({
+    required this.pos,
+    required this.vel,
+    required this.color,
+    required this.life,
+    required this.radius,
+    required this.spin, // radians/s, small
+    required this.damping, // 0..1 per second
+    required this.seed,
+  }) : initialLife = life;
+
+  Offset pos;
+  Offset vel;
+  Color color;
+  double life;
+  final double initialLife;
+
+  double radius; // visual size (px)
+  double spin; // angular precession of velocity
+  double damping; // velocity decay factor per second
+  double seed; // per-spark randomness
+
+  // short trail (most recent last)
+  final List<Offset> _trail = <Offset>[];
+
+  void update(double dt) {
+    life -= dt;
+    if (life <= 0) return;
+
+    // Gentle buoyancy upward
+    const double buoyancy = -28.0; // negative Y = up
+    vel += const Offset(0, buoyancy) * dt;
+
+    // Swirl: rotate velocity slightly each frame
+    if (spin != 0) {
+      final c = math.cos(spin * dt);
+      final s = math.sin(spin * dt);
+      final vx = vel.dx * c - vel.dy * s;
+      final vy = vel.dx * s + vel.dy * c;
+      vel = Offset(vx, vy);
+    }
+
+    // Subtle noise wobble (cheap)
+    final n = math.sin((life + seed) * 7.0);
+    vel += Offset(n * 6.0, -n.abs() * 4.0) * dt;
+
+    // Damping
+    final decay = math.pow(1.0 - damping, dt).toDouble(); // continuous-ish
+    vel *= decay.clamp(0.0, 1.0);
+
+    pos += vel * dt;
+
+    // Trail bookkeeping (cap length)
+    _trail.add(pos);
+    if (_trail.length > 6) _trail.removeAt(0);
+  }
+}
+
+class _AlchemySparkPainter extends CustomPainter {
+  _AlchemySparkPainter(this.sparks);
+
+  final List<_Spark> sparks;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint core = Paint()
+      ..blendMode = BlendMode.plus
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1); // soft bloom
+
+    final Paint halo = Paint()
+      ..blendMode = BlendMode.plus
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+
+    final Paint trail = Paint()
+      ..blendMode = BlendMode.plus
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    for (final s in sparks) {
+      if (s.life <= 0) continue;
+
+      final t = (s.life / s.initialLife).clamp(0.0, 1.0);
+      // ease-out for opacity/size
+      final ease = t * t * (3 - 2 * t);
+
+      // Trail: thinner, fading with segments
+      if (s._trail.length >= 2) {
+        for (int i = 0; i < s._trail.length - 1; i++) {
+          final a = s._trail[i];
+          final b = s._trail[i + 1];
+          final segT = (i + 1) / s._trail.length;
+          trail
+            ..color = s.color.withOpacity(0.10 * ease * segT)
+            ..strokeWidth = (s.radius * 0.9) * segT;
+          canvas.drawLine(a, b, trail);
+        }
+      }
+
+      // Halo first (bigger & softer), then bright core
+      final haloR = s.radius * (1.8 + 0.4 * (1 - ease));
+      halo.color = adjustBrightness(s.color, .1);
+
+      canvas.drawCircle(s.pos, haloR, halo);
+
+      final coreR = s.radius * (0.9 + 0.2 * ease);
+      core.color = adjustBrightness(s.color, 2);
+      canvas.drawCircle(s.pos, coreR, core);
+    }
+  }
+
+  Color adjustBrightness(Color color, double factor) {
+    // factor > 1.0 → brighter; factor < 1.0 → darker
+    final hsv = HSVColor.fromColor(color);
+    final newValue = (hsv.value * factor).clamp(0.0, 1.0);
+    return hsv.withValue(newValue).toColor();
+  }
+
+  @override
+  bool shouldRepaint(covariant _AlchemySparkPainter oldDelegate) {
+    return true;
+  }
 }

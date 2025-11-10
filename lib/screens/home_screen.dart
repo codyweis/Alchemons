@@ -2,6 +2,7 @@
 
 import 'dart:async' as async;
 
+import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
@@ -11,18 +12,23 @@ import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/game_screen.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
+import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/services/game_data_service.dart';
+import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/avatar_widget.dart';
+import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/blob_party/overlays/floating_bubble_overlay.dart';
+import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_showcase_widget.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart';
 import 'package:alchemons/widgets/side_dock_widget.dart';
+import 'package:alchemons/widgets/starter_granted_dialog.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,13 +63,16 @@ class HomeScreen extends StatefulWidget {
 const double _kNavHeight = 92;
 const double _kNavReserve = _kNavHeight + 12;
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with TickerProviderStateMixin, RouteAware {
   late AnimationController _breathingController;
   late AnimationController _rotationController;
   late AnimationController _particleController;
   late AnimationController _waveController;
   late AnimationController _glowController;
   late AnimationController _navAnimController;
+
+  bool _isFieldTutorialActive = false;
 
   bool _isInitialized = false;
   NavSection _currentSection = NavSection.home;
@@ -112,11 +121,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _initializeApp();
+      if (mounted) {
+        await _checkFieldTutorial();
+      }
     });
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)!);
+  }
+
+  @override
+  void didPushNext() {
+    // STOP all home screen animations
+    _breathingController.stop();
+    _rotationController.stop();
+    _particleController.stop();
+    _waveController.stop();
+    _glowController.stop();
+    _navAnimController.stop();
+  }
+
+  @override
+  void didPopNext() {
+    // RESTART all home screen animations
+    _breathingController.repeat(reverse: true);
+    _rotationController.repeat();
+    _particleController.repeat();
+    _waveController.repeat();
+    _glowController.repeat(reverse: true);
+    // _navAnimController doesn't auto-repeat, so just leave it
+  }
+
+  @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     _breathingController.dispose();
     _rotationController.dispose();
     _particleController.dispose();
@@ -143,9 +184,49 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     HapticFeedback.mediumImpact();
   }
 
+  Future<void> _checkFieldTutorial() async {
+    final db = context.read<AlchemonsDatabase>();
+    final completed = await db.settingsDao.hasCompletedFieldTutorial();
+
+    if (!completed) {
+      // Lock navigation during tutorial
+      await db.settingsDao.setNavLocked(true);
+
+      setState(() {
+        _isFieldTutorialActive = true;
+      });
+    }
+  }
+
+  Future<void> _handleFieldTutorialTap() async {
+    if (!_isFieldTutorialActive) return;
+
+    HapticFeedback.mediumImpact();
+
+    // Navigate to map with tutorial flag
+    final tutorialCompleted = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const MapScreen(isTutorial: true)),
+    );
+
+    if (tutorialCompleted == true && mounted) {
+      // Mark tutorial as completed
+      final db = context.read<AlchemonsDatabase>();
+      await db.settingsDao.setFieldTutorialCompleted();
+
+      // Unlock navigation
+      await db.settingsDao.setNavLocked(false);
+
+      setState(() {
+        _isFieldTutorialActive = false;
+      });
+    }
+  }
+
   Future<void> _initializeApp() async {
     try {
       await _initializeRepository();
+      if (!mounted) return;
       final factionSvc = context.read<FactionService>();
 
       await factionSvc.loadId();
@@ -153,19 +234,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       if (!mounted) return;
 
+      // ✨ NEW: Check if this is first-time experience
       if (faction == null) {
+        // Show story sequence first
+        final storyCompleted = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(builder: (_) => const StoryIntroScreen()),
+        );
+
+        if (!mounted || storyCompleted != true) return;
+
+        // After story, show faction picker
         final selected = await showDialog<FactionId>(
           context: context,
           barrierDismissible: false,
           builder: (_) => const FactionPickerDialog(),
         );
+
         if (!mounted || selected == null) return;
         await factionSvc.setId(selected);
         faction = selected;
       }
 
+      if (!mounted) return;
+      final spawnService = context.read<WildernessSpawnService>();
+
       await factionSvc.ensureAirExtraSlotUnlocked();
-      await _grantStarterIfNeeded(faction);
+      await _grantStarterIfNeeded(faction, spawnService);
 
       // Load featured hero
       final featuredInstance = await _loadFeaturedInstanceOrAuto();
@@ -178,13 +273,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _featuredData = null;
       }
 
-      if (!mounted) return;
       setState(() => _isInitialized = true);
 
       // Set up reactive notification watchers
       _setupNotificationWatchers();
 
-      final spawnService = context.read<WildernessSpawnService>();
+      // // 1) shrink the window to zero so next schedules are "now"
+      // spawnService.setGlobalSpawnWindow(Duration.zero, Duration.zero);
+
+      //await spawnService.clearSceneSpawns('valley');
+      // await spawnService.clearSceneSpawns('volcano');
+      // await spawnService.clearSceneSpawns('sky');
+      // await spawnService.clearSceneSpawns('swamp');
+
+      // spawnService.scheduleNextSpawnTime(
+      //   'valley',
+      //   windowMax: Duration(seconds: 1),
+      // );
 
       // ✅ await initialization
       await spawnService.initializeActiveSpawns(
@@ -229,7 +334,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       });
 
       // 🔁 lightweight periodic check
-      _spawnTimer = async.Timer.periodic(const Duration(minutes: 1), (_) async {
+      _spawnTimer = async.Timer.periodic(const Duration(seconds: 10), (
+        _,
+      ) async {
         try {
           await spawnService.processDueScenes({
             'valley': (
@@ -415,9 +522,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _navigateToSection(NavSection section) {
     _goToSection(section);
-    // Notifications persist across navigation - they're only cleared when:
-    // 1. User manually dismisses them
-    // 2. The underlying condition resolves (e.g., egg is hatched)
+
+    if (section == NavSection.home && _isInitialized) {
+      _checkFieldTutorial();
+    }
   }
 
   // ============================================================
@@ -583,16 +691,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) {
-        return InstancesSheet(
+        return BottomSheetShell(
           theme: theme,
-          species: species,
-          onTap: (CreatureInstance ci) {
-            Navigator.pop(context, ci);
-          },
+          title: '${species.name} Specimens',
+          child: InstancesSheet(
+            theme: theme,
+            species: species,
+            onTap: (CreatureInstance ci) {
+              Navigator.pop(context, ci);
+            },
+          ),
         );
       },
     );
-
     if (pickedInstance == null) return;
 
     // Step 3: persist choice
@@ -636,6 +747,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final showHarvestDot = context.select<HarvestService, bool>(
+      (s) => s.biomes.any((f) => f.unlocked && f.completed),
+    );
     return withGameData(
       context,
       isInitialized: _isInitialized,
@@ -728,8 +842,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
                           return Stack(
                             children: [
-                              child!, // The actual map button
-                              if (hasSpawns)
+                              child!,
+                              if (hasSpawns &&
+                                  !_isFieldTutorialActive) // Only show when NOT in tutorial
                                 Positioned(
                                   top: 10,
                                   right: 10,
@@ -752,61 +867,78 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             ],
                           );
                         },
-                        // 👇 Everything below should be INSIDE SideDockFloating
                         child: SideDockFloating(
                           theme: theme,
+                          showHarvestDot:
+                              !_isFieldTutorialActive && showHarvestDot, // NEW
+                          highlightField:
+                              _isFieldTutorialActive, // Pass tutorial state
                           onField: () {
-                            final spawnService = context
-                                .read<WildernessSpawnService>();
-                            final hasSpawns = spawnService.hasAnyActiveSpawns;
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const MapScreen(),
-                              ),
-                            );
+                            if (_isFieldTutorialActive) {
+                              _handleFieldTutorialTap();
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const MapScreen(),
+                                ),
+                              );
+                            }
                           },
-                          onEnhance: () {
-                            HapticFeedback.mediumImpact();
-                            Navigator.push(
-                              context,
-                              CupertinoPageRoute(
-                                builder: (_) => const FeedingScreen(),
-                                fullscreenDialog: true,
-                              ),
-                            );
-                          },
-                          onHarvest: () {
-                            HapticFeedback.mediumImpact();
-                            Navigator.push(
-                              context,
-                              CupertinoPageRoute(
-                                builder: (_) => const BiomeHarvestScreen(),
-                                fullscreenDialog: true,
-                              ),
-                            );
-                          },
-                          onCompetitions: () {
-                            HapticFeedback.mediumImpact();
-                            Navigator.push(
-                              context,
-                              CupertinoPageRoute(
-                                builder: (_) => const CompetitionHubScreen(),
-                                fullscreenDialog: true,
-                              ),
-                            );
-                          },
-                          onBattle: () {
-                            HapticFeedback.mediumImpact();
-                            Navigator.push(
-                              context,
-                              CupertinoPageRoute(
-                                builder: (_) => const GameScreen(),
-                                fullscreenDialog: true,
-                              ),
-                            );
-                          },
+                          onEnhance: _isFieldTutorialActive
+                              ? () {}
+                              : () {
+                                  // Disable during tutorial
+                                  HapticFeedback.mediumImpact();
+                                  Navigator.push(
+                                    context,
+                                    CupertinoPageRoute(
+                                      builder: (_) => const FeedingScreen(),
+                                      fullscreenDialog: true,
+                                    ),
+                                  );
+                                },
+                          onHarvest: _isFieldTutorialActive
+                              ? () {}
+                              : () {
+                                  // Disable during tutorial
+                                  HapticFeedback.mediumImpact();
+                                  Navigator.push(
+                                    context,
+                                    CupertinoPageRoute(
+                                      builder: (_) =>
+                                          const BiomeHarvestScreen(),
+                                      fullscreenDialog: true,
+                                    ),
+                                  );
+                                },
+                          onCompetitions: _isFieldTutorialActive
+                              ? () {}
+                              : () {
+                                  // Disable during tutorial
+                                  HapticFeedback.mediumImpact();
+                                  Navigator.push(
+                                    context,
+                                    CupertinoPageRoute(
+                                      builder: (_) =>
+                                          const CompetitionHubScreen(),
+                                      fullscreenDialog: true,
+                                    ),
+                                  );
+                                },
+                          onBattle: _isFieldTutorialActive
+                              ? () {}
+                              : () {
+                                  // Disable during tutorial
+                                  HapticFeedback.mediumImpact();
+                                  Navigator.push(
+                                    context,
+                                    CupertinoPageRoute(
+                                      builder: (_) => const GameScreen(),
+                                      fullscreenDialog: true,
+                                    ),
+                                  );
+                                },
                         ),
                       ),
                     ),
@@ -840,7 +972,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       case NavSection.shop:
         return const ShopScreen();
       case NavSection.breed:
-        return const BreedScreen();
+        return BreedScreen(
+          onGoToSection: (section, {int? breedInitialTab}) {
+            _goToSection(section, breedInitialTab: breedInitialTab);
+          },
+        );
       case NavSection.enhance:
         return const FeedingScreen();
       case NavSection.inventory:
@@ -857,10 +993,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Future<void> _grantStarterIfNeeded(FactionId faction) async {
+  Future<void> _grantStarterIfNeeded(
+    FactionId faction,
+    WildernessSpawnService spawnService,
+  ) async {
     final db = context.read<AlchemonsDatabase>();
     final starterService = context.read<StarterGrantService>(); // Add this
-    final theme = context.read<FactionTheme>();
 
     // Ensure at least one slot is unlocked
     final slots = await db.incubatorDao.watchSlots().first;
@@ -874,37 +1012,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       tutorialHatch: const Duration(seconds: 20),
     );
 
-    if (!mounted) return;
-
     if (granted) {
-      // Show dialog instead of SnackBar, then go to Breed
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: Text(
-            'Starter secured',
-            style: TextStyle(color: theme.text, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'Your starter Alchemon has been placed in the Extraction Chamber.',
-            style: TextStyle(fontSize: 16, color: theme.text),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        ),
+      await spawnService.clearSceneSpawns('valley');
+      await spawnService.scheduleNextSpawnTime(
+        'valley',
+        windowMax: Duration(seconds: 20),
       );
-
       if (!mounted) return;
-
-      // Navigate to Breed screen (optionally with incubator tab preselected)
-      _goToSection(NavSection.breed, breedInitialTab: 1);
+      await SystemDialog.show(
+        context,
+        title: 'VIAL SECURED',
+        message:
+            'Your vial has been placed in the Extraction Chamber and is ready for processing.',
+        kind: SystemDialogKind.success,
+        typewriter: true,
+        onPrimary: () async {
+          // Mark that we're in extraction tutorial phase
+          await db.settingsDao.setSetting('tutorial_extraction_pending', '1');
+          await db.settingsDao.setNavLocked(true);
+          if (!mounted) return;
+          _goToSection(NavSection.breed, breedInitialTab: 1);
+        },
+      );
     }
   }
 
@@ -918,9 +1047,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               theme: theme,
               onTap: () {
                 HapticFeedback.lightImpact();
+                // use cupertino nav
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                  CupertinoPageRoute(
+                    builder: (_) => ProfileScreen(() => Navigator.pop(context)),
+                    fullscreenDialog: true,
+                  ),
                 );
               },
             ),

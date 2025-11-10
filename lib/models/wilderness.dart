@@ -5,9 +5,8 @@ import 'package:flutter/material.dart';
 
 class PartyMember {
   final String instanceId;
-  final double luck; // derived from genes/nature/species if you like
 
-  const PartyMember({required this.instanceId, this.luck = 0.0});
+  const PartyMember({required this.instanceId});
 }
 
 class WildEncounter {

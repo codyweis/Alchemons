@@ -61,6 +61,22 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
 
+    // Select just the list we need for the background (unlocked set or all).
+    final biomesForBg = context.select<HarvestService, List<Biome>>((s) {
+      final unlocked = s.biomes
+          .where((f) => f.unlocked)
+          .map((f) => f.biome)
+          .toList();
+      return unlocked.isNotEmpty
+          ? unlocked
+          : s.biomes.map((f) => f.biome).toList();
+    });
+
+    // Select the list of farm states for the grid. We depend on identity changes.
+    final farms = context.select<HarvestService, List<BiomeFarmState>>(
+      (s) => s.biomes,
+    );
+
     return Scaffold(
       extendBody: true,
       backgroundColor: theme.surface,
@@ -68,70 +84,53 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
         children: [
           // BIOME BACKGROUND WITH EXTRACTION EQUIPMENT
           Positioned.fill(
-            child: ListenableBuilder(
-              listenable: svc,
-              builder: (_, __) {
-                // Show unlocked biomes in background, or all if none unlocked
-                final unlockedBiomes = svc.biomes
-                    .where((f) => f.unlocked)
-                    .map((f) => f.biome)
-                    .toList();
-
-                final biomesToShow = unlockedBiomes.isNotEmpty
-                    ? unlockedBiomes
-                    : svc.biomes.map((f) => f.biome).toList();
-
-                return BiomeExtractionBackground(
-                  biomes: biomesToShow,
-                  opacity: 0.25, // Adjust this to make more/less subtle
-                );
-              },
+            child: RepaintBoundary(
+              child: BiomeExtractionBackground(
+                biomes: biomesForBg,
+                opacity: 0.25,
+              ),
             ),
           ),
 
           SafeArea(
             bottom: false,
-            child: ListenableBuilder(
-              listenable: svc,
-              builder: (_, __) {
-                final biomes = svc.biomes;
-                return Column(
-                  children: [
-                    _HeaderBar(
-                      title: 'Biome Extractors',
-                      subtitle: 'Extract elemental resources from Alchemons',
+            child: Column(
+              children: [
+                _HeaderBar(
+                  title: 'Biome Extractors',
+                  subtitle: 'Extract elemental resources from Alchemons',
+                  theme: theme,
+                  onBack: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.of(context).maybePop();
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // CONTENT
+                Expanded(
+                  child: RepaintBoundary(
+                    child: _BiomeGrid(
+                      biomes: farms,
                       theme: theme,
-                      onBack: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.of(context).maybePop();
+                      onOpenBiome: (BiomeFarmState f) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => BiomeDetailScreen(
+                              biome: f.biome,
+                              service: svc,
+                              discoveredCreatures: [],
+                            ),
+                          ),
+                        );
+                      },
+                      onUnlockBiome: (BiomeFarmState f) {
+                        _promptUnlock(f);
                       },
                     ),
-                    const SizedBox(height: 12),
-
-                    // CONTENT
-                    Expanded(
-                      child: _BiomeGrid(
-                        biomes: biomes,
-                        theme: theme,
-                        onOpenBiome: (BiomeFarmState f) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => BiomeDetailScreen(
-                                biome: f.biome,
-                                service: svc,
-                                discoveredCreatures: [],
-                              ),
-                            ),
-                          );
-                        },
-                        onUnlockBiome: (BiomeFarmState f) {
-                          _promptUnlock(f);
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
+                  ),
+                ),
+              ],
             ),
           ),
 
@@ -241,27 +240,29 @@ class _BiomeGrid extends StatelessWidget {
     // 700px+       -> 2 cols
     final crossAxisCount = w >= 700 ? 2 : 1;
 
-    // We want a short row-ish card, so let height be driven by content.
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
-        // childAspectRatio trick:
-        // ~3.2 gives something close to a horizontal tile instead of tall.
-        // On 1-col (phone) the tile width is full, so ratio ~3.2 keeps height ~100ish.
-        // On 2-col, width ~1/2, so we nudge it down to ~2.8 so it doesn't get too tall.
         childAspectRatio: crossAxisCount == 1 ? 3.2 : 2.8,
       ),
       itemCount: biomes.length,
       itemBuilder: (_, i) {
-        final farm = biomes[i];
-        return _BiomeCardCompact(
-          farm: farm,
-          theme: theme,
-          onUnlock: () => onUnlockBiome(farm),
-          onOpen: () => onOpenBiome(farm),
+        // Per-item selector so only this card rebuilds if its farm changes.
+        return Selector<HarvestService, BiomeFarmState>(
+          selector: (ctx, s) => s.biomes[i],
+          shouldRebuild: (a, b) => !identical(a, b),
+          builder: (_, farm, __) {
+            return _BiomeCardCompact(
+              key: ValueKey(farm.biome.id), // stable key per biome
+              farm: farm,
+              theme: theme,
+              onUnlock: () => onUnlockBiome(farm),
+              onOpen: () => onOpenBiome(farm),
+            );
+          },
         );
       },
     );
@@ -274,6 +275,7 @@ class _BiomeGrid extends StatelessWidget {
 
 class _BiomeCardCompact extends StatefulWidget {
   const _BiomeCardCompact({
+    super.key,
     required this.farm,
     required this.theme,
     required this.onUnlock,
@@ -301,20 +303,10 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
     final completed = widget.farm.completed;
     final remaining = widget.farm.remaining;
 
-    // status text
     final String statusText = !unlocked
         ? 'LOCKED'
         : (hasActive ? (completed ? '' : 'ACTIVE') : '');
 
-    // compute ETA chip text if extracting
-    String? etaText;
-    if (hasActive && !completed && remaining != null) {
-      final eta = DateTime.now().add(remaining);
-      final tod = TimeOfDay.fromDateTime(eta).format(context);
-      etaText = 'ETA $tod';
-    }
-
-    // tap behavior
     void handleTap() {
       HapticFeedback.lightImpact();
       if (unlocked) {
@@ -339,126 +331,181 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
         duration: const Duration(milliseconds: 120),
         scale: _down ? .9 : 1,
         curve: Curves.easeOutCubic,
-        child: GameCard(
-          theme: widget.theme,
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // LEFT COLUMN: icon + main info
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _BiomeIconCircleSmall(color: accent, icon: biome.icon),
-                    const SizedBox(width: 10),
-                    // text stack
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // name row with status chip inline
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  biome.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: widget.theme.text,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14,
-                                    letterSpacing: .2,
+        child: Container(
+          decoration: hasActive && !completed
+              ? BoxDecoration(
+                  color: const Color.fromARGB(255, 65, 153, 221),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.06),
+                    width: 1.2,
+                  ),
+                )
+              : completed
+              ? BoxDecoration(
+                  color: const Color.fromRGBO(91, 255, 128, 1),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.06),
+                    width: 1.2,
+                  ),
+                )
+              : unlocked
+              ? BoxDecoration(
+                  color: const Color.fromRGBO(255, 225, 91, 1),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.06),
+                    width: 1.2,
+                  ),
+                )
+              : null,
+          child: GameCard(
+            theme: widget.theme,
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // LEFT COLUMN: icon + main info
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _BiomeIconCircleSmall(color: accent, icon: biome.icon),
+                      const SizedBox(width: 10),
+                      // text stack
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // name row with status chip inline
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    biome.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: widget.theme.text,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      letterSpacing: .2,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              _StatusChipTiny(
-                                color: widget.theme.text,
-                                text: statusText,
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 4),
-
-                          // description
-                          Text(
-                            biome.description,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: widget.theme.textMuted,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w600,
-                              height: 1.25,
-                            ),
-                          ),
-
-                          const SizedBox(height: 6),
-
-                          // element tags row
-                          Wrap(
-                            spacing: 4,
-                            runSpacing: 4,
-                            children: [
-                              for (final name in biome.elementTypes)
-                                _ElementChipTiny(
-                                  label: name,
-                                  theme: widget.theme,
+                                const SizedBox(width: 6),
+                                _StatusChipTiny(
+                                  color: widget.theme.text,
+                                  text: statusText,
                                 ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 6),
-
-                          // Single status badge
-                          if (!unlocked)
-                            _TinyInfoPillRow(
-                              icon: Icons.lock_outline_rounded,
-                              label: 'Requires unlock',
-                              theme: widget.theme,
-                            )
-                          else if (hasActive && !completed && etaText != null)
-                            _TinyInfoPillRow(
-                              icon: Icons.schedule_rounded,
-                              label: etaText,
-                              theme: widget.theme,
-                            )
-                          else if (hasActive && completed)
-                            const _TinyReadyPillRow()
-                          else
-                            _TinyInfoPillRow(
-                              icon: Icons.hourglass_empty_rounded,
-                              label: 'Idle',
-                              theme: widget.theme,
+                              ],
                             ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
-              // RIGHT COLUMN: CTA button
-              SizedBox(
-                width: 50,
-                child: _PrimaryActionButtonCompact(
-                  theme: widget.theme,
-                  accent: accent,
-                  label: unlocked ? 'OPEN' : 'UNLOCK',
-                  icon: unlocked
-                      ? Icons.chevron_right_rounded
-                      : Icons.lock_open_rounded,
-                  filled: !unlocked, // locked = filled (accent pop)
-                  onTap: handleTap,
+                            const SizedBox(height: 4),
+
+                            // description
+                            Text(
+                              biome.description,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: widget.theme.textMuted,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                height: 1.25,
+                              ),
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            // element tags row
+                            Wrap(
+                              spacing: 4,
+                              runSpacing: 4,
+                              children: [
+                                for (final name in biome.elementTypes)
+                                  _ElementChipTiny(
+                                    label: name,
+                                    theme: widget.theme,
+                                  ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            // Single status badge
+                            if (!unlocked)
+                              _TinyInfoPillRow(
+                                icon: Icons.lock_outline_rounded,
+                                label: 'Requires unlock',
+                                theme: widget.theme,
+                              )
+                            else if (hasActive &&
+                                !completed &&
+                                remaining != null)
+                              _TinyInfoPillRow(
+                                icon: Icons.schedule_rounded,
+                                labelWidget: _EtaText(remaining: remaining),
+                                theme: widget.theme,
+                              )
+                            else if (hasActive && completed)
+                              const _TinyReadyPillRow()
+                            else
+                              _TinyInfoPillRow(
+                                icon: Icons.hourglass_empty_rounded,
+                                label: 'Idle',
+                                theme: widget.theme,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+
+                // RIGHT COLUMN: CTA button
+                SizedBox(
+                  width: 50,
+                  child: _PrimaryActionButtonCompact(
+                    theme: widget.theme,
+                    accent: accent,
+                    label: unlocked ? 'OPEN' : 'UNLOCK',
+                    icon: unlocked
+                        ? Icons.chevron_right_rounded
+                        : Icons.lock_open_rounded,
+                    filled: !unlocked, // locked = filled (accent pop)
+                    onTap: handleTap,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _EtaText extends StatelessWidget {
+  const _EtaText({required this.remaining});
+  final Duration remaining;
+
+  @override
+  Widget build(BuildContext context) {
+    // compute once per rebuild scope (isolated to this widget)
+    final eta = DateTime.now().add(remaining);
+    final tod = TimeOfDay.fromDateTime(eta).format(context);
+    return Text(
+      'ETA $tod',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.primary,
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        letterSpacing: .2,
       ),
     );
   }
@@ -511,7 +558,6 @@ class _StatusChipTiny extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -558,12 +604,14 @@ class _ElementChipTiny extends StatelessWidget {
 class _TinyInfoPillRow extends StatelessWidget {
   const _TinyInfoPillRow({
     required this.icon,
-    required this.label,
+    this.label,
+    this.labelWidget,
     required this.theme,
-  });
+  }) : assert(label != null || labelWidget != null);
 
   final IconData icon;
-  final String label;
+  final String? label;
+  final Widget? labelWidget;
   final FactionTheme theme;
 
   @override
@@ -576,17 +624,28 @@ class _TinyInfoPillRow extends StatelessWidget {
         children: [
           Icon(icon, size: 11, color: theme.primary),
           const SizedBox(width: 4),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: theme.primary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .2,
+          if (labelWidget != null)
+            DefaultTextStyle.merge(
+              style: TextStyle(
+                color: theme.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .2,
+              ),
+              child: labelWidget!,
+            )
+          else
+            Text(
+              label!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: theme.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .2,
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -608,10 +667,10 @@ class _TinyReadyPillRow extends StatelessWidget {
           width: 1.2,
         ),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          Text(
             'Ready to extract',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -672,7 +731,7 @@ class _PrimaryActionButtonCompact extends StatelessWidget {
 }
 
 // ------------------------------------------------------------
-// UNLOCK DIALOG (CLEANED TO MATCH CARD STYLE, NO GLASS)
+// UNLOCK DIALOG (no glass; matches card style)
 // ------------------------------------------------------------
 
 class _UnlockDialog extends StatelessWidget {
@@ -866,7 +925,7 @@ class _UnlockDialog extends StatelessWidget {
   }
 }
 
-// buttons in dialog (mostly same logic as your originals, minus glow/blur)
+// buttons in dialog
 class _DialogBtn extends StatelessWidget {
   const _DialogBtn({required this.label, required this.onTap});
   final String label;
@@ -883,7 +942,6 @@ class _DialogBtn extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: const Text(
-        // uppercase in style, like other CTAs
         'CANCEL',
         style: TextStyle(
           color: Color(0xFFE8EAED),
@@ -937,7 +995,6 @@ class _DialogPrimaryBtn extends StatelessWidget {
 
 // ------------------------------------------------------------//
 /// Animated background for biome extraction screens
-/// Shows themed gradient + particle effects for each biome type
 class BiomeExtractionBackground extends StatefulWidget {
   const BiomeExtractionBackground({
     super.key,
@@ -963,14 +1020,11 @@ class _BiomeExtractionBackgroundState extends State<BiomeExtractionBackground>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 8),
-    ); // <-- REMOVE .repeat() from here
+    );
 
-    // Add this Future.delayed
+    // Start animation after a short delay so route transition finishes first.
     Future.delayed(const Duration(milliseconds: 400), () {
-      // Check if the widget is still on screen before starting
-      if (mounted) {
-        _controller.repeat();
-      }
+      if (mounted) _controller.repeat();
     });
   }
 
@@ -1036,7 +1090,6 @@ class _BiomeGradientLayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    // Pad to at least 2 colors for gradient
     while (colors.length < 2) {
       colors.add(colors.first);
     }
@@ -1052,7 +1105,6 @@ class _BiomeGradientLayer extends StatelessWidget {
             if (colors.length > 2) colors[2].withOpacity(opacity * 0.5),
             Colors.transparent,
           ],
-          stops: const [0.0, 0.4, 0.7, 1.0],
         ),
       ),
     );
@@ -1077,7 +1129,6 @@ class _BiomeParticlePainter extends CustomPainter {
 
     final paint = Paint()..style = PaintingStyle.fill;
 
-    // Generate particles for each biome
     for (
       int biomeIdx = 0;
       biomeIdx < biomes.length && biomeIdx < 3;
@@ -1087,22 +1138,18 @@ class _BiomeParticlePainter extends CustomPainter {
       final color = biome.primaryColor.withOpacity(opacity);
       paint.color = color;
 
-      // Create floating particles with different patterns per biome
       final particleCount = 8 + (biomeIdx * 4);
 
       for (int i = 0; i < particleCount; i++) {
         final t = (animation + (i / particleCount)) % 1.0;
         final phase = (biomeIdx * 0.3) + (i * 0.1);
 
-        // Position with sine wave motion
         final x = size.width * (0.2 + (0.6 * i / particleCount));
         final y = size.height * t;
         final wobble =
             20 * (1 + biomeIdx) * (0.5 + 0.5 * sin(animation * 2 + phase));
 
         final offset = Offset(x + wobble, y);
-
-        // Size varies by particle and biome
         final radius =
             (2.0 + biomeIdx * 1.5) * (0.7 + 0.3 * sin(animation * 3 + i));
 
@@ -1112,8 +1159,15 @@ class _BiomeParticlePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_BiomeParticlePainter oldDelegate) =>
-      animation != oldDelegate.animation;
+  bool shouldRepaint(_BiomeParticlePainter old) {
+    if (animation != old.animation) return true;
+    if (opacity != old.opacity) return true;
+    if (biomes.length != old.biomes.length) return true;
+    for (var i = 0; i < biomes.length && i < old.biomes.length; i++) {
+      if (biomes[i].primaryColor != old.biomes[i].primaryColor) return true;
+    }
+    return false;
+  }
 }
 
 /// Test tube and extraction equipment overlay
@@ -1130,44 +1184,41 @@ class _ExtractionEquipmentOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
+    final c0 = (biomes.isNotEmpty ? biomes.first.primaryColor : Colors.cyan)
+        .withOpacity(opacity * 0.3);
+    final c1 = (biomes.length > 1 ? biomes[1].primaryColor : Colors.green)
+        .withOpacity(opacity * 0.25);
+
     return Stack(
       children: [
-        // Large test tubes in background (subtle)
+        // Large test tubes in background (using alpha in colors instead of Opacity widgets)
         Positioned(
           right: -40,
           top: size.height * 0.15,
-          child: Opacity(
-            opacity: opacity * 0.3,
-            child: _TestTubeShape(
-              height: size.height * 0.5,
-              width: 80,
-              color: biomes.isNotEmpty
-                  ? biomes.first.primaryColor
-                  : Colors.cyan,
-            ),
+          child: _TestTubeShape(
+            height: size.height * 0.5,
+            width: 80,
+            color: c0,
+            strokeColor: c0.withOpacity(0.8),
+            shineColor: Colors.white.withOpacity(0.3),
+            liquidTop: 0.6,
           ),
         ),
-
         Positioned(
           left: -30,
           bottom: size.height * 0.1,
-          child: Opacity(
-            opacity: opacity * 0.25,
-            child: _TestTubeShape(
-              height: size.height * 0.4,
-              width: 70,
-              color: biomes.length > 1 ? biomes[1].primaryColor : Colors.green,
-            ),
+          child: _TestTubeShape(
+            height: size.height * 0.4,
+            width: 70,
+            color: c1,
+            strokeColor: c1.withOpacity(0.8),
+            shineColor: Colors.white.withOpacity(0.3),
+            liquidTop: 0.6,
           ),
         ),
 
-        // Extraction grid lines (subtle tech feel)
-        Positioned.fill(
-          child: Opacity(
-            opacity: opacity * 0.15,
-            child: CustomPaint(painter: _GridOverlayPainter()),
-          ),
-        ),
+        // Extraction grid lines (subtle tech feel) — alpha in paint inside painter
+        Positioned.fill(child: CustomPaint(painter: _GridOverlayPainter())),
       ],
     );
   }
@@ -1179,11 +1230,17 @@ class _TestTubeShape extends StatelessWidget {
     required this.height,
     required this.width,
     required this.color,
+    required this.strokeColor,
+    required this.shineColor,
+    required this.liquidTop,
   });
 
   final double height;
   final double width;
   final Color color;
+  final Color strokeColor;
+  final Color shineColor;
+  final double liquidTop; // 0..1
 
   @override
   Widget build(BuildContext context) {
@@ -1194,17 +1251,13 @@ class _TestTubeShape extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            color.withOpacity(0.1),
-            color.withOpacity(0.3),
-            color.withOpacity(0.5),
-          ],
+          colors: [color.withOpacity(0.33), color.withOpacity(0.6)],
         ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(width * 0.4),
           bottomRight: Radius.circular(width * 0.4),
         ),
-        border: Border.all(color: color.withOpacity(0.4), width: 2),
+        border: Border.all(color: strokeColor, width: 2),
       ),
       child: Stack(
         children: [
@@ -1213,13 +1266,13 @@ class _TestTubeShape extends StatelessWidget {
             bottom: 0,
             left: 0,
             right: 0,
-            height: height * 0.6,
+            height: height * liquidTop,
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [color.withOpacity(0.2), color.withOpacity(0.6)],
+                  colors: [color.withOpacity(0.25), color.withOpacity(0.7)],
                 ),
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(width * 0.4),
@@ -1240,10 +1293,7 @@ class _TestTubeShape extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withOpacity(0.3),
-                    Colors.white.withOpacity(0.0),
-                  ],
+                  colors: [shineColor, Colors.transparent],
                 ),
                 borderRadius: BorderRadius.circular(width * 0.1),
               ),
@@ -1266,12 +1316,9 @@ class _GridOverlayPainter extends CustomPainter {
 
     const spacing = 40.0;
 
-    // Vertical lines
     for (double x = 0; x < size.width; x += spacing) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
-
-    // Horizontal lines
     for (double y = 0; y < size.height; y += spacing) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }

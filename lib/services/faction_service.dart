@@ -7,11 +7,13 @@ import 'package:flutter/material.dart';
 class FactionInfo {
   final String name;
   final String description;
+  final String philosophy;
   final List<PerkInfo> perks; // ordered [perk1, perk2]
 
   const FactionInfo({
     required this.name,
     required this.description,
+    required this.philosophy,
     required this.perks,
   });
 }
@@ -38,8 +40,11 @@ class FactionService extends ChangeNotifier {
   // ----------- Catalog -----------
   static Map<FactionId, FactionInfo> catalog = {
     FactionId.fire: const FactionInfo(
-      name: "Fire",
-      description: "Burn bright and breed faster.",
+      name: "Volcanic",
+      philosophy:
+          'Transformation through destruction. The forge that reshapes reality. Power that consumes and creates.',
+      description:
+          'Masters of fire and transmutation, the Volcanic Division believes in radical change through controlled chaos. They see destruction as the first step of creation.',
       perks: [
         PerkInfo(
           name: "HellRaiser",
@@ -52,8 +57,11 @@ class FactionService extends ChangeNotifier {
       ],
     ),
     FactionId.water: const FactionInfo(
-      name: "Water",
-      description: "Adapt and flow with stamina mastery.",
+      name: "Oceanic",
+      philosophy:
+          'Adaptation without resistance. The current that shapes stone. Life that flows through all things.',
+      description:
+          'Scholars of water and adaptability, the Oceanic Division embraces change as a natural flow. They understand that the greatest strength lies in flexibility.',
       perks: [
         PerkInfo(
           name: "WaterBreeder",
@@ -67,8 +75,11 @@ class FactionService extends ChangeNotifier {
       ],
     ),
     FactionId.air: const FactionInfo(
-      name: "Air",
-      description: "Freedom of the skies, swift discoveries.",
+      name: "Verdant",
+      philosophy:
+          'Freedom beyond boundaries. The wind that carries knowledge. Thought that transcends form.',
+      description:
+          'Seekers of air and knowledge, the Verdant Division pursues understanding without limits. They believe wisdom comes from exploring the unknown.',
       perks: [
         PerkInfo(name: "AirDrop", description: "Unlock an extra breeding slot"),
         PerkInfo(
@@ -78,8 +89,11 @@ class FactionService extends ChangeNotifier {
       ],
     ),
     FactionId.earth: const FactionInfo(
-      name: "Earth",
-      description: "Steady and grounded, explorers of the land.",
+      name: "Earthen",
+      philosophy:
+          'Stability against chaos. The foundation that endures. Wisdom buried in ancient roots.',
+      description:
+          'Guardians of earth and preservation, the Earthen Division values patience and resilience. They know that true power comes from unshakeable foundations.',
       perks: [
         PerkInfo(
           name: "LandExplorer",

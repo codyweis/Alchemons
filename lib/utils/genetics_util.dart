@@ -72,7 +72,7 @@ const Map<String, String> sizeLabels = {
 const Map<String, String> tintLabels = {
   'pale': 'Diminished',
   'normal': 'Normal',
-  'vibrant': 'Saturated',
+  'vibrant': 'Vibrant',
   'warm': 'Thermal',
   'cool': 'Cryogenic',
   'albino': 'Albino',

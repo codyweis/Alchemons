@@ -35,9 +35,9 @@ class InvKeys {
 Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) => {
   InvKeys.instantHatch: InventoryItemDef(
     key: InvKeys.instantHatch,
-    name: 'Instant Hatch',
-    description: 'Finish an incubating egg immediately.',
-    icon: Icons.egg_rounded,
+    name: 'Instant Fusion Extractor',
+    description: 'Complete one active fusion vial instantly.',
+    icon: Icons.access_alarms,
   ),
   InvKeys.harvesterStdVolcanic: InventoryItemDef(
     key: InvKeys.harvesterStdVolcanic,

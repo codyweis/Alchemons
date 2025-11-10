@@ -1,7 +1,22 @@
 // services/wilderness_service.dart
 import 'dart:math';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/services/stamina_service.dart';
+
+double breedChanceForRarity(EncounterRarity rarity) {
+  switch (rarity) {
+    case EncounterRarity.common:
+      return 0.90;
+    case EncounterRarity.uncommon:
+      return 0.75;
+    case EncounterRarity.rare:
+      return 0.40;
+    case EncounterRarity.legendary:
+      return 0.30;
+  }
+}
 
 class WildernessService {
   final AlchemonsDatabase db;

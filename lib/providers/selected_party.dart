@@ -13,13 +13,13 @@ class SelectedPartyNotifier extends ChangeNotifier {
 
   bool get isFull => _members.length >= maxSize;
 
-  void toggle(String instanceId, {double luck = 0.0}) {
+  void toggle(String instanceId) {
     final i = _members.indexWhere((m) => m.instanceId == instanceId);
     if (i >= 0) {
       _members.removeAt(i);
     } else {
       if (_members.length < maxSize) {
-        _members.add(PartyMember(instanceId: instanceId, luck: luck));
+        _members.add(PartyMember(instanceId: instanceId));
       }
     }
     notifyListeners();

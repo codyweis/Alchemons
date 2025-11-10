@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:alchemons/providers/theme_provider.dart';
+import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -52,14 +57,7 @@ class AlchemonsApp extends StatelessWidget {
           // 1. Pull in both providers we care about
           final themeNotifier = context.watch<ThemeNotifier>();
 
-          // NOTE: The FactionTheme you get from context.watch<FactionTheme>()
-          // is already brightness-aware based on the *effective* brightness
-          // (we wired that in ProxyProvider2 above).
-          //
-          // But MaterialApp needs TWO themes: one for light, one for dark.
-          // So we generate them manually using your factionThemeFor factory.
-
-          // We'll grab the current faction id once so we don't assume null.
+          // ... (rest of your theme logic) ...
           final factionSvc = context.watch<FactionService>();
           final factionId = factionSvc.current;
 
@@ -93,10 +91,70 @@ class AlchemonsApp extends StatelessWidget {
             theme: lightThemeData,
             darkTheme: darkThemeData,
 
-            home: const HomeScreen(),
+            // 2. ADD THIS LINE
+            // This connects your app's navigation to the RouteAware mixin
+            navigatorObservers: [routeObserver],
+
+            home: const AppGate(child: HomeScreen()),
           );
         },
       ),
     );
   }
+}
+
+class AppGate extends StatefulWidget {
+  final Widget child;
+  const AppGate({super.key, required this.child});
+
+  @override
+  State<AppGate> createState() => _AppGateState();
+}
+
+class _AppGateState extends State<AppGate> {
+  StreamSubscription<bool>? _sub;
+  bool _navigating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final db = context.read<AlchemonsDatabase>();
+
+    // 1) One-shot check after first frame (Navigator is ready)
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final mustPick = await db.settingsDao.getMustPickFaction();
+      if (mustPick) _openPicker();
+    });
+
+    // 2) React to changes while the app is running
+    _sub = db.settingsDao.watchMustPickFaction().listen((mustPick) {
+      if (!mounted || !mustPick) return;
+      _openPicker();
+    });
+  }
+
+  Future<void> _openPicker() async {
+    if (_navigating) return; // prevent stacking
+    _navigating = true;
+    try {
+      await Navigator.of(context).push(
+        CupertinoPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const FactionPickerDialog(),
+        ),
+      );
+    } finally {
+      _navigating = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

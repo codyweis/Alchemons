@@ -1,10 +1,13 @@
 // lib/widgets/wilderness/encounter_overlay.dart
 //
-// Streamlined landscape-only overlay for encounters
-// - Compact party strip at top showing sprites, stamina, and beauty
-// - Direct action buttons (no engagement dialog)
-// - Minimal padding, maximum space efficiency
+// Modern split-HUD layout for wild encounters
+// - Top-right: Wild creature portrait with stats
+// - Bottom-right: Compact party strip
+// - Center-right: Action buttons
+// - Clean, game-like presentation optimized for landscape
 
+import 'dart:async';
+import 'dart:math';
 import 'dart:ui';
 import 'dart:convert';
 import 'package:alchemons/helpers/nature_loader.dart';
@@ -14,16 +17,21 @@ import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
+import 'package:alchemons/widgets/starter_granted_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
+import 'package:alchemons/services/breeding_service.dart';
+import 'package:alchemons/services/breeding_engine.dart';
+import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
@@ -34,6 +42,7 @@ class EncounterOverlay extends StatefulWidget {
   final List<PartyMember> party;
   final ValueChanged<bool>? onClosedWithResult;
   final ValueChanged<Creature>? onPartyCreatureSelected;
+  final VoidCallback? onPreRollShake;
 
   const EncounterOverlay({
     super.key,
@@ -41,6 +50,7 @@ class EncounterOverlay extends StatefulWidget {
     required this.party,
     this.onClosedWithResult,
     this.onPartyCreatureSelected,
+    this.onPreRollShake,
   });
 
   @override
@@ -48,188 +58,52 @@ class EncounterOverlay extends StatefulWidget {
 }
 
 class _EncounterOverlayState extends State<EncounterOverlay>
-    with SingleTickerProviderStateMixin {
-  bool _open = false;
-  late final AnimationController _controller = AnimationController(
+    with TickerProviderStateMixin {
+  bool _visible = false;
+  String? _chosenInstanceId;
+  bool _busy = false;
+  String _status = 'Select a party member to act';
+
+  late final AnimationController _slideController = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 260),
+    duration: const Duration(milliseconds: 400),
   );
 
-  void _toggle() {
-    HapticFeedback.selectionClick();
-    setState(() => _open = !_open);
-    if (_open) {
-      _controller.forward();
-    } else {
-      _controller.reverse();
-    }
+  late final AnimationController _fadeController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 300),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-show on mount
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _show();
+    });
   }
 
-  void _close([bool success = false]) {
-    if (!_open) return;
-    _toggle();
-    widget.onClosedWithResult?.call(success);
+  void _show() {
+    setState(() => _visible = true);
+    _slideController.forward();
+    _fadeController.forward();
+  }
+
+  void _hide([bool success = false]) {
+    _slideController.reverse().then((_) {
+      if (mounted) {
+        widget.onClosedWithResult?.call(success);
+      }
+    });
+    _fadeController.reverse();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _slideController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final panelWidth = size.width * 0.32;
-    final panelHeight = size.height * 0.88;
-
-    return Stack(
-      children: [
-        IgnorePointer(
-          ignoring: !_open,
-          child: Stack(
-            children: [
-              if (_open)
-                GestureDetector(
-                  onTap: _toggle,
-                  child: AnimatedBuilder(
-                    animation: _controller,
-                    builder: (_, __) {
-                      return Container(
-                        color: Colors.black.withOpacity(
-                          0.25 * _controller.value,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic,
-                right: _open ? 12 : -panelWidth - 32,
-                top: (size.height - panelHeight) / 2,
-                width: panelWidth,
-                height: panelHeight,
-                child: _GlassPanel(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Material(
-                      color: Colors.white.withOpacity(0.75),
-                      child: _EncounterPanel(
-                        encounter: widget.encounter,
-                        party: widget.party,
-                        onMinimize: _toggle,
-                        onExit: (success) => _close(success),
-                        onPartyCreatureSelected:
-                            widget.onPartyCreatureSelected!,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        Positioned(
-          right: 12,
-          bottom: 20,
-          child: _OverlayOrb(open: _open, onTap: _toggle),
-        ),
-      ],
-    );
-  }
-}
-
-class _GlassPanel extends StatelessWidget {
-  final Widget child;
-  const _GlassPanel({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.4),
-              width: 1.2,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                blurRadius: 16,
-                color: Color(0x33000000),
-                offset: Offset(0, 8),
-              ),
-            ],
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0.20),
-                Colors.white.withOpacity(0.08),
-              ],
-            ),
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
-class _OverlayOrb extends StatelessWidget {
-  final bool open;
-  final VoidCallback onTap;
-  const _OverlayOrb({required this.open, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(8),
-        child: Image(
-          image: const AssetImage('assets/images/ui/breedicon.png'),
-          width: open ? 24 : 56,
-          height: open ? 24 : 56,
-        ),
-      ),
-    );
-  }
-}
-
-// -------------------------
-// Streamlined Panel
-// -------------------------
-class _EncounterPanel extends StatefulWidget {
-  final WildEncounter encounter;
-  final List<PartyMember> party;
-  final VoidCallback onMinimize;
-  final ValueChanged<bool> onExit;
-  final ValueChanged<Creature> onPartyCreatureSelected;
-
-  const _EncounterPanel({
-    required this.encounter,
-    required this.party,
-    required this.onMinimize,
-    required this.onExit,
-    required this.onPartyCreatureSelected,
-  });
-
-  @override
-  State<_EncounterPanel> createState() => _EncounterPanelState();
-}
-
-class _EncounterPanelState extends State<_EncounterPanel> {
-  String? _chosenInstanceId;
-  bool _busy = false;
-  String _status = 'Choose your approach';
 
   @override
   Widget build(BuildContext context) {
@@ -237,56 +111,83 @@ class _EncounterPanelState extends State<_EncounterPanel> {
     final wildCreature = repo.getCreatureById(widget.encounter.wildBaseId);
 
     if (wildCreature == null) {
-      return Center(
-        child: Text('Unknown creature: ${widget.encounter.wildBaseId}'),
-      );
+      return const SizedBox.shrink();
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Header
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _status,
-                  style: TextStyle(
-                    color: Colors.indigo.shade700,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
+    return Stack(
+      children: [
+        // Dimmed backdrop
+
+        // Center: Wild creature name title
+        AnimatedBuilder(
+          animation: _slideController,
+          builder: (_, __) {
+            final slide = Curves.easeOutCubic.transform(_slideController.value);
+            return Positioned(
+              top: 20,
+              left: 0,
+              right: 0,
+              child: Opacity(
+                opacity: slide,
+                child: _WildCreatureTitle(
+                  creature: wildCreature,
+                  rarity: widget.encounter.rarity,
+                  status: _status,
+                ),
+              ),
+            );
+          },
+        ),
+
+        // Top-right: Party HUD
+        AnimatedBuilder(
+          animation: _slideController,
+          builder: (_, __) {
+            final slide = Curves.easeOutCubic.transform(_slideController.value);
+            return Positioned(
+              top: 16,
+              right: 16 - (300 * (1 - slide)),
+              child: Opacity(
+                opacity: slide,
+                child: _PartyHUD(
+                  party: widget.party,
+                  chosenInstanceId: _chosenInstanceId,
+                  onSelect: _onSelectPartyCreature,
+                ),
+              ),
+            );
+          },
+        ),
+
+        // Bottom: Action buttons row
+        AnimatedBuilder(
+          animation: _slideController,
+          builder: (_, __) {
+            final slide = Curves.easeOutCubic.transform(_slideController.value);
+            return Positioned(
+              bottom: 16,
+              left: 16,
+              right: 16,
+              child: Opacity(
+                opacity: slide,
+                child: Transform.translate(
+                  offset: Offset(0, 100 * (1 - slide)),
+                  child: _ActionPanel(
+                    isPartySelected: _chosenInstanceId != null,
+                    status: _status,
+                    canAct: !_busy,
+                    onBreed: !_busy ? () => _handleBreed(context) : null,
+                    onCapture: !_busy
+                        ? () => _handleCapture(context, wildCreature)
+                        : null,
+                    onRun: () => _hide(false),
                   ),
                 ),
               ),
-              IconButton(
-                onPressed: widget.onMinimize,
-                icon: const Icon(Icons.keyboard_arrow_right_rounded, size: 20),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-            ],
-          ),
-
-          // Compact Party Strip
-          _PartyStrip(
-            party: widget.party,
-            chosenInstanceId: _chosenInstanceId,
-            onSelect: (id) => _onSelectPartyCreature(id),
-          ),
-
-          // Direct Action Buttons
-          _ActionButtons(
-            canAct: !_busy,
-            onBreed: !_busy ? () => _handleBreed(context) : null,
-            onCapture: !_busy
-                ? () => _handleCapture(context, wildCreature)
-                : null,
-            onRun: () => widget.onExit(false),
-          ),
-        ],
-      ),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -308,9 +209,12 @@ class _EncounterPanelState extends State<_EncounterPanel> {
       isPrismaticSkin:
           instRow.isPrismaticSkin || (baseCreature.isPrismaticSkin ?? false),
     );
+    setState(() {
+      _status = 'Selected ${hydrated.name}. Choose an action.';
+      _chosenInstanceId = instanceId;
+    });
 
-    setState(() => _chosenInstanceId = instanceId);
-    widget.onPartyCreatureSelected.call(hydrated);
+    widget.onPartyCreatureSelected?.call(hydrated);
     HapticFeedback.selectionClick();
   }
 
@@ -327,7 +231,10 @@ class _EncounterPanelState extends State<_EncounterPanel> {
       final wilderness = WildernessService(db, ctx.read<StaminaService>());
       final instance = await db.creatureDao.getInstance(_chosenInstanceId!);
 
-      final totalLuck = widget.party.fold<double>(0, (a, m) => a + m.luck);
+      // beauty determines luck
+      final totalLuck = instance != null
+          ? (instance.statBeauty / 100.0) // e.g., 25 beauty = 0.25 luck
+          : 0.0;
       final p = wilderness.computeBreedChance(
         base: widget.encounter.baseBreedChance,
         partyLuck: totalLuck,
@@ -336,13 +243,19 @@ class _EncounterPanelState extends State<_EncounterPanel> {
 
       final spent = await wilderness.trySpendForAttempt(_chosenInstanceId!);
       if (spent == null) {
-        setState(() => _status = 'Too tired… needs rest');
+        setState(() => _status = 'Out of stamina!');
         return;
       }
 
+      widget.onPreRollShake?.call();
+      HapticFeedback.mediumImpact();
+      setState(() => _status = 'Calibrating alchemical matrix…');
+      await Future.delayed(
+        const Duration(milliseconds: 650),
+      ); // short suspense beat
+
       final success = wilderness.rollSuccess(p);
       if (success) {
-        // Build sprites & colors
         final repo = ctx.read<CreatureCatalog>();
 
         final speciesA = repo.getCreatureById(instance!.baseId);
@@ -356,7 +269,6 @@ class _EncounterPanelState extends State<_EncounterPanel> {
         final colorA = colorOf(speciesA, Theme.of(ctx).colorScheme.primary);
         final colorB = colorOf(speciesB, Theme.of(ctx).colorScheme.secondary);
 
-        // Party sprite (InstanceSprite already handles genetics/prismatic)
         Widget partySprite() {
           return SizedBox(
             width: 120,
@@ -369,15 +281,11 @@ class _EncounterPanelState extends State<_EncounterPanel> {
           );
         }
 
-        // Wild sprite: prefer hydrated genetics if you have them on the encounter
         Widget wildSprite() {
           final hydrated = repo.getCreatureById(widget.encounter.wildBaseId);
           if (hydrated?.spriteData != null) {
             final sheet = sheetFromCreature(hydrated!);
-            final visuals = visualsFromInstance(
-              hydrated,
-              null,
-            ); // from Creature.genetics
+            final visuals = visualsFromInstance(hydrated, null);
             return SizedBox(
               width: 120,
               height: 120,
@@ -419,9 +327,8 @@ class _EncounterPanelState extends State<_EncounterPanel> {
           );
         }
 
-        widget.onExit(true);
+        _hide(true);
 
-        // Run the cinematic, and put your egg-placement inside `task`
         await showAlchemyFusionCinematic<void>(
           context: ctx,
           leftSprite: partySprite(),
@@ -430,15 +337,14 @@ class _EncounterPanelState extends State<_EncounterPanel> {
           rightColor: colorB,
           minDuration: const Duration(milliseconds: 1800),
           task: () async {
-            // whatever you previously did on success:
-            await _placeWildEgg(ctx, widget.encounter.wildBaseId);
+            await _breedWithWild(ctx, instance, speciesB);
           },
         );
 
         if (!mounted) return;
-        setState(() => _status = 'Success! Egg created');
+        setState(() => _status = 'Successfully fused.');
       } else {
-        setState(() => _status = 'Failed… Try capturing?');
+        setState(() => _status = 'Failed… try again.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -476,7 +382,7 @@ class _EncounterPanelState extends State<_EncounterPanel> {
 
         await Future.delayed(const Duration(seconds: 2));
         if (!mounted) return;
-        widget.onExit(true);
+        _hide(true);
       } else {
         HapticFeedback.lightImpact();
         setState(() => _status = 'Capture failed!');
@@ -490,6 +396,45 @@ class _EncounterPanelState extends State<_EncounterPanel> {
     }
   }
 
+  /// Breed owned instance with wild creature using BreedingServiceV2
+  Future<void> _breedWithWild(
+    BuildContext ctx,
+    db.CreatureInstance ownedParent,
+    Creature? wildCreature,
+  ) async {
+    if (wildCreature == null) return;
+
+    final db = ctx.read<AlchemonsDatabase>();
+    final repo = ctx.read<CreatureCatalog>();
+    final randomizer = WildCreatureRandomizer();
+
+    // Get dependencies for BreedingServiceV2
+    final engine = ctx.read<BreedingEngine>();
+    final payloadFactory = EggPayloadFactory(repo);
+
+    // Create breeding service
+    final breedingService = BreedingServiceV2(
+      gameData: ctx.read<GameDataService>(),
+      db: db,
+      engine: engine,
+      payloadFactory: payloadFactory,
+      wildRandomizer: randomizer,
+    );
+
+    // Use proper wild breeding flow
+    final result = await breedingService.breedWithWild(
+      ownedParent,
+      wildCreature,
+    );
+
+    if (!result.success) {
+      if (mounted) {
+        setState(() => _status = 'Breeding failed: ${result.message}');
+      }
+    }
+  }
+
+  /// Capture wild creature (for the Capture button)
   Future<void> _placeWildEgg(BuildContext ctx, String baseId) async {
     final db = ctx.read<AlchemonsDatabase>();
     final repo = ctx.read<CreatureCatalog>();
@@ -498,17 +443,14 @@ class _EncounterPanelState extends State<_EncounterPanel> {
     final baseCreature = repo.getCreatureById(baseId);
     if (baseCreature == null) return;
 
-    // Keep your existing wild randomization
     final randomized = randomizer.randomizeWildCreature(baseCreature);
 
-    // Hatch timing stays the same
     final rarityKey = randomized.rarity.toLowerCase();
     final baseHatchDelay =
         BreedConstants.rarityHatchTimes[rarityKey] ??
         const Duration(minutes: 10);
     final hatchAtUtc = DateTime.now().toUtc().add(baseHatchDelay);
 
-    // NEW: unified payload
     final factory = EggPayloadFactory(repo);
     final payload = factory.createWildCapturePayload(randomized);
     final payloadJson = payload.toJsonString();
@@ -537,14 +479,207 @@ class _EncounterPanelState extends State<_EncounterPanel> {
   }
 }
 
-// -------------------------------------
-// Compact Party Strip (horizontal scroll)
-// -------------------------------------
-class _PartyStrip extends StatelessWidget {
+// ==========================================
+// WILD CREATURE TITLE (Center top)
+// ==========================================
+class _WildCreatureTitle extends StatelessWidget {
+  final Creature creature;
+  final String rarity;
+  final String status;
+
+  const _WildCreatureTitle({
+    required this.creature,
+    required this.rarity,
+    required this.status,
+  });
+
+  Color get _rarityColor {
+    switch (rarity.toLowerCase()) {
+      case 'common':
+        return Colors.grey.shade700;
+      case 'uncommon':
+        return Colors.green.shade600;
+      case 'rare':
+        return Colors.blue.shade600;
+      case 'epic':
+        return Colors.purple.shade600;
+      case 'legendary':
+        return Colors.orange.shade600;
+      default:
+        return Colors.grey.shade700;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          margin: const EdgeInsets.only(left: 250, right: 250, bottom: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(4),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Text(
+            status,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        // Classification Rank badge (was Rarity)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: _rarityColor,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: _rarityColor.withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Text(
+            '${rarity.toUpperCase()}', // Added 'RANK'
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.8, // Increased for a more technical look
+            ),
+          ),
+        ),
+        const SizedBox(height: 1),
+        // Creature designation (was name)
+        _DigitalAnimatedText(
+          // <--- NEW WIDGET
+          text: creature.name.toUpperCase(),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 34,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 4.0,
+            shadows: [
+              Shadow(
+                color: Colors.black87,
+                blurRadius: 12,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ==========================================
+// UTILITY: Digital Animated Text
+// ==========================================
+class _DigitalAnimatedText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final Duration duration;
+
+  const _DigitalAnimatedText({
+    required this.text,
+    required this.style,
+    this.duration = const Duration(milliseconds: 600),
+  });
+
+  @override
+  __DigitalAnimatedTextState createState() => __DigitalAnimatedTextState();
+}
+
+class __DigitalAnimatedTextState extends State<_DigitalAnimatedText> {
+  String _displayText = '';
+  late Timer _timer;
+  int _currentIndex = 0;
+  final Random _random = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _startAnimation();
+  }
+
+  void _startAnimation() {
+    // Shorter interval for fast "glitchy" type-in effect
+    final interval = widget.duration.inMilliseconds ~/ widget.text.length;
+
+    _timer = Timer.periodic(
+      Duration(milliseconds: interval > 0 ? interval : 1),
+      (timer) {
+        if (_currentIndex < widget.text.length) {
+          // Add one correct character
+          _displayText = widget.text.substring(0, _currentIndex + 1);
+
+          // Add 1-3 random, glitchy characters at the end
+          final glitchLength = _random.nextInt(3) + 1;
+          for (int i = 0; i < glitchLength; i++) {
+            _displayText += String.fromCharCode(
+              _random.nextInt(26) + 65,
+            ); // Random uppercase letter
+          }
+
+          _currentIndex++;
+        } else {
+          // Animation finished, set final text and stop timer
+          _displayText = widget.text;
+          timer.cancel();
+        }
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Only show the finished text at the very end
+    final display = _currentIndex >= widget.text.length
+        ? widget.text
+        : _displayText;
+
+    return Text(
+      display,
+      style: widget.style,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+// ==========================================
+// PARTY HUD (Top-right) - Clean design
+// ==========================================
+class _PartyHUD extends StatelessWidget {
   final List<PartyMember> party;
   final String? chosenInstanceId;
   final ValueChanged<String> onSelect;
-  const _PartyStrip({
+
+  const _PartyHUD({
     required this.party,
     required this.chosenInstanceId,
     required this.onSelect,
@@ -552,35 +687,51 @@ class _PartyStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 70,
-      child: ListView.separated(
+    return Container(
+      padding: const EdgeInsets.all(12),
+      // --- Wrapping with SingleChildScrollView for horizontal scrolling ---
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         scrollDirection: Axis.horizontal,
-        itemCount: party.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 6),
-        itemBuilder: (context, i) {
-          final m = party[i];
-          final selected = m.instanceId == chosenInstanceId;
-          return _CompactPartyCard(
-            instanceId: m.instanceId,
-            selected: selected,
-            onTap: () => onSelect(m.instanceId),
-          );
-        },
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < party.length; i++) ...[
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color.fromARGB(
+                      255,
+                      255,
+                      255,
+                      255,
+                    ).withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: _PartyMemberCard(
+                  member: party[i],
+                  selected: party[i].instanceId == chosenInstanceId,
+                  onTap: () => onSelect(party[i].instanceId),
+                ),
+              ),
+              if (i < party.length - 1) const SizedBox(width: 8),
+            ],
+          ],
+        ),
       ),
     );
   }
 }
 
-// -------------------------------------
-// Compact party card: sprite + stamina + beauty
-// -------------------------------------
-class _CompactPartyCard extends StatelessWidget {
-  final String instanceId;
+class _PartyMemberCard extends StatelessWidget {
+  final PartyMember member;
   final bool selected;
   final VoidCallback onTap;
-  const _CompactPartyCard({
-    required this.instanceId,
+
+  const _PartyMemberCard({
+    required this.member,
     required this.selected,
     required this.onTap,
   });
@@ -591,7 +742,7 @@ class _CompactPartyCard extends StatelessWidget {
     final repo = context.read<CreatureCatalog>();
 
     return FutureBuilder<CreatureInstance?>(
-      future: db.creatureDao.getInstance(instanceId),
+      future: db.creatureDao.getInstance(member.instanceId),
       builder: (context, snap) {
         final inst = snap.data;
         final base = inst == null ? null : repo.getCreatureById(inst.baseId);
@@ -599,41 +750,57 @@ class _CompactPartyCard extends StatelessWidget {
         return GestureDetector(
           onTap: onTap,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            width: 64,
-            padding: const EdgeInsets.all(4),
+            duration: const Duration(milliseconds: 150),
+            width: 75,
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(
-                color: selected ? Colors.green : Colors.indigo.shade200,
-                width: selected ? 2.5 : 1.5,
-              ),
-              borderRadius: BorderRadius.circular(8),
+              border: selected
+                  ? Border.all(color: const Color(0xFF00FF88), width: 2)
+                  : null,
+              borderRadius: BorderRadius.circular(4),
               boxShadow: selected
-                  ? [BoxShadow(color: Colors.green.shade200, blurRadius: 6)]
+                  ? [
+                      const BoxShadow(
+                        color: Color(0x8800FF88),
+                        blurRadius: 16,
+                        spreadRadius: 2,
+                      ),
+                    ]
                   : null,
             ),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Instance sprite placeholder
-                // Beauty stat
-                Text(
-                  inst?.statBeauty.toStringAsFixed(2) ?? '--',
-                  style: TextStyle(
-                    color: Colors.purple.shade700,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+                // Beauty stat - only show when selected
+                if (selected) ...[
+                  Text(
+                    'Beauty ${inst?.statBeauty.toStringAsFixed(2) ?? '--'}',
+                    style: const TextStyle(
+                      color: Color.fromARGB(255, 16, 17, 17),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
-                inst != null
-                    ? InstanceSprite(creature: base!, instance: inst, size: 36)
-                    : Container(
-                        width: 36,
-                        height: 36,
-                        color: Colors.grey.shade300,
-                      ),
-                // Stamina
+                  const SizedBox(height: 6),
+                ],
+
+                // Sprite
+                if (inst != null && base != null)
+                  SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: InstanceSprite(
+                      creature: base,
+                      instance: inst,
+                      size: 40,
+                    ),
+                  )
+                else
+                  const SizedBox(width: 48, height: 48),
+                const SizedBox(height: 6),
+
+                if (inst != null)
+                  StaminaBar(current: inst.staminaBars, max: inst.staminaMax),
               ],
             ),
           ),
@@ -643,84 +810,106 @@ class _CompactPartyCard extends StatelessWidget {
   }
 }
 
-// -------------------------------------
-// Direct action buttons (no dialog)
-// -------------------------------------
-class _ActionButtons extends StatelessWidget {
+// ==========================================
+// ACTION PANEL (Bottom) - Horizontal row
+// ==========================================
+class _ActionPanel extends StatelessWidget {
+  final String status;
   final bool canAct;
   final VoidCallback? onBreed;
   final VoidCallback? onCapture;
   final VoidCallback onRun;
-  const _ActionButtons({
+  final bool isPartySelected;
+
+  const _ActionPanel({
+    required this.status,
     required this.canAct,
     required this.onBreed,
     required this.onCapture,
     required this.onRun,
+    required this.isPartySelected,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: canAct ? onBreed : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple.shade600,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Breed',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                ),
-              ),
+            _ActionButton(
+              disabled: !isPartySelected,
+              label: 'ATTEMPT ALCHEMICAL FUSION', // Changed text
+              icon: Icons.auto_fix_high, // Changed icon for a mystical look
+              color: const Color.fromARGB(255, 16, 42, 16),
+              onPressed: canAct ? onBreed : null,
             ),
             const SizedBox(width: 10),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: canAct ? onCapture : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade600,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Capture',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                ),
-              ),
+            _ActionButton(
+              label: 'HARVEST PROTOCOL', // Changed text
+              icon: Icons.science, // Changed icon for a scientific look
+              color: const Color.fromARGB(255, 46, 3, 3),
+              onPressed: canAct ? onCapture : null,
+            ),
+            const SizedBox(width: 10),
+            _ActionButton(
+              label: 'MAP', // Changed text
+              icon: Icons.exit_to_app, // Changed icon
+              color: const Color.fromARGB(255, 22, 20, 20),
+              onPressed: onRun,
             ),
           ],
         ),
-        const SizedBox(height: 6),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton(
-            onPressed: onRun,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.indigo.shade700,
-              side: BorderSide(color: Colors.indigo.shade300),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text(
-              'Run',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+      ],
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onPressed;
+  final bool outlined;
+  final bool disabled;
+
+  const _ActionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    this.onPressed,
+    this.outlined = false,
+    this.disabled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDisabled = onPressed == null || disabled;
+
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isDisabled ? const Color(0xFF3A3A4E) : color,
+        foregroundColor: isDisabled ? Colors.white38 : Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        elevation: isDisabled ? 0 : 4,
+        shadowColor: isDisabled ? Colors.transparent : color.withOpacity(0.4),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+              letterSpacing: 0.5,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

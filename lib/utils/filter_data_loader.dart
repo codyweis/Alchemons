@@ -52,7 +52,7 @@ class FilterDataLoader {
       return {
         'pale': 'Diminished',
         'normal': 'Normal',
-        'vibrant': 'Saturated',
+        'vibrant': 'Vibrant',
         'warm': 'Thermal',
         'cool': 'Cryogenic',
         'albino': 'Albino',

@@ -113,14 +113,14 @@ class _GameScreenState extends State<GameScreen>
                 child: Center(
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const TeamPrepScreen(),
-                        ),
-                      );
+                      // Navigator.push(
+                      //   context,
+                      //   MaterialPageRoute(
+                      //     builder: (_) => const TeamPrepScreen(),
+                      //   ),
+                      // );
                     },
-                    child: const Text('Go to TeamPrep'),
+                    child: const Text('Warming up'),
                   ),
                 ),
               ),

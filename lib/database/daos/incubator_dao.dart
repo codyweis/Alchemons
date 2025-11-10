@@ -24,6 +24,30 @@ class IncubatorDao extends DatabaseAccessor<AlchemonsDatabase>
     return q.getSingleOrNull();
   }
 
+  /// Unlocks the first locked slot; if none exist, creates a new unlocked one.
+  /// Returns the slot id that ended up unlocked/created.
+  Future<int> purchaseFusionSlot() async {
+    // Get all current slots in ascending order
+    final slots = await (select(
+      incubatorSlots,
+    )..orderBy([(t) => OrderingTerm.asc(t.id)])).get();
+
+    // 1) Find the first locked slot and unlock it
+    for (final s in slots) {
+      if (s.unlocked == false) {
+        await unlockSlot(s.id);
+        return s.id;
+      }
+    }
+
+    // 2) Otherwise, append a brand new unlocked slot
+    final nextId = slots.isEmpty ? 0 : (slots.last.id + 1);
+    await into(incubatorSlots).insertOnConflictUpdate(
+      IncubatorSlotsCompanion(id: Value(nextId), unlocked: const Value(true)),
+    );
+    return nextId;
+  }
+
   Future<void> placeEgg({
     required int slotId,
     required String eggId,

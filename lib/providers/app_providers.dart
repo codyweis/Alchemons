@@ -4,6 +4,7 @@ import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/providers/theme_provider.dart';
+import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -97,7 +98,7 @@ class AppProviders extends StatelessWidget {
         ),
 
         ChangeNotifierProvider<BlackMarketService>(
-          create: (_) => BlackMarketService(),
+          create: (ctx) => BlackMarketService(ctx.read<AlchemonsDatabase>()),
         ),
 
         ChangeNotifierProvider(
@@ -105,6 +106,15 @@ class AppProviders extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (ctx) => InventoryService(ctx.read<AlchemonsDatabase>()),
+        ),
+
+        ChangeNotifierProvider<StoryManager>(
+          create: (ctx) {
+            final db = ctx.read<AlchemonsDatabase>();
+            final sm = StoryManager(db.settingsDao);
+            sm.loadSeen();
+            return sm;
+          },
         ),
 
         // Game data service provider (already initialized)

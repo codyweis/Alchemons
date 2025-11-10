@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/wild_spawn.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -37,12 +38,18 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   SpeciesSpriteResolver? speciesSpriteResolver;
   WildVisualResolver? wildVisualResolver;
-  void Function(EncounterRoll roll)? onEncounter;
-  void Function(String speciesId, Creature? hydrated)? onStartEncounter;
+  void Function(String spawnId, String speciesId, Creature? hydrated)?
+  onStartEncounter;
 
   // Internal state
   bool _initialized = false;
   final Random _rng = Random();
+
+  // --- Shake state ---
+  double _shakeTime = 0.0; // time remaining (seconds)
+  double _shakeDuration = 0.0; // total duration (seconds)
+  double _shakeAmplitude = 0.0; // max pixels of jitter at start
+  Vector2 _shakeOffset = Vector2.zero();
 
   final Map<SceneLayer, _FiniteLayer> _layers = {};
   final PositionComponent layersRoot = PositionComponent()..priority = -200;
@@ -50,14 +57,11 @@ class SceneGame extends FlameGame with ScaleDetector {
   // Spawn-point anchors we position creatures at
   final Map<String, PositionComponent> _spawnPointComps = {};
 
-  // Active wild creature in the overworld
-  WildMonComponent? _activeWild;
+  final Map<String, WildMonComponent> _wildBySpawnId = {};
+  String? _currentEncounterSpawnId; // keep this to track which one is engaged
 
   // Party creature during encounter
   WildMonComponent? _partyCreature;
-
-  // Which spawn point we're currently engaging with
-  String? _currentEncounterSpawnId;
 
   // Camera state (in world coords)
   double _cameraX = 0;
@@ -85,6 +89,17 @@ class SceneGame extends FlameGame with ScaleDetector {
   // Scene mode
   SceneMode _mode = SceneMode.exploration;
   SceneMode get mode => _mode;
+
+  /// Trigger a camera shake that eases out over [duration].
+  /// [amplitude] is the pixel jitter at the start of the shake.
+  void shake({
+    Duration duration = const Duration(milliseconds: 700),
+    double amplitude = 10,
+  }) {
+    _shakeDuration = duration.inMilliseconds / 1000.0;
+    _shakeTime = _shakeDuration;
+    _shakeAmplitude = amplitude;
+  }
 
   // ------------------------------------------------------------
   // Lifecycle / setup
@@ -142,13 +157,79 @@ class SceneGame extends FlameGame with ScaleDetector {
     _applyCamera();
     _updateParallaxLayers();
 
-    // Spawn a starting wild
-    _spawnOneWildInstant();
+    await syncWildFromEncounters();
   }
 
   // ------------------------------------------------------------
   // Spawns
   // ------------------------------------------------------------
+
+  Future<void> syncWildFromEncounters() async {
+    final svc = encounters;
+    if (svc == null) return;
+
+    // desired spawns by id
+    final desired = <String, WildSpawn>{
+      for (final s in svc.spawns) s.spawnPointId: s,
+    };
+
+    print(svc.spawns);
+
+    // add/update
+    for (final entry in desired.entries) {
+      final id = entry.key;
+      final s = entry.value;
+      if (!_wildBySpawnId.containsKey(id)) {
+        await _ensureWildAt(id, s.speciesId, s.rarity);
+      }
+    }
+
+    // remove stale
+    final toRemove = _wildBySpawnId.keys
+        .where((id) => !desired.containsKey(id))
+        .toList();
+    for (final id in toRemove) {
+      _wildBySpawnId[id]?.removeFromParent();
+      _wildBySpawnId.remove(id);
+    }
+  }
+
+  Future<void> _ensureWildAt(
+    String spawnId,
+    String speciesId,
+    EncounterRarity rarity,
+  ) async {
+    final sp = scene.spawnPoints.firstWhere(
+      (s) => s.id == spawnId,
+      orElse: () => throw 'Unknown spawnId $spawnId',
+    );
+    final anchor = _spawnPointComps[spawnId];
+    if (anchor == null) return;
+
+    Creature? hydrated;
+    if (wildVisualResolver != null) {
+      hydrated = await wildVisualResolver!(speciesId, rarity);
+    }
+
+    final comp =
+        WildMonComponent(
+            hydrated: hydrated,
+            speciesId: speciesId,
+            rarityLabel: rarity.name,
+            desiredSize: sp.size,
+            onTap: () => _handleWildTap(spawnId, speciesId, hydrated),
+            resolver: speciesSpriteResolver,
+          )
+          ..anchor = Anchor.center
+          ..position = Vector2.zero();
+
+    anchor.add(comp);
+    _wildBySpawnId[spawnId] = comp;
+  }
+
+  void clearWildAt(String spawnId) {
+    _wildBySpawnId.remove(spawnId)?.removeFromParent();
+  }
 
   void _addSpawnPoints() {
     for (final p in scene.spawnPoints) {
@@ -172,39 +253,6 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
   }
 
-  void _spawnOneWildInstant() async {
-    final svc = encounters;
-    if (svc == null || scene.spawnPoints.isEmpty) return;
-
-    final sp = scene.spawnPoints[_rng.nextInt(scene.spawnPoints.length)];
-    final roll = svc.roll(spawnId: sp.id);
-    onEncounter?.call(roll);
-
-    final anchor = _spawnPointComps[sp.id];
-    if (anchor == null) return;
-
-    Creature? hydrated;
-    if (wildVisualResolver != null) {
-      hydrated = await wildVisualResolver!(roll.speciesId, roll.rarity);
-    }
-
-    _activeWild?.removeFromParent();
-    _activeWild =
-        WildMonComponent(
-            hydrated: hydrated,
-            speciesId: roll.speciesId,
-            rarityLabel: roll.rarity.name,
-            desiredSize: sp.size,
-            onTap: () => _handleWildTap(sp.id, roll.speciesId, hydrated),
-            resolver: speciesSpriteResolver,
-          )
-          ..anchor = Anchor.center
-          ..position = Vector2.zero();
-
-    anchor.add(_activeWild!);
-    _currentEncounterSpawnId = sp.id;
-  }
-
   // ------------------------------------------------------------
   // Encounter mode flow
   // ------------------------------------------------------------
@@ -212,7 +260,9 @@ class SceneGame extends FlameGame with ScaleDetector {
   void _handleWildTap(String spawnId, String speciesId, Creature? hydrated) {
     if (_mode == SceneMode.encounter) return; // already in encounter
     _enterEncounterMode(spawnId);
-    onStartEncounter?.call(speciesId, hydrated);
+
+    // 💡 PASS THE spawnId AS THE FIRST ARGUMENT
+    onStartEncounter?.call(spawnId, speciesId, hydrated);
   }
 
   /// Switches to cinematic encounter mode:
@@ -222,6 +272,14 @@ class SceneGame extends FlameGame with ScaleDetector {
   void _enterEncounterMode(String spawnId) {
     _mode = SceneMode.encounter;
     _currentEncounterSpawnId = spawnId;
+
+    // Hide all other wild creatures
+    for (final entry in _wildBySpawnId.entries) {
+      if (entry.key != spawnId) {
+        // Hiding component by setting its scale to 0
+        entry.value.scale = Vector2.zero();
+      }
+    }
 
     final sp = scene.spawnPoints.firstWhere((s) => s.id == spawnId);
     final layer = _layers[sp.anchor];
@@ -336,7 +394,11 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// - clear encounter actors
   void exitEncounterMode() {
     _mode = SceneMode.exploration;
-    // _currentEncounterSpawnId = null;
+
+    for (final mon in _wildBySpawnId.values) {
+      // Reverting scale to 1.0
+      mon.scale = Vector2.all(1.0);
+    }
 
     _targetZoom = 1.0;
     _targetCameraX = _cameraX;
@@ -345,13 +407,6 @@ class SceneGame extends FlameGame with ScaleDetector {
     _partyCreature?.removeFromParent();
     _partyCreature = null;
   }
-
-  /// Called by ScenePage when we want to despawn the wild (e.g. after breeding)
-  void clearWild() {
-    _activeWild?.removeFromParent();
-    _activeWild = null;
-  }
-
   // ------------------------------------------------------------
   // Gesture handling
   // ------------------------------------------------------------
@@ -440,6 +495,22 @@ class SceneGame extends FlameGame with ScaleDetector {
     if ((_cameraY - _targetCameraY).abs() > 0.5) {
       final t = 1 - pow(1 / (1 + camSpeed), dt).toDouble();
       _cameraY += (_targetCameraY - _cameraY) * t;
+    }
+
+    // -- Update shake jitter (ease out) --
+    if (_shakeTime > 0) {
+      _shakeTime -= dt;
+      final t = (_shakeTime / _shakeDuration).clamp(0.0, 1.0);
+      // cubic ease-out
+      final falloff = 1 - (1 - t) * (1 - t) * (1 - t);
+
+      // jitter in both axes
+      final jx = (_rng.nextDouble() * 2 - 1) * _shakeAmplitude * falloff;
+      final jy =
+          (_rng.nextDouble() * 2 - 1) * (_shakeAmplitude * 0.6) * falloff;
+      _shakeOffset.setValues(jx, jy);
+    } else {
+      if (!_shakeOffset.isZero()) _shakeOffset.setValues(0, 0);
     }
 
     // 5. Push transforms to the Flame camera + parallax
@@ -546,15 +617,14 @@ class SceneGame extends FlameGame with ScaleDetector {
   }
 
   void _applyCamera() {
-    // Convert cameraX/Y (top-left in world coords) into a viewfinder center
+    // Convert cameraX/Y (top-left) into a viewfinder center
     final inv = 1.0 / (layersRoot.scale.x * cam.viewfinder.zoom);
     final vwWorld = size.x * inv;
     final vhWorld = size.y * inv;
 
-    cam.viewfinder.position = Vector2(
-      _cameraX + vwWorld / 2,
-      _cameraY + vhWorld / 2,
-    );
+    cam.viewfinder.position =
+        Vector2(_cameraX + vwWorld / 2, _cameraY + vhWorld / 2) +
+        _shakeOffset; // <-- add the shake here
   }
 
   void _updateParallaxLayers() {

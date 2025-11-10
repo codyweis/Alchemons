@@ -1,4 +1,5 @@
 // lib/widgets/wilderness/wilderness_controls.dart
+import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -40,13 +41,6 @@ class WildernessControls extends StatelessWidget {
               color: const Color.fromARGB(255, 133, 115, 59),
               tooltip: 'Inventory',
               onPressed: () => _showInventorySheet(context),
-            ),
-            const SizedBox(height: 8),
-            _ControlButton(
-              icon: Icons.group_rounded,
-              color: Colors.green,
-              tooltip: 'Party',
-              onPressed: () => _showPartySheet(context, party),
             ),
           ],
         ),
@@ -109,7 +103,68 @@ class WildernessControls extends StatelessWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => const _InventorySheet(),
+      builder: (_) {
+        // Draggable, tall sheet with rounded corners that hosts the real InventoryScreen
+        return DraggableScrollableSheet(
+          initialChildSize: 0.9,
+          minChildSize: 0.6,
+          maxChildSize: 0.95,
+          builder: (ctx, scrollController) {
+            // Carded container to feel like a sheet
+            return Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A0E27).withOpacity(0.98),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                border: Border.all(
+                  color: const Color.fromARGB(
+                    255,
+                    133,
+                    115,
+                    59,
+                  ).withOpacity(0.35),
+                  width: 2,
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                child: Column(
+                  children: [
+                    // drag handle
+                    Container(
+                      width: 48,
+                      height: 5,
+                      margin: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    // the actual inventory UI (streams, tabs, dialogs, etc.)
+                    Expanded(
+                      child:
+                          NotificationListener<OverscrollIndicatorNotification>(
+                            onNotification: (n) {
+                              // prevent glow inside sheet
+                              n.disallowIndicator();
+                              return false;
+                            },
+                            child: const InventoryScreen(
+                              // match your Inventory FAB gold for cohesion
+                              accent: Color.fromARGB(255, 133, 115, 59),
+                            ),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -604,25 +659,6 @@ class _PartyMemberCard extends StatelessWidget {
                           StaminaBadge(
                             instanceId: inst.instanceId,
                             showCountdown: true,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.auto_awesome_rounded,
-                            size: 14,
-                            color: Colors.purple.shade300,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '+${(member.luck * 100).toStringAsFixed(0)}% Luck Bonus',
-                            style: TextStyle(
-                              color: Colors.purple.shade300,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
                           ),
                         ],
                       ),

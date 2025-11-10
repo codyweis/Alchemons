@@ -14,6 +14,7 @@ import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
@@ -61,7 +62,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
   /// Cached sprite widget for current active job creature
   Widget? _creatureWidget;
   String? _cachedInstanceIdForCreature; // so we know if job changed
-
+  late final AnimationController _statusCtrl;
   @override
   void initState() {
     super.initState();
@@ -70,6 +71,11 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
+
+    _statusCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
 
     _tapFxCtrl = AnimationController(
       vsync: this,
@@ -110,6 +116,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     _glowController.dispose();
     _collectCtrl.dispose();
     _tapFxCtrl.dispose();
+    _statusCtrl.dispose();
     super.dispose();
   }
 
@@ -457,11 +464,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
   // ---------- UI helpers ----------
 
-  double _creatureY(double fill) {
-    final y = 0.8 - fill * 1.6;
-    return y.clamp(-0.2, 0.6);
-  }
-
   String _fmt(Duration? d) {
     if (d == null) return '—';
     final h = d.inHours;
@@ -526,12 +528,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                   final accent = farm.currentColor;
                   final vm = _syncAndComputeProgress(farm);
 
-                  final statusLabel = !farm.unlocked
-                      ? 'LOCKED'
-                      : farm.hasActive
-                      ? (farm.completed ? 'COMPLETE' : 'ACTIVE')
-                      : 'READY';
-
                   final statusText = !farm.unlocked
                       ? 'This biome is locked.'
                       : (!farm.hasActive
@@ -546,14 +542,29 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                     _refreshCreatureCache();
                   }
 
+                  final isReady = farm.unlocked && !farm.hasActive;
+                  final isComplete = farm.completed;
+                  Widget? badge;
+                  if (isComplete) {
+                    // loud lime-ish for completion
+                    badge = _AlchemyStatusBadge(
+                      controller: _statusCtrl,
+                      label: 'COMPLETE',
+                      color: const Color(0xFFB3FF66),
+                    );
+                  } else if (isReady) {
+                    // subtler biome accent for ready
+                    badge = _AlchemyStatusBadge(
+                      controller: _statusCtrl,
+                      label: 'READY',
+                      color: accent,
+                    );
+                  }
+
                   return Stack(
                     children: [
-                      // Biome background layer
-                      Positioned.fill(
-                        child: _BiomeBackground(
-                          assetPath: _getBackgroundAsset(),
-                          accentColor: accent,
-                        ),
+                      const Positioned.fill(
+                        child: AlchemicalParticleBackground(),
                       ),
 
                       // Main content
@@ -571,26 +582,18 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                               child: Column(
                                 children: [
-                                  _HeaderCard(
-                                    color: accent,
-                                    icon: widget.biome.icon,
-                                    label: widget.biome.label,
-                                    status: statusLabel,
-                                    theme: theme,
-                                  ),
-                                  const SizedBox(height: 14),
-
                                   AspectRatio(
                                     aspectRatio: 3 / 4,
-                                    child: _TubeView(
+                                    child: _ChamberView(
                                       tSeconds: _tSeconds,
+                                      progress: vm.progress, // <— new
                                       collectCtrl: _collectCtrl,
                                       tapFxCtrl: _tapFxCtrl,
-                                      onTapBoost: () {},
+                                      onTapBoost: () => _handleTapBoost(farm),
                                       farm: farm,
                                       accent: accent,
+                                      statusOverlay: badge,
                                       effectiveFill: vm.effectiveFill,
-                                      creatureY: _creatureY(vm.effectiveFill),
                                       creatureWidget: _creatureWidget,
                                       onTapDown: (details, inner) {
                                         _handleTapBoost(farm);
@@ -611,7 +614,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                                       tapLocal: _tapLocal,
                                     ),
                                   ),
-
                                   Text(
                                     statusText,
                                     textAlign: TextAlign.center,
@@ -1677,4 +1679,628 @@ class _BiomeBackground extends StatelessWidget {
       ],
     );
   }
+}
+
+/// ============ Alchemy Extraction Chamber ============
+
+class _ChamberView extends StatelessWidget {
+  const _ChamberView({
+    required this.tSeconds,
+    required this.progress,
+    required this.collectCtrl,
+    required this.tapFxCtrl,
+    required this.onTapBoost,
+    required this.farm,
+    required this.accent,
+    required this.effectiveFill,
+    required this.creatureWidget,
+    required this.onTapDown,
+    required this.tapLocal,
+    this.statusOverlay,
+  });
+  final Widget? statusOverlay;
+  final double tSeconds;
+  final double progress;
+  final AnimationController collectCtrl;
+  final AnimationController tapFxCtrl;
+  final VoidCallback onTapBoost;
+
+  final BiomeFarmState farm;
+  final Color accent;
+  final double effectiveFill;
+  final Widget? creatureWidget;
+
+  final void Function(TapDownDetails details, RRect inner) onTapDown;
+  final Offset? tapLocal;
+
+  /// Tempo ramps up as progress → 1.0 and also spikes during tap FX.
+  double _tempo() {
+    // baseline 1x, ramps up to ~4x near completion
+    final ramp = Curves.easeInQuart.transform(progress).clamp(0.0, 1.0);
+    final nearDone = (progress > .85) ? (progress - .85) / .15 : 0.0;
+    final endBoost = Curves.easeOutExpo.transform(nearDone.clamp(0, 1));
+    // tap spike (bell-shaped)
+    final v = tapFxCtrl.value;
+    final tapBell = (v == 0) ? 0 : (1 - (2 * (v - .5)).abs()); // 0..1..0
+    final tapBoost = tapBell * 1.6;
+
+    return 1.0 + 3.0 * ramp + 1.5 * endBoost + tapBoost;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final size = Size(c.maxWidth, c.maxHeight);
+        final geo = _ChamberGeometry.fromSize(size);
+        final inner = geo.inner;
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) {
+            HapticFeedback.lightImpact();
+            onTapBoost();
+            onTapDown(d, inner);
+          },
+          child: AnimatedBuilder(
+            animation: Listenable.merge([collectCtrl, tapFxCtrl]),
+            child: Stack(
+              children: [
+                // Creature sits floating inside the chamber, gently idling.
+                Positioned.fromRect(
+                  rect: inner.outerRect,
+                  child: ClipRRect(
+                    borderRadius: inner._toBorderRadius(),
+                    child: Center(
+                      child: _CreatureIdle(
+                        tapFxCtrl: tapFxCtrl,
+                        child:
+                            creatureWidget ??
+                            Icon(
+                              farm.biome.icon,
+                              size: 28,
+                              color: Colors.white.withOpacity(.55),
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // BACKGROUND + ENERGY CONTENTS
+                CustomPaint(
+                  painter: _ChamberBackgroundPainter(
+                    tSeconds: tSeconds,
+                    tempo: _tempo(),
+                    fill: effectiveFill,
+                    color: accent,
+                    active: farm.hasActive,
+                  ),
+                  size: size,
+                ),
+
+                // Tap FX overlay
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: tapFxCtrl,
+                      builder: (_, __) => AlchemyTapFX(
+                        center: tapLocal,
+                        progress: tapFxCtrl.value,
+                        color: accent,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // GLASS + RIM + GLARE
+                CustomPaint(
+                  painter: _ChamberForegroundPainter(
+                    tSeconds: tSeconds,
+                    tempo: _tempo(),
+                    color: accent,
+                  ),
+                  size: size,
+                ),
+                if (statusOverlay != null)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Center(
+                        child: Transform.translate(
+                          offset: Offset(
+                            0,
+                            size.height * -0.08,
+                          ), // float slightly above center
+                          child: statusOverlay!,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            builder: (_, child) {
+              // Slight "thrum" on collect animation
+              final v = collectCtrl.value;
+              final decay = 1.0 - v;
+              final dx = math.sin(v * math.pi * 10) * 5.0 * decay;
+              final dy = math.cos(v * math.pi * 8) * 4.0 * decay;
+              final rot = math.sin(v * math.pi * 6) * 0.012 * decay;
+              return Transform.translate(
+                offset: Offset(dx, dy),
+                child: Transform.rotate(angle: rot, child: child),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CreatureIdle extends StatelessWidget {
+  const _CreatureIdle({required this.tapFxCtrl, required this.child});
+  final AnimationController tapFxCtrl;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: tapFxCtrl,
+      builder: (context, _) {
+        final v = tapFxCtrl.value;
+        final osc = math.sin(v * math.pi * 10);
+        final decay = 1.0 - v;
+        final amp = 6.0 * decay;
+        final dx = osc * amp * .55;
+        final dy = -osc * amp * .35;
+        final rot = osc * 0.02;
+        return Transform.translate(
+          offset: Offset(dx, dy),
+          child: Transform.rotate(angle: rot, child: child),
+        );
+      },
+    );
+  }
+}
+
+/// Chamber layout: circular vessel with thick rim
+class _ChamberGeometry {
+  _ChamberGeometry(this.outer, this.inner, this.center, this.radius);
+  final RRect outer;
+  final RRect inner;
+  final Offset center;
+  final double radius;
+
+  static _ChamberGeometry fromSize(Size size) {
+    // Make the chamber a big circle in the upper 70% area.
+    final w = size.width;
+    final h = size.height;
+    final d = math.min(w, h * 0.78);
+    final cx = w / 2;
+    final cy = h * 0.42;
+    final rect = Rect.fromCenter(center: Offset(cx, cy), width: d, height: d);
+    final outer = RRect.fromRectAndRadius(rect, Radius.circular(d / 2));
+    final inner = outer.deflate(d * 0.06); // thick rim
+    return _ChamberGeometry(outer, inner, Offset(cx, cy), d / 2);
+  }
+}
+
+// extension _RRectBR removed; use extension _RRectBorderRadius on RRect
+// which provides `_toBorderRadius()` to avoid duplicate extension ambiguity.
+
+/// BACK contents: beam, rune rings, sparks — tempo-sensitive.
+class _ChamberBackgroundPainter extends CustomPainter {
+  _ChamberBackgroundPainter({
+    required this.tSeconds,
+    required this.tempo,
+    required this.fill,
+    required this.color,
+    required this.active,
+  });
+
+  final double tSeconds;
+  final double tempo; // <- drives speed-up near completion
+  final double fill; // visual power level
+  final Color color;
+  final bool active;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final geo = _ChamberGeometry.fromSize(size);
+    final inner = geo.inner;
+    final c = geo.center;
+    final r = geo.radius * 0.92;
+
+    // Clip to vessel interior
+    canvas.save();
+    canvas.clipRRect(inner);
+
+    // 1) Dim backplate
+    final back = Paint()
+      ..shader = RadialGradient(
+        colors: [Colors.black.withOpacity(.45), Colors.black.withOpacity(.70)],
+      ).createShader(inner.outerRect);
+    canvas.drawRect(inner.outerRect, back);
+
+    // 2) Vertical energy beam intensity based on fill
+    final beamAlpha = (0.20 + 0.65 * Curves.easeOutCubic.transform(fill)).clamp(
+      0.0,
+      0.85,
+    );
+    final beam = Paint()
+      ..blendMode = BlendMode.plus
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 0.55,
+        colors: [
+          color.withOpacity(beamAlpha * .9),
+          color.withOpacity(beamAlpha * .35),
+          Colors.transparent,
+        ],
+        stops: const [.0, .35, 1.0],
+      ).createShader(inner.outerRect);
+    canvas.drawCircle(c, r * 0.78, beam);
+
+    // 3) Concentric rune rings rotating at tempo
+    final baseAngle = tSeconds * tempo;
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..color = Colors.white.withOpacity(.40);
+    final glyph = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.white.withOpacity(.85);
+
+    void drawRing(double radius, double speed, int glyphs, double dash) {
+      canvas.save();
+      canvas.translate(c.dx, c.dy);
+      canvas.rotate(baseAngle * speed);
+      // dashed circle
+      final path = Path()
+        ..addOval(Rect.fromCircle(center: Offset.zero, radius: radius));
+      final dashCount = (math.pi * 2 * radius / dash).floor();
+      final segment = (2 * math.pi) / dashCount;
+      for (int i = 0; i < dashCount; i += 2) {
+        final from = i * segment;
+        final to = (i + 1) * segment;
+        final p = Path()
+          ..addArc(
+            Rect.fromCircle(center: Offset.zero, radius: radius),
+            from,
+            to - from,
+          );
+        canvas.drawPath(p, ring);
+      }
+      // glyphs that orbit
+      for (int i = 0; i < glyphs; i++) {
+        final ang = (i / glyphs) * (math.pi * 2);
+        final x = math.cos(ang) * radius;
+        final y = math.sin(ang) * radius;
+        final size = 2.6 + 1.2 * math.sin(baseAngle * (speed + .3) + i);
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(-ang + baseAngle * (speed * .6));
+        final rect = Rect.fromCenter(
+          center: Offset.zero,
+          width: size,
+          height: size * 1.2,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, const Radius.circular(1.2)),
+          glyph,
+        );
+        canvas.restore();
+      }
+      canvas.restore();
+    }
+
+    final intensity = (0.3 + 0.7 * fill).clamp(0.0, 1.0);
+    drawRing(r * .68, 0.6 + intensity, 12, 10);
+    drawRing(r * .51, 1.0 + intensity, 10, 9);
+    drawRing(r * .36, 1.6 + intensity, 8, 8);
+
+    // 4) Spiral-in motes (suction toward center)
+    final mote = Paint()..color = Colors.white.withOpacity(.70);
+    final count = active ? 42 : 18;
+
+    // suction strength grows with fill (0..1) and a bit with tempo
+    final suctionBase = 0.20 + 0.55 * Curves.easeOutCubic.transform(fill);
+    final swirlBase = 0.60 + 0.80 * Curves.easeIn.transform(fill);
+
+    for (int i = 0; i < count; i++) {
+      final seed = i * 1337.0;
+      final rand = (seed % 1000) / 1000.0;
+
+      // starting radius & angle
+      final r0 = r * (0.20 + 0.75 * rand);
+      final a0 = (seed % (2 * math.pi));
+
+      // time for this mote (0..1 loop)
+      final speed = (0.35 + (seed % 17) / 40.0) * (0.8 + 0.6 * tempo);
+      final t = (tSeconds * speed + (seed % 23) * .013) % 1.0;
+
+      // suction pulls radius inward nonlinearly (faster as it nears center)
+      final suction = suctionBase * (0.65 + 0.35 * math.sin(seed));
+      final rad = r0 * (1.0 - math.pow(t, 1.35) * suction).clamp(0.0, 1.0);
+
+      // swirl increases as it approaches center to give that vortex feel
+      final swirl = swirlBase * (1.0 + 0.7 * (1.0 - rad / r0));
+      final ang = a0 + t * 2.0 * math.pi * swirl;
+
+      final px = c.dx + math.cos(ang) * rad;
+      final py = c.dy + math.sin(ang) * rad;
+
+      if (inner.outerRect.contains(Offset(px, py))) {
+        final sz = 1.1 + ((i % 5 == 0) ? 0.9 : 0.0);
+        canvas.drawCircle(Offset(px, py), sz, mote);
+
+        // faint trailing echo to emphasize motion
+        final trailT = (t - 0.06).clamp(0.0, 1.0);
+        if (trailT > 0) {
+          final rad2 = r0 * (1.0 - math.pow(trailT, 1.35) * suction);
+          final ang2 = a0 + trailT * 2.0 * math.pi * swirl;
+          final p2 = Offset(
+            c.dx + math.cos(ang2) * rad2,
+            c.dy + math.sin(ang2) * rad2,
+          );
+          final trail = Paint()..color = Colors.white.withOpacity(.10);
+          canvas.drawCircle(p2, sz * 0.85, trail);
+        }
+      }
+    }
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChamberBackgroundPainter old) =>
+      old.tSeconds != tSeconds ||
+      old.tempo != tempo ||
+      old.fill != fill ||
+      old.color != color ||
+      old.active != active;
+}
+
+/// FOREGROUND: glass, rim, glare, spinning crown
+class _ChamberForegroundPainter extends CustomPainter {
+  _ChamberForegroundPainter({
+    required this.tSeconds,
+    required this.tempo,
+    required this.color,
+  });
+
+  final double tSeconds;
+  final double tempo;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final geo = _ChamberGeometry.fromSize(size);
+    final outer = geo.outer;
+    final inner = geo.inner;
+    final c = geo.center;
+    final r = geo.radius;
+
+    // Rim
+    final rim = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (outer.width * 0.06).clamp(6, 18)
+      ..shader = SweepGradient(
+        colors: [
+          Colors.white.withOpacity(.85),
+          Colors.white.withOpacity(.45),
+          Colors.white.withOpacity(.85),
+        ],
+      ).createShader(outer.outerRect);
+    canvas.drawRRect(outer, rim);
+
+    // Chromatic edges
+    final redEdge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = const Color(0xFFFF6B6B).withOpacity(.33);
+    final blueEdge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = const Color(0xFF5EC8FF).withOpacity(.33);
+    canvas.save();
+    canvas.translate(.6, .6);
+    canvas.drawRRect(outer.deflate(0.6), redEdge);
+    canvas.restore();
+    canvas.save();
+    canvas.translate(-.6, -.6);
+    canvas.drawRRect(outer.deflate(0.6), blueEdge);
+    canvas.restore();
+
+    // Glass highlight
+    final highlight = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..shader =
+          LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomLeft,
+            colors: [Colors.white.withOpacity(.50), Colors.transparent],
+          ).createShader(
+            Rect.fromLTWH(outer.left - 6, outer.top, 10, outer.height),
+          );
+    canvas.drawRRect(outer, highlight);
+
+    // Spinning crown (small outer ticks)
+    final crown = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = color.withOpacity(.65);
+    final ang = tSeconds * tempo * 1.2;
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(ang);
+    final cr = r * 0.88;
+    const tick = 10.0;
+    for (int i = 0; i < 24; i++) {
+      final a = i / 24 * 2 * math.pi;
+      final x1 = math.cos(a) * cr;
+      final y1 = math.sin(a) * cr;
+      final x2 = math.cos(a) * (cr - tick);
+      final y2 = math.sin(a) * (cr - tick);
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), crown);
+    }
+    canvas.restore();
+
+    // Inner glass line
+    final innerStroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..color = Colors.white.withOpacity(.45);
+    canvas.drawRRect(inner, innerStroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChamberForegroundPainter old) =>
+      old.tSeconds != tSeconds || old.tempo != tempo || old.color != color;
+}
+
+class _AlchemyStatusBadge extends StatelessWidget {
+  const _AlchemyStatusBadge({
+    required this.controller,
+    required this.label,
+    required this.color,
+  });
+
+  final AnimationController controller;
+  final String label; // "READY" or "COMPLETE"
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final t = controller.value; // 0..1
+        final pulse = 0.65 + 0.35 * math.sin(t * math.pi * 2);
+        final glow = 0.25 + 0.55 * (0.5 - (t - 0.5).abs()) * 2; // bell 0..1
+
+        return Opacity(
+          opacity: 0.85,
+          child: CustomPaint(
+            painter: _AlchemyStatusPainter(
+              t: t,
+              pulse: pulse,
+              glow: glow,
+              color: color,
+              label: label,
+            ),
+            size: const Size(160, 160),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AlchemyStatusPainter extends CustomPainter {
+  _AlchemyStatusPainter({
+    required this.t,
+    required this.pulse,
+    required this.glow,
+    required this.color,
+    required this.label,
+  });
+
+  final double t;
+  final double pulse;
+  final double glow;
+  final Color color;
+  final String label;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = math.min(size.width, size.height) * 0.48;
+
+    // soft aura
+    final aura = Paint()
+      ..blendMode = BlendMode.plus
+      ..shader = RadialGradient(
+        colors: [
+          color.withOpacity(0.08 * (0.7 + 0.3 * glow)),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: c, radius: r * 1.2));
+    canvas.drawCircle(c, r * (1.05 + 0.02 * glow), aura);
+
+    // outer ring (pulsing thickness)
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0 + 1.8 * pulse
+      ..color = Colors.white.withOpacity(0.85);
+    canvas.drawCircle(c, r, ring);
+
+    // chromatic edges
+    final red = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..color = const Color(0xFFFF6B6B).withOpacity(.38);
+    final blue = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..color = const Color(0xFF5EC8FF).withOpacity(.38);
+    canvas.save();
+    canvas.translate(.8, .8);
+    canvas.drawCircle(c, r * 0.985, red);
+    canvas.restore();
+    canvas.save();
+    canvas.translate(-.8, -.8);
+    canvas.drawCircle(c, r * 0.985, blue);
+    canvas.restore();
+
+    // rotating ticks (arcane crown)
+    final ticks = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = color.withOpacity(.75);
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(t * math.pi * 2);
+    final tr = r * 0.88;
+    const n = 24;
+    for (int i = 0; i < n; i++) {
+      final a = i / n * 2 * math.pi;
+      final x1 = math.cos(a) * tr;
+      final y1 = math.sin(a) * tr;
+      final x2 = math.cos(a) * (tr - 10);
+      final y2 = math.sin(a) * (tr - 10);
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), ticks);
+    }
+    canvas.restore();
+
+    // label (glowing)
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 2,
+          color: Colors.white.withOpacity(.95),
+          shadows: [
+            Shadow(blurRadius: 6 + 10 * glow, color: color.withOpacity(.8)),
+          ],
+        ),
+      ),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: size.width);
+    textPainter.paint(
+      canvas,
+      Offset(c.dx - textPainter.width / 2, c.dy - textPainter.height / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _AlchemyStatusPainter old) =>
+      old.t != t ||
+      old.pulse != pulse ||
+      old.glow != glow ||
+      old.color != color ||
+      old.label != label;
 }

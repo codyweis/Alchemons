@@ -68,8 +68,13 @@ class ShopService extends ChangeNotifier {
     'pack.elemental',
   };
 
-  bool allowsQuantity(ShopOffer o) =>
-      o.limit == PurchaseLimit.unlimited && _quantityEligible.contains(o.id);
+  bool allowsQuantity(ShopOffer o) {
+    if (o.limit != PurchaseLimit.unlimited) return false;
+    if (_quantityEligible.contains(o.id)) return true;
+    // NEW: allow quantity for any resource→gold unit exchangers
+    if (o.id.startsWith('fx.res_to_gold.')) return true;
+    return false;
+  }
 
   // ==== Offers (existing + new) ====
   static final List<ShopOffer> allOffers = [
@@ -152,9 +157,10 @@ class ShopService extends ChangeNotifier {
     // --- NEW: Eggs & Packs ---
     ShopOffer(
       id: 'boost.instant_hatch',
-      name: 'Instant Egg Hatcher',
-      description: 'Finish one incubating egg instantly.',
-      icon: Icons.egg_rounded,
+      name: 'Instant Fusion Extractor',
+      description: 'Complete one active fusion vial instantly.',
+      assetName: 'assets/images/ui/instanthatchicon.png',
+      icon: Icons.access_alarms,
       cost: const {'gold': 30},
       reward: const {},
       rewardType: 'boost',
@@ -165,60 +171,173 @@ class ShopService extends ChangeNotifier {
     // --- NEW: Currency exchange units (5% fee baked in) ---
     ShopOffer(
       id: 'fx.silver_to_gold.unit',
-      name: 'Silver → Gold (1g)',
-      description: 'Convert 105 silver to 1 gold (incl. 5% fee).',
+      name: 'Silver → Gold (10g)',
+      description: 'Convert 20,000 silver to 10 gold.',
       icon: Icons.currency_exchange_rounded,
-      cost: const {'silver': 105},
-      reward: const {'gold': 1},
+      cost: const {'silver': 20000},
+      reward: const {'gold': 10},
       rewardType: 'currency',
       limit: PurchaseLimit.unlimited,
     ),
     ShopOffer(
       id: 'fx.gold_to_silver.unit',
-      name: 'Gold → Silver (100s)',
-      description: 'Convert 1 gold to 95 silver (5% fee).',
-      icon: Icons.swap_horiz_rounded,
+      name: 'Gold → Silver (1,000s)',
+      description: 'Convert 1 gold to 1,000 silver.',
+      icon: Icons.currency_exchange_rounded,
       cost: const {'gold': 1},
-      reward: const {'silver': 95},
+      reward: const {'silver': 1000},
       rewardType: 'currency',
       limit: PurchaseLimit.unlimited,
     ),
 
-    // --- NEW: Faction change ---
+    // === SPECIAL UNLOCK: Fusion/Incubator Slots (single stepping card) ===
+    ShopOffer(
+      id: 'unlock.fusion_slot.1',
+      name: 'Fusion Slot',
+      description: 'Add another incubator slot.',
+      icon: Icons.biotech_rounded,
+      cost: const {'silver': 1000}, // 1st purchase: 1,000 silver
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+      assetName: 'assets/images/ui/breedicon.png',
+    ),
+    ShopOffer(
+      id: 'unlock.fusion_slot.2',
+      name: 'Fusion Slot (Step 2)',
+      description: 'Add another incubator slot.',
+      icon: Icons.biotech_rounded,
+      cost: const {'gold': 10}, // 2nd purchase: 5 gold
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+      assetName: 'assets/images/ui/breedicon.png',
+    ),
+    ShopOffer(
+      id: 'unlock.fusion_slot.3',
+      name: 'Fusion Slot (Step 3)',
+      description: 'Add another incubator slot.',
+      icon: Icons.biotech_rounded,
+      cost: const {'gold': 50}, // 3rd purchase: 25 gold
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+      assetName: 'assets/images/ui/breedicon.png',
+    ),
+    ShopOffer(
+      id: 'unlock.fusion_slot.4',
+      name: 'Fusion Slot (Step 4)',
+      description: 'Add another incubator slot.',
+      icon: Icons.biotech_rounded,
+      cost: const {'gold': 100}, // 4th purchase: 100 gold
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+      assetName: 'assets/images/ui/breedicon.png',
+    ),
     ShopOffer(
       id: 'boost.faction_change',
       name: 'Change Faction',
       description: 'Align with a new faction.',
       icon: Icons.flag_rounded,
-      cost: const {'gold': 120},
+      cost: const {'gold': 500},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.daily,
       assetName: 'assets/images/ui/factionorb.png',
     ),
-
-    // --- NEW: Buildings / Special unlocks ---
-    ShopOffer(
-      id: 'unlock.breeding_device',
-      name: 'Genetic Fusion Device',
-      description: 'Breed/fuse in the wild without a lab.',
-      icon: Icons.biotech_rounded,
-      cost: const {'gold': 200},
-      reward: const {},
-      rewardType: 'boost',
-      limit: PurchaseLimit.once,
-    ),
-    ShopOffer(
-      id: 'unlock.prismatic_chamber',
-      name: 'Prismatic Chamber',
-      description: 'Attempt prismatic alchemy on a selected creature.',
-      icon: Icons.auto_awesome_rounded,
-      cost: const {'gold': 250},
-      reward: const {},
-      rewardType: 'boost',
-      limit: PurchaseLimit.once,
-    ),
   ];
+
+  // --- NEW: Faction change ---
+
+  // --- NEW: Buildings / Special unlocks ---
+  // ShopOffer(
+  //   id: 'unlock.breeding_device',
+  //   name: 'Genetic Fusion Device',
+  //   description: 'Breed/fuse in the wild without a lab.',
+  //   icon: Icons.biotech_rounded,
+  //   cost: const {'gold': 200},
+  //   reward: const {},
+  //   rewardType: 'boost',
+  //   limit: PurchaseLimit.once,
+  // ),
+  // ShopOffer(
+  //   id: 'unlock.prismatic_chamber',
+  //   name: 'Prismatic Chamber',
+  //   description: 'Attempt prismatic alchemy on a selected creature.',
+  //   icon: Icons.auto_awesome_rounded,
+  //   cost: const {'gold': 250},
+  //   reward: const {},
+  //   rewardType: 'boost',
+  //   limit: PurchaseLimit.once,
+  // ),
+
+  int getFusionSlotsPurchased() {
+    return (_purchaseCounts['unlock.fusion_slot.1'] ?? 0) +
+        (_purchaseCounts['unlock.fusion_slot.2'] ?? 0) +
+        (_purchaseCounts['unlock.fusion_slot.3'] ?? 0) +
+        (_purchaseCounts['unlock.fusion_slot.4'] ?? 0);
+  }
+
+  // ---- DAILY ELEMENT→GOLD EXCHANGE (5,000 → 1 gold) ----
+  static const int kResPerGold = 5000;
+
+  static const Map<int, String> _weekday2ResKey = {
+    DateTime.monday: 'res_volcanic',
+    DateTime.tuesday: 'res_oceanic',
+    DateTime.wednesday: 'res_verdant',
+    DateTime.thursday: 'res_earthen',
+    DateTime.friday: 'res_arcane',
+    // weekend is handled separately (all resources available)
+  };
+
+  static const Map<String, (String label, IconData icon)> _resMeta = {
+    'res_volcanic': ('Volcanic', Icons.local_fire_department_rounded),
+    'res_oceanic': ('Oceanic', Icons.water_drop_rounded),
+    'res_verdant': ('Verdant', Icons.eco_rounded),
+    'res_earthen': ('Earthen', Icons.terrain_rounded),
+    'res_arcane': ('Arcane', Icons.auto_awesome_rounded),
+  };
+
+  List<ShopOffer> getActiveExchangeOffers() {
+    // include the static currency exchangers already defined in allOffers
+    final base = allOffers.where(
+      (o) =>
+          o.id == 'fx.silver_to_gold.unit' || o.id == 'fx.gold_to_silver.unit',
+    );
+
+    final now = DateTime.now();
+    final weekday = now.weekday;
+
+    // weekend: allow ALL; weekdays: allow only mapped resource
+    final List<String> resKeys;
+    final isWeekend =
+        (weekday == DateTime.saturday || weekday == DateTime.sunday);
+    if (isWeekend) {
+      resKeys = _resMeta.keys.toList();
+    } else {
+      final only = _weekday2ResKey[weekday];
+      resKeys = only != null ? [only] : <String>[];
+    }
+
+    final todayOffers = resKeys.map((rk) {
+      final (label, icon) = _resMeta[rk]!;
+      return ShopOffer(
+        id: 'fx.res_to_gold.$rk', // e.g., fx.res_to_gold.res_volcanic
+        name: '$label → Gold (1g)',
+        description: isWeekend
+            ? 'Exchange 5,000 $label for 1 gold. (Weekend: any element)'
+            : 'Exchange 5,000 $label for 1 gold. (Today only)',
+        icon: icon,
+        cost: {rk: kResPerGold},
+        reward: const {'gold': 1},
+        rewardType: 'currency',
+        limit: PurchaseLimit.unlimited,
+      );
+    }).toList();
+
+    return [...base, ...todayOffers];
+  }
 
   Future<void> _loadPurchaseHistory() async {
     final history = await _db.shopDao.getShopPurchaseHistory();
@@ -237,8 +356,20 @@ class ShopService extends ChangeNotifier {
     notifyListeners();
   }
 
+  ShopOffer? _resolveOfferById(String offerId) {
+    for (final o in allOffers) {
+      if (o.id == offerId) return o;
+    }
+    for (final o in getActiveExchangeOffers()) {
+      if (o.id == offerId) return o;
+    }
+    return null;
+  }
+
   bool canPurchase(String offerId) {
-    final offer = allOffers.firstWhere((o) => o.id == offerId);
+    final offer = _resolveOfferById(offerId);
+    if (offer == null) return false; // unknown offer -> not purchasable
+
     switch (offer.limit) {
       case PurchaseLimit.once:
         return (_purchaseCounts[offerId] ?? 0) == 0;
@@ -283,7 +414,8 @@ class ShopService extends ChangeNotifier {
   Future<bool> purchase(String offerId, {int qty = 1}) async {
     if (!canPurchase(offerId)) return false;
     qty = qty.clamp(1, 999);
-    final offer = allOffers.firstWhere((o) => o.id == offerId);
+    final offer = _resolveOfferById(offerId);
+    if (offer == null) return false;
 
     // Compute total cost (per-unit * qty)
     final totalCost = <String, int>{};
@@ -389,6 +521,22 @@ class ShopService extends ChangeNotifier {
         await _db.inventoryDao.addItemQty(InvKeys.harvesterGuaranteed, qty);
         return true;
 
+      case 'boost.faction_change':
+        // No state to grant here—the picker will handle the actual change.
+        // We just signal success so the UI can navigate.
+        await _db.settingsDao.setMustPickFaction(true);
+        return true;
+
+      case 'unlock.fusion_slot.1':
+      case 'unlock.fusion_slot.2':
+      case 'unlock.fusion_slot.3':
+      case 'unlock.fusion_slot.4':
+        // One purchase = one slot
+        for (int i = 0; i < qty; i++) {
+          await _db.incubatorDao.purchaseFusionSlot();
+        }
+        return true;
+
       // Exchange handled elsewhere
       case 'fx.silver_to_gold.unit':
       case 'fx.gold_to_silver.unit':
@@ -424,8 +572,8 @@ class ShopService extends ChangeNotifier {
   }
 
   Future<void> refreshInventoryForOffer(String offerId) async {
-    final offer = allOffers.firstWhere((o) => o.id == offerId);
-    final key = offer.inventoryKey;
+    final offer = _resolveOfferById(offerId);
+    final key = offer?.inventoryKey;
     if (key == null) return;
     final qty = await _db.inventoryDao.getItemQty(key);
     _inventoryCache[key] = qty;
@@ -433,13 +581,14 @@ class ShopService extends ChangeNotifier {
   }
 
   bool isInventoryable(String offerId) {
-    final offer = allOffers.firstWhere((o) => o.id == offerId);
+    final offer = _resolveOfferById(offerId);
+    if (offer == null) return false;
     return offer.inventoryKey != null;
   }
 
   int inventoryCountForOffer(String offerId) {
-    final offer = allOffers.firstWhere((o) => o.id == offerId);
-    final key = offer.inventoryKey;
+    final offer = _resolveOfferById(offerId);
+    final key = offer?.inventoryKey;
     if (key == null) return 0;
     return _inventoryCache[key] ?? 0;
   }

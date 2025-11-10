@@ -56,6 +56,8 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
   // Keep a copy of latest slot from DB
   IncubatorSlot? _slot;
 
+  bool _autoClosed = false;
+
   @override
   void initState() {
     super.initState();
@@ -103,6 +105,34 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
         remaining: safeRemaining,
       );
     }
+
+    // After _progressCtrl = AnimationController(...)
+    _progressCtrl.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _closeIfReady();
+      }
+    });
+
+    // Also handle cases where we set value = 1.0 directly (no status change)
+    _progressCtrl.addListener(() {
+      final v = _progressCtrl.value;
+      if (v >= .999) {
+        _closeIfReady();
+      }
+    });
+  }
+
+  void _closeIfReady() {
+    if (_autoClosed || !mounted) return;
+    _autoClosed = true;
+
+    // Let the UI paint 100% before closing (optional, feels smoother)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Prefer the provided callback so parent logic runs.
+      widget.onClose();
+      // If you want to hard-close the dialog instead, use:
+      // if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+    });
   }
 
   @override

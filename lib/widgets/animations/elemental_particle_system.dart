@@ -347,27 +347,34 @@ class AlchemyBrewingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw reaction sparks
+    // Draw reaction sparks (using the fast method from above)
     for (final spark in sparks) {
-      final sparkPaint = Paint()
-        ..color = spark.color.withOpacity(spark.life)
-        ..style = PaintingStyle.fill
-        ..maskFilter = fromCinematic
-            ? null
-            : const MaskFilter.blur(BlurStyle.normal, 5);
-
+      // ... (fast glow/core logic here) ...
       final glowPaint = Paint()
-        ..color = spark.color.withOpacity(spark.life * 0.4)
+        ..color = spark.color.withOpacity(spark.life * 0.15)
         ..style = PaintingStyle.fill;
-
-      canvas.drawCircle(spark.position, spark.size * 2, glowPaint);
-      canvas.drawCircle(spark.position, spark.size, sparkPaint);
+      final corePaint = Paint()
+        ..color = spark.color.withOpacity(spark.life * 0.8)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(spark.position, spark.size * 2.5, glowPaint);
+      canvas.drawCircle(spark.position, spark.size, corePaint);
     }
+
+    // ===== NEW: ADDITIVE BLENDING =====
+    // 1. Save the canvas, applying the "additive" blend mode
+    // This makes all overlapping particles add their color, creating a bright,
+    // energetic, and non-confetti look.
+    canvas.saveLayer(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..blendMode = BlendMode.plus,
+    );
 
     // Draw main particles
     for (final particle in particles) {
       _drawParticle(canvas, particle);
     }
+
+    canvas.restore();
 
     // Energy field when brewing is intense (disabled during fusion to declutter)
     if (speedMultiplier > 2.0 && !isFusion) {

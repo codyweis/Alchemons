@@ -72,7 +72,7 @@ class HarvestService extends ChangeNotifier {
 
   Future<bool> nudge(
     Biome biome, {
-    Duration by = const Duration(seconds: 1),
+    Duration by = const Duration(seconds: 5),
   }) async {
     final ok = await _adb.biomeDao.nudgeBiomeJob(biome.id, -by.inMilliseconds);
     if (ok) {

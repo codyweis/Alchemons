@@ -1,11 +1,8 @@
 import 'dart:convert';
-import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/components.dart';
 
-import 'package:alchemons/screens/creatures_screen.dart';
-import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/widgets/creature_detail/detail_helper_widgets.dart';
 import 'package:alchemons/widgets/creature_detail/lineage_block_widget.dart';
 import 'package:alchemons/widgets/creature_detail/outcome_widget.dart';
@@ -19,7 +16,6 @@ import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
-import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
@@ -174,6 +170,75 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     }
   }
 
+  Future<void> _toggleLock() async {
+    final i = _instance;
+    if (i == null) return;
+    final db = context.read<AlchemonsDatabase>();
+    await db.creatureDao.setLocked(i.instanceId, !i.locked);
+    // refresh instance so UI updates
+    await _hydrateFromInstance(i.instanceId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(!i.locked ? 'Locked' : 'Unlocked'),
+        duration: const Duration(milliseconds: 900),
+      ),
+    );
+  }
+
+  Future<void> _editNickname() async {
+    final i = _instance;
+    if (i == null) return;
+    final theme = context.read<FactionTheme>();
+
+    final controller = TextEditingController(text: i.nickname ?? '');
+    final newName = await showDialog<String?>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text('Set Nickname', style: TextStyle(color: theme.text)),
+          content: TextField(
+            style: TextStyle(color: theme.text),
+            controller: controller,
+            maxLength: 24,
+            decoration: InputDecoration(
+              hintText: 'Enter nickname (leave blank to clear)',
+              fillColor: Colors.white,
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newName == null) return; // cancelled
+
+    final db = context.read<AlchemonsDatabase>();
+    // Empty string → clear nickname (null)
+    final normalized = newName.isEmpty ? null : newName;
+    await db.creatureDao.setNickname(i.instanceId, normalized);
+    await _hydrateFromInstance(i.instanceId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          normalized == null ? 'Nickname cleared' : 'Nickname saved',
+        ),
+        duration: const Duration(milliseconds: 900),
+      ),
+    );
+  }
+
   // ---- build root -----------------------------------------------------------
 
   @override
@@ -226,7 +291,10 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
               theme: theme,
               creature: effective,
               level: _instanceLevel,
+              instance: instance, // NEW
               onClose: () => Navigator.of(context).pop(),
+              onToggleLock: instance == null ? null : _toggleLock, // NEW
+              onEditNickname: instance == null ? null : _editNickname, // NEW
             ),
             if (discovered)
               _DialogTabSelector(theme: theme, tabController: _tabController),
@@ -305,18 +373,29 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
 class _DialogHeaderBar extends StatelessWidget {
   final FactionTheme theme;
   final Creature creature;
+  final CreatureInstance? instance; // NEW: if present, shows nickname/lock
   final int? level;
   final VoidCallback onClose;
+  final VoidCallback? onToggleLock; // NEW
+  final VoidCallback? onEditNickname; // NEW
 
   const _DialogHeaderBar({
     required this.theme,
     required this.creature,
     required this.level,
     required this.onClose,
+    this.instance,
+    this.onToggleLock,
+    this.onEditNickname,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasNickname =
+        (instance?.nickname != null && instance!.nickname!.trim().isNotEmpty);
+    final displayName = (hasNickname ? instance!.nickname! : creature.name)
+        .toUpperCase();
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: BoxDecoration(
@@ -332,6 +411,7 @@ class _DialogHeaderBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // Left glyph (unchanged visual)
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -350,27 +430,36 @@ class _DialogHeaderBar extends StatelessWidget {
             child: Icon(Icons.biotech_rounded, color: theme.primary, size: 18),
           ),
           const SizedBox(width: 12),
+
+          // Title + subtitle + (optional) lock button
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
+                    // Title (tap to edit nickname when instance present)
                     Expanded(
-                      child: Text(
-                        creature.name.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: theme.text,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .8,
+                      child: GestureDetector(
+                        onTap: onEditNickname, // null-safe: no-op if null
+                        child: Text(
+                          displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: theme.text,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .8,
+                          ),
                         ),
                       ),
                     ),
+
+                    // Level badge (if provided)
                     if (level != null)
                       Container(
+                        margin: const EdgeInsets.only(left: 8),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 4,
@@ -388,7 +477,7 @@ class _DialogHeaderBar extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          level != null ? 'LV ${level}' : 'LV',
+                          'LV $level',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 9,
@@ -400,18 +489,57 @@ class _DialogHeaderBar extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  'Specimen analysis report',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+
+                Row(
+                  children: [
+                    // Subtitle: species name if nicknamed, else default subtitle
+                    Expanded(
+                      child: Text(
+                        hasNickname
+                            ? creature.name
+                            : 'Specimen analysis report',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: theme.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+
+                    // Lock toggle (only if instance provided)
+                    if (instance != null) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: onToggleLock,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: theme.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: theme.border),
+                          ),
+                          child: Icon(
+                            instance!.locked
+                                ? Icons.lock_rounded
+                                : Icons.lock_open_rounded,
+                            color: instance!.locked
+                                ? theme.primary
+                                : theme.textMuted,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
+
+          // Close button (unchanged)
           GestureDetector(
             onTap: onClose,
             child: Container(
@@ -553,6 +681,20 @@ class _OverviewScrollArea extends StatelessWidget {
                       valueText: '$instanceLevel',
                       valueColor: theme.primary,
                     ),
+                  LabeledInlineValue(
+                    label: 'Nickname',
+                    valueText: (instance!.nickname?.isNotEmpty ?? false)
+                        ? instance!.nickname!
+                        : '—',
+                    valueColor: theme.text,
+                  ),
+                  LabeledInlineValue(
+                    label: 'Lock',
+                    valueText: instance!.locked ? 'Locked' : 'Unlocked',
+                    valueColor: instance!.locked
+                        ? theme.primary
+                        : theme.textMuted,
+                  ),
                   StaminaInlineRow(
                     theme: theme,
                     label: 'Energy Level',
