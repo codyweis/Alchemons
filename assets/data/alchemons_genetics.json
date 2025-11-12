@@ -23,7 +23,7 @@
           "name": "Normal",  
           "dominance": 6, 
           "effect": { "hue_shift": 0,  "saturation": 1.0, "brightness": 1.0 },  
-          "description": "Balanced and natural coloration" 
+          "description": "Natural coloration" 
         },
         { 
           "id": "warm",    

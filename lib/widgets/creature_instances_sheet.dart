@@ -1,4 +1,8 @@
+import 'dart:async' as async;
+import 'dart:convert';
+
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
@@ -10,7 +14,6 @@ import 'package:flame/components.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
-import 'package:alchemons/providers/species_instances_vm.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
@@ -106,6 +109,56 @@ class _InstancesSheetState extends State<InstancesSheet> {
     return _variantCycle[i + 1];
   }
 
+  late SettingsDao _settings;
+  async.Timer? _saveTimer;
+
+  String get _prefsKey => 'instances_filters_${widget.species.id}';
+
+  // persist the minimal UI state
+  Map<String, dynamic> _toPrefs() => {
+    'sortBy': _sortBy.name,
+    'filtersOpen': _filtersOpen,
+    'searchText': _searchText,
+    'filterSize': _filterSize,
+    'filterTint': _filterTint,
+    'filterNature': _filterNature,
+    'filterPrismatic': _filterPrismatic,
+    'filterVariant': _filterVariant, // null | '__NON__' | group name
+    'detailMode': _detailMode.name, // info | stats | genetics
+  };
+
+  void _fromPrefs(Map<String, dynamic> p) {
+    _sortBy = SortBy.values.firstWhere(
+      (e) => e.name == (p['sortBy'] ?? _sortBy.name),
+      orElse: () => SortBy.newest,
+    );
+    _filtersOpen = p['filtersOpen'] ?? _filtersOpen;
+    _searchText = p['searchText'] ?? _searchText;
+    _filterSize = p['filterSize'];
+    _filterTint = p['filterTint'];
+    _filterNature = p['filterNature'];
+    _filterPrismatic = p['filterPrismatic'] ?? _filterPrismatic;
+    _filterVariant = p['filterVariant'];
+    _detailMode = InstanceDetailMode.values.firstWhere(
+      (e) => e.name == (p['detailMode'] ?? _detailMode.name),
+      orElse: () => widget.initialDetailMode,
+    );
+  }
+
+  // debounce saves so we’re not hammering the DB
+  void _queueSave() {
+    _saveTimer?.cancel();
+    _saveTimer = async.Timer(const Duration(milliseconds: 300), () async {
+      await _settings.setSetting(_prefsKey, jsonEncode(_toPrefs()));
+    });
+  }
+
+  // convenience so every mutation auto-saves
+  void _mutate(VoidCallback fn) {
+    setState(fn);
+    _queueSave();
+  }
+
   // STATS vs GENETICS
   late InstanceDetailMode _detailMode;
 
@@ -113,6 +166,39 @@ class _InstancesSheetState extends State<InstancesSheet> {
   void initState() {
     super.initState();
     _detailMode = widget.initialDetailMode;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // safe to read providers here
+    _settings = context.read<AlchemonsDatabase>().settingsDao;
+    _refreshAllStamina();
+    // fire-and-forget restore
+    () async {
+      final raw = await _settings.getSetting(_prefsKey);
+      if (!mounted || raw == null || raw.isEmpty) return;
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      setState(() => _fromPrefs(map)); // no save on restore
+    }();
+  }
+
+  Future<void> _refreshAllStamina() async {
+    final stamina = context.read<StaminaService>();
+    final db = context.read<AlchemonsDatabase>();
+
+    final instances = await db.creatureDao.getInstancesForSpecies(
+      widget.species.id,
+    );
+    for (final inst in instances) {
+      await stamina.refreshAndGet(inst.instanceId);
+    }
+  }
+
+  @override
+  void dispose() {
+    _saveTimer?.cancel();
+    super.dispose();
   }
 
   void _toggleInSet(Set<String> set, String value) {
@@ -163,12 +249,14 @@ class _InstancesSheetState extends State<InstancesSheet> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: ChangeNotifierProvider(
-        create: (_) => SpeciesInstancesVM(db, widget.species.id),
-        child: Consumer<SpeciesInstancesVM>(
-          builder: (_, vm, __) {
+      body: StreamProvider<List<CreatureInstance>>(
+        create: (_) =>
+            db.creatureDao.watchInstancesBySpecies(widget.species.id),
+        initialData: const [],
+        child: Consumer<List<CreatureInstance>>(
+          builder: (_, instances, __) {
             // 1. species instances
-            var visible = [...vm.instances];
+            var visible = [...instances];
 
             // Filter out busy instances if in harvest mode
             if (_isHarvestMode && widget.busyInstanceIds != null) {
@@ -311,11 +399,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                  onChanged: (val) {
-                                    setState(() {
-                                      _searchText = val;
-                                    });
-                                  },
+                                  onChanged: (val) => _mutate(() {
+                                    _searchText = val;
+                                  }),
                                 ),
                               ),
                             ],
@@ -328,18 +414,17 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       // Only show STATS/GENETICS toggle if NOT in harvest mode
                       if (!_isHarvestMode)
                         GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _detailMode = switch (_detailMode) {
-                                InstanceDetailMode.info =>
-                                  InstanceDetailMode.stats,
-                                InstanceDetailMode.stats =>
-                                  InstanceDetailMode.genetics,
-                                InstanceDetailMode.genetics =>
-                                  InstanceDetailMode.info,
-                              };
-                            });
-                          },
+                          onTap: () => _mutate(() {
+                            _detailMode = switch (_detailMode) {
+                              InstanceDetailMode.info =>
+                                InstanceDetailMode.stats,
+                              InstanceDetailMode.stats =>
+                                InstanceDetailMode.genetics,
+                              InstanceDetailMode.genetics =>
+                                InstanceDetailMode.info,
+                            };
+                          }),
+
                           child: Container(
                             height: 34,
                             padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -372,11 +457,10 @@ class _InstancesSheetState extends State<InstancesSheet> {
 
                       // Filters pill
                       GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _filtersOpen = !_filtersOpen;
-                          });
-                        },
+                        onTap: () => _mutate(() {
+                          _filtersOpen = !_filtersOpen;
+                        }),
+
                         child: Container(
                           height: 34,
                           padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -437,18 +521,18 @@ class _InstancesSheetState extends State<InstancesSheet> {
                   _FiltersPanel(
                     theme: widget.theme,
                     sortBy: _sortBy,
-                    onSortChanged: (s) => setState(() => _sortBy = s),
+                    onSortChanged: (s) => _mutate(() => _sortBy = s),
 
                     // toggles
                     filterPrismatic: _filterPrismatic,
                     onTogglePrismatic: () =>
-                        setState(() => _filterPrismatic = !_filterPrismatic),
+                        _mutate(() => _filterPrismatic = !_filterPrismatic),
 
                     // cyclers
                     sizeValueText: _filterSize == null
                         ? null
                         : (sizeLabels[_filterSize] ?? _filterSize!),
-                    onCycleSize: () => setState(
+                    onCycleSize: () => _mutate(
                       () => _filterSize = _cycleNextOrAny(
                         _filterSize,
                         _sizeCycle,
@@ -458,7 +542,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                     tintValueText: _filterTint == null
                         ? null
                         : (tintLabels[_filterTint] ?? _filterTint!),
-                    onCycleTint: () => setState(
+                    onCycleTint: () => _mutate(
                       () => _filterTint = _cycleNextOrAny(
                         _filterTint,
                         _tintCycle,
@@ -471,16 +555,16 @@ class _InstancesSheetState extends State<InstancesSheet> {
                         return 'None'; // Non-variant
                       return _filterVariant; // Group name
                     }(),
-                    onCycleVariant: () => setState(
+                    onCycleVariant: () => _mutate(
                       () => _filterVariant = _cycleNextVariant(_filterVariant),
                     ),
 
                     // nature (sheet)
                     filterNature: _filterNature,
-                    onPickNature: (val) => setState(() => _filterNature = val),
+                    onPickNature: (val) => _mutate(() => _filterNature = val),
                     natureOptions: _buildNatureOptions(),
 
-                    onClearAll: () => setState(() {
+                    onClearAll: () => _mutate(() {
                       _filterPrismatic = false;
                       _filterVariant = null;
                       _filterSize = null;
@@ -1377,6 +1461,7 @@ class _InstanceCard extends StatelessWidget {
               instance: instance,
               isSelected: isSelected,
               selectionNumber: selectionNumber,
+              creatureName: species.name,
             ),
             InstanceDetailMode.stats => _StatsBlock(
               theme: theme,
@@ -1512,19 +1597,21 @@ class _InfoBlock extends StatelessWidget {
   final CreatureInstance instance;
   final bool isSelected;
   final int? selectionNumber;
+  final String creatureName;
 
   const _InfoBlock({
     required this.theme,
     required this.instance,
     required this.isSelected,
     required this.selectionNumber,
+    required this.creatureName,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasNick =
         (instance.nickname != null && instance.nickname!.trim().isNotEmpty);
-    final nick = hasNick ? instance.nickname!.trim() : '—';
+    final nick = hasNick ? instance.nickname!.trim() : creatureName;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,5 +1,10 @@
 import 'dart:async';
 
+import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/pools/sky_pool.dart';
+import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
+import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
+import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -17,23 +22,27 @@ import 'services/game_data_service.dart';
 import 'providers/app_providers.dart';
 import 'screens/home_screen.dart';
 
+// >>> add these imports for scenes & pools
+import 'package:alchemons/services/wilderness_spawn_service.dart';
+import 'package:alchemons/models/scenes/valley/valley_scene.dart';
+import 'package:alchemons/models/scenes/sky/sky_scene.dart';
+import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
+import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
+import 'package:alchemons/models/encounters/pools/valley_pool.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Create the database
   final db = constructDb();
 
-  // 2. Load the catalog from assets
   final catalog = CreatureCatalog();
-  await catalog.load(); // this reads assets/data/alchemons_creatures.json
+  await catalog.load();
 
-  // 3. Create the game data service with the catalog and db
   final gameData = GameDataService(db: db, catalog: catalog);
   await gameData.init();
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
-  // 4. Run the app
   runApp(AlchemonsApp(db: db, gameDataService: gameData));
 }
 
@@ -54,26 +63,19 @@ class AlchemonsApp extends StatelessWidget {
       gameDataService: gameDataService,
       child: Builder(
         builder: (context) {
-          // 1. Pull in both providers we care about
           final themeNotifier = context.watch<ThemeNotifier>();
-
-          // ... (rest of your theme logic) ...
           final factionSvc = context.watch<FactionService>();
           final factionId = factionSvc.current;
 
-          // Build LIGHT faction theme
           final lightFactionTheme = factionThemeFor(
             factionId,
             brightness: Brightness.light,
           );
-
-          // Build DARK faction theme
           final darkFactionTheme = factionThemeFor(
             factionId,
             brightness: Brightness.dark,
           );
 
-          // Shared base text theme with your font
           final textTheme = GoogleFonts.aBeeZeeTextTheme(
             Theme.of(context).textTheme,
           );
@@ -83,18 +85,11 @@ class AlchemonsApp extends StatelessWidget {
 
           return MaterialApp(
             title: 'Alchemons',
-
-            // 👇 This is the persisted user choice from ThemeNotifier
             themeMode: themeNotifier.themeMode,
-
-            // 👇 Supply both palettes to Flutter
             theme: lightThemeData,
             darkTheme: darkThemeData,
-
-            // 2. ADD THIS LINE
-            // This connects your app's navigation to the RouteAware mixin
             navigatorObservers: [routeObserver],
-
+            // >>> wrap HomeScreen so we can bootstrap spawns once
             home: const AppGate(child: HomeScreen()),
           );
         },
@@ -115,6 +110,9 @@ class _AppGateState extends State<AppGate> {
   StreamSubscription<bool>? _sub;
   bool _navigating = false;
 
+  // >>> guard so we only initialize spawns once
+  bool _spawnsStarted = false;
+
   @override
   void initState() {
     super.initState();
@@ -123,6 +121,10 @@ class _AppGateState extends State<AppGate> {
     // 1) One-shot check after first frame (Navigator is ready)
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+
+      // >>> boot the spawn system once providers are available
+      await _ensureSpawnsStarted();
+
       final mustPick = await db.settingsDao.getMustPickFaction();
       if (mustPick) _openPicker();
     });
@@ -132,6 +134,61 @@ class _AppGateState extends State<AppGate> {
       if (!mounted || !mustPick) return;
       _openPicker();
     });
+  }
+
+  // >>> spawn bootstrap
+  Future<void> _ensureSpawnsStarted() async {
+    if (_spawnsStarted) return;
+    _spawnsStarted = true;
+
+    // Pull the service and build the scenes/pools map exactly once
+    final spawnService = context.read<WildernessSpawnService>();
+
+    final scenes =
+        <
+          String,
+          ({
+            SceneDefinition scene,
+            EncounterPool sceneWide,
+            Map<String, EncounterPool> perSpawn,
+          })
+        >{
+          'valley': (
+            scene: valleySceneCorrected,
+            sceneWide: valleyEncounterPools(valleySceneCorrected).sceneWide,
+            perSpawn: valleyEncounterPools(valleySceneCorrected).perSpawn,
+          ),
+          'sky': (
+            scene: skyScene,
+            sceneWide: skyEncounterPools(skyScene).sceneWide,
+            perSpawn: skyEncounterPools(skyScene).perSpawn,
+          ),
+          'volcano': (
+            scene: volcanoScene,
+            sceneWide: volcanoEncounterPools(volcanoScene).sceneWide,
+            perSpawn: volcanoEncounterPools(volcanoScene).perSpawn,
+          ),
+          'swamp': (
+            scene: swampScene,
+            sceneWide: swampEncounterPools(swampScene).sceneWide,
+            perSpawn: swampEncounterPools(swampScene).perSpawn,
+          ),
+        };
+
+    // (Optional) For dev: make first spawn “sooner”
+    // spawnService.setGlobalSpawnWindow(Duration.zero, const Duration(seconds: 2));
+
+    // Initialize from DB (loads active spawns & schedules; creates schedules if missing)
+    await spawnService.initializeActiveSpawns(scenes: scenes);
+
+    // (Optional) Fire once so any overdue scenes materialize immediately
+    await spawnService.processDueScenes(scenes);
+
+    // Start the background tick owned by the service (default: 10s)
+    spawnService.startTick(
+      interval: const Duration(seconds: 10),
+      scenes: scenes,
+    );
   }
 
   Future<void> _openPicker() async {

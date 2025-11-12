@@ -303,7 +303,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
                       // SECTION 5: UPGRADES
                       _buildSectionHeader(
-                        'BUBBLE SLOTS',
+                        'ALCHEMY CHAMBERS',
                         theme.accent,
                         Icons.bubble_chart_rounded,
                       ),
@@ -371,7 +371,8 @@ class _ShopScreenState extends State<ShopScreen> {
               ),
           ];
 
-          return GameShopCard(
+          // MODIFICATION HERE
+          final card = GameShopCard(
             key: ValueKey('device-${offer.id}'),
             title: offer.name,
             description: offer.description,
@@ -382,8 +383,20 @@ class _ShopScreenState extends State<ShopScreen> {
             statusText: status,
             enabled: canPurchase,
             canAfford: canAffordUnit,
-            onPressed: () => _handlePurchase(context, offer, allCurrencies),
+            onPressed: null, // Tap handled by GestureDetector
           );
+
+          return GestureDetector(
+            onTap: () {
+              if (canPurchase) {
+                _handlePurchase(context, offer, allCurrencies, canAffordUnit);
+              } else {
+                _showDetails(context, offer, allCurrencies, canAffordUnit);
+              }
+            },
+            child: card,
+          );
+          // END MODIFICATION
         }).toList();
 
         return Padding(
@@ -442,7 +455,8 @@ class _ShopScreenState extends State<ShopScreen> {
               ),
           ];
 
-          return GameShopCard(
+          // MODIFICATION HERE
+          final card = GameShopCard(
             key: ValueKey('instant-${offer.id}'),
             title: offer.name,
             description: offer.description,
@@ -453,8 +467,20 @@ class _ShopScreenState extends State<ShopScreen> {
             statusText: status,
             enabled: canPurchase,
             canAfford: canAffordUnit,
-            onPressed: () => _handlePurchase(context, offer, allCurrencies),
+            onPressed: null, // Tap handled by GestureDetector
           );
+
+          return GestureDetector(
+            onTap: () {
+              if (canPurchase) {
+                _handlePurchase(context, offer, allCurrencies, canAffordUnit);
+              } else {
+                _showDetails(context, offer, allCurrencies, canAffordUnit);
+              }
+            },
+            child: card,
+          );
+          // END MODIFICATION
         }).toList();
 
         return Padding(
@@ -521,7 +547,8 @@ class _ShopScreenState extends State<ShopScreen> {
             }
           });
 
-          return GameShopCard(
+          // MODIFICATION HERE
+          final card = GameShopCard(
             key: ValueKey('fx-${offer.id}'),
             title: offer.name,
             description: offer.description,
@@ -531,8 +558,20 @@ class _ShopScreenState extends State<ShopScreen> {
             costWidgets: costWidgets,
             enabled: canPurchase,
             canAfford: canAffordUnit,
-            onPressed: () => _handlePurchase(context, offer, mergedBalances),
+            onPressed: null, // Tap handled by GestureDetector
           );
+
+          return GestureDetector(
+            onTap: () {
+              if (canPurchase) {
+                _handlePurchase(context, offer, mergedBalances, canAffordUnit);
+              } else {
+                _showDetails(context, offer, mergedBalances, canAffordUnit);
+              }
+            },
+            child: card,
+          );
+          // END MODIFICATION
         }).toList();
 
         return Padding(
@@ -620,7 +659,8 @@ class _ShopScreenState extends State<ShopScreen> {
               ),
           ];
 
-          return GameShopCard(
+          // MODIFICATION HERE
+          final card = GameShopCard(
             key: ValueKey('special-${offer.id}'),
             title: offer.name,
             description: offer.description,
@@ -630,9 +670,20 @@ class _ShopScreenState extends State<ShopScreen> {
             costWidgets: costWidgets,
             enabled: canPurchase,
             canAfford: canAffordUnit,
-            // Quantity selector is NOT needed; these are once-only steps
-            onPressed: () => _handlePurchase(context, offer, allCurrencies),
+            onPressed: null, // Tap handled by GestureDetector
           );
+
+          return GestureDetector(
+            onTap: () {
+              if (canPurchase) {
+                _handlePurchase(context, offer, allCurrencies, canAffordUnit);
+              } else {
+                _showDetails(context, offer, allCurrencies, canAffordUnit);
+              }
+            },
+            child: card,
+          );
+          // END MODIFICATION
         }).toList();
 
         return Padding(
@@ -675,16 +726,48 @@ class _ShopScreenState extends State<ShopScreen> {
             ),
       ];
 
+      // Create a pseudo-offer for the detail dialog
+      final slotOffer = ShopOffer(
+        rewardType: 'Upgrade',
+        reward: <String, dynamic>{},
+        limit: PurchaseLimit.once,
+        id: 'unlock.bubble_slot_2',
+        name: 'Floating Alchemy Chamber',
+        description:
+            'Unlock a floating alchemy chamber to display chosen Alchemons on the homescreen.',
+        icon: Icons.bubble_chart_rounded,
+        cost: cost,
+        inventoryKey: null,
+        assetName: null,
+      );
+
+      final card = GameShopCard(
+        key: const ValueKey('upgrade-slot-2'),
+        icon: Icons.bubble_chart_rounded,
+        title: 'Bubble Slot 2',
+        theme: theme,
+        costWidgets: costWidgets,
+        enabled: enabled,
+        canAfford: canAfford,
+        onPressed: null, // Tap handled by GestureDetector
+      );
+
       items.add(
-        GameShopCard(
-          key: const ValueKey('upgrade-slot-2'),
-          icon: Icons.bubble_chart_rounded,
-          title: 'Bubble Slot 2',
-          theme: theme,
-          costWidgets: costWidgets,
-          enabled: enabled,
-          canAfford: canAfford,
-          onPressed: () => _purchaseSlot(2),
+        GestureDetector(
+          onTap: () {
+            if (enabled) {
+              _handleBubbleSlotPurchase(
+                context,
+                slotOffer,
+                balances,
+                canAfford,
+                2,
+              );
+            } else {
+              _showBubbleSlotDetails(context, slotOffer, balances, canAfford);
+            }
+          },
+          child: card,
         ),
       );
     }
@@ -706,16 +789,48 @@ class _ShopScreenState extends State<ShopScreen> {
             ),
       ];
 
+      // Create a pseudo-offer for the detail dialog
+      final slotOffer = ShopOffer(
+        rewardType: 'Upgrade',
+        id: 'unlock.bubble_slot_3',
+        reward: <String, dynamic>{},
+        name: 'Floating Alchemy Chamber',
+        description:
+            'Unlock a floating alchemy chamber to display chosen Alchemons on the homescreen.',
+        icon: Icons.bubble_chart_rounded,
+        cost: cost,
+        inventoryKey: null,
+        assetName: null,
+        limit: PurchaseLimit.once,
+      );
+
+      final card = GameShopCard(
+        key: const ValueKey('upgrade-slot-3'),
+        icon: Icons.bubble_chart_rounded,
+        title: 'Bubble Slot 3',
+        theme: theme,
+        costWidgets: costWidgets,
+        enabled: enabled,
+        canAfford: canAfford,
+        onPressed: null, // Tap handled by GestureDetector
+      );
+
       items.add(
-        GameShopCard(
-          key: const ValueKey('upgrade-slot-3'),
-          icon: Icons.bubble_chart_rounded,
-          title: 'Bubble Slot 3',
-          theme: theme,
-          costWidgets: costWidgets,
-          enabled: enabled,
-          canAfford: canAfford,
-          onPressed: () => _purchaseSlot(3),
+        GestureDetector(
+          onTap: () {
+            if (enabled) {
+              _handleBubbleSlotPurchase(
+                context,
+                slotOffer,
+                balances,
+                canAfford,
+                3,
+              );
+            } else {
+              _showBubbleSlotDetails(context, slotOffer, balances, canAfford);
+            }
+          },
+          child: card,
         ),
       );
     }
@@ -744,10 +859,81 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
+  // NEW: Handle bubble slot detail view (already purchased)
+  Future<void> _showBubbleSlotDetails(
+    BuildContext context,
+    ShopOffer offer,
+    Map<String, int> balances,
+    bool canAfford,
+  ) async {
+    final theme = context.read<FactionTheme>();
+
+    await showItemDetailDialog(
+      context: context,
+      offer: offer,
+      theme: theme,
+      currencies: balances,
+      inventoryQty: 0,
+      canPurchase: canAfford,
+    );
+  }
+
+  // NEW: Handle bubble slot purchase flow
+  Future<void> _handleBubbleSlotPurchase(
+    BuildContext context,
+    ShopOffer offer,
+    Map<String, int> balances,
+    bool canAfford,
+    int slotNumber,
+  ) async {
+    final theme = context.read<FactionTheme>();
+
+    // STEP 1: Show detail dialog
+    final shouldProceed = await showItemDetailDialog(
+      context: context,
+      offer: offer,
+      theme: theme,
+      currencies: balances,
+      inventoryQty: 0,
+      canPurchase: canAfford,
+    );
+    if (!shouldProceed || !context.mounted) return;
+
+    // STEP 2: Proceed with purchase
+    await _purchaseSlot(slotNumber);
+  }
+
+  Future<void> _showDetails(
+    BuildContext context,
+    ShopOffer offer,
+    Map<String, int> currencies,
+    bool canAfford,
+  ) async {
+    final theme = context.read<FactionTheme>();
+    final shopService = context.read<ShopService>();
+
+    // Get inventory quantity for this item
+    final invQty = offer.inventoryKey != null
+        ? shopService.inventoryCountForOffer(offer.id)
+        : 0;
+
+    // STEP 1: Item detail dialog (and that's all)
+    final shouldProceed = await showItemDetailDialog(
+      context: context,
+      offer: offer,
+      theme: theme,
+      currencies: currencies,
+      inventoryQty: invQty,
+      canPurchase: canAfford,
+    );
+    // We don't care about the return value, as we won't proceed to purchase
+  }
+
   Future<void> _handlePurchase(
     BuildContext context,
     ShopOffer offer,
     Map<String, int> currencies,
+    bool canAfford,
   ) async {
     final theme = context.read<FactionTheme>();
     final shopService = context.read<ShopService>();
@@ -764,6 +950,7 @@ class _ShopScreenState extends State<ShopScreen> {
       theme: theme,
       currencies: currencies,
       inventoryQty: invQty,
+      canPurchase: canAfford,
     );
     if (!shouldProceed || !context.mounted) return;
 

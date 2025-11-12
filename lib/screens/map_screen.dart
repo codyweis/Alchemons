@@ -32,10 +32,11 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  bool _showDebugInfo = false; // Add this state variable
+
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
-
     final spawnService = context.watch<WildernessSpawnService>();
 
     final anySpawns = const [
@@ -49,7 +50,6 @@ class _MapScreenState extends State<MapScreen> {
       whiteBackground: theme.brightness == Brightness.light,
       body: WillPopScope(
         onWillPop: () async {
-          // Prevent back navigation during tutorial
           if (widget.isTutorial) {
             _showTutorialBlockedDialog();
             return false;
@@ -133,6 +133,66 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                ],
+
+                // ADD DEBUG TOGGLE BUTTON
+                if (!widget.isTutorial) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _showDebugInfo = !_showDebugInfo;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _showDebugInfo
+                              ? theme.accent.withOpacity(0.2)
+                              : theme.surfaceAlt,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: theme.accent.withOpacity(.35),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _showDebugInfo
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              size: 16,
+                              color: theme.text,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _showDebugInfo
+                                  ? 'Hide Spawn Times'
+                                  : 'Show Spawn Times',
+                              style: TextStyle(
+                                color: theme.text,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+
+                // SHOW DEBUG INFO PANEL
+                if (_showDebugInfo && !widget.isTutorial) ...[
+                  _SpawnDebugPanel(theme: theme, spawnService: spawnService),
+                  const SizedBox(height: 8),
                 ],
 
                 // MAP AREA
@@ -264,7 +324,7 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     // During tutorial, skip access checks
-    if (!widget.isTutorial) {
+    if (widget.isTutorial) {
       // check access / refresh if earth faction perk
       var ok = await access.canEnter(biomeId);
       if (!ok && await factions.earthCanRefreshToday(biomeId)) {
@@ -516,6 +576,115 @@ class _PartyStatusCard extends StatelessWidget {
   }
 }
 
+// ADD THIS NEW WIDGET AT THE BOTTOM OF THE FILE
+class _SpawnDebugPanel extends StatelessWidget {
+  const _SpawnDebugPanel({required this.theme, required this.spawnService});
+
+  final FactionTheme theme;
+  final WildernessSpawnService spawnService;
+
+  @override
+  Widget build(BuildContext context) {
+    final biomes = [
+      ('valley', 'Valley'),
+      ('sky', 'Sky'),
+      ('volcano', 'Volcano'),
+      ('swamp', 'Swamp'),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.accent.withOpacity(.35), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bug_report, size: 14, color: theme.accent),
+              const SizedBox(width: 6),
+              Text(
+                'Next Spawn Times',
+                style: TextStyle(
+                  color: theme.text,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...biomes.map((biome) {
+            final biomeId = biome.$1;
+            final biomeName = biome.$2;
+            final nextDue = spawnService.getNextSpawnTime(biomeId);
+
+            final spawnCount = spawnService.getSceneSpawnCount(biomeId);
+
+            String timeText;
+            if (nextDue == null) {
+              timeText = 'Not scheduled';
+            } else {
+              final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+              final diff = nextDue - now;
+
+              if (diff <= 0) {
+                timeText = 'Due now!';
+              } else {
+                final minutes = diff ~/ 60000;
+                final seconds = (diff % 60000) ~/ 1000;
+                timeText = '${minutes}m ${seconds}s';
+              }
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '$biomeName: $timeText',
+                      style: TextStyle(
+                        color: theme.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (spawnCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.accent.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: theme.accent, width: 1),
+                      ),
+                      child: Text(
+                        '$spawnCount active',
+                        style: TextStyle(
+                          color: theme.accent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
 // =====================================================
 // MAP + MARKERS
 // =====================================================
@@ -603,7 +772,7 @@ class _ExpeditionMap extends StatelessWidget {
                   leftPct: 0.3,
                   topPct: 0.3,
                   biomeId: 'valley',
-                  scene: valleyScene,
+                  scene: valleySceneCorrected,
                 ),
                 hotspot(
                   leftPct: 0.72,

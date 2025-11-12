@@ -1,8 +1,10 @@
 import 'dart:math';
+import 'dart:math' as math;
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/wild_spawn.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
+import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
@@ -11,6 +13,12 @@ import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+
+//KEEP THIS FOR INFO
+
+// The key was understanding that parallax affects BOTH the layer offset AND the camera movement, so the formula is:
+// screen_position = world_position - camera_position × (1 + parallax_factor)
+// That's why parallax=1.0 creatures were going off-screen - they were being offset twice as much as expected!
 
 /// Resolve a Flame SpriteAnimationComponent for a species,
 /// sized to `desiredSize`. Return null to fall back to a blob.
@@ -28,6 +36,9 @@ enum SceneMode { exploration, encounter }
 
 class SceneGame extends FlameGame with ScaleDetector {
   SceneGame({required this.scene});
+
+  bool showSpawnDebug = true; // toggle at runtime
+  final Map<String, RectangleComponent> _spawnDebugBoxes = {};
 
   final SceneDefinition scene;
   final CameraComponent cam = CameraComponent();
@@ -69,13 +80,17 @@ class SceneGame extends FlameGame with ScaleDetector {
   double _maxCamX = 0;
   double _maxCamY = 0;
 
+  // NEW: Hard limit for camera movement in Exploration Mode (based on worldWidth)
+  double get _maxCamXExploration =>
+      max(0.0, scene.worldWidth - (size.x / cam.viewfinder.zoom));
+
   // Smooth interpolation targets
   double _targetCameraX = 0;
   double _targetCameraY = 0;
 
   // Zoom state
   double _targetZoom = 1.0;
-  final double minZoom = 1.0;
+  final double minZoom = 1;
   final double maxZoom = 2.0;
   final double zoomEase = 20.0; // higher = snappier
   double? _pinchStartZoom;
@@ -89,6 +104,13 @@ class SceneGame extends FlameGame with ScaleDetector {
   // Scene mode
   SceneMode _mode = SceneMode.exploration;
   SceneMode get mode => _mode;
+
+  double _zoomToFitBox({required double boxW, required double boxH}) {
+    final root = layersRoot.scale.x;
+    final zx = size.x / (root * boxW);
+    final zy = size.y / (root * boxH);
+    return math.min(zx, zy);
+  }
 
   /// Trigger a camera shake that eases out over [duration].
   /// [amplitude] is the pixel jitter at the start of the shake.
@@ -104,6 +126,55 @@ class SceneGame extends FlameGame with ScaleDetector {
   // ------------------------------------------------------------
   // Lifecycle / setup
   // ------------------------------------------------------------
+
+  void debugEncounterFrame(String spawnId) {
+    final sp = scene.spawnPoints.firstWhere((s) => s.id == spawnId);
+    final anchor = _spawnPointComps[spawnId];
+
+    if (anchor == null) {
+      debugPrint('⚠️  No anchor for $spawnId');
+      return;
+    }
+
+    final baseW = scene.worldWidth.toDouble();
+    final bp = sp.getBattlePos();
+
+    // Where the creature actually is (accounting for parallax)
+    final actualWild = anchor.position.clone();
+
+    // Where we THINK it is
+    final calculatedWild = Vector2(
+      sp.normalizedPos.dx * baseW,
+      sp.normalizedPos.dy * _Vh,
+    );
+
+    final calculatedParty = Vector2(bp.dx * baseW, bp.dy * _Vh);
+
+    debugPrint('\n🐛 ENCOUNTER FRAME DEBUG for $spawnId:');
+    debugPrint(
+      '├─ Layer: ${sp.anchor} (parallax: ${scene.layers.firstWhere((l) => l.id == sp.anchor).parallaxFactor})',
+    );
+    debugPrint('├─ World size: ${baseW.toInt()} x ${_Vh.toInt()}');
+    debugPrint('├─ Viewport: ${size.x.toInt()} x ${size.y.toInt()}');
+    debugPrint('├─ Root scale: ${layersRoot.scale.x}');
+    debugPrint('│');
+    debugPrint(
+      '├─ Wild (calculated): (${calculatedWild.x.toStringAsFixed(1)}, ${calculatedWild.y.toStringAsFixed(1)})',
+    );
+    debugPrint(
+      '├─ Wild (actual pos): (${actualWild.x.toStringAsFixed(1)}, ${actualWild.y.toStringAsFixed(1)})',
+    );
+    debugPrint(
+      '├─ Difference: (${(actualWild.x - calculatedWild.x).toStringAsFixed(1)}, ${(actualWild.y - calculatedWild.y).toStringAsFixed(1)})',
+    );
+    debugPrint('│');
+    debugPrint(
+      '├─ Party (calculated): (${calculatedParty.x.toStringAsFixed(1)}, ${calculatedParty.y.toStringAsFixed(1)})',
+    );
+    debugPrint(
+      '└─ Distance: ${(calculatedWild - calculatedParty).length.toStringAsFixed(1)}px\n',
+    );
+  }
 
   @override
   Future<void> onLoad() async {
@@ -237,9 +308,11 @@ class SceneGame extends FlameGame with ScaleDetector {
       final layer = _layers[p.anchor];
       if (layer == null) continue;
 
-      final baseW = layer.tileWidth > 0 ? layer.tileWidth : scene.worldWidth;
+      final baseW = scene.worldWidth.toDouble();
+      final baseH = scene.worldHeight.toDouble(); // ✅ Use worldHeight, not _Vh
+
       final x = p.normalizedPos.dx * baseW;
-      final y = p.normalizedPos.dy * _Vh;
+      final y = p.normalizedPos.dy * baseH;
 
       final anchor = PositionComponent(
         position: Vector2(x, y),
@@ -265,89 +338,80 @@ class SceneGame extends FlameGame with ScaleDetector {
     onStartEncounter?.call(spawnId, speciesId, hydrated);
   }
 
-  /// Switches to cinematic encounter mode:
-  /// - locks gestures
-  /// - spawns party creature later
-  /// - zooms & pans camera to frame wild + party
   void _enterEncounterMode(String spawnId) {
+    debugEncounterFrame(spawnId);
     _mode = SceneMode.encounter;
     _currentEncounterSpawnId = spawnId;
 
-    // Hide all other wild creatures
-    for (final entry in _wildBySpawnId.entries) {
-      if (entry.key != spawnId) {
-        // Hiding component by setting its scale to 0
-        entry.value.scale = Vector2.zero();
-      }
+    final sp = scene.spawnPoints.firstWhere((s) => s.id == spawnId);
+
+    for (final e in _wildBySpawnId.entries) {
+      if (e.key != spawnId) e.value.scale = Vector2.zero();
     }
 
-    final sp = scene.spawnPoints.firstWhere((s) => s.id == spawnId);
-    final layer = _layers[sp.anchor];
-    if (layer == null) return;
+    final wildAnchor = _spawnPointComps[spawnId];
+    if (wildAnchor == null) {
+      debugPrint('⚠️ No anchor found for $spawnId');
+      return;
+    }
 
-    final baseW = layer.tileWidth > 0 ? layer.tileWidth : scene.worldWidth;
+    final wild = wildAnchor.position.clone();
+    final layerDef = scene.layers.firstWhere((l) => l.id == sp.anchor);
+    final parallaxFactor = layerDef.parallaxFactor;
 
-    // World-space positions for wild + party
-    final wildX = sp.normalizedPos.dx * baseW;
-    final wildY = sp.normalizedPos.dy * _Vh;
+    debugPrint(
+      '🔍 Creature at world: (${wild.x}, ${wild.y}), parallax: $parallaxFactor',
+    );
 
-    final partyPos = sp.getBattlePos();
-    final partyX = partyPos.dx * baseW;
-    final partyY = partyPos.dy * _Vh;
+    const encounterZoom = 1.3; // Gentle zoom
+    final root = layersRoot.scale.x;
+    final worldHeight = scene.worldHeight.toDouble();
 
-    // Midpoint between them (you can bias Y if you want more "ground" in frame)
-    final focusX = (wildX + partyX) / 2;
-    final focusY = (wildY + partyY) / 2;
+    final halfW = size.x / (2 * encounterZoom * root);
+    final halfH = size.y / (2 * encounterZoom * root);
 
-    // Desired zoom level for encounter
-    const desiredZoom = 1.8;
+    final maxCamX = math.max(0.0, scene.worldWidth.toDouble() - 2 * halfW);
+    final maxCamY = math.max(0.0, worldHeight - 2 * halfH);
 
-    // Compute the camera's top-left that would center `focusX/focusY` at that zoom
-    final halfW = size.x / (2 * desiredZoom);
-    final halfH = size.y / (2 * desiredZoom);
+    double camX, camY;
 
-    var camX = focusX - halfW;
-    var camY = focusY - halfH;
+    if (parallaxFactor == 1.0) {
+      // ✅ For parallax=1.0: screen pos = wild.x - 2*camX
+      // Want: wild.x - 2*camX = halfW
+      // So: camX = (wild.x - halfW) / 2
+      camX = ((wild.x - halfW) / 2.0).clamp(0.0, maxCamX);
+      camY = ((wild.y - halfH) / 2.0).clamp(0.0, maxCamY);
+    } else if (parallaxFactor == 0.0) {
+      // Background doesn't move, creature stays at world position
+      camX = (wild.x - halfW).clamp(0.0, maxCamX);
+      camY = (wild.y - halfH).clamp(0.0, maxCamY);
+    } else {
+      // General case: screen pos = wild.x - camX*(1 + parallax)
+      // Want: wild.x - camX*(1+parallax) = halfW
+      // So: camX = (wild.x - halfW) / (1 + parallax)
+      camX = ((wild.x - halfW) / (1.0 + parallaxFactor)).clamp(0.0, maxCamX);
+      camY = ((wild.y - halfH) / (1.0 + parallaxFactor)).clamp(0.0, maxCamY);
+    }
 
-    // Save current camera/limits so we can restore after sim
-    final prevZoom = cam.viewfinder.zoom;
-    final prevMaxX = _maxCamX;
-    final prevMaxY = _maxCamY;
-
-    // Pretend we're already zoomed in, so bounds match the encounter shot
-    cam.viewfinder.zoom = desiredZoom;
-    _recomputeMaxCamBounds();
-
-    // --- CLAMPING DECISIONS ---
-
-    // 1. Always clamp X so we never see horizontal gaps.
-    camX = camX.clamp(0.0, _maxCamX);
-
-    // 2. Soft-clamp Y so we never show out-of-bounds,
-    //    but still allow us to sit lower than "normal exploration".
-    //
-    //    We can optionally bias a little DOWN (show more ground vs sky)
-    //    before clamping. For example +groundBias.
-    const groundBias = 80.0; // tweak to taste
-    camY += groundBias;
-
-    // Now clamp to the legal vertical scroll range at this zoom.
-    camY = camY.clamp(0.0, _maxCamY);
-
-    // --- STORE TARGETS ---
-
-    _targetZoom = desiredZoom;
+    _targetZoom = encounterZoom;
     _targetCameraX = camX;
     _targetCameraY = camY;
 
-    // Restore previous camera state for real runtime;
-    cam.viewfinder.zoom = prevZoom;
-    _maxCamX = prevMaxX;
-    _maxCamY = prevMaxY;
+    debugPrint(
+      '🎯 Encounter: wild=(${wild.x.toStringAsFixed(0)}, ${wild.y.toStringAsFixed(0)})',
+    );
+    debugPrint(
+      '📐 Zoom: $encounterZoom, Camera: (${camX.toStringAsFixed(1)}, ${camY.toStringAsFixed(1)})',
+    );
+
+    // Debug: calculate actual screen position
+    final screenX = wild.x - camX * (1.0 + parallaxFactor);
+    final screenY = wild.y - camY * (1.0 + parallaxFactor);
+    debugPrint(
+      '   Expected screen pos: (${screenX.toStringAsFixed(0)}, ${screenY.toStringAsFixed(0)}) vs center: ($halfW, $halfH)',
+    );
   }
 
-  /// Call from UI when the player picks a party creature.
-  /// Places their creature at the "battle" position and leaves wild where it was.
   void spawnPartyCreature(Creature creature) {
     if (_currentEncounterSpawnId == null) return;
 
@@ -357,10 +421,12 @@ class SceneGame extends FlameGame with ScaleDetector {
     final layer = _layers[sp.anchor];
     if (layer == null) return;
 
-    final baseW = layer.tileWidth > 0 ? layer.tileWidth : scene.worldWidth;
+    final baseW = scene.worldWidth.toDouble();
     final battlePos = sp.getBattlePos();
     final x = battlePos.dx * baseW;
-    final y = battlePos.dy * _Vh;
+    final y = battlePos.dy * _Vh; // ✅ Use _Vh, not worldHeight
+
+    debugPrint('🎮 Spawning party at ($x, $y)');
 
     final anchor = PositionComponent(
       position: Vector2(x, y),
@@ -376,36 +442,174 @@ class SceneGame extends FlameGame with ScaleDetector {
         WildMonComponent(
             hydrated: creature,
             speciesId: creature.id,
-            rarityLabel: '', // we don't show rarity for party mons
+            rarityLabel: '',
             desiredSize: sp.size,
-            onTap:
-                () {}, // no-op: can't tap your own mon to start encounter again
+            onTap: () {},
             resolver: speciesSpriteResolver,
           )
           ..anchor = Anchor.center
           ..position = Vector2.zero();
 
     anchor.add(_partyCreature!);
+
+    _reframeForBattle(sp, anchor.position);
   }
 
-  /// Return to free-roam:
-  /// - unlock gestures
-  /// - zoom back out
-  /// - clear encounter actors
+  void _reframeForBattle(SpawnPoint sp, Vector2 partyPos) {
+    final wildAnchor = _spawnPointComps[_currentEncounterSpawnId];
+    if (wildAnchor == null) return;
+
+    final wild = wildAnchor.position.clone();
+    final party = partyPos;
+
+    // ✅ GET PARALLAX FACTOR (both creatures are on same layer)
+    final layerDef = scene.layers.firstWhere((l) => l.id == sp.anchor);
+    final parallaxFactor = layerDef.parallaxFactor;
+
+    debugPrint(
+      '🔄 Reframing: wild=(${wild.x.toStringAsFixed(0)}, ${wild.y.toStringAsFixed(0)}) '
+      'party=(${party.x.toStringAsFixed(0)}, ${party.y.toStringAsFixed(0)}) parallax=$parallaxFactor',
+    );
+
+    final half = Vector2(sp.size.x * 0.5, sp.size.y * 0.5);
+
+    final left = math.min(wild.x - half.x, party.x - half.x);
+    final right = math.max(wild.x + half.x, party.x + half.x);
+    final top = math.min(wild.y - half.y, party.y - half.y);
+    final bottom = math.max(wild.y + half.y, party.y + half.y);
+
+    const padX = 1.30;
+    const padY = 1.35;
+    const topPadding = 1.4;
+
+    double boxW = (right - left) * padX;
+    double boxH = (bottom - top) * padY * topPadding;
+
+    final minBoxH = math.max(sp.size.y * 2.8, 220.0);
+    final minBoxW = math.max(sp.size.x * 2.8, 300.0);
+    boxH = math.max(boxH, minBoxH);
+    boxW = math.max(boxW, minBoxW);
+
+    final root = layersRoot.scale.x;
+    double desiredZoom = _zoomToFitBox(boxW: boxW, boxH: boxH);
+
+    const encounterMaxZoom = 1.55;
+    const minEncounterZoom = 1.15;
+    desiredZoom = desiredZoom.clamp(minEncounterZoom, encounterMaxZoom);
+
+    debugPrint(
+      '📐 Battle zoom: ${desiredZoom.toStringAsFixed(2)} (box: ${boxW.toStringAsFixed(0)}x${boxH.toStringAsFixed(0)})',
+    );
+
+    final halfW = size.x / (2 * desiredZoom * root);
+    final halfH = size.y / (2 * desiredZoom * root);
+
+    final focusX = (left + right) * 0.5;
+    final focusY = (top + bottom) * 0.5;
+
+    const groundBias = 60.0;
+    final focusBiased = Vector2(focusX, focusY + groundBias);
+
+    final maxCamX = math.max(0.0, scene.worldWidth.toDouble() - 2 * halfW);
+    final maxCamY = math.max(0.0, _Vh - 2 * halfH);
+
+    // ✅ APPLY PARALLAX-AWARE CAMERA CALCULATION
+    // We want the FOCUS POINT to be centered on screen
+    // screen_pos = world_pos - camera_pos * (1 + parallax)
+    // So: focusBiased - camPos * (1 + parallax) = (halfW, halfH)
+    // Therefore: camPos = (focusBiased - (halfW, halfH)) / (1 + parallax)
+
+    double camX, camY;
+
+    if (parallaxFactor == 1.0) {
+      // screen pos = world - 2*cam
+      // Want: focusBiased - 2*cam = (halfW, halfH)
+      camX = ((focusBiased.x - halfW) / 2.0).clamp(0.0, maxCamX);
+      camY = ((focusBiased.y - halfH) / 2.0).clamp(0.0, maxCamY);
+    } else if (parallaxFactor == 0.0) {
+      // Background doesn't move
+      camX = (focusBiased.x - halfW).clamp(0.0, maxCamX);
+      camY = (focusBiased.y - halfH).clamp(0.0, maxCamY);
+    } else {
+      // General case
+      camX = ((focusBiased.x - halfW) / (1.0 + parallaxFactor)).clamp(
+        0.0,
+        maxCamX,
+      );
+      camY = ((focusBiased.y - halfH) / (1.0 + parallaxFactor)).clamp(
+        0.0,
+        maxCamY,
+      );
+    }
+
+    _targetZoom = desiredZoom;
+    _targetCameraX = camX;
+    _targetCameraY = camY;
+
+    debugPrint(
+      '📷 Camera target: (${camX.toStringAsFixed(1)}, ${camY.toStringAsFixed(1)}) zoom: $desiredZoom',
+    );
+
+    // ✅ DEBUG: Verify both creatures will be on screen
+    final wildScreenX = wild.x - camX * (1.0 + parallaxFactor);
+    final wildScreenY = wild.y - camY * (1.0 + parallaxFactor);
+    final partyScreenX = party.x - camX * (1.0 + parallaxFactor);
+    final partyScreenY = party.y - camY * (1.0 + parallaxFactor);
+
+    debugPrint(
+      '   Wild screen: (${wildScreenX.toStringAsFixed(0)}, ${wildScreenY.toStringAsFixed(0)})',
+    );
+    debugPrint(
+      '   Party screen: (${partyScreenX.toStringAsFixed(0)}, ${partyScreenY.toStringAsFixed(0)})',
+    );
+    debugPrint(
+      '   Viewport: ${(2 * halfW).toStringAsFixed(0)}x${(2 * halfH).toStringAsFixed(0)}',
+    );
+  }
+
   void exitEncounterMode() {
     _mode = SceneMode.exploration;
 
+    // Show all creatures again
     for (final mon in _wildBySpawnId.values) {
-      // Reverting scale to 1.0
       mon.scale = Vector2.all(1.0);
     }
 
+    // Zoom back out to exploration view
     _targetZoom = 1.0;
     _targetCameraX = _cameraX;
-    _targetCameraY = 0; // vertical baseline for overworld
+    _targetCameraY = 0;
 
+    // Remove party creature
     _partyCreature?.removeFromParent();
     _partyCreature = null;
+  }
+
+  // Put this inside SceneGame (or a utils file)
+  Offset _partyBattlePosFor(SpawnPoint sp) {
+    // Wild's normalized position
+    final wx = sp.normalizedPos.dx;
+    final wy = sp.normalizedPos.dy;
+
+    // Desired horizontal offset in normalized units
+    // (roughly sprite width in world, plus breathing room)
+    final spriteNormW = (sp.size.x / scene.worldWidth).clamp(0.08, 0.22);
+    final desired = (spriteNormW * 1.25).clamp(0.10, 0.30); // 10–30% of width
+
+    // If wild is on the left, put party to the RIGHT; else to the LEFT.
+    double px = wx <= 0.5 ? wx + desired : wx - desired;
+
+    // Keep a minimum separation so they never overlap after clamps
+    final minSep = (sp.size.x / scene.worldWidth) * 1.1;
+    if ((px - wx).abs() < minSep) {
+      px = wx + (wx <= 0.5 ? minSep : -minSep);
+    }
+
+    // Stay inside safe normalized bounds
+    px = px.clamp(0.06, 0.94);
+    final py = wy.clamp(0.06, 0.94);
+
+    return Offset(px, py);
   }
   // ------------------------------------------------------------
   // Gesture handling
@@ -435,7 +639,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     if (dx != 0) {
       _cameraX = (_cameraX - (dx / zoomFactor) * effectiveScroll).clamp(
         0.0,
-        _maxCamX,
+        _maxCamXExploration, // <-- Use the strict limit here
       );
       _targetCameraX = _cameraX;
     }
@@ -463,30 +667,43 @@ class SceneGame extends FlameGame with ScaleDetector {
   // Per-frame update
   // ------------------------------------------------------------
 
+  // ------------------------------------------------------------
+  // Fixed: don't over-clamp TARGETS in encounter mode while tweening
+  // ------------------------------------------------------------
   @override
   void update(double dt) {
     super.update(dt);
 
-    // 1. Smoothly tween zoom toward target
+    // 1) Smoothly tween zoom toward target
     final currentZoom = cam.viewfinder.zoom;
     if ((currentZoom - _targetZoom).abs() > 0.0005) {
       final t = 1 - pow(1 / (1 + zoomEase), dt).toDouble();
       cam.viewfinder.zoom = currentZoom + (_targetZoom - currentZoom) * t;
-      _recomputeMaxCamBounds();
+      _recomputeMaxCamBounds(); // bounds grow as zoom increases
     }
 
-    // 2. Horizontal clamping always (prevents gaps at edges)
-    _cameraX = _cameraX.clamp(0.0, _maxCamX);
-    _targetCameraX = _targetCameraX.clamp(0.0, _maxCamX);
+    // 2) Choose horizontal limit depending on mode
+    final isEncounter = (_mode == SceneMode.encounter);
+    final horizontalLimit = isEncounter ? _maxCamX : _maxCamXExploration;
 
-    // 3. Vertical clamping only in exploration mode.
-    // In encounter mode we allow "illegal" Y so we can frame both creatures.
+    // Clamp the ACTUAL camera position to current bounds
+    _cameraX = _cameraX.clamp(0.0, horizontalLimit);
+
+    // ✅ Do NOT clamp targets in encounter mode (they were computed at target zoom)
+    if (!isEncounter) {
+      _targetCameraX = _targetCameraX.clamp(0.0, horizontalLimit);
+    }
+
+    // 3) Vertical clamping: only clamp targets in exploration
     if (_mode == SceneMode.exploration) {
       _cameraY = _cameraY.clamp(0.0, _maxCamY);
       _targetCameraY = _targetCameraY.clamp(0.0, _maxCamY);
+    } else {
+      // Encounter: allow target Y to be outside current bounds; only clamp current pos
+      _cameraY = _cameraY.clamp(0.0, _maxCamY);
     }
 
-    // 4. Smoothly tween camera world coords toward targets
+    // 4) Smoothly tween camera toward targets
     const camSpeed = 5.0;
     if ((_cameraX - _targetCameraX).abs() > 0.5) {
       final t = 1 - pow(1 / (1 + camSpeed), dt).toDouble();
@@ -497,14 +714,11 @@ class SceneGame extends FlameGame with ScaleDetector {
       _cameraY += (_targetCameraY - _cameraY) * t;
     }
 
-    // -- Update shake jitter (ease out) --
+    // 5) Shake + apply
     if (_shakeTime > 0) {
       _shakeTime -= dt;
       final t = (_shakeTime / _shakeDuration).clamp(0.0, 1.0);
-      // cubic ease-out
       final falloff = 1 - (1 - t) * (1 - t) * (1 - t);
-
-      // jitter in both axes
       final jx = (_rng.nextDouble() * 2 - 1) * _shakeAmplitude * falloff;
       final jy =
           (_rng.nextDouble() * 2 - 1) * (_shakeAmplitude * 0.6) * falloff;
@@ -513,11 +727,9 @@ class SceneGame extends FlameGame with ScaleDetector {
       if (!_shakeOffset.isZero()) _shakeOffset.setValues(0, 0);
     }
 
-    // 5. Push transforms to the Flame camera + parallax
     _applyCamera();
     _updateParallaxLayers();
   }
-
   // ------------------------------------------------------------
   // Resize / relayout
   // ------------------------------------------------------------
@@ -598,10 +810,8 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
 
     // All the different parallax layers impose their own horizontal limits.
-    // We take whichever is smallest to avoid showing empty.
-    final limits = <double>[
-      max(0.0, scene.worldWidth - (size.x / cam.viewfinder.zoom)),
-    ];
+    // We take whichever is smallest (most restrictive) to avoid showing empty.
+    final limits = <double>[];
 
     for (final ld in scene.layers) {
       final fl = _layers[ld.id];
@@ -610,6 +820,12 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
 
     _maxCamX = limits.isEmpty ? 0.0 : limits.reduce(min);
+
+    // If all layers returned infinity (e.g., all have pf=0), we have no
+    // real limit. In that single case, fall back to scene.worldWidth.
+    if (_maxCamX == double.infinity) {
+      _maxCamX = max(0.0, scene.worldWidth - (size.x / cam.viewfinder.zoom));
+    }
 
     // Vertical clamp range is based on total scene "visual" height vs viewport height.
     final contentHeight = (_Vh == 0) ? size.y : _Vh;
@@ -642,7 +858,8 @@ class SceneGame extends FlameGame with ScaleDetector {
       final comp = _spawnPointComps[p.id];
       if (layer == null || comp == null) continue;
 
-      final baseW = layer.tileWidth > 0 ? layer.tileWidth : scene.worldWidth;
+      // ✅ Same coordinate system as above
+      final baseW = scene.worldWidth.toDouble();
       final x = p.normalizedPos.dx * baseW;
       final y = p.normalizedPos.dy * _Vh;
       comp.position.setValues(x, y);

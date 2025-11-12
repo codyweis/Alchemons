@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +49,7 @@ class StaminaBar extends StatelessWidget {
   }
 }
 
-class StaminaBadge extends StatefulWidget {
+class StaminaBadge extends StatelessWidget {
   final String instanceId;
   final bool showCountdown;
 
@@ -60,35 +58,6 @@ class StaminaBadge extends StatefulWidget {
     required this.instanceId,
     this.showCountdown = true,
   });
-
-  @override
-  State<StaminaBadge> createState() => _StaminaBadgeState();
-}
-
-class _StaminaBadgeState extends State<StaminaBadge> {
-  CreatureInstance? _row;
-  Timer? _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    _refresh();
-    // tick every 30s just for countdown freshness (cheap)
-    _ticker = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _refresh() async {
-    final stamina = context.read<StaminaService>();
-    final updated = await stamina.refreshAndGet(widget.instanceId);
-    if (!mounted) return;
-    setState(() => _row = updated);
-  }
 
   String _fmt(Duration d) {
     final h = d.inHours;
@@ -100,48 +69,64 @@ class _StaminaBadgeState extends State<StaminaBadge> {
 
   @override
   Widget build(BuildContext context) {
-    final row = _row;
-    if (row == null) {
-      return const SizedBox(
-        height: 16,
-        width: 60,
-        child: LinearProgressIndicator(),
-      );
-    }
+    final db = context.read<AlchemonsDatabase>();
+    final stamina = context.read<StaminaService>();
 
-    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-    final regenPerBar = context.read<StaminaService>().regenPerBar;
-    final untilNextMs = (row.staminaBars >= row.staminaMax)
-        ? 0
-        : (row.staminaLastUtcMs + regenPerBar.inMilliseconds) - now;
+    return StreamBuilder<CreatureInstance?>(
+      stream: db.creatureDao.watchInstanceById(instanceId),
+      builder: (context, snapshot) {
+        final row = snapshot.data;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.local_fire_department, size: 14, color: Colors.green),
-        const SizedBox(width: 4),
-        StaminaBar(
-          current: row.staminaBars,
-          max: context.read<StaminaService>().effectiveMaxStamina(row),
-          size: 8,
-          gap: 2,
-        ),
-        if (widget.showCountdown) ...[
-          const SizedBox(width: 6),
-          Text(
-            row.staminaBars >= row.staminaMax
-                ? 'full'
-                : 'next ${_fmt(Duration(milliseconds: untilNextMs.clamp(0, 1 << 31)))}',
-            style: TextStyle(
-              fontSize: 10,
-              color: row.staminaBars >= row.staminaMax
-                  ? Colors.green.shade700
-                  : Colors.grey.shade600,
-              fontWeight: FontWeight.w600,
+        if (row == null) {
+          return const SizedBox(
+            height: 16,
+            width: 60,
+            child: SizedBox.shrink(),
+          );
+        }
+
+        final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+        final maxStamina = stamina.effectiveMaxStamina(row);
+
+        // Calculate time until next bar
+        final regenPerBar = stamina.regenPerBar;
+        final untilNextMs = (row.staminaBars >= maxStamina)
+            ? 0
+            : (row.staminaLastUtcMs + regenPerBar.inMilliseconds) - now;
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.local_fire_department,
+              size: 14,
+              color: Colors.green,
             ),
-          ),
-        ],
-      ],
+            const SizedBox(width: 4),
+            StaminaBar(
+              current: row.staminaBars,
+              max: maxStamina,
+              size: 8,
+              gap: 2,
+            ),
+            if (showCountdown) ...[
+              const SizedBox(width: 6),
+              Text(
+                row.staminaBars >= maxStamina
+                    ? 'full'
+                    : '${_fmt(Duration(milliseconds: untilNextMs.clamp(0, 1 << 31)))}',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: row.staminaBars >= maxStamina
+                      ? Colors.green.shade700
+                      : Colors.grey.shade600,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

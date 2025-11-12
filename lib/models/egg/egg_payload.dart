@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -356,11 +357,16 @@ class EggPayloadFactory {
   /// Randomizes wild creature's stats/genetics for breeding consistency
   EggPayload fromWildBreeding(
     Creature offspring,
+    CreatureInstance ownedParent,
     Creature wildParent, {
     String? likelihoodAnalysisJson,
   }) {
     // Wild creatures get randomized attributes
-    final rng = _random;
+
+    final parentageData = ParentageData(
+      parentA: ParentSnapshot.fromDbInstance(ownedParent, repository),
+      parentB: ParentSnapshot.fromCreature(wildParent),
+    );
 
     return EggPayload(
       baseId: offspring.id,
@@ -382,12 +388,7 @@ class EggPayloadFactory {
         beauty: offspring.stats?.beautyPotential ?? 3.0,
       ),
       lineage: _extractLineageData(offspring),
-      parentage: offspring.parentage != null
-          ? ParentageData(
-              parentA: offspring.parentage!.parentA,
-              parentB: offspring.parentage!.parentB,
-            )
-          : null,
+      parentage: parentageData,
       likelihoodAnalysisJson: likelihoodAnalysisJson,
     );
   }

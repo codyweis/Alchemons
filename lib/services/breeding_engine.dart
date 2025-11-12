@@ -1234,14 +1234,12 @@ class BreedingEngine {
       return null;
     }
 
-    // Each lineage point = +1%, capped at 10%
-    double chancePct = score * 1.0; // 1 point -> 1%
-    if (chancePct > 10.0) {
-      chancePct = 10.0;
-    }
+    // Each lineage point = +0.5%, capped at 10%
+    double chancePct = score * .5; // 1 point -> 0.5%
+    chancePct = chancePct.clamp(0.0, 10.0);
 
     final roll = rng.nextDouble() * 100.0;
-    if (roll > chancePct) {
+    if (roll < chancePct) {
       return partnerFaction;
     }
 

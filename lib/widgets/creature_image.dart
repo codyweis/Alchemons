@@ -21,18 +21,7 @@ class CreatureImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     if (!discovered) {
-      return Container(
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(rounded),
-          border: Border.all(color: theme.border),
-        ),
-        child: Icon(
-          Icons.help_outline_rounded,
-          color: theme.textMuted,
-          size: 24,
-        ),
-      );
+      return Icon(Icons.help_outline_rounded, color: theme.textMuted, size: 24);
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(rounded),

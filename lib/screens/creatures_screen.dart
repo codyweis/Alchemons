@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
+import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
@@ -7,6 +9,7 @@ import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_image.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
+import 'package:alchemons/widgets/silhouette_widget.dart';
 import 'package:flame/image_composition.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -35,6 +38,7 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   String _scope = 'Catalogued';
   String _sort = 'Acquisition Order';
   bool _isGrid = true;
+  bool _showCounts = true;
   String _query = '';
   String? _typeFilter;
   AnimationController? _pulse;
@@ -48,119 +52,193 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     )..repeat(reverse: true);
   }
 
+  late SettingsDao _settings;
+  Timer? _saveTimer;
+
+  static const _prefsKey = 'creatures_screen_prefs_v1';
+
+  Map<String, dynamic> _toPrefs() => {
+    'scope': _scope, // 'All' | 'Catalogued' | 'Unknown'
+    'sort': _sort, // 'Name' | 'Classification' | 'Type' | 'Acquisition Order'
+    'isGrid': _isGrid, // bool
+    'showCounts': _showCounts, // bool
+    'query': _query, // String
+    'typeFilter': _typeFilter, // String? (null == All)
+  };
+
+  void _fromPrefs(Map<String, dynamic> p) {
+    _scope = (p['scope'] as String?) ?? _scope;
+    _sort = (p['sort'] as String?) ?? _sort;
+    _isGrid = (p['isGrid'] as bool?) ?? _isGrid;
+    _showCounts = (p['showCounts'] as bool?) ?? _showCounts;
+    _query = (p['query'] as String?) ?? _query;
+    _typeFilter = p['typeFilter'] as String?;
+    // sync controller with restored query (without re-triggering debounce)
+    _searchCtrl.text = _query;
+  }
+
+  void _queueSave() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 300), () async {
+      await _settings.setSetting(_prefsKey, jsonEncode(_toPrefs()));
+    });
+  }
+
+  /// Wrap setState so any change gets persisted with debounce
+  void _mutate(VoidCallback fn) {
+    setState(fn);
+    _queueSave();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _settings = context.read<AlchemonsDatabase>().settingsDao;
+    () async {
+      final raw = await _settings.getSetting(_prefsKey);
+      if (!mounted || raw == null || raw.isEmpty) return;
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      setState(() => _fromPrefs(map)); // no save during restore
+    }();
+  }
+
   @override
   void dispose() {
-    _debounce?.cancel();
+    _saveTimer?.cancel();
     _searchCtrl.dispose();
     _pulse?.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return withGameData(
-      context, // keep your local init flag
-      loadingBuilder: buildLoadingScreen,
-      builder:
-          (
-            context, {
-            required theme,
-            required catalog,
-            required entries,
-            required discovered,
-          }) {
-            // stats
-            final total = entries.length;
-            final discoveredCount = discovered.length;
-            final pct = total == 0
-                ? 0.0
-                : (discoveredCount / total).clamp(0.0, 1.0);
+    final db = context.read<AlchemonsDatabase>();
 
-            // apply your filters/sorting to the typed entries
-            final filtered = _filterAndSort(discovered);
+    return StreamBuilder<Map<String, int>>(
+      stream: db.creatureDao.watchInstanceCountsBySpecies(),
+      builder: (context, countSnapshot) {
+        final instanceCounts = countSnapshot.data ?? {};
 
-            return Scaffold(
-              backgroundColor: theme.surfaceAlt,
-              body: SafeArea(
-                bottom: false,
-                child: CustomScrollView(
-                  physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics(),
-                  ),
-                  slivers: [
-                    _SolidHeader(theme: theme),
-                    SliverToBoxAdapter(
-                      child: _StatsHeaderSolid(
-                        theme: theme,
-                        percent: pct,
-                        discovered: discoveredCount,
-                        total: total,
+        return withGameData(
+          context,
+          loadingBuilder: buildLoadingScreen,
+          builder:
+              (
+                context, {
+                required theme,
+                required catalog,
+                required entries,
+                required discovered,
+              }) {
+                // stats
+                final total = entries.length;
+                final discoveredCount = discovered.length;
+                final pct = total == 0
+                    ? 0.0
+                    : (discoveredCount / total).clamp(0.0, 1.0);
+
+                // apply your filters/sorting to the typed entries
+                final filtered = _filterAndSort(entries, instanceCounts);
+
+                return Scaffold(
+                  backgroundColor: theme.surfaceAlt,
+                  body: SafeArea(
+                    bottom: false,
+                    child: CustomScrollView(
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
                       ),
-                    ),
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _StickyFilterBar(
-                        height: 126,
-                        scope: _scope,
-                        typeFilter: _typeFilter,
-                        isGrid: _isGrid,
-                        child: _FilterBarSolid(
-                          theme: theme,
-                          query: _query,
-                          controller: _searchCtrl,
-                          scope: _scope,
-                          sort: _sort,
-                          isGrid: _isGrid,
-                          typeFilter: _typeFilter,
-                          onQueryChanged: _onQueryChanged,
-                          onScopeChanged: _showScopeSheet,
-                          onSortTap: _showSortSheet,
-                          onToggleView: () =>
-                              setState(() => _isGrid = !_isGrid),
-                          onTypeChanged: (t) => setState(
-                            () => _typeFilter = t == 'All' ? null : t,
+                      slivers: [
+                        _SolidHeader(theme: theme),
+                        SliverToBoxAdapter(
+                          child: _StatsHeaderSolid(
+                            theme: theme,
+                            percent: pct,
+                            discovered: discoveredCount,
+                            total: total,
                           ),
                         ),
-                      ),
-                    ),
-                    if (filtered.isEmpty)
-                      const SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _EmptyState(),
-                      )
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
-                        sliver: _isGrid
-                            ? _CreatureGrid(
-                                theme: theme,
-                                creatures: filtered, // List<CreatureEntry>
-                                onTap: _handleTap,
-                              )
-                            : _CreatureList(
-                                theme: theme,
-                                creatures: filtered, // List<CreatureEntry>
-                                onTap: _handleTap,
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _StickyFilterBar(
+                            height: 126,
+                            scope: _scope,
+                            typeFilter: _typeFilter,
+                            isGrid: _isGrid,
+                            showCounts: _showCounts,
+                            child: _FilterBarSolid(
+                              theme: theme,
+                              query: _query,
+                              controller: _searchCtrl,
+                              scope: _scope,
+                              sort: _sort,
+                              isGrid: _isGrid,
+                              showCounts: _showCounts,
+                              typeFilter: _typeFilter,
+                              onQueryChanged: _onQueryChanged,
+                              onScopeChanged: _showScopeSheet,
+                              onSortTap: _showSortSheet,
+                              onToggleView: () =>
+                                  _mutate(() => _isGrid = !_isGrid),
+                              onToggleCounts: () =>
+                                  _mutate(() => _showCounts = !_showCounts),
+                              onTypeChanged: (t) => _mutate(
+                                () => _typeFilter = (t == 'All') ? null : t,
                               ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
+                            ),
+                          ),
+                        ),
+                        if (filtered.isEmpty)
+                          const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: _EmptyState(),
+                          )
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
+                            sliver: _isGrid
+                                ? _CreatureGrid(
+                                    theme: theme,
+                                    creatures: filtered, // List<CreatureEntry>
+                                    showCounts: _showCounts,
+                                    instanceCounts: instanceCounts,
+                                    onTap: _handleTap,
+                                  )
+                                : _CreatureList(
+                                    theme: theme,
+                                    creatures: filtered, // List<CreatureEntry>
+                                    showCounts: _showCounts,
+                                    instanceCounts: instanceCounts,
+                                    onTap: _handleTap,
+                                  ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+        );
+      },
     );
   }
 
   void _onQueryChanged(String text) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 220), () {
-      setState(() => _query = text.trim());
+      _mutate(() => _query = text.trim());
     });
   }
 
   Future<void> _showSortSheet() async {
     final theme = context.read<FactionTheme>();
-    const options = ['Name', 'Classification', 'Type', 'Acquisition Order'];
+    const options = [
+      'Name',
+      'Classification',
+      'Type',
+      'Count',
+      'Acquisition Order',
+    ];
     final picked = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -179,7 +257,7 @@ class _CreaturesScreenState extends State<CreaturesScreen>
         ],
       ),
     );
-    if (picked != null) setState(() => _sort = picked);
+    if (picked != null) _mutate(() => _sort = picked);
   }
 
   Future<void> _showScopeSheet() async {
@@ -203,7 +281,7 @@ class _CreaturesScreenState extends State<CreaturesScreen>
         ],
       ),
     );
-    if (picked != null) setState(() => _scope = picked);
+    if (picked != null) _mutate(() => _scope = picked);
   }
 
   void _handleTap(Creature species, bool isDiscovered) {
@@ -214,7 +292,10 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     }
   }
 
-  List<CreatureEntry> _filterAndSort(List<CreatureEntry> all) {
+  List<CreatureEntry> _filterAndSort(
+    List<CreatureEntry> all,
+    Map<String, int> instanceCounts,
+  ) {
     final scoped = all.where((m) {
       final isDiscovered = m.player.discovered == true;
       switch (_scope) {
@@ -256,6 +337,12 @@ class _CreaturesScreenState extends State<CreaturesScreen>
           return _rarityRank(A.rarity).compareTo(_rarityRank(B.rarity));
         case 'Type':
           return A.types.first.compareTo(B.types.first);
+        case 'Count':
+          final countA = instanceCounts[A.id] ?? 0;
+          final countB = instanceCounts[B.id] ?? 0;
+          // Sort descending (highest count first), then by name
+          final countCompare = countB.compareTo(countA);
+          return countCompare != 0 ? countCompare : A.name.compareTo(B.name);
         case 'Acquisition Order':
           final ad = a.player.discovered == true;
           final bd = b.player.discovered == true;
@@ -465,11 +552,13 @@ class _FilterBarSolid extends StatelessWidget {
   final String scope;
   final String sort;
   final bool isGrid;
+  final bool showCounts;
   final String? typeFilter;
   final ValueChanged<String> onQueryChanged;
   final VoidCallback onScopeChanged;
   final VoidCallback onSortTap;
   final VoidCallback onToggleView;
+  final VoidCallback onToggleCounts;
   final ValueChanged<String> onTypeChanged;
 
   const _FilterBarSolid({
@@ -479,11 +568,13 @@ class _FilterBarSolid extends StatelessWidget {
     required this.scope,
     required this.sort,
     required this.isGrid,
+    required this.showCounts,
     required this.typeFilter,
     required this.onQueryChanged,
     required this.onScopeChanged,
     required this.onSortTap,
     required this.onToggleView,
+    required this.onToggleCounts,
     required this.onTypeChanged,
   });
 
@@ -502,7 +593,7 @@ class _FilterBarSolid extends StatelessWidget {
                 child: SearchFieldSolid(
                   theme: theme,
                   controller: controller,
-                  hint: 'Search creatures…',
+                  hint: 'Search Alchemons...',
                   onChanged: onQueryChanged,
                 ),
               ),
@@ -512,6 +603,14 @@ class _FilterBarSolid extends StatelessWidget {
                 label: scope,
                 icon: Icons.filter_list_rounded,
                 onTap: onScopeChanged,
+              ),
+              const SizedBox(width: 4),
+              IconButtonSolid(
+                theme: theme,
+                icon: showCounts
+                    ? Icons.numbers_rounded
+                    : Icons.numbers_outlined,
+                onTap: onToggleCounts,
               ),
               const SizedBox(width: 4),
               IconButtonSolid(
@@ -563,10 +662,14 @@ class _FilterBarSolid extends StatelessWidget {
 class _CreatureGrid extends StatelessWidget {
   final FactionTheme theme;
   final List<CreatureEntry> creatures;
+  final bool showCounts;
+  final Map<String, int> instanceCounts;
   final void Function(Creature, bool) onTap;
   const _CreatureGrid({
     required this.theme,
     required this.creatures,
+    required this.showCounts,
+    required this.instanceCounts,
     required this.onTap,
   });
 
@@ -583,11 +686,14 @@ class _CreatureGrid extends StatelessWidget {
         final data = creatures[i];
         final c = data.creature;
         final isDiscovered = data.player.discovered == true;
+        final instanceCount = instanceCounts[c.id] ?? 0;
         return _CreatureCard(
           key: ValueKey<String>('species:${c.id}'),
           theme: theme,
           c: c,
           discovered: isDiscovered,
+          instanceCount: instanceCount,
+          showCount: showCounts,
           onTap: () => onTap(c, isDiscovered),
         );
       }, childCount: creatures.length),
@@ -598,10 +704,14 @@ class _CreatureGrid extends StatelessWidget {
 class _CreatureList extends StatelessWidget {
   final FactionTheme theme;
   final List<CreatureEntry> creatures;
+  final bool showCounts;
+  final Map<String, int> instanceCounts;
   final void Function(Creature, bool) onTap;
   const _CreatureList({
     required this.theme,
     required this.creatures,
+    required this.showCounts,
+    required this.instanceCounts,
     required this.onTap,
   });
 
@@ -612,6 +722,7 @@ class _CreatureList extends StatelessWidget {
         final data = creatures[i];
         final c = data.creature;
         final isDiscovered = data.player.discovered == true;
+        final instanceCount = instanceCounts[c.id] ?? 0;
         return Padding(
           padding: const EdgeInsets.only(bottom: 1),
           child: _CreatureRow(
@@ -619,6 +730,8 @@ class _CreatureList extends StatelessWidget {
             theme: theme,
             c: c,
             discovered: isDiscovered,
+            instanceCount: instanceCount,
+            showCount: showCounts,
             onTap: () => onTap(c, isDiscovered),
           ),
         );
@@ -631,12 +744,16 @@ class _CreatureCard extends StatelessWidget {
   final FactionTheme theme;
   final Creature c;
   final bool discovered;
+  final int instanceCount;
+  final bool showCount;
   final VoidCallback onTap;
   const _CreatureCard({
     super.key,
     required this.theme,
     required this.c,
     required this.discovered,
+    required this.instanceCount,
+    required this.showCount,
     required this.onTap,
   });
 
@@ -655,15 +772,18 @@ class _CreatureCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Center(
-                      child: CreatureSprite(
-                        spritePath: c.spriteData!.spriteSheetPath,
-                        totalFrames: c.spriteData!.totalFrames,
-                        rows: c.spriteData!.rows,
-                        frameSize: Vector2(
-                          c.spriteData!.frameWidth.toDouble(),
-                          c.spriteData!.frameHeight.toDouble(),
+                      child: Silhouette(
+                        enabled: !discovered,
+                        child: CreatureSprite(
+                          spritePath: c.spriteData!.spriteSheetPath,
+                          totalFrames: c.spriteData!.totalFrames,
+                          rows: c.spriteData!.rows,
+                          frameSize: Vector2(
+                            c.spriteData!.frameWidth.toDouble(),
+                            c.spriteData!.frameHeight.toDouble(),
+                          ),
+                          stepTime: c.spriteData!.frameDurationMs / 1000.0,
                         ),
-                        stepTime: c.spriteData!.frameDurationMs / 1000.0,
                       ),
                     ),
                   ),
@@ -687,6 +807,12 @@ class _CreatureCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (showCount && discovered && instanceCount > 0)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: _CountBadge(count: instanceCount),
+              ),
           ],
         ),
       ),
@@ -698,12 +824,16 @@ class _CreatureRow extends StatelessWidget {
   final FactionTheme theme;
   final Creature c;
   final bool discovered;
+  final int instanceCount;
+  final bool showCount;
   final VoidCallback onTap;
   const _CreatureRow({
     super.key,
     required this.theme,
     required this.c,
     required this.discovered,
+    required this.instanceCount,
+    required this.showCount,
     required this.onTap,
   });
 
@@ -727,7 +857,29 @@ class _CreatureRow extends StatelessWidget {
               SizedBox(
                 width: 46,
                 height: 46,
-                child: CreatureImage(c: c, discovered: discovered, rounded: 8),
+                child: Stack(
+                  children: [
+                    Silhouette(
+                      enabled: !discovered,
+                      child: CreatureSprite(
+                        spritePath: c.spriteData!.spriteSheetPath,
+                        totalFrames: c.spriteData!.totalFrames,
+                        rows: c.spriteData!.rows,
+                        frameSize: Vector2(
+                          c.spriteData!.frameWidth.toDouble(),
+                          c.spriteData!.frameHeight.toDouble(),
+                        ),
+                        stepTime: c.spriteData!.frameDurationMs / 1000.0,
+                      ),
+                    ),
+                    if (showCount && discovered && instanceCount > 0)
+                      Positioned(
+                        top: -2,
+                        right: -2,
+                        child: _CountBadge(count: instanceCount, small: true),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1043,6 +1195,44 @@ class FilterChipSolid extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  final int count;
+  final bool small;
+  const _CountBadge({required this.count, this.small = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: small ? 4 : 6,
+        vertical: small ? 2 : 3,
+      ),
+      decoration: BoxDecoration(
+        color: theme.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.black.withOpacity(.2), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.3),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Text(
+        count.toString(),
+        style: TextStyle(
+          color: theme.text,
+          fontSize: small ? 8 : 9,
+          fontWeight: FontWeight.w900,
+          height: 1.0,
         ),
       ),
     );
@@ -1462,6 +1652,7 @@ class _StickyFilterBar extends SliverPersistentHeaderDelegate {
   final String scope;
   final String? typeFilter;
   final bool isGrid;
+  final bool showCounts;
 
   _StickyFilterBar({
     required this.height,
@@ -1469,6 +1660,7 @@ class _StickyFilterBar extends SliverPersistentHeaderDelegate {
     required this.scope,
     required this.typeFilter,
     required this.isGrid,
+    required this.showCounts,
   });
 
   @override
@@ -1491,5 +1683,6 @@ class _StickyFilterBar extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _StickyFilterBar old) =>
       old.scope != scope ||
       old.typeFilter != typeFilter ||
-      old.isGrid != isGrid;
+      old.isGrid != isGrid ||
+      old.showCounts != showCounts;
 }

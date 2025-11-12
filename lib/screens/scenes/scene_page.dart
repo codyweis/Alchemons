@@ -4,6 +4,7 @@ import 'package:alchemons/games/wilderness/encounter_sheet.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
+import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
@@ -253,6 +254,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                       ),
                       rarity: _wildCreature!.rarity,
                     ),
+                    hydratedWildCreature: _wildCreature!,
                     party: widget.party,
                     onPreRollShake: () {
                       _game.shake(

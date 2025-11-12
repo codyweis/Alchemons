@@ -19,16 +19,12 @@ swampEncounterPools(SceneDefinition scene) {
     ), // Mudlet
     EncounterEntry(
       speciesId: 'LET13',
-      rarity: EncounterRarity.common,
+      rarity: EncounterRarity.uncommon,
     ), // Poisonlet
     EncounterEntry(
       speciesId: 'LET02',
       rarity: EncounterRarity.common,
     ), // Waterlet
-    EncounterEntry(
-      speciesId: 'LET12',
-      rarity: EncounterRarity.common,
-    ), // Leaflet
     // Uncommon
     EncounterEntry(
       speciesId: 'MAN08',

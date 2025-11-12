@@ -1,4 +1,5 @@
 // lib/database/daos/biome_dao.dart
+import 'package:alchemons/services/push_notification_service.dart';
 import 'package:drift/drift.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/schema_tables.dart';
@@ -11,6 +12,9 @@ part 'biome_dao.g.dart';
 class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
     with _$BiomeDaoMixin {
   BiomeDao(super.db);
+
+  // Create instance per DAO instance instead of global
+  final PushNotificationService _pushNotifications = PushNotificationService();
 
   // =================== BIOME HARVEST ===================
 
@@ -79,7 +83,11 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
     if (farm == null || !farm.unlocked) return false;
 
     final active = await getActiveJobForBiome(farm.id);
-    if (active != null) return false;
+    if (active != null) {
+      // Cancel old notification if there was somehow an active job
+      await _pushNotifications.cancelHarvestNotification(biomeId: biomeId);
+      return false;
+    }
 
     // Call CreatureDao to get instance and spend stamina
     final inst = await db.creatureDao.getInstance(creatureInstanceId);
@@ -91,18 +99,33 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
       staminaLastUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
     );
 
+    final startTime = DateTime.now().toUtc();
+    final startMs = startTime.millisecondsSinceEpoch;
+
     await into(biomeJobs).insert(
       BiomeJobsCompanion(
         jobId: Value(jobId),
         biomeId: Value(farm.id),
         creatureInstanceId: Value(creatureInstanceId),
-        startUtcMs: Value(DateTime.now().toUtc().millisecondsSinceEpoch),
+        startUtcMs: Value(startMs),
         durationMs: Value(duration.inMilliseconds),
         ratePerMinute: Value(ratePerMinute),
       ),
     );
+
+    // Schedule harvest ready notification
+    final completionTime = startTime.add(duration);
+    await _pushNotifications.scheduleHarvestReadyNotification(
+      readyTime: completionTime,
+      biomeId: biomeId,
+    );
+
     return true;
   }
+
+  // Track last notification schedule time per biome to debounce
+  static final Map<String, DateTime> _lastNotificationSchedule = {};
+  static const Duration _notificationDebounceThreshold = Duration(seconds: 5);
 
   Future<bool> nudgeBiomeJob(String biomeId, int deltaMs) async {
     final farm = await getBiomeByBiomeId(biomeId);
@@ -124,6 +147,27 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
     await (update(biomeJobs)..where((t) => t.jobId.equals(job.jobId))).write(
       BiomeJobsCompanion(startUtcMs: Value(newStart)),
     );
+
+    // Only reschedule notification if enough time has passed since last schedule
+    // This prevents excessive rescheduling during rapid tapping
+    final now = DateTime.now();
+    final lastSchedule = _lastNotificationSchedule[biomeId];
+    final shouldReschedule =
+        lastSchedule == null ||
+        now.difference(lastSchedule) > _notificationDebounceThreshold;
+
+    if (shouldReschedule) {
+      final newCompletionTime = DateTime.fromMillisecondsSinceEpoch(
+        newStart + job.durationMs,
+        isUtc: true,
+      );
+      await _pushNotifications.scheduleHarvestReadyNotification(
+        readyTime: newCompletionTime,
+        biomeId: biomeId,
+      );
+      _lastNotificationSchedule[biomeId] = now;
+    }
+
     return true;
   }
 
@@ -149,6 +193,12 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
     await db.currencyDao.addResource(resKey, payout);
     await (delete(biomeJobs)..where((t) => t.jobId.equals(job.jobId))).go();
 
+    // Cancel the notification since harvest was collected
+    await _pushNotifications.cancelHarvestNotification(biomeId: biomeId);
+
+    // Clear debounce cache
+    _lastNotificationSchedule.remove(biomeId);
+
     return payout;
   }
 
@@ -160,5 +210,11 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
     if (job == null) return;
 
     await (delete(biomeJobs)..where((t) => t.jobId.equals(job.jobId))).go();
+
+    // Cancel the notification
+    await _pushNotifications.cancelHarvestNotification(biomeId: biomeId);
+
+    // Clear debounce cache
+    _lastNotificationSchedule.remove(biomeId);
   }
 }

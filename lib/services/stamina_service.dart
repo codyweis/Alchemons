@@ -126,19 +126,16 @@ class StaminaService {
   // ---------- Internals ----------
 
   /// Applies time-based regeneration in-memory.
-  /// Returns (newBars, newLastMs) if a write is needed; otherwise null.
   (int, int)? _applyRegen(CreatureInstance row, {required DateTime nowUtc}) {
     // --- NEW: derive effective regen duration from nature ---
     final NatureDef? n = (row.natureId == null || row.natureId!.isEmpty)
         ? null
         : NatureCatalog.byId(row.natureId!);
 
-    // TODO: implement regen
     // clamp(0.25, 4.0): at most 4× slower, at least 4× faster
     final regenMult = (() {
       final v = n?.effect.modifiers['stamina_regen_mult'];
-      // final d = (v is num) ? v.toDouble() : 1.0;
-      final d = 1.0;
+      final d = (v is num) ? v.toDouble() : 1.0; // <-- CORRECTED LINE
       return d.clamp(0.25, 4.0);
     })();
 

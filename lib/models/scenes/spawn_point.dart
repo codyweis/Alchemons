@@ -23,14 +23,35 @@ class SpawnPoint {
   });
 
   /// Get the battle position, either explicit or auto-mirrored
+  // In SpawnPoint class, update getBattlePos():
   Offset getBattlePos() {
     if (battlePos != null) return battlePos!;
-    // Mirror horizontally with some spacing
-    final dx = normalizedPos.dx;
-    final mirroredDx = dx < 0.5
-        ? dx +
-              0.3 // wild on left, party on right
-        : dx - 0.3; // wild on right, party on left
-    return Offset(mirroredDx, normalizedPos.dy);
+
+    // Auto-calculate: place party creature toward CENTER from wild
+    final wx = normalizedPos.dx;
+    final wy = normalizedPos.dy;
+
+    // Distance to spawn party (in normalized units)
+    const separation = 0.30; // 30% of world width apart
+
+    // If wild is on RIGHT side (>0.6), put party on LEFT
+    // If wild is on LEFT side (<0.4), put party on RIGHT
+    // If wild is CENTER, default to left side of wild
+    double px;
+    if (wx > 0.6) {
+      // Wild is right, party goes left (toward center)
+      px = (wx - separation).clamp(0.08, 0.92);
+    } else if (wx < 0.4) {
+      // Wild is left, party goes right (toward center)
+      px = (wx + separation).clamp(0.08, 0.92);
+    } else {
+      // Wild is center, party goes left by default
+      px = (wx - separation).clamp(0.08, 0.92);
+    }
+
+    // Keep Y the same (both creatures on same ground level)
+    final py = wy.clamp(0.08, 0.92);
+
+    return Offset(px, py);
   }
 }

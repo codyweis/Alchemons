@@ -328,6 +328,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                         ),
                         _AnalysisScrollArea(
                           theme: theme,
+                          parentage: effective.parentage,
                           controller: _analysisScrollController,
                           creature: effective,
                           isInstance: instance != null,
@@ -704,6 +705,28 @@ class _OverviewScrollArea extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            // ✨ ADD THE NEW DISCOVERY / SOURCE BLOCK HERE
+            SectionBlock(
+              theme: theme,
+              title: 'Source / Discovery',
+              child: Column(
+                children: [
+                  LabeledInlineValue(
+                    label: 'Source Type',
+                    // Assuming 'creationSource' is a field on CreatureInstance
+                    valueText: _formatSource(instance!.source),
+                    valueColor: theme.text,
+                  ),
+                  LabeledInlineValue(
+                    label: 'Creation Date',
+                    // Assuming 'createdAt' is a field on CreatureInstance (as a UTC timestamp in milliseconds)
+                    valueText: _formatCreationDate(instance!.createdAtUtcMs),
+                    valueColor: theme.text,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
 
           if (instance?.variantFaction != null &&
@@ -842,12 +865,12 @@ class _OverviewScrollArea extends StatelessWidget {
   }
 
   String _sizeLabels(Creature c) {
-    final mapLabel = sizeLabels[c.genetics?.get('size') ?? 'normal'];
+    final mapLabel = sizeLabels[c.genetics?.get('size') ?? 'Normal'];
     return mapLabel ?? 'Standard';
   }
 
   String _tintLabels(Creature c) {
-    final mapLabel = tintLabels[c.genetics?.get('tinting') ?? 'normal'];
+    final mapLabel = tintLabels[c.genetics?.get('tinting') ?? 'Normal'];
     return mapLabel ?? 'Standard';
   }
 }
@@ -865,7 +888,7 @@ class _AnalysisScrollArea extends StatelessWidget {
   final Set<String> isExpandedMap;
   final void Function(String parentKey) onToggleParent;
   final String? instanceId;
-
+  final Parentage? parentage;
   const _AnalysisScrollArea({
     required this.theme,
     required this.controller,
@@ -875,12 +898,11 @@ class _AnalysisScrollArea extends StatelessWidget {
     required this.isExpandedMap,
     required this.onToggleParent,
     required this.instanceId,
+    required this.parentage,
   });
 
   @override
   Widget build(BuildContext context) {
-    final parentage = creature.parentage;
-
     return SingleChildScrollView(
       controller: controller,
       physics: const BouncingScrollPhysics(),
@@ -927,7 +949,7 @@ class _AnalysisScrollArea extends StatelessWidget {
                   ),
                   LabeledInlineValue(
                     label: 'Date',
-                    valueText: _formatBreedLine(parentage),
+                    valueText: _formatBreedLine(parentage!),
                     valueColor: theme.text,
                   ),
                 ],
@@ -948,7 +970,7 @@ class _AnalysisScrollArea extends StatelessWidget {
 
             ParentCard(
               theme: theme,
-              snap: parentage.parentA,
+              snap: parentage!.parentA,
               parentKey: 'parentA',
               isExpanded: isExpandedMap.contains('parentA'),
               onToggle: () => onToggleParent('parentA'),
@@ -956,7 +978,7 @@ class _AnalysisScrollArea extends StatelessWidget {
             const SizedBox(height: 10),
             ParentCard(
               theme: theme,
-              snap: parentage.parentB,
+              snap: parentage!.parentB,
               parentKey: 'parentB',
               isExpanded: isExpandedMap.contains('parentB'),
               onToggle: () => onToggleParent('parentB'),
@@ -1232,12 +1254,7 @@ class _GeneticsBlock extends StatelessWidget {
         ] else ...[
           LabeledInlineValue(
             label: 'Size Gene',
-            valueText: 'normal (default)',
-            valueColor: textColor,
-          ),
-          LabeledInlineValue(
-            label: 'Size Expression',
-            valueText: 'Standard morphology',
+            valueText: 'Normal',
             valueColor: textColor,
           ),
         ],
@@ -1255,12 +1272,12 @@ class _GeneticsBlock extends StatelessWidget {
         ] else ...[
           LabeledInlineValue(
             label: 'Coloration Gene',
-            valueText: 'normal (default)',
+            valueText: 'Standard',
             valueColor: textColor,
           ),
           LabeledInlineValue(
             label: 'Color Expression',
-            valueText: 'Natural pigmentation',
+            valueText: 'Natural coloration',
             valueColor: textColor,
           ),
         ],
@@ -1636,4 +1653,31 @@ class _InheritedTraitsSimple extends StatelessWidget {
       ],
     );
   }
+}
+
+String _formatSource(String source) {
+  switch (source) {
+    case 'wild_capture':
+      return 'Wild Capture';
+    case 'wild_breeding':
+      return 'Wild Bred';
+    case 'breeding_vial':
+      return 'Vial Bred';
+    case 'starter':
+      return 'Starter';
+    case 'quest':
+      return 'Quest Reward';
+    default:
+      return 'Discovery'; // Fallback for 'discovery' or unknown
+  }
+}
+
+String _formatCreationDate(int? timestampMs) {
+  if (timestampMs == null) return 'Unknown';
+  final date = DateTime.fromMillisecondsSinceEpoch(
+    timestampMs,
+    isUtc: true,
+  ).toLocal();
+  // Example format: 11/10/2025 10:45 PM
+  return '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 }

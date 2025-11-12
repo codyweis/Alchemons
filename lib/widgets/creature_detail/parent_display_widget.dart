@@ -33,7 +33,8 @@ class ParentCard extends StatelessWidget {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
     final creature = repo.getCreatureById(snap.baseId);
-    final instance = db.creatureDao.getInstance(snap.instanceId!);
+
+    final instance = db.creatureDao.getInstance(snap.instanceId ?? '');
 
     return Container(
       decoration: BoxDecoration(
@@ -75,12 +76,15 @@ class ParentCard extends StatelessWidget {
                                   );
                                 }
                                 return Image.asset(
-                                  snap.image,
+                                  'assets/images/${snap.image}',
                                   fit: BoxFit.cover,
                                 );
                               },
                             )
-                          : Image.asset(snap.image, fit: BoxFit.cover),
+                          : Image.asset(
+                              'assets/images/${snap.image}',
+                              fit: BoxFit.cover,
+                            ),
                     ),
                   ),
                   const SizedBox(width: 12),

@@ -10,6 +10,7 @@ import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
+import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
@@ -105,6 +106,12 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
         setState(() {});
       }
     })..start();
+
+    // Clear harvest notification when screen is opened
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pushNotifications = PushNotificationService();
+      pushNotifications.cancelHarvestNotification();
+    });
 
     _refreshCreatureCache(); // prime cache
   }
@@ -429,6 +436,8 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        duration: const Duration(seconds: 2),
+        showCloseIcon: true,
         content: Text(
           'Collected $got ${widget.biome.resourceLabel}',
         ), // UPDATED: simplified
@@ -441,6 +450,32 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
   void _handleCancel() async {
     if (_collectCtrl.isAnimating) return;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel Extraction?'),
+        content: const Text(
+          'Are you sure you want to cancel this extraction? '
+          'Your specimens will be returned, but progress will be lost.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep Extracting'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Cancel Extraction'),
+          ),
+        ],
+      ),
+    );
+
+    // User dismissed dialog or chose "Keep Extracting"
+    if (confirmed != true || !mounted) return;
 
     HapticFeedback.heavyImpact();
     await _collectCtrl.forward(from: 0);
@@ -461,7 +496,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
     await _refreshCreatureCache();
   }
-
   // ---------- UI helpers ----------
 
   String _fmt(Duration? d) {
@@ -921,7 +955,7 @@ class _ActivePanel extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: _OutlineBtn(
-                label: 'Cancel',
+                label: 'Terminate',
                 accent: color,
                 theme: theme,
                 onTap: onCancel,

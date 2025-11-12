@@ -416,7 +416,7 @@ class CreatureStats {
   CreatureStats applyGenetics(Genetics? genetics) {
     if (genetics == null) return this;
 
-    final size = genetics.get('size') ?? 'normal';
+    final size = genetics.get('size') ?? 'Normal';
 
     switch (size) {
       case 'tiny':

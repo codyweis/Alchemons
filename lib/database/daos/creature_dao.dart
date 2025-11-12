@@ -143,6 +143,14 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     return await select(creatureInstances).get();
   }
 
+  Future<List<CreatureInstance>> getInstancesForSpecies(
+    String speciesId,
+  ) async {
+    return (select(
+      creatureInstances,
+    )..where((t) => t.baseId.equals(speciesId))).get();
+  }
+
   Stream<List<PlayerCreature>> watchAllCreatures() => (select(
     playerCreatures,
   )..orderBy([(t) => OrderingTerm.asc(t.id)])).watch();

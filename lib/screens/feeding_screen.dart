@@ -97,6 +97,16 @@ class _FeedingScreenState extends State<FeedingScreen>
     final db = context.watch<AlchemonsDatabase>();
 
     return Scaffold(
+      floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
+      floatingActionButton: FloatingCloseButton(
+        size: 50,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          Navigator.of(context).maybePop();
+        },
+        theme: theme,
+      ),
+
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
@@ -166,23 +176,6 @@ class _FeedingScreenState extends State<FeedingScreen>
                     ),
                 ],
               ),
-            ),
-          ),
-
-          // close button
-          Positioned(
-            right: 0,
-            left: 0,
-            bottom: 20,
-            child: FloatingCloseButton(
-              size: 50,
-              theme: theme,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.of(context).maybePop();
-              },
-              accentColor: theme.text,
-              iconColor: theme.text,
             ),
           ),
         ],
@@ -493,9 +486,9 @@ class _FeedingScreenState extends State<FeedingScreen>
                     ),
                   ),
                 const SizedBox(height: 3),
-                if (baseCreature != null)
+                if (inst.nickname != null || baseCreature != null)
                   Text(
-                    baseCreature.name,
+                    inst.nickname ?? baseCreature!.name,
                     style: TextStyle(
                       color: isSelected ? Colors.green : theme.text,
                       fontSize: 8,
@@ -1480,23 +1473,17 @@ class _EnhanceButtonState extends State<_EnhanceButton>
                       ),
                     )
                   else
-                    const Icon(
-                      Icons.science_rounded,
-                      color: Colors.white,
-                      size: 18,
+                    Text(
+                      widget.busy
+                          ? 'Processing...'
+                          : 'Begin Enhancement${widget.selectedCount > 0 ? ' (${widget.selectedCount})' : ''}',
+                      style: TextStyle(
+                        color: widget.theme.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  const SizedBox(width: 8),
-                  Text(
-                    widget.busy
-                        ? 'Processing...'
-                        : 'Begin Enhancement${widget.selectedCount > 0 ? ' (${widget.selectedCount})' : ''}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
                 ],
               ),
             ),

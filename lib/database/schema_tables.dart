@@ -104,6 +104,7 @@ class CreatureInstances extends Table {
   BoolColumn get isPrismaticSkin =>
       boolean().withDefault(const Constant(false))();
   TextColumn get natureId => text().nullable()();
+  TextColumn get source => text().withDefault(const Constant('discovery'))();
   TextColumn get parentageJson => text().nullable()();
   TextColumn get geneticsJson => text().nullable()();
   TextColumn get likelihoodAnalysisJson => text().nullable()();

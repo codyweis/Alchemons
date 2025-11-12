@@ -334,8 +334,16 @@ class Parentage {
   factory Parentage.fromJson(Map<String, dynamic> j) => Parentage(
     parentA: ParentSnapshot.fromJson(j['parentA'] as Map<String, dynamic>),
     parentB: ParentSnapshot.fromJson(j['parentB'] as Map<String, dynamic>),
-    bredAt: DateTime.parse(j['bredAt'] as String),
+    bredAt: _parseDate(j['bredAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
   );
+  static DateTime? _parseDate(dynamic v) {
+    if (v is String && v.isNotEmpty) {
+      try {
+        return DateTime.parse(v);
+      } catch (_) {}
+    }
+    return null;
+  }
 
   Map<String, dynamic> toJson() => {
     'parentA': parentA.toJson(),

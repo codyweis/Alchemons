@@ -291,12 +291,12 @@ class ShopService extends ChangeNotifier {
     // weekend is handled separately (all resources available)
   };
 
-  static const Map<String, (String label, IconData icon)> _resMeta = {
-    'res_volcanic': ('Volcanic', Icons.local_fire_department_rounded),
-    'res_oceanic': ('Oceanic', Icons.water_drop_rounded),
-    'res_verdant': ('Verdant', Icons.eco_rounded),
-    'res_earthen': ('Earthen', Icons.terrain_rounded),
-    'res_arcane': ('Arcane', Icons.auto_awesome_rounded),
+  static const Map<String, (String label, String assetName)> _resMeta = {
+    'res_volcanic': ('Volcanic', 'assets/images/ui/volcanic.png'),
+    'res_oceanic': ('Oceanic', 'assets/images/ui/oceanic.png'),
+    'res_verdant': ('Verdant', 'assets/images/ui/verdant.png'),
+    'res_earthen': ('Earthen', 'assets/images/ui/earthen.png'),
+    'res_arcane': ('Arcane', 'assets/images/ui/arcane.png'),
   };
 
   List<ShopOffer> getActiveExchangeOffers() {
@@ -321,14 +321,15 @@ class ShopService extends ChangeNotifier {
     }
 
     final todayOffers = resKeys.map((rk) {
-      final (label, icon) = _resMeta[rk]!;
+      final (label, assetName) = _resMeta[rk]!;
       return ShopOffer(
         id: 'fx.res_to_gold.$rk', // e.g., fx.res_to_gold.res_volcanic
         name: '$label → Gold (1g)',
         description: isWeekend
             ? 'Exchange 5,000 $label for 1 gold. (Weekend: any element)'
             : 'Exchange 5,000 $label for 1 gold. (Today only)',
-        icon: icon,
+        icon: Icons.currency_exchange_rounded, // Keep a fallback icon
+        assetName: assetName, // Add the asset path
         cost: {rk: kResPerGold},
         reward: const {'gold': 1},
         rewardType: 'currency',

@@ -1,5 +1,3 @@
-// lib/widgets/notification_banner_system.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
@@ -16,6 +14,7 @@ enum NotificationBannerType {
   dailyReward,
   bossAvailable,
   eventActive,
+  wildernessSpawn,
 }
 
 extension NotificationBannerTypeExtension on NotificationBannerType {
@@ -29,6 +28,7 @@ class NotificationBanner {
   final String title;
   final String? subtitle;
   final int count;
+  final String stateKey;
   final VoidCallback onTap;
 
   NotificationBanner({
@@ -37,6 +37,7 @@ class NotificationBanner {
     this.subtitle,
     this.count = 1,
     required this.onTap,
+    this.stateKey = '',
   });
 
   @override
@@ -44,10 +45,11 @@ class NotificationBanner {
       identical(this, other) ||
       other is NotificationBanner &&
           runtimeType == other.runtimeType &&
-          type == other.type;
+          type == other.type &&
+          stateKey == other.stateKey;
 
   @override
-  int get hashCode => type.hashCode;
+  int get hashCode => Object.hash(type, stateKey);
 }
 
 class NotificationBannerWidget extends StatefulWidget {
@@ -72,62 +74,206 @@ class NotificationBannerWidget extends StatefulWidget {
 class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
     with TickerProviderStateMixin {
   late AnimationController _slideController;
+  late AnimationController _expandController;
   late AnimationController _shimmerController;
   late AnimationController _pulseController;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
 
   bool _hasBeenShown = false;
+  bool _wasExpanded = false;
+
+  // Drag state
+  double _dragOffset = 0.0;
+  bool _isDragging = false;
 
   @override
   void initState() {
     super.initState();
 
+    // Slide-in animation (initial appearance)
     _slideController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 500),
     );
 
+    // Expand/collapse animation
+    _expandController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      value: widget.isExpanded ? 1.0 : 0.0,
+    );
+
+    // Shimmer effect - slower for better performance
     _shimmerController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 3000),
     )..repeat();
 
+    // Pulse effect - only for collapsed state
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
+      duration: const Duration(milliseconds: 2000),
+    );
 
     _slideAnimation =
-        Tween<Offset>(begin: const Offset(1.5, 0), end: Offset.zero).animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.easeOutBack),
+        Tween<Offset>(begin: const Offset(1.2, 0), end: Offset.zero).animate(
+          CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
         );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _slideController,
-        curve: const Interval(0.0, 0.5),
+        curve: const Interval(0.0, 0.6),
       ),
     );
 
-    // Show initially, then collapse after 3 seconds
+    _wasExpanded = widget.isExpanded;
+
+    // Initial slide-in
     _slideController.forward().then((_) {
       if (mounted && !_hasBeenShown) {
         setState(() => _hasBeenShown = true);
-        Future.delayed(const Duration(seconds: 3), _collapseIfExpanded);
+        Future.delayed(const Duration(seconds: 3), _autoCollapse);
       }
+    });
+
+    // Start pulse only if collapsed
+    if (!widget.isExpanded) {
+      _pulseController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(NotificationBannerWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Animate expand/collapse transitions
+    if (widget.isExpanded != _wasExpanded) {
+      _wasExpanded = widget.isExpanded;
+
+      if (widget.isExpanded) {
+        _dragOffset = 0.0;
+        _isDragging = false;
+        _expandController.forward();
+        _pulseController.stop();
+        _pulseController.value = 0.0;
+      } else {
+        // When collapsing, ensure smooth transition
+        if (_dragOffset == 0.0) {
+          _expandController.reverse().then((_) {
+            if (mounted && !widget.isExpanded) {
+              _pulseController.repeat(reverse: true);
+            }
+          });
+        }
+      }
+    }
+  }
+
+  void _autoCollapse() {
+    if (mounted && widget.isExpanded && widget.onExpand != null) {
+      widget.onExpand!();
+    }
+  }
+
+  void _handleDragStart(DragStartDetails details) {
+    if (!widget.isExpanded) return;
+    setState(() {
+      _isDragging = true;
+    });
+    HapticFeedback.selectionClick();
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    if (!widget.isExpanded) return;
+    setState(() {
+      // Only allow dragging to the right (minimize direction)
+      _dragOffset = math.max(0, _dragOffset + details.delta.dx);
     });
   }
 
-  void _collapseIfExpanded() {
-    if (mounted && widget.isExpanded && widget.onExpand != null) {
-      widget.onExpand!();
+  void _handleDragEnd(DragEndDetails details) {
+    if (!widget.isExpanded) return;
+
+    const minimizeThreshold = 80.0;
+
+    setState(() {
+      _isDragging = false;
+    });
+
+    if (_dragOffset > minimizeThreshold) {
+      // Trigger minimize - animate the drag offset to off-screen first
+      HapticFeedback.lightImpact();
+
+      // Smoothly animate out before collapsing
+      final animation =
+          Tween<double>(
+            begin: _dragOffset,
+            end: 300.0, // Slide further off screen
+          ).animate(
+            CurvedAnimation(
+              parent: _expandController,
+              curve: Curves.easeOutCubic,
+            ),
+          );
+
+      final listener = () {
+        if (mounted) {
+          setState(() {
+            _dragOffset = animation.value;
+          });
+        }
+      };
+
+      animation.addListener(listener);
+
+      // Animate out then collapse
+      _expandController.reverse(from: 1.0).then((_) {
+        animation.removeListener(listener);
+        if (mounted) {
+          setState(() {
+            _dragOffset = 0.0;
+          });
+          widget.onExpand?.call();
+        }
+      });
+    } else {
+      // Spring back with animation
+      HapticFeedback.selectionClick();
+
+      if (_dragOffset > 0) {
+        final animation = Tween<double>(begin: _dragOffset, end: 0.0).animate(
+          CurvedAnimation(parent: _slideController, curve: Curves.elasticOut),
+        );
+
+        final listener = () {
+          if (mounted) {
+            setState(() {
+              _dragOffset = animation.value;
+            });
+          }
+        };
+
+        animation.addListener(listener);
+
+        _slideController.forward(from: 0.0).then((_) {
+          animation.removeListener(listener);
+          if (mounted) {
+            setState(() {
+              _dragOffset = 0.0;
+            });
+          }
+          _slideController.value = 1.0; // Reset to ready state
+        });
+      }
     }
   }
 
   @override
   void dispose() {
     _slideController.dispose();
+    _expandController.dispose();
     _shimmerController.dispose();
     _pulseController.dispose();
     super.dispose();
@@ -136,30 +282,34 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
   Color _getBannerColor() {
     switch (widget.notification.type) {
       case NotificationBannerType.eggReady:
-        return const Color(0xFF8B4513); // Alchemical bronze
+        return const Color(0xFF8B4513);
       case NotificationBannerType.harvestReady:
-        return const Color(0xFF2E7D32); // Deep emerald
+        return const Color(0xFF2E7D32);
       case NotificationBannerType.dailyReward:
-        return const Color(0xFF6A1B9A); // Mystic purple
+        return const Color(0xFF6A1B9A);
       case NotificationBannerType.bossAvailable:
-        return const Color(0xFFB71C1C); // Crimson
+        return const Color(0xFFB71C1C);
       case NotificationBannerType.eventActive:
-        return const Color(0xFF1565C0); // Sapphire blue
+        return const Color(0xFF1565C0);
+      case NotificationBannerType.wildernessSpawn:
+        return const Color(0xFF1B5E20);
     }
   }
 
   Color _getAccentColor() {
     switch (widget.notification.type) {
       case NotificationBannerType.eggReady:
-        return const Color(0xFFFFD700); // Gold shimmer
+        return const Color(0xFFFFD700);
       case NotificationBannerType.harvestReady:
-        return const Color(0xFF4CAF50); // Bright green
+        return const Color(0xFF4CAF50);
       case NotificationBannerType.dailyReward:
-        return const Color(0xFFAB47BC); // Bright purple
+        return const Color(0xFFAB47BC);
       case NotificationBannerType.bossAvailable:
-        return const Color(0xFFFF5252); // Bright red
+        return const Color(0xFFFF5252);
       case NotificationBannerType.eventActive:
-        return const Color(0xFF42A5F5); // Bright blue
+        return const Color(0xFF42A5F5);
+      case NotificationBannerType.wildernessSpawn:
+        return const Color(0xFF66BB6A);
     }
   }
 
@@ -168,13 +318,15 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
       case NotificationBannerType.eggReady:
         return Icons.egg_rounded;
       case NotificationBannerType.harvestReady:
-        return Icons.science_rounded; // Changed to alchemy flask
+        return Icons.science_rounded;
       case NotificationBannerType.dailyReward:
-        return Icons.auto_awesome_rounded; // Sparkle/magic
+        return Icons.auto_awesome_rounded;
       case NotificationBannerType.bossAvailable:
         return Icons.local_fire_department_rounded;
       case NotificationBannerType.eventActive:
         return Icons.stars_rounded;
+      case NotificationBannerType.wildernessSpawn:
+        return Icons.explore_rounded;
     }
   }
 
@@ -189,13 +341,13 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
               end: Alignment.bottomRight,
               colors: [
                 Colors.transparent,
-                _getAccentColor().withOpacity(0.3),
+                _getAccentColor().withOpacity(0.2),
                 Colors.transparent,
               ],
               stops: [
-                _shimmerController.value - 0.3,
+                (_shimmerController.value - 0.3).clamp(0.0, 1.0),
                 _shimmerController.value,
-                _shimmerController.value + 0.3,
+                (_shimmerController.value + 0.3).clamp(0.0, 1.0),
               ],
             ),
           ),
@@ -208,7 +360,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
     return AnimatedBuilder(
       animation: _pulseController,
       builder: (context, child) {
-        final scale = 1.0 + (_pulseController.value * 0.1);
+        final scale = 1.0 + (_pulseController.value * 0.08);
         return Transform.scale(
           scale: scale,
           child: Container(
@@ -223,7 +375,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: _getAccentColor().withOpacity(0.4),
+                  color: _getAccentColor().withOpacity(0.3),
                   blurRadius: 12,
                   spreadRadius: 2,
                 ),
@@ -236,15 +388,10 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
             ),
             child: Stack(
               children: [
-                // Shimmer effect
                 ClipOval(child: _buildShimmerEffect()),
-
-                // Icon
                 Center(
                   child: Icon(_getBannerIcon(), color: Colors.white, size: 28),
                 ),
-
-                // Count badge
                 if (widget.notification.count > 1)
                   Positioned(
                     top: 2,
@@ -308,7 +455,6 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
       ),
       child: Stack(
         children: [
-          // Shimmer effect background
           Positioned.fill(
             child: ClipRRect(
               borderRadius: const BorderRadius.only(
@@ -318,8 +464,6 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
               child: _buildShimmerEffect(),
             ),
           ),
-
-          // Alchemical pattern overlay
           Positioned.fill(
             child: ClipRRect(
               borderRadius: const BorderRadius.only(
@@ -333,14 +477,21 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
               ),
             ),
           ),
-
-          // Content
+          // Larger drag area overlay (invisible but interactive)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragStart: _handleDragStart,
+              onHorizontalDragUpdate: _handleDragUpdate,
+              onHorizontalDragEnd: _handleDragEnd,
+              child: Container(color: Colors.transparent),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Icon container
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -358,8 +509,6 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
                   ),
                 ),
                 const SizedBox(width: 12),
-
-                // Text content
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,8 +575,6 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
                   ),
                 ),
                 const SizedBox(width: 8),
-
-                // Close button
                 GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
@@ -458,38 +605,82 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
   Widget build(BuildContext context) {
     final content = GestureDetector(
       onTap: () {
+        if (_isDragging) return; // Don't trigger tap during drag
         HapticFeedback.mediumImpact();
         if (widget.isExpanded) {
           widget.notification.onTap();
-          widget.onDismiss();
         } else {
           widget.onExpand?.call();
         }
       },
+      onHorizontalDragStart: _handleDragStart,
+      onHorizontalDragUpdate: _handleDragUpdate,
+      onHorizontalDragEnd: _handleDragEnd,
       child: Container(
         margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
-        child: widget.isExpanded ? _buildExpandedView() : _buildCollapsedView(),
+        child: AnimatedBuilder(
+          animation: _expandController,
+          builder: (context, child) {
+            // Apply drag offset when expanded
+            Widget bannerWidget;
+
+            if (_expandController.value == 0.0) {
+              bannerWidget = _buildCollapsedView();
+            } else if (_expandController.value == 1.0) {
+              bannerWidget = _buildExpandedView();
+            } else {
+              // During transition, use a fade/scale effect
+              bannerWidget = Opacity(
+                opacity: 0.7 + (_expandController.value * 0.3),
+                child: Transform.scale(
+                  scale: 0.9 + (_expandController.value * 0.1),
+                  alignment: Alignment.centerRight,
+                  child: _expandController.value > 0.5
+                      ? _buildExpandedView()
+                      : _buildCollapsedView(),
+                ),
+              );
+            }
+
+            // Apply drag transformation when expanded
+            if (widget.isExpanded && _dragOffset > 0) {
+              final normalizedDrag = (_dragOffset / 300.0).clamp(0.0, 1.0);
+              final opacity = 1.0 - (normalizedDrag * 0.6);
+              final scale = 1.0 - (normalizedDrag * 0.2);
+
+              bannerWidget = Transform.translate(
+                offset: Offset(_dragOffset, 0),
+                child: Transform.scale(
+                  scale: scale,
+                  alignment: Alignment.centerRight,
+                  child: Opacity(opacity: opacity, child: bannerWidget),
+                ),
+              );
+            }
+
+            return bannerWidget;
+          },
+        ),
       ),
     );
 
-    // Only allow swipe to minimize when expanded
-    if (widget.isExpanded) {
+    // Only allow swipe to minimize when expanded (fallback for swipe gestures)
+    if (widget.isExpanded && !_isDragging) {
       return SlideTransition(
         position: _slideAnimation,
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: Dismissible(
-            key: Key('notification_${widget.notification.type}'),
+            key: Key(
+              'notification_${widget.notification.type}_${widget.notification.stateKey}',
+            ),
             direction: DismissDirection.endToStart,
             dismissThresholds: const {DismissDirection.endToStart: 0.3},
             onDismissed: (direction) {
               HapticFeedback.lightImpact();
-              widget.onExpand?.call(); // Collapse it
+              widget.onExpand?.call();
             },
-            confirmDismiss: (direction) async {
-              // Always confirm so we can handle it in onDismissed
-              return true;
-            },
+            confirmDismiss: (direction) async => true,
             background: Container(
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 20),
@@ -513,7 +704,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
 }
 
 // ============================================================================
-// ALCHEMICAL PATTERN PAINTER (decorative background)
+// ALCHEMICAL PATTERN PAINTER
 // ============================================================================
 
 class AlchemicalPatternPainter extends CustomPainter {
@@ -528,18 +719,13 @@ class AlchemicalPatternPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
-    // Draw alchemical circles and symbols
     final centerX = size.width / 2;
     final centerY = size.height / 2;
     final radius = math.min(size.width, size.height) / 3;
 
-    // Outer circle
     canvas.drawCircle(Offset(centerX, centerY), radius, paint);
-
-    // Inner circle
     canvas.drawCircle(Offset(centerX, centerY), radius * 0.7, paint);
 
-    // Triangle (alchemical symbol for fire/transformation)
     final trianglePath = Path();
     trianglePath.moveTo(centerX, centerY - radius * 0.5);
     trianglePath.lineTo(centerX - radius * 0.43, centerY + radius * 0.25);
@@ -553,7 +739,7 @@ class AlchemicalPatternPainter extends CustomPainter {
 }
 
 // ============================================================================
-// NOTIFICATION BANNER STACK (manages multiple banners)
+// NOTIFICATION BANNER STACK
 // ============================================================================
 
 class NotificationBannerStack extends StatefulWidget {
@@ -568,9 +754,11 @@ class NotificationBannerStack extends StatefulWidget {
 
 class _NotificationBannerStackState extends State<NotificationBannerStack> {
   final List<NotificationBanner> _activeNotifications = [];
-  final Set<NotificationBannerType> _dismissedTypes = {};
+  final Set<String> _dismissedKeys = {};
   final Map<NotificationBannerType, bool> _expandedStates = {};
   bool _isLoadingDismissals = true;
+
+  String _keyFor(NotificationBanner n) => '${n.type.toKey()}|${n.stateKey}';
 
   @override
   void initState() {
@@ -583,49 +771,45 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
       final db = context.read<AlchemonsDatabase>();
       final dismissals = await (db.select(db.notificationDismissals)).get();
 
+      if (!mounted) return;
+
       setState(() {
-        _dismissedTypes.clear();
+        _dismissedKeys.clear();
         for (final dismissal in dismissals) {
-          // Convert string back to enum
-          final type = NotificationBannerType.values.firstWhere(
-            (t) => t.toKey() == dismissal.notificationType,
-            orElse: () => NotificationBannerType.eggReady,
-          );
-          _dismissedTypes.add(type);
+          _dismissedKeys.add(dismissal.notificationType);
         }
         _isLoadingDismissals = false;
       });
 
-      // Now add active notifications that haven't been dismissed
       _updateActiveNotifications();
     } catch (e) {
       debugPrint('Error loading dismissed notifications: $e');
-      setState(() => _isLoadingDismissals = false);
+      if (mounted) {
+        setState(() => _isLoadingDismissals = false);
+      }
     }
   }
 
   void _updateActiveNotifications() {
+    if (!mounted) return;
+
     bool needsUpdate = false;
 
-    // Add new notifications that aren't already active AND haven't been dismissed
     for (final notification in widget.notifications) {
-      final bool isAlreadyActive = _activeNotifications.any(
-        (n) => n.type == notification.type,
-      );
+      final key = _keyFor(notification);
 
-      final bool hasBeenDismissed = _dismissedTypes.contains(notification.type);
+      if (_dismissedKeys.contains(key)) continue;
 
-      if (!isAlreadyActive && !hasBeenDismissed) {
-        _activeNotifications.add(notification);
-        _expandedStates[notification.type] = true; // Start new banners expanded
-        needsUpdate = true;
-      }
+      _activeNotifications.removeWhere((n) => n.type == notification.type);
+      _activeNotifications.add(notification);
+      _expandedStates[notification.type] ??= true;
+      needsUpdate = true;
     }
 
-    // Remove notifications that are no longer in the parent list
     final toRemove = _activeNotifications
         .where(
-          (active) => !widget.notifications.any((n) => n.type == active.type),
+          (active) =>
+              !widget.notifications.any((n) => _keyFor(n) == _keyFor(active)),
         )
         .toList();
 
@@ -650,26 +834,30 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
     }
   }
 
-  Future<void> _removeBanner(NotificationBannerType type) async {
+  Future<void> _removeBanner(NotificationBanner banner) async {
     if (!mounted) return;
+
+    final type = banner.type;
+    final key = _keyFor(banner);
 
     try {
       final db = context.read<AlchemonsDatabase>();
 
-      // Save dismissal to database
       await db
           .into(db.notificationDismissals)
           .insertOnConflictUpdate(
             NotificationDismissalsCompanion.insert(
-              notificationType: type.toKey(),
+              notificationType: key,
               dismissedAtUtcMs: DateTime.now().millisecondsSinceEpoch,
             ),
           );
 
+      if (!mounted) return;
+
       setState(() {
-        _activeNotifications.removeWhere((n) => n.type == type);
+        _activeNotifications.removeWhere((n) => _keyFor(n) == key);
         _expandedStates.remove(type);
-        _dismissedTypes.add(type);
+        _dismissedKeys.add(key);
       });
     } catch (e) {
       debugPrint('Error dismissing notification: $e');
@@ -698,11 +886,11 @@ class _NotificationBannerStackState extends State<NotificationBannerStack> {
         children: _activeNotifications
             .map(
               (notification) => NotificationBannerWidget(
-                key: ValueKey(notification.type),
+                key: ValueKey('${notification.type}_${notification.stateKey}'),
                 notification: notification,
                 isExpanded: _expandedStates[notification.type] ?? false,
                 onExpand: () => _toggleExpanded(notification.type),
-                onDismiss: () => _removeBanner(notification.type),
+                onDismiss: () => _removeBanner(notification),
               ),
             )
             .toList(),

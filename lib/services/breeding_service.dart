@@ -71,8 +71,11 @@ class BreedingServiceV2 {
     }
 
     final offspring = result.creature!;
-    final payload = payloadFactory.fromWildBreeding(offspring, randomizedWild);
-
+    final payload = payloadFactory.fromWildBreeding(
+      offspring,
+      ownedParent, // <-- Pass Parent A (the owned one)
+      randomizedWild, // <-- Pass Parent B (the wild one used for breeding)
+    );
     return _createEgg(offspring, payload);
   }
 

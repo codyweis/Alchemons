@@ -58,19 +58,19 @@ class UnlockCosts {
     switch (n) {
       case 2:
         return ElementResources.costByBiome({
-          'volcanic': 60,
-          'oceanic': 60,
-          'earthen': 60,
-          'verdant': 60,
-          'arcane': 60,
+          'volcanic': 1000,
+          'oceanic': 1000,
+          'earthen': 1000,
+          'verdant': 1000,
+          'arcane': 1000,
         });
       case 3:
         return ElementResources.costByBiome({
-          'volcanic': 140,
-          'oceanic': 140,
-          'earthen': 140,
-          'verdant': 140,
-          'arcane': 140,
+          'volcanic': 1000,
+          'oceanic': 1000,
+          'earthen': 1000,
+          'verdant': 1000,
+          'arcane': 1000,
         });
       default:
         return const {};

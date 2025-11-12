@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/database/alchemons_db.dart'; // <-- use Settings table
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
@@ -49,7 +50,7 @@ class BlackMarketService extends ChangeNotifier {
 
   // ----------------- constants ------------
   static const int _openHour = 18; // 6 PM
-  static const int _closeHour = 6; // 6 AM
+  static const int _closeHour = 8; // 8 AM
 
   // ----------------- state ----------------
   bool _isOpen = false;
@@ -275,7 +276,7 @@ class BlackMarketService extends ChangeNotifier {
     );
 
     // Offer 2: Resource pack
-    final resourceAmount = 25 + ((seed % 10) * 10);
+    final resourceAmount = 100 + ((seed % 10) * 10);
     offers.add(
       DailyOffer(
         id: 'resource_pack_$seed',
@@ -285,9 +286,9 @@ class BlackMarketService extends ChangeNotifier {
         cost: {'silver': 800 + ((seed % 5) * 100)},
         rewardType: 'resources',
         reward: {
-          'volcanic': resourceAmount,
-          'oceanic': resourceAmount,
-          'verdant': resourceAmount,
+          ElementResources.keyForBiome('volcanic'): resourceAmount,
+          ElementResources.keyForBiome('oceanic'): resourceAmount,
+          ElementResources.keyForBiome('verdant'): resourceAmount,
         },
       ),
     );

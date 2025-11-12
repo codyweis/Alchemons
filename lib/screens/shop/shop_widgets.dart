@@ -119,6 +119,7 @@ Future<bool> showItemDetailDialog({
   required FactionTheme theme,
   required Map<String, int> currencies,
   required int inventoryQty,
+  required bool canPurchase,
 }) async {
   return await showDialog<bool>(
         context: context,
@@ -127,7 +128,7 @@ Future<bool> showItemDetailDialog({
           child: Container(
             constraints: BoxConstraints(maxWidth: 400),
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1D23),
+              color: theme.surface,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: theme.accent.withOpacity(0.5),
@@ -141,7 +142,7 @@ Future<bool> showItemDetailDialog({
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: theme.accent.withOpacity(0.1),
+                    color: theme.surface,
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(18),
                       topRight: Radius.circular(18),
@@ -153,7 +154,7 @@ Future<bool> showItemDetailDialog({
                         child: Text(
                           'ITEM DETAILS',
                           style: TextStyle(
-                            color: theme.accent,
+                            color: theme.text,
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.2,
@@ -178,7 +179,7 @@ Future<bool> showItemDetailDialog({
                   width: double.infinity,
                   margin: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
+                    color: theme.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: theme.accent.withOpacity(0.2)),
                   ),
@@ -203,7 +204,7 @@ Future<bool> showItemDetailDialog({
                   child: Text(
                     offer.name,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: theme.text,
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                     ),
@@ -239,7 +240,7 @@ Future<bool> showItemDetailDialog({
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: theme.accent.withOpacity(0.15),
+                      color: theme.surface,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: theme.accent.withOpacity(0.3)),
                     ),
@@ -298,9 +299,7 @@ Future<bool> showItemDetailDialog({
                         child: TextButton(
                           onPressed: () => Navigator.pop(ctx, false),
                           style: TextButton.styleFrom(
-                            backgroundColor: Colors.grey.shade800.withOpacity(
-                              0.5,
-                            ),
+                            backgroundColor: theme.surface,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -309,7 +308,7 @@ Future<bool> showItemDetailDialog({
                           child: Text(
                             'BACK',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
+                              color: theme.text,
                               fontWeight: FontWeight.w900,
                               fontSize: 13,
                               letterSpacing: 0.6,
@@ -318,40 +317,43 @@ Future<bool> showItemDetailDialog({
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          style: TextButton.styleFrom(
-                            backgroundColor: theme.accent.withOpacity(0.2),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: theme.accent.withOpacity(0.5),
-                                width: 1.5,
-                              ),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.shopping_cart_rounded,
-                                color: theme.accent,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'PURCHASE',
-                                style: TextStyle(
-                                  color: theme.accent,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 13,
-                                  letterSpacing: 0.6,
+                      Visibility(
+                        visible: canPurchase,
+                        child: Expanded(
+                          flex: 2,
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            style: TextButton.styleFrom(
+                              backgroundColor: theme.accent.withOpacity(0.2),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: theme.accent.withOpacity(0.5),
+                                  width: 1.5,
                                 ),
                               ),
-                            ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.shopping_cart_rounded,
+                                  color: theme.text,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'PURCHASE',
+                                  style: TextStyle(
+                                    color: theme.text,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 13,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -375,7 +377,7 @@ class GameShopCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final FactionTheme theme;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool enabled;
   final bool canAfford;
 
@@ -394,7 +396,7 @@ class GameShopCard extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.theme,
-    required this.onPressed,
+    this.onPressed,
     required this.enabled,
     required this.canAfford,
     required this.costWidgets,
@@ -408,9 +410,9 @@ class GameShopCard extends StatelessWidget {
     // Determine the status overlay color
     Color? overlayColor;
     if (!enabled) {
-      overlayColor = Colors.black.withOpacity(0.5);
+      overlayColor = Colors.transparent;
     } else if (!canAfford) {
-      overlayColor = Colors.red.withOpacity(0.3);
+      overlayColor = const Color.fromARGB(86, 244, 67, 54).withOpacity(0.3);
     }
 
     return GestureDetector(
@@ -419,14 +421,14 @@ class GameShopCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: theme.surface.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color: !enabled
                 ? theme.text.withOpacity(0.3)
                 : !canAfford
                 ? Colors.red.withOpacity(0.5)
                 : theme.accent.withOpacity(0.3),
-            width: 2,
+            width: 1,
           ),
         ),
         child: Stack(
@@ -453,9 +455,6 @@ class GameShopCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
                   ),
                   child: Wrap(
                     spacing: 4,
@@ -1565,6 +1564,7 @@ class DialogResourceDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     final (icon, label, color) = _getDisplayInfo(type);
     final hasEnough = current != null ? current! >= amount : true;
+    final theme = context.read<FactionTheme>();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -1600,9 +1600,7 @@ class DialogResourceDisplay extends StatelessWidget {
               child: Text(
                 '(Have: $current)',
                 style: TextStyle(
-                  color: hasEnough
-                      ? Colors.white.withOpacity(0.5)
-                      : Colors.red.shade400,
+                  color: hasEnough ? theme.textMuted : Colors.red.shade400,
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),

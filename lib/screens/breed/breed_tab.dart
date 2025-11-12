@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:math';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
@@ -1086,9 +1087,16 @@ class _BreedingTabState extends State<BreedingTab>
             perk1: factions.perk1Active && factions.isWater(),
           );
 
+          // 50% chance to skip stamina cost if perk active
+
           if (!skipStamina) {
             await stamina.spendForBreeding(selectedParent1!.instanceId);
             await stamina.spendForBreeding(selectedParent2!.instanceId);
+          } else {
+            if (Random().nextBool()) {
+              await stamina.spendForBreeding(selectedParent1!.instanceId);
+              await stamina.spendForBreeding(selectedParent2!.instanceId);
+            }
           }
         },
       );

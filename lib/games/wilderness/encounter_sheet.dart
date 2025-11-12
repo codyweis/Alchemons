@@ -43,6 +43,7 @@ class EncounterOverlay extends StatefulWidget {
   final ValueChanged<bool>? onClosedWithResult;
   final ValueChanged<Creature>? onPartyCreatureSelected;
   final VoidCallback? onPreRollShake;
+  final Creature hydratedWildCreature;
 
   const EncounterOverlay({
     super.key,
@@ -51,6 +52,7 @@ class EncounterOverlay extends StatefulWidget {
     this.onClosedWithResult,
     this.onPartyCreatureSelected,
     this.onPreRollShake,
+    required this.hydratedWildCreature,
   });
 
   @override
@@ -107,13 +109,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final repo = context.read<CreatureCatalog>();
-    final wildCreature = repo.getCreatureById(widget.encounter.wildBaseId);
-
-    if (wildCreature == null) {
-      return const SizedBox.shrink();
-    }
-
+    final wildCreature = widget.hydratedWildCreature;
     return Stack(
       children: [
         // Dimmed backdrop
@@ -176,7 +172,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     isPartySelected: _chosenInstanceId != null,
                     status: _status,
                     canAct: !_busy,
-                    onBreed: !_busy ? () => _handleBreed(context) : null,
+                    onBreed: !_busy
+                        ? () => _handleBreed(context, wildCreature)
+                        : null,
                     onCapture: !_busy
                         ? () => _handleCapture(context, wildCreature)
                         : null,
@@ -218,7 +216,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     HapticFeedback.selectionClick();
   }
 
-  Future<void> _handleBreed(BuildContext ctx) async {
+  Future<void> _handleBreed(BuildContext ctx, Creature wildCreature) async {
     if (_chosenInstanceId == null) {
       setState(() => _status = 'Select a partner first');
       return;
@@ -259,7 +257,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         final repo = ctx.read<CreatureCatalog>();
 
         final speciesA = repo.getCreatureById(instance!.baseId);
-        final speciesB = repo.getCreatureById(widget.encounter.wildBaseId);
+        final speciesB = wildCreature;
 
         Color colorOf(Creature? c, Color fallback) =>
             c != null && c.types.isNotEmpty
@@ -378,7 +376,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         HapticFeedback.heavyImpact();
         setState(() => _status = 'Captured!');
 
-        await _placeWildEgg(ctx, widget.encounter.wildBaseId);
+        await _placeWildEgg(ctx, wildCreature as Creature);
 
         await Future.delayed(const Duration(seconds: 2));
         if (!mounted) return;
@@ -435,24 +433,24 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   }
 
   /// Capture wild creature (for the Capture button)
-  Future<void> _placeWildEgg(BuildContext ctx, String baseId) async {
+  Future<void> _placeWildEgg(
+    BuildContext ctx,
+    Creature capturedCreature,
+  ) async {
     final db = ctx.read<AlchemonsDatabase>();
     final repo = ctx.read<CreatureCatalog>();
-    final randomizer = WildCreatureRandomizer();
 
-    final baseCreature = repo.getCreatureById(baseId);
-    if (baseCreature == null) return;
-
-    final randomized = randomizer.randomizeWildCreature(baseCreature);
-
-    final rarityKey = randomized.rarity.toLowerCase();
+    // We use the 'capturedCreature' directly
+    final rarityKey = capturedCreature.rarity.toLowerCase();
     final baseHatchDelay =
         BreedConstants.rarityHatchTimes[rarityKey] ??
         const Duration(minutes: 10);
     final hatchAtUtc = DateTime.now().toUtc().add(baseHatchDelay);
 
     final factory = EggPayloadFactory(repo);
-    final payload = factory.createWildCapturePayload(randomized);
+
+    // ✨ PASS THE EXACT CREATURE (prismatic and all) TO THE FACTORY
+    final payload = factory.createWildCapturePayload(capturedCreature); //
     final payloadJson = payload.toJsonString();
 
     final eggId = 'egg_${DateTime.now().millisecondsSinceEpoch}';
@@ -461,8 +459,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     if (free == null) {
       await db.incubatorDao.enqueueEgg(
         eggId: eggId,
-        resultCreatureId: randomized.id,
-        rarity: randomized.rarity,
+        resultCreatureId: capturedCreature.id, // Use captured creature's data
+        rarity: capturedCreature.rarity, // Use captured creature's data
         remaining: baseHatchDelay,
         payloadJson: payloadJson,
       );
@@ -470,8 +468,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       await db.incubatorDao.placeEgg(
         slotId: free.id,
         eggId: eggId,
-        resultCreatureId: randomized.id,
-        rarity: randomized.rarity,
+        resultCreatureId: capturedCreature.id, // Use captured creature's data
+        rarity: capturedCreature.rarity, // Use captured creature's data
         hatchAtUtc: hatchAtUtc,
         payloadJson: payloadJson,
       );

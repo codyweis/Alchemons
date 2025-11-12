@@ -1538,6 +1538,16 @@ class $CreatureInstancesTable extends CreatureInstances
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('discovery'),
+  );
   static const VerificationMeta _parentageJsonMeta = const VerificationMeta(
     'parentageJson',
   );
@@ -1795,6 +1805,7 @@ class $CreatureInstancesTable extends CreatureInstances
     nickname,
     isPrismaticSkin,
     natureId,
+    source,
     parentageJson,
     geneticsJson,
     likelihoodAnalysisJson,
@@ -1879,6 +1890,12 @@ class $CreatureInstancesTable extends CreatureInstances
       context.handle(
         _natureIdMeta,
         natureId.isAcceptableOrUnknown(data['nature_id']!, _natureIdMeta),
+      );
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
       );
     }
     if (data.containsKey('parentage_json')) {
@@ -2099,6 +2116,10 @@ class $CreatureInstancesTable extends CreatureInstances
         DriftSqlType.string,
         data['${effectivePrefix}nature_id'],
       ),
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
       parentageJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}parentage_json'],
@@ -2202,6 +2223,7 @@ class CreatureInstance extends DataClass
   final String? nickname;
   final bool isPrismaticSkin;
   final String? natureId;
+  final String source;
   final String? parentageJson;
   final String? geneticsJson;
   final String? likelihoodAnalysisJson;
@@ -2232,6 +2254,7 @@ class CreatureInstance extends DataClass
     this.nickname,
     required this.isPrismaticSkin,
     this.natureId,
+    required this.source,
     this.parentageJson,
     this.geneticsJson,
     this.likelihoodAnalysisJson,
@@ -2269,6 +2292,7 @@ class CreatureInstance extends DataClass
     if (!nullToAbsent || natureId != null) {
       map['nature_id'] = Variable<String>(natureId);
     }
+    map['source'] = Variable<String>(source);
     if (!nullToAbsent || parentageJson != null) {
       map['parentage_json'] = Variable<String>(parentageJson);
     }
@@ -2325,6 +2349,7 @@ class CreatureInstance extends DataClass
       natureId: natureId == null && nullToAbsent
           ? const Value.absent()
           : Value(natureId),
+      source: Value(source),
       parentageJson: parentageJson == null && nullToAbsent
           ? const Value.absent()
           : Value(parentageJson),
@@ -2377,6 +2402,7 @@ class CreatureInstance extends DataClass
       nickname: serializer.fromJson<String?>(json['nickname']),
       isPrismaticSkin: serializer.fromJson<bool>(json['isPrismaticSkin']),
       natureId: serializer.fromJson<String?>(json['natureId']),
+      source: serializer.fromJson<String>(json['source']),
       parentageJson: serializer.fromJson<String?>(json['parentageJson']),
       geneticsJson: serializer.fromJson<String?>(json['geneticsJson']),
       likelihoodAnalysisJson: serializer.fromJson<String?>(
@@ -2428,6 +2454,7 @@ class CreatureInstance extends DataClass
       'nickname': serializer.toJson<String?>(nickname),
       'isPrismaticSkin': serializer.toJson<bool>(isPrismaticSkin),
       'natureId': serializer.toJson<String?>(natureId),
+      'source': serializer.toJson<String>(source),
       'parentageJson': serializer.toJson<String?>(parentageJson),
       'geneticsJson': serializer.toJson<String?>(geneticsJson),
       'likelihoodAnalysisJson': serializer.toJson<String?>(
@@ -2465,6 +2492,7 @@ class CreatureInstance extends DataClass
     Value<String?> nickname = const Value.absent(),
     bool? isPrismaticSkin,
     Value<String?> natureId = const Value.absent(),
+    String? source,
     Value<String?> parentageJson = const Value.absent(),
     Value<String?> geneticsJson = const Value.absent(),
     Value<String?> likelihoodAnalysisJson = const Value.absent(),
@@ -2495,6 +2523,7 @@ class CreatureInstance extends DataClass
     nickname: nickname.present ? nickname.value : this.nickname,
     isPrismaticSkin: isPrismaticSkin ?? this.isPrismaticSkin,
     natureId: natureId.present ? natureId.value : this.natureId,
+    source: source ?? this.source,
     parentageJson: parentageJson.present
         ? parentageJson.value
         : this.parentageJson,
@@ -2544,6 +2573,7 @@ class CreatureInstance extends DataClass
           ? data.isPrismaticSkin.value
           : this.isPrismaticSkin,
       natureId: data.natureId.present ? data.natureId.value : this.natureId,
+      source: data.source.present ? data.source.value : this.source,
       parentageJson: data.parentageJson.present
           ? data.parentageJson.value
           : this.parentageJson,
@@ -2617,6 +2647,7 @@ class CreatureInstance extends DataClass
           ..write('nickname: $nickname, ')
           ..write('isPrismaticSkin: $isPrismaticSkin, ')
           ..write('natureId: $natureId, ')
+          ..write('source: $source, ')
           ..write('parentageJson: $parentageJson, ')
           ..write('geneticsJson: $geneticsJson, ')
           ..write('likelihoodAnalysisJson: $likelihoodAnalysisJson, ')
@@ -2652,6 +2683,7 @@ class CreatureInstance extends DataClass
     nickname,
     isPrismaticSkin,
     natureId,
+    source,
     parentageJson,
     geneticsJson,
     likelihoodAnalysisJson,
@@ -2686,6 +2718,7 @@ class CreatureInstance extends DataClass
           other.nickname == this.nickname &&
           other.isPrismaticSkin == this.isPrismaticSkin &&
           other.natureId == this.natureId &&
+          other.source == this.source &&
           other.parentageJson == this.parentageJson &&
           other.geneticsJson == this.geneticsJson &&
           other.likelihoodAnalysisJson == this.likelihoodAnalysisJson &&
@@ -2718,6 +2751,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
   final Value<String?> nickname;
   final Value<bool> isPrismaticSkin;
   final Value<String?> natureId;
+  final Value<String> source;
   final Value<String?> parentageJson;
   final Value<String?> geneticsJson;
   final Value<String?> likelihoodAnalysisJson;
@@ -2749,6 +2783,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.nickname = const Value.absent(),
     this.isPrismaticSkin = const Value.absent(),
     this.natureId = const Value.absent(),
+    this.source = const Value.absent(),
     this.parentageJson = const Value.absent(),
     this.geneticsJson = const Value.absent(),
     this.likelihoodAnalysisJson = const Value.absent(),
@@ -2781,6 +2816,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.nickname = const Value.absent(),
     this.isPrismaticSkin = const Value.absent(),
     this.natureId = const Value.absent(),
+    this.source = const Value.absent(),
     this.parentageJson = const Value.absent(),
     this.geneticsJson = const Value.absent(),
     this.likelihoodAnalysisJson = const Value.absent(),
@@ -2814,6 +2850,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Expression<String>? nickname,
     Expression<bool>? isPrismaticSkin,
     Expression<String>? natureId,
+    Expression<String>? source,
     Expression<String>? parentageJson,
     Expression<String>? geneticsJson,
     Expression<String>? likelihoodAnalysisJson,
@@ -2846,6 +2883,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       if (nickname != null) 'nickname': nickname,
       if (isPrismaticSkin != null) 'is_prismatic_skin': isPrismaticSkin,
       if (natureId != null) 'nature_id': natureId,
+      if (source != null) 'source': source,
       if (parentageJson != null) 'parentage_json': parentageJson,
       if (geneticsJson != null) 'genetics_json': geneticsJson,
       if (likelihoodAnalysisJson != null)
@@ -2887,6 +2925,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Value<String?>? nickname,
     Value<bool>? isPrismaticSkin,
     Value<String?>? natureId,
+    Value<String>? source,
     Value<String?>? parentageJson,
     Value<String?>? geneticsJson,
     Value<String?>? likelihoodAnalysisJson,
@@ -2919,6 +2958,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       nickname: nickname ?? this.nickname,
       isPrismaticSkin: isPrismaticSkin ?? this.isPrismaticSkin,
       natureId: natureId ?? this.natureId,
+      source: source ?? this.source,
       parentageJson: parentageJson ?? this.parentageJson,
       geneticsJson: geneticsJson ?? this.geneticsJson,
       likelihoodAnalysisJson:
@@ -2973,6 +3013,9 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     }
     if (natureId.present) {
       map['nature_id'] = Variable<String>(natureId.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
     }
     if (parentageJson.present) {
       map['parentage_json'] = Variable<String>(parentageJson.value);
@@ -3062,6 +3105,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
           ..write('nickname: $nickname, ')
           ..write('isPrismaticSkin: $isPrismaticSkin, ')
           ..write('natureId: $natureId, ')
+          ..write('source: $source, ')
           ..write('parentageJson: $parentageJson, ')
           ..write('geneticsJson: $geneticsJson, ')
           ..write('likelihoodAnalysisJson: $likelihoodAnalysisJson, ')
@@ -7154,6 +7198,7 @@ typedef $$CreatureInstancesTableCreateCompanionBuilder =
       Value<String?> nickname,
       Value<bool> isPrismaticSkin,
       Value<String?> natureId,
+      Value<String> source,
       Value<String?> parentageJson,
       Value<String?> geneticsJson,
       Value<String?> likelihoodAnalysisJson,
@@ -7187,6 +7232,7 @@ typedef $$CreatureInstancesTableUpdateCompanionBuilder =
       Value<String?> nickname,
       Value<bool> isPrismaticSkin,
       Value<String?> natureId,
+      Value<String> source,
       Value<String?> parentageJson,
       Value<String?> geneticsJson,
       Value<String?> likelihoodAnalysisJson,
@@ -7257,6 +7303,11 @@ class $$CreatureInstancesTableFilterComposer
 
   ColumnFilters<String> get natureId => $composableBuilder(
     column: $table.natureId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7415,6 +7466,11 @@ class $$CreatureInstancesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get parentageJson => $composableBuilder(
     column: $table.parentageJson,
     builder: (column) => ColumnOrderings(column),
@@ -7557,6 +7613,9 @@ class $$CreatureInstancesTableAnnotationComposer
 
   GeneratedColumn<String> get natureId =>
       $composableBuilder(column: $table.natureId, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
 
   GeneratedColumn<String> get parentageJson => $composableBuilder(
     column: $table.parentageJson,
@@ -7708,6 +7767,7 @@ class $$CreatureInstancesTableTableManager
                 Value<String?> nickname = const Value.absent(),
                 Value<bool> isPrismaticSkin = const Value.absent(),
                 Value<String?> natureId = const Value.absent(),
+                Value<String> source = const Value.absent(),
                 Value<String?> parentageJson = const Value.absent(),
                 Value<String?> geneticsJson = const Value.absent(),
                 Value<String?> likelihoodAnalysisJson = const Value.absent(),
@@ -7739,6 +7799,7 @@ class $$CreatureInstancesTableTableManager
                 nickname: nickname,
                 isPrismaticSkin: isPrismaticSkin,
                 natureId: natureId,
+                source: source,
                 parentageJson: parentageJson,
                 geneticsJson: geneticsJson,
                 likelihoodAnalysisJson: likelihoodAnalysisJson,
@@ -7772,6 +7833,7 @@ class $$CreatureInstancesTableTableManager
                 Value<String?> nickname = const Value.absent(),
                 Value<bool> isPrismaticSkin = const Value.absent(),
                 Value<String?> natureId = const Value.absent(),
+                Value<String> source = const Value.absent(),
                 Value<String?> parentageJson = const Value.absent(),
                 Value<String?> geneticsJson = const Value.absent(),
                 Value<String?> likelihoodAnalysisJson = const Value.absent(),
@@ -7803,6 +7865,7 @@ class $$CreatureInstancesTableTableManager
                 nickname: nickname,
                 isPrismaticSkin: isPrismaticSkin,
                 natureId: natureId,
+                source: source,
                 parentageJson: parentageJson,
                 geneticsJson: geneticsJson,
                 likelihoodAnalysisJson: likelihoodAnalysisJson,

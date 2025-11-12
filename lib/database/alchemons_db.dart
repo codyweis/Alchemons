@@ -61,7 +61,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 27;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -173,6 +173,9 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
       }
       if (from < 25) {
         await m.createTable(notificationDismissals);
+      }
+      if (from < 27) {
+        await m.addColumn(creatureInstances, creatureInstances.source);
       }
     },
   );

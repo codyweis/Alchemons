@@ -1,9 +1,10 @@
-// lib/screens/home_screen.dart
-
+// (imports unchanged except where noted)
 import 'dart:async' as async;
 
 import 'package:alchemons/database/daos/settings_dao.dart';
+import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
+import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
@@ -15,6 +16,7 @@ import 'package:alchemons/screens/map_screen.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
+import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -29,7 +31,8 @@ import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart';
 import 'package:alchemons/widgets/side_dock_widget.dart';
 import 'package:alchemons/widgets/starter_granted_dialog.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:drift/drift.dart' hide Column;
+import 'package:flutter/cupertino.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -72,11 +75,14 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _glowController;
   late AnimationController _navAnimController;
 
+  final PushNotificationService _pushNotifications = PushNotificationService();
+  String? _lastEggStateKey;
+  String? _lastHarvestStateKey;
+
   bool _isFieldTutorialActive = false;
 
   bool _isInitialized = false;
   NavSection _currentSection = NavSection.home;
-  int? _pendingBreedInitialTab;
 
   // Notification banners
   final List<NotificationBanner> _activeNotifications = [];
@@ -84,7 +90,6 @@ class _HomeScreenState extends State<HomeScreen>
   // Stream subscriptions for reactive notifications
   async.StreamSubscription<List<IncubatorSlot>>? _slotsSubscription;
   async.StreamSubscription<List<BiomeFarm>>? _biomesSubscription;
-  async.Timer? _notificationCheckTimer;
 
   // FEATURED HERO STATE
   PresentationData? _featuredData;
@@ -94,6 +99,9 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    // final spawnService = context.read<WildernessSpawnService>();
+    // spawnService.clearSceneSpawns('valley');
+    // spawnService.setGlobalSpawnWindow(Duration.zero, Duration.zero);
     _breathingController = AnimationController(
       duration: const Duration(seconds: 3),
       vsync: this,
@@ -123,6 +131,8 @@ class _HomeScreenState extends State<HomeScreen>
       await _initializeApp();
       if (mounted) {
         await _checkFieldTutorial();
+        // Ensure first render reflects current notification state
+        await _refreshNotificationsNow();
       }
     });
   }
@@ -152,7 +162,11 @@ class _HomeScreenState extends State<HomeScreen>
     _particleController.repeat();
     _waveController.repeat();
     _glowController.repeat(reverse: true);
-    // _navAnimController doesn't auto-repeat, so just leave it
+
+    // Refresh banners when returning to Home
+    if (_currentSection == NavSection.home && _isInitialized) {
+      _refreshNotificationsNow();
+    }
   }
 
   @override
@@ -166,8 +180,12 @@ class _HomeScreenState extends State<HomeScreen>
     _navAnimController.dispose();
     _slotsSubscription?.cancel();
     _biomesSubscription?.cancel();
-    _notificationCheckTimer?.cancel();
     _spawnTimer?.cancel();
+
+    // Remove wilderness spawn listener
+    final spawnService = context.read<WildernessSpawnService>();
+    spawnService.removeListener(_checkWildernessNotifications);
+
     super.dispose();
   }
 
@@ -177,9 +195,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
     setState(() {
       _currentSection = section;
-      if (section == NavSection.breed) {
-        _pendingBreedInitialTab = breedInitialTab;
-      }
     });
     HapticFeedback.mediumImpact();
   }
@@ -224,6 +239,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _initializeApp() async {
+    await _pushNotifications.initialize();
     try {
       await _initializeRepository();
       if (!mounted) return;
@@ -234,9 +250,8 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (!mounted) return;
 
-      // ✨ NEW: Check if this is first-time experience
+      // First-time experience
       if (faction == null) {
-        // Show story sequence first
         final storyCompleted = await Navigator.push<bool>(
           context,
           MaterialPageRoute(builder: (_) => const StoryIntroScreen()),
@@ -244,7 +259,6 @@ class _HomeScreenState extends State<HomeScreen>
 
         if (!mounted || storyCompleted != true) return;
 
-        // After story, show faction picker
         final selected = await showDialog<FactionId>(
           context: context,
           barrierDismissible: false,
@@ -275,94 +289,20 @@ class _HomeScreenState extends State<HomeScreen>
 
       setState(() => _isInitialized = true);
 
-      // Set up reactive notification watchers
+      // Reactive watchers (streams)
       _setupNotificationWatchers();
 
-      // // 1) shrink the window to zero so next schedules are "now"
-      // spawnService.setGlobalSpawnWindow(Duration.zero, Duration.zero);
+      // Check wilderness now
+      _checkWildernessNotifications();
 
-      //await spawnService.clearSceneSpawns('valley');
-      // await spawnService.clearSceneSpawns('volcano');
-      // await spawnService.clearSceneSpawns('sky');
-      // await spawnService.clearSceneSpawns('swamp');
+      final pushNotifications = PushNotificationService();
+      await pushNotifications.debugPrintPendingNotifications();
 
-      // spawnService.scheduleNextSpawnTime(
-      //   'valley',
-      //   windowMax: Duration(seconds: 1),
-      // );
-
-      // ✅ await initialization
-      await spawnService.initializeActiveSpawns(
-        scenes: {
-          'valley': (
-            scene: valleyScene,
-            pool: valleyEncounterPools(valleyScene).sceneWide,
-          ),
-          'sky': (
-            scene: skyScene,
-            pool: valleyEncounterPools(skyScene).sceneWide,
-          ),
-          'volcano': (
-            scene: volcanoScene,
-            pool: valleyEncounterPools(volcanoScene).sceneWide,
-          ),
-          'swamp': (
-            scene: swampScene,
-            pool: valleyEncounterPools(swampScene).sceneWide,
-          ),
-        },
-      );
-
-      // ✅ fire once right away so overdue spawns appear instantly
-      await spawnService.processDueScenes({
-        'valley': (
-          scene: valleyScene,
-          pool: valleyEncounterPools(valleyScene).sceneWide,
-        ),
-        'sky': (
-          scene: skyScene,
-          pool: valleyEncounterPools(skyScene).sceneWide,
-        ),
-        'volcano': (
-          scene: volcanoScene,
-          pool: valleyEncounterPools(volcanoScene).sceneWide,
-        ),
-        'swamp': (
-          scene: swampScene,
-          pool: valleyEncounterPools(swampScene).sceneWide,
-        ),
-      });
-
-      // 🔁 lightweight periodic check
-      _spawnTimer = async.Timer.periodic(const Duration(seconds: 10), (
-        _,
-      ) async {
-        try {
-          await spawnService.processDueScenes({
-            'valley': (
-              scene: valleyScene,
-              pool: valleyEncounterPools(valleyScene).sceneWide,
-            ),
-            'sky': (
-              scene: skyScene,
-              pool: valleyEncounterPools(skyScene).sceneWide,
-            ),
-            'volcano': (
-              scene: volcanoScene,
-              pool: valleyEncounterPools(volcanoScene).sceneWide,
-            ),
-            'swamp': (
-              scene: swampScene,
-              pool: valleyEncounterPools(swampScene).sceneWide,
-            ),
-          });
-        } catch (e, st) {
-          debugPrint('processDueScenes error: $e\n$st');
-        }
-      });
+      // Recreate per-egg schedules on cold start
+      await _rehydrateEggSchedules();
     } catch (e, st) {
       debugPrint('Error during app initialization: $e');
-      debugPrint('Error during app initialization: $e\n$st'); // <—
+      debugPrint('Error during app initialization: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -394,104 +334,248 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _setupNotificationWatchers() {
     final db = context.read<AlchemonsDatabase>();
+    final spawnService = context.read<WildernessSpawnService>();
 
-    // Watch incubator slots for ready eggs
+    // Eggs: react to slot changes (schedule/cancel per-egg notis, show in-app banner)
     _slotsSubscription = db.incubatorDao.watchSlots().listen(
       _checkEggNotifications,
     );
 
-    // Watch biomes for harvest opportunities
+    // Harvests: react to biome changes
     _biomesSubscription = db.biomeDao.watchBiomes().listen(
       _checkBiomeNotifications,
     );
 
-    // Set up a timer to check time-based conditions (like eggs becoming ready)
-    // This is lighter than full polling - just checks if NOW crosses any thresholds
-    _notificationCheckTimer = async.Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => _checkTimeBasedNotifications(),
-    );
+    // Wilderness spawns
+    spawnService.addListener(_checkWildernessNotifications);
   }
 
-  void _checkEggNotifications(List<IncubatorSlot> slots) {
-    if (!mounted || _currentSection != NavSection.home) return;
+  // Manual refresh when landing on Home / returning to Home
+  Future<void> _refreshNotificationsNow() async {
+    if (!mounted) return;
+
+    final db = context.read<AlchemonsDatabase>();
+    final slots = await db.incubatorDao.watchSlots().first;
+    _checkEggNotifications(slots);
+
+    final biomes = await db.biomeDao.watchBiomes().first;
+    _checkBiomeNotifications(biomes);
+
+    _checkWildernessNotifications();
+  }
+
+  // Wilderness
+  void _checkWildernessNotifications() {
+    if (!mounted) return;
+
+    final spawnService = context.read<WildernessSpawnService>();
+
+    if (spawnService.hasAnyActiveSpawns) {
+      final debugInfo = spawnService.getDebugInfo();
+      final totalSpawns = debugInfo['total_spawns'] as int;
+      final scenesWithSpawns = debugInfo['scenes_with_spawns'] as int;
+
+      debugPrint(
+        '🌲 Wilderness notification check: $totalSpawns spawns across $scenesWithSpawns scenes',
+      );
+
+      _showNotification(
+        NotificationBanner(
+          type: NotificationBannerType.wildernessSpawn,
+          title: 'CREATURES DETECTED',
+          subtitle:
+              'Wild specimens available in $scenesWithSpawns location${scenesWithSpawns > 1 ? 's' : ''}',
+          count: totalSpawns,
+          stateKey: 'spawns:$totalSpawns/$scenesWithSpawns',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MapScreen()),
+            );
+          },
+        ),
+      );
+    } else {
+      debugPrint('🌲 Clearing wilderness notification (no active spawns)');
+      _clearNotification(NotificationBannerType.wildernessSpawn);
+    }
+  }
+
+  // Eggs (per-egg scheduling only; no consolidated push)
+  void _checkEggNotifications(List<IncubatorSlot> slots) async {
+    if (!mounted) return;
 
     int readyEggs = 0;
-    final now = DateTime.now();
+    final nowUtc = DateTime.now().toUtc();
+    final List<Future> scheduleTasks = [];
+    final List<int> slotsToCancel = [];
+    final List<int> readySlotIds = [];
 
     for (final slot in slots) {
       if (slot.unlocked && slot.eggId != null && slot.hatchAtUtcMs != null) {
-        final hatchTime = DateTime.fromMillisecondsSinceEpoch(
+        final hatchUtc = DateTime.fromMillisecondsSinceEpoch(
           slot.hatchAtUtcMs!,
           isUtc: true,
         );
-        if (hatchTime.isBefore(now) || hatchTime.isAtSameMomentAs(now)) {
+
+        if (!hatchUtc.isAfter(nowUtc)) {
           readyEggs++;
+          readySlotIds.add(slot.id);
+          // Cancel per-slot scheduled notification (it would be in the past now)
+          slotsToCancel.add(slot.id);
+        } else {
+          // Schedule/update the per-egg local notification
+          scheduleTasks.add(
+            _pushNotifications.scheduleEggHatchingNotification(
+              hatchTime: hatchUtc.toLocal(),
+              eggId: slot.eggId!,
+              slotIndex: slot.id,
+            ),
+          );
         }
       }
+    }
+
+    for (final slotId in slotsToCancel) {
+      await _pushNotifications.cancelEggNotification(slotIndex: slotId);
+    }
+    if (scheduleTasks.isNotEmpty) {
+      await Future.wait(scheduleTasks);
     }
 
     debugPrint('🥚 Egg notification check: $readyEggs eggs ready');
 
     if (readyEggs > 0) {
+      readySlotIds.sort();
+      final stateKey = 'slots:${readySlotIds.join(",")}';
+
+      // De-dupe: if same stateKey as last emission, do nothing.
+      if (_lastEggStateKey == stateKey) return;
+      _lastEggStateKey = stateKey;
+
       _showNotification(
         NotificationBanner(
           type: NotificationBannerType.eggReady,
           title: 'EGG READY TO HATCH',
           subtitle: 'Tap to view incubator',
           count: readyEggs,
+          stateKey: stateKey,
           onTap: () {
             _goToSection(NavSection.breed, breedInitialTab: 1);
           },
         ),
       );
     } else {
-      debugPrint('🥚 Clearing egg notification (no eggs ready)');
-      // Clear notification if no eggs are ready
+      _lastEggStateKey = null; // reset de-dupe
       _clearNotification(NotificationBannerType.eggReady);
     }
   }
 
-  void _checkBiomeNotifications(List<BiomeFarm> biomes) {
-    if (!mounted || _currentSection != NavSection.home) return;
+  // Harvests (kept as-is; still shows a consolidated harvest push)
+  void _checkBiomeNotifications(List<BiomeFarm> biomes) async {
+    if (!mounted) return;
 
-    // Example: Check for completed harvest jobs
-    // You'll need to expand this based on your actual BiomeJob tracking
+    int readyHarvests = 0;
+    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final db = context.read<AlchemonsDatabase>();
+    final List<int> readyBiomeIds = [];
 
-    // For now, this is a placeholder
-    // In a full implementation, you'd watch BiomeJobs and check completion
+    for (final farm in biomes) {
+      if (!farm.unlocked) continue;
+
+      final job = await db.biomeDao.getActiveJobForBiome(farm.id);
+      if (job == null) continue;
+
+      final endMs = job.startUtcMs + job.durationMs;
+      if (endMs <= nowMs) {
+        readyHarvests++;
+        readyBiomeIds.add(farm.id);
+      }
+    }
+
+    debugPrint('⚗️ Harvest notification check: $readyHarvests ready');
+
+    if (readyHarvests > 0) {
+      readyBiomeIds.sort();
+      final stateKey = 'biomes:${readyBiomeIds.join(",")}';
+
+      // De-dupe on same state
+      if (_lastHarvestStateKey == stateKey) return;
+      _lastHarvestStateKey = stateKey;
+
+      _showNotification(
+        NotificationBanner(
+          type: NotificationBannerType.harvestReady,
+          title: 'HARVEST COMPLETE',
+          subtitle: 'Tap to collect resources',
+          count: readyHarvests,
+          stateKey: stateKey,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BiomeHarvestScreen()),
+            );
+          },
+        ),
+      );
+
+      await _pushNotifications.showHarvestReadyNotification(
+        count: readyHarvests,
+      );
+    } else {
+      _lastHarvestStateKey = null; // reset de-dupe
+      _clearNotification(NotificationBannerType.harvestReady);
+    }
   }
 
-  void _checkTimeBasedNotifications() {
-    if (!mounted || _currentSection != NavSection.home) return;
-
-    // This is called periodically to catch eggs that just became ready
-    // The stream won't fire unless the slot data changes, but eggs become
-    // ready based on time, so we need this lightweight check
-
+  // Restore per-egg schedules on app start so OS will fire them even if app is killed
+  Future<void> _rehydrateEggSchedules() async {
     final db = context.read<AlchemonsDatabase>();
-    db.incubatorDao.watchSlots().first.then(_checkEggNotifications);
+    final slots = await db.incubatorDao.watchSlots().first;
+    final now = DateTime.now().toUtc();
+
+    for (final s in slots) {
+      if (!(s.unlocked && s.eggId != null && s.hatchAtUtcMs != null)) continue;
+
+      final hatchUtc = DateTime.fromMillisecondsSinceEpoch(
+        s.hatchAtUtcMs!,
+        isUtc: true,
+      );
+
+      // Avoid duplicates: cancel then reschedule if still in the future
+      await _pushNotifications.cancelEggNotification(slotIndex: s.id);
+      if (hatchUtc.isAfter(now)) {
+        await _pushNotifications.scheduleEggHatchingNotification(
+          hatchTime: hatchUtc.toLocal(),
+          eggId: s.eggId!,
+          slotIndex: s.id,
+        );
+      }
+    }
   }
 
   void _showNotification(NotificationBanner banner) {
     if (!mounted) return;
     setState(() {
-      // Remove duplicates of same type
+      // Ensure ONLY ONE banner per type at a time.
       _activeNotifications.removeWhere((n) => n.type == banner.type);
       _activeNotifications.add(banner);
-      debugPrint('📢 Showing notification: ${banner.type} (${banner.title})');
+      debugPrint(
+        '📢 Showing notification: ${banner.type} (${banner.title}) [${banner.stateKey}]',
+      );
     });
   }
 
   void _clearNotification(NotificationBannerType type) async {
     if (!mounted) return;
 
-    // Clear from database if it was dismissed
     try {
       final db = context.read<AlchemonsDatabase>();
+      // Clear all dismissals for this type (any prior state).
+      // We want future states to be eligible again.
       await (db.delete(
         db.notificationDismissals,
-      )..where((t) => t.notificationType.equals(type.toKey()))).go();
+      )..where((t) => t.notificationType.like('${type.toKey()}%'))).go();
     } catch (e) {
       debugPrint('Error clearing notification dismissal: $e');
     }
@@ -524,6 +608,7 @@ class _HomeScreenState extends State<HomeScreen>
     _goToSection(section);
 
     if (section == NavSection.home && _isInitialized) {
+      _refreshNotificationsNow();
       _checkFieldTutorial();
     }
   }
@@ -843,14 +928,13 @@ class _HomeScreenState extends State<HomeScreen>
                           return Stack(
                             children: [
                               child!,
-                              if (hasSpawns &&
-                                  !_isFieldTutorialActive) // Only show when NOT in tutorial
+                              if (hasSpawns)
                                 Positioned(
-                                  top: 10,
+                                  top: 0,
                                   right: 10,
                                   child: Container(
-                                    width: 15,
-                                    height: 15,
+                                    width: 12,
+                                    height: 12,
                                     decoration: BoxDecoration(
                                       color: Colors.red,
                                       shape: BoxShape.circle,
@@ -888,7 +972,6 @@ class _HomeScreenState extends State<HomeScreen>
                           onEnhance: _isFieldTutorialActive
                               ? () {}
                               : () {
-                                  // Disable during tutorial
                                   HapticFeedback.mediumImpact();
                                   Navigator.push(
                                     context,
@@ -901,7 +984,6 @@ class _HomeScreenState extends State<HomeScreen>
                           onHarvest: _isFieldTutorialActive
                               ? () {}
                               : () {
-                                  // Disable during tutorial
                                   HapticFeedback.mediumImpact();
                                   Navigator.push(
                                     context,
@@ -915,7 +997,6 @@ class _HomeScreenState extends State<HomeScreen>
                           onCompetitions: _isFieldTutorialActive
                               ? () {}
                               : () {
-                                  // Disable during tutorial
                                   HapticFeedback.mediumImpact();
                                   Navigator.push(
                                     context,
@@ -929,7 +1010,6 @@ class _HomeScreenState extends State<HomeScreen>
                           onBattle: _isFieldTutorialActive
                               ? () {}
                               : () {
-                                  // Disable during tutorial
                                   HapticFeedback.mediumImpact();
                                   Navigator.push(
                                     context,
@@ -954,6 +1034,12 @@ class _HomeScreenState extends State<HomeScreen>
                   if (_currentSection == NavSection.home &&
                       _activeNotifications.isNotEmpty)
                     NotificationBannerStack(
+                      key: ValueKey(
+                        // change key when the visible set changes to refresh state
+                        _activeNotifications
+                            .map((n) => '${n.type.toKey()}|${n.stateKey}')
+                            .join(','),
+                      ),
                       notifications: _activeNotifications,
                     ),
                 ],
@@ -1028,6 +1114,7 @@ class _HomeScreenState extends State<HomeScreen>
         typewriter: true,
         onPrimary: () async {
           // Mark that we're in extraction tutorial phase
+          final db = context.read<AlchemonsDatabase>();
           await db.settingsDao.setSetting('tutorial_extraction_pending', '1');
           await db.settingsDao.setNavLocked(true);
           if (!mounted) return;

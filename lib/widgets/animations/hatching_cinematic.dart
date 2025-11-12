@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -87,9 +88,6 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
   @override
   void initState() {
     super.initState();
-
-    // Hide system overlays during cinematic (optional)
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
     _timeline = AnimationController(
       vsync: this,
@@ -249,7 +247,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     _timeline.dispose();
     _flashCtrl.dispose();
     _explosionCtrl.dispose();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
     super.dispose();
   }
 

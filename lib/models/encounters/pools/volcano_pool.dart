@@ -68,12 +68,6 @@ volcanoEncounterPools(SceneDefinition scene) {
 
   if (isDay(now)) {
     entries.addAll([
-      // --- Day Spawns ---
-      EncounterEntry(
-        speciesId: 'LET16',
-        rarity: EncounterRarity.uncommon,
-        weightMul: 0.3,
-      ), // Lightlet
       EncounterEntry(
         speciesId: 'HOR11',
         rarity: EncounterRarity.rare,
@@ -85,7 +79,7 @@ volcanoEncounterPools(SceneDefinition scene) {
       // Dark
       EncounterEntry(
         speciesId: 'LET15',
-        rarity: EncounterRarity.common,
+        rarity: EncounterRarity.uncommon,
       ), // Darklet
       EncounterEntry(
         speciesId: 'MAN15',
