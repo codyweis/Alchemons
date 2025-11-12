@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
@@ -890,15 +891,18 @@ class _BreedingTabState extends State<BreedingTab>
 
     try {
       final repo = context.read<CreatureCatalog>();
+      final breedingService = context.read<BreedingServiceV2>();
+
       final speciesA = repo.getCreatureById(selectedParent1!.baseId);
       final speciesB = repo.getCreatureById(selectedParent2!.baseId);
 
-      final colorA = speciesA != null
-          ? BreedConstants.getTypeColor(speciesA.types.first)
-          : Theme.of(context).colorScheme.primary;
-      final colorB = speciesB != null
-          ? BreedConstants.getTypeColor(speciesB.types.first)
-          : Theme.of(context).colorScheme.secondary;
+      if (speciesA == null || speciesB == null) {
+        _showToast('Error loading species data', color: Colors.red);
+        return;
+      }
+
+      final colorA = BreedConstants.getTypeColor(speciesA.types.first);
+      final colorB = BreedConstants.getTypeColor(speciesB.types.first);
 
       Widget spriteFor(CreatureInstance inst, Creature? base) {
         if (base?.spriteData == null) {
@@ -918,7 +922,6 @@ class _BreedingTabState extends State<BreedingTab>
       final leftSprite = spriteFor(selectedParent1!, speciesA);
       final rightSprite = spriteFor(selectedParent2!, speciesB);
 
-      // cinematic runs same as before
       await showAlchemyFusionCinematic<void>(
         context: context,
         leftSprite: leftSprite,
@@ -927,19 +930,27 @@ class _BreedingTabState extends State<BreedingTab>
         rightColor: colorB,
         minDuration: const Duration(milliseconds: 1800),
         task: () async {
-          final breedingEngine = context.read<BreedingEngine>();
-          final db = context.read<AlchemonsDatabase>();
-          final factions = context.read<FactionService>();
+          // Calculate likelihood analysis
+          String? analysisJson;
+          try {
+            analysisJson = await _calculateLikelihoodAnalysis(
+              selectedParent1!,
+              selectedParent2!,
+              speciesA,
+              speciesB,
+            );
+          } catch (e) {
+            print('⚠️ Analyzer failed: $e');
+          }
 
-          final firePerk2 = await factions.perk2Active();
-
-          // Breed
-          final breedResult = breedingEngine.breedInstances(
+          // Use the breeding service!
+          final result = await breedingService.breedInstances(
             selectedParent1!,
             selectedParent2!,
+            likelihoodAnalysisJson: analysisJson,
           );
 
-          if (!breedResult.success || breedResult.creature == null) {
+          if (!result.success) {
             _showToast(
               'Genetic incompatibility detected',
               icon: Icons.warning_rounded,
@@ -948,156 +959,28 @@ class _BreedingTabState extends State<BreedingTab>
             throw Exception('Incompatible');
           }
 
-          final offspring = breedResult.creature!;
-
-          String? analysisJson;
-          try {
-            final baseA = repo.getCreatureById(selectedParent1!.baseId);
-            final baseB = repo.getCreatureById(selectedParent2!.baseId);
-
-            if (baseA != null && baseB != null) {
-              // Hydrate parents with genetics and nature
-              final geneticsA = decodeGenetics(selectedParent1!.geneticsJson);
-              final geneticsB = decodeGenetics(selectedParent2!.geneticsJson);
-
-              final parentA = baseA.copyWith(
-                genetics: geneticsA,
-                nature: selectedParent1!.natureId != null
-                    ? NatureCatalog.byId(selectedParent1!.natureId!)
-                    : baseA.nature,
-                isPrismaticSkin: selectedParent1!.isPrismaticSkin,
-              );
-
-              final parentB = baseB.copyWith(
-                genetics: geneticsB,
-                nature: selectedParent2!.natureId != null
-                    ? NatureCatalog.byId(selectedParent2!.natureId!)
-                    : baseB.nature,
-                isPrismaticSkin: selectedParent2!.isPrismaticSkin,
-              );
-
-              // Create analyzer
-              final analyzer = BreedingLikelihoodAnalyzer(
-                repository: repo,
-                elementRecipes: breedingEngine.elementRecipes,
-                familyRecipes: breedingEngine.familyRecipes,
-                specialRules: breedingEngine.specialRules,
-                tuning: breedingEngine.tuning,
-                engine: breedingEngine,
-              );
-
-              // Analyze
-              final analysisReport = analyzer.analyzeBreedingResult(
-                parentA,
-                parentB,
-                offspring,
-              );
-
-              analysisJson = jsonEncode(analysisReport.toJson());
-            }
-          } catch (e) {
-            print('⚠️ Analyzer failed: $e');
-          }
-
-          final hasFireParent =
-              speciesA?.types.contains('Fire') == true ||
-              speciesB?.types.contains('Fire') == true;
-          final fireMult = factions.fireHatchTimeMultiplier(
-            hasFireParent: hasFireParent,
-            perk2: firePerk2,
-          );
-
-          final rarityKey = offspring.rarity.toLowerCase();
-          final baseHatchDelay =
-              BreedConstants.rarityHatchTimes[rarityKey] ??
-              const Duration(minutes: 10);
-
-          final hatchMult = hatchMultForNature(offspring.nature?.id);
-          final adjustedHatchDelay = Duration(
-            milliseconds: (baseHatchDelay.inMilliseconds * hatchMult * fireMult)
-                .round(),
-          );
-          final lineage = offspring.lineageData;
-
-          final payload = {
-            'baseId': offspring.id,
-            'rarity': offspring.rarity,
-            'natureId': offspring.nature?.id,
-            'genetics': offspring.genetics?.variants ?? <String, String>{},
-            'parentage': offspring.parentage?.toJson(),
-            'isPrismaticSkin': offspring.isPrismaticSkin,
-            'likelihoodAnalysis': analysisJson,
-            'stats': offspring.stats?.toJson(),
-            'lineage': {
-              'generationDepth': lineage?.generationDepth,
-              'nativeFaction': lineage?.nativeFaction,
-              'variantFaction': lineage?.variantFaction,
-              'factionLineage': lineage?.factionLineage,
-              'elementLineage': lineage?.elementLineage,
-              'familyLineage': lineage?.familyLineage,
-              'isPure': offspring.isPure,
-            },
-            'statPotentials': {
-              'speed': offspring.stats?.speedPotential ?? 3.0,
-              'intelligence': offspring.stats?.intelligencePotential ?? 3.0,
-              'strength': offspring.stats?.strengthPotential ?? 3.0,
-              'beauty': offspring.stats?.beautyPotential ?? 3.0,
-            },
-          };
-          final payloadJson = jsonEncode(payload);
-
-          final free = await db.incubatorDao.firstFreeSlot();
-          final eggId = 'egg_${DateTime.now().millisecondsSinceEpoch}';
-
-          if (free == null) {
-            await db.incubatorDao.enqueueEgg(
-              eggId: eggId,
-              resultCreatureId: offspring.id,
-              rarity: offspring.rarity,
-              remaining: adjustedHatchDelay,
-              payloadJson: payloadJson,
-            );
+          // Show appropriate toast based on placement
+          if (result.placement == EggPlacement.storage) {
             _showToast(
               'Incubator full — specimen transferred to storage',
               icon: Icons.inventory_2_rounded,
               color: Colors.orange,
             );
-          } else {
-            final hatchAtUtc = DateTime.now().toUtc().add(adjustedHatchDelay);
-            await db.incubatorDao.placeEgg(
-              slotId: free.id,
-              eggId: eggId,
-              resultCreatureId: offspring.id,
-              rarity: offspring.rarity,
-              hatchAtUtc: hatchAtUtc,
-              payloadJson: payloadJson,
-            );
+          } else if (result.placement == EggPlacement.incubator) {
             _showToast(
-              'Embryo placed in incubation chamber ${free.id + 1}',
+              'Embryo placed in incubation chamber ${(result.slotId ?? 0) + 1}',
               icon: Icons.science_rounded,
               color: const Color.fromARGB(255, 239, 255, 92),
             );
           }
 
-          final bothWater =
-              speciesA?.types.contains('Water') == true &&
-              speciesB?.types.contains('Water') == true;
-          final skipStamina = factions.waterSkipBreedStamina(
-            bothWater: bothWater,
-            perk1: factions.perk1Active && factions.isWater(),
+          // Handle stamina cost with faction perks
+          await _handleStaminaCost(
+            selectedParent1!,
+            selectedParent2!,
+            speciesA,
+            speciesB,
           );
-
-          // 50% chance to skip stamina cost if perk active
-
-          if (!skipStamina) {
-            await stamina.spendForBreeding(selectedParent1!.instanceId);
-            await stamina.spendForBreeding(selectedParent2!.instanceId);
-          } else {
-            if (Random().nextBool()) {
-              await stamina.spendForBreeding(selectedParent1!.instanceId);
-              await stamina.spendForBreeding(selectedParent2!.instanceId);
-            }
-          }
         },
       );
 
@@ -1117,6 +1000,95 @@ class _BreedingTabState extends State<BreedingTab>
         icon: Icons.error_rounded,
       );
     }
+  }
+
+  /// Calculate likelihood analysis for breeding result
+  Future<String?> _calculateLikelihoodAnalysis(
+    CreatureInstance parent1Instance,
+    CreatureInstance parent2Instance,
+    Creature baseA,
+    Creature baseB,
+  ) async {
+    final repo = context.read<CreatureCatalog>();
+    final breedingEngine = context.read<BreedingEngine>();
+
+    // Hydrate parents with genetics and nature
+    final geneticsA = decodeGenetics(parent1Instance.geneticsJson);
+    final geneticsB = decodeGenetics(parent2Instance.geneticsJson);
+
+    final parentA = baseA.copyWith(
+      genetics: geneticsA,
+      nature: parent1Instance.natureId != null
+          ? NatureCatalog.byId(parent1Instance.natureId!)
+          : baseA.nature,
+      isPrismaticSkin: parent1Instance.isPrismaticSkin,
+    );
+
+    final parentB = baseB.copyWith(
+      genetics: geneticsB,
+      nature: parent2Instance.natureId != null
+          ? NatureCatalog.byId(parent2Instance.natureId!)
+          : baseB.nature,
+      isPrismaticSkin: parent2Instance.isPrismaticSkin,
+    );
+
+    // Get actual breeding result to analyze
+    final breedResult = breedingEngine.breedInstances(
+      parent1Instance,
+      parent2Instance,
+    );
+
+    if (!breedResult.success || breedResult.creature == null) {
+      return null;
+    }
+
+    // Create analyzer
+    final analyzer = BreedingLikelihoodAnalyzer(
+      repository: repo,
+      elementRecipes: breedingEngine.elementRecipes,
+      familyRecipes: breedingEngine.familyRecipes,
+      specialRules: breedingEngine.specialRules,
+      tuning: breedingEngine.tuning,
+      engine: breedingEngine,
+    );
+
+    // Analyze
+    final analysisReport = analyzer.analyzeBreedingResult(
+      parentA,
+      parentB,
+      breedResult.creature!,
+    );
+
+    return jsonEncode(analysisReport.toJson());
+  }
+
+  /// Handle stamina costs with faction-specific perks
+  Future<void> _handleStaminaCost(
+    CreatureInstance parent1,
+    CreatureInstance parent2,
+    Creature speciesA,
+    Creature speciesB,
+  ) async {
+    final stamina = context.read<StaminaService>();
+    final factions = context.read<FactionService>();
+
+    // Check for Water faction perk (skip stamina cost)
+    final bothWater =
+        speciesA.types.contains('Water') && speciesB.types.contains('Water');
+
+    final skipStamina = factions.waterSkipBreedStamina(
+      bothWater: bothWater,
+      perk1: factions.perk1Active && factions.isWater(),
+    );
+
+    // 50% chance to skip if perk is active
+    if (skipStamina && Random().nextBool()) {
+      return; // Lucky! No stamina cost
+    }
+
+    // Spend stamina normally
+    await stamina.spendForBreeding(parent1.instanceId);
+    await stamina.spendForBreeding(parent2.instanceId);
   }
 
   // ================== CREATURE SELECTION (unchanged logic) ==================

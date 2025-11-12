@@ -908,6 +908,21 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         ),
 
+                        // build cool button takes up width
+                        ElevatedButton(
+                          onPressed: () {},
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.accent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text('BATTLE'),
+                        ),
+
+                        const SizedBox(height: 50),
+
                         BottomNav(
                           current: _currentSection,
                           onSelect: (s) => _navigateToSection(s),

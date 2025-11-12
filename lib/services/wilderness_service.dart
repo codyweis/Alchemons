@@ -10,11 +10,11 @@ double breedChanceForRarity(EncounterRarity rarity) {
     case EncounterRarity.common:
       return 0.90;
     case EncounterRarity.uncommon:
-      return 0.75;
+      return 0.65;
     case EncounterRarity.rare:
       return 0.40;
     case EncounterRarity.legendary:
-      return 0.30;
+      return 0.25;
   }
 }
 

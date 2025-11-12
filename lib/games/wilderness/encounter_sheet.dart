@@ -14,6 +14,7 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
@@ -419,17 +420,98 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       wildRandomizer: randomizer,
     );
 
-    // Use proper wild breeding flow
+    // Calculate likelihood analysis for wild breeding
+    String? analysisJson;
+    try {
+      analysisJson = await _calculateWildBreedingAnalysis(
+        ctx,
+        ownedParent,
+        wildCreature,
+        randomizer,
+      );
+    } catch (e) {
+      print('⚠️ Wild breeding analyzer failed: $e');
+    }
+
+    // Use proper wild breeding flow with analysis
     final result = await breedingService.breedWithWild(
       ownedParent,
       wildCreature,
+      likelihoodAnalysisJson: analysisJson,
     );
 
     if (!result.success) {
       if (mounted) {
         setState(() => _status = 'Breeding failed: ${result.message}');
       }
+      return;
     }
+
+    // Show appropriate message based on placement
+    if (mounted) {
+      final message = result.placement == EggPlacement.incubator
+          ? 'Wild breeding successful! Egg in incubator slot ${(result.slotId ?? 0) + 1}'
+          : 'Wild breeding successful! Egg stored in queue';
+
+      setState(() => _status = message);
+    }
+  }
+
+  /// Calculate likelihood analysis for wild breeding
+  Future<String?> _calculateWildBreedingAnalysis(
+    BuildContext ctx,
+    db.CreatureInstance ownedParent,
+    Creature wildCreature,
+    WildCreatureRandomizer randomizer,
+  ) async {
+    final repo = ctx.read<CreatureCatalog>();
+    final engine = ctx.read<BreedingEngine>();
+
+    // Get the base species for the owned parent
+    final ownedBase = repo.getCreatureById(ownedParent.baseId);
+    if (ownedBase == null) return null;
+
+    // Randomize the wild creature to match what breeding will use
+    final randomizedWild = randomizer.randomizeWildCreature(wildCreature);
+
+    // Hydrate owned parent with its genetics and nature
+    final geneticsOwned = decodeGenetics(ownedParent.geneticsJson);
+    final hydratedOwned = ownedBase.copyWith(
+      genetics: geneticsOwned,
+      nature: ownedParent.natureId != null
+          ? NatureCatalog.byId(ownedParent.natureId!)
+          : ownedBase.nature,
+      isPrismaticSkin: ownedParent.isPrismaticSkin,
+    );
+
+    // Get breeding result to analyze
+    final breedResult = engine.breedInstanceWithCreature(
+      ownedParent,
+      randomizedWild,
+    );
+
+    if (!breedResult.success || breedResult.creature == null) {
+      return null;
+    }
+
+    // Create analyzer
+    final analyzer = BreedingLikelihoodAnalyzer(
+      repository: repo,
+      elementRecipes: engine.elementRecipes,
+      familyRecipes: engine.familyRecipes,
+      specialRules: engine.specialRules,
+      tuning: engine.tuning,
+      engine: engine,
+    );
+
+    // Analyze the wild breeding result
+    final analysisReport = analyzer.analyzeBreedingResult(
+      hydratedOwned,
+      randomizedWild,
+      breedResult.creature!,
+    );
+
+    return jsonEncode(analysisReport.toJson());
   }
 
   /// Capture wild creature (for the Capture button)

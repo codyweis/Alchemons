@@ -668,7 +668,7 @@ class BreedingLikelihoodAnalyzer {
       return 'Inherited elemental type from parent 2 ($t2)';
     }
 
-    return '$t1 + $t2 combined into $babyElem via elemental fusion rules';
+    return '$t1 + $t2 combined into $babyElem via elemental fusion';
   }
 
   String _describeTintMechanism(Creature p1, Creature p2, String tint) {
@@ -676,12 +676,12 @@ class BreedingLikelihoodAnalyzer {
     final p2Tint = p2.genetics?.get('tinting') ?? 'normal';
 
     if (p1Tint == p2Tint && tint == p1Tint) {
-      return 'Both parents shared this tint → sticky inheritance';
+      return 'Both parents shared this coloration';
     }
 
     // else talking weighted bias:
     final types = {...p1.types, ...p2.types}.join('/');
-    return 'Tint weighted by dominance and $types elemental bias';
+    return 'Coloration weighted by dominance and $types elemental bias';
   }
 
   String _describeSizeMechanism(Creature p1, Creature p2, String size) {
@@ -724,14 +724,14 @@ class BreedingLikelihoodAnalyzer {
     final n2 = p2.nature?.id;
 
     if (n1 != null && n1 == n2 && natureId == n1) {
-      return 'Both parents share this nature → lock-in bias';
+      return 'Inherited parents nature with strong likelihood';
     }
 
     if (natureId == n1 || natureId == n2) {
-      return 'Inherited a parent nature (weighted by dominance)';
+      return 'Inherited a parent nature';
     }
 
-    return 'Rolled a fresh nature from catalog';
+    return 'Random nature mutated';
   }
 
   // ───────────────────────────────────────────────────────────

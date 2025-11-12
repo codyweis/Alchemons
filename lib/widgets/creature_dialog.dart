@@ -202,7 +202,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
             controller: controller,
             maxLength: 24,
             decoration: InputDecoration(
-              hintText: 'Enter nickname (leave blank to clear)',
+              hintText: 'Nickname (leave blank to clear)',
               fillColor: Colors.white,
             ),
             autofocus: true,
@@ -412,26 +412,6 @@ class _DialogHeaderBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Left glyph (unchanged visual)
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  theme.primary.withOpacity(.28),
-                  theme.secondary.withOpacity(.2),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: theme.primary.withOpacity(.45),
-                width: 1.2,
-              ),
-            ),
-            child: Icon(Icons.biotech_rounded, color: theme.primary, size: 18),
-          ),
-          const SizedBox(width: 12),
-
           // Title + subtitle + (optional) lock button
           Expanded(
             child: Column(
@@ -443,19 +423,60 @@ class _DialogHeaderBar extends StatelessWidget {
                     Expanded(
                       child: GestureDetector(
                         onTap: onEditNickname, // null-safe: no-op if null
-                        child: Text(
-                          displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: theme.text,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: .8,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: theme.text,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: .8,
+                                ),
+                              ),
+                            ),
+                            // Edit icon (only if instance present)
+                            if (instance != null) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.edit_rounded,
+                                color: theme.textMuted,
+                                size: 12,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
+
+                    // Lock toggle (only if instance provided)
+                    if (instance != null) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: onToggleLock,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: theme.surface,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: theme.border),
+                          ),
+                          child: Icon(
+                            instance!.locked
+                                ? Icons.lock_rounded
+                                : Icons.lock_open_rounded,
+                            color: instance!.locked
+                                ? theme.primary
+                                : theme.textMuted,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ],
 
                     // Level badge (if provided)
                     if (level != null)
@@ -489,52 +510,21 @@ class _DialogHeaderBar extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: 2),
 
-                Row(
-                  children: [
-                    // Subtitle: species name if nicknamed, else default subtitle
-                    Expanded(
-                      child: Text(
-                        hasNickname
-                            ? creature.name
-                            : 'Specimen analysis report',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: theme.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                // Subtitle: only show species name if there's a nickname
+                if (hasNickname) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    creature.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
                     ),
-
-                    // Lock toggle (only if instance provided)
-                    if (instance != null) ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: onToggleLock,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: theme.surface,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: theme.border),
-                          ),
-                          child: Icon(
-                            instance!.locked
-                                ? Icons.lock_rounded
-                                : Icons.lock_open_rounded,
-                            color: instance!.locked
-                                ? theme.primary
-                                : theme.textMuted,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -562,7 +552,6 @@ class _DialogHeaderBar extends StatelessWidget {
     );
   }
 }
-
 // ============================================================================
 // TAB SELECTOR (unchanged)
 // ============================================================================
@@ -937,26 +926,6 @@ class _AnalysisScrollArea extends StatelessWidget {
           ],
 
           if (parentage != null) ...[
-            SectionBlock(
-              theme: theme,
-              title: 'Synthesis Information',
-              child: Column(
-                children: [
-                  LabeledInlineValue(
-                    label: 'Method',
-                    valueText: 'Genetic Fusion',
-                    valueColor: theme.text,
-                  ),
-                  LabeledInlineValue(
-                    label: 'Date',
-                    valueText: _formatBreedLine(parentage!),
-                    valueColor: theme.text,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
             Text(
               'PARENT SPECIMENS',
               style: TextStyle(
@@ -1248,7 +1217,7 @@ class _GeneticsBlock extends StatelessWidget {
         if (sizeGene != null) ...[
           LabeledInlineValue(
             label: 'Size Gene',
-            valueText: sizeGene,
+            valueText: sizeLabels[sizeGene] ?? 'Unknown',
             valueColor: textColor,
           ),
         ] else ...[
@@ -1260,12 +1229,12 @@ class _GeneticsBlock extends StatelessWidget {
         ],
         if (tintGene != null) ...[
           LabeledInlineValue(
-            label: 'Coloration',
+            label: 'Color Gene',
             valueText: tintLabels[tintGene] ?? 'Unknown',
             valueColor: textColor,
           ),
           LabeledInlineValue(
-            label: 'Color',
+            label: 'Description',
             valueText: _getGeneticDescription('tinting', tintGene),
             valueColor: textColor,
           ),

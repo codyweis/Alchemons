@@ -23,7 +23,7 @@
           "name": "Normal",  
           "dominance": 6, 
           "effect": { "hue_shift": 0,  "saturation": 1.0, "brightness": 1.0 },  
-          "description": "Natural coloration" 
+          "description": "No unusual coloration detected" 
         },
         { 
           "id": "warm",    

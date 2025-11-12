@@ -53,6 +53,7 @@ class BreedingServiceV2 {
     CreatureInstance ownedParent,
     Creature wildCreature, {
     int? wildSeed,
+    String? likelihoodAnalysisJson,
   }) async {
     // Randomize wild creature's attributes
     final randomizedWild = wildRandomizer.randomizeWildCreature(
@@ -75,6 +76,7 @@ class BreedingServiceV2 {
       offspring,
       ownedParent, // <-- Pass Parent A (the owned one)
       randomizedWild, // <-- Pass Parent B (the wild one used for breeding)
+      likelihoodAnalysisJson: likelihoodAnalysisJson,
     );
     return _createEgg(offspring, payload);
   }
