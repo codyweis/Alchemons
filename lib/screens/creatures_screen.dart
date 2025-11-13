@@ -35,6 +35,32 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
 
+  void _cycleScope() {
+    const scopes = ['All', 'Catalogued', 'Unknown'];
+    final currentIndex = scopes.indexOf(_scope);
+    final nextIndex = (currentIndex + 1) % scopes.length;
+    _mutate(() {
+      _scope = scopes[nextIndex];
+    });
+  }
+
+  void _cycleSort() {
+    const options = [
+      'Name',
+      'Classification',
+      'Type',
+      'Count',
+      'Acquisition Order',
+    ];
+
+    final currentIndex = options.indexOf(_sort);
+    final nextIndex = (currentIndex + 1) % options.length;
+
+    _mutate(() {
+      _sort = options[nextIndex];
+    });
+  }
+
   String _scope = 'Catalogued';
   String _sort = 'Acquisition Order';
   bool _isGrid = true;
@@ -177,8 +203,9 @@ class _CreaturesScreenState extends State<CreaturesScreen>
                               showCounts: _showCounts,
                               typeFilter: _typeFilter,
                               onQueryChanged: _onQueryChanged,
-                              onScopeChanged: _showScopeSheet,
-                              onSortTap: _showSortSheet,
+                              onScopeChanged: _cycleScope,
+
+                              onSortTap: _cycleSort,
                               onToggleView: () =>
                                   _mutate(() => _isGrid = !_isGrid),
                               onToggleCounts: () =>
@@ -228,60 +255,6 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     _debounce = Timer(const Duration(milliseconds: 220), () {
       _mutate(() => _query = text.trim());
     });
-  }
-
-  Future<void> _showSortSheet() async {
-    final theme = context.read<FactionTheme>();
-    const options = [
-      'Name',
-      'Classification',
-      'Type',
-      'Count',
-      'Acquisition Order',
-    ];
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _BottomSheetSolid(
-        theme: theme,
-        title: 'Sort by',
-        children: [
-          ...options.map(
-            (o) => _RadioTileSolid(
-              theme: theme,
-              label: o,
-              selected: o == _sort,
-              onTap: () => Navigator.pop(ctx, o),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (picked != null) _mutate(() => _sort = picked);
-  }
-
-  Future<void> _showScopeSheet() async {
-    final theme = context.read<FactionTheme>();
-    const scopes = ['All', 'Catalogued', 'Unknown'];
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _BottomSheetSolid(
-        theme: theme,
-        title: 'Discovery Scope',
-        children: [
-          ...scopes.map(
-            (s) => _RadioTileSolid(
-              theme: theme,
-              label: s,
-              selected: s == _scope,
-              onTap: () => Navigator.pop(ctx, s),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (picked != null) _mutate(() => _scope = picked);
   }
 
   void _handleTap(Creature species, bool isDiscovered) {

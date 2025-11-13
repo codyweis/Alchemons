@@ -3,10 +3,12 @@ import 'package:alchemons/helpers/breeding_config_loaders.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
+import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/providers/selected_party.dart';
+import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
@@ -99,6 +101,10 @@ class AppProviders extends StatelessWidget {
 
         ChangeNotifierProvider<BlackMarketService>(
           create: (ctx) => BlackMarketService(ctx.read<AlchemonsDatabase>()),
+        ),
+
+        ChangeNotifierProvider<BossProgressNotifier>(
+          create: (ctx) => BossProgressNotifier(),
         ),
 
         ChangeNotifierProvider(
@@ -242,6 +248,39 @@ class AppProviders extends StatelessWidget {
               engine: engine,
             );
           },
+        ),
+
+        ProxyProvider5<
+          GameDataService,
+          AlchemonsDatabase,
+          BreedingEngine?,
+          EggPayloadFactory,
+          WildCreatureRandomizer,
+          BreedingServiceV2?
+        >(
+          update:
+              (
+                ctx,
+                gameData,
+                db,
+                engine,
+                payloadFactory,
+                wildRandomizer,
+                previous,
+              ) {
+                if (engine == null) {
+                  // Catalogs / engine not ready yet, so breeding isn't usable.
+                  return null;
+                }
+
+                return BreedingServiceV2(
+                  gameData: gameData,
+                  db: db,
+                  engine: engine,
+                  payloadFactory: payloadFactory,
+                  wildRandomizer: wildRandomizer,
+                );
+              },
         ),
       ],
       child: child,

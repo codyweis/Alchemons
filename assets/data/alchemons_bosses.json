@@ -1,0 +1,583 @@
+{
+  "bosses": [
+    {
+      "id": "boss_001",
+      "order": 1,
+      "name": "Fire Lord",
+      "element": "Fire",
+      "tier": "basic",
+      "recommendedLevel": 15,
+      "stats": {
+        "hp": 1500,
+        "atk": 50,
+        "def": 40,
+        "spd": 40
+      },
+      "moveset": [
+        {
+          "name": "Fireball",
+          "description": "Hurls a blazing fireball at a single target",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Eruption",
+          "description": "Unleashes volcanic fury hitting all enemies",
+          "type": "aoe"
+        },
+        {
+          "name": "Harden",
+          "description": "Hardens molten armor, raising Defense",
+          "type": "buff"
+        }
+      ]
+    },
+    {
+      "id": "boss_002",
+      "order": 2,
+      "name": "Water Serpent",
+      "element": "Water",
+      "tier": "basic",
+      "recommendedLevel": 20,
+      "stats": {
+        "hp": 2000,
+        "atk": 55,
+        "def": 45,
+        "spd": 50
+      },
+      "moveset": [
+        {
+          "name": "Aqua-jet",
+          "description": "High-pressure water blast at one enemy",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Tidal Wave",
+          "description": "Massive wave crashes into all enemies",
+          "type": "aoe"
+        },
+        {
+          "name": "Slow",
+          "description": "Drenches target, reducing their Speed",
+          "type": "debuff"
+        }
+      ]
+    },
+    {
+      "id": "boss_003",
+      "order": 3,
+      "name": "Earth Golem",
+      "element": "Earth",
+      "tier": "basic",
+      "recommendedLevel": 25,
+      "stats": {
+        "hp": 2800,
+        "atk": 60,
+        "def": 65,
+        "spd": 30
+      },
+      "moveset": [
+        {
+          "name": "Rock-throw",
+          "description": "Hurls a massive boulder at one target",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Earthquake",
+          "description": "Ground-shaking tremor hits all enemies",
+          "type": "aoe"
+        },
+        {
+          "name": "Fortify",
+          "description": "Stone body hardens, raising Defense",
+          "type": "buff"
+        }
+      ]
+    },
+    {
+      "id": "boss_004",
+      "order": 4,
+      "name": "Air Elemental",
+      "element": "Air",
+      "tier": "basic",
+      "recommendedLevel": 30,
+      "stats": {
+        "hp": 2500,
+        "atk": 70,
+        "def": 50,
+        "spd": 75
+      },
+      "moveset": [
+        {
+          "name": "Gale-slash",
+          "description": "Cutting wind blade strikes one enemy",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Tornado",
+          "description": "Violent whirlwind engulfs all enemies",
+          "type": "aoe"
+        },
+        {
+          "name": "Evade",
+          "description": "Wind currents boost Speed drastically",
+          "type": "buff"
+        }
+      ]
+    },
+    {
+      "id": "boss_005",
+      "order": 5,
+      "name": "Overgrown Treant",
+      "element": "Plant",
+      "tier": "hybrid",
+      "recommendedLevel": 35,
+      "stats": {
+        "hp": 4000,
+        "atk": 80,
+        "def": 75,
+        "spd": 55
+      },
+      "moveset": [
+        {
+          "name": "Vine-whip",
+          "description": "Thorny vines lash at single target",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Overgrow",
+          "description": "Wild vegetation entangles all enemies",
+          "type": "aoe"
+        },
+        {
+          "name": "Regen",
+          "description": "Regenerates HP over 3 turns",
+          "type": "heal"
+        }
+      ]
+    },
+    {
+      "id": "boss_006",
+      "order": 6,
+      "name": "Tundra Behemoth",
+      "element": "Ice",
+      "tier": "hybrid",
+      "recommendedLevel": 40,
+      "stats": {
+        "hp": 4500,
+        "atk": 90,
+        "def": 85,
+        "spd": 60
+      },
+      "moveset": [
+        {
+          "name": "Icicle-spear",
+          "description": "Piercing ice lance at one enemy",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Blizzard",
+          "description": "Freezing storm hits all (10% Freeze chance)",
+          "type": "aoe"
+        },
+        {
+          "name": "Ice-shield",
+          "description": "Creates frozen barrier around self",
+          "type": "buff"
+        }
+      ]
+    },
+    {
+      "id": "boss_007",
+      "order": 7,
+      "name": "Thunder Wyvern",
+      "element": "Lightning",
+      "tier": "hybrid",
+      "recommendedLevel": 45,
+      "stats": {
+        "hp": 4200,
+        "atk": 110,
+        "def": 70,
+        "spd": 90
+      },
+      "moveset": [
+        {
+          "name": "Zap-cannon",
+          "description": "Concentrated lightning bolt at one target",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Thunderstorm",
+          "description": "Electrical storm with high crit chance",
+          "type": "aoe"
+        },
+        {
+          "name": "Charge-up",
+          "description": "Next attack deals double damage",
+          "type": "buff"
+        }
+      ]
+    },
+    {
+      "id": "boss_008",
+      "order": 8,
+      "name": "Plague Dragon",
+      "element": "Poison",
+      "tier": "hybrid",
+      "recommendedLevel": 50,
+      "stats": {
+        "hp": 5500,
+        "atk": 100,
+        "def": 90,
+        "spd": 70
+      },
+      "moveset": [
+        {
+          "name": "Toxin-spit",
+          "description": "Venomous projectile at single target",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Plague-mist",
+          "description": "Toxic fog with high Poison chance",
+          "type": "aoe"
+        },
+        {
+          "name": "Corrode",
+          "description": "Acid reduces all enemies' Defense",
+          "type": "debuff"
+        }
+      ]
+    },
+    {
+      "id": "boss_009",
+      "order": 9,
+      "name": "Steam Centurion",
+      "element": "Steam",
+      "tier": "advanced",
+      "recommendedLevel": 55,
+      "stats": {
+        "hp": 6000,
+        "atk": 120,
+        "def": 110,
+        "spd": 80
+      },
+      "moveset": [
+        {
+          "name": "Scald",
+          "description": "Boiling water burns single enemy",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Geyser-field",
+          "description": "Steam eruptions hit all enemies",
+          "type": "aoe"
+        },
+        {
+          "name": "Mist-shroud",
+          "description": "Vapor increases Speed & Accuracy",
+          "type": "buff"
+        }
+      ]
+    },
+    {
+      "id": "boss_010",
+      "order": 10,
+      "name": "Magma Titan",
+      "element": "Lava",
+      "tier": "advanced",
+      "recommendedLevel": 60,
+      "stats": {
+        "hp": 7000,
+        "atk": 140,
+        "def": 130,
+        "spd": 50
+      },
+      "moveset": [
+        {
+          "name": "Lava-plume",
+          "description": "Molten rock blast at one target",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Volcano",
+          "description": "Volcanic explosion applies 'Melt' debuff",
+          "type": "aoe"
+        },
+        {
+          "name": "Molten-armor",
+          "description": "Raises Def, burns attackers",
+          "type": "buff"
+        }
+      ]
+    },
+    {
+      "id": "boss_011",
+      "order": 11,
+      "name": "Swamp Horror",
+      "element": "Mud",
+      "tier": "advanced",
+      "recommendedLevel": 65,
+      "stats": {
+        "hp": 7500,
+        "atk": 130,
+        "def": 140,
+        "spd": 60
+      },
+      "moveset": [
+        {
+          "name": "Mud-bomb",
+          "description": "Sticky sludge hits single enemy",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Quagmire",
+          "description": "Swamp trap applies 'Slow' to all",
+          "type": "debuff"
+        },
+        {
+          "name": "Sink",
+          "description": "Submerges for 1 turn, then strikes",
+          "type": "special"
+        }
+      ]
+    },
+    {
+      "id": "boss_012",
+      "order": 12,
+      "name": "Sandstorm Djinn",
+      "element": "Dust",
+      "tier": "advanced",
+      "recommendedLevel": 70,
+      "stats": {
+        "hp": 6800,
+        "atk": 150,
+        "def": 100,
+        "spd": 120
+      },
+      "moveset": [
+        {
+          "name": "Sand-vortex",
+          "description": "Swirling sand strikes one enemy",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Sandstorm",
+          "description": "Desert storm applies 'Grit' debuff",
+          "type": "aoe"
+        },
+        {
+          "name": "Mirage",
+          "description": "Creates illusory copy of itself",
+          "type": "special"
+        }
+      ]
+    },
+    {
+      "id": "boss_013",
+      "order": 13,
+      "name": "Crystal Colossus",
+      "element": "Crystal",
+      "tier": "advanced",
+      "recommendedLevel": 75,
+      "stats": {
+        "hp": 8500,
+        "atk": 130,
+        "def": 160,
+        "spd": 70
+      },
+      "moveset": [
+        {
+          "name": "Gem-shard",
+          "description": "Razor-sharp crystal at one target",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Crystal-nova",
+          "description": "Prismatic explosion hits all",
+          "type": "aoe"
+        },
+        {
+          "name": "Refract",
+          "description": "Light barrier grants damage shield",
+          "type": "buff"
+        }
+      ]
+    },
+    {
+      "id": "boss_014",
+      "order": 14,
+      "name": "Ancient Phantom",
+      "element": "Spirit",
+      "tier": "cosmic",
+      "recommendedLevel": 80,
+      "stats": {
+        "hp": 10000,
+        "atk": 170,
+        "def": 150,
+        "spd": 100
+      },
+      "moveset": [
+        {
+          "name": "Ecto-ball",
+          "description": "Ghostly energy strikes one enemy",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Phantom-wail",
+          "description": "Terrifying scream hits all enemies",
+          "type": "aoe"
+        },
+        {
+          "name": "Cleanse",
+          "description": "Removes all debuffs from itself",
+          "type": "buff"
+        }
+      ]
+    },
+    {
+      "id": "boss_015",
+      "order": 15,
+      "name": "Umbral Abomination",
+      "element": "Dark",
+      "tier": "cosmic",
+      "recommendedLevel": 85,
+      "stats": {
+        "hp": 12000,
+        "atk": 250,
+        "def": 180,
+        "spd": 110
+      },
+      "moveset": [
+        {
+          "name": "Night-slash",
+          "description": "Shadowy blade cuts single target",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Void-pulse",
+          "description": "Dark energy drains life from all",
+          "type": "aoe"
+        },
+        {
+          "name": "Eclipse",
+          "description": "Applies 'Blind' to all enemies",
+          "type": "debuff"
+        }
+      ]
+    },
+    {
+      "id": "boss_016",
+      "order": 16,
+      "name": "Radiant Avatar",
+      "element": "Light",
+      "tier": "cosmic",
+      "recommendedLevel": 90,
+      "stats": {
+        "hp": 12000,
+        "atk": 200,
+        "def": 200,
+        "spd": 150
+      },
+      "moveset": [
+        {
+          "name": "Holy-smite",
+          "description": "Divine light strikes one enemy",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Supernova",
+          "description": "Celestial explosion hits all",
+          "type": "aoe"
+        },
+        {
+          "name": "Genesis",
+          "description": "Heals 25% HP, grants Boon buff",
+          "type": "heal"
+        }
+      ]
+    },
+    {
+      "id": "boss_017",
+      "order": 17,
+      "name": "Crimson King",
+      "element": "Blood",
+      "tier": "cosmic",
+      "recommendedLevel": 100,
+      "stats": {
+        "hp": 20000,
+        "atk": 250,
+        "def": 220,
+        "spd": 150
+      },
+      "moveset": [
+        {
+          "name": "Life-drain",
+          "description": "Vampiric attack steals HP from one",
+          "type": "singleTarget"
+        },
+        {
+          "name": "Blood-boil",
+          "description": "Sanguine explosion hits all enemies",
+          "type": "aoe"
+        },
+        {
+          "name": "Empower",
+          "description": "Trades 10% HP for 50% Attack boost",
+          "type": "buff"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "totalBosses": 17,
+    "tiers": {
+      "basic": {
+        "name": "Basic Elements",
+        "bosses": [1, 2, 3, 4],
+        "levelRange": "15-30"
+      },
+      "hybrid": {
+        "name": "Hybrid Elements",
+        "bosses": [5, 6, 7, 8],
+        "levelRange": "35-50"
+      },
+      "advanced": {
+        "name": "Advanced Hybrids",
+        "bosses": [9, 10, 11, 12, 13],
+        "levelRange": "55-75"
+      },
+      "cosmic": {
+        "name": "Arcane & Cosmic",
+        "bosses": [14, 15, 16, 17],
+        "levelRange": "80-100"
+      }
+    },
+    "moveTypes": [
+      "singleTarget",
+      "aoe",
+      "buff",
+      "debuff",
+      "heal",
+      "special"
+    ],
+    "elements": [
+      "Fire",
+      "Water",
+      "Earth",
+      "Air",
+      "Plant",
+      "Ice",
+      "Lightning",
+      "Poison",
+      "Steam",
+      "Lava",
+      "Mud",
+      "Dust",
+      "Crystal",
+      "Spirit",
+      "Dark",
+      "Light",
+      "Blood"
+    ]
+  }
+}

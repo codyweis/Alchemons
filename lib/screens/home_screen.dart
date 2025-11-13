@@ -9,6 +9,7 @@ import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
+import 'package:alchemons/screens/boss/boss_battle_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/game_screen.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
@@ -908,21 +909,6 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         ),
 
-                        // build cool button takes up width
-                        ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: theme.accent,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                          ),
-                          child: const Text('BATTLE'),
-                        ),
-
-                        const SizedBox(height: 50),
-
                         BottomNav(
                           current: _currentSection,
                           onSelect: (s) => _navigateToSection(s),
@@ -1088,8 +1074,31 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildHomeContent(FactionTheme theme) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: const Column(
-        children: [SizedBox(height: 16), SizedBox(height: 80)],
+      child: Column(
+        children: [
+          SizedBox(height: 16), // build cool button takes up width
+          ElevatedButton(
+            onPressed: () {
+              HapticFeedback.mediumImpact();
+              Navigator.push(
+                context,
+                CupertinoPageRoute(
+                  builder: (_) => const BossBattleScreen(),
+                  fullscreenDialog: true,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.accent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            child: const Text('BATTLE'),
+          ),
+          SizedBox(height: 80),
+        ],
       ),
     );
   }

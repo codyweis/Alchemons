@@ -2340,7 +2340,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Pebble-tough and patient, it carries the hush of old trails in its gait.",
-      "image": "assets/sprites/Let/LET03.png",
+      "image": "creatures/common/LET03_earthlet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2394,7 +2394,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Veined with molten glow, it tiptoes carefully, leaving freckles of heat behind.",
-      "image": "assets/sprites/Let/LET06.png",
+      "image": "creatures/common/LET06_lavalet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2412,7 +2412,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Quick as a wink, tiny sparks hop between its whiskers when it giggles.",
-      "image": "assets/sprites/Let/LET07.png",
+      "image": "creatures/common/LET07_lightninglet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2448,7 +2448,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Cool to the touch, it scribbles frosty doodles wherever it pauses.",
-      "image": "assets/sprites/Let/LET09.png",
+      "image": "creatures/common/LET09_icelet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2466,7 +2466,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Dune-dusted and spry, a little swirl of grit trails every skip and hop.",
-      "image": "assets/sprites/Let/LET10.png",
+      "image": "creatures/common/LET10_dustlet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2484,7 +2484,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Facet-bright and curious, it catches light and tosses it back in rainbow shards.",
-      "image": "assets/sprites/Let/LET11.png",
+      "image": "creatures/common/LET11_crystalet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2502,7 +2502,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Leaf-fringed and sunny, small blossoms seem to follow wherever it settles.",
-      "image": "assets/sprites/Let/LET12.png",
+      "image": "creatures/common/LET12_leaflet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2520,7 +2520,7 @@
       "rarity": "Common",
       "variant": [],
       "description": "Sweet-sour and sly, a violet haze twinkles in its footsteps—look, don’t lick.",
-      "image": "assets/sprites/Let/LET13.png",
+      "image": "creatures/common/LET13_poisonlet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2553,10 +2553,10 @@
       "types": [
         "Dark"
       ],
-      "rarity": "Common",
+      "rarity": "Uncommon",
       "variant": [],
-      "description": "Shadow-soft with ruby eyes, it plays hide-and-seek even at noon.",
-      "image": "assets/sprites/Let/LET15.png",
+      "description": "Shadow-soft with white eyes, it plays hide-and-seek even at noon.",
+      "image": "creatures/uncommon/LET15_darklet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2571,10 +2571,10 @@
       "types": [
         "Light"
       ],
-      "rarity": "Common",
+      "rarity": "Uncommon",
       "variant": [],
       "description": "Softly radiant, it turns hallways into little dawns as it toddles by.",
-      "image": "assets/sprites/Let/LET16.png",
+      "image": "creatures/uncommon/LET16_lightlet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
@@ -2589,10 +2589,10 @@
       "types": [
         "Blood"
       ],
-      "rarity": "Common",
+      "rarity": "Uncommon",
       "variant": [],
       "description": "Red-warm and steady, you can almost hear a comforting heartbeat when it cuddles.",
-      "image": "assets/sprites/Let/LET17.png",
+      "image": "creatures/uncommon/LET17_bloodlet.png",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
