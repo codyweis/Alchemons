@@ -1,15 +1,8 @@
 // (imports unchanged except where noted)
 import 'dart:async' as async;
 
-import 'package:alchemons/database/daos/settings_dao.dart';
-import 'package:alchemons/models/encounters/encounter_pool.dart';
-import 'package:alchemons/models/encounters/pools/valley_pool.dart';
-import 'package:alchemons/models/scenes/scene_definition.dart';
-import 'package:alchemons/models/scenes/sky/sky_scene.dart';
-import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
-import 'package:alchemons/models/scenes/valley/valley_scene.dart';
-import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
-import 'package:alchemons/screens/boss/boss_battle_screen.dart';
+import 'package:alchemons/models/biome_farm_state.dart';
+import 'package:alchemons/screens/boss/boss_intro_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/game_screen.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
@@ -55,17 +48,88 @@ import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_dialog.dart';
-import '../providers/app_providers.dart';
 import 'breed/breed_screen.dart';
 
+class MainShell extends StatefulWidget {
+  const MainShell({super.key});
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  NavSection _currentSection = NavSection.home;
+
+  void _goToSection(NavSection section, {int? breedInitialTab}) {
+    if (section == _currentSection) return;
+
+    setState(() {
+      _currentSection = section;
+    });
+    HapticFeedback.mediumImpact();
+  }
+
+  int get _navIndex {
+    switch (_currentSection) {
+      case NavSection.home:
+        return 0;
+      case NavSection.creatures:
+        return 1;
+      case NavSection.shop:
+        return 2;
+      case NavSection.breed:
+        return 3;
+      case NavSection.enhance:
+        return 4;
+      case NavSection.inventory:
+        return 5;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Theme just for the BottomNav
+    final theme = context.watch<FactionTheme>();
+
+    return Scaffold(
+      extendBody: true,
+      body: IndexedStack(
+        index: _navIndex, // enum order: home, creatures, shop, ...
+        children: [
+          HomeScreen(
+            isActive: _currentSection == NavSection.home,
+            onNavigateSection: _goToSection,
+          ),
+          const CreaturesScreen(),
+          const ShopScreen(),
+          BreedScreen(onGoToSection: _goToSection),
+          const FeedingScreen(),
+          const InventoryScreen(),
+        ],
+      ),
+      bottomNavigationBar: BottomNav(
+        current: _currentSection,
+        onSelect: (s) => _goToSection(s),
+        theme: theme,
+      ),
+    );
+  }
+}
+
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final bool isActive;
+  final void Function(NavSection section, {int? breedInitialTab})
+  onNavigateSection;
+
+  const HomeScreen({
+    super.key,
+    required this.isActive,
+    required this.onNavigateSection,
+  });
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
-
-const double _kNavHeight = 92;
-const double _kNavReserve = _kNavHeight + 12;
 
 class _HomeScreenState extends State<HomeScreen>
     with TickerProviderStateMixin, RouteAware {
@@ -74,7 +138,6 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _particleController;
   late AnimationController _waveController;
   late AnimationController _glowController;
-  late AnimationController _navAnimController;
 
   final PushNotificationService _pushNotifications = PushNotificationService();
   String? _lastEggStateKey;
@@ -83,7 +146,6 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isFieldTutorialActive = false;
 
   bool _isInitialized = false;
-  NavSection _currentSection = NavSection.home;
 
   // Notification banners
   final List<NotificationBanner> _activeNotifications = [];
@@ -95,47 +157,77 @@ class _HomeScreenState extends State<HomeScreen>
   // FEATURED HERO STATE
   PresentationData? _featuredData;
   String? _featuredInstanceId;
-  async.Timer? _spawnTimer;
+
+  void _updateAnimationState() {
+    if (widget.isActive) {
+      if (!_breathingController.isAnimating) {
+        _breathingController.repeat(reverse: true);
+      }
+      if (!_rotationController.isAnimating) {
+        _rotationController.repeat();
+      }
+      if (!_particleController.isAnimating) {
+        _particleController.repeat();
+      }
+      if (!_waveController.isAnimating) {
+        _waveController.repeat();
+      }
+      if (!_glowController.isAnimating) {
+        _glowController.repeat(reverse: true);
+      }
+    } else {
+      _breathingController.stop();
+      _rotationController.stop();
+      _particleController.stop();
+      _waveController.stop();
+      _glowController.stop();
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    // final spawnService = context.read<WildernessSpawnService>();
-    // spawnService.clearSceneSpawns('valley');
-    // spawnService.setGlobalSpawnWindow(Duration.zero, Duration.zero);
+
+    // Create controllers
     _breathingController = AnimationController(
       duration: const Duration(seconds: 3),
       vsync: this,
-    )..repeat(reverse: true);
+    );
     _rotationController = AnimationController(
       duration: const Duration(seconds: 20),
       vsync: this,
-    )..repeat();
+    );
     _particleController = AnimationController(
       duration: const Duration(seconds: 15),
       vsync: this,
-    )..repeat();
+    );
     _waveController = AnimationController(
       duration: const Duration(seconds: 4),
       vsync: this,
-    )..repeat();
+    );
     _glowController = AnimationController(
       duration: const Duration(milliseconds: 1600),
       vsync: this,
-    )..repeat(reverse: true);
-    _navAnimController = AnimationController(
-      duration: const Duration(milliseconds: 200),
-      vsync: this,
     );
+
+    // Start/stop based on whether Home is the active tab
+    _updateAnimationState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _initializeApp();
       if (mounted) {
         await _checkFieldTutorial();
-        // Ensure first render reflects current notification state
         await _refreshNotificationsNow();
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      _updateAnimationState();
+    }
   }
 
   @override
@@ -152,20 +244,20 @@ class _HomeScreenState extends State<HomeScreen>
     _particleController.stop();
     _waveController.stop();
     _glowController.stop();
-    _navAnimController.stop();
   }
 
   @override
   void didPopNext() {
-    // RESTART all home screen animations
+    // Only resume stuff if the home tab is actually the visible tab
+    if (!widget.isActive) return;
+
     _breathingController.repeat(reverse: true);
     _rotationController.repeat();
     _particleController.repeat();
     _waveController.repeat();
     _glowController.repeat(reverse: true);
 
-    // Refresh banners when returning to Home
-    if (_currentSection == NavSection.home && _isInitialized) {
+    if (_isInitialized) {
       _refreshNotificationsNow();
     }
   }
@@ -178,26 +270,14 @@ class _HomeScreenState extends State<HomeScreen>
     _particleController.dispose();
     _waveController.dispose();
     _glowController.dispose();
-    _navAnimController.dispose();
     _slotsSubscription?.cancel();
     _biomesSubscription?.cancel();
-    _spawnTimer?.cancel();
 
     // Remove wilderness spawn listener
     final spawnService = context.read<WildernessSpawnService>();
     spawnService.removeListener(_checkWildernessNotifications);
 
     super.dispose();
-  }
-
-  void _goToSection(NavSection section, {int? breedInitialTab}) {
-    debugPrint(
-      '📱 Navigating to: $section (active notifications: ${_activeNotifications.length})',
-    );
-    setState(() {
-      _currentSection = section;
-    });
-    HapticFeedback.mediumImpact();
   }
 
   Future<void> _checkFieldTutorial() async {
@@ -462,7 +542,7 @@ class _HomeScreenState extends State<HomeScreen>
           count: readyEggs,
           stateKey: stateKey,
           onTap: () {
-            _goToSection(NavSection.breed, breedInitialTab: 1);
+            widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
           },
         ),
       );
@@ -472,25 +552,37 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // Harvests (kept as-is; still shows a consolidated harvest push)
   void _checkBiomeNotifications(List<BiomeFarm> biomes) async {
     if (!mounted) return;
 
-    int readyHarvests = 0;
     final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
     final db = context.read<AlchemonsDatabase>();
-    final List<int> readyBiomeIds = [];
+
+    // Build futures for unlocked biomes
+    final futures = <Future<({BiomeFarm farm, HarvestJob? job})>>[];
 
     for (final farm in biomes) {
       if (!farm.unlocked) continue;
 
-      final job = await db.biomeDao.getActiveJobForBiome(farm.id);
+      futures.add(() async {
+        final job = await db.biomeDao.getActiveJobForBiome(farm.id);
+        return (farm: farm, job: job);
+      }());
+    }
+
+    final results = await Future.wait(futures);
+
+    int readyHarvests = 0;
+    final List<int> readyBiomeIds = [];
+
+    for (final result in results) {
+      final job = result.job;
       if (job == null) continue;
 
       final endMs = job.startUtcMs + job.durationMs;
       if (endMs <= nowMs) {
         readyHarvests++;
-        readyBiomeIds.add(farm.id);
+        readyBiomeIds.add(result.farm.id);
       }
     }
 
@@ -500,7 +592,6 @@ class _HomeScreenState extends State<HomeScreen>
       readyBiomeIds.sort();
       final stateKey = 'biomes:${readyBiomeIds.join(",")}';
 
-      // De-dupe on same state
       if (_lastHarvestStateKey == stateKey) return;
       _lastHarvestStateKey = stateKey;
 
@@ -524,7 +615,7 @@ class _HomeScreenState extends State<HomeScreen>
         count: readyHarvests,
       );
     } else {
-      _lastHarvestStateKey = null; // reset de-dupe
+      _lastHarvestStateKey = null;
       _clearNotification(NotificationBannerType.harvestReady);
     }
   }
@@ -602,15 +693,6 @@ class _HomeScreenState extends State<HomeScreen>
         return (particle: 1, rotation: 0.1, elemental: 1);
       case FactionId.earth:
         return (particle: 1, rotation: 0.1, elemental: 0.2);
-    }
-  }
-
-  void _navigateToSection(NavSection section) {
-    _goToSection(section);
-
-    if (section == NavSection.home && _isInitialized) {
-      _refreshNotificationsNow();
-      _checkFieldTutorial();
     }
   }
 
@@ -833,9 +915,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final showHarvestDot = context.select<HarvestService, bool>(
-      (s) => s.biomes.any((f) => f.unlocked && f.completed),
-    );
     return withGameData(
       context,
       isInitialized: _isInitialized,
@@ -852,12 +931,11 @@ class _HomeScreenState extends State<HomeScreen>
             final currentFaction = factionSvc.current ?? FactionId.water;
             final speeds = _speedFor(currentFaction);
 
-            return Scaffold(
-              extendBody: true,
-              body: Stack(
-                children: [
-                  // Background
-                  InteractiveBackground(
+            return Stack(
+              children: [
+                // Background is always the home background here
+                RepaintBoundary(
+                  child: InteractiveBackground(
                     particleController: _particleController,
                     rotationController: _rotationController,
                     waveController: _waveController,
@@ -869,235 +947,169 @@ class _HomeScreenState extends State<HomeScreen>
                     rotationSpeed: speeds.rotation,
                     elementalSpeed: speeds.elemental,
                   ),
+                ),
 
-                  // Main content
-                  SafeArea(
-                    top: _currentSection == NavSection.home,
-                    bottom: false,
-                    child: Column(
-                      children: [
-                        if (_currentSection == NavSection.home)
-                          _buildHeader(theme),
+                SafeArea(
+                  top: true,
+                  child: Column(
+                    children: [
+                      _buildHeader(theme),
 
-                        if (_featuredData != null &&
-                            _currentSection == NavSection.home) ...[
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            height: 260,
-                            child: Center(
-                              child: FeaturedHeroInteractive(
-                                data: _featuredData!,
-                                theme: theme,
-                                breathing: _breathingController,
-                                onLongPressChoose:
-                                    _handleChooseFeaturedInstance,
-                                onTapDetails: _handleOpenFeaturedDetails,
-                                instance: _featuredData!.instance,
-                                creature: _featuredData!.creature,
-                              ),
+                      if (_featuredData != null) ...[
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          height: 260,
+                          child: Center(
+                            child: FeaturedHeroInteractive(
+                              data: _featuredData!,
+                              theme: theme,
+                              breathing: _breathingController,
+                              onLongPressChoose: _handleChooseFeaturedInstance,
+                              onTapDetails: _handleOpenFeaturedDetails,
+                              instance: _featuredData!.instance,
+                              creature: _featuredData!.creature,
                             ),
                           ),
-                        ],
-
-                        Expanded(
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 240),
-                            child: _buildSectionContent(
-                              theme,
-                              key: ValueKey(_currentSection),
-                            ),
-                          ),
-                        ),
-
-                        BottomNav(
-                          current: _currentSection,
-                          onSelect: (s) => _navigateToSection(s),
-                          theme: theme,
                         ),
                       ],
-                    ),
+
+                      // Home content only
+                      Expanded(child: _buildHomeContent(theme)),
+                    ],
                   ),
+                ),
 
-                  if (_currentSection == NavSection.home)
-                    Positioned(
-                      top: MediaQuery.of(context).padding.top + 140,
-                      left: 0,
-                      child: Consumer<WildernessSpawnService>(
-                        builder: (context, spawnService, child) {
-                          final hasSpawns = spawnService.hasAnyActiveSpawns;
-
-                          return Stack(
-                            children: [
-                              child!,
-                              if (hasSpawns)
-                                Positioned(
-                                  top: 0,
-                                  right: 10,
-                                  child: Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.red.withOpacity(0.6),
-                                          blurRadius: 8,
-                                          spreadRadius: 2,
-                                        ),
-                                      ],
+                // Side dock + bubbles + notifications stay here; they’re home-only
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 140,
+                  left: 0,
+                  child: Consumer<WildernessSpawnService>(
+                    builder: (context, spawnService, child) {
+                      final hasSpawns = spawnService.hasAnyActiveSpawns;
+                      return Stack(
+                        children: [
+                          child!,
+                          if (hasSpawns)
+                            Positioned(
+                              top: 0,
+                              right: 10,
+                              child: Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.6),
+                                      blurRadius: 8,
+                                      spreadRadius: 2,
                                     ),
-                                  ),
+                                  ],
                                 ),
-                            ],
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                    child: SideDockFloating(
+                      theme: theme,
+                      showHarvestDot:
+                          !_isFieldTutorialActive &&
+                          context.select<HarvestService, bool>(
+                            (s) =>
+                                s.biomes.any((f) => f.unlocked && f.completed),
+                          ),
+                      highlightField: _isFieldTutorialActive,
+                      onField: () {
+                        if (_isFieldTutorialActive) {
+                          _handleFieldTutorialTap();
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MapScreen(),
+                            ),
                           );
-                        },
-                        child: SideDockFloating(
-                          theme: theme,
-                          showHarvestDot:
-                              !_isFieldTutorialActive && showHarvestDot, // NEW
-                          highlightField:
-                              _isFieldTutorialActive, // Pass tutorial state
-                          onField: () {
-                            if (_isFieldTutorialActive) {
-                              _handleFieldTutorialTap();
-                            } else {
+                        }
+                      },
+                      onEnhance: _isFieldTutorialActive
+                          ? () {}
+                          : () {
+                              HapticFeedback.mediumImpact();
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (_) => const MapScreen(),
+                                CupertinoPageRoute(
+                                  builder: (_) => const FeedingScreen(),
+                                  fullscreenDialog: true,
                                 ),
                               );
-                            }
-                          },
-                          onEnhance: _isFieldTutorialActive
-                              ? () {}
-                              : () {
-                                  HapticFeedback.mediumImpact();
-                                  Navigator.push(
-                                    context,
-                                    CupertinoPageRoute(
-                                      builder: (_) => const FeedingScreen(),
-                                      fullscreenDialog: true,
-                                    ),
-                                  );
-                                },
-                          onHarvest: _isFieldTutorialActive
-                              ? () {}
-                              : () {
-                                  HapticFeedback.mediumImpact();
-                                  Navigator.push(
-                                    context,
-                                    CupertinoPageRoute(
-                                      builder: (_) =>
-                                          const BiomeHarvestScreen(),
-                                      fullscreenDialog: true,
-                                    ),
-                                  );
-                                },
-                          onCompetitions: _isFieldTutorialActive
-                              ? () {}
-                              : () {
-                                  HapticFeedback.mediumImpact();
-                                  Navigator.push(
-                                    context,
-                                    CupertinoPageRoute(
-                                      builder: (_) =>
-                                          const CompetitionHubScreen(),
-                                      fullscreenDialog: true,
-                                    ),
-                                  );
-                                },
-                          onBattle: _isFieldTutorialActive
-                              ? () {}
-                              : () {
-                                  HapticFeedback.mediumImpact();
-                                  Navigator.push(
-                                    context,
-                                    CupertinoPageRoute(
-                                      builder: (_) => const GameScreen(),
-                                      fullscreenDialog: true,
-                                    ),
-                                  );
-                                },
-                        ),
-                      ),
+                            },
+                      onHarvest: _isFieldTutorialActive
+                          ? () {}
+                          : () {
+                              HapticFeedback.mediumImpact();
+                              Navigator.push(
+                                context,
+                                CupertinoPageRoute(
+                                  builder: (_) => const BiomeHarvestScreen(),
+                                  fullscreenDialog: true,
+                                ),
+                              );
+                            },
+                      onCompetitions: _isFieldTutorialActive
+                          ? () {}
+                          : () {
+                              HapticFeedback.mediumImpact();
+                              Navigator.push(
+                                context,
+                                CupertinoPageRoute(
+                                  builder: (_) => const CompetitionHubScreen(),
+                                  fullscreenDialog: true,
+                                ),
+                              );
+                            },
+                      onBattle: _isFieldTutorialActive
+                          ? () {}
+                          : () {
+                              HapticFeedback.mediumImpact();
+                              Navigator.push(
+                                context,
+                                CupertinoPageRoute(
+                                  builder: (_) => const GameScreen(),
+                                  fullscreenDialog: true,
+                                ),
+                              );
+                            },
                     ),
+                  ),
+                ),
 
-                  if (_currentSection == NavSection.home)
-                    FloatingBubblesOverlay(
-                      regionPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-                      discoveredCreatures:
-                          discovered, // <-- typed CreatureEntry list
-                      theme: theme,
-                    ),
+                FloatingBubblesOverlay(
+                  regionPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+                  discoveredCreatures: discovered,
+                  theme: theme,
+                ),
 
-                  if (_currentSection == NavSection.home &&
-                      _activeNotifications.isNotEmpty)
-                    NotificationBannerStack(
-                      key: ValueKey(
-                        // change key when the visible set changes to refresh state
-                        _activeNotifications
-                            .map((n) => '${n.type.toKey()}|${n.stateKey}')
-                            .join(','),
-                      ),
-                      notifications: _activeNotifications,
+                if (_activeNotifications.isNotEmpty)
+                  NotificationBannerStack(
+                    key: ValueKey(
+                      _activeNotifications
+                          .map((n) => '${n.type.toKey()}|${n.stateKey}')
+                          .join(','),
                     ),
-                ],
-              ),
+                    notifications: _activeNotifications,
+                  ),
+              ],
             );
           },
     );
   }
 
-  Widget _buildSectionContent(FactionTheme theme, {Key? key}) {
-    switch (_currentSection) {
-      case NavSection.home:
-        return _buildHomeContent(theme);
-      case NavSection.creatures:
-        return const CreaturesScreen();
-      case NavSection.shop:
-        return const ShopScreen();
-      case NavSection.breed:
-        return BreedScreen(
-          onGoToSection: (section, {int? breedInitialTab}) {
-            _goToSection(section, breedInitialTab: breedInitialTab);
-          },
-        );
-      case NavSection.enhance:
-        return const FeedingScreen();
-      case NavSection.inventory:
-        return InventoryScreen(accent: theme.surface);
-    }
-  }
-
   Widget _buildHomeContent(FactionTheme theme) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
-        children: [
-          ElevatedButton(
-            onPressed: () {
-              HapticFeedback.mediumImpact();
-              Navigator.push(
-                context,
-                CupertinoPageRoute(
-                  builder: (_) => const BossBattleScreen(),
-                  fullscreenDialog: true,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.accent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            child: const Text('BATTLE'),
-          ),
-        ],
-      ),
+      child: Column(children: [AnimatedBattleButton()]),
     );
   }
 
@@ -1140,7 +1152,7 @@ class _HomeScreenState extends State<HomeScreen>
           await db.settingsDao.setSetting('tutorial_extraction_pending', '1');
           await db.settingsDao.setNavLocked(true);
           if (!mounted) return;
-          _goToSection(NavSection.breed, breedInitialTab: 1);
+          widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
         },
       );
     }
@@ -1176,13 +1188,23 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         Column(
           children: [
-            Text(
-              'ALCHEMONS',
-              style: GoogleFonts.cinzelDecorative(
-                color: theme.text,
-                fontWeight: FontWeight.w800,
-                fontSize: 40,
-                letterSpacing: 1,
+            //use asset image here
+            ClipRect(
+              child: Align(
+                // ✅ Change this back to center!
+                alignment: Alignment.center,
+                // Adjust this value until the padding is gone from BOTH sides.
+                // It will likely be a value like 0.7 or 0.6.
+                heightFactor: 0.2,
+                child: theme.brightness == Brightness.dark
+                    ? Image.asset(
+                        'assets/images/ui/alchemonstitle.png',
+                        height: 300,
+                      )
+                    : Image.asset(
+                        'assets/images/ui/alchemonstitledark.png',
+                        height: 300,
+                      ),
               ),
             ),
             Text(
@@ -1199,6 +1221,123 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       ],
+    );
+  }
+}
+
+class AnimatedBattleButton extends StatefulWidget {
+  const AnimatedBattleButton({super.key});
+
+  @override
+  State<AnimatedBattleButton> createState() => _AnimatedBattleButtonState();
+}
+
+class _AnimatedBattleButtonState extends State<AnimatedBattleButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    // 1. Set a longer duration for a noticeable pulse effect
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700), // A smoother pulse duration
+    );
+
+    // 2. Define the scale range: 1.0 (original) up to 1.05 (pulsed)
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      // Use a CurvedAnimation for a smoother, less linear pulse
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOut, // Smooth acceleration and deceleration
+      ),
+    );
+
+    // 3. Start the animation to repeat indefinitely
+    _controller.repeat(reverse: true); // repeats and reverses direction
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  // --- No changes needed in build() for the pulse effect itself ---
+
+  @override
+  Widget build(BuildContext context) {
+    // NOTE: We change the onTap logic slightly since we're now interrupting
+    // the continuous pulse with a tap-down/tap-up animation.
+
+    return GestureDetector(
+      // 1. When the user taps DOWN, STOP the continuous pulse
+      //    and immediately jump to the pressed state (e.g., 0.95 scale).
+      //    We use a fixed value here instead of the animation controller
+      //    to make the tap feel instant and interrupt the pulsing.
+      onTapDown: (_) {
+        HapticFeedback.lightImpact();
+        // Since we can't easily interrupt the repeating controller,
+        // a more robust approach is to replace the ScaleTransition
+        // with a custom widget that uses the controller *and* a separate
+        // pressed state, but for simplicity, let's just reverse the repeating
+        // and instantly go to the 'pressed' state on tap.
+        _controller.stop();
+        // Optional: Immediately set the scale value to the pressed value for feedback
+        // _controller.value = 0.5; // This can be tricky with repeat()
+
+        // *** A simpler, more common pattern for this combined effect: ***
+        //
+        // 1. Keep the pulse running
+        // 2. On onTapDown, temporarily override the scale value to a pressed state (e.g., 0.9)
+        // 3. On onTap/onTapUp/onTapCancel, remove the override and let the pulse resume.
+        //
+        // This requires changing the structure to use a separate state variable
+        // for the press effect.
+      },
+
+      // *** Let's revert to the original tap logic for interruption clarity ***
+      onTapCancel: () => _controller.repeat(reverse: true), // Resume pulse
+      onTapUp: (_) => _controller.repeat(reverse: true), // Resume pulse
+
+      onTap: () async {
+        // Run button press logic
+        HapticFeedback.mediumImpact();
+
+        // Halt pulse before navigation
+        _controller.stop();
+
+        // Navigate
+        // Replace with your actual navigation
+
+        await Navigator.push(
+          context,
+          CupertinoPageRoute(
+            builder: (_) => const BossBattleScreen(),
+            fullscreenDialog: true,
+          ),
+        );
+
+        // After navigation returns, resume the pulse animation
+        _controller.repeat(reverse: true);
+      },
+
+      // The child is wrapped in the ScaleTransition
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: ClipRect(
+          child: Align(
+            alignment: Alignment.center,
+            heightFactor: 2,
+            child: Image.asset(
+              'assets/images/ui/battlebutton.png',
+              height: 200,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -527,7 +527,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   SizedBox(height: 4),
-                  _buildHPBar(
+                  _buildAnimatedHPBar(
                     current: creature.currentHp,
                     max: creature.maxHp,
                     color: _getHealthColor(creature.hpPercent),
@@ -655,7 +655,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
     );
   }
 
-  Widget _buildHPBar({
+  Widget _buildAnimatedHPBar({
     required int current,
     required int max,
     required Color color,
@@ -672,7 +672,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(height / 2),
-        child: FractionallySizedBox(
+        child: AnimatedFractionallySizedBox(
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
           alignment: Alignment.centerLeft,
           widthFactor: percent,
           child: Container(

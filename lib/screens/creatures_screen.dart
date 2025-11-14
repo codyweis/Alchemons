@@ -7,6 +7,7 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
+import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_image.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -39,48 +40,12 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
 
-  void _cycleScope() {
-    const scopes = ['All', 'Catalogued', 'Unknown'];
-    final currentIndex = scopes.indexOf(_scope);
-    final nextIndex = (currentIndex + 1) % scopes.length;
-    _mutate(() {
-      _scope = scopes[nextIndex];
-    });
-  }
-
-  void _cycleSort() {
-    const options = [
-      'Name',
-      'Classification',
-      'Type',
-      'Count',
-      'Acquisition Order',
-    ];
-
-    final currentIndex = options.indexOf(_sort);
-    final nextIndex = (currentIndex + 1) % options.length;
-
-    _mutate(() {
-      _sort = options[nextIndex];
-    });
-  }
-
   String _scope = 'Catalogued';
   String _sort = 'Acquisition Order';
   bool _isGrid = true;
   bool _showCounts = true;
   String _query = '';
   String? _typeFilter;
-  AnimationController? _pulse;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
-  }
 
   late SettingsDao _settings;
   Timer? _saveTimer;
@@ -120,6 +85,32 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     _queueSave();
   }
 
+  void _cycleScope() {
+    const scopes = ['All', 'Catalogued', 'Unknown'];
+    final currentIndex = scopes.indexOf(_scope);
+    final nextIndex = (currentIndex + 1) % scopes.length;
+    _mutate(() {
+      _scope = scopes[nextIndex];
+    });
+  }
+
+  void _cycleSort() {
+    const options = [
+      'Name',
+      'Classification',
+      'Type',
+      'Count',
+      'Acquisition Order',
+    ];
+
+    final currentIndex = options.indexOf(_sort);
+    final nextIndex = (currentIndex + 1) % options.length;
+
+    _mutate(() {
+      _sort = options[nextIndex];
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -136,7 +127,6 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   void dispose() {
     _saveTimer?.cancel();
     _searchCtrl.dispose();
-    _pulse?.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -171,83 +161,90 @@ class _CreaturesScreenState extends State<CreaturesScreen>
                 // apply your filters/sorting to the typed entries
                 final filtered = _filterAndSort(entries, instanceCounts);
 
-                return Scaffold(
-                  backgroundColor: theme.surfaceAlt,
-                  body: SafeArea(
-                    bottom: false,
-                    child: CustomScrollView(
-                      physics: const BouncingScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
-                      ),
-                      slivers: [
-                        _SolidHeader(
-                          theme: theme,
-                          onOpenAllInstances: _showAllInstancesView,
+                return ParticleBackgroundScaffold(
+                  whiteBackground: theme.brightness == Brightness.light,
+                  body: Scaffold(
+                    backgroundColor: Colors.transparent,
+                    body: SafeArea(
+                      child: CustomScrollView(
+                        physics: const BouncingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
                         ),
-                        SliverToBoxAdapter(
-                          child: _StatsHeaderSolid(
+                        slivers: [
+                          _SolidHeader(
                             theme: theme,
-                            percent: pct,
-                            discovered: discoveredCount,
-                            total: total,
+                            onOpenAllInstances: () =>
+                                _showAllInstancesView(theme),
                           ),
-                        ),
-                        SliverPersistentHeader(
-                          pinned: true,
-                          delegate: _StickyFilterBar(
-                            height: 126,
-                            scope: _scope,
-                            typeFilter: _typeFilter,
-                            isGrid: _isGrid,
-                            showCounts: _showCounts,
-                            child: _FilterBarSolid(
+                          SliverToBoxAdapter(
+                            child: _StatsHeaderSolid(
                               theme: theme,
-                              query: _query,
-                              controller: _searchCtrl,
+                              percent: pct,
+                              discovered: discoveredCount,
+                              total: total,
+                            ),
+                          ),
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _StickyFilterBar(
+                              height: 126,
                               scope: _scope,
-                              sort: _sort,
+                              typeFilter: _typeFilter,
                               isGrid: _isGrid,
                               showCounts: _showCounts,
-                              typeFilter: _typeFilter,
-                              onQueryChanged: _onQueryChanged,
-                              onScopeChanged: _cycleScope,
-
-                              onSortTap: _cycleSort,
-                              onToggleView: () =>
-                                  _mutate(() => _isGrid = !_isGrid),
-                              onToggleCounts: () =>
-                                  _mutate(() => _showCounts = !_showCounts),
-                              onTypeChanged: (t) => _mutate(
-                                () => _typeFilter = (t == 'All') ? null : t,
+                              theme: theme,
+                              child: _FilterBarSolid(
+                                theme: theme,
+                                query: _query,
+                                controller: _searchCtrl,
+                                scope: _scope,
+                                sort: _sort,
+                                isGrid: _isGrid,
+                                showCounts: _showCounts,
+                                typeFilter: _typeFilter,
+                                onQueryChanged: _onQueryChanged,
+                                onScopeChanged: _cycleScope,
+                                onSortTap: _cycleSort,
+                                onToggleView: () =>
+                                    _mutate(() => _isGrid = !_isGrid),
+                                onToggleCounts: () =>
+                                    _mutate(() => _showCounts = !_showCounts),
+                                onTypeChanged: (t) => _mutate(
+                                  () => _typeFilter = (t == 'All') ? null : t,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        if (filtered.isEmpty)
-                          const SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: _EmptyState(),
-                          )
-                        else
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
-                            sliver: _isGrid
-                                ? _CreatureGrid(
-                                    theme: theme,
-                                    creatures: filtered, // List<CreatureEntry>
-                                    showCounts: _showCounts,
-                                    instanceCounts: instanceCounts,
-                                    onTap: _handleTap,
-                                  )
-                                : _CreatureList(
-                                    theme: theme,
-                                    creatures: filtered, // List<CreatureEntry>
-                                    showCounts: _showCounts,
-                                    instanceCounts: instanceCounts,
-                                    onTap: _handleTap,
-                                  ),
-                          ),
-                      ],
+                          if (filtered.isEmpty)
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(theme: theme),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
+                              sliver: _isGrid
+                                  ? _CreatureGrid(
+                                      theme: theme,
+                                      creatures:
+                                          filtered, // List<CreatureEntry>
+                                      showCounts: _showCounts,
+                                      instanceCounts: instanceCounts,
+                                      onTap: (c, isDiscovered) =>
+                                          _handleTap(c, isDiscovered, theme),
+                                    )
+                                  : _CreatureList(
+                                      theme: theme,
+                                      creatures:
+                                          filtered, // List<CreatureEntry>
+                                      showCounts: _showCounts,
+                                      instanceCounts: instanceCounts,
+                                      onTap: (c, isDiscovered) =>
+                                          _handleTap(c, isDiscovered, theme),
+                                    ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -264,9 +261,9 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     });
   }
 
-  void _handleTap(Creature species, bool isDiscovered) {
+  void _handleTap(Creature species, bool isDiscovered, FactionTheme theme) {
     if (isDiscovered) {
-      _showInstancesSheet(species);
+      _showInstancesSheet(species, theme);
     } else {
       _showCreatureDetails(species, false);
     }
@@ -358,9 +355,7 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     CreatureDetailsDialog.show(context, c, isDiscovered);
   }
 
-  void _showInstancesSheet(Creature species) {
-    final theme = context.read<FactionTheme>();
-
+  void _showInstancesSheet(Creature species, FactionTheme theme) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -391,9 +386,7 @@ class _CreaturesScreenState extends State<CreaturesScreen>
     );
   }
 
-  void _showAllInstancesView() {
-    final theme = context.read<FactionTheme>();
-
+  void _showAllInstancesView(FactionTheme theme) {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
@@ -836,7 +829,7 @@ class _CreatureCard extends StatelessWidget {
               Positioned(
                 top: 4,
                 right: 4,
-                child: _CountBadge(count: instanceCount),
+                child: _CountBadge(theme: theme, count: instanceCount),
               ),
           ],
         ),
@@ -901,7 +894,11 @@ class _CreatureRow extends StatelessWidget {
                       Positioned(
                         top: -2,
                         right: -2,
-                        child: _CountBadge(count: instanceCount, small: true),
+                        child: _CountBadge(
+                          theme: theme,
+                          count: instanceCount,
+                          small: true,
+                        ),
                       ),
                   ],
                 ),
@@ -937,7 +934,7 @@ class _CreatureRow extends StatelessWidget {
                             runSpacing: 4,
                             children: c.types
                                 .take(2)
-                                .map((t) => _TypeTiny(label: t))
+                                .map((t) => _TypeTiny(theme: theme, label: t))
                                 .toList(),
                           ),
                           const SizedBox(width: 8),
@@ -1182,11 +1179,15 @@ class PillButton extends StatelessWidget {
 class _CountBadge extends StatelessWidget {
   final int count;
   final bool small;
-  const _CountBadge({required this.count, this.small = false});
+  final FactionTheme theme;
+  const _CountBadge({
+    required this.count,
+    required this.theme,
+    this.small = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: small ? 4 : 6,
@@ -1211,31 +1212,6 @@ class _CountBadge extends StatelessWidget {
           fontSize: small ? 8 : 9,
           fontWeight: FontWeight.w900,
           height: 1.0,
-        ),
-      ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  final String text;
-  const _Badge({required this.text});
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: theme.accent,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black.withOpacity(.2), width: 1.5),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.black,
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
         ),
       ),
     );
@@ -1286,12 +1262,12 @@ class _RarityPill extends StatelessWidget {
 }
 
 class _TypeTiny extends StatelessWidget {
+  final FactionTheme theme;
   final String label;
-  const _TypeTiny({required this.label});
+  const _TypeTiny({required this.theme, required this.label});
   @override
   Widget build(BuildContext context) {
     final color = BreedConstants.getTypeColor(label);
-    final theme = context.read<FactionTheme>();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -1374,10 +1350,10 @@ class _ArcPainter extends CustomPainter {
 /// ------------------------ States -----------------------------
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  final FactionTheme theme;
+  const _EmptyState({required this.theme});
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -1419,61 +1395,6 @@ class LoadingScaffold extends StatelessWidget {
   }
 }
 
-class _ErrorScaffold extends StatelessWidget {
-  final String error;
-  final VoidCallback onRetry;
-  const _ErrorScaffold({required this.error, required this.onRetry});
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
-    return Scaffold(
-      backgroundColor: theme.surface,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SectionCard(
-            theme: theme,
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.error_outline_rounded,
-                    color: Colors.redAccent,
-                    size: 34,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Database Connection Error',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    error,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: theme.textMuted, fontSize: 12),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: onRetry,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// --------------------- Sticky Filter Header -------------------
 
 class _StickyFilterBar extends SliverPersistentHeaderDelegate {
@@ -1483,6 +1404,7 @@ class _StickyFilterBar extends SliverPersistentHeaderDelegate {
   final String? typeFilter;
   final bool isGrid;
   final bool showCounts;
+  final FactionTheme theme;
 
   _StickyFilterBar({
     required this.height,
@@ -1491,6 +1413,7 @@ class _StickyFilterBar extends SliverPersistentHeaderDelegate {
     required this.typeFilter,
     required this.isGrid,
     required this.showCounts,
+    required this.theme,
   });
 
   @override
@@ -1514,5 +1437,6 @@ class _StickyFilterBar extends SliverPersistentHeaderDelegate {
       old.scope != scope ||
       old.typeFilter != typeFilter ||
       old.isGrid != isGrid ||
-      old.showCounts != showCounts;
+      old.showCounts != showCounts ||
+      old.theme != theme;
 }

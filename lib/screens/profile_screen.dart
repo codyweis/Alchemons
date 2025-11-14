@@ -1,5 +1,6 @@
 // lib/screens/profile_screen.dart
 import 'dart:ui';
+import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/models/faction.dart';
@@ -8,6 +9,7 @@ import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/theme_switch_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -143,8 +145,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: ThemeModeSelector(),
                       accent: accent,
                     ),
+                    const SizedBox(height: 10),
+
+                    // --- 3. ADD THIS SECTION ---
+                    _settingTile(
+                      title: 'Font Style',
+                      trailing: _FontSelectorWidget(
+                        accent: accent,
+                      ), // New widget
+                      accent: accent,
+                    ),
                     const SizedBox(height: 20),
 
+                    // --- END NEW SECTION ---
                     _sectionLabel('DIVISION PERKS', accent),
                     const SizedBox(height: 10),
 
@@ -577,6 +590,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
           ),
           child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _FontSelectorWidget extends StatelessWidget {
+  final Color accent;
+  const _FontSelectorWidget({required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<ThemeNotifier>();
+    final cs = Theme.of(context).colorScheme;
+    final factionTheme = context.read<FactionTheme>();
+
+    // We reuse the styling from your _glassButton
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [accent.withOpacity(.95), accent.withOpacity(.8)],
+        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withOpacity(.25),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: theme.fontName,
+          // Use the accent color for the icon
+          icon: Icon(Icons.arrow_drop_down, color: factionTheme.text),
+          // Make the dropdown menu match your "glass" theme
+          dropdownColor: cs.surface.withOpacity(0.95),
+          isDense: true,
+          onChanged: (String? newValue) {
+            if (newValue != null) {
+              context.read<ThemeNotifier>().setFont(newValue);
+            }
+          },
+          items: appFontMap.keys.map<DropdownMenuItem<String>>((String value) {
+            return DropdownMenuItem<String>(
+              value: value,
+              child: Text(
+                value,
+                // Use the font itself for the preview in the list
+                style: GoogleFonts.getFont(
+                  value,
+                  color: factionTheme.text,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            );
+          }).toList(),
+          // Style the selected value in the button
+          selectedItemBuilder: (context) {
+            return appFontMap.keys.map((String value) {
+              return Center(
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    color: factionTheme.text,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 11,
+                    letterSpacing: .6,
+                  ),
+                ),
+              );
+            }).toList();
+          },
         ),
       ),
     );

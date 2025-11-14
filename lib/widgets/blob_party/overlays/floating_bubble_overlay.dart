@@ -1,4 +1,5 @@
 // lib/widgets/blob_party/floating_bubbles_overlay.dart
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:alchemons/constants/breed_constants.dart';
@@ -48,6 +49,8 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
   int _slotsUnlocked = 1;
 
   final List<_Spark> _sparks = [];
+
+  Timer? _saveLayoutDebounce;
 
   @override
   void initState() {
@@ -161,6 +164,28 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
     setState(() {});
   }
 
+  void _scheduleSaveLayout() {
+    // Reset the debounce timer so we only write after a short pause
+    _saveLayoutDebounce?.cancel();
+    _saveLayoutDebounce = Timer(const Duration(milliseconds: 500), () {
+      _persistLayout();
+    });
+  }
+
+  Future<void> _persistLayout() async {
+    if (!mounted) return;
+    final db = context.read<AlchemonsDatabase>();
+
+    // Save all bubble positions keyed by index
+    for (int i = 0; i < _bubbles.length; i++) {
+      final b = _bubbles[i];
+      final key = 'blob_slot_${i}_pos';
+      final value =
+          '${b.pos.dx.toStringAsFixed(1)},${b.pos.dy.toStringAsFixed(1)}';
+      await db.settingsDao.setSetting(key, value);
+    }
+  }
+
   Future<void> _loadFromDb() async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
@@ -168,19 +193,18 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
     final slots = await db.settingsDao.getBlobSlotsUnlocked(); // 1..3
     final ids = await db.settingsDao.getBlobInstanceSlots(); // List<String?>
 
-    // ensure list length == slots
     final normalized = [
       ...ids.take(slots),
       ...List.filled((slots - ids.length).clamp(0, slots), null),
     ];
 
-    // initial placement grid-ish
     final rng = math.Random();
     final baseR = 28.0; // smaller collapsed bubble
     _bubbles.clear();
     for (var i = 0; i < slots; i++) {
       final xJitter = rng.nextDouble() * 120;
       final yJitter = rng.nextDouble() * 140;
+
       final b = _Bubble(
         pos: Offset(
           widget.regionPadding.left + baseR + 40 + xJitter + i * 24,
@@ -190,12 +214,27 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
         radius: baseR,
         seed: rng.nextDouble() * math.pi * 2,
       );
+
       // hydrate instance if saved
       final id = normalized[i];
       if (id != null) {
         final inst = await db.creatureDao.getInstance(id);
         if (inst != null) b.instance = inst;
       }
+
+      // NEW: hydrate persisted position if present
+      final savedPosRaw = await db.settingsDao.getSetting('blob_slot_${i}_pos');
+      if (savedPosRaw != null && savedPosRaw.isNotEmpty) {
+        final parts = savedPosRaw.split(',');
+        if (parts.length == 2) {
+          final dx = double.tryParse(parts[0]);
+          final dy = double.tryParse(parts[1]);
+          if (dx != null && dy != null) {
+            b.pos = Offset(dx, dy);
+          }
+        }
+      }
+
       _bubbles.add(b);
     }
     setState(() => _slotsUnlocked = slots);
@@ -204,6 +243,8 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
   @override
   void dispose() {
     _ticker.dispose();
+    _saveLayoutDebounce?.cancel();
+
     super.dispose();
   }
 
@@ -413,39 +454,32 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
                       onDragEnd: (details) {
                         final b = _bubbles[i];
 
-                        // If we were stationary just before lift, treat as place (no flight)
-                        const quietMs =
-                            140; // how long we must be still to cancel glide
+                        const quietMs = 140;
                         final now = DateTime.now().millisecondsSinceEpoch;
                         final quiet = (now - b.lastMoveAtMs) >= quietMs;
                         if (quiet) {
                           b.vel = Offset.zero;
+                          _scheduleSaveLayout(); // NEW: persist final resting spot
                           return;
                         }
 
-                        // Gesture velocity in logical px/s
                         var v = details.pixelsPerSecond;
                         final speed = v.distance;
 
-                        // Tunables
-                        const gain = 1.0; // fling strength scaling
-                        const maxSpeed = 700.0; // hard cap
-                        const minThrow =
-                            90.0; // below this we consider it a slow drag
-                        const minFlight = 180.0; // floor for real flings
-                        const glideSpeed = 240.0; // speed for slow-drag glides
-                        const dragDirMin =
-                            18.0; // need at least this much total drag to glide
+                        const gain = 1.0;
+                        const maxSpeed = 700.0;
+                        const minThrow = 90.0;
+                        const minFlight = 180.0;
+                        const glideSpeed = 240.0;
+                        const dragDirMin = 18.0;
 
                         if (speed >= minThrow) {
-                          // Real fling → keep direction, floor/ceiling speed
                           var applied = (speed * gain).clamp(
                             minFlight,
                             maxSpeed,
                           );
                           b.vel = (v / speed) * applied;
                         } else if (b.totalDrag >= dragDirMin) {
-                          // Slow drag → glide along accumulated drag direction
                           final dirLen = b.dragAccum.distance;
                           if (dirLen > 0) {
                             b.vel = (b.dragAccum / dirLen) * glideSpeed;
@@ -453,11 +487,12 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
                             b.vel = Offset.zero;
                           }
                         } else {
-                          // Basically a tap/place
                           b.vel = Offset.zero;
                         }
-                      },
-                      // context menu
+
+                        // NEW: any kind of throw/drag completion → schedule save
+                        _scheduleSaveLayout();
+                      }, // context menu
                       onLongPress: () async {
                         final b = _bubbles[i];
 

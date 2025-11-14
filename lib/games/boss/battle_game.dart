@@ -120,6 +120,11 @@ class BattleGame extends FlameGame with TapCallbacks {
       );
       playerSprites.add(sprite);
       await add(sprite);
+
+      // Play spawn animation with staggered delay
+      Future.delayed(Duration(milliseconds: 100 * i), () {
+        sprite.playSpawnAnimation();
+      });
     }
 
     // Boss - perfectly centered
@@ -128,10 +133,16 @@ class BattleGame extends FlameGame with TapCallbacks {
       position: Vector2(size.x / 2, size.y * 0.3),
     );
     await add(bossSprite);
+
+    // Play boss fade-in animation after a slight delay
+    Future.delayed(Duration(milliseconds: 300 + (100 * teamCount)), () {
+      bossSprite.playSpawnAnimation();
+    });
   }
 
   void selectCreature(int index) {
     if (state != BattleState.playerTurn) return;
+    if (index >= playerTeam.length) return; // Safety: index out of bounds
     if (playerTeam[index].isDead) return;
 
     // Deselect previous
@@ -159,9 +170,17 @@ class BattleGame extends FlameGame with TapCallbacks {
 
   Future<void> executePlayerAttack(BattleMove move) async {
     if (state != BattleState.playerTurn) return;
+    if (currentPlayerIndex >= playerTeam.length) return; // Safety check
+
+    final attacker = playerTeam[currentPlayerIndex];
+
+    // Safety check: don't attack if creature is dead
+    if (attacker.isDead) {
+      state = BattleState.playerTurn;
+      return;
+    }
 
     state = BattleState.animating;
-    final attacker = playerTeam[currentPlayerIndex];
     final attackerSprite = playerSprites[currentPlayerIndex];
 
     // Play attack animation
@@ -216,8 +235,14 @@ class BattleGame extends FlameGame with TapCallbacks {
             aliveCreatures.length];
     final targetIndex = targetEntry.key;
     final target = targetEntry.value;
-    final targetSprite =
-        playerSprites[targetIndex]; // Store the sprite reference
+
+    // Safety check: ensure sprite still exists
+    if (targetIndex >= playerSprites.length) {
+      state = BattleState.playerTurn;
+      return;
+    }
+
+    final targetSprite = playerSprites[targetIndex];
 
     // Play boss attack animation
     await bossSprite.playAttackAnimation(
@@ -226,7 +251,7 @@ class BattleGame extends FlameGame with TapCallbacks {
         type: MoveType.physical,
         scalingStat: 'statStrength',
       ),
-      targetSprite, // Use the stored sprite
+      targetSprite,
     );
 
     // Calculate damage
@@ -244,8 +269,10 @@ class BattleGame extends FlameGame with TapCallbacks {
     // Shake camera
     shakeCamera(intensity: result.damage / 5.0);
 
-    // Show damage
-    targetSprite.showDamage(result.damage, result.typeMultiplier);
+    // Show damage (with safety check)
+    if (!target.isDead) {
+      targetSprite.showDamage(result.damage, result.typeMultiplier);
+    }
 
     // Send result
     onGameEvent(BossAttackExecutedEvent(result, targetIndex));
@@ -256,23 +283,17 @@ class BattleGame extends FlameGame with TapCallbacks {
       sprite.updateStatusIcons();
     }
 
-    // -----------------------------------------------------------------
-    //  >> MODIFICATION: Check for death and start the sinking animation
-    // -----------------------------------------------------------------
+    // Check for death and start the sinking animation
     if (target.isDead) {
-      targetSprite
-          .playDeathAnimation(); // Now triggers the sink-and-fade effect
+      targetSprite.playDeathAnimation();
 
-      // Wait long enough for the player to see the sinking start (about half the animation duration)
+      // Wait long enough for the player to see the sinking start
       await Future.delayed(Duration(milliseconds: 750));
     }
-    // -----------------------------------------------------------------
 
     // Check if all defeated
     if (playerTeam.every((c) => c.isDead)) {
-      await Future.delayed(
-        Duration(seconds: 1),
-      ); // Wait for the final creature to sink
+      await Future.delayed(Duration(seconds: 1));
       onGameEvent(DefeatEvent());
       return;
     }
@@ -338,29 +359,29 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
   late TextComponent hpText;
   late RectangleComponent hpBarFill;
   late PositionComponent statusIconContainer;
+  late CircleComponent bossVisual;
 
   BossSprite({required this.combatant, required Vector2 position})
     : super(position: position, size: Vector2(150, 150));
 
   @override
   Future<void> onLoad() async {
-    // Boss visual placeholder (large circle)
-    add(
-      CircleComponent(
-        radius: 60,
-        paint: Paint()..color = Colors.red.withOpacity(0.6),
-        anchor: Anchor.center,
-      ),
+    // Boss visual placeholder (large circle) - start invisible
+    bossVisual = CircleComponent(
+      radius: 60,
+      paint: Paint()..color = Colors.red.withOpacity(0.0),
+      anchor: Anchor.center,
     );
+    add(bossVisual);
 
-    // Boss name
+    // Boss name - start invisible
     nameLabel = TextComponent(
       text: combatant.name,
       position: Vector2(0, -size.y * 0.7),
       anchor: Anchor.center,
       textRenderer: TextPaint(
         style: TextStyle(
-          color: Colors.white,
+          color: Colors.white.withOpacity(0.0),
           fontSize: 18,
           fontWeight: FontWeight.bold,
           shadows: [Shadow(blurRadius: 4, color: Colors.black)],
@@ -369,14 +390,14 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
     );
     add(nameLabel);
 
-    // HP text
+    // HP text - start invisible
     hpText = TextComponent(
       text: '${combatant.currentHp}/${combatant.maxHp}',
       position: Vector2(0, -size.y * 0.55),
       anchor: Anchor.center,
       textRenderer: TextPaint(
         style: TextStyle(
-          color: Colors.white,
+          color: Colors.white.withOpacity(0.0),
           fontSize: 14,
           fontWeight: FontWeight.bold,
         ),
@@ -384,21 +405,21 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
     );
     add(hpText);
 
-    // HP bar background
+    // HP bar background - start invisible
     add(
       RectangleComponent(
         size: Vector2(140, 12),
         position: Vector2(0, -size.y * 0.45),
-        paint: Paint()..color = Colors.black.withOpacity(0.7),
+        paint: Paint()..color = Colors.black.withOpacity(0.0),
         anchor: Anchor.center,
       ),
     );
 
-    // HP bar fill
+    // HP bar fill - start invisible
     hpBarFill = RectangleComponent(
       size: Vector2(136 * combatant.hpPercent, 8),
       position: Vector2(-68, -size.y * 0.45),
-      paint: Paint()..color = _getHpColor(combatant.hpPercent),
+      paint: Paint()..color = _getHpColor(combatant.hpPercent).withOpacity(0.0),
       anchor: Anchor.centerLeft,
     );
     add(hpBarFill..priority = 1);
@@ -410,6 +431,57 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
     add(statusIconContainer);
   }
 
+  /// Boss spawn animation - fade in with scale effect
+  void playSpawnAnimation() {
+    // Scale up the boss visual
+    bossVisual.add(
+      SequenceEffect([
+        ScaleEffect.to(Vector2.all(0.1), EffectController(duration: 0.0)),
+        ScaleEffect.to(
+          Vector2.all(1.2),
+          EffectController(duration: 0.4, curve: Curves.easeOut),
+        ),
+        ScaleEffect.to(
+          Vector2.all(1.0),
+          EffectController(duration: 0.2, curve: Curves.easeIn),
+        ),
+      ]),
+    );
+
+    // Fade in boss visual by changing paint color
+    Future.delayed(Duration(milliseconds: 0), () {
+      bossVisual.paint.color = Colors.red.withOpacity(0.6);
+    });
+
+    // Fade in name by changing text color
+    Future.delayed(Duration(milliseconds: 300), () {
+      nameLabel.textRenderer = TextPaint(
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+        ),
+      );
+    });
+
+    // Fade in HP text
+    Future.delayed(Duration(milliseconds: 400), () {
+      hpText.textRenderer = TextPaint(
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    });
+
+    // Fade in HP bar
+    Future.delayed(Duration(milliseconds: 500), () {
+      hpBarFill.paint.color = _getHpColor(combatant.hpPercent);
+    });
+  }
+
   Color _getHpColor(double percent) {
     if (percent > 0.5) return Colors.green;
     if (percent > 0.25) return Colors.yellow;
@@ -418,7 +490,17 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
 
   void updateHpBar() {
     hpText.text = '${combatant.currentHp}/${combatant.maxHp}';
-    hpBarFill.size = Vector2(136 * combatant.hpPercent, 8);
+
+    // Animate HP bar size change
+    final targetSize = Vector2(136 * combatant.hpPercent, 8);
+    hpBarFill.add(
+      SizeEffect.to(
+        targetSize,
+        EffectController(duration: 0.3, curve: Curves.easeOut),
+      ),
+    );
+
+    // Update color
     hpBarFill.paint.color = _getHpColor(combatant.hpPercent);
   }
 
@@ -429,123 +511,194 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
       child.removeFromParent();
     }
 
-    // Add new text-based status indicators
-    int iconIndex = 0;
-    final iconSpacing = 40.0; // More space for text
-    final totalIcons =
-        combatant.statusEffects.length + combatant.statModifiers.length;
+    // Separate status effects and stat modifiers for better organization
+    final effects = combatant.statusEffects.values.toList();
+    final modifiers = combatant.statModifiers.values.toList();
 
-    for (final effect in combatant.statusEffects.values) {
-      final statusText = _createStatusText(effect.type);
-      statusText.position = Vector2(
-        (iconIndex - totalIcons / 2 + 0.5) * iconSpacing,
-        0,
-      );
-      statusIconContainer.add(statusText);
-      iconIndex++;
+    if (effects.isEmpty && modifiers.isEmpty) return;
+
+    // Layout configuration
+    const double iconWidth = 50.0;
+    const double rowSpacing = 24.0;
+
+    // Create effects row if any
+    if (effects.isNotEmpty) {
+      final effectsRow = PositionComponent(position: Vector2(0, 0));
+
+      for (int i = 0; i < effects.length; i++) {
+        final icon = _createStatusIcon(effects[i].type);
+        icon.position = Vector2(
+          (i - effects.length / 2 + 0.5) * (iconWidth + 4),
+          0,
+        );
+        effectsRow.add(icon);
+      }
+
+      statusIconContainer.add(effectsRow);
     }
 
-    for (final modifier in combatant.statModifiers.values) {
-      final modText = _createStatModifierText(modifier.type);
-      modText.position = Vector2(
-        (iconIndex - totalIcons / 2 + 0.5) * iconSpacing,
-        0,
+    // Create modifiers row if any
+    if (modifiers.isNotEmpty) {
+      final modifiersRow = PositionComponent(
+        position: Vector2(0, effects.isEmpty ? 0 : rowSpacing),
       );
-      statusIconContainer.add(modText);
-      iconIndex++;
+
+      for (int i = 0; i < modifiers.length; i++) {
+        final icon = _createStatModifierIcon(modifiers[i].type);
+        icon.position = Vector2(
+          (i - modifiers.length / 2 + 0.5) * (iconWidth + 4),
+          0,
+        );
+        modifiersRow.add(icon);
+      }
+
+      statusIconContainer.add(modifiersRow);
     }
   }
 
-  TextComponent _createStatusText(String statusType) {
-    Color color;
+  PositionComponent _createStatusIcon(String statusType) {
+    Color bgColor;
+    Color textColor;
     String text;
+
     switch (statusType) {
       case 'burn':
-        color = Colors.orange;
+        bgColor = Colors.orange.withOpacity(0.8);
+        textColor = Colors.white;
         text = 'BURN';
         break;
       case 'poison':
-        color = Colors.purple;
+        bgColor = Colors.purple.withOpacity(0.8);
+        textColor = Colors.white;
         text = 'PSN';
         break;
       case 'freeze':
-        color = Colors.cyan;
+        bgColor = Colors.cyan.withOpacity(0.8);
+        textColor = Colors.black;
         text = 'FRZ';
         break;
       case 'curse':
-        color = Colors.purple.shade900;
+        bgColor = Colors.purple.shade900.withOpacity(0.8);
+        textColor = Colors.white;
         text = 'CURSE';
         break;
       case 'regen':
-        color = Colors.green;
+        bgColor = Colors.green.withOpacity(0.8);
+        textColor = Colors.white;
         text = 'REGEN';
         break;
       default:
-        color = Colors.grey;
+        bgColor = Colors.grey.withOpacity(0.8);
+        textColor = Colors.white;
         text = '???';
     }
-    return TextComponent(
+
+    final container = PositionComponent(
+      size: Vector2(48, 18),
+      anchor: Anchor.center,
+    );
+
+    // Background pill shape
+    final bg = RectangleComponent(
+      size: Vector2(48, 18),
+      paint: Paint()..color = bgColor,
+      anchor: Anchor.center,
+    )..position = Vector2(24, 9);
+
+    container.add(bg);
+
+    // Text
+    final textComponent = TextComponent(
       text: text,
       anchor: Anchor.center,
+      position: Vector2(24, 9),
       textRenderer: TextPaint(
         style: TextStyle(
-          color: color,
-          fontSize: 12,
+          color: textColor,
+          fontSize: 10,
           fontWeight: FontWeight.bold,
-          shadows: [
-            Shadow(blurRadius: 3, color: Colors.black.withOpacity(0.8)),
-          ],
         ),
       ),
     );
+
+    container.add(textComponent);
+
+    return container;
   }
 
-  TextComponent _createStatModifierText(String modifierType) {
-    Color color;
+  PositionComponent _createStatModifierIcon(String modifierType) {
+    Color bgColor;
+    Color textColor;
     String text;
+
     switch (modifierType) {
       case 'attack_up':
-        color = Colors.red;
-        text = 'ATK⬆';
+        bgColor = Colors.red.withOpacity(0.8);
+        textColor = Colors.white;
+        text = 'ATK ↑';
         break;
       case 'attack_down':
-        color = Colors.red.shade300;
-        text = 'ATK⬇';
+        bgColor = Colors.red.shade300.withOpacity(0.8);
+        textColor = Colors.white;
+        text = 'ATK ↓';
         break;
       case 'defense_up':
-        color = Colors.blue;
-        text = 'DEF⬆';
+        bgColor = Colors.blue.withOpacity(0.8);
+        textColor = Colors.white;
+        text = 'DEF ↑';
         break;
       case 'defense_down':
-        color = Colors.blue.shade300;
-        text = 'DEF⬇';
+        bgColor = Colors.blue.shade300.withOpacity(0.8);
+        textColor = Colors.white;
+        text = 'DEF ↓';
         break;
       case 'speed_up':
-        color = Colors.yellow;
-        text = 'SPD⬆';
+        bgColor = Colors.yellow.withOpacity(0.8);
+        textColor = Colors.black;
+        text = 'SPD ↑';
         break;
       case 'speed_down':
-        color = Colors.yellow.shade700;
-        text = 'SPD⬇';
+        bgColor = Colors.yellow.shade700.withOpacity(0.8);
+        textColor = Colors.white;
+        text = 'SPD ↓';
         break;
       default:
-        color = Colors.grey;
+        bgColor = Colors.grey.withOpacity(0.8);
+        textColor = Colors.white;
         text = '???';
     }
-    return TextComponent(
+
+    final container = PositionComponent(
+      size: Vector2(48, 18),
+      anchor: Anchor.center,
+    );
+
+    // Background pill shape
+    final bg = RectangleComponent(
+      size: Vector2(48, 18),
+      paint: Paint()..color = bgColor,
+      anchor: Anchor.center,
+    )..position = Vector2(24, 9);
+
+    container.add(bg);
+
+    // Text
+    final textComponent = TextComponent(
       text: text,
       anchor: Anchor.center,
+      position: Vector2(24, 9),
       textRenderer: TextPaint(
         style: TextStyle(
-          color: color,
-          fontSize: 12,
+          color: textColor,
+          fontSize: 10,
           fontWeight: FontWeight.bold,
-          shadows: [
-            Shadow(blurRadius: 3, color: Colors.black.withOpacity(0.8)),
-          ],
         ),
       ),
     );
+
+    container.add(textComponent);
+
+    return container;
   }
 
   Future<void> playAttackAnimation(

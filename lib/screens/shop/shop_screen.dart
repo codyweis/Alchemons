@@ -114,7 +114,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
+    final theme = context.watch<FactionTheme>();
     final db = context.read<AlchemonsDatabase>();
 
     return ParticleBackgroundScaffold(
@@ -122,7 +122,6 @@ class _ShopScreenState extends State<ShopScreen> {
       body: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
-          bottom: false,
           child: Column(
             children: [
               // Header with currencies

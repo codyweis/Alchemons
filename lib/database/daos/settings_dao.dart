@@ -13,6 +13,25 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
 
   // =================== SETTINGS ===================
 
+  // --- ADD THESE CONSTANTS ---
+  static const String _fontKey = 'app_font';
+  static const String _defaultFont = 'Aboreto'; // Your default font
+  Future<String> getFontName() async {
+    final font = await getSetting(_fontKey);
+    return font ?? _defaultFont;
+  }
+
+  Future<void> setFontName(String fontName) async {
+    await setSetting(_fontKey, fontName);
+  }
+
+  /// Reactive stream of font name so UI can rebuild on change
+  Stream<String> watchFontName() {
+    return watchSetting(_fontKey).map((font) {
+      return font ?? _defaultFont;
+    });
+  }
+
   Future<String?> getSetting(String key) async {
     final row = await (select(
       settings,

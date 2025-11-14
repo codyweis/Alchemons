@@ -125,7 +125,6 @@ class _FeedingScreenState extends State<FeedingScreen>
               ),
             ),
             child: SafeArea(
-              bottom: false,
               child: Column(
                 children: [
                   _StageHeader(

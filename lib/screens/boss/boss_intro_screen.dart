@@ -24,29 +24,11 @@ class BossBattleScreen extends StatefulWidget {
   State<BossBattleScreen> createState() => _BossBattleScreenState();
 }
 
-class _BossBattleScreenState extends State<BossBattleScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+// Removed SingleTickerProviderStateMixin as pulsing animation is gone
+class _BossBattleScreenState extends State<BossBattleScreen> {
+  // Removed AnimationController and Animation
 
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat(reverse: true);
-
-    _pulseAnimation = Tween<double>(begin: 0.98, end: 1.02).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
-  }
+  // Removed initState and dispose methods
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +94,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: theme.surface,
-        border: Border(bottom: BorderSide(color: theme.border, width: 2)),
+        border: Border(bottom: BorderSide(color: theme.border, width: 1)),
       ),
       child: Row(
         children: [
@@ -126,6 +108,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               decoration: BoxDecoration(
                 color: theme.surfaceAlt,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: theme.border, width: 1),
               ),
               child: Icon(Icons.arrow_back, color: theme.text, size: 18),
             ),
@@ -162,6 +145,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               decoration: BoxDecoration(
                 color: theme.surfaceAlt,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: theme.border, width: 1),
               ),
               child: Icon(Icons.history, color: theme.text, size: 18),
             ),
@@ -180,7 +164,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       decoration: BoxDecoration(
         color: theme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.border, width: 2),
+        border: Border.all(color: theme.border, width: 1),
       ),
       child: Column(
         children: [
@@ -189,7 +173,11 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             children: [
               Row(
                 children: [
-                  Icon(Icons.emoji_events, color: Colors.amber, size: 16),
+                  Icon(
+                    Icons.emoji_events,
+                    color: Colors.amber.shade700,
+                    size: 16,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     'CAMPAIGN PROGRESS',
@@ -204,8 +192,8 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               ),
               Text(
                 '$defeated / 17',
-                style: const TextStyle(
-                  color: Colors.amber,
+                style: TextStyle(
+                  color: Colors.amber.shade700,
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
@@ -219,7 +207,10 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               height: 10,
               decoration: BoxDecoration(
                 color: theme.surfaceAlt,
-                border: Border.all(color: theme.border, width: 1),
+                border: Border.all(
+                  color: theme.border.withOpacity(0.5),
+                  width: 1,
+                ),
               ),
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -228,7 +219,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.amber.shade700, Colors.amber.shade400],
+                        colors: [Colors.amber.shade800, Colors.amber.shade600],
                       ),
                     ),
                   ),
@@ -248,265 +239,268 @@ class _BossBattleScreenState extends State<BossBattleScreen>
   ) {
     final defeatCount = progress.getDefeatCount(boss.id);
 
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Transform.scale(scale: _pulseAnimation.value, child: child);
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: boss.elementColor, width: 3),
-        ),
-        child: Column(
-          children: [
-            // Boss header with tier badge
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: boss.elementColor.withOpacity(0.15),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(13),
-                  topRight: Radius.circular(13),
-                ),
-                border: Border(
-                  bottom: BorderSide(color: boss.elementColor, width: 2),
-                ),
+    // Removed AnimatedBuilder
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.surface,
+        borderRadius: BorderRadius.circular(16),
+        // Replaced thick border with a mystical glow shadow and a subtle border
+        border: Border.all(color: theme.border.withOpacity(0.5), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: boss.elementColor.withOpacity(0.25),
+            blurRadius: 20,
+            spreadRadius: -5,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Boss header with tier badge
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.surfaceAlt, // Cleaner background
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(15),
+                topRight: Radius.circular(15),
               ),
-              child: Row(
-                children: [
+              // Use subtle theme border
+              border: Border(bottom: BorderSide(color: theme.border, width: 1)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: boss.tier.color,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    boss.tier.label.toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (defeatCount > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
-                      vertical: 5,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: boss.tier.color,
+                      // Use a darker, less "cheesy" green
+                      color: Colors.green.shade700,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(
-                      boss.tier.label.toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.8,
-                      ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.check_circle,
+                          color: Colors.white,
+                          size: 12,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Defeated x$defeatCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const Spacer(),
-                  if (defeatCount > 0)
+              ],
+            ),
+          ),
+
+          // Boss illustration
+          Container(
+            height: 180,
+            width: double.infinity,
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              // Softer, more "mystical" gradient
+              gradient: RadialGradient(
+                colors: [
+                  boss.elementColor.withOpacity(0.15),
+                  boss.elementColor.withOpacity(0.0),
+                ],
+                radius: 0.8,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: theme.border, width: 1),
+            ),
+            child: Center(
+              child: Icon(boss.elementIcon, size: 80, color: boss.elementColor),
+            ),
+          ),
+
+          // Boss name and level
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: [
+                Text(
+                  boss.name,
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                        horizontal: 12,
+                        vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.green,
+                        color: boss.elementColor,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
                         children: [
-                          const Icon(
-                            Icons.check_circle,
-                            color: Colors.white,
-                            size: 12,
-                          ),
-                          const SizedBox(width: 4),
+                          Icon(boss.elementIcon, color: Colors.white, size: 12),
+                          const SizedBox(width: 6),
                           Text(
-                            'Defeated x$defeatCount',
+                            boss.element,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],
                       ),
                     ),
-                ],
-              ),
-            ),
-
-            // Boss illustration
-            Container(
-              height: 180,
-              width: double.infinity,
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [
-                    boss.elementColor.withOpacity(0.2),
-                    boss.elementColor.withOpacity(0.05),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        // Darker, less "cheesy" amber
+                        color: Colors.amber.shade700,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'Lv. ${boss.recommendedLevel}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.border, width: 2),
-              ),
-              child: Center(
-                child: Icon(
-                  boss.elementIcon,
-                  size: 80,
-                  color: boss.elementColor,
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Boss stats
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _BossStat(
+                    icon: Icons.favorite,
+                    label: 'HP',
+                    value: boss.hp.toString(),
+                    color: Colors.red.shade400,
+                    theme: theme,
+                  ),
                 ),
-              ),
-            ),
-
-            // Boss name and level
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  Text(
-                    boss.name,
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                    ),
-                    textAlign: TextAlign.center,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _BossStat(
+                    icon: Icons.flash_on,
+                    label: 'ATK',
+                    value: boss.atk.toString(),
+                    color: Colors.orange.shade400,
+                    theme: theme,
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: boss.elementColor,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              boss.elementIcon,
-                              color: Colors.white,
-                              size: 12,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              boss.element,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _BossStat(
+                    icon: Icons.shield,
+                    label: 'DEF',
+                    value: boss.def.toString(),
+                    color: Colors.blue.shade400,
+                    theme: theme,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _BossStat(
+                    icon: Icons.speed,
+                    label: 'SPD',
+                    value: boss.spd.toString(),
+                    color: Colors.cyan.shade400,
+                    theme: theme,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Moveset
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.auto_awesome, color: theme.text, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      'MOVESET',
+                      style: TextStyle(
+                        color: theme.text,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.amber,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'Lv. ${boss.recommendedLevel}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ...boss.moveset.map(
+                  (move) => _BossMoveCard(
+                    move: move,
+                    theme: theme,
+                    elementColor: boss.elementColor,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-
-            const SizedBox(height: 16),
-
-            // Boss stats
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _BossStat(
-                      icon: Icons.favorite,
-                      label: 'HP',
-                      value: boss.hp.toString(),
-                      color: Colors.red,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _BossStat(
-                      icon: Icons.flash_on,
-                      label: 'ATK',
-                      value: boss.atk.toString(),
-                      color: Colors.orange,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _BossStat(
-                      icon: Icons.shield,
-                      label: 'DEF',
-                      value: boss.def.toString(),
-                      color: Colors.blue,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _BossStat(
-                      icon: Icons.speed,
-                      label: 'SPD',
-                      value: boss.spd.toString(),
-                      color: Colors.cyan,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Moveset
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.auto_awesome, color: theme.text, size: 14),
-                      const SizedBox(width: 6),
-                      Text(
-                        'MOVESET',
-                        style: TextStyle(
-                          color: theme.text,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ...boss.moveset.map(
-                    (move) => _BossMoveCard(
-                      move: move,
-                      theme: theme,
-                      elementColor: boss.elementColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -534,14 +528,19 @@ class _BossBattleScreenState extends State<BossBattleScreen>
           decoration: BoxDecoration(
             color: theme.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.green, width: 2),
+            // Replaced bright green border with subtle theme border
+            border: Border.all(color: theme.border, width: 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(Icons.groups_rounded, color: Colors.green, size: 16),
+                  Icon(
+                    Icons.groups_rounded,
+                    color: Colors.green.shade600,
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'YOUR TEAM',
@@ -559,7 +558,8 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.green,
+                      // Darker, less "cheesy" green
+                      color: Colors.green.shade700,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -645,21 +645,23 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
-                side: BorderSide(color: Colors.blue, width: 2),
+                // Use theme.primary instead of hard-coded blue
+                side: BorderSide(color: theme.primary, width: 2),
               ),
               elevation: 0,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.group_add, size: 20),
+                Icon(Icons.group_add, size: 20, color: theme.primary),
                 const SizedBox(width: 8),
                 Text(
                   hasTeam ? 'Change Team' : 'Select Team',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
+                    color: theme.primary,
                   ),
                 ),
               ],
@@ -682,7 +684,9 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
-              elevation: hasTeam ? 4 : 0,
+              // Add a "mystical" glow shadow using the boss color
+              shadowColor: hasTeam ? boss.elementColor : Colors.transparent,
+              elevation: hasTeam ? 8 : 0,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -816,12 +820,14 @@ class _BossStat extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final FactionTheme theme; // Added theme
 
   const _BossStat({
     required this.icon,
     required this.label,
     required this.value,
     required this.color,
+    required this.theme, // Added theme
   });
 
   @override
@@ -829,9 +835,11 @@ class _BossStat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        // Use theme color for a cleaner, strategic look
+        color: theme.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color, width: 2),
+        // Use theme border
+        border: Border.all(color: theme.border, width: 1),
       ),
       child: Column(
         children: [
@@ -840,7 +848,8 @@ class _BossStat extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: color,
+              // Use theme text color
+              color: theme.textMuted,
               fontSize: 9,
               fontWeight: FontWeight.w700,
             ),
@@ -848,7 +857,8 @@ class _BossStat extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: color,
+              // Use theme text color
+              color: theme.text,
               fontSize: 13,
               fontWeight: FontWeight.w900,
             ),
@@ -919,20 +929,21 @@ class _BossMoveCard extends StatelessWidget {
     );
   }
 
+  // Updated with darker, more "mystical" or "strategic" colors
   Color _getMoveTypeColor() {
     switch (move.type) {
       case BossMoveType.singleTarget:
-        return Colors.orange;
+        return Colors.orange.shade800;
       case BossMoveType.aoe:
-        return Colors.red;
+        return Colors.red.shade800;
       case BossMoveType.buff:
-        return Colors.green;
+        return Colors.blue.shade700;
       case BossMoveType.debuff:
-        return Colors.purple;
+        return Colors.purple.shade700;
       case BossMoveType.heal:
-        return Colors.teal;
+        return Colors.green.shade700;
       case BossMoveType.special:
-        return Colors.amber;
+        return Colors.indigo.shade600;
     }
   }
 
@@ -968,12 +979,14 @@ class _EmptyPartySlot extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: theme.border,
-          width: 2,
+          // Thinner border
+          width: 1.5,
           style: BorderStyle.solid,
         ),
       ),
       child: Center(
-        child: Icon(Icons.add_circle_outline, color: theme.textMuted, size: 28),
+        // Simpler 'add' icon
+        child: Icon(Icons.add, color: theme.textMuted, size: 28),
       ),
     );
   }
@@ -997,7 +1010,8 @@ class _PartyMemberCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.surfaceAlt,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.border, width: 2),
+        // Thinner border
+        border: Border.all(color: theme.border, width: 1),
       ),
       child: Column(
         children: [
@@ -1025,7 +1039,8 @@ class _PartyMemberCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.amber,
+              // Darker, less "cheesy" amber
+              color: Colors.amber.shade700,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
@@ -1066,8 +1081,8 @@ class _BattleResultDialog extends StatelessWidget {
           color: theme.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: victory ? Colors.green : Colors.red,
-            width: 3,
+            color: victory ? Colors.green.shade600 : Colors.red.shade600,
+            width: 2,
           ),
         ),
         child: Column(
@@ -1075,7 +1090,7 @@ class _BattleResultDialog extends StatelessWidget {
           children: [
             Icon(
               victory ? Icons.emoji_events : Icons.close,
-              color: victory ? Colors.amber : Colors.red,
+              color: victory ? Colors.amber.shade600 : Colors.red.shade600,
               size: 64,
             ),
             const SizedBox(height: 16),
@@ -1106,7 +1121,9 @@ class _BattleResultDialog extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onContinue,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: victory ? Colors.green : Colors.red,
+                  backgroundColor: victory
+                      ? Colors.green.shade700
+                      : Colors.red.shade700,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -1146,9 +1163,9 @@ class _BossHistorySheet extends StatelessWidget {
           topRight: Radius.circular(24),
         ),
         border: Border(
-          top: BorderSide(color: theme.border, width: 2),
-          left: BorderSide(color: theme.border, width: 2),
-          right: BorderSide(color: theme.border, width: 2),
+          top: BorderSide(color: theme.border, width: 1),
+          left: BorderSide(color: theme.border, width: 1),
+          right: BorderSide(color: theme.border, width: 1),
         ),
       ),
       child: Column(
@@ -1246,12 +1263,13 @@ class _BossHistoryCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isCurrent
-              ? boss.elementColor.withOpacity(0.15)
+              ? boss.elementColor.withOpacity(0.1)
               : theme.surfaceAlt,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isCurrent ? boss.elementColor : theme.border,
-            width: 2,
+            // Make current border slightly thicker, others thinner
+            width: isCurrent ? 2 : 1,
           ),
         ),
         child: Row(
@@ -1261,11 +1279,12 @@ class _BossHistoryCard extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: defeated ? Colors.green : theme.surface,
+                // Use darker green
+                color: defeated ? Colors.green.shade700 : theme.surface,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: defeated ? Colors.green : theme.border,
-                  width: 2,
+                  color: defeated ? Colors.green.shade700 : theme.border,
+                  width: 1,
                 ),
               ),
               child: Center(
@@ -1342,7 +1361,8 @@ class _BossHistoryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.green,
+                  // Darker green
+                  color: Colors.green.shade700,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(

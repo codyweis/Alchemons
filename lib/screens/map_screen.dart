@@ -59,7 +59,6 @@ class _MapScreenState extends State<MapScreen> {
         child: Scaffold(
           backgroundColor: Colors.transparent,
           body: SafeArea(
-            bottom: false,
             child: Column(
               children: [
                 _HeaderBar(

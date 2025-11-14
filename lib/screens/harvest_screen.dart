@@ -93,7 +93,6 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
           ),
 
           SafeArea(
-            bottom: false,
             child: Column(
               children: [
                 _HeaderBar(

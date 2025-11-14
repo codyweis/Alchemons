@@ -73,20 +73,37 @@ class InventoryImageHelper {
 }
 
 class InventoryScreen extends StatefulWidget {
-  final Color accent;
-
-  const InventoryScreen({super.key, required this.accent});
+  const InventoryScreen({super.key});
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends State<InventoryScreen> {
-  int _selectedTab = 0; // 0 = Items, 1 = Vials
+class _InventoryScreenState extends State<InventoryScreen>
+    with SingleTickerProviderStateMixin {
+  // ADD: Mixin for TabController
+
+  // REMOVE: int _selectedTab = 0; // 0 = Items, 1 = Vials
+
+  // ADD: TabController
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize TabController with length 2 (for Vials and Items)
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
+    final theme = context.watch<FactionTheme>();
 
     return ParticleBackgroundScaffold(
       whiteBackground: theme.brightness == Brightness.light,
@@ -97,15 +114,71 @@ class _InventoryScreenState extends State<InventoryScreen> {
           child: Column(
             children: [
               _buildHeader(theme),
-              _buildTabSelector(theme),
+              // REPLACE: _buildTabSelector(theme),
+              _buildTabBar(theme), // NEW: TabBar for tabs
               Expanded(
-                child: _selectedTab == 0
-                    ? _buildVialsTab(theme)
-                    : _buildItemsTab(theme),
+                // REPLACE: Conditional content with TabBarView
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildVialsTab(theme), // Tab 1: Vials
+                    _buildItemsTab(theme), // Tab 2: Items
+                  ],
+                ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTabBar(FactionTheme theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: TabBar(
+        controller: _tabController,
+
+        indicatorPadding: EdgeInsets.zero,
+        labelPadding: EdgeInsets.zero,
+        indicatorSize: TabBarIndicatorSize.tab,
+
+        // Color for the SELECTED tab text
+        labelColor: theme.text,
+        // Color for the UNSELECTED tab text
+        unselectedLabelColor: theme.text.withOpacity(0.6),
+
+        tabs: const [
+          Tab(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Vials',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ),
+          Tab(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Items',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ),
+        ],
+        onTap: (index) {
+          HapticFeedback.selectionClick();
+        },
       ),
     );
   }
@@ -128,50 +201,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTabSelector(FactionTheme theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: widget.accent.withOpacity(0.4), width: 1),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: _TabButton(
-                  label: 'Vials',
-                  isActive: _selectedTab == 0,
-                  accent: widget.accent,
-                  onTap: () {
-                    setState(() => _selectedTab = 0);
-                    HapticFeedback.selectionClick();
-                  },
-                ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: _TabButton(
-                  label: 'Items',
-                  isActive: _selectedTab == 1,
-                  accent: widget.accent,
-                  onTap: () {
-                    setState(() => _selectedTab = 1);
-                    HapticFeedback.selectionClick();
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -213,7 +242,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               item: item,
               def: def,
               theme: theme,
-              accent: widget.accent,
+              accent: theme.accent,
               onTap: () => _showItemDetailsDialog(item, def, theme),
             );
           },
@@ -290,7 +319,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             return _CleanVialCard(
               vial: vial,
               theme: theme,
-              accent: widget.accent,
+              accent: theme.accent,
               onTap: () => _showVialDetailsDialog(vial, theme),
             );
           },
@@ -362,7 +391,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           decoration: BoxDecoration(
             color: theme.surface,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: widget.accent.withOpacity(0.5), width: 2),
+            border: Border.all(color: theme.accent.withOpacity(0.5), width: 2),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -371,7 +400,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: widget.accent,
+                  color: theme.accent,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(18),
                     topRight: Radius.circular(18),
@@ -408,9 +437,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 width: double.infinity,
                 margin: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: widget.accent.withOpacity(0.05),
+                  color: theme.accent.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: widget.accent.withOpacity(0.2)),
+                  border: Border.all(color: theme.accent.withOpacity(0.2)),
                 ),
                 child: Center(
                   // 2. Use the result from the helper function directly
@@ -442,9 +471,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: widget.accent.withOpacity(0.15),
+                  color: theme.accent.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: widget.accent.withOpacity(0.3)),
+                  border: Border.all(color: theme.accent.withOpacity(0.3)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -539,12 +568,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           _useItem(item, def);
                         },
                         style: TextButton.styleFrom(
-                          backgroundColor: widget.accent.withOpacity(0.2),
+                          backgroundColor: theme.accent.withOpacity(0.2),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                             side: BorderSide(
-                              color: widget.accent.withOpacity(0.5),
+                              color: theme.accent.withOpacity(0.5),
                               width: 1.5,
                             ),
                           ),
@@ -554,7 +583,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           children: [
                             Icon(
                               Icons.play_arrow_rounded,
-                              color: widget.accent,
+                              color: theme.accent,
                               size: 16,
                             ),
                             const SizedBox(width: 6),
@@ -592,7 +621,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           decoration: BoxDecoration(
             color: theme.surface,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: widget.accent.withOpacity(0.5), width: 2),
+            border: Border.all(color: theme.accent.withOpacity(0.5), width: 2),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -601,7 +630,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: widget.accent.withOpacity(0.1),
+                  color: theme.accent.withOpacity(0.1),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(18),
                     topRight: Radius.circular(18),
@@ -649,14 +678,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: widget.accent.withOpacity(0.15),
+                  color: theme.accent.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: widget.accent.withOpacity(0.3)),
+                  border: Border.all(color: theme.accent.withOpacity(0.3)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.science_rounded, color: widget.accent, size: 16),
+                    Icon(Icons.science_rounded, color: theme.accent, size: 16),
                     const SizedBox(width: 8),
                     Text(
                       'Available: x${vial.quantity}',
@@ -1080,7 +1109,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: widget.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
         ),
         title: Text(
           'Remove Item',
@@ -1162,7 +1191,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: widget.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
         ),
         title: Text(
           'Extract Vial?',
@@ -1179,7 +1208,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: widget.accent),
+            style: ElevatedButton.styleFrom(backgroundColor: theme.accent),
             child: const Text('Extract'),
           ),
         ],
@@ -1226,7 +1255,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: widget.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
         ),
         title: Text(
           'Remove Vial',
@@ -1430,56 +1459,6 @@ class _CleanVialCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ===== TAB BUTTON =====
-class _TabButton extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final Color accent;
-  final VoidCallback onTap;
-
-  const _TabButton({
-    required this.label,
-    required this.isActive,
-    required this.accent,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isActive ? accent.withOpacity(0.4) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isActive ? accent.withOpacity(0.6) : Colors.transparent,
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: isActive ? theme.text : theme.text.withOpacity(0.6),
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

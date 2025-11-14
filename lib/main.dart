@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
@@ -32,6 +33,14 @@ import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (details) {
+    FlutterError.dumpErrorToConsole(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    print('Caught error: $error');
+    print(stack);
+    return true; // prevent silent crash
+  };
 
   final db = constructDb();
 
@@ -76,9 +85,9 @@ class AlchemonsApp extends StatelessWidget {
             brightness: Brightness.dark,
           );
 
-          final textTheme = GoogleFonts.aBeeZeeTextTheme(
-            Theme.of(context).textTheme,
-          );
+          final textThemeFn = themeNotifier.currentTextThemeFn;
+          // Apply it
+          final textTheme = textThemeFn(Theme.of(context).textTheme);
 
           final lightThemeData = lightFactionTheme.toMaterialTheme(textTheme);
           final darkThemeData = darkFactionTheme.toMaterialTheme(textTheme);
@@ -90,7 +99,7 @@ class AlchemonsApp extends StatelessWidget {
             darkTheme: darkThemeData,
             navigatorObservers: [routeObserver],
             // >>> wrap HomeScreen so we can bootstrap spawns once
-            home: const AppGate(child: HomeScreen()),
+            home: const AppGate(child: MainShell()),
           );
         },
       ),

@@ -195,18 +195,18 @@ class _NurseryTabState extends State<NurseryTab> {
                   _buildSectionHeader(
                     'ACTIVE CULTIVATION',
                     Icons.science_rounded,
-                    primaryColor,
+                    theme.text,
                   ),
                   const SizedBox(height: 12),
                   _buildActiveGridWithPlaceholders(
                     activeSlots: activeSlots,
                     placeholders: unlockedEmptySlots.length,
-                    primaryColor: primaryColor,
+                    primaryColor: theme.text,
                     theme: theme,
                   ),
                   const SizedBox(height: 24),
                   StorageSection(
-                    primaryColor: primaryColor,
+                    primaryColor: theme.text,
                     buildSectionHeader: _buildSectionHeader,
                   ),
                 ],
@@ -310,7 +310,7 @@ class _NurseryTabState extends State<NurseryTab> {
         }
 
         return _PlaceholderTile(
-          primaryColor: primaryColor,
+          primaryColor: theme.text,
           onTap: widget.onRequestAddEgg,
         );
       },
@@ -1134,7 +1134,7 @@ class _PlaceholderTile extends StatelessWidget {
                   Text(
                     'Place specimen',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(.8),
+                      color: primaryColor,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: .2,

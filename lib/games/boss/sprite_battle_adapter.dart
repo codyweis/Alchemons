@@ -14,6 +14,8 @@ import 'package:flame/events.dart';
 import 'package:flutter/material.dart'
     show Colors, TextStyle, TextPaint, Paint, MaskFilter, BlurStyle, Curves;
 
+final _rng = math.Random();
+
 /// Enhanced CreatureBattleSprite that uses your actual CreatureSpriteComponent
 /// Replace the placeholder CircleComponent in battle_game.dart with this
 class CreatureBattleSpriteWithVisuals extends PositionComponent
@@ -75,8 +77,8 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       _addEffectComponent(alchemyEffect!);
     }
 
-    // Status icon container - above the creature visual
-    statusIconContainer = PositionComponent(position: Vector2(0, -60));
+    // Status icon container - above the creature visual (closer)
+    statusIconContainer = PositionComponent(position: Vector2(0, -45));
     add(statusIconContainer);
 
     // Selection indicator (behind creature)
@@ -145,125 +147,193 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       child.removeFromParent();
     }
 
-    int iconIndex = 0;
-    final iconSpacing = 32.0; // Spacing for the short text
-    final totalIcons =
-        combatant.statusEffects.length + combatant.statModifiers.length;
+    // Separate status effects and stat modifiers
+    final effects = combatant.statusEffects.values.toList();
+    final modifiers = combatant.statModifiers.values.toList();
 
-    for (final effect in combatant.statusEffects.values) {
-      final icon = _createStatusText(effect.type);
-      icon.position = Vector2(
-        (iconIndex - totalIcons / 2 + 0.5) * iconSpacing,
-        0,
-      );
-      statusIconContainer.add(icon);
-      iconIndex++;
+    if (effects.isEmpty && modifiers.isEmpty) return;
+
+    const double iconWidth = 38.0;
+    const double rowSpacing = 18.0;
+
+    // Create effects row
+    if (effects.isNotEmpty) {
+      final effectsRow = PositionComponent(position: Vector2(0, 0));
+
+      for (int i = 0; i < effects.length; i++) {
+        final icon = _createStatusIcon(effects[i].type);
+        icon.position = Vector2(
+          (i - effects.length / 2 + 0.5) * (iconWidth + 2),
+          0,
+        );
+        effectsRow.add(icon);
+      }
+
+      statusIconContainer.add(effectsRow);
     }
 
-    for (final modifier in combatant.statModifiers.values) {
-      final icon = _createStatModifierText(modifier.type);
-      icon.position = Vector2(
-        (iconIndex - totalIcons / 2 + 0.5) * iconSpacing,
-        0,
+    // Create modifiers row
+    if (modifiers.isNotEmpty) {
+      final modifiersRow = PositionComponent(
+        position: Vector2(0, effects.isEmpty ? 0 : rowSpacing),
       );
-      statusIconContainer.add(icon);
-      iconIndex++;
+
+      for (int i = 0; i < modifiers.length; i++) {
+        final icon = _createStatModifierIcon(modifiers[i].type);
+        icon.position = Vector2(
+          (i - modifiers.length / 2 + 0.5) * (iconWidth + 2),
+          0,
+        );
+        modifiersRow.add(icon);
+      }
+
+      statusIconContainer.add(modifiersRow);
     }
   }
 
-  // ... (rest of helper methods like _createStatusText, _createStatModifierText, etc. remain unchanged)
-  // ... (rest of interaction methods like onTapDown, playDeathAnimation, etc. remain unchanged)
-
-  TextComponent _createStatusText(String statusType) {
-    Color color;
+  PositionComponent _createStatusIcon(String statusType) {
+    Color bgColor;
+    Color textColor;
     String text;
+
     switch (statusType) {
       case 'burn':
-        color = Colors.orange;
+        bgColor = Colors.orange.withOpacity(0.85);
+        textColor = Colors.white;
         text = 'BRN';
         break;
       case 'poison':
-        color = Colors.purple;
+        bgColor = Colors.purple.withOpacity(0.85);
+        textColor = Colors.white;
         text = 'PSN';
         break;
       case 'freeze':
-        color = Colors.cyan;
+        bgColor = Colors.cyan.withOpacity(0.85);
+        textColor = Colors.black;
         text = 'FRZ';
         break;
       case 'curse':
-        color = Colors.purple.shade900;
+        bgColor = Colors.purple.shade900.withOpacity(0.85);
+        textColor = Colors.white;
         text = 'CRS';
         break;
       case 'regen':
-        color = Colors.green;
+        bgColor = Colors.green.withOpacity(0.85);
+        textColor = Colors.white;
         text = 'REG';
         break;
       default:
-        color = Colors.grey;
+        bgColor = Colors.grey.withOpacity(0.85);
+        textColor = Colors.white;
         text = '???';
     }
-    return TextComponent(
-      text: text,
+
+    final container = PositionComponent(
+      size: Vector2(36, 14),
       anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: color,
-          fontSize: 10, // Smaller for creature
-          fontWeight: FontWeight.bold,
-          shadows: [
-            Shadow(blurRadius: 2, color: Colors.black.withOpacity(0.8)),
-          ],
+    );
+
+    // Background pill
+    final bg = RectangleComponent(
+      size: Vector2(36, 14),
+      paint: Paint()..color = bgColor,
+      anchor: Anchor.center,
+    )..position = Vector2(18, 7);
+
+    container.add(bg);
+
+    // Text
+    container.add(
+      TextComponent(
+        text: text,
+        anchor: Anchor.center,
+        position: Vector2(18, 7),
+        textRenderer: TextPaint(
+          style: TextStyle(
+            color: textColor,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
+
+    return container;
   }
 
-  TextComponent _createStatModifierText(String modifierType) {
-    Color color;
+  PositionComponent _createStatModifierIcon(String modifierType) {
+    Color bgColor;
+    Color textColor;
     String text;
+
     switch (modifierType) {
       case 'attack_up':
-        color = Colors.red;
-        text = 'ATK⬆';
+        bgColor = Colors.red.withOpacity(0.85);
+        textColor = Colors.white;
+        text = 'ATK↑';
         break;
       case 'attack_down':
-        color = Colors.red.shade300;
-        text = 'ATK⬇';
+        bgColor = Colors.red.shade300.withOpacity(0.85);
+        textColor = Colors.white;
+        text = 'ATK↓';
         break;
       case 'defense_up':
-        color = Colors.blue;
-        text = 'DEF⬆';
+        bgColor = Colors.blue.withOpacity(0.85);
+        textColor = Colors.white;
+        text = 'DEF↑';
         break;
       case 'defense_down':
-        color = Colors.blue.shade300;
-        text = 'DEF⬇';
+        bgColor = Colors.blue.shade300.withOpacity(0.85);
+        textColor = Colors.white;
+        text = 'DEF↓';
         break;
       case 'speed_up':
-        color = Colors.yellow;
-        text = 'SPD⬆';
+        bgColor = Colors.yellow.withOpacity(0.85);
+        textColor = Colors.black;
+        text = 'SPD↑';
         break;
       case 'speed_down':
-        color = Colors.yellow.shade700;
-        text = 'SPD⬇';
+        bgColor = Colors.yellow.shade700.withOpacity(0.85);
+        textColor = Colors.white;
+        text = 'SPD↓';
         break;
       default:
-        color = Colors.grey;
+        bgColor = Colors.grey.withOpacity(0.85);
+        textColor = Colors.white;
         text = '???';
     }
-    return TextComponent(
-      text: text,
+
+    final container = PositionComponent(
+      size: Vector2(36, 14),
       anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: color,
-          fontSize: 10, // Smaller for creature
-          fontWeight: FontWeight.bold,
-          shadows: [
-            Shadow(blurRadius: 2, color: Colors.black.withOpacity(0.8)),
-          ],
+    );
+
+    // Background pill
+    final bg = RectangleComponent(
+      size: Vector2(36, 14),
+      paint: Paint()..color = bgColor,
+      anchor: Anchor.center,
+    )..position = Vector2(18, 7);
+
+    container.add(bg);
+
+    // Text
+    container.add(
+      TextComponent(
+        text: text,
+        anchor: Anchor.center,
+        position: Vector2(18, 7),
+        textRenderer: TextPaint(
+          style: TextStyle(
+            color: textColor,
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
+
+    return container;
   }
 
   @override
@@ -274,16 +344,10 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
   }
 
   void playDeathAnimation() {
-    // Make sure we can't select it anymore
+    // Mark as unselectable immediately
     setSelectionIndicator(false);
 
-    // Also fade out all the UI elements (status icons, selection indicator)
-    // We apply the opacity to the main component so everything moves/fades together.
-
-    // --- START SINKING IMPLEMENTATION ---
-
     // Calculate the target Y position to be completely off-screen
-    // gameRef.size.y is the absolute bottom of the screen.
     final offScreenY = gameRef.size.y + size.y;
 
     const double duration = 1.5;
@@ -291,13 +355,12 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     // 1. Sink the creature down off the screen
     add(
       MoveEffect.to(
-        // Keep the current X, move to the bottom edge.
         Vector2(position.x, offScreenY),
         EffectController(duration: duration, curve: Curves.easeIn),
       ),
     );
 
-    // 3. Optional: Add a subtle rotation for that satisfying "defeated" tumble
+    // 2. Add a subtle rotation for that satisfying "defeated" tumble
     add(
       RotateEffect.by(
         math.pi / 4, // Rotate by 45 degrees
@@ -305,13 +368,14 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       ),
     );
 
-    // 4. Remove the component (and all its children) completely after the animation
+    // 3. Remove the component (and all its children) completely after the animation
     add(RemoveEffect(delay: duration + 0.1));
-
-    // --- END SINKING IMPLEMENTATION ---
   }
 
   Future<void> playAttackAnimation(BattleMove move, BossSprite target) async {
+    // Safety check: don't attack if we're dead or dying
+    if (combatant.isDead) return;
+
     final originalPos = position.clone();
     final isPhysical = move.type == MoveType.physical;
 
@@ -349,6 +413,9 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
   }
 
   void showDamage(int damage, double typeMultiplier) {
+    // Safety check: don't show damage if we're already dead
+    if (combatant.isDead) return;
+
     final color = typeMultiplier > 1.0
         ? Colors.orange
         : typeMultiplier < 1.0
@@ -391,7 +458,13 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       ]),
     );
 
-    gameRef.shakeCamera(intensity: 8); // Add camera shake on hit
+    // Shake the creature when hit
+    add(
+      MoveEffect.by(
+        Vector2(_rng.nextDouble() * 16 - 8, _rng.nextDouble() * 16 - 8),
+        EffectController(duration: 0.05, reverseDuration: 0.05, repeatCount: 3),
+      ),
+    );
   }
 
   void setSelectionIndicator(bool selected) {
@@ -411,6 +484,35 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
         Vector2.all(selected ? 1.1 : 1.0),
         EffectController(duration: 0.15, curve: Curves.easeOut),
       ),
+    );
+  }
+
+  void playSpawnAnimation() {
+    // Start from below the screen and scale from small
+    final startY = position.y + 100;
+    position.y = startY;
+    scale = Vector2.all(0.0);
+
+    // Move up with bounce
+    add(
+      MoveEffect.by(
+        Vector2(0, -100),
+        EffectController(duration: 0.5, curve: Curves.easeOut),
+      ),
+    );
+
+    // Scale up with overshoot then settle
+    add(
+      SequenceEffect([
+        ScaleEffect.to(
+          Vector2.all(1.2),
+          EffectController(duration: 0.3, curve: Curves.easeOut),
+        ),
+        ScaleEffect.to(
+          Vector2.all(1.0),
+          EffectController(duration: 0.2, curve: Curves.easeIn),
+        ),
+      ]),
     );
   }
 }

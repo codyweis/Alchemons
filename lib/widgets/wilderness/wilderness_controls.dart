@@ -152,10 +152,7 @@ class WildernessControls extends StatelessWidget {
                               n.disallowIndicator();
                               return false;
                             },
-                            child: const InventoryScreen(
-                              // match your Inventory FAB gold for cohesion
-                              accent: Color.fromARGB(255, 133, 115, 59),
-                            ),
+                            child: const InventoryScreen(),
                           ),
                     ),
                   ],

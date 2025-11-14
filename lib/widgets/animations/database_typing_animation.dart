@@ -137,35 +137,73 @@ class _TypingTextAnimationState extends State<TypingTextAnimation> {
   String _displayedText = '';
   int _currentIndex = 0;
 
+  int _runId = 0; // cancels older loops
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.startTyping) {
+      _startTyping();
+    }
+  }
+
   @override
   void didUpdateWidget(TypingTextAnimation oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.startTyping && !oldWidget.startTyping) {
+
+    // Restart when startTyping flips to true or text changes
+    final shouldStart =
+        (widget.startTyping && !oldWidget.startTyping) ||
+        (widget.text != oldWidget.text && widget.startTyping);
+
+    if (shouldStart) {
       _startTyping();
     }
   }
 
   void _startTyping() async {
+    final int runId = ++_runId; // mark this loop instance
+
     _currentIndex = 0;
     _displayedText = '';
 
-    while (_currentIndex < widget.text.length) {
-      if (mounted) {
-        setState(() {
-          _displayedText = widget.text.substring(0, _currentIndex + 1);
-          _currentIndex++;
-        });
-        await Future.delayed(widget.typingSpeed);
-      }
+    if (!mounted) return;
+
+    setState(() {
+      _displayedText = '';
+    });
+
+    // Loop while:
+    // - still mounted
+    // - this is the latest run
+    // - we have more characters
+    while (mounted && runId == _runId && _currentIndex < widget.text.length) {
+      setState(() {
+        _currentIndex++;
+        _displayedText = widget.text.substring(0, _currentIndex);
+      });
+
+      // Yield back to event loop each step
+      await Future.delayed(widget.typingSpeed);
     }
   }
 
   @override
+  void dispose() {
+    _runId++; // cancel any running loop
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDone = _currentIndex >= widget.text.length;
+
     return Row(
       children: [
         Expanded(child: Text(_displayedText, style: widget.style)),
-        if (_currentIndex < widget.text.length)
+        if (!isDone)
+          // This still won't actually blink without something driving rebuilds,
+          // but I'm leaving your structure; you can hook this to an AnimationController later.
           Container(
             width: 2,
             height: 16,

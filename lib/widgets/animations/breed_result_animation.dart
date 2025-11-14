@@ -48,6 +48,8 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
   late final Animation<double> _creatureOpacity;
   late final Animation<double> _discoveryFlash;
 
+  late final Listenable _allAnimations;
+
   Timer? _flashDelay;
 
   // Guards
@@ -61,8 +63,14 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
   /// It atomically marks the completion as handled so any queued internal
   /// completion will be ignored.
   void takeAction() {
+    if (!mounted) return; // extra safety
     _externalHandled = true;
     _completionQueued = false; // ignore any queued internal callback
+  }
+
+  void restart() {
+    if (!mounted) return; // prevent use after dispose
+    _startScanning();
   }
 
   @override
@@ -111,6 +119,13 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
       TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.0), weight: 25),
       TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.0), weight: 25),
     ]).animate(_discoveryController);
+
+    // merged listenable (built once)
+    _allAnimations = Listenable.merge([
+      _scanController,
+      _gridController,
+      _discoveryController,
+    ]);
 
     // ---- Chain (no awaits) ----
     _scanController.addStatusListener(_onScanStatus);
@@ -165,7 +180,7 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
   }
 
   void _startScanning() {
-    // Reset all flags and controllers
+    if (!mounted) return; // defensive: don't drive controllers after dispose
     _flashDelay?.cancel();
     _completionQueued = false;
     _externalHandled = false;
@@ -175,13 +190,9 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
     _scanController.value = 0;
     _discoveryController.value = 0;
 
-    // Drive (no await)
     _gridController.forward(from: 0);
     _scanController.forward(from: 0);
   }
-
-  /// Optional manual restart through GlobalKey.
-  void restart() => _startScanning();
 
   @override
   void dispose() {
@@ -202,15 +213,12 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([
-        _scanController,
-        _gridController,
-        _discoveryController,
-      ]),
-      builder: (context, _) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
+    // LayoutBuilder outside the AnimatedBuilder so it doesn't rebuild every tick.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return AnimatedBuilder(
+          animation: _allAnimations,
+          builder: (context, _) {
             return Stack(
               clipBehavior: Clip.none,
               children: [
@@ -231,7 +239,9 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
                   Positioned.fill(
                     child: Opacity(
                       opacity: _gridOpacity.value,
-                      child: CustomPaint(painter: HolographicGridPainter()),
+                      child: const CustomPaint(
+                        painter: HolographicGridPainter(),
+                      ),
                     ),
                   ),
 
@@ -263,7 +273,7 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
                   Positioned.fill(
                     child: CustomPaint(
                       painter: ScanningBracketsPainter(
-                        progress: _scanController.value,
+                        progress: _scanController,
                       ),
                     ),
                   ),
@@ -338,6 +348,8 @@ class CreatureScanAnimationState extends State<CreatureScanAnimation>
 // === Painters ===
 
 class HolographicGridPainter extends CustomPainter {
+  const HolographicGridPainter();
+
   @override
   void paint(Canvas canvas, Size size) {
     final grid = Paint()
@@ -365,43 +377,43 @@ class HolographicGridPainter extends CustomPainter {
 }
 
 class ScanningBracketsPainter extends CustomPainter {
-  final double progress;
-  const ScanningBracketsPainter({required this.progress});
+  final Animation<double> progress;
+
+  ScanningBracketsPainter({required this.progress}) : super(repaint: progress);
+
+  final Paint _p = Paint()
+    ..color = Colors.cyan.shade400.withOpacity(0.8)
+    ..strokeWidth = 3
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()
-      ..color = Colors.cyan.shade400.withOpacity(0.8)
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
     const maxLen = 20.0;
-    final len = maxLen * progress;
+    final len = maxLen * progress.value;
 
     // TL
-    canvas.drawLine(Offset(0, len), const Offset(0, 0), p);
-    canvas.drawLine(const Offset(0, 0), Offset(len, 0), p);
+    canvas.drawLine(Offset(0, len), const Offset(0, 0), _p);
+    canvas.drawLine(const Offset(0, 0), Offset(len, 0), _p);
     // TR
-    canvas.drawLine(Offset(size.width - len, 0), Offset(size.width, 0), p);
-    canvas.drawLine(Offset(size.width, 0), Offset(size.width, len), p);
+    canvas.drawLine(Offset(size.width - len, 0), Offset(size.width, 0), _p);
+    canvas.drawLine(Offset(size.width, 0), Offset(size.width, len), _p);
     // BL
-    canvas.drawLine(Offset(0, size.height - len), Offset(0, size.height), p);
-    canvas.drawLine(Offset(0, size.height), Offset(len, size.height), p);
+    canvas.drawLine(Offset(0, size.height - len), Offset(0, size.height), _p);
+    canvas.drawLine(Offset(0, size.height), Offset(len, size.height), _p);
     // BR
     canvas.drawLine(
       Offset(size.width - len, size.height),
       Offset(size.width, size.height),
-      p,
+      _p,
     );
     canvas.drawLine(
       Offset(size.width, size.height),
       Offset(size.width, size.height - len),
-      p,
+      _p,
     );
   }
 
   @override
-  bool shouldRepaint(covariant ScanningBracketsPainter oldDelegate) =>
-      oldDelegate.progress != progress;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

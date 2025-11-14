@@ -71,53 +71,58 @@ class _BreedScreenState extends State<BreedScreen>
 
   @override
   Widget build(BuildContext context) {
-    return withGameData(
-      context,
-      loadingBuilder: buildLoadingScreen,
-      builder:
-          (
-            context, {
-            required theme,
-            required catalog,
-            required entries,
-            required discovered,
-          }) {
-            final hasHatchedCreature = discovered.isNotEmpty;
-            final isLocked = !hasHatchedCreature;
+    return SafeArea(
+      top: false,
+      child: withGameData(
+        context,
+        loadingBuilder: buildLoadingScreen,
+        builder:
+            (
+              context, {
+              required theme,
+              required catalog,
+              required entries,
+              required discovered,
+            }) {
+              final hasHatchedCreature = discovered.isNotEmpty;
+              final isLocked = !hasHatchedCreature;
 
-            return ParticleBackgroundScaffold(
-              whiteBackground: theme.brightness == Brightness.light,
-              body: Scaffold(
-                backgroundColor: Colors.transparent,
-                appBar: AppBar(
-                  title: IgnorePointer(
-                    ignoring: isLocked,
-                    child: TabBar(
-                      controller: _tabController,
-                      tabs: const [
-                        Tab(text: 'Cultivations'),
-                        Tab(text: 'Fusion'),
-                      ],
+              return ParticleBackgroundScaffold(
+                whiteBackground: theme.brightness == Brightness.light,
+                body: Scaffold(
+                  backgroundColor: Colors.transparent,
+                  appBar: AppBar(
+                    title: IgnorePointer(
+                      ignoring: isLocked,
+                      child: TabBar(
+                        labelColor: theme.text,
+                        unselectedLabelColor: theme.textMuted,
+                        controller: _tabController,
+                        tabs: const [
+                          Tab(text: 'Cultivations'),
+                          Tab(text: 'Fusion'),
+                        ],
+                      ),
                     ),
                   ),
+                  body: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      NurseryTab(
+                        maxSeenNowUtc: DateTime.now().toUtc(),
+                        onHatchComplete: _handleExtractionComplete,
+                        onRequestAddEgg: () => _tabController.animateTo(1),
+                      ),
+                      BreedingTab(
+                        discoveredCreatures: entries,
+                        onBreedingComplete: _noop,
+                      ),
+                    ],
+                  ),
                 ),
-                body: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    NurseryTab(
-                      maxSeenNowUtc: DateTime.now().toUtc(),
-                      onHatchComplete: _handleExtractionComplete,
-                      onRequestAddEgg: () => _tabController.animateTo(1),
-                    ),
-                    BreedingTab(
-                      discoveredCreatures: entries,
-                      onBreedingComplete: _noop,
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+              );
+            },
+      ),
     );
   }
 }
