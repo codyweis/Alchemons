@@ -27,7 +27,7 @@ class CreatureScanAnimation extends StatefulWidget {
     required this.child,
     this.isNewDiscovery = false,
     this.onScanComplete,
-    this.scanDuration = const Duration(milliseconds: 1200),
+    this.scanDuration = const Duration(milliseconds: 1000),
     this.blockTouchesWhileAnimating = false,
     this.onReadyChanged,
     this.autoComplete = false, // <- default to manual, safer for CTA flows

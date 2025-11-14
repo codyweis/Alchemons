@@ -648,13 +648,31 @@ class _OverviewScrollArea extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
-            child: _CreatureCarousel(
-              theme: theme,
-              entries: entries,
-              pageController: pageController,
-              currentIndex: currentImageIndex,
-              onChanged: onPageChanged,
-              instance: instance,
+            child: Container(
+              height: 160,
+              width: 160,
+              padding: const EdgeInsets.all(12),
+              child: instance == null
+                  ? CreatureSprite(
+                      spritePath: creature.spriteData!.spriteSheetPath,
+                      totalFrames: creature.spriteData!.totalFrames,
+                      rows: creature.spriteData!.rows,
+                      frameSize: Vector2(
+                        creature.spriteData!.frameWidth.toDouble(),
+                        creature.spriteData!.frameHeight.toDouble(),
+                      ),
+                      stepTime: (creature.spriteData!.frameDurationMs / 1000.0),
+                      scale: scaleFromGenes(creature.genetics),
+                      saturation: satFromGenes(creature.genetics),
+                      brightness: briFromGenes(creature.genetics),
+                      hueShift: hueFromGenes(creature.genetics),
+                      isPrismatic: creature.isPrismaticSkin,
+                    )
+                  : InstanceSprite(
+                      creature: creature,
+                      instance: instance!,
+                      size: 150,
+                    ),
             ),
           ),
           const SizedBox(height: 20),
@@ -977,102 +995,6 @@ class _AnalysisScrollArea extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-
-  String _formatBreedLine(Parentage p) {
-    final dt = p.bredAt;
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
-  }
-}
-
-// ============================================================================
-// SMALL BUILDING BLOCKS / SUBWIDGETS
-// ============================================================================
-
-class _CreatureCarousel extends StatelessWidget {
-  final FactionTheme theme;
-  final PageController pageController;
-  final int currentIndex;
-  final List<Creature> entries;
-  final ValueChanged<int> onChanged;
-  final CreatureInstance? instance; // << NEW
-
-  const _CreatureCarousel({
-    required this.theme,
-    required this.pageController,
-    required this.currentIndex,
-    required this.entries,
-    required this.onChanged,
-    this.instance,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SizedBox(
-          height: 160,
-          width: 160,
-          child: PageView.builder(
-            controller: pageController,
-            itemCount: entries.length,
-            onPageChanged: onChanged,
-            itemBuilder: (_, i) {
-              final creature = entries[i];
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: instance == null
-                      ? CreatureSprite(
-                          spritePath: creature.spriteData!.spriteSheetPath,
-                          totalFrames: creature.spriteData!.totalFrames,
-                          rows: creature.spriteData!.rows,
-                          frameSize: Vector2(
-                            creature.spriteData!.frameWidth.toDouble(),
-                            creature.spriteData!.frameHeight.toDouble(),
-                          ),
-                          stepTime:
-                              (creature.spriteData!.frameDurationMs / 1000.0),
-                          scale: scaleFromGenes(creature.genetics),
-                          saturation: satFromGenes(creature.genetics),
-                          brightness: briFromGenes(creature.genetics),
-                          hueShift: hueFromGenes(creature.genetics),
-                          isPrismatic: creature.isPrismaticSkin,
-                        )
-                      : InstanceSprite(
-                          creature: creature,
-                          instance: instance!, // **always use instance sprite**
-                          size: 72,
-                        ),
-                ),
-              );
-            },
-          ),
-        ),
-        if (entries.length > 1) ...[
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              entries.length,
-              (i) => Container(
-                width: 6,
-                height: 6,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: currentIndex == i
-                      ? theme.primary
-                      : Colors.white.withOpacity(.3),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ],
     );
   }
 }

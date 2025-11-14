@@ -1,5 +1,8 @@
 // lib/services/shop_service.dart
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -44,6 +47,34 @@ class ShopService extends ChangeNotifier {
     _loadInventoryCache();
   }
 
+  static Widget? getAlchemyEffectPreview(
+    String inventoryKey, {
+    double size = 32.0,
+  }) {
+    switch (inventoryKey) {
+      case InvKeys.alchemyGlow:
+        return AlchemyGlow(size: size / 2);
+
+      case InvKeys.alchemyElementalAura:
+        return SizedBox.square(
+          dimension: size,
+          child: ElementalAura(
+            size: size,
+            element: 'Volcanic', // or whatever element you want as default
+          ),
+        );
+
+      case InvKeys.alchemyVolcanicAura:
+        return SizedBox.square(
+          dimension: size,
+          child: VolcanicAura(size: size),
+        );
+
+      default:
+        return null;
+    }
+  }
+
   // ==== Config for exchange & quantity ====
   static const int kSilverPerGold = 100; // informational
   static const double kFeePct = 0.05; // informational
@@ -78,6 +109,19 @@ class ShopService extends ChangeNotifier {
 
   // ==== Offers (existing + new) ====
   static final List<ShopOffer> allOffers = [
+    ShopOffer(
+      id: 'boost.instant_stamina_potion',
+      name: 'Stamina Elixir',
+      description: 'Fully restores an Alchemon\'s stamina.',
+      icon: Icons.local_drink_rounded,
+      cost: const {'silver': 3000}, // tweak cost as desired
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.staminaPotion,
+      assetName:
+          'assets/images/ui/instantstaminaicon.png', // optional, if you add one
+    ),
     // --- NEW: Devices (standard per element) ---
     ShopOffer(
       id: 'device.harvest.std.volcanic',
@@ -159,9 +203,9 @@ class ShopService extends ChangeNotifier {
       id: 'boost.instant_hatch',
       name: 'Instant Fusion Extractor',
       description: 'Complete one active fusion vial instantly.',
-      assetName: 'assets/images/ui/instanthatchicon.png',
+      assetName: 'assets/images/ui/instantbreedicon.png',
       icon: Icons.access_alarms,
-      cost: const {'gold': 30},
+      cost: const {'silver': 5000},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -245,6 +289,44 @@ class ShopService extends ChangeNotifier {
       rewardType: 'boost',
       limit: PurchaseLimit.daily,
       assetName: 'assets/images/ui/factionorb.png',
+    ),
+
+    // Alchemy Effects Section
+    ShopOffer(
+      id: 'effects.alchemy_glow',
+      name: 'Alchemical Resonance',
+      description: 'Ethereal glow effect for your Alchemon.',
+      icon: Icons.auto_awesome_rounded,
+      cost: const {'silver': 10000},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyGlow,
+      assetName: 'assets/images/ui/alchemyglow.png', // You'll need to add this
+    ),
+    ShopOffer(
+      id: 'effects.elemental_aura',
+      name: 'Elemental Aura',
+      description: 'Orbiting particles matching your Alchemon\'s element.',
+      icon: Icons.bubble_chart_rounded,
+      cost: const {'silver': 10000},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyElementalAura,
+      assetName: 'assets/images/ui/elementalaura.png',
+    ),
+    ShopOffer(
+      id: 'effects.volcanic_aura',
+      name: 'Volcanic Aura',
+      description: 'Fiery aura effect for your Alchemon.',
+      icon: Icons.local_fire_department_rounded,
+      cost: const {'gold': 10},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyVolcanicAura,
+      assetName: 'assets/images/ui/volcanicaura.png',
     ),
   ];
 
@@ -528,6 +610,17 @@ class ShopService extends ChangeNotifier {
         await _db.settingsDao.setMustPickFaction(true);
         return true;
 
+      case 'effects.alchemy_glow':
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyGlow, qty);
+        return true;
+
+      case 'effects.elemental_aura':
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyElementalAura, qty);
+        return true;
+      case 'effects.volcanic_aura':
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyVolcanicAura, qty);
+        return true;
+
       case 'unlock.fusion_slot.1':
       case 'unlock.fusion_slot.2':
       case 'unlock.fusion_slot.3':
@@ -543,9 +636,20 @@ class ShopService extends ChangeNotifier {
       case 'fx.gold_to_silver.unit':
         return true;
 
+      case 'boost.instant_stamina_potion':
+        await _db.inventoryDao.addItemQty(InvKeys.staminaPotion, qty);
+        return true;
+
       default:
         return false;
     }
+  }
+
+  Future<void> applyAlchemyEffect(String instanceId, String effect) async {
+    await _db.creatureDao.updateAlchemyEffect(
+      instanceId: instanceId,
+      effect: effect,
+    );
   }
 
   // Track current inventory for inventory-able offers

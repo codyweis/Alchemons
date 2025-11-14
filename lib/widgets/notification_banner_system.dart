@@ -77,6 +77,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
   late AnimationController _expandController;
   late AnimationController _shimmerController;
   late AnimationController _pulseController;
+  late AnimationController _springController; // New controller for spring-back
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
 
@@ -102,6 +103,12 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
       vsync: this,
       duration: const Duration(milliseconds: 300),
       value: widget.isExpanded ? 1.0 : 0.0,
+    );
+
+    // Spring-back controller (separate from slide-in)
+    _springController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
     );
 
     // Shimmer effect - slower for better performance
@@ -179,6 +186,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
 
   void _handleDragStart(DragStartDetails details) {
     if (!widget.isExpanded) return;
+
     setState(() {
       _isDragging = true;
     });
@@ -187,6 +195,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
 
   void _handleDragUpdate(DragUpdateDetails details) {
     if (!widget.isExpanded) return;
+
     setState(() {
       // Only allow dragging to the right (minimize direction)
       _dragOffset = math.max(0, _dragOffset + details.delta.dx);
@@ -197,83 +206,109 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
     if (!widget.isExpanded) return;
 
     const minimizeThreshold = 80.0;
+    final shouldMinimize = _dragOffset > minimizeThreshold;
 
     setState(() {
       _isDragging = false;
     });
 
-    if (_dragOffset > minimizeThreshold) {
-      // Trigger minimize - animate the drag offset to off-screen first
+    if (shouldMinimize) {
+      // Trigger minimize with smooth animation
       HapticFeedback.lightImpact();
-
-      // Smoothly animate out before collapsing
-      final animation =
-          Tween<double>(
-            begin: _dragOffset,
-            end: 300.0, // Slide further off screen
-          ).animate(
-            CurvedAnimation(
-              parent: _expandController,
-              curve: Curves.easeOutCubic,
-            ),
-          );
-
-      final listener = () {
-        if (mounted) {
-          setState(() {
-            _dragOffset = animation.value;
-          });
-        }
-      };
-
-      animation.addListener(listener);
-
-      // Animate out then collapse
-      _expandController.reverse(from: 1.0).then((_) {
-        animation.removeListener(listener);
-        if (mounted) {
-          setState(() {
-            _dragOffset = 0.0;
-          });
-          widget.onExpand?.call();
-        }
-      });
+      _animateMinimize();
     } else {
-      // Spring back with animation
+      // Spring back with elastic animation
       HapticFeedback.selectionClick();
+      _animateSpringBack();
+    }
+  }
 
-      if (_dragOffset > 0) {
-        final animation = Tween<double>(begin: _dragOffset, end: 0.0).animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.elasticOut),
+  void _animateMinimize() {
+    // Animate both the drag offset AND the expand controller together
+    final dragAnimation =
+        Tween<double>(
+          begin: _dragOffset,
+          end: 300.0, // Slide off screen
+        ).animate(
+          CurvedAnimation(
+            parent: _springController,
+            curve: Curves.easeOutCubic,
+          ),
         );
 
-        final listener = () {
-          if (mounted) {
-            setState(() {
-              _dragOffset = animation.value;
-            });
-          }
-        };
+    final collapseAnimation =
+        Tween<double>(begin: _expandController.value, end: 0.0).animate(
+          CurvedAnimation(
+            parent: _springController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
 
-        animation.addListener(listener);
-
-        _slideController.forward(from: 0.0).then((_) {
-          animation.removeListener(listener);
-          if (mounted) {
-            setState(() {
-              _dragOffset = 0.0;
-            });
-          }
-          _slideController.value = 1.0; // Reset to ready state
+    void dragListener() {
+      if (mounted) {
+        setState(() {
+          _dragOffset = dragAnimation.value;
         });
       }
     }
+
+    void collapseListener() {
+      if (mounted) {
+        _expandController.value = collapseAnimation.value;
+      }
+    }
+
+    dragAnimation.addListener(dragListener);
+    collapseAnimation.addListener(collapseListener);
+
+    _springController.forward(from: 0.0).then((_) {
+      dragAnimation.removeListener(dragListener);
+      collapseAnimation.removeListener(collapseListener);
+      if (mounted) {
+        setState(() {
+          _dragOffset = 0.0;
+        });
+        _springController.value = 0.0;
+
+        // Now notify parent that we're collapsed
+        widget.onExpand?.call();
+      }
+    });
+  }
+
+  void _animateSpringBack() {
+    if (_dragOffset == 0) return;
+
+    final animation = Tween<double>(begin: _dragOffset, end: 0.0).animate(
+      CurvedAnimation(parent: _springController, curve: Curves.elasticOut),
+    );
+
+    void listener() {
+      if (mounted) {
+        setState(() {
+          _dragOffset = animation.value;
+        });
+      }
+    }
+
+    animation.addListener(listener);
+
+    _springController.forward(from: 0.0).then((_) {
+      animation.removeListener(listener);
+      if (mounted) {
+        setState(() {
+          _dragOffset = 0.0;
+        });
+        _springController.value = 0.0;
+      }
+    });
   }
 
   @override
   void dispose() {
     _slideController.dispose();
     _expandController.dispose();
+    _springController.dispose();
     _shimmerController.dispose();
     _pulseController.dispose();
     super.dispose();
@@ -477,16 +512,6 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
               ),
             ),
           ),
-          // Larger drag area overlay (invisible but interactive)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onHorizontalDragStart: _handleDragStart,
-              onHorizontalDragUpdate: _handleDragUpdate,
-              onHorizontalDragEnd: _handleDragEnd,
-              child: Container(color: Colors.transparent),
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
@@ -603,102 +628,71 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
 
   @override
   Widget build(BuildContext context) {
-    final content = GestureDetector(
-      onTap: () {
-        if (_isDragging) return; // Don't trigger tap during drag
-        HapticFeedback.mediumImpact();
-        if (widget.isExpanded) {
-          widget.notification.onTap();
-        } else {
-          widget.onExpand?.call();
-        }
-      },
-      onHorizontalDragStart: _handleDragStart,
-      onHorizontalDragUpdate: _handleDragUpdate,
-      onHorizontalDragEnd: _handleDragEnd,
-      child: Container(
-        margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
-        child: AnimatedBuilder(
-          animation: _expandController,
-          builder: (context, child) {
-            // Apply drag offset when expanded
-            Widget bannerWidget;
-
-            if (_expandController.value == 0.0) {
-              bannerWidget = _buildCollapsedView();
-            } else if (_expandController.value == 1.0) {
-              bannerWidget = _buildExpandedView();
-            } else {
-              // During transition, use a fade/scale effect
-              bannerWidget = Opacity(
-                opacity: 0.7 + (_expandController.value * 0.3),
-                child: Transform.scale(
-                  scale: 0.9 + (_expandController.value * 0.1),
-                  alignment: Alignment.centerRight,
-                  child: _expandController.value > 0.5
-                      ? _buildExpandedView()
-                      : _buildCollapsedView(),
-                ),
-              );
-            }
-
-            // Apply drag transformation when expanded
-            if (widget.isExpanded && _dragOffset > 0) {
-              final normalizedDrag = (_dragOffset / 300.0).clamp(0.0, 1.0);
-              final opacity = 1.0 - (normalizedDrag * 0.6);
-              final scale = 1.0 - (normalizedDrag * 0.2);
-
-              bannerWidget = Transform.translate(
-                offset: Offset(_dragOffset, 0),
-                child: Transform.scale(
-                  scale: scale,
-                  alignment: Alignment.centerRight,
-                  child: Opacity(opacity: opacity, child: bannerWidget),
-                ),
-              );
-            }
-
-            return bannerWidget;
-          },
-        ),
-      ),
-    );
-
-    // Only allow swipe to minimize when expanded (fallback for swipe gestures)
-    if (widget.isExpanded && !_isDragging) {
-      return SlideTransition(
-        position: _slideAnimation,
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: Dismissible(
-            key: Key(
-              'notification_${widget.notification.type}_${widget.notification.stateKey}',
-            ),
-            direction: DismissDirection.endToStart,
-            dismissThresholds: const {DismissDirection.endToStart: 0.3},
-            onDismissed: (direction) {
-              HapticFeedback.lightImpact();
-              widget.onExpand?.call();
-            },
-            confirmDismiss: (direction) async => true,
-            background: Container(
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 20),
-              child: Icon(
-                Icons.minimize_rounded,
-                color: Colors.white.withOpacity(0.6),
-                size: 24,
-              ),
-            ),
-            child: content,
-          ),
-        ),
-      );
-    }
-
     return SlideTransition(
       position: _slideAnimation,
-      child: FadeTransition(opacity: _fadeAnimation, child: content),
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            if (_isDragging) return;
+            HapticFeedback.mediumImpact();
+            if (widget.isExpanded) {
+              widget.notification.onTap();
+            } else {
+              widget.onExpand?.call();
+            }
+          },
+          onHorizontalDragStart: _handleDragStart,
+          onHorizontalDragUpdate: _handleDragUpdate,
+          onHorizontalDragEnd: _handleDragEnd,
+          child: Container(
+            margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+            child: AnimatedBuilder(
+              animation: _expandController,
+              builder: (context, child) {
+                Widget bannerWidget;
+
+                if (_expandController.value == 0.0) {
+                  bannerWidget = _buildCollapsedView();
+                } else if (_expandController.value == 1.0) {
+                  bannerWidget = _buildExpandedView();
+                } else {
+                  // During transition
+                  bannerWidget = Opacity(
+                    opacity: 0.7 + (_expandController.value * 0.3),
+                    child: Transform.scale(
+                      scale: 0.9 + (_expandController.value * 0.1),
+                      alignment: Alignment.centerRight,
+                      child: _expandController.value > 0.5
+                          ? _buildExpandedView()
+                          : _buildCollapsedView(),
+                    ),
+                  );
+                }
+
+                // Apply drag transformation when expanded
+                if (widget.isExpanded && _dragOffset > 0) {
+                  final normalizedDrag = (_dragOffset / 300.0).clamp(0.0, 1.0);
+                  final opacity = 1.0 - (normalizedDrag * 0.6);
+                  final scale = 1.0 - (normalizedDrag * 0.2);
+
+                  bannerWidget = Transform.translate(
+                    offset: Offset(_dragOffset, 0),
+                    child: Transform.scale(
+                      scale: scale,
+                      alignment: Alignment.centerRight,
+                      child: Opacity(opacity: opacity, child: bannerWidget),
+                    ),
+                  );
+                }
+
+                return bannerWidget;
+              },
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

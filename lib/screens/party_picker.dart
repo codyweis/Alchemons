@@ -3,7 +3,9 @@ import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
+import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
+import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_image.dart';
@@ -27,6 +29,8 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late final ScrollController _speciesScrollCtrl;
+
+  bool _showAllInstances = false;
 
   @override
   void initState() {
@@ -64,6 +68,7 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
   bool get _isPickingInstance => _selectedSpeciesId != null;
 
   String get _currentStage {
+    if (_showAllInstances) return 'all_instances';
     if (_isPickingSpecies) return 'species';
     return 'instance';
   }
@@ -98,6 +103,15 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
                     theme: theme,
                     stage: _currentStage,
                     onBack: _handleBack,
+                    onOpenAllInstances: () {
+                      HapticFeedback.lightImpact();
+                      setState(() {
+                        _showAllInstances = true;
+                        _selectedSpeciesId = null;
+                        _searchController.clear();
+                        _searchQuery = '';
+                      });
+                    },
                   ),
                   const SizedBox(height: 10),
 
@@ -131,11 +145,15 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
   ) {
     final repo = context.read<CreatureCatalog>();
 
+    if (_showAllInstances) {
+      return _buildAllInstancesStage(theme, instances, repo);
+    }
+
     if (_isPickingSpecies) {
       return _buildSpeciesStage(theme, instances, repo);
     }
 
-    // Instance selection
+    // Instance selection for specific species
     return _buildInstanceStage(theme, repo);
   }
 
@@ -165,64 +183,72 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
 
     return Column(
       children: [
-        // Search bar
+        // Search bar with toggle button
         Padding(
           padding: const EdgeInsets.fromLTRB(5, 0, 5, 5),
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.surfaceAlt,
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(color: theme.border.withOpacity(.5), width: 1),
-            ),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: theme.surfaceAlt,
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                      color: theme.border.withOpacity(.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                    style: TextStyle(
+                      color: theme.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search species...',
+                      hintStyle: TextStyle(
+                        color: theme.textMuted.withOpacity(.5),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: theme.textMuted,
+                        size: 20,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.clear_rounded,
+                                color: theme.textMuted,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              decoration: InputDecoration(
-                hintText: 'Search species...',
-                hintStyle: TextStyle(
-                  color: theme.textMuted.withOpacity(.5),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-                prefixIcon: Icon(
-                  Icons.search_rounded,
-                  color: theme.textMuted,
-                  size: 20,
-                ),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(
-                          Icons.clear_rounded,
-                          color: theme.textMuted,
-                          size: 20,
-                        ),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
-                      )
-                    : null,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-              ),
-            ),
+            ],
           ),
         ),
-
         // Results count if searching
         if (_searchQuery.isNotEmpty)
           Padding(
@@ -276,6 +302,26 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
     );
   }
 
+  Widget _buildAllInstancesStage(
+    FactionTheme theme,
+    List<CreatureInstance> instances,
+    CreatureCatalog repo,
+  ) {
+    if (instances.isEmpty) {
+      return const _NoSpeciesOwnedWrapper();
+    }
+
+    final party = context.watch<SelectedPartyNotifier>();
+
+    return AllCreatureInstances(
+      theme: theme,
+      selectedInstanceIds: party.members.map((m) => m.instanceId).toList(),
+      onTap: (inst) {
+        context.read<SelectedPartyNotifier>().toggle(inst.instanceId);
+      },
+    );
+  }
+
   // Stage 2: Choose which specific instances to add to party
   Widget _buildInstanceStage(FactionTheme theme, CreatureCatalog repo) {
     final species = repo.getCreatureById(_selectedSpeciesId!);
@@ -298,21 +344,19 @@ class _PartyPickerPageState extends State<PartyPickerPage> {
         if (party.members.length > 2) party.members[2].instanceId,
       ],
       onTap: (inst) {
-        // Check if trying to add (not remove)
-        final isCurrentlySelected = party.members.any(
-          (m) => m.instanceId == inst.instanceId,
-        );
-
         context.read<SelectedPartyNotifier>().toggle(inst.instanceId);
       },
     );
   }
-
   // ---------- Actions ----------
 
   void _handleBack() {
     setState(() {
-      if (_isPickingInstance) {
+      if (_showAllInstances) {
+        _showAllInstances = false;
+        _searchController.clear();
+        _searchQuery = '';
+      } else if (_isPickingInstance) {
         _selectedSpeciesId = null;
       }
     });
@@ -325,11 +369,13 @@ class _StageHeader extends StatelessWidget {
   final FactionTheme theme;
   final String stage;
   final VoidCallback onBack;
+  final VoidCallback? onOpenAllInstances; // NEW
 
   const _StageHeader({
     required this.theme,
     required this.stage,
     required this.onBack,
+    this.onOpenAllInstances, // NEW
   });
 
   @override
@@ -376,7 +422,9 @@ class _StageHeader extends StatelessWidget {
                 child: Icon(Icons.arrow_back, color: theme.text, size: 18),
               ),
             ),
-          if (!canGoBack) SizedBox(width: 12),
+          if (!canGoBack) const SizedBox(width: 12),
+
+          // Title/subtitle
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,6 +449,23 @@ class _StageHeader extends StatelessWidget {
               ],
             ),
           ),
+
+          // NEW: "All Specimens" button on species stage
+          if (stage == 'species' && onOpenAllInstances != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onOpenAllInstances,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: theme.border),
+                ),
+                child: const Icon(Icons.grid_view_rounded, size: 18),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -410,6 +475,8 @@ class _StageHeader extends StatelessWidget {
     switch (stage) {
       case 'species':
         return ('Team Assembly', 'Select species to view specimens');
+      case 'all_instances':
+        return ('All Specimens', 'Select up to 3 for deployment');
       case 'instance':
         return ('Choose Specimens', 'Select up to 3 for deployment');
       default:
@@ -419,6 +486,117 @@ class _StageHeader extends StatelessWidget {
 }
 
 // ---------- Footer ----------
+class _InstanceRow extends StatelessWidget {
+  final FactionTheme theme;
+  final Creature creature;
+  final CreatureInstance instance;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  const _InstanceRow({
+    required this.theme,
+    required this.creature,
+    required this.instance,
+    required this.isSelected,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 75,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.greenAccent.withOpacity(0.15)
+              : theme.surface,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(
+            color: isSelected ? Colors.greenAccent.shade400 : theme.border,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            InstanceSprite(creature: creature, instance: instance, size: 50),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    instance.nickname ?? creature.name,
+                    style: TextStyle(
+                      color: isSelected
+                          ? Colors.greenAccent.shade400
+                          : theme.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    creature.types.join(', '),
+                    style: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'Lv ${instance.level}',
+                  style: TextStyle(
+                    color: isSelected
+                        ? Colors.greenAccent.shade400
+                        : Colors.amber.shade400,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (instance.staminaBars < 3)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(
+                        3,
+                        (i) => Padding(
+                          padding: EdgeInsets.only(left: i == 0 ? 0 : 2),
+                          child: Container(
+                            width: 6,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: i < instance.staminaBars
+                                  ? Colors.blue.shade400
+                                  : theme.border,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _PartyFooter extends StatelessWidget {
   const _PartyFooter({required this.theme});

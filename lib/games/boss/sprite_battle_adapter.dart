@@ -1,4 +1,3 @@
-// lib/game/creature_battle_sprite_adapter.dart
 // This file shows how to integrate your CreatureSpriteComponent into the battle system
 
 import 'dart:async';
@@ -12,7 +11,8 @@ import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'
+    show Colors, TextStyle, TextPaint, Paint, MaskFilter, BlurStyle, Curves;
 
 /// Enhanced CreatureBattleSprite that uses your actual CreatureSpriteComponent
 /// Replace the placeholder CircleComponent in battle_game.dart with this
@@ -22,9 +22,11 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
   final int index;
   final SpriteSheetDef sheet;
   final SpriteVisuals visuals;
+  final String? alchemyEffect; // 💡 NEW: Effect name to be displayed
 
   late PositionComponent statusIconContainer;
   late CircleComponent selectionIndicator;
+  late PositionComponent _effectLayer;
 
   // The actual creature sprite component
   late CreatureSpriteComponentBattle creatureVisual;
@@ -35,7 +37,12 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     required this.index,
     required this.sheet,
     required this.visuals,
-  }) : super(position: position, size: Vector2(100, 120));
+    this.alchemyEffect, // 💡 Must be provided when the effect is active
+  }) : super(
+         position: position,
+         size: Vector2(100, 120),
+         anchor: Anchor.center,
+       );
 
   @override
   Future<void> onLoad() async {
@@ -45,9 +52,32 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       visuals: visuals,
       desiredSize: Vector2(80, 80), // Size for battle display
     );
-    creatureVisual.position = Vector2(0, -10);
+    creatureVisual.position = size / 2;
     creatureVisual.anchor = Anchor.center;
     add(creatureVisual);
+
+    _effectLayer = PositionComponent(
+      // We know the creature's center is at (50, 60) relative to the parent's top-left corner (0, 0).
+      // Let's set the effect layer's position to this exact point.
+      position: size / 2,
+      // Set the anchor to TOP_LEFT (the default).
+      // This means the visual center of the glow component must be at (0, 0) for perfect alignment.
+      anchor: Anchor.topLeft, // <<< CHANGE TO TOP_LEFT (Default)
+      size: Vector2(
+        1,
+        1,
+      ), // Set size to a minimal value, as it just holds the effect.
+    )..priority = -2;
+    add(_effectLayer);
+
+    // 💡 Add the effect if present
+    if (alchemyEffect != null) {
+      _addEffectComponent(alchemyEffect!);
+    }
+
+    // Status icon container - above the creature visual
+    statusIconContainer = PositionComponent(position: Vector2(0, -60));
+    add(statusIconContainer);
 
     // Selection indicator (behind creature)
     selectionIndicator = CircleComponent(
@@ -55,15 +85,52 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       paint: Paint()
         ..color = Colors.yellow.withOpacity(0)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 4,
+        ..strokeWidth = .5,
       anchor: Anchor.center,
-      position: Vector2(0, -10),
+      position: size / 2,
     );
     add(selectionIndicator..priority = -1);
+  }
 
-    // Status icon container - above the creature visual
-    statusIconContainer = PositionComponent(position: Vector2(0, -60));
-    add(statusIconContainer);
+  void _addEffectComponent(String effectName) {
+    Component effectComponent;
+
+    // The visual size of the creature is ~80x80. We need the effect to be larger.
+    const double baseSize = 80;
+
+    switch (effectName) {
+      case 'alchemy_glow':
+        // Replicates the pulsing radial glow
+        effectComponent = FlameAlchemyGlow(baseSize: baseSize);
+        break;
+      case 'elemental_aura':
+        // Replicates the orbiting particles
+        // NOTE: We're passing a placeholder color, replace with your FactionColors lookup
+        final elementColor = _getElementColor('Aqua');
+        effectComponent = FlameElementalAura(
+          baseSize: baseSize,
+          color: elementColor,
+        );
+        break;
+      default:
+        return; // No known effect
+    }
+
+    _effectLayer.add(effectComponent);
+  }
+
+  // Placeholder for FactionColors logic
+  Color _getElementColor(String element) {
+    switch (element) {
+      case 'Pyro':
+        return Colors.red;
+      case 'Aqua':
+        return Colors.blue;
+      case 'Terra':
+        return Colors.green;
+      default:
+        return Colors.white;
+    }
   }
 
   // Stub method - HP bar displayed elsewhere in the UI
@@ -103,6 +170,9 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       iconIndex++;
     }
   }
+
+  // ... (rest of helper methods like _createStatusText, _createStatModifierText, etc. remain unchanged)
+  // ... (rest of interaction methods like onTapDown, playDeathAnimation, etc. remain unchanged)
 
   TextComponent _createStatusText(String statusType) {
     Color color;
@@ -206,19 +276,39 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
   void playDeathAnimation() {
     // Make sure we can't select it anymore
     setSelectionIndicator(false);
-    // Fade out the main visual component and then remove self from the game
-    creatureVisual.add(
-      OpacityEffect.fadeOut(
-        EffectController(duration: 0.5, curve: Curves.easeIn),
-        onComplete: () => removeFromParent(),
-      ),
-    );
-    // Also fade out all the UI elements (status icons)
+
+    // Also fade out all the UI elements (status icons, selection indicator)
+    // We apply the opacity to the main component so everything moves/fades together.
+
+    // --- START SINKING IMPLEMENTATION ---
+
+    // Calculate the target Y position to be completely off-screen
+    // gameRef.size.y is the absolute bottom of the screen.
+    final offScreenY = gameRef.size.y + size.y;
+
+    const double duration = 1.5;
+
+    // 1. Sink the creature down off the screen
     add(
-      OpacityEffect.fadeOut(
-        EffectController(duration: 0.5, curve: Curves.easeIn),
+      MoveEffect.to(
+        // Keep the current X, move to the bottom edge.
+        Vector2(position.x, offScreenY),
+        EffectController(duration: duration, curve: Curves.easeIn),
       ),
     );
+
+    // 3. Optional: Add a subtle rotation for that satisfying "defeated" tumble
+    add(
+      RotateEffect.by(
+        math.pi / 4, // Rotate by 45 degrees
+        EffectController(duration: duration),
+      ),
+    );
+
+    // 4. Remove the component (and all its children) completely after the animation
+    add(RemoveEffect(delay: duration + 0.1));
+
+    // --- END SINKING IMPLEMENTATION ---
   }
 
   Future<void> playAttackAnimation(BattleMove move, BossSprite target) async {
@@ -306,7 +396,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
 
   void setSelectionIndicator(bool selected) {
     selectionIndicator.paint.color = selected
-        ? Colors.yellow.withOpacity(0.8)
+        ? Colors.yellow.withOpacity(0.2)
         : Colors.yellow.withOpacity(0);
   }
 
@@ -340,43 +430,59 @@ class CreatureSpriteComponentBattle extends PositionComponent
     required this.visuals,
     required this.desiredSize,
   });
-
   @override
   Future<void> onLoad() async {
     size = desiredSize;
 
-    await gameRef.images.load(sheet.path);
+    try {
+      // Try loading the actual sprite sheet
+      await gameRef.images.load(sheet.path);
 
-    final image = game.images.fromCache(sheet.path);
-    final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
+      final image = gameRef.images.fromCache(sheet.path);
+      final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
 
-    final anim = SpriteAnimation.fromFrameData(
-      image,
-      SpriteAnimationData.sequenced(
-        amount: sheet.totalFrames,
-        amountPerRow: cols,
-        textureSize: sheet.frameSize,
-        stepTime: sheet.stepTime,
-        loop: true,
-      ),
-    );
+      final anim = SpriteAnimation.fromFrameData(
+        image,
+        SpriteAnimationData.sequenced(
+          amount: sheet.totalFrames,
+          amountPerRow: cols,
+          textureSize: sheet.frameSize,
+          stepTime: sheet.stepTime,
+          loop: true,
+        ),
+      );
 
-    final fit = _fitScale(sheet.frameSize, desiredSize);
-    final finalScale = fit * visuals.scale;
+      final fit = _fitScale(sheet.frameSize, desiredSize);
+      final finalScale = fit * visuals.scale;
 
-    _anim =
-        SpriteAnimationComponent(
-            animation: anim,
-            size: sheet.frameSize,
-            anchor: Anchor.center,
-            position: size / 2,
-            priority: priority,
-          )
-          ..paint.filterQuality = FilterQuality.high
-          ..scale = Vector2.all(finalScale);
+      _anim =
+          SpriteAnimationComponent(
+              animation: anim,
+              size: sheet.frameSize,
+              anchor: Anchor.center,
+              position: size / 2,
+              priority: priority,
+            )
+            ..paint.filterQuality = FilterQuality.high
+            ..scale = Vector2.all(finalScale);
 
-    _applyColorFilters();
-    add(_anim);
+      _applyColorFilters();
+      add(_anim);
+      return;
+    } catch (e) {
+      // FALLBACK CIRCLE
+      final circle = CircleComponent(
+        radius: desiredSize.x / 2,
+        anchor: Anchor.center,
+        position: size / 2,
+        paint: Paint()
+          ..color = Colors.red.withOpacity(0.5)
+          ..style = PaintingStyle.fill,
+      );
+
+      add(circle);
+      return;
+    }
   }
 
   double _fitScale(Vector2 frame, Vector2 box) {
@@ -452,7 +558,97 @@ class CreatureSpriteComponentBattle extends PositionComponent
   }
 }
 
-// Color matrix functions
+// ── FLAME EFFECT IMPLEMENTATIONS ────────────────────────────────────
+
+/// Flame implementation of AlchemyGlow (Pulsing Radial Glow)
+class FlameAlchemyGlow extends PositionComponent with HasGameRef {
+  final double baseSize;
+  double _time = 0;
+
+  // The size of the glow component is twice the base size
+  FlameAlchemyGlow({required this.baseSize})
+    : super(
+        // Set a huge size so the glow isn't clipped
+        size: Vector2.all(baseSize * 4),
+        // Position the anchor at the center of the component
+        anchor: Anchor.center,
+        // Place the center of the component at the parent's origin (0, 0)
+        position: Vector2(0, 10),
+      );
+
+  @override
+  void update(double dt) {
+    _time += dt;
+    super.update(dt);
+  }
+
+  @override
+  void render(Canvas canvas) {
+    // Replicate the pulsing scale logic (0.4 to 1.2 over 1 second)
+    final progress =
+        (math.sin(_time * math.pi * 2) * 0.5 + 0.5); // 0..1 over 1s
+    final pulseScale = 0.4 + progress * (1.2 - 0.4);
+
+    final center = size / 2;
+    final maxRadius = baseSize * pulseScale;
+
+    // Create a paint with a subtle blur to mimic the soft edges of a glow/gradient
+    final paint = Paint()
+      ..color = Colors.cyan.withOpacity(0.3)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12.0 * pulseScale);
+
+    // Draw a series of circles with diminishing opacity to simulate radial gradient
+    // Outer glow (largest and most transparent)
+    canvas.drawCircle(center.toOffset(), maxRadius, paint);
+
+    // Inner glow (brighter core)
+    paint.color = Colors.purple.withOpacity(0.2);
+    paint.maskFilter = MaskFilter.blur(BlurStyle.normal, 4.0 * pulseScale);
+    canvas.drawCircle(center.toOffset(), maxRadius * 0.6, paint);
+  }
+}
+
+/// Flame implementation of ElementalAura (Orbiting Particles)
+class FlameElementalAura extends PositionComponent with HasGameRef {
+  final double baseSize;
+  final Color color;
+  double _time = 0;
+
+  FlameElementalAura({required this.baseSize, required this.color})
+    : super(size: Vector2.all(baseSize), anchor: Anchor.center);
+
+  @override
+  void update(double dt) {
+    _time += dt; // Time is the progress for the animation
+    super.update(dt);
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final paint = Paint()
+      ..color = color.withOpacity(0.6)
+      ..style = PaintingStyle.fill;
+
+    final center = (size / 2).toOffset();
+    final radius = baseSize * 0.4;
+
+    // Flame equivalent of the Flutter CustomPainter logic
+    final progress = (_time / 4.0) % 1.0; // Repeat every 4 seconds
+
+    // Draw 5 orbiting particles
+    for (int i = 0; i < 5; i++) {
+      final angle = (progress * 2 * math.pi) + (i * 2 * math.pi / 5);
+      final x = center.dx + radius * math.cos(angle);
+      final y = center.dy + radius * math.sin(angle);
+
+      // Particle size fixed at 3.0
+      canvas.drawCircle(Offset(x, y), 3.0, paint);
+    }
+  }
+}
+
+// ── color matrix functions ────────────────────────────────────
+
 List<double> brightnessSaturationMatrix(double brightness, double saturation) {
   final r = brightness, g = brightness, b = brightness, s = saturation;
   return <double>[

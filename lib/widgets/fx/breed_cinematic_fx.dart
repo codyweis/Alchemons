@@ -316,7 +316,7 @@ class _Orbits extends StatelessWidget {
     final leftAlign = Alignment.lerp(leftPos, center, goCenter)!;
     final rightAlign = Alignment.lerp(rightPos, center, goCenter)!;
 
-    final scale = 1.0 - 0.25 * goCenter;
+    final scale = 1.0;
 
     return Stack(
       children: [

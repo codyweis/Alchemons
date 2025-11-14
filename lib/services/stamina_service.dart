@@ -89,6 +89,26 @@ class StaminaService {
     return db.creatureDao.getInstance(instanceId);
   }
 
+  Future<CreatureInstance?> restoreToFull(
+    String instanceId, {
+    DateTime? nowUtc,
+  }) async {
+    // First apply any regen that's accrued
+    final row = await refreshAndGet(instanceId, nowUtc: nowUtc);
+    if (row == null) return null;
+
+    final max = effectiveMaxStamina(row);
+    final nowMs = (nowUtc ?? DateTime.now().toUtc()).millisecondsSinceEpoch;
+
+    await db.creatureDao.updateStamina(
+      instanceId: row.instanceId,
+      staminaBars: max,
+      staminaLastUtcMs: nowMs,
+    );
+
+    return db.creatureDao.getInstance(instanceId);
+  }
+
   /// Spend stamina for wilderness (default: drain to zero).
   /// You can tune [baseCostBars] if you want partial drains later.
   Future<CreatureInstance?> spendForWilderness(

@@ -1076,7 +1076,6 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
         children: [
-          SizedBox(height: 16), // build cool button takes up width
           ElevatedButton(
             onPressed: () {
               HapticFeedback.mediumImpact();
@@ -1097,7 +1096,6 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             child: const Text('BATTLE'),
           ),
-          SizedBox(height: 80),
         ],
       ),
     );

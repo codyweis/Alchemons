@@ -121,12 +121,18 @@ Future<bool> showItemDetailDialog({
   required int inventoryQty,
   required bool canPurchase,
 }) async {
+  // NEW: Get the animated preview for the detail dialog
+  final Widget? previewWidget = ShopService.getAlchemyEffectPreview(
+    offer.id,
+    size: 120.0, // A good size to fill the 160-height container
+  );
+
   return await showDialog<bool>(
         context: context,
         builder: (ctx) => Dialog(
           backgroundColor: Colors.transparent,
           child: Container(
-            constraints: BoxConstraints(maxWidth: 400),
+            constraints: const BoxConstraints(maxWidth: 400),
             decoration: BoxDecoration(
               color: theme.surface,
               borderRadius: BorderRadius.circular(20),
@@ -173,7 +179,7 @@ Future<bool> showItemDetailDialog({
                   ),
                 ),
 
-                // Image Section
+                // Image Section (MODIFIED)
                 Container(
                   height: 160,
                   width: double.infinity,
@@ -183,19 +189,37 @@ Future<bool> showItemDetailDialog({
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: theme.accent.withOpacity(0.2)),
                   ),
-                  child: offer.assetName != null
-                      ? ClipRRect(
+                  child: Builder(
+                    builder: (context) {
+                      // 1. Display the animated preview if available
+                      if (previewWidget != null) {
+                        return Center(
+                          child: SizedBox.square(
+                            dimension: 120.0, // Fixed size for the animation
+                            child: previewWidget,
+                          ),
+                        );
+                      }
+
+                      // 2. Fallback to static image asset
+                      if (offer.assetName != null) {
+                        return ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Image.asset(
                             offer.assetName!,
                             fit: BoxFit.contain,
                           ),
-                        )
-                      : Icon(
-                          offer.icon,
-                          size: 80,
-                          color: theme.accent.withOpacity(0.6),
-                        ),
+                        );
+                      }
+
+                      // 3. Final fallback to icon
+                      return Icon(
+                        offer.icon,
+                        size: 80,
+                        color: theme.accent.withOpacity(0.6),
+                      );
+                    },
+                  ),
                 ),
 
                 // Title
@@ -370,9 +394,6 @@ Future<bool> showItemDetailDialog({
 
 // ============= NEW GAME SHOP CARD =============
 
-// UPDATED GameShopCard widget - SIMPLIFIED to image + cost only
-// Replace the existing GameShopCard in your shop_widgets.dart with this version
-
 class GameShopCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -380,16 +401,13 @@ class GameShopCard extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool enabled;
   final bool canAfford;
-
-  /// The list of cost widgets (e.g., MiniCostChip or CostChip)
   final List<Widget> costWidgets;
-
-  /// Optional text for a corner tag (e.g., "x3")
   final String? statusText;
-
-  /// Optional description text (not shown on card, used in detail dialog)
   final String? description;
   final String? image;
+
+  /// NEW FIELD: Optional animated widget for preview
+  final Widget? previewWidget;
 
   const GameShopCard({
     super.key,
@@ -403,11 +421,12 @@ class GameShopCard extends StatelessWidget {
     this.statusText,
     this.description,
     this.image,
+    // NEW ARGUMENT
+    this.previewWidget,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Determine the status overlay color
     Color? overlayColor;
     if (!enabled) {
       overlayColor = Colors.transparent;
@@ -436,17 +455,36 @@ class GameShopCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Image Area
+                // Image Area (MODIFIED LOGIC HERE)
                 Expanded(
                   child: Container(
                     color: Colors.white.withOpacity(0.05),
-                    child: image != null
-                        ? Image.asset(image!, fit: BoxFit.contain)
-                        : Icon(
-                            icon,
-                            size: 48,
-                            color: theme.accent.withOpacity(0.6),
-                          ),
+                    child: Builder(
+                      builder: (context) {
+                        // 1. Check for the animated preview first
+                        if (previewWidget != null) {
+                          // Center the custom widget in a standard 64x64 area.
+                          return Center(
+                            child: SizedBox.square(
+                              dimension: 64.0, // Standard size for the preview
+                              child: previewWidget,
+                            ),
+                          );
+                        }
+
+                        // 2. Fallback to static image asset
+                        if (image != null) {
+                          return Image.asset(image!, fit: BoxFit.contain);
+                        }
+
+                        // 3. Final fallback to icon
+                        return Icon(
+                          icon,
+                          size: 48,
+                          color: theme.accent.withOpacity(0.6),
+                        );
+                      },
+                    ),
                   ),
                 ),
 
@@ -679,15 +717,14 @@ class CostChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
     final hasEnough = available >= amount;
-    final (icon, color) = _getCurrencyDisplay(currencyType);
+    final (icon, color) = _getCurrencyDisplay(currencyType, theme);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: hasEnough
-            ? color.withOpacity(0.15)
-            : Colors.red.withOpacity(0.15),
+        color: hasEnough ? Colors.transparent : Colors.red.withOpacity(0.15),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: hasEnough
@@ -713,12 +750,12 @@ class CostChip extends StatelessWidget {
     );
   }
 
-  (IconData, Color) _getCurrencyDisplay(String type) {
+  (IconData, Color) _getCurrencyDisplay(String type, FactionTheme theme) {
     switch (type) {
       case 'gold':
-        return (Icons.diamond_rounded, Colors.amber);
+        return (Icons.diamond_rounded, const Color.fromARGB(255, 184, 138, 1));
       case 'silver':
-        return (Icons.monetization_on_rounded, Colors.grey.shade300);
+        return (Icons.monetization_on_rounded, theme.text);
       case 'soft':
         return (Icons.paid_rounded, Colors.lightBlue);
       // resources (fall through to correct icons/colors)
@@ -1354,7 +1391,7 @@ Future<int?> showPurchaseConfirmationDialog({
                   Text(
                     offer.description,
                     style: TextStyle(
-                      color: theme.textMuted,
+                      color: theme.text,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),

@@ -15,13 +15,13 @@ import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/utils/harvest_rate.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
 import 'package:alchemons/widgets/glowing_icon.dart';
-import 'package:alchemons/widgets/harvest/harvest_instance.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:flame/game.dart';
@@ -35,7 +35,7 @@ class BiomeDetailScreen extends StatefulWidget {
     super.key,
     required this.biome,
     required this.service,
-    this.defaultDuration = const Duration(minutes: 30),
+    this.defaultDuration = const Duration(hours: 4),
     required this.discoveredCreatures,
   });
 
@@ -381,10 +381,9 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       biome: widget.biome,
       creatureInstanceId: instanceId,
       duration: widget.defaultDuration,
-      ratePerMinute: _computeRatePerMinute(
+      ratePerMinute: computeHarvestRatePerMinute(
+        inst,
         hasMatchingElement: widget.biome.elementTypes.contains(creatureTypeId),
-        natureBonusPct: _getNatureBonus(inst.natureId),
-        level: inst.level,
       ),
     );
 
@@ -406,24 +405,27 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
   int _getNatureBonus(String? natureId) {
     final nature = (natureId ?? '').toLowerCase();
     return switch (nature) {
-      'metabolic' => 10,
-      'diligent' => 8,
-      'sluggish' => -10,
+      'metabolic' => 20,
+      'dormant' => -20,
       _ => 0,
     };
   }
 
-  // Update _computeRatePerMinute to accept actual level
-  int _computeRatePerMinute({
-    required bool hasMatchingElement,
-    required int natureBonusPct,
-    required int level,
-  }) {
-    var base = 3;
-    base += (level - 1);
-    if (hasMatchingElement) base = (base * 1.25).round();
-    base = (base * (1 + natureBonusPct / 100)).round();
-    return base.clamp(1, 999);
+  double _sizeMultiplier(String? size) {
+    switch ((size ?? '').toLowerCase()) {
+      case 'tiny':
+        return 0.5;
+      case 'small':
+        return 0.8;
+      case 'normal':
+        return 1.0;
+      case 'large':
+        return 1.1;
+      case 'giant':
+        return 2.0;
+      default:
+        return 1.0;
+    }
   }
 
   void _handleCollect(BiomeFarmState farm) async {

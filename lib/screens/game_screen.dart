@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:alchemons/battle/team_prep_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -365,7 +364,7 @@ class _HeaderBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Alchemons Battle Ball',
+                  'CompeteScreen',
                   style: TextStyle(
                     color: theme.text,
                     fontSize: 15,

@@ -116,6 +116,7 @@ class BattleGame extends FlameGame with TapCallbacks {
         index: i,
         sheet: sheet,
         visuals: visuals,
+        alchemyEffect: bc.instanceRef?.alchemyEffect,
       );
       playerSprites.add(sprite);
       await add(sprite);
@@ -215,6 +216,8 @@ class BattleGame extends FlameGame with TapCallbacks {
             aliveCreatures.length];
     final targetIndex = targetEntry.key;
     final target = targetEntry.value;
+    final targetSprite =
+        playerSprites[targetIndex]; // Store the sprite reference
 
     // Play boss attack animation
     await bossSprite.playAttackAnimation(
@@ -223,7 +226,7 @@ class BattleGame extends FlameGame with TapCallbacks {
         type: MoveType.physical,
         scalingStat: 'statStrength',
       ),
-      playerSprites[targetIndex],
+      targetSprite, // Use the stored sprite
     );
 
     // Calculate damage
@@ -242,7 +245,7 @@ class BattleGame extends FlameGame with TapCallbacks {
     shakeCamera(intensity: result.damage / 5.0);
 
     // Show damage
-    playerSprites[targetIndex].showDamage(result.damage, result.typeMultiplier);
+    targetSprite.showDamage(result.damage, result.typeMultiplier);
 
     // Send result
     onGameEvent(BossAttackExecutedEvent(result, targetIndex));
@@ -253,9 +256,23 @@ class BattleGame extends FlameGame with TapCallbacks {
       sprite.updateStatusIcons();
     }
 
+    // -----------------------------------------------------------------
+    //  >> MODIFICATION: Check for death and start the sinking animation
+    // -----------------------------------------------------------------
+    if (target.isDead) {
+      targetSprite
+          .playDeathAnimation(); // Now triggers the sink-and-fade effect
+
+      // Wait long enough for the player to see the sinking start (about half the animation duration)
+      await Future.delayed(Duration(milliseconds: 750));
+    }
+    // -----------------------------------------------------------------
+
     // Check if all defeated
     if (playerTeam.every((c) => c.isDead)) {
-      await Future.delayed(Duration(seconds: 1));
+      await Future.delayed(
+        Duration(seconds: 1),
+      ); // Wait for the final creature to sink
       onGameEvent(DefeatEvent());
       return;
     }
@@ -303,7 +320,11 @@ class BattleBackground extends PositionComponent with HasGameRef<BattleGame> {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xFF1a1a2e), Color(0xFF16213e), Color(0xFF0f3460)],
+        colors: [
+          Color.fromARGB(255, 255, 255, 255),
+          Color(0xFF16213e),
+          Color.fromARGB(255, 255, 255, 255),
+        ],
       ).createShader(Rect.fromLTWH(0, 0, size.x, size.y));
 
     add(RectangleComponent(size: size, paint: gradient));

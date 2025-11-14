@@ -762,7 +762,7 @@ class EggHatching {
                                     child: InstanceSprite(
                                       creature: offspring,
                                       instance: instance!,
-                                      size: 72,
+                                      size: 150,
                                     ),
                                   ),
                                 ),

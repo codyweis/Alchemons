@@ -30,6 +30,10 @@ class InvKeys {
   static const harvesterStdEarthen = 'item.harvest_std_earthen';
   static const harvesterStdArcane = 'item.harvest_std_arcane';
   static const harvesterGuaranteed = 'item.harvest_guaranteed';
+  static const alchemyGlow = 'alchemy.glow';
+  static const alchemyElementalAura = 'alchemy.elemental_aura';
+  static const alchemyVolcanicAura = 'alchemy.volcanic_aura';
+  static const staminaPotion = 'item.stamina_potion';
 }
 
 Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) => {
@@ -74,5 +78,31 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) => {
     name: 'Stabilized Harvester',
     description: 'Guaranteed capture device.',
     icon: Icons.shield_rounded,
+  ),
+  // Alchemy Effects
+  InvKeys.alchemyGlow: InventoryItemDef(
+    key: InvKeys.alchemyGlow,
+    name: 'Alchemical Resonance',
+    description: 'Apply an ethereal glow effect to one of your Alchemons.',
+    icon: Icons.auto_awesome_rounded,
+  ),
+  InvKeys.alchemyElementalAura: InventoryItemDef(
+    key: InvKeys.alchemyElementalAura,
+    name: 'Elemental Aura',
+    description: 'Apply orbiting elemental particles to one of your Alchemons.',
+    icon: Icons.bubble_chart_rounded,
+  ),
+  InvKeys.alchemyVolcanicAura: InventoryItemDef(
+    key: InvKeys.alchemyVolcanicAura,
+    name: 'Volcanic Aura',
+    description:
+        'Apply a fiery volcanic aura to one of your Volcanic Alchemons.',
+    icon: Icons.local_fire_department_rounded,
+  ),
+  InvKeys.staminaPotion: InventoryItemDef(
+    key: InvKeys.staminaPotion,
+    name: 'Stamina Elixir',
+    description: 'Fully restores an Alchemon\'s stamina.',
+    icon: Icons.local_drink_rounded,
   ),
 };

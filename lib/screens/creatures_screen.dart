@@ -2,12 +2,16 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:alchemons/database/daos/settings_dao.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
+import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_image.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/draggable_sheet.dart';
+import 'package:alchemons/widgets/filterchip_solod.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/silhouette_widget.dart';
 import 'package:flame/image_composition.dart';
@@ -176,7 +180,10 @@ class _CreaturesScreenState extends State<CreaturesScreen>
                         parent: AlwaysScrollableScrollPhysics(),
                       ),
                       slivers: [
-                        _SolidHeader(theme: theme),
+                        _SolidHeader(
+                          theme: theme,
+                          onOpenAllInstances: _showAllInstancesView,
+                        ),
                         SliverToBoxAdapter(
                           child: _StatsHeaderSolid(
                             theme: theme,
@@ -383,13 +390,43 @@ class _CreaturesScreenState extends State<CreaturesScreen>
       instanceId: inst.instanceId,
     );
   }
+
+  void _showAllInstancesView() {
+    final theme = context.read<FactionTheme>();
+
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierDismissible: true,
+        barrierColor: Colors.black54,
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 250),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return DraggableSheet(
+            animation: animation,
+            theme: theme,
+            onInstanceTap: (inst) {
+              final repo = context.read<CreatureCatalog>();
+              final creature = repo.getCreatureById(inst.baseId);
+              if (creature != null) {
+                Navigator.pop(context);
+                _openDetailsForInstance(creature, inst);
+              }
+            },
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// ---------------------------- SOLID UI --------------------------------
 
 class _SolidHeader extends StatelessWidget {
   final FactionTheme theme;
-  const _SolidHeader({required this.theme});
+  final VoidCallback onOpenAllInstances;
+
+  const _SolidHeader({required this.theme, required this.onOpenAllInstances});
 
   @override
   Widget build(BuildContext context) {
@@ -407,10 +444,25 @@ class _SolidHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(
           children: [
+            // New button on the left
+            GestureDetector(
+              onTap: onOpenAllInstances,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.surfaceAlt,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: theme.border),
+                ),
+                child: const Icon(Icons.grid_view_rounded, size: 18),
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'ALCHEMON DATABASE',
@@ -1127,53 +1179,6 @@ class PillButton extends StatelessWidget {
   }
 }
 
-class FilterChipSolid extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-  const FilterChipSolid({
-    super.key,
-    required this.label,
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: selected ? color : Colors.transparent),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (label != 'All')
-              Icon(BreedConstants.getTypeIcon(label), size: 14, color: color)
-            else
-              Icon(Icons.all_inclusive, size: 14, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: theme.text,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _CountBadge extends StatelessWidget {
   final int count;
   final bool small;
@@ -1302,154 +1307,6 @@ class _TypeTiny extends StatelessWidget {
         ),
         maxLines: 1,
         overflow: TextOverflow.visible,
-      ),
-    );
-  }
-}
-
-class _BottomSheetSolid extends StatelessWidget {
-  final FactionTheme theme;
-  final String title;
-
-  // Use ONE of these:
-  final List<Widget>? children; // short, static options (Sort, Scope, etc.)
-  final Widget? child; // big content (InstancesSheet, etc.)
-
-  const _BottomSheetSolid({
-    super.key,
-    required this.theme,
-    required this.title,
-    this.children,
-    this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // we'll cap height so scrollables behave
-    final maxH = MediaQuery.of(context).size.height * 0.75;
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
-    final bool hasScrollableBody = child != null;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: Container(
-        margin: const EdgeInsets.all(12),
-        constraints: BoxConstraints(
-          // important: give Column a finite vertical budget
-          maxHeight: maxH,
-        ),
-        decoration: BoxDecoration(
-          color: theme.surfaceAlt,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(.45),
-              blurRadius: 24,
-              offset: const Offset(0, 14),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            // if we might show scrollable content below, we want the column
-            // to expand to our maxHeight so Expanded works.
-            // if it's just short children, max vs min both work because
-            // constraints.maxHeight is finite.
-            mainAxisSize: hasScrollableBody
-                ? MainAxisSize.max
-                : MainAxisSize.min,
-            children: [
-              const SizedBox(height: 10),
-              // grab handle
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.textMuted.withOpacity(.35),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // title
-              Text(
-                title,
-                style: TextStyle(
-                  color: theme.text,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
-
-              const SizedBox(height: 6),
-
-              // BODY REGION
-              if (hasScrollableBody) ...[
-                // Long / scrolly content path
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      color: theme.surface,
-                      child: SingleChildScrollView(
-                        // This lets InstancesSheet (which might itself build
-                        // columns/lists) lay out without the sheet freaking out.
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-                          child: child!,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ] else ...[
-                // Short list-of-options path (Sort, Scope)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: children ?? const [],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RadioTileSolid extends StatelessWidget {
-  final FactionTheme theme;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _RadioTileSolid({
-    super.key,
-    required this.theme,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      onTap: onTap,
-      dense: true,
-      leading: Icon(
-        selected ? Icons.radio_button_checked : Icons.radio_button_off,
-        color: selected ? theme.accent : theme.textMuted.withOpacity(.55),
-      ),
-      title: Text(
-        label,
-        style: TextStyle(
-          color: selected ? theme.accent : theme.text,
-          fontWeight: FontWeight.w700,
-        ),
       ),
     );
   }

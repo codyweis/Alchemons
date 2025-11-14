@@ -6,6 +6,17 @@ import 'package:alchemons/database/schema_tables.dart';
 
 part 'creature_dao.g.dart';
 
+enum SortBy {
+  newest,
+  oldest,
+  levelHigh,
+  levelLow,
+  statSpeed,
+  statIntelligence,
+  statStrength,
+  statBeauty,
+}
+
 @DriftAccessor(tables: [PlayerCreatures, CreatureInstances, FeedEvents])
 class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     with _$CreatureDaoMixin {
@@ -16,6 +27,89 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
     final r = now ^ now.hashCode;
     return '${prefix}_${now}_${r & 0xFFFFFF}';
+  }
+
+  /// **NEW: Optimized filtered/sorted stream that runs in the database**
+  Stream<List<CreatureInstance>> watchFilteredInstances({
+    String? searchText,
+    String? filterSize,
+    String? filterTint,
+    String? filterNature,
+    bool filterPrismatic = false,
+    String? filterVariant,
+    SortBy sortBy = SortBy.newest,
+  }) {
+    // Start with base query
+    var query = select(creatureInstances);
+
+    // Apply filters at database level
+    query = query
+      ..where((t) {
+        final conditions = <Expression<bool>>[];
+
+        // Prismatic filter
+        if (filterPrismatic) {
+          conditions.add(t.isPrismaticSkin.equals(true));
+        }
+
+        // Nature filter
+        if (filterNature != null && filterNature.isNotEmpty) {
+          conditions.add(t.natureId.equals(filterNature));
+        }
+
+        // Variant filter
+        if (filterVariant != null) {
+          if (filterVariant == '__NON__') {
+            conditions.add(t.variantFaction.isNull());
+          } else {
+            conditions.add(t.variantFaction.equals(filterVariant));
+          }
+        }
+
+        // Search text - search in genetics JSON, nickname, instanceId
+        if (searchText != null && searchText.trim().isNotEmpty) {
+          final search = searchText.trim().toLowerCase();
+          conditions.add(
+            t.nickname.lower().like('%$search%') |
+                t.instanceId.lower().like('%$search%') |
+                t.geneticsJson.like('%$search%') |
+                t.natureId.like('%$search%'),
+          );
+        }
+
+        // Combine all conditions with AND
+        if (conditions.isEmpty) {
+          return const Constant(true);
+        }
+        return conditions.reduce((a, b) => a & b);
+      });
+
+    // Apply sorting at database level
+    query = query
+      ..orderBy([
+        (t) {
+          switch (sortBy) {
+            case SortBy.newest:
+              return OrderingTerm.desc(t.createdAtUtcMs);
+            case SortBy.oldest:
+              return OrderingTerm.asc(t.createdAtUtcMs);
+            case SortBy.levelHigh:
+              return OrderingTerm.desc(t.level);
+            case SortBy.levelLow:
+              return OrderingTerm.asc(t.level);
+            case SortBy.statSpeed:
+              return OrderingTerm.desc(t.statSpeed);
+            case SortBy.statIntelligence:
+              return OrderingTerm.desc(t.statIntelligence);
+            case SortBy.statStrength:
+              return OrderingTerm.desc(t.statStrength);
+            case SortBy.statBeauty:
+              return OrderingTerm.desc(t.statBeauty);
+          }
+        },
+      ]);
+
+    return query.watch();
   }
 
   /// Inserts an instance using a *normalized* hatch payload (no override hoisting here).
@@ -196,7 +290,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     );
   }
 
-  /// Optional: counts per species if you want badges like “x3”.
+  /// Optional: counts per species if you want badges like "x3".
   Stream<Map<String, int>> watchInstanceCountsBySpecies() {
     final countExp = creatureInstances.instanceId.count();
     final q = (selectOnly(creatureInstances)
@@ -246,9 +340,9 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     double? statBeautyPotential,
     int generationDepth = 0,
     Map<String, int>? factionLineage,
-    Map<String, int>? elementLineage, // NEW
-    Map<String, int>? familyLineage, // NEW
-
+    Map<String, int>? elementLineage,
+    Map<String, int>? familyLineage,
+    String? alchemyEffect,
     String? variantFaction,
     bool isPure = false,
   }) async {
@@ -353,12 +447,10 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
   Stream<List<CreatureInstance>> watchAllInstances() =>
       select(creatureInstances).watch();
 
-  // AlchemonsDatabase
   Stream<CreatureInstance?> watchInstanceById(String instanceId) {
     final q = select(creatureInstances)
       ..where((t) => t.instanceId.equals(instanceId));
-    return q
-        .watchSingleOrNull(); // or q.watch().map((r) => r.isEmpty ? null : r.first);
+    return q.watchSingleOrNull();
   }
 
   Future<void> deleteInstances(List<String> instanceIds) async {
@@ -404,7 +496,6 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     );
   }
 
-  // NEW STAT UPDATES
   Future<void> updateStats({
     required String instanceId,
     required double statSpeed,
@@ -444,5 +535,14 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         ),
       ),
     );
+  }
+
+  Future<void> updateAlchemyEffect({
+    required String instanceId,
+    String? effect,
+  }) async {
+    await (update(creatureInstances)
+          ..where((t) => t.instanceId.equals(instanceId)))
+        .write(CreatureInstancesCompanion(alchemyEffect: Value(effect)));
   }
 }

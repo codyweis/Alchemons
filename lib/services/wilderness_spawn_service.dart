@@ -279,7 +279,8 @@ class WildernessSpawnService extends ChangeNotifier {
     }
 
     // Roll how many to spawn: 1..freePoints.length
-    final spawnCount = 1 + _rng.nextInt(freePoints.length);
+    // ensure no more than 4
+    final spawnCount = 1 + _rng.nextInt(min(freePoints.length, 5));
 
     // Shuffle to sample distinct points without repetition
     freePoints.shuffle(_rng);

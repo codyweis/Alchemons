@@ -1,7 +1,10 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
+import 'package:alchemons/widgets/all_instaces_grid.dart';
+import 'package:alchemons/widgets/filterchip_solod.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,11 +18,12 @@ import 'package:alchemons/widgets/stamina_bar.dart';
 // ------------------------------------
 // VIEW MODES
 // ------------------------------------
-enum InstanceDetailMode { stats, genetics }
+enum InstanceDetailMode { info, stats, genetics }
 
 class CreatureSelectionSheet extends StatefulWidget {
   final List<CreatureEntry> discoveredCreatures;
   final Function(String creatureId) onSelectCreature;
+  final Function(CreatureInstance instance)? onSelectInstance; // NEW
 
   final ScrollController? scrollController;
   final String? title;
@@ -31,14 +35,17 @@ class CreatureSelectionSheet extends StatefulWidget {
   final InstanceDetailMode initialDetailMode;
 
   // NEW: filter options
-  final bool
-  showOnlyAvailableTypes; // only show types that exist in discoveredCreatures
+  final bool showOnlyAvailableTypes;
   final bool showSearch;
+
+  // NEW: pass selected instances to show in AllCreatureInstances
+  final List<String> selectedInstanceIds;
 
   const CreatureSelectionSheet({
     super.key,
     required this.discoveredCreatures,
     required this.onSelectCreature,
+    this.onSelectInstance, // NEW
     this.scrollController,
     this.title,
     this.showViewToggle = true,
@@ -48,6 +55,7 @@ class CreatureSelectionSheet extends StatefulWidget {
     this.initialDetailMode = InstanceDetailMode.stats,
     this.showOnlyAvailableTypes = false,
     this.showSearch = true,
+    this.selectedInstanceIds = const [], // NEW
   });
 
   @override
@@ -58,6 +66,7 @@ class CreatureSelectionSheet extends StatefulWidget {
     required BuildContext context,
     required List<CreatureEntry> discoveredCreatures,
     required Function(String) onSelectCreature,
+    Function(CreatureInstance)? onSelectInstance, // NEW
     String? title,
     bool showViewToggle = true,
     String? emptyStateMessage,
@@ -67,6 +76,7 @@ class CreatureSelectionSheet extends StatefulWidget {
     InstanceDetailMode initialDetailMode = InstanceDetailMode.stats,
     bool showOnlyAvailableTypes = false,
     bool showSearch = true,
+    List<String> selectedInstanceIds = const [], // NEW
   }) {
     return showModalBottomSheet<T>(
       context: context,
@@ -82,6 +92,7 @@ class CreatureSelectionSheet extends StatefulWidget {
             return CreatureSelectionSheet(
               discoveredCreatures: discoveredCreatures,
               onSelectCreature: onSelectCreature,
+              onSelectInstance: onSelectInstance, // NEW
               scrollController: scrollController,
               title: title,
               showViewToggle: showViewToggle,
@@ -91,6 +102,7 @@ class CreatureSelectionSheet extends StatefulWidget {
               initialDetailMode: initialDetailMode,
               showOnlyAvailableTypes: showOnlyAvailableTypes,
               showSearch: showSearch,
+              selectedInstanceIds: selectedInstanceIds, // NEW
             );
           },
         );
@@ -102,9 +114,8 @@ class CreatureSelectionSheet extends StatefulWidget {
 class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
   String _selectedFilter = 'All';
   String _selectedSort = 'Name';
-  bool _isGridView = true;
-  String _searchQuery = ''; // NEW
-  final _searchController = TextEditingController(); // NEW
+  String _searchQuery = '';
+  final _searchController = TextEditingController();
 
   late InstanceDetailMode _detailMode;
 
@@ -143,11 +154,11 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
             const SizedBox(height: 8),
             widget.customHeader ??
                 _DefaultHeader(
-                  title: widget.title ?? 'Select Specimen',
+                  title: widget.title ?? 'Select Specimens',
                   showViewToggle: widget.showViewToggle,
-                  isGridView: _isGridView,
-                  onToggleView: () =>
-                      setState(() => _isGridView = !_isGridView),
+                  onOpenAllInstances: () {
+                    _openAllInstancesView(context, theme);
+                  },
                   theme: theme,
                   showDetailModeToggle: widget.isInstanceMode,
                   detailMode: _detailMode,
@@ -155,6 +166,8 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                     setState(() {
                       _detailMode = _detailMode == InstanceDetailMode.stats
                           ? InstanceDetailMode.genetics
+                          : _detailMode == InstanceDetailMode.genetics
+                          ? InstanceDetailMode.info
                           : InstanceDetailMode.stats;
                     });
                   },
@@ -247,25 +260,15 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
             if (!widget.isInstanceMode) const SizedBox(height: 12),
 
             Expanded(
-              child: _isGridView
-                  ? _CreatureGrid(
-                      creatures: filteredCreatures,
-                      onSelectCreature: widget.onSelectCreature,
-                      scrollController: widget.scrollController,
-                      theme: theme,
-                      emptyStateMessage: widget.emptyStateMessage,
-                      isInstanceMode: widget.isInstanceMode,
-                      detailMode: _detailMode,
-                    )
-                  : _CreatureList(
-                      creatures: filteredCreatures,
-                      onSelectCreature: widget.onSelectCreature,
-                      scrollController: widget.scrollController,
-                      theme: theme,
-                      emptyStateMessage: widget.emptyStateMessage,
-                      isInstanceMode: widget.isInstanceMode,
-                      detailMode: _detailMode,
-                    ),
+              child: _CreatureGrid(
+                creatures: filteredCreatures,
+                onSelectCreature: widget.onSelectCreature,
+                scrollController: widget.scrollController,
+                theme: theme,
+                emptyStateMessage: widget.emptyStateMessage,
+                isInstanceMode: widget.isInstanceMode,
+                detailMode: _detailMode,
+              ),
             ),
           ],
         ),
@@ -273,31 +276,100 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     );
   }
 
-  // NEW: Get available types from discovered creatures
-  Set<String> _getAvailableTypes() {
-    final types = <String>{'All'}; // Always include 'All'
+  void _openAllInstancesView(BuildContext context, FactionTheme theme) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: theme.surface,
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                  decoration: BoxDecoration(
+                    color: theme.surface,
+                    border: Border(
+                      bottom: BorderSide(color: theme.border, width: 1.5),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: theme.surfaceAlt,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: theme.border),
+                          ),
+                          child: Icon(
+                            Icons.arrow_back_rounded,
+                            color: theme.text,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'ALL SPECIMENS',
+                          style: TextStyle(
+                            color: theme.text,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .8,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // AllCreatureInstances content
+                Expanded(
+                  child: AllCreatureInstances(
+                    theme: theme,
+                    selectedInstanceIds:
+                        widget.selectedInstanceIds, // Pass through selections
+                    onTap: (inst) {
+                      // Close the full screen view
+                      Navigator.pop(context);
 
+                      // If onSelectInstance callback is provided, use it
+                      // Otherwise fall back to onSelectCreature (opens InstancesSheet)
+                      if (widget.onSelectInstance != null) {
+                        widget.onSelectInstance!(inst);
+                      } else {
+                        widget.onSelectCreature(inst.baseId);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Set<String> _getAvailableTypes() {
+    final types = <String>{'All'};
     for (final data in widget.discoveredCreatures) {
       final creature = data.creature;
       types.addAll(creature.types);
     }
-
     return types;
   }
 
   List<CreatureEntry> _filterAndSortCreatures(List<CreatureEntry> creatures) {
-    // If we're in instance mode, do NOT filter/sort by species filters
     if (widget.isInstanceMode) {
-      // Still apply search in instance mode
       if (_searchQuery.trim().isNotEmpty) {
         final query = _searchQuery.trim().toLowerCase();
         creatures = creatures.where((data) {
           final c = data.creature;
-
-          // Search by creature name
-          if (c.name.toLowerCase().contains(query)) return true;
-
-          return false;
+          return c.name.toLowerCase().contains(query);
         }).toList();
       }
       return creatures;
@@ -341,6 +413,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     return filtered;
   }
 }
+
 // ======================= DRAG HANDLE =======================
 
 class _DragHandle extends StatelessWidget {
@@ -365,23 +438,20 @@ class _DragHandle extends StatelessWidget {
 class _DefaultHeader extends StatelessWidget {
   final String title;
   final bool showViewToggle;
-  final bool isGridView;
-  final VoidCallback onToggleView;
+  final VoidCallback onOpenAllInstances;
   final FactionTheme theme;
 
   final bool showDetailModeToggle;
   final InstanceDetailMode detailMode;
   final VoidCallback onToggleDetailMode;
 
-  // Sort parameters
   final String? selectedSort;
   final ValueChanged<String>? onSortChanged;
 
   const _DefaultHeader({
     required this.title,
     required this.showViewToggle,
-    required this.isGridView,
-    required this.onToggleView,
+    required this.onOpenAllInstances,
     required this.theme,
     this.showDetailModeToggle = false,
     this.detailMode = InstanceDetailMode.stats,
@@ -400,7 +470,6 @@ class _DefaultHeader extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            // text block
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,7 +498,7 @@ class _DefaultHeader extends StatelessWidget {
               ),
             ),
 
-            // Sort toggle button (if provided)
+            // Sort toggle button
             if (selectedSort != null && onSortChanged != null)
               GestureDetector(
                 onTap: () => _cycleSort(),
@@ -463,7 +532,7 @@ class _DefaultHeader extends StatelessWidget {
                 ),
               ),
 
-            // STATS / GENETICS toggle pill
+            // Detail mode toggle
             if (showDetailModeToggle)
               GestureDetector(
                 onTap: onToggleDetailMode,
@@ -479,7 +548,9 @@ class _DefaultHeader extends StatelessWidget {
                     border: Border.all(color: theme.accent),
                   ),
                   child: Text(
-                    detailMode == InstanceDetailMode.stats
+                    detailMode == InstanceDetailMode.info
+                        ? 'INFO'
+                        : detailMode == InstanceDetailMode.stats
                         ? 'STATS'
                         : 'GENETICS',
                     style: TextStyle(
@@ -492,18 +563,20 @@ class _DefaultHeader extends StatelessWidget {
                 ),
               ),
 
-            // grid/list toggle
+            // View All button (replaces grid/list toggle)
             if (showViewToggle)
               GestureDetector(
-                onTap: onToggleView,
+                onTap: onOpenAllInstances,
                 child: Container(
                   padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.surfaceAlt.withOpacity(.5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   child: Icon(
-                    isGridView
-                        ? Icons.view_list_rounded
-                        : Icons.grid_view_rounded,
+                    Icons.grid_view_rounded,
                     color: theme.accent,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
               ),
@@ -527,8 +600,8 @@ class _FilterSortRow extends StatelessWidget {
   final String selectedFilter;
   final ValueChanged<String> onFilterChanged;
   final FactionTheme theme;
-  final Set<String> availableTypes; // NEW
-  final bool showOnlyAvailableTypes; // NEW
+  final Set<String> availableTypes;
+  final bool showOnlyAvailableTypes;
 
   const _FilterSortRow({
     required this.selectedFilter,
@@ -540,7 +613,6 @@ class _FilterSortRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Use only available types or all types
     final filterOptions = showOnlyAvailableTypes
         ? availableTypes.toList()
         : CreatureFilterUtils.filterOptions;
@@ -595,13 +667,14 @@ class _FilterSortRow extends StatelessWidget {
   }
 }
 
+// ======================= GRID =======================
+
 class _CreatureGrid extends StatelessWidget {
   final List<CreatureEntry> creatures;
   final Function(String) onSelectCreature;
   final ScrollController? scrollController;
   final FactionTheme theme;
   final String? emptyStateMessage;
-
   final bool isInstanceMode;
   final InstanceDetailMode detailMode;
 
@@ -638,9 +711,11 @@ class _CreatureGrid extends StatelessWidget {
       itemBuilder: (context, index) {
         final data = creatures[index];
         final c = data.creature;
-
-        tap() => onSelectCreature((c.id));
-        return _CreatureGridCard(c: c, onTap: tap, theme: theme);
+        return _CreatureGridCard(
+          c: c,
+          onTap: () => onSelectCreature(c.id),
+          theme: theme,
+        );
       },
     );
   }
@@ -703,318 +778,6 @@ class _CreatureGridCard extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                   letterSpacing: .5,
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Instance version of the grid card
-class _InstanceGridCard extends StatelessWidget {
-  final FactionTheme theme;
-  final Creature creature;
-  final CreatureInstance instance;
-  final InstanceDetailMode detailMode;
-  final VoidCallback onTap;
-
-  const _InstanceGridCard({
-    required this.theme,
-    required this.creature,
-    required this.instance,
-    required this.detailMode,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // bottom text depends on mode
-    final genes = decodeGenetics(instance.geneticsJson);
-    final bottomText = (detailMode == InstanceDetailMode.stats)
-        ? 'Lv ${instance.level}'
-        : genes;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: theme.border, width: 1),
-        ),
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              creature.name,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(7),
-                child: CreatureImage(c: creature, discovered: true),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              bottomText.toString(),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _briefGenesLabel(Map<String, dynamic> genes, bool isPrismatic) {
-    final parts = <String>[];
-    if (isPrismatic) parts.add('Prismatic');
-    if (genes['size'] != null) parts.add('Size ${genes['size']}');
-    if (genes['tint'] != null) parts.add('${genes['tint']} tint');
-    return parts.isEmpty ? 'Base form' : parts.join(' • ');
-  }
-}
-
-// ======================= LIST MODE =======================
-
-class _CreatureList extends StatelessWidget {
-  final List<CreatureEntry> creatures;
-  final Function(String) onSelectCreature;
-  final ScrollController? scrollController;
-  final FactionTheme theme;
-  final String? emptyStateMessage;
-
-  final bool isInstanceMode;
-  final InstanceDetailMode detailMode;
-
-  const _CreatureList({
-    required this.creatures,
-    required this.onSelectCreature,
-    required this.scrollController,
-    required this.theme,
-    this.emptyStateMessage,
-    required this.isInstanceMode,
-    required this.detailMode,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (creatures.isEmpty) {
-      return _EmptyState(
-        theme: theme,
-        message: emptyStateMessage ?? 'No specimens match current filters',
-      );
-    }
-
-    return ListView.builder(
-      controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-      physics: const BouncingScrollPhysics(),
-      itemCount: creatures.length,
-      itemBuilder: (context, index) {
-        final data = creatures[index];
-        final c = data.creature;
-
-        tap() => onSelectCreature((c.id));
-
-        // species mode row:
-        return _CreatureListTile(c: c, onTap: tap, theme: theme);
-      },
-    );
-  }
-}
-
-class _CreatureListTile extends StatelessWidget {
-  final Creature c;
-  final VoidCallback onTap;
-  final FactionTheme theme;
-
-  const _CreatureListTile({
-    required this.c,
-    required this.onTap,
-    required this.theme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final rarityColor = BreedConstants.getRarityColor(c.rarity);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
-        child: Row(
-          children: [
-            // image
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(7),
-                child: CreatureImage(c: c, discovered: true),
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // name
-                  Text(
-                    c.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      // rarity chip
-                      Text(
-                        c.rarity.toUpperCase(),
-                        style: TextStyle(
-                          color: rarityColor,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: .4,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-
-                      // types
-                      ...c.types.take(2).map((t) {
-                        final tColor = BreedConstants.getTypeColor(t);
-                        return Container(
-                          margin: const EdgeInsets.only(right: 4),
-                          child: Text(
-                            t.toUpperCase(),
-                            style: TextStyle(
-                              color: tColor,
-                              fontSize: 8,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: .3,
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ======================= LIST ITEM FOR INSTANCE =======================
-
-class _InstanceListTile extends StatelessWidget {
-  final FactionTheme theme;
-  final Creature creature;
-  final CreatureInstance instance;
-  final InstanceDetailMode detailMode;
-  final VoidCallback onTap;
-
-  const _InstanceListTile({
-    required this.theme,
-    required this.creature,
-    required this.instance,
-    required this.detailMode,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // stats mode vs genetics mode
-    final genes = decodeGenetics(instance.geneticsJson);
-    final Widget subRow = detailMode == InstanceDetailMode.stats
-        ? Row(
-            children: [
-              Text(
-                'Lv ${instance.level}',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 8),
-              StaminaBadge(
-                instanceId: instance.instanceId,
-                showCountdown: true,
-              ),
-            ],
-          )
-        : Text(
-            genes.toString(),
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          );
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(7),
-                child: CreatureImage(c: creature, discovered: true),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    creature.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  subRow,
-                ],
               ),
             ),
           ],

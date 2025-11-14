@@ -8,6 +8,9 @@ import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame/flame.dart' show Flame;
 import 'package:flame/sprite.dart';
@@ -256,11 +259,10 @@ class InstanceSprite extends StatelessWidget {
     final sheet = sheetFromCreature(creature);
     final visuals = visualsFromInstance(creature, instance);
 
-    return SizedBox(
+    Widget sprite = SizedBox(
       width: size,
       height: size,
       child: CreatureSprite(
-        // reuse your existing Flutter renderer
         spritePath: sheet.path,
         totalFrames: sheet.totalFrames,
         rows: sheet.rows,
@@ -274,6 +276,52 @@ class InstanceSprite extends StatelessWidget {
         tint: visuals.tint,
       ),
     );
+
+    if (instance.alchemyEffect != null) {
+      // Use a simple Stack. The effect layer and the padded sprite are centered.
+      sprite = Stack(
+        alignment: Alignment.center,
+        children: [
+          // Background glow/particles - this child will overflow its bounds
+          _buildEffectLayer(instance.alchemyEffect!),
+          // Creature sprite on top (keep the padding to ensure the sprite
+          // image itself isn't pushed to the edge and clipped by its own BoxShadow)
+          Padding(
+            padding: const EdgeInsets.all(
+              30.0,
+            ), // Keep this for internal glow space
+            child: sprite,
+          ),
+        ],
+      );
+    }
+    return SizedBox(
+      width: size,
+      height: size,
+      // 💡 Use OverflowBox to allow the effect (child) to be visually larger
+      // than the size defined by this SizedBox.
+      child: OverflowBox(
+        minWidth: 0.0,
+        maxWidth: double.infinity,
+        minHeight: 0.0,
+        maxHeight: double.infinity,
+        alignment: Alignment.center,
+        child: sprite, // 'sprite' here contains the Stack with the effect
+      ),
+    );
+  }
+
+  Widget _buildEffectLayer(String effect) {
+    switch (effect) {
+      case 'alchemy_glow':
+        return AlchemyGlow(size: size);
+      case 'elemental_aura':
+        return ElementalAura(size: size, element: instance.variantFaction);
+      case 'volcanic_aura':
+        return VolcanicAura(size: size);
+      default:
+        return const SizedBox.shrink();
+    }
   }
 }
 

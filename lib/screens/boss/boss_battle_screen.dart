@@ -37,7 +37,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
 
-    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
+    _pulseAnimation = Tween<double>(begin: 0.98, end: 1.02).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
@@ -111,8 +111,8 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: theme.surface.withOpacity(0.95),
-        border: Border(bottom: BorderSide(color: theme.border)),
+        color: theme.surface,
+        border: Border(bottom: BorderSide(color: theme.border, width: 2)),
       ),
       child: Row(
         children: [
@@ -126,7 +126,6 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               decoration: BoxDecoration(
                 color: theme.surfaceAlt,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.border),
               ),
               child: Icon(Icons.arrow_back, color: theme.text, size: 18),
             ),
@@ -163,7 +162,6 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               decoration: BoxDecoration(
                 color: theme.surfaceAlt,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.border),
               ),
               child: Icon(Icons.history, color: theme.text, size: 18),
             ),
@@ -180,63 +178,61 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.surface.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.withOpacity(0.5), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.amber.withOpacity(0.2),
-            blurRadius: 12,
-            spreadRadius: 2,
-          ),
-        ],
+        color: theme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.border, width: 2),
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'CAMPAIGN PROGRESS',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                ),
+              Row(
+                children: [
+                  Icon(Icons.emoji_events, color: Colors.amber, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'CAMPAIGN PROGRESS',
+                    style: TextStyle(
+                      color: theme.text,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
               ),
               Text(
-                '$defeated / 17 Bosses',
-                style: TextStyle(
+                '$defeated / 17',
+                style: const TextStyle(
                   color: Colors.amber,
                   fontSize: 12,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              height: 12,
-              child: Stack(
-                children: [
-                  Container(color: theme.border.withOpacity(0.3)),
-                  FractionallySizedBox(
-                    widthFactor: progressPercent,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.amber.shade700,
-                            Colors.amber.shade400,
-                          ],
-                        ),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              height: 10,
+              decoration: BoxDecoration(
+                color: theme.surfaceAlt,
+                border: Border.all(color: theme.border, width: 1),
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: progressPercent,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.amber.shade700, Colors.amber.shade400],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -259,19 +255,9 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       },
       child: Container(
         decoration: BoxDecoration(
-          color: theme.surface.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: boss.elementColor.withOpacity(0.7),
-            width: 3,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: boss.elementColor.withOpacity(0.4),
-              blurRadius: 24,
-              spreadRadius: 4,
-            ),
-          ],
+          color: theme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: boss.elementColor, width: 3),
         ),
         child: Column(
           children: [
@@ -279,36 +265,30 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    boss.elementColor.withOpacity(0.3),
-                    boss.elementColor.withOpacity(0.1),
-                  ],
-                ),
+                color: boss.elementColor.withOpacity(0.15),
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(17),
-                  topRight: Radius.circular(17),
+                  topLeft: Radius.circular(13),
+                  topRight: Radius.circular(13),
+                ),
+                border: Border(
+                  bottom: BorderSide(color: boss.elementColor, width: 2),
                 ),
               ),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                      horizontal: 10,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: boss.tier.color.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: boss.tier.color.withOpacity(0.6),
-                        width: 1.5,
-                      ),
+                      color: boss.tier.color,
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       boss.tier.label.toUpperCase(),
-                      style: TextStyle(
-                        color: boss.tier.color.withOpacity(0.9),
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 10,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.8,
@@ -323,24 +303,21 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.green.withOpacity(0.6),
-                        ),
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.check_circle,
-                            color: Colors.green,
-                            size: 14,
+                            color: Colors.white,
+                            size: 12,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             'Defeated x$defeatCount',
                             style: const TextStyle(
-                              color: Colors.green,
+                              color: Colors.white,
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                             ),
@@ -352,24 +329,26 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               ),
             ),
 
-            // Boss illustration placeholder
+            // Boss illustration
             Container(
               height: 180,
               width: double.infinity,
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: boss.elementColor.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: boss.elementColor.withOpacity(0.3),
-                  width: 2,
+                gradient: RadialGradient(
+                  colors: [
+                    boss.elementColor.withOpacity(0.2),
+                    boss.elementColor.withOpacity(0.05),
+                  ],
                 ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.border, width: 2),
               ),
               child: Center(
                 child: Icon(
                   boss.elementIcon,
                   size: 80,
-                  color: boss.elementColor.withOpacity(0.8),
+                  color: boss.elementColor,
                 ),
               ),
             ),
@@ -399,24 +378,21 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: boss.elementColor.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: boss.elementColor.withOpacity(0.5),
-                          ),
+                          color: boss.elementColor,
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
                           children: [
                             Icon(
                               boss.elementIcon,
-                              color: boss.elementColor,
-                              size: 14,
+                              color: Colors.white,
+                              size: 12,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               boss.element,
-                              style: TextStyle(
-                                color: boss.elementColor,
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -431,16 +407,13 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.amber.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.amber.withOpacity(0.5),
-                          ),
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           'Lv. ${boss.recommendedLevel}',
                           style: const TextStyle(
-                            color: Colors.amber,
+                            color: Colors.white,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
@@ -506,14 +479,20 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'MOVESET',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                    ),
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome, color: theme.text, size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        'MOVESET',
+                        style: TextStyle(
+                          color: theme.text,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   ...boss.moveset.map(
@@ -553,23 +532,16 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: theme.surface.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.greenAccent.withOpacity(0.5),
-              width: 2,
-            ),
+            color: theme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green, width: 2),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.groups_rounded,
-                    color: Colors.greenAccent,
-                    size: 16,
-                  ),
+                  Icon(Icons.groups_rounded, color: Colors.green, size: 16),
                   const SizedBox(width: 8),
                   Text(
                     'YOUR TEAM',
@@ -581,12 +553,22 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                     ),
                   ),
                   const Spacer(),
-                  Text(
-                    '${selectedInstances.length} / 3',
-                    style: TextStyle(
-                      color: Colors.greenAccent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${selectedInstances.length} / 3',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
@@ -656,19 +638,16 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 context,
                 MaterialPageRoute(builder: (_) => const PartyPickerPage()),
               );
-              // Team updated via provider
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: theme.surfaceAlt,
               foregroundColor: theme.text,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: Colors.blueAccent.withOpacity(0.5),
-                  width: 2,
-                ),
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: Colors.blue, width: 2),
               ),
+              elevation: 0,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -697,27 +676,19 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 ? () => _startBattle(theme, boss, party, progress)
                 : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: hasTeam
-                  ? boss.elementColor.withOpacity(0.9)
-                  : theme.border,
+              backgroundColor: hasTeam ? boss.elementColor : theme.border,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 18),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: hasTeam
-                      ? boss.elementColor
-                      : theme.border.withOpacity(0.5),
-                  width: 2,
-                ),
+                borderRadius: BorderRadius.circular(10),
               ),
-              elevation: hasTeam ? 8 : 0,
+              elevation: hasTeam ? 4 : 0,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.cut_sharp,
+                  Icons.scatter_plot_rounded,
                   size: 24,
                   color: hasTeam ? Colors.white : theme.textMuted,
                 ),
@@ -748,7 +719,6 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
 
-    // Get full instances with stats
     final instances = await db.creatureDao.listAllInstances();
     final selectedInstances = party.members
         .map(
@@ -769,7 +739,6 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       return;
     }
 
-    // Convert to battle combatants
     final playerTeam = selectedInstances
         .map((inst) {
           final creature = repo.getCreatureById(inst.baseId);
@@ -784,7 +753,6 @@ class _BossBattleScreenState extends State<BossBattleScreen>
 
     final bossCombatant = BattleCombatant.fromBoss(boss);
 
-    // Navigate to Flame battle screen
     final victory = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -861,9 +829,9 @@ class _BossStat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color, width: 2),
       ),
       child: Column(
         children: [
@@ -872,7 +840,7 @@ class _BossStat extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: color.withOpacity(0.8),
+              color: color,
               fontSize: 9,
               fontWeight: FontWeight.w700,
             ),
@@ -908,24 +876,19 @@ class _BossMoveCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.surfaceAlt.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: elementColor.withOpacity(0.3)),
+        color: theme.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.border, width: 1),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: _getMoveTypeColor().withOpacity(0.2),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: _getMoveTypeColor().withOpacity(0.5)),
-            ),
-            child: Icon(
-              _getMoveTypeIcon(),
               color: _getMoveTypeColor(),
-              size: 14,
+              borderRadius: BorderRadius.circular(6),
             ),
+            child: Icon(_getMoveTypeIcon(), color: Colors.white, size: 14),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1001,19 +964,16 @@ class _EmptyPartySlot extends StatelessWidget {
     return Container(
       height: 90,
       decoration: BoxDecoration(
-        color: theme.surfaceAlt.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
+        color: theme.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: theme.border.withOpacity(0.5),
+          color: theme.border,
+          width: 2,
           style: BorderStyle.solid,
         ),
       ),
       child: Center(
-        child: Icon(
-          Icons.add_circle_outline,
-          color: theme.textMuted.withOpacity(0.5),
-          size: 28,
-        ),
+        child: Icon(Icons.add_circle_outline, color: theme.textMuted, size: 28),
       ),
     );
   }
@@ -1036,8 +996,8 @@ class _PartyMemberCard extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: theme.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.border),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.border, width: 2),
       ),
       child: Column(
         children: [
@@ -1062,12 +1022,19 @@ class _PartyMemberCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          Text(
-            'Lv. ${instance.level}',
-            style: TextStyle(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
               color: Colors.amber,
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              'Lv ${instance.level}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ],
@@ -1097,18 +1064,11 @@ class _BattleResultDialog extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: theme.surface,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: victory ? Colors.green : Colors.red,
             width: 3,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: (victory ? Colors.green : Colors.red).withOpacity(0.4),
-              blurRadius: 24,
-              spreadRadius: 4,
-            ),
-          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1149,7 +1109,7 @@ class _BattleResultDialog extends StatelessWidget {
                   backgroundColor: victory ? Colors.green : Colors.red,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 child: Text(
@@ -1184,6 +1144,11 @@ class _BossHistorySheet extends StatelessWidget {
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(24),
           topRight: Radius.circular(24),
+        ),
+        border: Border(
+          top: BorderSide(color: theme.border, width: 2),
+          left: BorderSide(color: theme.border, width: 2),
+          right: BorderSide(color: theme.border, width: 2),
         ),
       ),
       child: Column(
@@ -1281,14 +1246,12 @@ class _BossHistoryCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isCurrent
-              ? boss.elementColor.withOpacity(0.1)
+              ? boss.elementColor.withOpacity(0.15)
               : theme.surfaceAlt,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isCurrent
-                ? boss.elementColor.withOpacity(0.5)
-                : theme.border,
-            width: isCurrent ? 2 : 1,
+            color: isCurrent ? boss.elementColor : theme.border,
+            width: 2,
           ),
         ),
         child: Row(
@@ -1298,17 +1261,16 @@ class _BossHistoryCard extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: defeated ? Colors.green.withOpacity(0.2) : theme.surface,
+                color: defeated ? Colors.green : theme.surface,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: defeated
-                      ? Colors.green.withOpacity(0.5)
-                      : theme.border,
+                  color: defeated ? Colors.green : theme.border,
+                  width: 2,
                 ),
               ),
               child: Center(
                 child: defeated
-                    ? const Icon(Icons.check, color: Colors.green, size: 20)
+                    ? const Icon(Icons.check, color: Colors.white, size: 20)
                     : Text(
                         '${boss.order}',
                         style: TextStyle(
@@ -1364,26 +1326,32 @@ class _BossHistoryCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: boss.elementColor.withOpacity(0.2),
+                  color: boss.elementColor,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: boss.elementColor.withOpacity(0.5)),
                 ),
-                child: Text(
+                child: const Text(
                   'CURRENT',
                   style: TextStyle(
-                    color: boss.elementColor,
+                    color: Colors.white,
                     fontSize: 9,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               )
             else if (defeated && defeatCount > 0)
-              Text(
-                'x$defeatCount',
-                style: const TextStyle(
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
                   color: Colors.green,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'x$defeatCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
           ],

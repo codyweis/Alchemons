@@ -58,10 +58,7 @@ class ParticleBackgroundScaffold extends StatelessWidget {
           ),
 
         // Your actual screen content
-        Scaffold(
-          backgroundColor: Colors.transparent,
-          body: SafeArea(bottom: avoidBottomInset, child: body),
-        ),
+        Scaffold(backgroundColor: Colors.transparent, body: body),
       ],
     );
   }

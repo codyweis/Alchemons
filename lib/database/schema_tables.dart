@@ -113,6 +113,8 @@ class CreatureInstances extends Table {
   IntColumn get staminaLastUtcMs => integer().withDefault(const Constant(0))();
   IntColumn get createdAtUtcMs => integer().withDefault(const Constant(0))();
 
+  TextColumn get alchemyEffect => text().nullable()();
+
   // STAT COLUMNS
   RealColumn get statSpeed => real().withDefault(const Constant(3.0))();
   RealColumn get statIntelligence => real().withDefault(const Constant(3.0))();

@@ -1,6 +1,14 @@
 // lib/screens/inventory_screen.dart - REDESIGNED
+import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
+import 'package:alchemons/widgets/bottom_sheet_shell.dart';
+import 'package:alchemons/widgets/creature_instances_sheet.dart';
+import 'package:alchemons/widgets/creature_selection_sheet.dart';
+import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -30,6 +38,38 @@ class InventoryImageHelper {
     _buildCache();
     return _imageCache[inventoryKey];
   }
+
+  static Widget getVisualWidget({
+    required String key,
+    String? assetName,
+    IconData? icon,
+    required double size,
+  }) {
+    // 1. Check if it's an alchemy effect using the key prefix
+    if (key.startsWith('alchemy.')) {
+      final preview = ShopService.getAlchemyEffectPreview(key, size: size);
+      if (preview != null) {
+        // Return the animated widget, constrained to the size
+        return SizedBox.square(dimension: size, child: preview);
+      }
+    }
+
+    // 2. Fallback to static image asset
+    if (assetName != null) {
+      return Image.asset(assetName, fit: BoxFit.contain);
+    }
+
+    // 3. Final fallback to icon
+    if (icon != null) {
+      return Icon(icon, size: size * 0.75);
+    }
+
+    // Default fallback (placeholder)
+    return SizedBox.square(
+      dimension: size,
+      child: Container(color: Colors.grey.withOpacity(0.1)),
+    );
+  }
 }
 
 class InventoryScreen extends StatefulWidget {
@@ -53,6 +93,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       body: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
+          bottom: false,
           child: Column(
             children: [
               _buildHeader(theme),
@@ -296,19 +337,28 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   // ===== ITEM DETAILS DIALOG =====
+
   void _showItemDetailsDialog(
     InventoryItem item,
     InventoryItemDef def,
     FactionTheme theme,
   ) {
-    final imagePath = InventoryImageHelper.getImage(item.key);
+    // 1. Determine the visual widget (animated or static)
+    final Widget visualWidget = InventoryImageHelper.getVisualWidget(
+      key: item.key,
+      // NOTE: You must have a static method InventoryImageHelper.getImage(key)
+      // or similar to retrieve the asset path for non-alchemy items.
+      assetName: InventoryImageHelper.getImage(item.key),
+      icon: def.icon,
+      size: 120, // A good size for the dialog
+    );
 
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
-          constraints: BoxConstraints(maxWidth: 400),
+          constraints: const BoxConstraints(maxWidth: 400),
           decoration: BoxDecoration(
             color: theme.surface,
             borderRadius: BorderRadius.circular(20),
@@ -352,7 +402,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
               ),
 
-              // Image/Icon Section
+              // Image/Icon Section (MODIFIED)
               Container(
                 height: 160,
                 width: double.infinity,
@@ -362,18 +412,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: widget.accent.withOpacity(0.2)),
                 ),
-                child: imagePath != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.asset(imagePath, fit: BoxFit.contain),
-                      )
-                    : Center(
-                        child: Icon(
-                          def.icon,
-                          size: 64,
-                          color: widget.accent.withOpacity(0.8),
-                        ),
-                      ),
+                child: Center(
+                  // 2. Use the result from the helper function directly
+                  child: visualWidget,
+                ),
               ),
 
               // Name
@@ -519,7 +561,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             Text(
                               'USE ITEM',
                               style: TextStyle(
-                                color: widget.accent,
+                                color: theme.text,
                                 fontWeight: FontWeight.w900,
                                 fontSize: 12,
                                 letterSpacing: 0.6,
@@ -743,10 +785,290 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Future<void> _useItem(InventoryItem item, InventoryItemDef def) async {
+    final db = context.read<AlchemonsDatabase>();
+
+    // Check if it's an alchemy effect
+    if (item.key.startsWith('alchemy.')) {
+      await _showCreatureSelectorForEffect(item, def);
+      return;
+    }
+    if (item.key == InvKeys.staminaPotion) {
+      await _useStaminaPotion(item, def);
+      return;
+    }
+
     _showToast(
       'Item usage not yet implemented',
       icon: Icons.info_rounded,
       color: Colors.blue,
+    );
+  }
+
+  Future<void> _useStaminaPotion(
+    InventoryItem item,
+    InventoryItemDef def,
+  ) async {
+    final db = context.read<AlchemonsDatabase>();
+    final theme = context.read<FactionTheme>();
+    final repo = context.read<CreatureCatalog>();
+    final staminaService = StaminaService(db);
+
+    // Get all instances so we can choose one
+    final allInstances = await db.creatureDao.listAllInstances();
+
+    if (allInstances.isEmpty) {
+      _showToast(
+        'No Alchemons available',
+        icon: Icons.error_rounded,
+        color: Colors.orange,
+      );
+      return;
+    }
+
+    // Unique species IDs for which we have instances
+    final eligibleSpeciesIds = allInstances.map((inst) => inst.baseId).toSet();
+
+    // STEP 1: pick species
+    final selectedSpeciesId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (sheetContext, scrollController) {
+            return withGameData(
+              context,
+              loadingBuilder: buildLoadingScreen,
+              builder:
+                  (
+                    context, {
+                    required theme,
+                    required catalog,
+                    required entries,
+                    required discovered,
+                  }) {
+                    final eligibleDiscovered = discovered
+                        .where(
+                          (entry) =>
+                              eligibleSpeciesIds.contains(entry.creature.id),
+                        )
+                        .toList();
+
+                    if (eligibleDiscovered.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Text(
+                            'No Alchemons available',
+                            style: TextStyle(
+                              color: theme.textMuted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return CreatureSelectionSheet(
+                      scrollController: scrollController,
+                      discoveredCreatures: eligibleDiscovered,
+                      onSelectCreature: (creatureId) {
+                        Navigator.pop(modalContext, creatureId);
+                      },
+                      showOnlyAvailableTypes: true,
+                    );
+                  },
+            );
+          },
+        );
+      },
+    );
+
+    if (selectedSpeciesId == null || !mounted) return;
+
+    final selectedSpecies = repo.getCreatureById(selectedSpeciesId);
+    if (selectedSpecies == null) return;
+
+    // STEP 2: pick instance of that species
+    final instanceId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => BottomSheetShell(
+        title: 'Choose ${selectedSpecies.name}',
+        theme: theme,
+        child: InstancesSheet(
+          species: selectedSpecies,
+          theme: theme,
+          onTap: (inst) {
+            Navigator.pop(context, inst.instanceId);
+          },
+        ),
+      ),
+    );
+
+    if (instanceId == null || !mounted) return;
+
+    // STEP 3: restore stamina using the service
+    final updated = await staminaService.restoreToFull(instanceId);
+    if (updated == null) {
+      _showToast(
+        'Failed to restore stamina',
+        icon: Icons.error_rounded,
+        color: Colors.red,
+      );
+      return;
+    }
+
+    // Consume the potion
+    await db.inventoryDao.decrementItem(item.key, by: 1);
+
+    _showToast(
+      'Restored stamina for ${selectedSpecies.name}!',
+      icon: Icons.favorite_rounded,
+      color: Colors.green,
+    );
+  }
+
+  Future<void> _showCreatureSelectorForEffect(
+    InventoryItem item,
+    InventoryItemDef def,
+  ) async {
+    final db = context.read<AlchemonsDatabase>();
+    final theme = context.read<FactionTheme>();
+    final repo = context.read<CreatureCatalog>();
+
+    // Get all instances to determine which species are eligible
+    final allInstances = await db.creatureDao.listAllInstances();
+
+    if (allInstances.isEmpty) {
+      _showToast(
+        'No Alchemons to apply effect to',
+        icon: Icons.error_rounded,
+        color: Colors.orange,
+      );
+      return;
+    }
+
+    // Get unique species IDs that have instances
+    final eligibleSpeciesIds = allInstances.map((inst) => inst.baseId).toSet();
+
+    // STEP 1: Show species picker
+    final selectedSpeciesId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (sheetContext, scrollController) {
+            // Use withGameData to get discovered creatures
+            return withGameData(
+              context, // Use the original context that has the providers
+              loadingBuilder: buildLoadingScreen,
+              builder:
+                  (
+                    context, {
+                    required theme,
+                    required catalog,
+                    required entries,
+                    required discovered,
+                  }) {
+                    // Filter to only show species with instances
+                    final eligibleDiscovered = discovered
+                        .where(
+                          (entry) =>
+                              eligibleSpeciesIds.contains(entry.creature.id),
+                        )
+                        .toList();
+
+                    if (eligibleDiscovered.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Text(
+                            'No Alchemons available',
+                            style: TextStyle(
+                              color: theme.textMuted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return CreatureSelectionSheet(
+                      scrollController: scrollController,
+                      discoveredCreatures: eligibleDiscovered,
+                      onSelectCreature: (creatureId) {
+                        Navigator.pop(modalContext, creatureId);
+                      },
+                      showOnlyAvailableTypes: true,
+                    );
+                  },
+            );
+          },
+        );
+      },
+    );
+
+    if (selectedSpeciesId == null || !mounted) return;
+
+    final selectedSpecies = repo.getCreatureById(selectedSpeciesId);
+    if (selectedSpecies == null) return;
+
+    // STEP 2: Show instance picker
+    final instanceId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => BottomSheetShell(
+        title: 'Choose ${selectedSpecies.name}',
+        theme: theme,
+        child: InstancesSheet(
+          species: selectedSpecies,
+          theme: theme,
+          onTap: (inst) {
+            Navigator.pop(context, inst.instanceId);
+          },
+        ),
+      ),
+    );
+
+    if (instanceId == null || !mounted) return;
+
+    // Determine effect type
+    final effectType = switch (item.key) {
+      InvKeys.alchemyGlow => 'alchemy_glow',
+      InvKeys.alchemyElementalAura => 'elemental_aura',
+      InvKeys.alchemyVolcanicAura => 'volcanic_aura',
+      _ => null,
+    };
+
+    if (effectType == null) return;
+
+    // Apply the effect
+    await db.creatureDao.updateAlchemyEffect(
+      instanceId: instanceId,
+      effect: effectType,
+    );
+
+    // Consume the item
+    await db.inventoryDao.decrementItem(item.key, by: 1);
+
+    _showToast(
+      'Applied ${def.name}!',
+      icon: Icons.check_circle_rounded,
+      color: Colors.green,
     );
   }
 
@@ -1005,7 +1327,12 @@ class _CleanItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imagePath = InventoryImageHelper.getImage(item.key);
+    final visualWidget = InventoryImageHelper.getVisualWidget(
+      key: item.key,
+      assetName: InventoryImageHelper.getImage(item.key),
+      icon: def.icon,
+      size: 48,
+    );
 
     return GestureDetector(
       onTap: onTap,
@@ -1022,19 +1349,7 @@ class _CleanItemCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Image/Icon Area
-                Expanded(
-                  child: Container(
-                    child: imagePath != null
-                        ? Image.asset(imagePath, fit: BoxFit.contain)
-                        : Center(
-                            child: Icon(
-                              def.icon,
-                              size: 48,
-                              color: accent.withOpacity(0.8),
-                            ),
-                          ),
-                  ),
-                ),
+                Expanded(child: Center(child: visualWidget)),
 
                 // Quantity Badge at bottom
                 Container(

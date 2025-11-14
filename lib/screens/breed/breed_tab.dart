@@ -1091,7 +1091,8 @@ class _BreedingTabState extends State<BreedingTab>
     await stamina.spendForBreeding(parent2.instanceId);
   }
 
-  // ================== CREATURE SELECTION (unchanged logic) ==================
+  // CORRECTED _showCreatureSelection method for breeding_tab.dart
+
   void _showCreatureSelection(int slotNumber) async {
     final db = context.read<AlchemonsDatabase>();
     final available = await db.creatureDao
@@ -1117,6 +1118,44 @@ class _BreedingTabState extends State<BreedingTab>
               scrollController: scrollController,
               discoveredCreatures: filteredDiscovered,
               showOnlyAvailableTypes: true,
+              // Pass currently selected instances so they show as selected
+              selectedInstanceIds: [
+                if (selectedParent1 != null) selectedParent1!.instanceId,
+                if (selectedParent2 != null) selectedParent2!.instanceId,
+              ],
+              onSelectInstance: (instance) async {
+                // Close the sheet first
+                Navigator.pop(context);
+
+                // Check stamina before selecting
+                final stamina = context.read<StaminaService>();
+                final refreshed = await stamina.refreshAndGet(
+                  instance.instanceId,
+                );
+                final canUse = (refreshed?.staminaBars ?? 0) >= 1;
+
+                if (!canUse) {
+                  final perBar = stamina.regenPerBar;
+                  final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+                  final last = refreshed?.staminaLastUtcMs ?? now;
+                  final elapsed = now - last;
+                  final remMs =
+                      perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
+                  final mins = (remMs / 60000).ceil();
+
+                  if (!mounted) return;
+                  _showToast(
+                    'Specimen is resting — next stamina in ~${mins}m',
+                    icon: Icons.hourglass_bottom_rounded,
+                    color: Colors.orange,
+                    fromTop: true,
+                  );
+                  return;
+                }
+
+                // Select the instance for the correct slot
+                _selectInstance(instance, slotNumber);
+              },
               onSelectCreature: (creatureId) async {
                 Navigator.pop(context);
                 final repo = context.read<CreatureCatalog>();

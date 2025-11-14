@@ -274,6 +274,19 @@ class _ShopScreenState extends State<ShopScreen> {
                         allCurrencies,
                         inventoryByKey,
                       ),
+                      const SizedBox(height: 16),
+
+                      // SECTION: ALCHEMY EFFECTS
+                      _buildSectionHeader(
+                        'ALCHEMY EFFECTS',
+                        theme.accent,
+                        Icons.auto_awesome_rounded,
+                      ),
+                      _buildAlchemyEffectsGrid(
+                        theme,
+                        allCurrencies,
+                        inventoryByKey,
+                      ),
 
                       const SizedBox(height: 16),
 
@@ -314,6 +327,94 @@ class _ShopScreenState extends State<ShopScreen> {
               },
             );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildAlchemyEffectsGrid(
+    FactionTheme theme,
+    Map<String, int> allCurrencies,
+    Map<String, int> inventory,
+  ) {
+    return Consumer<ShopService>(
+      builder: (context, shopService, _) {
+        final effectOffers = ShopService.allOffers
+            .where((o) => o.id.startsWith('effects'))
+            .toList();
+
+        if (effectOffers.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(12.0),
+            child: EmptySection(
+              message: 'No effects available',
+              icon: Icons.auto_awesome_outlined,
+            ),
+          );
+        }
+
+        final cards = effectOffers.map((offer) {
+          final canPurchase = shopService.canPurchase(offer.id);
+          final canAffordUnit = offer.cost.entries.every(
+            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+          );
+
+          final invKey = offer.inventoryKey;
+          final invQty = invKey != null ? (inventory[invKey] ?? 0) : 0;
+          final status = invQty > 0 ? 'x$invQty' : null;
+
+          final costWidgets = <Widget>[
+            for (final entry in offer.cost.entries)
+              CostChip(
+                currencyType: entry.key,
+                amount: entry.value,
+                available: allCurrencies[entry.key] ?? 0,
+              ),
+          ];
+
+          // ✅ Use inventoryKey here instead of offer.id
+          final Widget? preview = (invKey != null)
+              ? ShopService.getAlchemyEffectPreview(invKey, size: 64.0)
+              : null;
+
+          final card = GameShopCard(
+            key: ValueKey('effect-${offer.id}'),
+            title: offer.name,
+            description: offer.description,
+            icon: offer.icon,
+            previewWidget: preview, // animated aura
+            image: offer.assetName, // static fallback
+            theme: theme,
+            costWidgets: costWidgets,
+            statusText: status,
+            enabled: canPurchase,
+            canAfford: canAffordUnit,
+            onPressed: null,
+          );
+
+          return GestureDetector(
+            onTap: () {
+              if (canPurchase) {
+                _handlePurchase(context, offer, allCurrencies, canAffordUnit);
+              } else {
+                _showDetails(context, offer, allCurrencies, canAffordUnit);
+              }
+            },
+            child: card,
+          );
+        }).toList();
+
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.75,
+            children: cards,
+          ),
         );
       },
     );

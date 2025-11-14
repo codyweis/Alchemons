@@ -257,141 +257,158 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: AnimatedBuilder(
-        animation: Listenable.merge([_timeline, _flashCtrl, _explosionCtrl]),
-        builder: (context, _) {
-          final t = _timeline.value;
+      body: RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _timeline,
+          builder: (context, _) {
+            final t = _timeline.value;
 
-          // Whiteout kept at 0.92–1.00
-          final whiteout = CurvedAnimation(
-            parent: _timeline,
-            curve: const Interval(0.92, 1.0, curve: Curves.easeInOutCubic),
-          ).value;
+            // Whiteout kept at 0.92–1.00
+            final whiteout = CurvedAnimation(
+              parent: _timeline,
+              curve: const Interval(0.92, 1.0, curve: Curves.easeInOutCubic),
+            ).value;
 
-          // Backdrop vignette intensity (0–0.40), backs off during whiteout
-          final vignetteIntensity =
-              CurvedAnimation(
-                parent: _timeline,
-                curve: const Interval(0.00, 0.40, curve: Curves.easeOutCubic),
-              ).value *
-              (1.0 - whiteout);
-
-          // Particle speed profile per phase
-          final speed = t < 0.40
-              ? 0.9 // Charge-in
-              : (t < 0.70
-                    ? 0.55 // Build
-                    : (t < 0.80
-                          ? 2.5 // Peak/Burst
-                          : 1.2)); // Aftermath + Reveal
-
-          // Geometry visibility (fade-in before core, fade out right after burst)
-          final geoOpacity = t < 0.70
-              ? CurvedAnimation(
+            // Backdrop vignette intensity (0–0.40), backs off during whiteout
+            final vignetteIntensity =
+                CurvedAnimation(
                   parent: _timeline,
-                  curve: const Interval(0.10, 0.70, curve: Curves.easeIn),
-                ).value
-              : CurvedAnimation(
-                      parent: _timeline,
-                      curve: const Interval(0.70, 0.82, curve: Curves.easeOut),
-                    ).value *
-                    (1.0 - (t - 0.70) / 0.12);
+                  curve: const Interval(0.00, 0.40, curve: Curves.easeOutCubic),
+                ).value *
+                (1.0 - whiteout);
 
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              // Backdrop
-              ColoredBox(color: bg.withOpacity(0.98)),
+            // Particle speed profile per phase
+            final speed = t < 0.40
+                ? 0.9 // Charge-in
+                : (t < 0.70
+                      ? 0.55 // Build
+                      : (t < 0.80
+                            ? 2.5 // Peak/Burst
+                            : 1.2)); // Aftermath + Reveal
 
-              // Particle system (no global Opacity to avoid saveLayer)
-              RepaintBoundary(
-                child: IgnorePointer(
-                  child: AlchemyBrewingParticleSystem(
-                    parentATypeId: widget.parentATypeId,
-                    parentBTypeId: widget.parentBTypeId,
-                    particleCount: (t >= 0.70 && t < 0.80)
-                        ? 120
-                        : 80, // slight trim on burst
-                    speedMultiplier: speed,
-                    fusion: true,
-                    fromCinematic: true,
-                  ),
-                ),
-              ),
+            // Geometry visibility (fade-in before core, fade out right after burst)
+            final geoOpacity = t < 0.70
+                ? CurvedAnimation(
+                    parent: _timeline,
+                    curve: const Interval(0.10, 0.70, curve: Curves.easeIn),
+                  ).value
+                : CurvedAnimation(
+                        parent: _timeline,
+                        curve: const Interval(
+                          0.70,
+                          0.82,
+                          curve: Curves.easeOut,
+                        ),
+                      ).value *
+                      (1.0 - (t - 0.70) / 0.12);
 
-              // Geometry + Core + Shockwaves + Vignette + Whiteout (all in one painter)
-              RepaintBoundary(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _CoreAndGeometryPainter(
-                      t: t,
-                      palette: widget.paletteMain,
-                      geoOpacity: geoOpacity,
-                      coreOpacity: _coreOpacity.value,
-                      coreScale: _coreScale.value,
-                      shockwaveT: _shockwave.value,
-                      secondaryShockwaveT: _secondaryShockwave.value,
-                      tertiaryShockwaveT: _tertiaryShockwave.value,
-                      explosionT: _explosionAnim.value,
-                      vignette: vignetteIntensity,
-                      whiteout: whiteout,
-                      flowerPic: _geoCache.flower,
-                      cubePic: _geoCache.cube,
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                // Backdrop
+                ColoredBox(color: bg.withOpacity(0.98)),
+
+                // Particle system (no global Opacity to avoid saveLayer)
+                RepaintBoundary(
+                  child: IgnorePointer(
+                    child: AlchemyBrewingParticleSystem(
+                      parentATypeId: widget.parentATypeId,
+                      parentBTypeId: widget.parentBTypeId,
+                      particleCount: (t >= 0.70 && t < 0.80)
+                          ? 120
+                          : 80, // slight trim on burst
+                      speedMultiplier: speed,
+                      fusion: true,
+                      fromCinematic: true,
                     ),
                   ),
                 ),
-              ),
 
-              // Silhouette (cheaper during motion: no heavy boxShadow until settled)
-              if (widget.creatureSilhouette != null && _reveal.value > 0)
-                IgnorePointer(
-                  child: Opacity(
-                    opacity: _reveal.value,
-                    child: Transform.scale(
-                      scale: _revealScale.value,
-                      child: Center(
-                        child: _SilhouetteReveal(
-                          image: widget.creatureSilhouette!,
-                          glowColor: widget.paletteMain,
+                // Geometry + Core + Shockwaves + Vignette + Whiteout (all in one painter)
+                RepaintBoundary(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([
+                        _timeline,
+                        _flashCtrl,
+                        _explosionCtrl,
+                      ]),
+                      builder: (context, child) {
+                        return CustomPaint(
+                          painter: _CoreAndGeometryPainter(
+                            t: t,
+                            palette: widget.paletteMain,
+                            geoOpacity: geoOpacity,
+                            coreOpacity: _coreOpacity.value,
+                            coreScale: _coreScale.value,
+                            shockwaveT: _shockwave.value,
+                            secondaryShockwaveT: _secondaryShockwave.value,
+                            tertiaryShockwaveT: _tertiaryShockwave.value,
+                            explosionT: _explosionAnim.value,
+                            vignette: vignetteIntensity,
+                            whiteout: whiteout,
+                            flowerPic: _geoCache.flower,
+                            cubePic: _geoCache.cube,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+                // Silhouette (cheaper during motion: no heavy boxShadow until settled)
+                if (widget.creatureSilhouette != null && _reveal.value > 0)
+                  IgnorePointer(
+                    child: Opacity(
+                      opacity: _reveal.value,
+                      child: Transform.scale(
+                        scale: _revealScale.value,
+                        child: Center(
+                          child: _SilhouetteReveal(
+                            image: widget.creatureSilhouette!,
+                            glowColor: widget.paletteMain,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Tap to skip
+                Positioned(
+                  bottom: 24,
+                  right: 24,
+                  child: GestureDetector(
+                    onTap: () => _timeline.animateTo(
+                      1.0,
+                      duration: const Duration(milliseconds: 200),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Color(0x14FFFFFF), // .withOpacity(0.08)
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                        border: Border.all(
+                          color: Color(0x2EFFFFFF), // .withOpacity(0.18)
+                        ),
+                      ),
+                      child: const Text(
+                        'SKIP',
+                        style: TextStyle(
+                          color: Color(0xFFE8EAED),
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
                         ),
                       ),
                     ),
                   ),
                 ),
-
-              // Tap to skip
-              Positioned(
-                bottom: 24,
-                right: 24,
-                child: GestureDetector(
-                  onTap: () => _timeline.animateTo(
-                    1.0,
-                    duration: const Duration(milliseconds: 200),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withOpacity(.18)),
-                    ),
-                    child: const Text(
-                      'SKIP',
-                      style: TextStyle(
-                        color: Color(0xFFE8EAED),
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -417,7 +434,7 @@ class _SilhouetteReveal extends StatelessWidget {
       isAntiAlias: true,
     );
 
-    return Container(child: child);
+    return child;
   }
 }
 
@@ -435,12 +452,8 @@ class _CoreAndGeometryPainter extends CustomPainter {
   final double vignette; // 0..1
   final double whiteout; // 0..1
 
-  // Cached pictures to avoid re-building geometry paths every frame
-  ui.Picture? _flowerPic;
-  ui.Picture? _cubePic;
-  Size? _cachedSize;
-  Color? _cachedColor;
-
+  final ui.Picture? _flowerPic;
+  final ui.Picture? _cubePic;
   _CoreAndGeometryPainter({
     required this.t,
     required this.palette,
@@ -453,8 +466,8 @@ class _CoreAndGeometryPainter extends CustomPainter {
     required this.explosionT,
     required this.vignette,
     required this.whiteout,
-    ui.Picture? flowerPic,
-    ui.Picture? cubePic,
+    required ui.Picture? flowerPic,
+    required ui.Picture? cubePic,
   }) : _flowerPic = flowerPic,
        _cubePic = cubePic;
 
@@ -497,9 +510,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
         canvas.translate(center.dx, center.dy);
         canvas.rotate(rot1);
         canvas.translate(-center.dx, -center.dy);
-        canvas.saveLayer(null, alphaLayer);
         canvas.drawPicture(_flowerPic!);
-        canvas.restore();
         canvas.restore();
       }
 
@@ -508,9 +519,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
         canvas.translate(center.dx, center.dy);
         canvas.rotate(rot2);
         canvas.translate(-center.dx, -center.dy);
-        canvas.saveLayer(null, alphaLayer);
         canvas.drawPicture(_cubePic!);
-        canvas.restore();
         canvas.restore();
       }
     }
@@ -664,79 +673,6 @@ class _CoreAndGeometryPainter extends CustomPainter {
     }
   }
 
-  void _ensurePictures(Size size, Color baseColor) {
-    // Rebuild cache when size or color changes
-    if (_cachedSize == size &&
-        _cachedColor == baseColor &&
-        _flowerPic != null &&
-        _cubePic != null)
-      return;
-
-    _cachedSize = size;
-    _cachedColor = baseColor;
-
-    final center = Offset(size.width / 2, size.height / 2);
-    final outer = size.shortestSide * 0.22;
-    final innerR = size.shortestSide * 0.12;
-
-    // Flower of life (outer)
-    {
-      final recorder = ui.PictureRecorder();
-      final c = Canvas(recorder);
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = baseColor.withOpacity(0.35)
-        ..isAntiAlias = true;
-
-      c.save();
-      c.translate(center.dx, center.dy);
-      for (int i = 0; i < 6; i++) {
-        final a = i * pi / 3;
-        final offset = Offset(cos(a) * outer * 0.5, sin(a) * outer * 0.5);
-        c.drawCircle(offset, outer * 0.46, p); // breathe removed for cache
-      }
-      c.restore();
-
-      _flowerPic = recorder.endRecording();
-    }
-
-    // Inner cube-ish lines
-    {
-      final recorder = ui.PictureRecorder();
-      final c = Canvas(recorder);
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8
-        ..color = baseColor.withOpacity(0.25);
-
-      c.save();
-      c.translate(center.dx, center.dy);
-
-      final pts = <Offset>[];
-      for (int i = 0; i < 6; i++) {
-        final a = i * pi / 3;
-        pts.add(Offset(cos(a) * innerR, sin(a) * innerR));
-      }
-      for (int i = 0; i < pts.length; i++) {
-        for (int j = i + 1; j < pts.length; j++) {
-          c.drawLine(pts[i], pts[j], p);
-        }
-      }
-
-      // inner breathing circle (static in cache)
-      final inner = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = baseColor.withOpacity(0.6);
-      c.drawCircle(Offset.zero, innerR * 0.55, inner);
-
-      c.restore();
-
-      _cubePic = recorder.endRecording();
-    }
-  }
-
   void _drawShockwave(
     Canvas canvas,
     Size size,
@@ -776,12 +712,4 @@ class _CoreAndGeometryPainter extends CustomPainter {
         vignette != old.vignette ||
         whiteout != old.whiteout;
   }
-}
-
-// If you prefer not to depend on ui.lerpDouble, keep this helper:
-double? lerpDouble(num? a, num? b, double t) {
-  if (a == null && b == null) return null;
-  a ??= 0.0;
-  b ??= 0.0;
-  return a * (1.0 - t) + b * t;
 }
