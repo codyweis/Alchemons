@@ -1085,6 +1085,45 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
 
+                // RIGHT-SIDE BUTTON (new)
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 125,
+                  right: 5,
+                  child: GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      CupertinoPageRoute(
+                        builder: (_) => const BossBattleScreen(),
+                        fullscreenDialog: true,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        ClipRect(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            heightFactor: .9, // crop bottom ~20%
+                            child: Image.asset(
+                              'assets/images/ui/trialsicon.png',
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'BATTLE',
+                          style: TextStyle(
+                            color: theme.text,
+                            fontSize: 12,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
                 FloatingBubblesOverlay(
                   regionPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
                   discoveredCreatures: discovered,
@@ -1107,10 +1146,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildHomeContent(FactionTheme theme) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(children: [AnimatedBattleButton()]),
-    );
+    return SingleChildScrollView();
   }
 
   Future<void> _grantStarterIfNeeded(
@@ -1221,123 +1257,6 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       ],
-    );
-  }
-}
-
-class AnimatedBattleButton extends StatefulWidget {
-  const AnimatedBattleButton({super.key});
-
-  @override
-  State<AnimatedBattleButton> createState() => _AnimatedBattleButtonState();
-}
-
-class _AnimatedBattleButtonState extends State<AnimatedBattleButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    // 1. Set a longer duration for a noticeable pulse effect
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700), // A smoother pulse duration
-    );
-
-    // 2. Define the scale range: 1.0 (original) up to 1.05 (pulsed)
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
-      // Use a CurvedAnimation for a smoother, less linear pulse
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeInOut, // Smooth acceleration and deceleration
-      ),
-    );
-
-    // 3. Start the animation to repeat indefinitely
-    _controller.repeat(reverse: true); // repeats and reverses direction
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  // --- No changes needed in build() for the pulse effect itself ---
-
-  @override
-  Widget build(BuildContext context) {
-    // NOTE: We change the onTap logic slightly since we're now interrupting
-    // the continuous pulse with a tap-down/tap-up animation.
-
-    return GestureDetector(
-      // 1. When the user taps DOWN, STOP the continuous pulse
-      //    and immediately jump to the pressed state (e.g., 0.95 scale).
-      //    We use a fixed value here instead of the animation controller
-      //    to make the tap feel instant and interrupt the pulsing.
-      onTapDown: (_) {
-        HapticFeedback.lightImpact();
-        // Since we can't easily interrupt the repeating controller,
-        // a more robust approach is to replace the ScaleTransition
-        // with a custom widget that uses the controller *and* a separate
-        // pressed state, but for simplicity, let's just reverse the repeating
-        // and instantly go to the 'pressed' state on tap.
-        _controller.stop();
-        // Optional: Immediately set the scale value to the pressed value for feedback
-        // _controller.value = 0.5; // This can be tricky with repeat()
-
-        // *** A simpler, more common pattern for this combined effect: ***
-        //
-        // 1. Keep the pulse running
-        // 2. On onTapDown, temporarily override the scale value to a pressed state (e.g., 0.9)
-        // 3. On onTap/onTapUp/onTapCancel, remove the override and let the pulse resume.
-        //
-        // This requires changing the structure to use a separate state variable
-        // for the press effect.
-      },
-
-      // *** Let's revert to the original tap logic for interruption clarity ***
-      onTapCancel: () => _controller.repeat(reverse: true), // Resume pulse
-      onTapUp: (_) => _controller.repeat(reverse: true), // Resume pulse
-
-      onTap: () async {
-        // Run button press logic
-        HapticFeedback.mediumImpact();
-
-        // Halt pulse before navigation
-        _controller.stop();
-
-        // Navigate
-        // Replace with your actual navigation
-
-        await Navigator.push(
-          context,
-          CupertinoPageRoute(
-            builder: (_) => const BossBattleScreen(),
-            fullscreenDialog: true,
-          ),
-        );
-
-        // After navigation returns, resume the pulse animation
-        _controller.repeat(reverse: true);
-      },
-
-      // The child is wrapped in the ScaleTransition
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: ClipRect(
-          child: Align(
-            alignment: Alignment.center,
-            heightFactor: 2,
-            child: Image.asset(
-              'assets/images/ui/battlebutton.png',
-              height: 200,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

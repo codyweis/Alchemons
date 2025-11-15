@@ -162,7 +162,7 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          imageWithBadge, // <-- uses the version with badge
+          imageWithBadge,
           Text(
             widget.label.toUpperCase(),
             style: TextStyle(
@@ -217,7 +217,7 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
                     ),
                   ),
                 ),
-                button, // <-- includes the badge already
+                button,
               ],
             ),
           );
