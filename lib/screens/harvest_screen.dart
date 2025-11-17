@@ -2,6 +2,7 @@ import 'dart:math' show sin;
 
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
+import 'package:alchemons/widgets/tutorial_step.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -28,10 +29,127 @@ class _BiomeHarvestScreenState extends State<BiomeHarvestScreen>
     with TickerProviderStateMixin {
   late HarvestService svc;
 
+  bool _harvestTutorialChecked = false; // NEW
+
   @override
   void initState() {
     super.initState();
     svc = widget.service ?? context.read<HarvestService>();
+
+    // Show tutorial once on first open
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowBiomeHarvestTutorial();
+    });
+  }
+
+  Future<void> _maybeShowBiomeHarvestTutorial() async {
+    if (_harvestTutorialChecked) return;
+    _harvestTutorialChecked = true;
+
+    if (!mounted) return;
+
+    final db = context.read<AlchemonsDatabase>();
+    final settings = db.settingsDao; // assuming you expose this
+    final hasSeen = await settings.hasSeenBiomeHarvestTutorial();
+    if (hasSeen || !mounted) return;
+
+    final theme = context.read<FactionTheme>();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: theme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.science_rounded, color: theme.primary, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'Biome Extractors',
+                style: TextStyle(
+                  color: theme.text,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Use biome extractors to slowly generate elemental resources over time.',
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TutorialStep(
+                theme: theme,
+                icon: Icons.terrain_rounded,
+                title: 'Step 1 – Pick a biome',
+                body:
+                    'Each biome specializes in certain elements. Some biomes '
+                    'start locked and must be unlocked with resources.',
+              ),
+              const SizedBox(height: 6),
+              TutorialStep(
+                theme: theme,
+                icon: Icons.science_outlined,
+                title: 'Step 2 – Start extraction',
+                body:
+                    'Open a biome and start an extraction run. It will work '
+                    'in the background while you play.',
+              ),
+              const SizedBox(height: 6),
+              TutorialStep(
+                theme: theme,
+                icon: Icons.inventory_2_rounded,
+                title: 'Step 3 – Harvest your rewards',
+                body:
+                    'When a run finishes, the biome card shows it as ready. '
+                    'Open it to harvest the elemental resources.',
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Different Alchemons will generate more resources depending on a variety of factors such as level. Tapping extractors will speed up extraction.',
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                'Got it',
+                style: TextStyle(
+                  color: theme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (mounted) {
+      await settings.setBiomeHarvestTutorialSeen();
+    }
   }
 
   Future<void> _promptUnlock(BiomeFarmState farm) async {

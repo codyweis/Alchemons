@@ -54,7 +54,7 @@ class _BreedingTabState extends State<BreedingTab>
 
   late AnimationController _emptyFuseController;
 
-  // CHANGE: fade controllers for pre-cinematic dissolve
+  // fade controllers for pre-cinematic dissolve
   late AnimationController _preCinematicFadeController;
   late Animation<double> _spriteFadeAnim;
 
@@ -73,6 +73,7 @@ class _BreedingTabState extends State<BreedingTab>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat();
+
     _slot2Controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -86,7 +87,7 @@ class _BreedingTabState extends State<BreedingTab>
       duration: const Duration(milliseconds: 2000),
     );
 
-    // CHANGE: fade-out before cinematic
+    // fade-out before cinematic
     _preCinematicFadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
@@ -154,7 +155,7 @@ class _BreedingTabState extends State<BreedingTab>
       _slot2Controller.reverse();
     }
 
-    // NEW: spin the orb if we have at least one parent
+    // spin the orb if we have at least one parent
     if (hasEither) {
       if (!_compatibilityController.isAnimating) {
         _compatibilityController.repeat();
@@ -194,10 +195,8 @@ class _BreedingTabState extends State<BreedingTab>
   // ================== MAIN FUSION CARD ==================
   Widget _buildBreedingCard(FactionTheme theme) {
     return Container(
-      // CHANGE: give the whole chamber a pro card shell
       decoration: BoxDecoration(
         color: theme.surfaceAlt.withOpacity(.4),
-
         boxShadow: [
           BoxShadow(
             color: theme.surface.withOpacity(.2),
@@ -310,7 +309,6 @@ class _BreedingTabState extends State<BreedingTab>
               ),
             ),
             const SizedBox(width: 16),
-            // (no orb here anymore)
             const SizedBox(width: 16),
             Expanded(
               child: _buildEnhancedSlot(
@@ -324,33 +322,24 @@ class _BreedingTabState extends State<BreedingTab>
           ],
         ),
 
-        // new: floating fusion orb, centered between slots visually
-        if (true) // we always build it so layout doesn't jump,
-          // but inside we dim it if !hasParents
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Center(
-                child: _buildFusionIndicator(
-                  theme: theme,
-                  hasParents: hasParents,
-                  leftColor: colorA,
-                  rightColor: colorB,
-                ),
+        // floating fusion orb, centered between slots visually
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Center(
+              child: _buildFusionIndicator(
+                theme: theme,
+                hasParents: hasParents,
+                leftColor: colorA,
+                rightColor: colorB,
               ),
             ),
           ),
+        ),
       ],
     );
   }
 
   // ================== ENHANCED SLOT ==================
-  //
-  // Major visual overhaul:
-  // - each slot is its own card with border + glow when active
-  // - close button moved to top-right corner overlay, not in column flow
-  // - consistent header row with label + status badge
-  // - cleaned avatar area so they won't overlap or feel floaty
-  //
   Widget _buildEnhancedSlot({
     required CreatureInstance? inst,
     required String label,
@@ -369,17 +358,12 @@ class _BreedingTabState extends State<BreedingTab>
     final isEmpty = base == null;
 
     return AnimatedBuilder(
-      animation: Listenable.merge([
-        controller,
-        _preCinematicFadeController, // CHANGE: to animate fade
-      ]),
+      animation: Listenable.merge([controller, _preCinematicFadeController]),
       builder: (context, child) {
-        // subtle breathing scale when occupied
         final scale = isEmpty ? 1.0 : 1.0 + (controller.value * 0.03);
 
         // fade to 0 opacity during pre-cinematic dissolve
-        final spriteOpacity =
-            1.0 - _spriteFadeAnim.value; // 1 -> 0 as we animate
+        final spriteOpacity = 1.0 - _spriteFadeAnim.value;
 
         return Transform.scale(
           scale: scale,
@@ -535,19 +519,15 @@ class _BreedingTabState extends State<BreedingTab>
           AnimatedBuilder(
             animation: _emptyFuseController,
             builder: (context, _) {
-              // spin 0 -> 2π
               final angle = _emptyFuseController.value * 2 * math.pi;
 
               return Transform.rotate(
                 angle: angle,
                 child: CustomPaint(
-                  // take full 96x96 so arc hugs the same circle
                   size: const Size(96, 96),
                   painter: _FuseArcPainter(
                     color: primary,
                     thickness: 3,
-                    // you can make this shorter or longer;
-                    // math.pi/3 == 60°, math.pi/2 == 90°
                     sweepRadians: math.pi / 2,
                   ),
                 ),
@@ -637,13 +617,8 @@ class _BreedingTabState extends State<BreedingTab>
     // Case: exactly one parent selected
     final singleColor = leftColor ?? rightColor;
     if (singleColor != null) {
-      // We'll build two half-circles:
-      // - left half (or top/bottom, doesn't matter visually once it's spinning)
-      // - transparent other half
-
       return Stack(
         children: [
-          // filled half
           Align(
             alignment: Alignment.centerLeft,
             child: ClipPath(
@@ -656,12 +631,11 @@ class _BreedingTabState extends State<BreedingTab>
               ),
             ),
           ),
-          // transparent half (nothing)
         ],
       );
     }
 
-    // Case: no parents selected (idle gray-ish orb or empty)
+    // Case: no parents selected
     return Container(
       decoration: BoxDecoration(color: fallbackColor, shape: BoxShape.circle),
     );
@@ -681,23 +655,19 @@ class _BreedingTabState extends State<BreedingTab>
       ]),
       builder: (context, child) {
         final baseRotation = _compatibilityController.value * 2 * math.pi;
-        final spinMultiplier =
-            _orbSpinSpeedAnim.value; // (1.0 -> 4.0 during charge)
-        final bothParents = hasParents; // you already pass this in
-        final speedBase = bothParents ? 2.0 : 1; // tweak to taste
+        final spinMultiplier = _orbSpinSpeedAnim.value;
+        final bothParents = hasParents;
+        final speedBase = bothParents ? 2.0 : 1;
 
         final rotation = baseRotation * speedBase * spinMultiplier;
 
-        // gentle idle pulse
         final idlePulseScale = hasParents
             ? 1.0 +
                   (math.sin(_compatibilityController.value * 2 * math.pi) * 0.1)
             : 1.0;
 
-        // dramatic charge-up scale (1.0 -> 2.0)
         final chargedScale = idlePulseScale * _orbScaleAnim.value;
 
-        // Pick colors for border/glow
         Color ringColor;
         if (leftColor != null && rightColor != null) {
           ringColor = Color.lerp(leftColor, rightColor, 0.5)!.withOpacity(.8);
@@ -709,7 +679,6 @@ class _BreedingTabState extends State<BreedingTab>
           ringColor = theme.border.withOpacity(.4);
         }
 
-        // Orb fill widget (full blend, half-fill, or fallback)
         final innerOrb = _buildOrbFill(
           hasParents: hasParents,
           leftColor: leftColor,
@@ -852,13 +821,13 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
-  // CHANGE: instead of calling _performBreeding() directly,
+  // instead of calling _performBreeding() directly,
   // we first run the dissolve fade, then call _performBreeding()
   Future<void> _onBreedTap() async {
     // play fade from 1 -> 0, orb ramps up
     await _preCinematicFadeController.forward();
 
-    // NEW: let that max-charged orb hang on screen briefly
+    // let that max-charged orb hang on screen briefly
     await Future.delayed(const Duration(milliseconds: 400));
 
     // now jump to cinematic
@@ -930,24 +899,10 @@ class _BreedingTabState extends State<BreedingTab>
         rightColor: colorB,
         minDuration: const Duration(milliseconds: 1800),
         task: () async {
-          // Calculate likelihood analysis
-          String? analysisJson;
-          try {
-            analysisJson = await _calculateLikelihoodAnalysis(
-              selectedParent1!,
-              selectedParent2!,
-              speciesA,
-              speciesB,
-            );
-          } catch (e) {
-            print('⚠️ Analyzer failed: $e');
-          }
-
-          // Use the breeding service!
+          // Service now handles breeding + analysis in one go.
           final result = await breedingService.breedInstances(
             selectedParent1!,
             selectedParent2!,
-            likelihoodAnalysisJson: analysisJson,
           );
 
           if (!result.success) {
@@ -959,7 +914,6 @@ class _BreedingTabState extends State<BreedingTab>
             throw Exception('Incompatible');
           }
 
-          // Show appropriate toast based on placement
           if (result.placement == EggPlacement.storage) {
             _showToast(
               'Incubator full — specimen transferred to storage',
@@ -1002,66 +956,6 @@ class _BreedingTabState extends State<BreedingTab>
     }
   }
 
-  /// Calculate likelihood analysis for breeding result
-  Future<String?> _calculateLikelihoodAnalysis(
-    CreatureInstance parent1Instance,
-    CreatureInstance parent2Instance,
-    Creature baseA,
-    Creature baseB,
-  ) async {
-    final repo = context.read<CreatureCatalog>();
-    final breedingEngine = context.read<BreedingEngine>();
-
-    // Hydrate parents with genetics and nature
-    final geneticsA = decodeGenetics(parent1Instance.geneticsJson);
-    final geneticsB = decodeGenetics(parent2Instance.geneticsJson);
-
-    final parentA = baseA.copyWith(
-      genetics: geneticsA,
-      nature: parent1Instance.natureId != null
-          ? NatureCatalog.byId(parent1Instance.natureId!)
-          : baseA.nature,
-      isPrismaticSkin: parent1Instance.isPrismaticSkin,
-    );
-
-    final parentB = baseB.copyWith(
-      genetics: geneticsB,
-      nature: parent2Instance.natureId != null
-          ? NatureCatalog.byId(parent2Instance.natureId!)
-          : baseB.nature,
-      isPrismaticSkin: parent2Instance.isPrismaticSkin,
-    );
-
-    // Get actual breeding result to analyze
-    final breedResult = breedingEngine.breedInstances(
-      parent1Instance,
-      parent2Instance,
-    );
-
-    if (!breedResult.success || breedResult.creature == null) {
-      return null;
-    }
-
-    // Create analyzer
-    final analyzer = BreedingLikelihoodAnalyzer(
-      repository: repo,
-      elementRecipes: breedingEngine.elementRecipes,
-      familyRecipes: breedingEngine.familyRecipes,
-      specialRules: breedingEngine.specialRules,
-      tuning: breedingEngine.tuning,
-      engine: breedingEngine,
-    );
-
-    // Analyze
-    final analysisReport = analyzer.analyzeBreedingResult(
-      parentA,
-      parentB,
-      breedResult.creature!,
-    );
-
-    return jsonEncode(analysisReport.toJson());
-  }
-
   /// Handle stamina costs with faction-specific perks
   Future<void> _handleStaminaCost(
     CreatureInstance parent1,
@@ -1092,11 +986,9 @@ class _BreedingTabState extends State<BreedingTab>
   }
 
   // CORRECTED _showCreatureSelection method for breeding_tab.dart
-
   void _showCreatureSelection(int slotNumber) async {
     final db = context.read<AlchemonsDatabase>();
-    final available = await db.creatureDao
-        .getSpeciesWithInstances(); // Set<String> baseIds
+    final available = await db.creatureDao.getSpeciesWithInstances();
 
     final filteredDiscovered = filterByAvailableInstances(
       widget.discoveredCreatures,
@@ -1118,16 +1010,13 @@ class _BreedingTabState extends State<BreedingTab>
               scrollController: scrollController,
               discoveredCreatures: filteredDiscovered,
               showOnlyAvailableTypes: true,
-              // Pass currently selected instances so they show as selected
               selectedInstanceIds: [
                 if (selectedParent1 != null) selectedParent1!.instanceId,
                 if (selectedParent2 != null) selectedParent2!.instanceId,
               ],
               onSelectInstance: (instance) async {
-                // Close the sheet first
                 Navigator.pop(context);
 
-                // Check stamina before selecting
                 final stamina = context.read<StaminaService>();
                 final refreshed = await stamina.refreshAndGet(
                   instance.instanceId,
@@ -1153,7 +1042,6 @@ class _BreedingTabState extends State<BreedingTab>
                   return;
                 }
 
-                // Select the instance for the correct slot
                 _selectInstance(instance, slotNumber);
               },
               onSelectCreature: (creatureId) async {
@@ -1353,18 +1241,16 @@ class _HalfCircleClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     final path = Path();
     if (side == HalfSide.left) {
-      // left semicircle
       path.addArc(
         Rect.fromLTWH(0, 0, size.width, size.height),
-        math.pi / 2, // 90°
-        math.pi, // sweep 180°
+        math.pi / 2,
+        math.pi,
       );
     } else {
-      // right semicircle
       path.addArc(
         Rect.fromLTWH(0, 0, size.width, size.height),
-        -math.pi / 2, // -90°
-        math.pi, // 180°
+        -math.pi / 2,
+        math.pi,
       );
     }
     path.close();
@@ -1380,12 +1266,12 @@ class _HalfCircleClipper extends CustomClipper<Path> {
 class _FuseArcPainter extends CustomPainter {
   final Color color;
   final double thickness;
-  final double sweepRadians; // how long the "lit fuse" is
+  final double sweepRadians;
 
   _FuseArcPainter({
     required this.color,
     required this.thickness,
-    this.sweepRadians = math.pi / 3, // ~60° arc
+    this.sweepRadians = math.pi / 3,
   });
 
   @override
@@ -1403,7 +1289,6 @@ class _FuseArcPainter extends CustomPainter {
       size.height - thickness,
     );
 
-    // we'll always draw starting at angle 0; rotation is handled by Transform.rotate
     const double startAngle = 0;
     canvas.drawArc(rect, startAngle, sweepRadians, false, strokePaint);
   }

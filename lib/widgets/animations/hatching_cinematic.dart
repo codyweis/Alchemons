@@ -157,10 +157,8 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     );
 
     _timeline.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) Navigator.of(context).pop();
-        });
+      if (status == AnimationStatus.completed && mounted) {
+        Navigator.of(context).pop();
       }
     });
 
@@ -176,10 +174,13 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final size = MediaQuery.of(context).size;
       _buildPictures(size, widget.paletteMain, _geoCache);
-      setState(() {}); // cheap; ensures painter can use cache on first paint
-    });
 
-    _timeline.forward();
+      // Ensure geometry is ready BEFORE the cinematic actually starts
+      setState(() {});
+
+      // Now start the timeline at exactly 0 with a clean first frame
+      _timeline.forward(from: 0.0);
+    });
   }
 
   void _buildPictures(Size size, Color base, _GeoCache cache) {
@@ -277,8 +278,13 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                 ).value *
                 (1.0 - whiteout);
 
-            // Particle speed profile per phase
-            final speed = t < 0.40
+            // Ease-in factor for the charge-in window 0..0.30
+            final chargeInProgress = t < 0.30
+                ? Curves.easeOutCubic.transform(t / 0.30)
+                : 1.0;
+
+            // Particle speed profile per phase – now modulated by chargeInProgress at start
+            final baseSpeed = t < 0.40
                 ? 0.9 // Charge-in
                 : (t < 0.70
                       ? 0.55 // Build
@@ -286,126 +292,176 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                             ? 2.5 // Peak/Burst
                             : 1.2)); // Aftermath + Reveal
 
-            // Geometry visibility (fade-in before core, fade out right after burst)
-            final geoOpacity = t < 0.70
-                ? CurvedAnimation(
-                    parent: _timeline,
-                    curve: const Interval(0.10, 0.70, curve: Curves.easeIn),
-                  ).value
-                : CurvedAnimation(
-                        parent: _timeline,
-                        curve: const Interval(
-                          0.70,
-                          0.82,
-                          curve: Curves.easeOut,
-                        ),
-                      ).value *
-                      (1.0 - (t - 0.70) / 0.12);
+            final speed = t < 0.40
+                ? ui.lerpDouble(0.2, baseSpeed, chargeInProgress)!
+                : baseSpeed;
 
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                // Backdrop
-                ColoredBox(color: bg.withOpacity(0.98)),
+            // Geometry visibility: quick fade-in, hold, then fade out after burst
+            double geoOpacity;
 
-                // Particle system (no global Opacity to avoid saveLayer)
-                RepaintBoundary(
-                  child: IgnorePointer(
-                    child: AlchemyBrewingParticleSystem(
-                      parentATypeId: widget.parentATypeId,
-                      parentBTypeId: widget.parentBTypeId,
-                      particleCount: (t >= 0.70 && t < 0.80)
-                          ? 120
-                          : 80, // slight trim on burst
-                      speedMultiplier: speed,
-                      fusion: true,
-                      fromCinematic: true,
+            if (t < 0.35) {
+              // 0.15 → 0.35 smooth fade-in
+              final fadeIn = CurvedAnimation(
+                parent: _timeline,
+                curve: const Interval(0.15, 0.35, curve: Curves.easeOutCubic),
+              ).value;
+              geoOpacity = fadeIn;
+            } else if (t < 0.70) {
+              // Hold at full intensity during main build phase
+              geoOpacity = 1.0;
+            } else {
+              // Fade out 0.70 → 0.82
+              final fadeOut = CurvedAnimation(
+                parent: _timeline,
+                curve: const Interval(0.70, 0.82, curve: Curves.easeOutCubic),
+              ).value;
+              geoOpacity = 1.0 - fadeOut;
+            }
+
+            // Base particle count (with burst bump)
+            int baseParticleCount = (t >= 0.70 && t < 0.80) ? 120 : 80;
+
+            // Ramp-in particle count at the start (0.00–0.30)
+            if (t < 0.30) {
+              baseParticleCount = ui
+                  .lerpDouble(
+                    10,
+                    baseParticleCount.toDouble(),
+                    chargeInProgress,
+                  )!
+                  .round();
+            }
+
+            // Fade-out particle count at the end (0.92–1.00)
+            if (t > 0.92) {
+              final fadeT = ((t - 0.92) / 0.08).clamp(0.0, 1.0);
+              final factor = 1.0 - fadeT;
+              baseParticleCount = (baseParticleCount * factor).round().clamp(
+                0,
+                9999,
+              );
+            }
+
+            // Global soft fade-in/out to hide any remaining startup/end jank
+            double globalFade = 1.0;
+            // Keep only the outro fade; let the route handle intro.
+            if (t > 0.92) {
+              globalFade =
+                  1.0 -
+                  Curves.easeInCubic.transform(
+                    ((t - 0.92) / 0.08).clamp(0.0, 1.0),
+                  ); // 1 → 0
+            }
+
+            return Opacity(
+              opacity: globalFade,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Backdrop
+                  ColoredBox(color: bg.withOpacity(0.98)),
+
+                  // Particle system (no global Opacity to avoid saveLayer)
+                  RepaintBoundary(
+                    child: IgnorePointer(
+                      child: AlchemyBrewingParticleSystem(
+                        parentATypeId: widget.parentATypeId,
+                        parentBTypeId: widget.parentBTypeId,
+                        particleCount: baseParticleCount,
+                        speedMultiplier: speed,
+                        fusion: true,
+                        fromCinematic: true,
+                      ),
                     ),
                   ),
-                ),
 
-                // Geometry + Core + Shockwaves + Vignette + Whiteout (all in one painter)
-                RepaintBoundary(
-                  child: IgnorePointer(
-                    child: AnimatedBuilder(
-                      animation: Listenable.merge([
-                        _timeline,
-                        _flashCtrl,
-                        _explosionCtrl,
-                      ]),
-                      builder: (context, child) {
-                        return CustomPaint(
-                          painter: _CoreAndGeometryPainter(
-                            t: t,
-                            palette: widget.paletteMain,
-                            geoOpacity: geoOpacity,
-                            coreOpacity: _coreOpacity.value,
-                            coreScale: _coreScale.value,
-                            shockwaveT: _shockwave.value,
-                            secondaryShockwaveT: _secondaryShockwave.value,
-                            tertiaryShockwaveT: _tertiaryShockwave.value,
-                            explosionT: _explosionAnim.value,
-                            vignette: vignetteIntensity,
-                            whiteout: whiteout,
-                            flowerPic: _geoCache.flower,
-                            cubePic: _geoCache.cube,
+                  // Geometry + Core + Shockwaves + Vignette + Whiteout (all in one painter)
+                  RepaintBoundary(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: Listenable.merge([
+                          _timeline,
+                          _flashCtrl,
+                          _explosionCtrl,
+                        ]),
+                        builder: (context, child) {
+                          return CustomPaint(
+                            painter: _CoreAndGeometryPainter(
+                              t: t,
+                              palette: widget.paletteMain,
+                              geoOpacity: geoOpacity,
+                              coreOpacity: _coreOpacity.value,
+                              coreScale: _coreScale.value,
+                              shockwaveT: _shockwave.value,
+                              secondaryShockwaveT: _secondaryShockwave.value,
+                              tertiaryShockwaveT: _tertiaryShockwave.value,
+                              explosionT: _explosionAnim.value,
+                              vignette: vignetteIntensity,
+                              whiteout: whiteout,
+                              flowerPic: _geoCache.flower,
+                              cubePic: _geoCache.cube,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+
+                  // Silhouette (cheaper during motion: no heavy boxShadow until settled)
+                  if (widget.creatureSilhouette != null && _reveal.value > 0)
+                    IgnorePointer(
+                      child: Opacity(
+                        opacity: _reveal.value,
+                        child: Transform.scale(
+                          scale: _revealScale.value,
+                          child: Center(
+                            child: _SilhouetteReveal(
+                              image: widget.creatureSilhouette!,
+                              glowColor: widget.paletteMain,
+                            ),
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
-                  ),
-                ),
 
-                // Silhouette (cheaper during motion: no heavy boxShadow until settled)
-                if (widget.creatureSilhouette != null && _reveal.value > 0)
-                  IgnorePointer(
-                    child: Opacity(
-                      opacity: _reveal.value,
-                      child: Transform.scale(
-                        scale: _revealScale.value,
-                        child: Center(
-                          child: _SilhouetteReveal(
-                            image: widget.creatureSilhouette!,
-                            glowColor: widget.paletteMain,
+                  // Tap to skip
+                  Positioned(
+                    bottom: 24,
+                    right: 24,
+                    child: GestureDetector(
+                      onTap: () => _timeline.animateTo(
+                        1.0,
+                        duration: const Duration(milliseconds: 200),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0x14FFFFFF), // .withOpacity(0.08)
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(12),
+                          ),
+                          border: Border.all(
+                            color: const Color(
+                              0x2EFFFFFF,
+                            ), // .withOpacity(0.18)
+                          ),
+                        ),
+                        child: const Text(
+                          'SKIP',
+                          style: TextStyle(
+                            color: Color(0xFFE8EAED),
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
                           ),
                         ),
                       ),
                     ),
                   ),
-
-                // Tap to skip
-                Positioned(
-                  bottom: 24,
-                  right: 24,
-                  child: GestureDetector(
-                    onTap: () => _timeline.animateTo(
-                      1.0,
-                      duration: const Duration(milliseconds: 200),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Color(0x14FFFFFF), // .withOpacity(0.08)
-                        borderRadius: BorderRadius.all(Radius.circular(12)),
-                        border: Border.all(
-                          color: Color(0x2EFFFFFF), // .withOpacity(0.18)
-                        ),
-                      ),
-                      child: const Text(
-                        'SKIP',
-                        style: TextStyle(
-                          color: Color(0xFFE8EAED),
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         ),
@@ -494,15 +550,12 @@ class _CoreAndGeometryPainter extends CustomPainter {
 
     // ====== Sacred Geometry (cached pictures) ======
     if (geoOpacity > 0) {
-      // no rebuilding here
       final rot1 =
           2 * pi * Curves.easeOutCubic.transform((t - 0.40).clamp(0.0, .5) * 2);
       final rot2 =
           -2 *
           pi *
           Curves.easeOutCubic.transform((t - 0.48).clamp(0.0, .5) * 2);
-
-      final alphaLayer = Paint()..color = Colors.white.withOpacity(geoOpacity);
 
       // Flower (outer)
       if (_flowerPic != null) {
@@ -535,33 +588,21 @@ class _CoreAndGeometryPainter extends CustomPainter {
           ..shader = RadialGradient(
             colors: [
               base.withOpacity(0.35 * (1 - explosionT)),
-              base.withOpacity(0.0), // Fade to transparent
+              base.withOpacity(0.0),
             ],
-            stops: const [
-              0.1, // Small hot center
-              1.0, // Fade out to the edge
-            ],
+            stops: const [0.1, 1.0],
           ).createShader(Rect.fromCircle(center: center, radius: r * 4.5));
-        // ..maskFilter is GONE
-        canvas.drawCircle(
-          center,
-          r * 4.5,
-          explosionGlow,
-        ); // Draw at the full radius
+        canvas.drawCircle(center, r * 4.5, explosionGlow);
 
-        // === Fix for 'glow' ===
+        // Extra glow
         final glow = Paint()
           ..shader = RadialGradient(
             colors: [
               base.withOpacity(0.16 * coreOpacity),
-              base.withOpacity(0.0), // Fade to transparent
+              base.withOpacity(0.0),
             ],
-            stops: const [
-              0.2, // Adjust as needed
-              1.0,
-            ],
+            stops: const [0.2, 1.0],
           ).createShader(Rect.fromCircle(center: center, radius: r * 2.6));
-        // ..maskFilter is GONE
         canvas.drawCircle(center, r * 2.6, glow);
       }
 
@@ -577,17 +618,10 @@ class _CoreAndGeometryPainter extends CustomPainter {
       // Orb
       final orb = Paint()
         ..shader = RadialGradient(
-          colors: [
-            base.withOpacity(0.52 * coreOpacity), // Center color
-            base.withOpacity(0.0), // Fade to completely transparent
-          ],
-          stops: const [
-            0.5, // The "solid" part of the orb is 50% of the radius
-            1.0, // The edge fades to transparent at 100% of the radius
-          ],
+          colors: [base.withOpacity(0.52 * coreOpacity), base.withOpacity(0.0)],
+          stops: const [0.5, 1.0],
         ).createShader(Rect.fromCircle(center: center, radius: r));
-      // ..maskFilter is GONE!
-      canvas.drawCircle(center, r, orb); // This is now extremely fast
+      canvas.drawCircle(center, r, orb);
 
       // Rays (near peak)
       if (coreScale > 1.0) {
@@ -693,7 +727,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = ui.lerpDouble(startStroke, endStroke, t)!
       ..color = color.withOpacity(maxOpacity * alpha)
-      ..isAntiAlias = true; // Make sure it's smooth
+      ..isAntiAlias = true;
     canvas.drawCircle(center, r, ring);
   }
 

@@ -21,6 +21,7 @@ import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/utils/nature_utils.dart';
+import 'package:flutter/material.dart';
 
 enum Likelihood {
   improbable, // 0-15%
@@ -95,7 +96,7 @@ class BreedingLikelihoodAnalyzer {
   final CreatureCatalog repository;
   final ElementRecipeConfig elementRecipes;
   final FamilyRecipeConfig familyRecipes;
-  final SpecialRulesConfig specialRules;
+
   final BreedingTuning tuning;
 
   // NEW: we inject the live engine so we can ask it for distributions
@@ -105,7 +106,6 @@ class BreedingLikelihoodAnalyzer {
     required this.repository,
     required this.elementRecipes,
     required this.familyRecipes,
-    required this.specialRules,
     required this.engine,
     this.tuning = const BreedingTuning(),
   });
@@ -243,14 +243,6 @@ class BreedingLikelihoodAnalyzer {
     final specials = <InheritanceMechanic>[];
     final surprises = <String>[];
 
-    // SPECIAL EVENTS (guaranteed pair, cross-variant, parent repeat)
-    _maybeAppendGuaranteedPair(
-      p1: p1,
-      p2: p2,
-      baby: baby,
-      specialsOut: specials,
-    );
-
     _maybeAppendCrossVariant(p1: p1, p2: p2, baby: baby, specialsOut: specials);
 
     _maybeAppendParentRepeat(p1: p1, p2: p2, baby: baby, specialsOut: specials);
@@ -370,8 +362,14 @@ class BreedingLikelihoodAnalyzer {
     final babyElem = baby.types.isNotEmpty ? baby.types.first : 'Unknown';
 
     final elemDist = engine.getBiasedElementDistribution(p1, p2);
-
     final elemPctMap = elemDist.asPercentages();
+
+    debugPrint(
+      '[Analyzer] Element baby=${baby.name} '
+      'id=${baby.id} elem=$babyElem',
+    );
+    debugPrint('[Analyzer] Element dist = $elemPctMap');
+
     final pct = elemPctMap[babyElem] ?? 0.0;
 
     mechanicsOut.add(
@@ -545,34 +543,6 @@ class BreedingLikelihoodAnalyzer {
 
     if (pct < 10.0) {
       surprisesOut.add('Bloodline variant expression');
-    }
-  }
-
-  void _maybeAppendGuaranteedPair({
-    required Creature p1,
-    required Creature p2,
-    required Creature baby,
-    required List<InheritanceMechanic> specialsOut,
-  }) {
-    // mirror engine guaranteedPairs
-    final gk = SpecialRulesConfig.idKey(p1.id, p2.id);
-    final outs = specialRules.guaranteedPairs[gk];
-
-    if (outs != null) {
-      for (final rule in outs) {
-        if (rule.resultId == baby.id) {
-          specialsOut.add(
-            InheritanceMechanic(
-              category: 'Guaranteed Pair',
-              result: baby.name,
-              mechanism:
-                  'Special breeding pair override (${rule.chance.toStringAsFixed(1)}% chance)',
-              percentage: rule.chance.toDouble(),
-              likelihood: _likelihoodFor(rule.chance.toDouble()),
-            ),
-          );
-        }
-      }
     }
   }
 

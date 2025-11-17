@@ -527,13 +527,12 @@ class _InventoryScreenState extends State<InventoryScreen>
                           await _deleteItem(item, def);
                         },
                         style: TextButton.styleFrom(
-                          backgroundColor: Colors.red.withOpacity(0.15),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(4),
                             side: BorderSide(
                               color: Colors.red.withOpacity(0.5),
-                              width: 1.5,
+                              width: 1,
                             ),
                           ),
                         ),
@@ -568,10 +567,9 @@ class _InventoryScreenState extends State<InventoryScreen>
                           _useItem(item, def);
                         },
                         style: TextButton.styleFrom(
-                          backgroundColor: theme.accent.withOpacity(0.2),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(4),
                             side: BorderSide(
                               color: theme.accent.withOpacity(0.5),
                               width: 1.5,
@@ -730,13 +728,12 @@ class _InventoryScreenState extends State<InventoryScreen>
                           await _deleteVial(vial);
                         },
                         style: TextButton.styleFrom(
-                          backgroundColor: Colors.red.withOpacity(0.15),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(4),
                             side: BorderSide(
                               color: Colors.red.withOpacity(0.5),
-                              width: 1.5,
+                              width: 1,
                             ),
                           ),
                         ),
@@ -766,36 +763,26 @@ class _InventoryScreenState extends State<InventoryScreen>
                     Expanded(
                       flex: 2,
                       child: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            side: BorderSide(width: 1),
+                          ),
+                        ),
                         onPressed: () {
                           Navigator.pop(ctx);
                           _useVial(vial);
                         },
-                        style: TextButton.styleFrom(
-                          backgroundColor: Colors.green.withOpacity(0.2),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(
-                              color: Colors.green.withOpacity(0.5),
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.science_rounded,
-                              color: Colors.green.shade300,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
                             Text(
                               'EXTRACT',
                               style: TextStyle(
-                                color: Colors.green.shade300,
+                                color: theme.text,
                                 fontWeight: FontWeight.w900,
-                                fontSize: 12,
+                                fontSize: 14,
                                 letterSpacing: 0.6,
                               ),
                             ),
@@ -1209,7 +1196,7 @@ class _InventoryScreenState extends State<InventoryScreen>
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: theme.accent),
-            child: const Text('Extract'),
+            child: Text('Extract', style: TextStyle(color: theme.text)),
           ),
         ],
       ),
@@ -1266,19 +1253,25 @@ class _InventoryScreenState extends State<InventoryScreen>
           style: TextStyle(color: theme.textMuted, fontWeight: FontWeight.w600),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, null),
-            child: Text('Cancel', style: TextStyle(color: theme.textMuted)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'one'),
+                style: TextButton.styleFrom(foregroundColor: Colors.orange),
+                child: const Text('Remove 1'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'all'),
+                child: Text('Remove All', style: TextStyle(color: theme.text)),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 'one'),
-            style: TextButton.styleFrom(foregroundColor: Colors.orange),
-            child: const Text('Remove 1'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, 'all'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Remove All'),
+          Center(
+            child: TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: Text('Cancel', style: TextStyle(color: theme.textMuted)),
+            ),
           ),
         ],
       ),

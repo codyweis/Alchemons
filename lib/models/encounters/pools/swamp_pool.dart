@@ -15,12 +15,8 @@ swampEncounterPools(SceneDefinition scene) {
     // Common
     EncounterEntry(
       speciesId: 'LET08',
-      rarity: EncounterRarity.common,
-    ), // Mudlet
-    EncounterEntry(
-      speciesId: 'LET13',
       rarity: EncounterRarity.uncommon,
-    ), // Poisonlet
+    ), // Mudlet
     EncounterEntry(
       speciesId: 'LET02',
       rarity: EncounterRarity.common,
@@ -40,7 +36,7 @@ swampEncounterPools(SceneDefinition scene) {
     ), // Mudpip
     EncounterEntry(
       speciesId: 'PIP13',
-      rarity: EncounterRarity.uncommon,
+      rarity: EncounterRarity.rare,
     ), // Poisonpip
     // Rare
     EncounterEntry(speciesId: 'HOR08', rarity: EncounterRarity.rare), // Mudhorn
@@ -56,40 +52,35 @@ swampEncounterPools(SceneDefinition scene) {
 
   if (isDay(now)) {
     entries.addAll([
-      // --- Day Spawns ---
       EncounterEntry(
-        speciesId: 'MAN12',
-        rarity: EncounterRarity.uncommon,
-      ), // Plantmane
-      EncounterEntry(
-        speciesId: 'MSK12',
-        rarity: EncounterRarity.rare,
-      ), // Plantmask
-      EncounterEntry(
-        speciesId: 'KIN12',
+        speciesId: 'WNG08',
         rarity: EncounterRarity.legendary,
-      ), // Plantkin
+      ), // Mudwing
     ]);
   } else if (isNight(now)) {
     entries.addAll([
       // --- Night Spawns ---
       // Dark
       EncounterEntry(
+        speciesId: 'LET13',
+        rarity: EncounterRarity.uncommon,
+      ), // Poisonlet
+      EncounterEntry(
         speciesId: 'LET15',
-        rarity: EncounterRarity.common,
+        rarity: EncounterRarity.rare,
       ), // Darklet
       EncounterEntry(
         speciesId: 'MAN15',
-        rarity: EncounterRarity.uncommon,
+        rarity: EncounterRarity.rare,
       ), // Darkmane
       // Spirit
       EncounterEntry(
         speciesId: 'LET14',
-        rarity: EncounterRarity.uncommon,
+        rarity: EncounterRarity.rare,
       ), // Spiritlet
       EncounterEntry(
         speciesId: 'MSK14',
-        rarity: EncounterRarity.rare,
+        rarity: EncounterRarity.legendary,
       ), // Spiritmask
       // Legendary
       EncounterEntry(

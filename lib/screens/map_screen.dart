@@ -31,8 +31,44 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen>
+    with SingleTickerProviderStateMixin {
   bool _showDebugInfo = false; // Add this state variable
+  late final AnimationController _mapController;
+  late final Animation<double> _mapScale;
+  late final Animation<double> _mapOpacity;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _mapController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+
+    _mapScale = Tween<double>(begin: 0.92, end: 1.0).animate(
+      CurvedAnimation(parent: _mapController, curve: Curves.easeOutCubic),
+    );
+
+    _mapOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _mapController, curve: Curves.easeOutQuad),
+    );
+
+    // Start the animation after the first frame so it feels like
+    // the map is animating in instead of just appearing.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      precacheImage(const AssetImage('assets/images/ui/map.png'), context);
+      await Future.delayed(const Duration(milliseconds: 150));
+      if (mounted) _mapController.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -195,13 +231,26 @@ class _MapScreenState extends State<MapScreen> {
                 ],
 
                 // MAP AREA
+                // MAP AREA (animated in)
                 Expanded(
-                  child: _ExpeditionMap(
-                    theme: theme,
-                    isTutorial: widget.isTutorial,
-                    onSelectRegion: (biomeId, scene) {
-                      _handleRegionTap(context, biomeId, scene);
+                  child: AnimatedBuilder(
+                    animation: _mapController,
+                    builder: (context, child) {
+                      return Opacity(
+                        opacity: _mapOpacity.value,
+                        child: Transform.scale(
+                          scale: _mapScale.value,
+                          child: child,
+                        ),
+                      );
                     },
+                    child: _ExpeditionMap(
+                      theme: theme,
+                      isTutorial: widget.isTutorial,
+                      onSelectRegion: (biomeId, scene) {
+                        _handleRegionTap(context, biomeId, scene);
+                      },
+                    ),
                   ),
                 ),
                 // Hint bar pinned to bottom
@@ -502,7 +551,6 @@ class _HeaderBar extends StatelessWidget {
                 child: Container(
                   width: 36,
                   height: 36,
-                  decoration: theme.chipDecoration(rim: theme.accent),
                   alignment: Alignment.center,
                   child: Icon(
                     Icons.info_outline_rounded,
@@ -759,6 +807,7 @@ class _ExpeditionMap extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(10.0),
                       child: Image.asset(
+                        gaplessPlayback: true,
                         'assets/images/ui/map.png',
                         fit: BoxFit.cover,
                       ),
@@ -865,13 +914,13 @@ class _MapHintBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline_rounded, size: 16, color: theme.textMuted),
+          Icon(Icons.info_outline_rounded, size: 16, color: theme.text),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Wild creatures detected here! Tap to explore.',
               style: TextStyle(
-                color: theme.textMuted,
+                color: theme.text,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 height: 1.3,

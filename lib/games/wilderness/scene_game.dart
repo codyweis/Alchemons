@@ -112,6 +112,24 @@ class SceneGame extends FlameGame with ScaleDetector {
     return math.min(zx, zy);
   }
 
+  Vector2 _sizeForSpecies(Vector2 baseSize, Creature hydrated) {
+    // Example: use your own data/model here instead of hardcoding
+    const Map<String, double> speciesScale = {
+      'let': 0.7,
+      'pip': 0.9,
+      'mane': 0.9,
+      'horn': 1,
+      'wing': 1.1,
+      'kin': 1,
+    };
+
+    final scale =
+        speciesScale.containsKey(hydrated.mutationFamily!.toLowerCase())
+        ? speciesScale[hydrated.mutationFamily!.toLowerCase()]!
+        : 1.0;
+    return baseSize * scale;
+  }
+
   /// Trigger a camera shake that eases out over [duration].
   /// [amplitude] is the pixel jitter at the start of the shake.
   void shake({
@@ -282,12 +300,18 @@ class SceneGame extends FlameGame with ScaleDetector {
       hydrated = await wildVisualResolver!(speciesId, rarity);
     }
 
+    // 🔍 base logical size from the spawn point
+    final baseSize = sp.size;
+
+    // 🧬 adjust based on species (and optionally hydrated)
+    final adjustedSize = _sizeForSpecies(baseSize, hydrated!);
+
     final comp =
         WildMonComponent(
             hydrated: hydrated,
             speciesId: speciesId,
             rarityLabel: rarity.name,
-            desiredSize: sp.size,
+            desiredSize: adjustedSize, // ⬅️ use adjusted size here
             onTap: () => _handleWildTap(spawnId, speciesId, hydrated),
             resolver: speciesSpriteResolver,
           )
@@ -443,7 +467,7 @@ class SceneGame extends FlameGame with ScaleDetector {
             hydrated: creature,
             speciesId: creature.id,
             rarityLabel: '',
-            desiredSize: sp.size,
+            desiredSize: _sizeForSpecies(sp.size, creature),
             onTap: () {},
             resolver: speciesSpriteResolver,
           )

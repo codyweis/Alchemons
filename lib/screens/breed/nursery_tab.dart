@@ -953,6 +953,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        showCloseIcon: true,
         content: Row(
           children: [
             Icon(icon, color: Colors.white),
@@ -969,11 +970,15 @@ class _NurseryTabState extends State<NurseryTab> {
   }
 
   Future<bool> _showConfirmDialog(String title, String message) async {
+    final theme = context.read<FactionTheme>();
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(title),
-            content: Text(message),
+            title: Text(title, style: TextStyle(color: theme.text)),
+            content: Text(
+              message,
+              style: TextStyle(color: theme.text.withOpacity(0.8)),
+            ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),

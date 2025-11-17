@@ -70,13 +70,17 @@ class BattleCombatant {
   }
 
   void _calculateCombatStats() {
-    // From StatsFormulas.csv
-    maxHp = (level * 10) + (statStrength * 5).toInt();
-    physAtk = statStrength.toInt() + (level * 2);
-    elemAtk = statIntelligence.toInt() + (level * 2);
-    physDef = (statStrength * 0.5 + statBeauty * 0.5).toInt() + level;
-    elemDef = statBeauty.toInt() + (level * 2);
-    speed = statSpeed.toInt();
+    final sSpd = statSpeed * 10; // 0–50
+    final sInt = statIntelligence * 10;
+    final sStr = statStrength * 10;
+    final sBea = statBeauty * 10;
+
+    maxHp = (level * 10 + sStr * 0.5).round(); // STR strongly affects HP
+    physAtk = (sStr * 0.4 + level * 2).round();
+    elemAtk = (sInt * 0.4 + level * 2).round();
+    physDef = ((sStr + sBea) * 0.2 + level).round();
+    elemDef = (sBea * 0.4 + level * 2).round();
+    speed = (sSpd * 0.4).round();
   }
 
   // --- factories ---

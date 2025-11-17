@@ -304,14 +304,9 @@ class EggHatching {
 
   // Helper for hatch time calculation
   static Duration _calculateHatchTime(String rarity) {
-    return switch (rarity.toLowerCase()) {
-      'common' => Duration(hours: 1),
-      'uncommon' => Duration(hours: 2),
-      'rare' => Duration(hours: 4),
-      'legendary' => Duration(hours: 6),
-      'mythic' => Duration(hours: 8),
-      _ => Duration(hours: 2),
-    };
+    final key = rarity.toLowerCase();
+    return BreedConstants.rarityHatchTimes[key] ??
+        const Duration(minutes: 10); // same default as breeding
   }
   // ============================================================================
   // PRIVATE HELPERS
@@ -749,7 +744,7 @@ class EggHatching {
                                     key: scanAnimationKey,
                                     isNewDiscovery: isNewDiscovery,
                                     scanDuration: const Duration(
-                                      milliseconds: 3000,
+                                      milliseconds: 2000,
                                     ),
                                     onReadyChanged: (ready) {
                                       if (ready) {
@@ -814,7 +809,7 @@ class EggHatching {
                                 DatabaseTypingAnimation(
                                   startAnimation: scanComplete,
                                   delayBetweenItems: const Duration(
-                                    milliseconds: 800,
+                                    milliseconds: 100,
                                   ),
                                   onComplete: () {
                                     safeSetDialogState(setDialogState, () {
@@ -854,6 +849,7 @@ class EggHatching {
                                           ),
                                       ],
                                     ),
+                                    const SizedBox(height: 15),
                                     _buildAnalysisSection(
                                       'GENETIC PROFILE',
                                       primaryColor,

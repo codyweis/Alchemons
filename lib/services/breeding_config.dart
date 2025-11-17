@@ -103,25 +103,6 @@ class VariantRulesConfig {
       (a.compareTo(b) <= 0) ? "$a+$b" : "$b+$a";
 }
 
-/// Special rules that can short-circuit normal breeding.
-class SpecialRulesConfig {
-  /// Guaranteed or probabilistic fixed results for ID pairs (unordered).
-  /// Example: { "MAN01+WNG09": [{"resultId":"CRE16", "chance":100}] }
-  final Map<String, List<GuaranteedOutcome>> guaranteedPairs;
-
-  /// Per-creature required type(s): offspring can only be bred if parents contain at least one of these types.
-  /// Example: { "CRE16": ["Light"], "HOR06": ["Lava","Fire"] }
-  final Map<String, Set<String>> requiredTypesByCreatureId;
-
-  const SpecialRulesConfig({
-    this.guaranteedPairs = const {},
-    this.requiredTypesByCreatureId = const {},
-  });
-
-  static String idKey(String a, String b) =>
-      (a.compareTo(b) <= 0) ? "$a+$b" : "$b+$a";
-}
-
 class GuaranteedOutcome {
   final String resultId;
   final int chance; // 1..100
@@ -164,7 +145,7 @@ class BreedingTuning {
     this.globalMutationChance =
         2, // 2% chance for any breeding to trigger mutation
     this.elementalBiasPenalty = .5, // double the chance
-    this.familyBiasPenalty = 2, // halve the chance
+    this.familyBiasPenalty = 3,
 
     this.elementLineageBiasPerPoint = 0.05,
     this.elementLineageBiasCapMult = 1.5,

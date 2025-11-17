@@ -2,9 +2,12 @@
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -112,7 +115,6 @@ class CurrencyPill extends StatelessWidget {
 // Enhanced Item Detail Dialog
 // Add this to your shop_widgets.dart or create a new file for dialogs
 
-/// Shows a detailed view of a shop item before the purchase confirmation
 Future<bool> showItemDetailDialog({
   required BuildContext context,
   required ShopOffer offer,
@@ -120,13 +122,8 @@ Future<bool> showItemDetailDialog({
   required Map<String, int> currencies,
   required int inventoryQty,
   required bool canPurchase,
+  required bool canAfford,
 }) async {
-  // NEW: Get the animated preview for the detail dialog
-  final Widget? previewWidget = ShopService.getAlchemyEffectPreview(
-    offer.id,
-    size: 120.0, // A good size to fill the 160-height container
-  );
-
   return await showDialog<bool>(
         context: context,
         builder: (ctx) => Dialog(
@@ -179,7 +176,7 @@ Future<bool> showItemDetailDialog({
                   ),
                 ),
 
-                // Image Section (MODIFIED)
+                // Image Section - SIMPLIFIED with special handling for daily vials
                 Container(
                   height: 160,
                   width: double.infinity,
@@ -189,36 +186,10 @@ Future<bool> showItemDetailDialog({
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: theme.accent.withOpacity(0.2)),
                   ),
-                  child: Builder(
-                    builder: (context) {
-                      // 1. Display the animated preview if available
-                      if (previewWidget != null) {
-                        return Center(
-                          child: SizedBox.square(
-                            dimension: 120.0, // Fixed size for the animation
-                            child: previewWidget,
-                          ),
-                        );
-                      }
-
-                      // 2. Fallback to static image asset
-                      if (offer.assetName != null) {
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.asset(
-                            offer.assetName!,
-                            fit: BoxFit.contain,
-                          ),
-                        );
-                      }
-
-                      // 3. Final fallback to icon
-                      return Icon(
-                        offer.icon,
-                        size: 80,
-                        color: theme.accent.withOpacity(0.6),
-                      );
-                    },
+                  child: _buildOfferPreviewForDialog(
+                    offer,
+                    size: 120.0,
+                    theme: theme,
                   ),
                 ),
 
@@ -255,7 +226,7 @@ Future<bool> showItemDetailDialog({
 
                 const SizedBox(height: 16),
 
-                // Inventory Count (if applicable)
+                // Inventory Count
                 if (inventoryQty > 0)
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -341,19 +312,24 @@ Future<bool> showItemDetailDialog({
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Visibility(
-                        visible: canPurchase,
-                        child: Expanded(
+                      if (canPurchase)
+                        Expanded(
                           flex: 2,
                           child: TextButton(
-                            onPressed: () => Navigator.pop(ctx, true),
+                            onPressed: canAfford
+                                ? () => Navigator.pop(ctx, true)
+                                : null,
                             style: TextButton.styleFrom(
-                              backgroundColor: theme.accent.withOpacity(0.2),
+                              backgroundColor: canAfford
+                                  ? theme.accent.withOpacity(0.2)
+                                  : theme.surface,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(
-                                  color: theme.accent.withOpacity(0.5),
+                                  color: canAfford
+                                      ? theme.accent.withOpacity(0.5)
+                                      : Colors.red.withOpacity(0.5),
                                   width: 1.5,
                                 ),
                               ),
@@ -368,7 +344,7 @@ Future<bool> showItemDetailDialog({
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'PURCHASE',
+                                  canAfford ? 'PURCHASE' : 'CAN\'T AFFORD',
                                   style: TextStyle(
                                     color: theme.text,
                                     fontWeight: FontWeight.w900,
@@ -379,8 +355,32 @@ Future<bool> showItemDetailDialog({
                               ],
                             ),
                           ),
+                        )
+                      else
+                        Expanded(
+                          flex: 2,
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(
+                              color: theme.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.greenAccent.withOpacity(0.5),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: const Text(
+                              'BOUGHT TODAY',
+                              style: TextStyle(
+                                color: Colors.greenAccent,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -392,37 +392,110 @@ Future<bool> showItemDetailDialog({
       false;
 }
 
+// ============= CENTRALIZED PREVIEW BUILDER =============
+Widget _buildOfferPreview(
+  ShopOffer offer, {
+  double size = 64.0,
+  required FactionTheme theme,
+}) {
+  // 1. Try animated preview for alchemy effects
+  if (offer.inventoryKey != null) {
+    final preview = ShopService.getAlchemyEffectPreview(
+      offer.inventoryKey!,
+      size: size,
+    );
+    if (preview != null) {
+      return Center(
+        child: SizedBox.square(
+          dimension: size,
+          child: ExcludeSemantics(child: preview),
+        ),
+      );
+    }
+  }
+
+  // 2. Try static image
+  if (offer.assetName != null) {
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.asset(
+          offer.assetName!,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) =>
+              Icon(offer.icon, size: size * 0.8, color: theme.text),
+        ),
+      ),
+    );
+  }
+
+  // 3. Fallback to icon
+  return Center(
+    child: Icon(offer.icon, size: size * 0.8, color: theme.text),
+  );
+}
+
+// Special preview builder for dialogs (handles daily vials)
+Widget _buildOfferPreviewForDialog(
+  ShopOffer offer, {
+  double size = 120.0,
+  required FactionTheme theme,
+}) {
+  // SPECIAL CASE: DAILY VIAL - Show actual vial card
+  if (offer.id.startsWith('vial.daily.common.')) {
+    final groupName = offer.id.split('.').last;
+    final group = ElementalGroup.values.firstWhere(
+      (g) => g.name == groupName,
+      orElse: () => ElementalGroup.volcanic,
+    );
+    final price = offer.cost['silver'] ?? 100;
+
+    final vialModel = ExtractionVial(
+      id: offer.id,
+      name: '${group.displayName} Vial',
+      group: group,
+      rarity: VialRarity.common,
+      quantity: 1,
+      price: price,
+    );
+
+    return Center(
+      child: SizedBox(
+        height: 140,
+        child: ExtractionVialCard(
+          vial: vialModel,
+          compact: false,
+          onAddToInventory: null,
+          onTap: null,
+        ),
+      ),
+    );
+  }
+
+  // Otherwise use the standard preview logic
+  return _buildOfferPreview(offer, size: size, theme: theme);
+}
+
 // ============= NEW GAME SHOP CARD =============
 
 class GameShopCard extends StatelessWidget {
   final String title;
-  final IconData icon;
+  final ShopOffer offer; // Pass entire offer instead of individual fields
   final FactionTheme theme;
-  final VoidCallback? onPressed;
   final bool enabled;
   final bool canAfford;
   final List<Widget> costWidgets;
   final String? statusText;
-  final String? description;
-  final String? image;
-
-  /// NEW FIELD: Optional animated widget for preview
-  final Widget? previewWidget;
 
   const GameShopCard({
     super.key,
     required this.title,
-    required this.icon,
+    required this.offer,
     required this.theme,
-    this.onPressed,
     required this.enabled,
     required this.canAfford,
     required this.costWidgets,
     this.statusText,
-    this.description,
-    this.image,
-    // NEW ARGUMENT
-    this.previewWidget,
   });
 
   @override
@@ -434,120 +507,86 @@ class GameShopCard extends StatelessWidget {
       overlayColor = const Color.fromARGB(86, 244, 67, 54).withOpacity(0.3);
     }
 
-    return GestureDetector(
-      onTap: (enabled && canAfford) ? onPressed : null,
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: theme.surface.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: !enabled
-                ? theme.text.withOpacity(0.3)
-                : !canAfford
-                ? Colors.red.withOpacity(0.5)
-                : theme.accent.withOpacity(0.3),
-            width: 1,
-          ),
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: theme.surface.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: !enabled
+              ? theme.text.withOpacity(0.3)
+              : !canAfford
+              ? Colors.red.withOpacity(0.5)
+              : theme.accent.withOpacity(0.3),
+          width: 1,
         ),
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Image Area (MODIFIED LOGIC HERE)
-                Expanded(
-                  child: Container(
-                    color: Colors.white.withOpacity(0.05),
-                    child: Builder(
-                      builder: (context) {
-                        // 1. Check for the animated preview first
-                        if (previewWidget != null) {
-                          // Center the custom widget in a standard 64x64 area.
-                          return Center(
-                            child: SizedBox.square(
-                              dimension: 64.0, // Standard size for the preview
-                              child: previewWidget,
-                            ),
-                          );
-                        }
-
-                        // 2. Fallback to static image asset
-                        if (image != null) {
-                          return Image.asset(image!, fit: BoxFit.contain);
-                        }
-
-                        // 3. Final fallback to icon
-                        return Icon(
-                          icon,
-                          size: 48,
-                          color: theme.accent.withOpacity(0.6),
-                        );
-                      },
-                    ),
-                  ),
+      ),
+      child: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Image / Preview area - SIMPLIFIED
+              Expanded(
+                child: Container(
+                  color: Colors.black.withOpacity(0.05),
+                  child: _buildOfferPreview(offer, size: 64.0, theme: theme),
                 ),
+              ),
 
-                // Cost Area at bottom
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 8,
-                  ),
-                  child: Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    alignment: WrapAlignment.center,
-                    children: costWidgets,
-                  ),
+              // Cost area
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  alignment: WrapAlignment.center,
+                  children: costWidgets,
                 ),
-              ],
+              ),
+            ],
+          ),
+
+          // Overlay (locked / unaffordable)
+          if (overlayColor != null)
+            Positioned.fill(
+              child: Container(
+                color: overlayColor,
+                alignment: Alignment.center,
+                child: Icon(
+                  !enabled ? Icons.check_circle : Icons.lock,
+                  color: Colors.white.withOpacity(0.8),
+                  size: 32,
+                ),
+              ),
             ),
 
-            // Overlay for locked/owned states
-            if (overlayColor != null)
-              Positioned.fill(
-                child: Container(
-                  color: overlayColor,
-                  alignment: Alignment.center,
-                  child: Icon(
-                    !enabled ? Icons.check_circle : Icons.lock,
-                    color: Colors.white.withOpacity(0.8),
-                    size: 32,
+          // Status / inventory badge
+          if (statusText != null && statusText!.isNotEmpty && enabled)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: theme.accent.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  statusText!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
-
-            // Inventory count badge
-            if (statusText != null && statusText!.isNotEmpty && enabled)
-              Positioned(
-                top: 6,
-                right: 6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.accent.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    statusText!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -876,18 +915,9 @@ class MarketplaceGrid extends StatelessWidget {
           ];
 
           offerCards.add(
-            GameShopCard(
-              key: ValueKey('offer-${offer.id}'),
-              title: offer.name,
-              description: offer.description,
-              icon: offer.icon,
-              image: offer.assetName,
-              theme: theme,
-              costWidgets: costWidgets,
-              statusText: status,
-              enabled: canPurchase, // enabled even if can’t afford
-              canAfford: canAffordUnit, // controls LOCKED vs PURCHASE tag
-              onPressed: () async {
+            GestureDetector(
+              onTap: () async {
+                // Handle purchase here
                 final qty = await showPurchaseConfirmationDialog(
                   context: context,
                   offer: offer,
@@ -931,6 +961,17 @@ class MarketplaceGrid extends StatelessWidget {
                   ),
                 );
               },
+              child: GameShopCard(
+                key: ValueKey('offer-${offer.id}'),
+                title: offer.name,
+                offer: offer, // ✅ JUST PASS THE OFFER
+                theme: theme,
+                costWidgets: costWidgets,
+                statusText: status,
+                enabled: canPurchase,
+                canAfford: canAffordUnit,
+                // ❌ REMOVE: description, icon, image, onPressed
+              ),
             ),
           );
         }
@@ -1067,55 +1108,93 @@ class FarmUnlockSection extends StatelessWidget {
         icon = Icons.terrain_outlined;
     }
 
-    return GameShopCard(
-      key: ValueKey('farm-${biome.id}'), // <- STABLE UNIQUE KEY
+    // Create a pseudo-offer for consistent handling
+    final farmOffer = ShopOffer(
+      id: 'farm.${biome.name}',
+      name: '$label Farm',
+      description: 'Unlock this biome to harvest its resources.',
       icon: icon,
+      cost: cost,
+      reward: const {},
+      rewardType: 'unlock',
+      limit: PurchaseLimit.once,
+      inventoryKey: null,
+      assetName: null,
+    );
+
+    final card = GameShopCard(
+      key: ValueKey('farm-${biome.id}'),
       title: '$label Farm',
+      offer: farmOffer, // Pass the pseudo-offer
       theme: theme,
       costWidgets: costWidgets,
       enabled: !unlocked,
       canAfford: canAfford,
-      onPressed: () async {
-        final bool confirmed = await showBiomeUnlockConfirmationDialog(
-          context: context,
-          biomeName: label,
-          biomeIcon: icon,
-          cost: cost,
-          resourceBalances: resourceBalances,
-          theme: theme,
-        );
+    );
 
-        if (!confirmed) return;
-        HapticFeedback.lightImpact();
+    return GestureDetector(
+      onTap: () async {
+        if (unlocked) {
+          // Already unlocked - just show details
+          await showItemDetailDialog(
+            context: context,
+            offer: farmOffer,
+            theme: theme,
+            currencies: balances,
+            inventoryQty: 0,
+            canPurchase: false, // Already purchased
+            canAfford: false,
+          );
+        } else {
+          // Not unlocked - show details with purchase option
+          final shouldProceed = await showItemDetailDialog(
+            context: context,
+            offer: farmOffer,
+            theme: theme,
+            currencies: balances,
+            inventoryQty: 0,
+            canPurchase: true,
+            canAfford: canAfford,
+          );
 
-        final ok = await db.biomeDao.unlockBiome(biomeId: biome.id, cost: cost);
-        if (!context.mounted) return;
+          if (!shouldProceed || !context.mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(
-                  ok ? Icons.check_circle_rounded : Icons.error_rounded,
-                  color: Colors.white,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  ok ? '$label farm unlocked!' : 'Not enough resources',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ],
+          // User confirmed purchase in detail dialog, proceed with unlock
+          HapticFeedback.lightImpact();
+          final ok = await db.biomeDao.unlockBiome(
+            biomeId: biome.id,
+            cost: cost,
+          );
+
+          if (!context.mounted) return;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(
+                    ok ? Icons.check_circle_rounded : Icons.error_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    ok ? '$label farm unlocked!' : 'Not enough resources',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+              backgroundColor: ok ? Colors.green.shade700 : Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            backgroundColor: ok ? Colors.green.shade700 : Colors.orange,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
+          );
+        }
       },
+      child: card,
     );
   }
 }

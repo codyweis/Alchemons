@@ -30,16 +30,8 @@ skyEncounterPools(SceneDefinition scene) {
       speciesId: 'PIP04',
       rarity: EncounterRarity.uncommon,
     ), // Airpip
-    EncounterEntry(
-      speciesId: 'MAN07',
-      rarity: EncounterRarity.uncommon,
-    ), // Lightningmane
     // Rare
     EncounterEntry(speciesId: 'HOR04', rarity: EncounterRarity.rare), // Airhorn
-    EncounterEntry(
-      speciesId: 'HOR07',
-      rarity: EncounterRarity.rare,
-    ), // Lightninghorn
     EncounterEntry(
       speciesId: 'HOR09',
       rarity: EncounterRarity.rare,
@@ -52,76 +44,32 @@ skyEncounterPools(SceneDefinition scene) {
       // Light
       EncounterEntry(
         speciesId: 'LET16',
-        rarity: EncounterRarity.uncommon,
+        rarity: EncounterRarity.rare,
       ), // Lightlet
-      EncounterEntry(
-        speciesId: 'MAN16',
-        rarity: EncounterRarity.rare,
-      ), // Lightmane
-      EncounterEntry(
-        speciesId: 'HOR16',
-        rarity: EncounterRarity.legendary,
-      ), // Lighthorn
       // Legendary
-      EncounterEntry(
-        speciesId: 'WNG04',
-        rarity: EncounterRarity.rare,
-      ), // Airwing (common legendary here)
+      EncounterEntry(speciesId: 'WNG04', rarity: EncounterRarity.rare),
       EncounterEntry(
         speciesId: 'WNG16',
         rarity: EncounterRarity.legendary,
       ), // Lightwing
+    ]);
+  } else if (isNight(now)) {
+    entries.addAll([
       EncounterEntry(
         speciesId: 'WNG07',
         rarity: EncounterRarity.legendary,
       ), // Lightningwing
-      EncounterEntry(
-        speciesId: 'KIN16',
-        rarity: EncounterRarity.legendary,
-      ), // Lightkin
-    ]);
-  } else if (isNight(now)) {
-    entries.addAll([
       // --- Night Spawns ---
       EncounterEntry(
         speciesId: 'LET07',
         rarity: EncounterRarity.common,
       ), // Lightninglet
-      // Dark
-      EncounterEntry(
-        speciesId: 'LET15',
-        rarity: EncounterRarity.uncommon,
-      ), // Darklet
-      EncounterEntry(
-        speciesId: 'MAN15',
-        rarity: EncounterRarity.uncommon,
-      ), // Darkmane
-      EncounterEntry(
-        speciesId: 'MSK15',
-        rarity: EncounterRarity.rare,
-      ), // Darkmask
       // Spirit
       EncounterEntry(
         speciesId: 'LET14',
-        rarity: EncounterRarity.rare,
+        rarity: EncounterRarity.common,
       ), // Spiritlet
-      EncounterEntry(
-        speciesId: 'MSK14',
-        rarity: EncounterRarity.rare,
-      ), // Spiritmask
-      // Legendary
-      EncounterEntry(
-        speciesId: 'WNG15',
-        rarity: EncounterRarity.legendary,
-      ), // Darkwing (common legendary here)
-      EncounterEntry(
-        speciesId: 'WNG14',
-        rarity: EncounterRarity.legendary,
-      ), // Spiritwing
-      EncounterEntry(
-        speciesId: 'KIN04',
-        rarity: EncounterRarity.legendary,
-      ), // Airkin
+      EncounterEntry(speciesId: 'WNG14', rarity: EncounterRarity.legendary),
     ]);
   }
 

@@ -4,6 +4,8 @@ import 'dart:async';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/screens/black_market_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
@@ -11,6 +13,7 @@ import 'package:alchemons/screens/shop/shop_widgets.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/black_market_button.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
@@ -248,6 +251,16 @@ class _ShopScreenState extends State<ShopScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // 🔹 NEW: DAILY VIAL SECTION AT TOP
+                      _buildSectionHeader(
+                        'DAILY VIAL',
+                        theme.accent,
+                        Icons.science_rounded,
+                      ),
+                      _buildDailyVialSection(theme, allCurrencies),
+
+                      const SizedBox(height: 16),
+
                       // SECTION 1: HARVEST DEVICES
                       _buildSectionHeader(
                         'HARVEST DEVICES',
@@ -371,24 +384,15 @@ class _ShopScreenState extends State<ShopScreen> {
               ),
           ];
 
-          // ✅ Use inventoryKey here instead of offer.id
-          final Widget? preview = (invKey != null)
-              ? ShopService.getAlchemyEffectPreview(invKey, size: 64.0)
-              : null;
-
           final card = GameShopCard(
             key: ValueKey('effect-${offer.id}'),
             title: offer.name,
-            description: offer.description,
-            icon: offer.icon,
-            previewWidget: preview, // animated aura
-            image: offer.assetName, // static fallback
+            offer: offer, // Pass the whole offer
             theme: theme,
             costWidgets: costWidgets,
             statusText: status,
             enabled: canPurchase,
             canAfford: canAffordUnit,
-            onPressed: null,
           );
 
           return GestureDetector(
@@ -441,6 +445,169 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
+  Widget _buildDailyVialSection(
+    FactionTheme theme,
+    Map<String, int> allCurrencies,
+  ) {
+    return Consumer<ShopService>(
+      builder: (context, shopService, _) {
+        final offer = shopService.getActiveDailyVialOffer();
+        if (offer == null) {
+          return const SizedBox.shrink();
+        }
+
+        final canPurchase = shopService.canPurchase(offer.id);
+        final price = offer.cost['silver'] ?? 100;
+        final canAfford = (allCurrencies['silver'] ?? 0) >= price;
+        final isPurchased = !canPurchase;
+
+        // Build cost chips
+        final costWidgets = <Widget>[
+          CostChip(
+            currencyType: 'silver',
+            amount: price,
+            available: allCurrencies['silver'] ?? 0,
+          ),
+        ];
+
+        // Extract the group info from the offer ID
+        final groupName = offer.id.split('.').last;
+        final group = ElementalGroup.values.firstWhere(
+          (g) => g.name == groupName,
+          orElse: () => ElementalGroup.volcanic,
+        );
+
+        // Create the vial model for display
+        final vialModel = ExtractionVial(
+          id: offer.id,
+          name: '${group.displayName} Vial',
+          group: group,
+          rarity: VialRarity.common,
+          quantity: 1,
+          price: price,
+        );
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: GestureDetector(
+            onTap: () {
+              if (canPurchase) {
+                _handlePurchase(context, offer, allCurrencies, canAfford);
+              } else {
+                _showDetails(context, offer, allCurrencies, canAfford);
+              }
+            },
+            child: Container(
+              height: 140,
+              decoration: BoxDecoration(
+                color: theme.surface.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isPurchased
+                      ? Colors.greenAccent.withOpacity(0.5)
+                      : canAfford
+                      ? theme.accent.withOpacity(0.5)
+                      : Colors.red.withOpacity(0.5),
+                  width: 2,
+                ),
+              ),
+              child: Stack(
+                children: [
+                  Row(
+                    children: [
+                      // Vial Card Preview Section
+                      Expanded(
+                        flex: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: ExtractionVialCard(
+                            vial: vialModel,
+                            compact:
+                                true, // Use compact mode for smaller display
+                            onAddToInventory: null,
+                            onTap: null,
+                          ),
+                        ),
+                      ),
+
+                      // Info section
+                      Expanded(
+                        flex: 3,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                offer.name,
+                                style: TextStyle(
+                                  color: theme.text,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                offer.description,
+                                style: TextStyle(
+                                  color: theme.textMuted,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(spacing: 4, children: costWidgets),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Purchased overlay
+                  if (isPurchased)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                color: Colors.greenAccent,
+                                size: 40,
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'PURCHASED TODAY',
+                                style: TextStyle(
+                                  color: Colors.greenAccent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildHarvestDevicesGrid(
     FactionTheme theme,
     Map<String, int> allCurrencies,
@@ -471,19 +638,15 @@ class _ShopScreenState extends State<ShopScreen> {
               ),
           ];
 
-          // MODIFICATION HERE
           final card = GameShopCard(
             key: ValueKey('device-${offer.id}'),
             title: offer.name,
-            description: offer.description,
-            icon: offer.icon,
-            image: offer.assetName,
             theme: theme,
             costWidgets: costWidgets,
             statusText: status,
             enabled: canPurchase,
             canAfford: canAffordUnit,
-            onPressed: null, // Tap handled by GestureDetector
+            offer: offer,
           );
 
           return GestureDetector(
@@ -496,7 +659,6 @@ class _ShopScreenState extends State<ShopScreen> {
             },
             child: card,
           );
-          // END MODIFICATION
         }).toList();
 
         return Padding(
@@ -507,7 +669,7 @@ class _ShopScreenState extends State<ShopScreen> {
             crossAxisCount: 3,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
-            childAspectRatio: 0.85, // Increased for shorter cards
+            childAspectRatio: 0.85,
             children: cards,
           ),
         );
@@ -559,15 +721,12 @@ class _ShopScreenState extends State<ShopScreen> {
           final card = GameShopCard(
             key: ValueKey('instant-${offer.id}'),
             title: offer.name,
-            description: offer.description,
-            icon: offer.icon,
-            image: offer.assetName,
+            offer: offer,
             theme: theme,
             costWidgets: costWidgets,
             statusText: status,
             enabled: canPurchase,
             canAfford: canAffordUnit,
-            onPressed: null, // Tap handled by GestureDetector
           );
 
           return GestureDetector(
@@ -613,15 +772,17 @@ class _ShopScreenState extends State<ShopScreen> {
         // use the dynamic daily offers from the service
         final exchangeOffers = shopService.getActiveExchangeOffers();
 
-        final cards = exchangeOffers.map((offer) {
+        // 👇 MODIFY THIS PART
+        final cards = exchangeOffers.map<Widget>((offer) {
           final canPurchase = shopService.canPurchase(offer.id);
 
-          // determine affordability across currencies + resources
+          // --- BUILD A NORMAL GAME SHOP CARD ---
+
           final canAffordUnit = offer.cost.entries.every(
             (e) => (mergedBalances[e.key] ?? 0) >= e.value,
           );
 
-          // Build cost widgets: currency costs use CostChip, resource costs use MiniCostChip
+          // ... (rest of your existing logic for cost widgets) ...
           final List<Widget> costWidgets = [];
           offer.cost.forEach((key, amount) {
             if (key.startsWith('res_')) {
@@ -647,18 +808,14 @@ class _ShopScreenState extends State<ShopScreen> {
             }
           });
 
-          // MODIFICATION HERE
           final card = GameShopCard(
             key: ValueKey('fx-${offer.id}'),
             title: offer.name,
-            description: offer.description,
-            icon: offer.icon,
-            image: offer.assetName,
             theme: theme,
             costWidgets: costWidgets,
             enabled: canPurchase,
             canAfford: canAffordUnit,
-            onPressed: null, // Tap handled by GestureDetector
+            offer: offer,
           );
 
           return GestureDetector(
@@ -671,8 +828,8 @@ class _ShopScreenState extends State<ShopScreen> {
             },
             child: card,
           );
-          // END MODIFICATION
         }).toList();
+        // 👆 END OF MODIFICATION
 
         return Padding(
           padding: const EdgeInsets.all(12),
@@ -763,14 +920,11 @@ class _ShopScreenState extends State<ShopScreen> {
           final card = GameShopCard(
             key: ValueKey('special-${offer.id}'),
             title: offer.name,
-            description: offer.description,
-            icon: offer.icon,
-            image: offer.assetName,
             theme: theme,
             costWidgets: costWidgets,
             enabled: canPurchase,
             canAfford: canAffordUnit,
-            onPressed: null, // Tap handled by GestureDetector
+            offer: offer,
           );
 
           return GestureDetector(
@@ -826,7 +980,7 @@ class _ShopScreenState extends State<ShopScreen> {
             ),
       ];
 
-      // Create a pseudo-offer for the detail dialog
+      // Create a pseudo-offer for consistent handling
       final slotOffer = ShopOffer(
         rewardType: 'Upgrade',
         reward: <String, dynamic>{},
@@ -843,13 +997,12 @@ class _ShopScreenState extends State<ShopScreen> {
 
       final card = GameShopCard(
         key: const ValueKey('upgrade-slot-2'),
-        icon: Icons.bubble_chart_rounded,
         title: 'Bubble Slot 2',
+        offer: slotOffer,
         theme: theme,
         costWidgets: costWidgets,
         enabled: enabled,
         canAfford: canAfford,
-        onPressed: null, // Tap handled by GestureDetector
       );
 
       items.add(
@@ -889,7 +1042,6 @@ class _ShopScreenState extends State<ShopScreen> {
             ),
       ];
 
-      // Create a pseudo-offer for the detail dialog
       final slotOffer = ShopOffer(
         rewardType: 'Upgrade',
         id: 'unlock.bubble_slot_3',
@@ -906,13 +1058,12 @@ class _ShopScreenState extends State<ShopScreen> {
 
       final card = GameShopCard(
         key: const ValueKey('upgrade-slot-3'),
-        icon: Icons.bubble_chart_rounded,
         title: 'Bubble Slot 3',
+        offer: slotOffer,
         theme: theme,
         costWidgets: costWidgets,
         enabled: enabled,
         canAfford: canAfford,
-        onPressed: null, // Tap handled by GestureDetector
       );
 
       items.add(
@@ -975,6 +1126,7 @@ class _ShopScreenState extends State<ShopScreen> {
       currencies: balances,
       inventoryQty: 0,
       canPurchase: canAfford,
+      canAfford: canAfford,
     );
   }
 
@@ -996,6 +1148,7 @@ class _ShopScreenState extends State<ShopScreen> {
       currencies: balances,
       inventoryQty: 0,
       canPurchase: canAfford,
+      canAfford: canAfford,
     );
     if (!shouldProceed || !context.mounted) return;
 
@@ -1007,10 +1160,14 @@ class _ShopScreenState extends State<ShopScreen> {
     BuildContext context,
     ShopOffer offer,
     Map<String, int> currencies,
-    bool canAfford,
+    // The canAfford passed from the grid is usually just the currency check
+    bool isCurrencyAffordable,
   ) async {
     final theme = context.read<FactionTheme>();
     final shopService = context.read<ShopService>();
+
+    // 🎯 NEW: Get the daily purchase limit status
+    final canPurchaseDaily = shopService.canPurchase(offer.id);
 
     // Get inventory quantity for this item
     final invQty = offer.inventoryKey != null
@@ -1024,19 +1181,25 @@ class _ShopScreenState extends State<ShopScreen> {
       theme: theme,
       currencies: currencies,
       inventoryQty: invQty,
-      canPurchase: canAfford,
+      // The overall purchase eligibility from the ShopService (daily limit)
+      canPurchase: canPurchaseDaily,
+      // The currency affordability check (canAfford)
+      canAfford: isCurrencyAffordable,
     );
-    // We don't care about the return value, as we won't proceed to purchase
   }
 
   Future<void> _handlePurchase(
     BuildContext context,
     ShopOffer offer,
     Map<String, int> currencies,
-    bool canAfford,
+    // The canAfford passed from the grid is usually just the currency check
+    bool isCurrencyAffordable,
   ) async {
     final theme = context.read<FactionTheme>();
     final shopService = context.read<ShopService>();
+
+    // 🎯 NEW: Get the daily purchase limit status
+    final canPurchaseDaily = shopService.canPurchase(offer.id);
 
     // Get inventory quantity for this item
     final invQty = offer.inventoryKey != null
@@ -1050,10 +1213,13 @@ class _ShopScreenState extends State<ShopScreen> {
       theme: theme,
       currencies: currencies,
       inventoryQty: invQty,
-      canPurchase: canAfford,
+      // The overall purchase eligibility from the ShopService (daily limit)
+      canPurchase: canPurchaseDaily,
+      // The currency affordability check (canAfford)
+      canAfford: isCurrencyAffordable,
     );
+    // NOTE: The dialog ensures 'shouldProceed' will only be true if canPurchaseDaily is true AND isCurrencyAffordable is true
     if (!shouldProceed || !context.mounted) return;
-
     // STEP 2: Purchase confirmation (qty for eligible items)
     final qty = await showPurchaseConfirmationDialog(
       context: context,
@@ -1168,7 +1334,7 @@ class _ShopScreenState extends State<ShopScreen> {
               Text(
                 'There\'s nobody here',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
+                  color: theme.text,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),

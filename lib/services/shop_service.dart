@@ -1,4 +1,8 @@
 // lib/services/shop_service.dart
+import 'dart:math' as math;
+
+import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
@@ -75,6 +79,14 @@ class ShopService extends ChangeNotifier {
     }
   }
 
+  static const Map<int, ElementalGroup> _weekday2Group = {
+    DateTime.monday: ElementalGroup.volcanic,
+    DateTime.tuesday: ElementalGroup.oceanic,
+    DateTime.wednesday: ElementalGroup.verdant,
+    DateTime.thursday: ElementalGroup.earthen,
+    // Saturday and Sunday will be handled randomly
+  };
+
   // ==== Config for exchange & quantity ====
   static const int kSilverPerGold = 100; // informational
   static const double kFeePct = 0.05; // informational
@@ -107,6 +119,48 @@ class ShopService extends ChangeNotifier {
     return false;
   }
 
+  ShopOffer? getActiveDailyVialOffer() {
+    final now = DateTime.now();
+    final weekday = now.weekday;
+    final rarity = VialRarity.common;
+    const cost = {'silver': 100};
+
+    late final ElementalGroup group;
+    final bool isWeekend =
+        (weekday == DateTime.saturday || weekday == DateTime.sunday);
+
+    if (isWeekend) {
+      // get random from here
+      _weekday2Group.values.toList();
+      final groups = _weekday2Group.values.toList();
+      final randIndex = math.Random(now.day).nextInt(groups.length);
+      group = groups[randIndex];
+    } else {
+      group = _weekday2Group[weekday] ?? ElementalGroup.volcanic;
+    }
+
+    final vialName = '${group.displayName} Vial';
+    final offerId = 'vial.daily.${rarity.name}.${group.name}';
+
+    // IMPORTANT: This key must match EXACTLY what inventory_dao.addVial creates
+    // The format should be: 'vial.{group}.{rarity}.{name}'
+    final inventoryKey = 'vial.${group.name}.${rarity.name}.$vialName';
+
+    return ShopOffer(
+      id: offerId,
+      name: 'Daily Vial - ${group.displayName}',
+      description:
+          'A common-grade extraction vial. Today\'s element: ${group.displayName}.',
+      icon: Icons.science_rounded,
+      assetName: null, // You can add specific vial images later
+      cost: cost,
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.daily,
+      inventoryKey: inventoryKey,
+    );
+  }
+
   // ==== Offers (existing + new) ====
   static final List<ShopOffer> allOffers = [
     ShopOffer(
@@ -114,7 +168,7 @@ class ShopService extends ChangeNotifier {
       name: 'Stamina Elixir',
       description: 'Fully restores an Alchemon\'s stamina.',
       icon: Icons.local_drink_rounded,
-      cost: const {'silver': 3000}, // tweak cost as desired
+      cost: const {'silver': 1000}, // tweak cost as desired
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -439,13 +493,28 @@ class ShopService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // lib/services/shop_service.dart
+
   ShopOffer? _resolveOfferById(String offerId) {
+    // 1. Check static offers
     for (final o in allOffers) {
       if (o.id == offerId) return o;
     }
+
+    // 2. Check dynamic currency exchange offers
     for (final o in getActiveExchangeOffers()) {
       if (o.id == offerId) return o;
     }
+
+    // --- ADD THIS BLOCK ---
+    // 3. Check the dynamic daily vial offer
+    final dailyVial = getActiveDailyVialOffer();
+    if (dailyVial != null && dailyVial.id == offerId) {
+      return dailyVial;
+    }
+    // --- END OF ADDED BLOCK ---
+
+    // 4. Not found
     return null;
   }
 
@@ -578,6 +647,25 @@ class ShopService extends ChangeNotifier {
   }
 
   Future<bool> _applyBoost(String offerId, int qty) async {
+    if (offerId.startsWith('vial.daily.common.')) {
+      try {
+        final groupName = offerId.split('.').last;
+        final group = ElementalGroup.values.firstWhere(
+          (g) => g.name == groupName,
+        );
+        final rarity = VialRarity.common;
+        final name = '${group.displayName} Vial';
+
+        // Use the dao to add the vial to inventory
+        await _db.inventoryDao.addVial(name, group, rarity, qty: qty);
+        return true;
+      } catch (e, s) {
+        if (kDebugMode) {
+          print('Error applying daily vial boost: $e\n$s');
+        }
+        return false;
+      }
+    }
     switch (offerId) {
       case 'boost.instant_hatch':
         // grant tokens to inventory instead of applying immediately

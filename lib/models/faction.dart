@@ -20,12 +20,12 @@ class Factions {
   static const fire = FactionDef(FactionId.fire, 'Fire', '🔥', [
     FactionPerk(
       'HellRaiser',
-      'HellRaiser',
+      'Hell Raiser',
       '5% increased XP to all creatures when leveling',
     ),
     FactionPerk(
       'FireBreeder',
-      'FireBreeder',
+      'Fire Breeder',
       '50% off breed timers created when using a fire parent',
     ),
   ]);
@@ -33,8 +33,8 @@ class Factions {
   static const water = FactionDef(FactionId.water, 'Water', '🌊', [
     FactionPerk(
       'WaterBreeder',
-      'WaterBreeder',
-      'Water creatures don’t lose stamina when breeding together',
+      'Water Breeder',
+      'Water creatures may not lose stamina when breeding together',
     ),
     FactionPerk(
       'AquaSanctuary',
@@ -48,15 +48,15 @@ class Factions {
     FactionPerk(
       'AirSensory',
       'Air Sensory',
-      'Predict if an egg is undiscovered',
+      'Predict if a fusion is undiscovered',
     ),
   ]);
 
   static const earth = FactionDef(FactionId.earth, 'Earth', '🌍', [
     FactionPerk(
       'LandExplorer',
-      'LandExplorer',
-      'Refresh 1 wildlife encounter instantly once per day',
+      'Land Explorer',
+      'Earthen creatures gain 50% increased extraction speed',
     ),
     FactionPerk(
       'Earther',

@@ -59,13 +59,13 @@ class WildCreatureRandomizer {
   _getStatRangeForRarity(String rarity) {
     switch (rarity.toLowerCase()) {
       case 'common':
-        return (min: 1.0, max: 3.0, potMin: 2.0, potMax: 4.0);
+        return (min: 1.0, max: 2.0, potMin: 1.0, potMax: 2.0);
       case 'uncommon':
-        return (min: 2.0, max: 4.0, potMin: 3.0, potMax: 5.0);
+        return (min: 1.0, max: 1.0, potMin: 1.0, potMax: 2.0);
       case 'rare':
-        return (min: 3.0, max: 5.0, potMin: 4.0, potMax: 6.0);
-      case 'mythic':
-        return (min: 4.0, max: 6.0, potMin: 5.0, potMax: 7.0);
+        return (min: 2.0, max: 2.0, potMin: 2.0, potMax: 3.0);
+      case 'legendary':
+        return (min: 2.0, max: 3.0, potMin: 3.0, potMax: 4.0);
       default:
         return (min: 1.0, max: 3.0, potMin: 2.0, potMax: 4.0);
     }

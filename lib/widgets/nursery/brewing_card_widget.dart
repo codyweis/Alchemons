@@ -118,7 +118,7 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
               ? const Color.fromARGB(255, 18, 18, 18)
               : Colors.black,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: theme!.text, width: .2),
+          border: Border.all(color: theme.text.withOpacity(0.5), width: .5),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(14),

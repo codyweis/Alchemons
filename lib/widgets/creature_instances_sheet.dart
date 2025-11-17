@@ -172,8 +172,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
     super.didChangeDependencies();
     // safe to read providers here
     _settings = context.read<AlchemonsDatabase>().settingsDao;
-    _refreshAllStamina();
-    // fire-and-forget restore
+
     () async {
       final raw = await _settings.getSetting(_prefsKey);
       if (!mounted || raw == null || raw.isEmpty) return;
@@ -186,31 +185,11 @@ class _InstancesSheetState extends State<InstancesSheet> {
     }();
   }
 
-  Future<void> _refreshAllStamina() async {
-    final stamina = context.read<StaminaService>();
-    final db = context.read<AlchemonsDatabase>();
-
-    final instances = await db.creatureDao.getInstancesForSpecies(
-      widget.species.id,
-    );
-    for (final inst in instances) {
-      await stamina.refreshAndGet(inst.instanceId);
-    }
-  }
-
   @override
   void dispose() {
     _saveTimer?.cancel();
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _toggleInSet(Set<String> set, String value) {
-    if (set.contains(value)) {
-      set.remove(value);
-    } else {
-      set.add(value);
-    }
   }
 
   Map<String, String> _buildNatureOptions() {
@@ -768,18 +747,29 @@ class _FiltersPanel extends StatelessWidget {
     required this.onClearAll,
   });
 
+  /// Treat a filter as "active" whenever its value is non-null / true.
+  bool get _hasActiveFilters {
+    return filterPrismatic ||
+        filterNature != null ||
+        sizeValueText != null ||
+        tintValueText != null ||
+        variantValueText != null;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Build the list of filter chips once
     final List<Widget> filterChips = [
+      // Clear All
+      if (_hasActiveFilters) _ClearChip(theme: theme, onTap: onClearAll),
       if (!harvestMode) ...[
-        // Prismatic
-        _FilterToggleChip(
+        // Variant cycler
+        _CycleChip(
           theme: theme,
-          icon: Icons.auto_awesome_rounded,
-          label: 'Prismatic',
-          active: filterPrismatic,
-          onTap: onTogglePrismatic,
+          icon: Icons.science_rounded,
+          labelWhenAny: 'Variant: Any',
+          valueText: variantValueText,
+          onTap: onCycleVariant,
         ),
 
         // Size cycler
@@ -798,15 +788,6 @@ class _FiltersPanel extends StatelessWidget {
           labelWhenAny: 'Tint: Any',
           valueText: tintValueText,
           onTap: onCycleTint,
-        ),
-
-        // Variant cycler
-        _CycleChip(
-          theme: theme,
-          icon: Icons.science_rounded,
-          labelWhenAny: 'Variant: Any',
-          valueText: variantValueText,
-          onTap: onCycleVariant,
         ),
       ] else ...[
         // 🔥 HARVEST MODE: only Size here
@@ -842,9 +823,14 @@ class _FiltersPanel extends StatelessWidget {
           }
         },
       ),
-
-      // Clear All
-      _ClearChip(theme: theme, onTap: onClearAll),
+      // Prismatic
+      _FilterToggleChip(
+        theme: theme,
+        icon: Icons.auto_awesome_rounded,
+        label: 'Prismatic',
+        active: filterPrismatic,
+        onTap: onTogglePrismatic,
+      ),
     ];
 
     return Column(
@@ -1133,13 +1119,6 @@ class _FilterToggleChip extends StatelessWidget {
                 letterSpacing: 0.3,
               ),
             ),
-            Icon(
-              active
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              size: 14,
-              color: active ? theme.primary.withOpacity(.6) : theme.textMuted,
-            ),
           ],
         ),
       ),
@@ -1226,8 +1205,6 @@ class _ClearChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.clear_rounded, size: 12, color: Colors.red.shade300),
-            const SizedBox(width: 4),
             Text(
               'Clear',
               style: TextStyle(

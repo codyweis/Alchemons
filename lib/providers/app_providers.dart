@@ -14,7 +14,7 @@ import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
-import 'package:alchemons/services/black_market_service.dart'; // ADD THIS
+import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
@@ -33,7 +33,6 @@ import '../services/breeding_engine.dart';
 Future<CatalogData> _loadAllCatalogs() async {
   final results = await Future.wait([
     loadElementRecipes(),
-    loadSpecialRules(),
     loadFamilyRecipes(),
     loadNatures().then((_) => true), // Convert void to bool
     GeneticsCatalog.load().then((_) => true), // Convert void to bool
@@ -45,24 +44,21 @@ Future<CatalogData> _loadAllCatalogs() async {
 
   return CatalogData(
     elementRecipes: results[0] as ElementRecipeConfig,
-    specialRules: results[1] as SpecialRulesConfig,
-    familyRecipes: results[2] as FamilyRecipeConfig,
-    naturesLoaded: results[3] as bool,
-    geneticsLoaded: results[4] as bool,
+    familyRecipes: results[1] as FamilyRecipeConfig,
+    naturesLoaded: results[2] as bool,
+    geneticsLoaded: results[3] as bool,
   );
 }
 
 /// Container for all loaded catalog data
 class CatalogData {
   final ElementRecipeConfig elementRecipes;
-  final SpecialRulesConfig specialRules;
   final FamilyRecipeConfig familyRecipes;
   final bool naturesLoaded;
   final bool geneticsLoaded;
 
   const CatalogData({
     required this.elementRecipes,
-    required this.specialRules,
     required this.familyRecipes,
     required this.naturesLoaded,
     required this.geneticsLoaded,
@@ -126,10 +122,10 @@ class AppProviders extends StatelessWidget {
         // Game data service provider (already initialized)
         Provider<GameDataService>.value(value: gameDataService),
 
-        // AppProviders.providers
+        // Creature entries & owned-species streams
         StreamProvider<List<CreatureEntry>?>(
           create: (ctx) => ctx.read<GameDataService>().watchAllEntries(),
-          initialData: null, // null = "loading" in UI
+          initialData: null,
         ),
         StreamProvider<Set<String>?>(
           create: (ctx) => ctx
@@ -139,7 +135,7 @@ class AppProviders extends StatelessWidget {
           initialData: null,
         ),
 
-        // Creature repository provider
+        // Creature repository provider (this is your "repo catalog")
         Provider<CreatureCatalog>.value(value: gameDataService.catalog),
 
         ChangeNotifierProvider(
@@ -162,7 +158,6 @@ class AppProviders extends StatelessWidget {
           update: (ctx, factionSvc, themeNotifier, __) {
             final mode = themeNotifier.themeMode;
 
-            // What brightness should the faction skin use?
             final platformBrightness =
                 MediaQuery.maybeOf(ctx)?.platformBrightness ?? Brightness.light;
 
@@ -183,12 +178,16 @@ class AppProviders extends StatelessWidget {
         Provider<StaminaService>(
           create: (ctx) => StaminaService(ctx.read<AlchemonsDatabase>()),
         ),
+
+        // Egg payload factory uses the CreatureCatalog
         Provider<EggPayloadFactory>(
           create: (ctx) => EggPayloadFactory(ctx.read<CreatureCatalog>()),
         ),
+
         Provider<WildCreatureRandomizer>(
           create: (ctx) => WildCreatureRandomizer(),
         ),
+
         Provider<StarterGrantService>(
           create: (ctx) => StarterGrantService(
             db: ctx.read<AlchemonsDatabase>(),
@@ -196,7 +195,7 @@ class AppProviders extends StatelessWidget {
           ),
         ),
 
-        // Single loader for all catalogs
+        // Single loader for all catalogs (recipes, natures, genetics)
         FutureProvider<CatalogData?>(
           create: (_) => _loadAllCatalogs(),
           initialData: null,
@@ -217,39 +216,13 @@ class AppProviders extends StatelessWidget {
               repo,
               elementRecipes: catalogData.elementRecipes,
               familyRecipes: catalogData.familyRecipes,
-              specialRules: catalogData.specialRules,
               tuning: tuning,
               logToConsole: true,
             );
           },
         ),
 
-        // Breeding likelihood analyzer - needs the live engine
-        ProxyProvider3<
-          CatalogData?,
-          CreatureCatalog,
-          BreedingEngine?,
-          BreedingLikelihoodAnalyzer?
-        >(
-          update: (context, catalogData, repo, engine, previous) {
-            if (catalogData == null ||
-                !catalogData.isFullyLoaded ||
-                engine == null) {
-              return null;
-            }
-
-            final tuning = context.read<BreedingTuning>();
-            return BreedingLikelihoodAnalyzer(
-              repository: repo,
-              elementRecipes: catalogData.elementRecipes,
-              familyRecipes: catalogData.familyRecipes,
-              specialRules: catalogData.specialRules,
-              tuning: tuning,
-              engine: engine,
-            );
-          },
-        ),
-
+        // 🔧 BreedingServiceV2 wiring
         ProxyProvider5<
           GameDataService,
           AlchemonsDatabase,

@@ -57,35 +57,3 @@ Future<FamilyRecipeConfig> loadFamilyRecipes() async {
   // normalize + build backlinks automatically
   return FamilyRecipeConfig.fromRaw(recipesRaw);
 }
-
-Future<SpecialRulesConfig> loadSpecialRules() async {
-  final raw = await rootBundle.loadString(
-    'assets/data/alchemons_special_rules.json',
-  );
-  final map = json.decode(raw) as Map<String, dynamic>;
-
-  final gpRaw = (map['guaranteedPairs'] as Map<String, dynamic>? ?? {});
-  final guaranteedPairs = gpRaw.map((k, v) {
-    final list = (v as List)
-        .map(
-          (e) => GuaranteedOutcome(
-            resultId: e['resultId'] as String,
-            chance: (e['chance'] as num?)?.toInt() ?? 100,
-          ),
-        )
-        .toList();
-    return MapEntry(k, list);
-  });
-
-  final reqRaw =
-      (map['requiredTypesByCreatureId'] as Map<String, dynamic>? ?? {});
-  final requiredTypes = reqRaw.map(
-    (k, v) =>
-        MapEntry(k, Set<String>.from((v as List).map((x) => x as String))),
-  );
-
-  return SpecialRulesConfig(
-    guaranteedPairs: guaranteedPairs,
-    requiredTypesByCreatureId: requiredTypes,
-  );
-}

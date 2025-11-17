@@ -780,6 +780,38 @@ class _OverviewScrollArea extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
+          SectionBlock(
+            theme: theme,
+            title: 'Genetic Profile',
+            child: Column(
+              children: [
+                LabeledInlineValue(
+                  label: 'Size Variant',
+                  valueText: _sizeLabels(creature),
+                  valueColor: theme.text,
+                ),
+                LabeledInlineValue(
+                  label: 'Pigmentation',
+                  valueText: _tintLabels(creature),
+                  valueColor: theme.text,
+                ),
+                if (creature.nature != null)
+                  LabeledInlineValue(
+                    label: 'Behavioral Pattern',
+                    valueText: creature.nature!.id,
+                    valueColor: theme.text,
+                  ),
+                if (creature.isPrismaticSkin == true)
+                  LabeledInlineValue(
+                    label: 'Special Trait',
+                    valueText: 'Prismatic Phenotype',
+                    valueColor: theme.text,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
           if (instance != null)
             Column(
               children: [
@@ -814,37 +846,6 @@ class _OverviewScrollArea extends StatelessWidget {
                 const SizedBox(height: 16),
               ],
             ),
-
-          SectionBlock(
-            theme: theme,
-            title: 'Genetic Profile',
-            child: Column(
-              children: [
-                LabeledInlineValue(
-                  label: 'Size Variant',
-                  valueText: _sizeLabels(creature),
-                  valueColor: theme.text,
-                ),
-                LabeledInlineValue(
-                  label: 'Pigmentation',
-                  valueText: _tintLabels(creature),
-                  valueColor: theme.text,
-                ),
-                if (creature.nature != null)
-                  LabeledInlineValue(
-                    label: 'Behavioral Pattern',
-                    valueText: creature.nature!.id,
-                    valueColor: theme.text,
-                  ),
-                if (creature.isPrismaticSkin == true)
-                  LabeledInlineValue(
-                    label: 'Special Trait',
-                    valueText: 'Prismatic Phenotype',
-                    valueColor: theme.text,
-                  ),
-              ],
-            ),
-          ),
 
           if (creature.specialBreeding != null) ...[
             const SizedBox(height: 16),
@@ -979,10 +980,6 @@ class _AnalysisScrollArea extends StatelessWidget {
                   LabeledInlineValue(
                     label: 'Source',
                     valueText: 'Field Research',
-                  ),
-                  LabeledInlineValue(
-                    label: 'Discovery',
-                    valueText: 'Wild specimen - no synthesis data available',
                   ),
                 ],
               ),

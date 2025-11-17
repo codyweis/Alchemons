@@ -99,17 +99,6 @@ class SystemDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // icon
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                border: Border.all(color: frame, width: 1.5),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(_iconForKind(), size: 42, color: Colors.white),
-            ),
-            const SizedBox(height: 24),
-
             // title
             Text(
               title.toUpperCase(),

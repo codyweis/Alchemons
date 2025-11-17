@@ -5,6 +5,13 @@
 // - Bottom-right: Compact party strip
 // - Center-right: Action buttons
 // - Clean, game-like presentation optimized for landscape
+// lib/widgets/wilderness/encounter_overlay.dart
+//
+// Modern split-HUD layout for wild encounters
+// - Top-right: Wild creature portrait with stats
+// - Bottom-right: Compact party strip
+// - Center-right: Action buttons
+// - Clean, game-like presentation optimized for landscape
 
 import 'dart:async';
 import 'dart:math';
@@ -14,6 +21,7 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -30,7 +38,6 @@ import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
-import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/constants/breed_constants.dart';
@@ -67,6 +74,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   bool _busy = false;
   String _status = 'Select a party member to act';
 
+  double? _breedChance; // 0.0–1.0 probability
+
   late final AnimationController _slideController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 400),
@@ -99,6 +108,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       }
     });
     _fadeController.reverse();
+    setState(() {
+      _breedChance = null;
+      _chosenInstanceId = null;
+    });
   }
 
   @override
@@ -113,8 +126,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final wildCreature = widget.hydratedWildCreature;
     return Stack(
       children: [
-        // Dimmed backdrop
-
         // Center: Wild creature name title
         AnimatedBuilder(
           animation: _slideController,
@@ -180,6 +191,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                         ? () => _handleCapture(context, wildCreature)
                         : null,
                     onRun: () => _hide(false),
+                    breedChance: _breedChance,
                   ),
                 ),
               ),
@@ -208,9 +220,20 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       isPrismaticSkin:
           instRow.isPrismaticSkin || (baseCreature.isPrismaticSkin ?? false),
     );
+
+    final wilderness = WildernessService(db, context.read<StaminaService>());
+
+    final totalLuck = instRow.statBeauty / 100.0;
+    final p = wilderness.computeBreedChance(
+      base: widget.encounter.baseBreedChance,
+      partyLuck: totalLuck,
+      matchupMult: 1.0,
+    );
+
     setState(() {
       _status = 'Selected ${hydrated.name}. Choose an action.';
       _chosenInstanceId = instanceId;
+      _breedChance = p;
     });
 
     widget.onPartyCreatureSelected?.call(hydrated);
@@ -230,10 +253,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       final wilderness = WildernessService(db, ctx.read<StaminaService>());
       final instance = await db.creatureDao.getInstance(_chosenInstanceId!);
 
-      // beauty determines luck
-      final totalLuck = instance != null
-          ? (instance.statBeauty / 100.0) // e.g., 25 beauty = 0.25 luck
-          : 0.0;
+      final totalLuck = instance != null ? (instance.statBeauty / 100.0) : 0.0;
       final p = wilderness.computeBreedChance(
         base: widget.encounter.baseBreedChance,
         partyLuck: totalLuck,
@@ -249,9 +269,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       widget.onPreRollShake?.call();
       HapticFeedback.mediumImpact();
       setState(() => _status = 'Calibrating alchemical matrix…');
-      await Future.delayed(
-        const Duration(milliseconds: 650),
-      ); // short suspense beat
+      await Future.delayed(const Duration(milliseconds: 650));
 
       final success = wilderness.rollSuccess(p);
       if (success) {
@@ -270,12 +288,12 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
         Widget partySprite() {
           return SizedBox(
-            width: 120,
-            height: 120,
+            width: 150,
+            height: 150,
             child: InstanceSprite(
               creature: speciesA!,
               instance: instance,
-              size: 72,
+              size: 150,
             ),
           );
         }
@@ -407,11 +425,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final repo = ctx.read<CreatureCatalog>();
     final randomizer = WildCreatureRandomizer();
 
-    // Get dependencies for BreedingServiceV2
     final engine = ctx.read<BreedingEngine>();
     final payloadFactory = EggPayloadFactory(repo);
 
-    // Create breeding service
     final breedingService = BreedingServiceV2(
       gameData: ctx.read<GameDataService>(),
       db: db,
@@ -420,24 +436,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       wildRandomizer: randomizer,
     );
 
-    // Calculate likelihood analysis for wild breeding
-    String? analysisJson;
-    try {
-      analysisJson = await _calculateWildBreedingAnalysis(
-        ctx,
-        ownedParent,
-        wildCreature,
-        randomizer,
-      );
-    } catch (e) {
-      print('⚠️ Wild breeding analyzer failed: $e');
-    }
-
-    // Use proper wild breeding flow with analysis
+    // Single call: service will randomize wild, breed, and compute analysis.
     final result = await breedingService.breedWithWild(
       ownedParent,
       wildCreature,
-      likelihoodAnalysisJson: analysisJson,
     );
 
     if (!result.success) {
@@ -447,7 +449,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       return;
     }
 
-    // Show appropriate message based on placement
     if (mounted) {
       final message = result.placement == EggPlacement.incubator
           ? 'Wild breeding successful! Egg in incubator slot ${(result.slotId ?? 0) + 1}'
@@ -457,64 +458,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     }
   }
 
-  /// Calculate likelihood analysis for wild breeding
-  Future<String?> _calculateWildBreedingAnalysis(
-    BuildContext ctx,
-    db.CreatureInstance ownedParent,
-    Creature wildCreature,
-    WildCreatureRandomizer randomizer,
-  ) async {
-    final repo = ctx.read<CreatureCatalog>();
-    final engine = ctx.read<BreedingEngine>();
-
-    // Get the base species for the owned parent
-    final ownedBase = repo.getCreatureById(ownedParent.baseId);
-    if (ownedBase == null) return null;
-
-    // Randomize the wild creature to match what breeding will use
-    final randomizedWild = randomizer.randomizeWildCreature(wildCreature);
-
-    // Hydrate owned parent with its genetics and nature
-    final geneticsOwned = decodeGenetics(ownedParent.geneticsJson);
-    final hydratedOwned = ownedBase.copyWith(
-      genetics: geneticsOwned,
-      nature: ownedParent.natureId != null
-          ? NatureCatalog.byId(ownedParent.natureId!)
-          : ownedBase.nature,
-      isPrismaticSkin: ownedParent.isPrismaticSkin,
-    );
-
-    // Get breeding result to analyze
-    final breedResult = engine.breedInstanceWithCreature(
-      ownedParent,
-      randomizedWild,
-    );
-
-    if (!breedResult.success || breedResult.creature == null) {
-      return null;
-    }
-
-    // Create analyzer
-    final analyzer = BreedingLikelihoodAnalyzer(
-      repository: repo,
-      elementRecipes: engine.elementRecipes,
-      familyRecipes: engine.familyRecipes,
-      specialRules: engine.specialRules,
-      tuning: engine.tuning,
-      engine: engine,
-    );
-
-    // Analyze the wild breeding result
-    final analysisReport = analyzer.analyzeBreedingResult(
-      hydratedOwned,
-      randomizedWild,
-      breedResult.creature!,
-    );
-
-    return jsonEncode(analysisReport.toJson());
-  }
-
-  /// Capture wild creature (for the Capture button)
   Future<void> _placeWildEgg(
     BuildContext ctx,
     Creature capturedCreature,
@@ -522,7 +465,6 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final db = ctx.read<AlchemonsDatabase>();
     final repo = ctx.read<CreatureCatalog>();
 
-    // We use the 'capturedCreature' directly
     final rarityKey = capturedCreature.rarity.toLowerCase();
     final baseHatchDelay =
         BreedConstants.rarityHatchTimes[rarityKey] ??
@@ -531,8 +473,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
     final factory = EggPayloadFactory(repo);
 
-    // ✨ PASS THE EXACT CREATURE (prismatic and all) TO THE FACTORY
-    final payload = factory.createWildCapturePayload(capturedCreature); //
+    final payload = factory.createWildCapturePayload(capturedCreature);
     final payloadJson = payload.toJsonString();
 
     final eggId = 'egg_${DateTime.now().millisecondsSinceEpoch}';
@@ -541,8 +482,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     if (free == null) {
       await db.incubatorDao.enqueueEgg(
         eggId: eggId,
-        resultCreatureId: capturedCreature.id, // Use captured creature's data
-        rarity: capturedCreature.rarity, // Use captured creature's data
+        resultCreatureId: capturedCreature.id,
+        rarity: capturedCreature.rarity,
         remaining: baseHatchDelay,
         payloadJson: payloadJson,
       );
@@ -550,8 +491,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       await db.incubatorDao.placeEgg(
         slotId: free.id,
         eggId: eggId,
-        resultCreatureId: capturedCreature.id, // Use captured creature's data
-        rarity: capturedCreature.rarity, // Use captured creature's data
+        resultCreatureId: capturedCreature.id,
+        rarity: capturedCreature.rarity,
         hatchAtUtc: hatchAtUtc,
         payloadJson: payloadJson,
       );
@@ -899,6 +840,7 @@ class _ActionPanel extends StatelessWidget {
   final VoidCallback? onBreed;
   final VoidCallback? onCapture;
   final VoidCallback onRun;
+  final double? breedChance; // 👈 NEW
   final bool isPartySelected;
 
   const _ActionPanel({
@@ -908,35 +850,56 @@ class _ActionPanel extends StatelessWidget {
     required this.onCapture,
     required this.onRun,
     required this.isPartySelected,
+    this.breedChance,
   });
 
   @override
   Widget build(BuildContext context) {
+    final chanceText = breedChance != null
+        ? 'Fusion success: ${(breedChance! * 100).toStringAsFixed(1)}%'
+        : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (chanceText != null) // Only show if we have a computed chance
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8.0, right: 4.0),
+              child: Text(
+                chanceText,
+                style: const TextStyle(
+                  color: Color(0xFF00FF88),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ),
+          ),
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             _ActionButton(
               disabled: !isPartySelected,
-              label: 'ATTEMPT ALCHEMICAL FUSION', // Changed text
-              icon: Icons.auto_fix_high, // Changed icon for a mystical look
+              label: 'ATTEMPT ALCHEMICAL FUSION',
+              icon: Icons.auto_fix_high,
               color: const Color.fromARGB(255, 16, 42, 16),
               onPressed: canAct ? onBreed : null,
             ),
             const SizedBox(width: 10),
             _ActionButton(
-              label: 'HARVEST PROTOCOL', // Changed text
-              icon: Icons.science, // Changed icon for a scientific look
+              label: 'HARVEST PROTOCOL',
+              icon: Icons.science,
               color: const Color.fromARGB(255, 46, 3, 3),
               onPressed: canAct ? onCapture : null,
             ),
             const SizedBox(width: 10),
             _ActionButton(
-              label: 'MAP', // Changed text
-              icon: Icons.exit_to_app, // Changed icon
+              label: 'MAP',
+              icon: Icons.exit_to_app,
               color: const Color.fromARGB(255, 22, 20, 20),
               onPressed: onRun,
             ),

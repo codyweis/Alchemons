@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -225,6 +226,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
 
+    final theme = context.read<FactionTheme>();
     return AnimatedBuilder(
       animation: _introCtrl,
       builder: (context, child) => Dialog(
@@ -443,7 +445,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.05),
+                          color: theme.surface.withOpacity(.7),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: Colors.white.withOpacity(.10),
@@ -489,7 +491,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                       Text(
                                         'Time Remaining',
                                         style: TextStyle(
-                                          color: Colors.white.withOpacity(.65),
+                                          color: theme.text,
                                           fontSize: 11,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -500,7 +502,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                           remaining,
                                         ),
                                         style: TextStyle(
-                                          color: widget.primaryColor,
+                                          color: theme.text,
                                           fontSize: 16,
                                           fontWeight: FontWeight.w900,
                                           letterSpacing: .5,

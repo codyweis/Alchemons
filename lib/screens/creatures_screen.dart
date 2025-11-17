@@ -15,6 +15,7 @@ import 'package:alchemons/widgets/draggable_sheet.dart';
 import 'package:alchemons/widgets/filterchip_solod.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/silhouette_widget.dart';
+import 'package:alchemons/widgets/tutorial_step.dart';
 import 'package:flame/image_composition.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -32,13 +33,18 @@ class CreaturesScreen extends StatefulWidget {
   const CreaturesScreen({super.key});
 
   @override
-  State<CreaturesScreen> createState() => _CreaturesScreenState();
+  State<CreaturesScreen> createState() => CreaturesScreenState();
 }
 
-class _CreaturesScreenState extends State<CreaturesScreen>
+class CreaturesScreenState extends State<CreaturesScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
+
+  // NEW: tutorial state
+  bool _creaturesTutorialChecked = false;
+  bool _highlightAllInstances = false;
+  bool _tutorialScheduled = false;
 
   String _scope = 'Catalogued';
   String _sort = 'Acquisition Order';
@@ -115,12 +121,126 @@ class _CreaturesScreenState extends State<CreaturesScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _settings = context.read<AlchemonsDatabase>().settingsDao;
+
+    // Restore prefs
     () async {
       final raw = await _settings.getSetting(_prefsKey);
       if (!mounted || raw == null || raw.isEmpty) return;
       final map = jsonDecode(raw) as Map<String, dynamic>;
       setState(() => _fromPrefs(map)); // no save during restore
     }();
+
+    // NEW: schedule tutorial once
+    if (!_tutorialScheduled) {
+      _tutorialScheduled = true;
+    }
+  }
+
+  Future<void> maybeShowCreaturesTutorial() async {
+    await _maybeShowCreaturesTutorial();
+  }
+
+  Future<void> _maybeShowCreaturesTutorial() async {
+    if (!mounted || _creaturesTutorialChecked) return;
+    _creaturesTutorialChecked = true;
+
+    final hasSeen = await _settings.hasSeenCreaturesTutorial();
+    if (hasSeen || !mounted) return;
+
+    final theme = context.read<FactionTheme>();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: theme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Row(
+            children: [
+              Text(
+                'Alchemon Database',
+                style: TextStyle(
+                  color: theme.text,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Browse every species you\'ve discovered, filter them, and inspect individual specimens.',
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TutorialStep(
+                theme: theme,
+                icon: Icons.search_rounded,
+                title: 'Search & filter',
+                body:
+                    'Use the search bar and chips to filter by name, type, '
+                    'rarity, and more.',
+              ),
+              const SizedBox(height: 6),
+              TutorialStep(
+                theme: theme,
+                icon: Icons.category_rounded,
+                title: 'Tap a species',
+                body:
+                    'Tap a species to view its specimens, animations, and '
+                    'detailed stats.',
+              ),
+              const SizedBox(height: 6),
+              TutorialStep(
+                theme: theme,
+                icon: Icons.grid_view_rounded,
+                title: 'All specimens view',
+                body:
+                    'Use the grid button at the top left to open a global '
+                    'specimen list across all species.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                'Got it',
+                style: TextStyle(
+                  color: theme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    await _settings.setCreaturesTutorialSeen();
+
+    // Briefly highlight the All Instances button to draw attention
+    if (!mounted) return;
+    setState(() => _highlightAllInstances = true);
+
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() => _highlightAllInstances = false);
+    });
   }
 
   @override
@@ -792,15 +912,17 @@ class _CreatureCard extends StatelessWidget {
                     child: Center(
                       child: Silhouette(
                         enabled: !discovered,
-                        child: CreatureSprite(
-                          spritePath: c.spriteData!.spriteSheetPath,
-                          totalFrames: c.spriteData!.totalFrames,
-                          rows: c.spriteData!.rows,
-                          frameSize: Vector2(
-                            c.spriteData!.frameWidth.toDouble(),
-                            c.spriteData!.frameHeight.toDouble(),
+                        child: RepaintBoundary(
+                          child: CreatureSprite(
+                            spritePath: c.spriteData!.spriteSheetPath,
+                            totalFrames: c.spriteData!.totalFrames,
+                            rows: c.spriteData!.rows,
+                            frameSize: Vector2(
+                              c.spriteData!.frameWidth.toDouble(),
+                              c.spriteData!.frameHeight.toDouble(),
+                            ),
+                            stepTime: c.spriteData!.frameDurationMs / 1000.0,
                           ),
-                          stepTime: c.spriteData!.frameDurationMs / 1000.0,
                         ),
                       ),
                     ),
@@ -879,15 +1001,17 @@ class _CreatureRow extends StatelessWidget {
                   children: [
                     Silhouette(
                       enabled: !discovered,
-                      child: CreatureSprite(
-                        spritePath: c.spriteData!.spriteSheetPath,
-                        totalFrames: c.spriteData!.totalFrames,
-                        rows: c.spriteData!.rows,
-                        frameSize: Vector2(
-                          c.spriteData!.frameWidth.toDouble(),
-                          c.spriteData!.frameHeight.toDouble(),
+                      child: RepaintBoundary(
+                        child: CreatureSprite(
+                          spritePath: c.spriteData!.spriteSheetPath,
+                          totalFrames: c.spriteData!.totalFrames,
+                          rows: c.spriteData!.rows,
+                          frameSize: Vector2(
+                            c.spriteData!.frameWidth.toDouble(),
+                            c.spriteData!.frameHeight.toDouble(),
+                          ),
+                          stepTime: c.spriteData!.frameDurationMs / 1000.0,
                         ),
-                        stepTime: c.spriteData!.frameDurationMs / 1000.0,
                       ),
                     ),
                     if (showCount && discovered && instanceCount > 0)

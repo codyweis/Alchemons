@@ -334,7 +334,7 @@ class BlackMarketService extends ChangeNotifier {
     final list = <ExtractionVial>[];
     bool gaveLegendaryThisWeek = false;
 
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 4; i++) {
       final g = groups[rng.nextInt(groups.length)];
       var rarity = _pickRarity(rng);
 

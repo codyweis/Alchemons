@@ -69,11 +69,9 @@ valleyEncounterPools(SceneDefinition scene) {
 
           // Regular scene-wide
           EncounterEntry(speciesId: 'LET03', rarity: EncounterRarity.common),
-          EncounterEntry(speciesId: 'LET15', rarity: EncounterRarity.uncommon),
+          EncounterEntry(speciesId: 'LET15', rarity: EncounterRarity.rare),
           EncounterEntry(speciesId: 'MAN03', rarity: EncounterRarity.uncommon),
-          EncounterEntry(speciesId: 'HOR12', rarity: EncounterRarity.rare),
-          EncounterEntry(speciesId: 'KIN15', rarity: EncounterRarity.legendary),
-          EncounterEntry(speciesId: 'HOR15', rarity: EncounterRarity.legendary),
+          EncounterEntry(speciesId: 'KIN03', rarity: EncounterRarity.legendary),
         ]
       : [
           // --- Day Spawns ---
@@ -81,12 +79,12 @@ valleyEncounterPools(SceneDefinition scene) {
 
           // Regular scene-wide
           EncounterEntry(speciesId: 'LET03', rarity: EncounterRarity.common),
-          EncounterEntry(speciesId: 'MAN12', rarity: EncounterRarity.uncommon),
-          EncounterEntry(speciesId: 'LET16', rarity: EncounterRarity.uncommon),
+          EncounterEntry(speciesId: 'MAN12', rarity: EncounterRarity.rare),
+          EncounterEntry(speciesId: 'LET16', rarity: EncounterRarity.rare),
           EncounterEntry(speciesId: 'MAN03', rarity: EncounterRarity.uncommon),
           EncounterEntry(speciesId: 'HOR03', rarity: EncounterRarity.rare),
-          EncounterEntry(speciesId: 'KIN03', rarity: EncounterRarity.legendary),
-          EncounterEntry(speciesId: 'HOR16', rarity: EncounterRarity.legendary),
+          EncounterEntry(speciesId: 'WNG04', rarity: EncounterRarity.legendary),
+          EncounterEntry(speciesId: 'WNG03', rarity: EncounterRarity.rare),
         ];
 
   // 4. === FILTER THE SCENE-WIDE POOL ===

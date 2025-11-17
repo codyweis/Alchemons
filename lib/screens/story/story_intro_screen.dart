@@ -405,16 +405,19 @@ class _LoadingScreenState extends State<_LoadingScreen> {
 
   Future<void> _startLoading() async {
     try {
-      // Step 1: Precache navbar icons (20%)
+      // Step 1: Precache navbar icons (15%)
       await _loadNavbarAssets();
 
-      // Step 2: Warm up database (40%)
+      // Step 2: Precache creature sprites (25%)
+      await _precacheCreatureAssets();
+
+      // Step 3: Warm up database (30%)
       await _warmupDatabase();
 
-      // Step 3: Initialize services (30%)
+      // Step 4: Initialize services (20%)
       await _initializeServices();
 
-      // Step 4: Final prep (10%)
+      // Step 5: Final prep (10%)
       await _finalizeLoading();
 
       // Complete
@@ -458,7 +461,7 @@ class _LoadingScreenState extends State<_LoadingScreen> {
       'assets/images/ui/extractionicon.png',
     ];
 
-    // Match BottomNav’s icon sizes (inactive ≈ 55, expanded tops out around ~80–120)
+    // Match BottomNav's icon sizes (inactive ≈ 55, expanded tops out around ~80–120)
     const inactive = Size(55, 55);
     const expanded = Size(120, 120);
 
@@ -473,14 +476,78 @@ class _LoadingScreenState extends State<_LoadingScreen> {
     }
 
     if (!mounted) return;
-    setState(() => _progress = 0.2);
+    setState(() => _progress = 0.15);
+  }
+
+  Future<void> _precacheCreatureAssets() async {
+    if (!mounted) return;
+    setState(() {
+      _statusText = 'Loading creature database...';
+      _progress = 0.20;
+    });
+
+    try {
+      final catalog = context.read<CreatureCatalog>();
+      final db = context.read<AlchemonsDatabase>();
+
+      // Get discovered creatures (these are most likely to be viewed)
+      final playerCreatures = await db.creatureDao.getAllCreatures();
+      final discoveredIds = playerCreatures
+          .where((p) => p.discovered)
+          .map((p) => p.id)
+          .toSet();
+
+      // Get user's creature instances (these are guaranteed to be viewed)
+      final instances = await db.creatureDao.listAllInstances();
+      final ownedIds = instances.map((i) => i.baseId).toSet();
+
+      // Combine discovered + owned, prioritizing owned
+      final priorityIds = [...ownedIds, ...discoveredIds];
+
+      if (!mounted) return;
+      setState(() {
+        _statusText = 'Preparing specimens...';
+        _progress = 0.25;
+      });
+
+      // Precache priority creatures (discovered/owned)
+      int cached = 0;
+      for (final id in priorityIds.take(20)) {
+        // Limit to first 20 to keep loading reasonable
+        final creature = catalog.getCreatureById(id);
+        if (creature?.spriteData != null) {
+          try {
+            final provider = AssetImage(creature!.spriteData!.spriteSheetPath);
+            await precacheImage(provider, context);
+            cached++;
+
+            if (!mounted) return;
+            // Update progress smoothly through this section
+            final subProgress = (cached / 20.0) * 0.20; // 20% of total
+            setState(() => _progress = 0.25 + subProgress);
+          } catch (e) {
+            debugPrint('Failed to precache sprite for $id: $e');
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _statusText = 'Specimen assets loaded...';
+        _progress = 0.40;
+      });
+    } catch (e) {
+      debugPrint('Error precaching creature assets: $e');
+      if (!mounted) return;
+      setState(() => _progress = 0.40);
+    }
   }
 
   Future<void> _warmupDatabase() async {
     if (!mounted) return;
     setState(() {
       _statusText = 'Accessing specimen database...';
-      _progress = 0.25;
+      _progress = 0.45;
     });
 
     try {
@@ -489,19 +556,19 @@ class _LoadingScreenState extends State<_LoadingScreen> {
       // Warm up common queries
       await db.creatureDao.listAllInstances();
       if (!mounted) return;
-      setState(() => _progress = 0.35);
+      setState(() => _progress = 0.52);
 
       await db.creatureDao.getAllCreatures();
       if (!mounted) return;
-      setState(() => _progress = 0.45);
+      setState(() => _progress = 0.58);
 
       await db.incubatorDao.watchSlots().first;
       if (!mounted) return;
-      setState(() => _progress = 0.55);
+      setState(() => _progress = 0.64);
 
       await db.biomeDao.watchBiomes().first;
       if (!mounted) return;
-      setState(() => _progress = 0.6);
+      setState(() => _progress = 0.70);
     } catch (e) {
       debugPrint('Database warmup error: $e');
     }
@@ -511,29 +578,29 @@ class _LoadingScreenState extends State<_LoadingScreen> {
     if (!mounted) return;
     setState(() {
       _statusText = 'Initializing research systems...';
-      _progress = 0.65;
+      _progress = 0.75;
     });
 
     // Give services time to initialize
     await Future.delayed(const Duration(milliseconds: 300));
 
     if (!mounted) return;
-    setState(() => _progress = 0.75);
+    setState(() => _progress = 0.82);
 
     await Future.delayed(const Duration(milliseconds: 300));
 
     if (!mounted) return;
-    setState(() => _progress = 0.85);
+    setState(() => _progress = 0.90);
   }
 
   Future<void> _finalizeLoading() async {
     if (!mounted) return;
     setState(() {
       _statusText = 'Preparing laboratory...';
-      _progress = 0.9;
+      _progress = 0.92;
     });
 
-    await Future.delayed(const Duration(milliseconds: 1000));
+    await Future.delayed(const Duration(milliseconds: 800));
 
     if (!mounted) return;
     setState(() {

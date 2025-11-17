@@ -11,8 +11,8 @@ class DatabaseTypingAnimation extends StatefulWidget {
     super.key,
     required this.children,
     this.startAnimation = false,
-    this.delayBetweenItems = const Duration(milliseconds: 300),
-    this.typingSpeed = const Duration(milliseconds: 50),
+    this.delayBetweenItems = const Duration(milliseconds: 50),
+    this.typingSpeed = const Duration(milliseconds: 100),
     this.onComplete, // Added parameter
   });
 
@@ -125,7 +125,7 @@ class TypingTextAnimation extends StatefulWidget {
     super.key,
     required this.text,
     this.style,
-    this.typingSpeed = const Duration(milliseconds: 50),
+    this.typingSpeed = const Duration(milliseconds: 100),
     this.startTyping = false,
   });
 

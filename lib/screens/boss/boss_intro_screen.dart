@@ -173,12 +173,6 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
             children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.emoji_events,
-                    color: Colors.amber.shade700,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
                   Text(
                     'CAMPAIGN PROGRESS',
                     style: TextStyle(
@@ -239,66 +233,28 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
   ) {
     final defeatCount = progress.getDefeatCount(boss.id);
 
-    // Removed AnimatedBuilder
     return Container(
       decoration: BoxDecoration(
         color: theme.surface,
-        borderRadius: BorderRadius.circular(16),
-        // Replaced thick border with a mystical glow shadow and a subtle border
-        border: Border.all(color: theme.border.withOpacity(0.5), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: boss.elementColor.withOpacity(0.25),
-            blurRadius: 20,
-            spreadRadius: -5,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: theme.border.withOpacity(0.4), width: 1),
       ),
-      child: Column(
-        children: [
-          // Boss header with tier badge
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.surfaceAlt, // Cleaner background
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(15),
-                topRight: Radius.circular(15),
-              ),
-              // Use subtle theme border
-              border: Border(bottom: BorderSide(color: theme.border, width: 1)),
-            ),
-            child: Row(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // HEADER ----------------------------------------------------------------------
+            Row(
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: boss.tier.color,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    boss.tier.label.toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ),
-                const Spacer(),
                 if (defeatCount > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+                      horizontal: 8,
+                      vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      // Use a darker, less "cheesy" green
                       color: Colors.green.shade700,
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -307,15 +263,15 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
                         const Icon(
                           Icons.check_circle,
                           color: Colors.white,
-                          size: 12,
+                          size: 11,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 3),
                         Text(
                           'Defeated x$defeatCount',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -323,53 +279,58 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
                   ),
               ],
             ),
-          ),
 
-          // Boss illustration
-          Container(
-            height: 180,
-            width: double.infinity,
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              // Softer, more "mystical" gradient
-              gradient: RadialGradient(
-                colors: [
-                  boss.elementColor.withOpacity(0.15),
-                  boss.elementColor.withOpacity(0.0),
-                ],
-                radius: 0.8,
+            const SizedBox(height: 8),
+
+            // ART ----------------------------------------------------------------------
+            Container(
+              height: 180, // shorter so screen fits
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [
+                    boss.elementColor.withOpacity(0.2),
+                    Colors.transparent,
+                  ],
+                  radius: 0.8,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: theme.border, width: 1),
               ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: theme.border, width: 1),
+              child: Center(
+                child: Icon(
+                  boss.elementIcon,
+                  size: 64,
+                  color: boss.elementColor,
+                ),
+              ),
             ),
-            child: Center(
-              child: Icon(boss.elementIcon, size: 80, color: boss.elementColor),
-            ),
-          ),
 
-          // Boss name and level
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
+            const SizedBox(height: 10),
+
+            // NAME + TAGS ----------------------------------------------------------------------
+            Column(
               children: [
                 Text(
                   boss.name,
                   style: TextStyle(
                     color: theme.text,
-                    fontSize: 24,
+                    fontSize: 20,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 8),
+
+                const SizedBox(height: 6),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // Element tag
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                        horizontal: 10,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
                         color: boss.elementColor,
@@ -377,27 +338,29 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(boss.elementIcon, color: Colors.white, size: 12),
-                          const SizedBox(width: 6),
+                          Icon(boss.elementIcon, color: Colors.white, size: 10),
+                          const SizedBox(width: 4),
                           Text(
                             boss.element,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
+                              fontSize: 11,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+
+                    const SizedBox(width: 6),
+
+                    // Level
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                        horizontal: 10,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        // Darker, less "cheesy" amber
                         color: Colors.amber.shade700,
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -405,7 +368,7 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
                         'Lv. ${boss.recommendedLevel}',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -414,93 +377,87 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
                 ),
               ],
             ),
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 10),
 
-          // Boss stats
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
+            // STATS (4) ----------------------------------------------------------------------
+            Row(
               children: [
                 Expanded(
                   child: _BossStat(
                     icon: Icons.favorite,
                     label: 'HP',
                     value: boss.hp.toString(),
-                    color: Colors.red.shade400,
+                    color: Colors.red.shade300,
                     theme: theme,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: _BossStat(
                     icon: Icons.flash_on,
                     label: 'ATK',
                     value: boss.atk.toString(),
-                    color: Colors.orange.shade400,
+                    color: Colors.orange.shade300,
                     theme: theme,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: _BossStat(
                     icon: Icons.shield,
                     label: 'DEF',
                     value: boss.def.toString(),
-                    color: Colors.blue.shade400,
+                    color: Colors.blue.shade300,
                     theme: theme,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: _BossStat(
                     icon: Icons.speed,
                     label: 'SPD',
                     value: boss.spd.toString(),
-                    color: Colors.cyan.shade400,
+                    color: Colors.cyan.shade300,
                     theme: theme,
                   ),
                 ),
               ],
             ),
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-          // Moveset
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.auto_awesome, color: theme.text, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      'MOVESET',
-                      style: TextStyle(
-                        color: theme.text,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
+            // MOVESET (tight list) ----------------------------------------------------------------------
+            Text(
+              'MOVESET',
+              style: TextStyle(
+                color: theme.text,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ...boss.moveset.map(
+                    (move) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _BossMoveCard(
+                        move: move,
+                        theme: theme,
+                        elementColor: boss.elementColor,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ...boss.moveset.map(
-                  (move) => _BossMoveCard(
-                    move: move,
-                    theme: theme,
-                    elementColor: boss.elementColor,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -527,7 +484,7 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: theme.surface,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(4),
             // Replaced bright green border with subtle theme border
             border: Border.all(color: theme.border, width: 1),
           ),
@@ -883,53 +840,56 @@ class _BossMoveCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      // Use 'right' margin for spacing in a Row
+      margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: theme.border, width: 1),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: _getMoveTypeColor(),
-              borderRadius: BorderRadius.circular(6),
+      child: Tooltip(
+        message: move.description,
+        triggerMode: TooltipTriggerMode.tap,
+        padding: const EdgeInsets.all(10),
+        margin: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.85),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        textStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+        preferBelow: false, // still shows above the icon
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: _getMoveTypeColor(),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(_getMoveTypeIcon(), color: Colors.white, size: 14),
             ),
-            child: Icon(_getMoveTypeIcon(), color: Colors.white, size: 14),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  move.name,
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  move.description,
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            // Wrap the icon container in a Tooltip
+            const SizedBox(width: 10),
+            // Display the move name directly in the Row
+            Text(
+              move.name,
+              style: TextStyle(
+                color: theme.text,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // Updated with darker, more "mystical" or "strategic" colors
   Color _getMoveTypeColor() {
     switch (move.type) {
       case BossMoveType.singleTarget:
@@ -1159,8 +1119,8 @@ class _BossHistorySheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.surface,
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
+          topLeft: Radius.circular(4),
+          topRight: Radius.circular(4),
         ),
         border: Border(
           top: BorderSide(color: theme.border, width: 1),

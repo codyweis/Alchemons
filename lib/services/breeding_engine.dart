@@ -20,7 +20,7 @@
 //
 // Depends on:
 //   CreatureRepository, ElementRecipeConfig, FamilyRecipeConfig,
-//   SpecialRulesConfig, BreedingTuning, GeneticsCatalog, NatureCatalog.
+//   BreedingTuning, GeneticsCatalog, NatureCatalog.
 
 import 'dart:convert';
 import 'dart:math';
@@ -117,7 +117,7 @@ class BreedingEngine {
   final CreatureCatalog repository;
   final ElementRecipeConfig elementRecipes;
   final FamilyRecipeConfig familyRecipes;
-  final SpecialRulesConfig specialRules;
+
   final BreedingTuning tuning;
   final Random _random;
   final bool logToConsole;
@@ -126,7 +126,7 @@ class BreedingEngine {
     this.repository, {
     required this.elementRecipes,
     required this.familyRecipes,
-    required this.specialRules,
+
     this.tuning = const BreedingTuning(),
     this.logToConsole = false,
     Random? random,
@@ -231,33 +231,6 @@ class BreedingEngine {
       _log('[Breeding] Step0 rolled but no candidate found');
     } else {
       _log('[Breeding] Step0 miss');
-    }
-
-    // STEP 1: special guaranteed pair overrides
-    final gk = SpecialRulesConfig.idKey(p1.id, p2.id);
-    final outs = specialRules.guaranteedPairs[gk];
-    if (outs != null && outs.isNotEmpty) {
-      for (final rule in outs) {
-        if (_roll(rule.chance)) {
-          final fixed = repository.getCreatureById(rule.resultId);
-          if (fixed != null && _passesRequiredTypes(fixed, p1, p2)) {
-            _log('[Breeding] Step1 hit → ${fixed.id}');
-            final fixedChild = _finalizeChild(
-              fixed,
-              p1,
-              p2,
-              parentA: parentA,
-              parentB: parentB,
-            );
-            _log('[Breeding] RESULT (guaranteed): ${fixedChild.id}');
-            _log('[Breeding] === BREED END ===');
-            return BreedingResult(creature: fixedChild);
-          }
-        }
-      }
-      _log('[Breeding] Step1: rules exist but did not hit');
-    } else {
-      _log('[Breeding] Step1: none');
     }
 
     // STEP 2: identical species just clones the line
@@ -1317,14 +1290,7 @@ class BreedingEngine {
   Creature? _tryGlobalMutation(Creature p1, Creature p2) {
     // escalate rarity one tier above the higher parent, up to Legendary
     String nextRarity(String rarity) {
-      const tiers = [
-        'Common',
-        'Uncommon',
-        'Rare',
-        'Epic',
-        'Legendary',
-        'Mythic',
-      ];
+      const tiers = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
       final i = tiers.indexOf(rarity);
 
       // If they're already near the top tier (Legendary/Mythic),
@@ -1379,13 +1345,23 @@ class BreedingEngine {
     final r1 = _rarityRank(p1.rarity);
     final r2 = _rarityRank(p2.rarity);
 
+    // If either rank is unknown, just bail to the base distribution.
+    if (r1 < 0 || r2 < 0) return base;
+
+    final rarityGap = (r1 - r2).abs();
+    if (rarityGap == 0) return base;
+
     // lower rarityRank = more common = "less rare"
     final lessRareFamily = (r1 <= r2) ? fam1 : fam2;
 
     final newWeights = Map<String, double>.from(base.weights);
-    final biasMult = tuning.familyBiasPenalty;
+
+    final stepMult = tuning.familyBiasPenalty; // default 3.0
+    // e.g. gap=3 → 3^3 = 27x  weight to the less-rare family
+    final gapMult = pow(stepMult, rarityGap).toDouble();
+
     if (newWeights.containsKey(lessRareFamily)) {
-      newWeights[lessRareFamily] = newWeights[lessRareFamily]! * biasMult;
+      newWeights[lessRareFamily] = newWeights[lessRareFamily]! * gapMult;
     }
 
     return OutcomeDistribution<String>(newWeights);

@@ -1,15 +1,21 @@
 // lib/services/breeding_service_v2.dart
 
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_engine.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
+import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:alchemons/utils/nature_utils.dart';
 
 class BreedingServiceV2 {
@@ -18,6 +24,9 @@ class BreedingServiceV2 {
   final BreedingEngine engine;
   final EggPayloadFactory payloadFactory;
   final WildCreatureRandomizer wildRandomizer;
+
+  // Access catalog via engine so we don’t need another injected param
+  CreatureCatalog get repository => engine.repository;
 
   BreedingServiceV2({
     required this.gameData,
@@ -28,9 +37,15 @@ class BreedingServiceV2 {
   });
 
   /// Regular breeding between two owned instances
+  ///
+  /// We:
+  ///   1) Call the engine exactly once.
+  ///   2) Use that *same* offspring for the likelihood analyzer.
+  ///   3) Store the analysis JSON inside the EggPayload.
   Future<EggCreationResult> breedInstances(
     CreatureInstance parent1,
     CreatureInstance parent2, {
+    // kept for backward compat; ignored now
     String? likelihoodAnalysisJson,
   }) async {
     final result = engine.breedInstances(parent1, parent2);
@@ -40,28 +55,39 @@ class BreedingServiceV2 {
     }
 
     final offspring = result.creature!;
+
+    // Compute analysis based on *this* offspring
+    final analysisJson = _buildInstanceBreedingAnalysis(
+      parent1,
+      parent2,
+      offspring,
+    );
+
     final payload = payloadFactory.fromBreedingResult(
       offspring,
-      likelihoodAnalysisJson: likelihoodAnalysisJson,
+      likelihoodAnalysisJson: analysisJson,
     );
 
     return _createEgg(offspring, payload);
   }
 
   /// Wild breeding - breed instance with wild catalog creature
+  ///
+  /// Same pattern: only one breeding pass, then analysis on that result.
   Future<EggCreationResult> breedWithWild(
     CreatureInstance ownedParent,
     Creature wildCreature, {
     int? wildSeed,
+    // kept for compat; ignored
     String? likelihoodAnalysisJson,
   }) async {
-    // Randomize wild creature's attributes
+    // Randomize wild creature's attributes ONCE
     final randomizedWild = wildRandomizer.randomizeWildCreature(
       wildCreature,
       seed: wildSeed,
     );
 
-    // Breed using the extension method
+    // Breed using the randomized wild
     final result = engine.breedInstanceWithCreature(
       ownedParent,
       randomizedWild,
@@ -72,16 +98,25 @@ class BreedingServiceV2 {
     }
 
     final offspring = result.creature!;
+
+    // Compute analysis based on the actual offspring + randomized wild
+    final analysisJson = _buildWildBreedingAnalysis(
+      ownedParent,
+      randomizedWild,
+      offspring,
+    );
+
     final payload = payloadFactory.fromWildBreeding(
       offspring,
-      ownedParent, // <-- Pass Parent A (the owned one)
-      randomizedWild, // <-- Pass Parent B (the wild one used for breeding)
-      likelihoodAnalysisJson: likelihoodAnalysisJson,
+      ownedParent, // Parent A (owned)
+      randomizedWild, // Parent B (wild used for breeding)
+      likelihoodAnalysisJson: analysisJson,
     );
+
     return _createEgg(offspring, payload);
   }
 
-  /// Create starter egg
+  /// Create starter egg (starters have no RNG/analysis)
   Future<EggCreationResult> grantStarterEgg(
     FactionId faction, {
     Duration? customHatchDuration,
@@ -89,7 +124,7 @@ class BreedingServiceV2 {
     final baseId = _pickStarterForFaction(faction);
     final payload = payloadFactory.createStarterPayload(baseId, faction);
 
-    final base = engine.repository.getCreatureById(baseId);
+    final base = repository.getCreatureById(baseId);
     if (base == null) {
       return EggCreationResult.failure('Invalid starter');
     }
@@ -97,7 +132,108 @@ class BreedingServiceV2 {
     return _createEgg(base, payload, customHatchDuration: customHatchDuration);
   }
 
-  // Private helper for egg creation
+  // ---------------------------------------------------------------------------
+  // PRIVATE: Analysis helpers
+  // ---------------------------------------------------------------------------
+
+  String? _buildInstanceBreedingAnalysis(
+    CreatureInstance parent1,
+    CreatureInstance parent2,
+    Creature offspring,
+  ) {
+    try {
+      final baseA = repository.getCreatureById(parent1.baseId);
+      final baseB = repository.getCreatureById(parent2.baseId);
+
+      if (baseA == null || baseB == null) return null;
+
+      // Hydrate instances with genetics + nature
+      final geneticsA = decodeGenetics(parent1.geneticsJson);
+      final geneticsB = decodeGenetics(parent2.geneticsJson);
+
+      final parentA = baseA.copyWith(
+        genetics: geneticsA,
+        nature: parent1.natureId != null
+            ? NatureCatalog.byId(parent1.natureId!)
+            : baseA.nature,
+        isPrismaticSkin: parent1.isPrismaticSkin,
+      );
+
+      final parentB = baseB.copyWith(
+        genetics: geneticsB,
+        nature: parent2.natureId != null
+            ? NatureCatalog.byId(parent2.natureId!)
+            : baseB.nature,
+        isPrismaticSkin: parent2.isPrismaticSkin,
+      );
+
+      final analyzer = BreedingLikelihoodAnalyzer(
+        repository: repository,
+        elementRecipes: engine.elementRecipes,
+        familyRecipes: engine.familyRecipes,
+        tuning: engine.tuning,
+        engine: engine,
+      );
+
+      final report = analyzer.analyzeBreedingResult(
+        parentA,
+        parentB,
+        offspring,
+      );
+
+      return jsonEncode(report.toJson());
+    } catch (e, st) {
+      // Don't break breeding if analyzer dies – just log & skip analysis.
+      // ignore: avoid_print
+      print('⚠️ BreedingServiceV2: instance analysis failed: $e\n$st');
+      return null;
+    }
+  }
+
+  String? _buildWildBreedingAnalysis(
+    CreatureInstance ownedParent,
+    Creature randomizedWild,
+    Creature offspring,
+  ) {
+    try {
+      final ownedBase = repository.getCreatureById(ownedParent.baseId);
+      if (ownedBase == null) return null;
+
+      final geneticsOwned = decodeGenetics(ownedParent.geneticsJson);
+      final hydratedOwned = ownedBase.copyWith(
+        genetics: geneticsOwned,
+        nature: ownedParent.natureId != null
+            ? NatureCatalog.byId(ownedParent.natureId!)
+            : ownedBase.nature,
+        isPrismaticSkin: ownedParent.isPrismaticSkin,
+      );
+
+      final analyzer = BreedingLikelihoodAnalyzer(
+        repository: repository,
+        elementRecipes: engine.elementRecipes,
+        familyRecipes: engine.familyRecipes,
+        tuning: engine.tuning,
+        engine: engine,
+      );
+
+      final report = analyzer.analyzeBreedingResult(
+        hydratedOwned,
+        randomizedWild,
+        offspring,
+      );
+
+      return jsonEncode(report.toJson());
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('⚠️ BreedingServiceV2: wild analysis failed: $e\n$st');
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // PRIVATE: Egg creation
+  // ---------------------------------------------------------------------------
+
   Future<EggCreationResult> _createEgg(
     Creature creature,
     EggPayload payload, {
@@ -109,7 +245,7 @@ class BreedingServiceV2 {
         BreedConstants.rarityHatchTimes[rarityKey] ??
         const Duration(minutes: 10);
 
-    // Apply nature and faction multipliers if needed
+    // Apply nature modifier
     final adjustedDelay = _applyHatchModifiers(baseHatchDelay, creature);
 
     final eggId = _generateEggId(payload.source);
@@ -147,12 +283,7 @@ class BreedingServiceV2 {
   }
 
   Duration _applyHatchModifiers(Duration base, Creature creature) {
-    // Apply nature modifier
     final natureMult = hatchMultForNature(creature.nature?.id);
-
-    // Could apply faction modifiers here
-    // final factionMult = ...
-
     return Duration(milliseconds: (base.inMilliseconds * natureMult).round());
   }
 

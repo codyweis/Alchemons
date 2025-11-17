@@ -37,7 +37,7 @@ class _DelayedTypingTextState extends State<DelayedTypingText> {
       text: widget.text,
       style: widget.style,
       startTyping: _startTyping,
-      typingSpeed: const Duration(milliseconds: 30),
+      typingSpeed: const Duration(milliseconds: 10),
     );
   }
 }

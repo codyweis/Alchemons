@@ -71,248 +71,27 @@ class NotificationBannerWidget extends StatefulWidget {
       _NotificationBannerWidgetState();
 }
 
-class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
-    with TickerProviderStateMixin {
-  late AnimationController _slideController;
-  late AnimationController _expandController;
-  late AnimationController _shimmerController;
-  late AnimationController _pulseController;
-  late AnimationController _springController; // New controller for spring-back
-  late Animation<Offset> _slideAnimation;
-  late Animation<double> _fadeAnimation;
-
-  bool _hasBeenShown = false;
-  bool _wasExpanded = false;
-
+class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
   // Drag state
   double _dragOffset = 0.0;
   bool _isDragging = false;
+
+  // Initial slide-in
+  bool _isShown = false;
 
   @override
   void initState() {
     super.initState();
 
-    // Slide-in animation (initial appearance)
-    _slideController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-
-    // Expand/collapse animation
-    _expandController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-      value: widget.isExpanded ? 1.0 : 0.0,
-    );
-
-    // Spring-back controller (separate from slide-in)
-    _springController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-
-    // Shimmer effect - slower for better performance
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3000),
-    )..repeat();
-
-    // Pulse effect - only for collapsed state
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    );
-
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(1.2, 0), end: Offset.zero).animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
-        );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _slideController,
-        curve: const Interval(0.0, 0.6),
-      ),
-    );
-
-    _wasExpanded = widget.isExpanded;
-
-    // Initial slide-in
-    _slideController.forward().then((_) {
-      if (mounted && !_hasBeenShown) {
-        setState(() => _hasBeenShown = true);
-        Future.delayed(const Duration(seconds: 3), _autoCollapse);
-      }
-    });
-
-    // Start pulse only if collapsed
-    if (!widget.isExpanded) {
-      _pulseController.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void didUpdateWidget(NotificationBannerWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    // Animate expand/collapse transitions
-    if (widget.isExpanded != _wasExpanded) {
-      _wasExpanded = widget.isExpanded;
-
-      if (widget.isExpanded) {
-        _dragOffset = 0.0;
-        _isDragging = false;
-        _expandController.forward();
-        _pulseController.stop();
-        _pulseController.value = 0.0;
-      } else {
-        // When collapsing, ensure smooth transition
-        if (_dragOffset == 0.0) {
-          _expandController.reverse().then((_) {
-            if (mounted && !widget.isExpanded) {
-              _pulseController.repeat(reverse: true);
-            }
-          });
-        }
-      }
-    }
-  }
-
-  void _autoCollapse() {
-    if (mounted && widget.isExpanded && widget.onExpand != null) {
-      widget.onExpand!();
-    }
-  }
-
-  void _handleDragStart(DragStartDetails details) {
-    if (!widget.isExpanded) return;
-
-    setState(() {
-      _isDragging = true;
-    });
-    HapticFeedback.selectionClick();
-  }
-
-  void _handleDragUpdate(DragUpdateDetails details) {
-    if (!widget.isExpanded) return;
-
-    setState(() {
-      // Only allow dragging to the right (minimize direction)
-      _dragOffset = math.max(0, _dragOffset + details.delta.dx);
-    });
-  }
-
-  void _handleDragEnd(DragEndDetails details) {
-    if (!widget.isExpanded) return;
-
-    const minimizeThreshold = 80.0;
-    final shouldMinimize = _dragOffset > minimizeThreshold;
-
-    setState(() {
-      _isDragging = false;
-    });
-
-    if (shouldMinimize) {
-      // Trigger minimize with smooth animation
-      HapticFeedback.lightImpact();
-      _animateMinimize();
-    } else {
-      // Spring back with elastic animation
-      HapticFeedback.selectionClick();
-      _animateSpringBack();
-    }
-  }
-
-  void _animateMinimize() {
-    // Animate both the drag offset AND the expand controller together
-    final dragAnimation =
-        Tween<double>(
-          begin: _dragOffset,
-          end: 300.0, // Slide off screen
-        ).animate(
-          CurvedAnimation(
-            parent: _springController,
-            curve: Curves.easeOutCubic,
-          ),
-        );
-
-    final collapseAnimation =
-        Tween<double>(begin: _expandController.value, end: 0.0).animate(
-          CurvedAnimation(
-            parent: _springController,
-            curve: Curves.easeOutCubic,
-          ),
-        );
-
-    void dragListener() {
+    // Trigger implicit slide/fade in on next frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        setState(() {
-          _dragOffset = dragAnimation.value;
-        });
-      }
-    }
-
-    void collapseListener() {
-      if (mounted) {
-        _expandController.value = collapseAnimation.value;
-      }
-    }
-
-    dragAnimation.addListener(dragListener);
-    collapseAnimation.addListener(collapseListener);
-
-    _springController.forward(from: 0.0).then((_) {
-      dragAnimation.removeListener(dragListener);
-      collapseAnimation.removeListener(collapseListener);
-      if (mounted) {
-        setState(() {
-          _dragOffset = 0.0;
-        });
-        _springController.value = 0.0;
-
-        // Now notify parent that we're collapsed
-        widget.onExpand?.call();
+        setState(() => _isShown = true);
       }
     });
   }
 
-  void _animateSpringBack() {
-    if (_dragOffset == 0) return;
-
-    final animation = Tween<double>(begin: _dragOffset, end: 0.0).animate(
-      CurvedAnimation(parent: _springController, curve: Curves.elasticOut),
-    );
-
-    void listener() {
-      if (mounted) {
-        setState(() {
-          _dragOffset = animation.value;
-        });
-      }
-    }
-
-    animation.addListener(listener);
-
-    _springController.forward(from: 0.0).then((_) {
-      animation.removeListener(listener);
-      if (mounted) {
-        setState(() {
-          _dragOffset = 0.0;
-        });
-        _springController.value = 0.0;
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _slideController.dispose();
-    _expandController.dispose();
-    _springController.dispose();
-    _shimmerController.dispose();
-    _pulseController.dispose();
-    super.dispose();
-  }
+  // --- Helpers ----------------------------------------------------------------
 
   Color _getBannerColor() {
     switch (widget.notification.type) {
@@ -365,100 +144,90 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
     }
   }
 
-  Widget _buildShimmerEffect() {
-    return AnimatedBuilder(
-      animation: _shimmerController,
-      builder: (context, child) {
-        return Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.transparent,
-                _getAccentColor().withOpacity(0.2),
-                Colors.transparent,
-              ],
-              stops: [
-                (_shimmerController.value - 0.3).clamp(0.0, 1.0),
-                _shimmerController.value,
-                (_shimmerController.value + 0.3).clamp(0.0, 1.0),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  // --- Drag handlers (for swipe-to-minimize) ----------------------------------
+
+  void _handleDragStart(DragStartDetails details) {
+    if (!widget.isExpanded) return;
+    _isDragging = true;
+    HapticFeedback.selectionClick();
   }
 
+  void _handleDragUpdate(DragUpdateDetails details) {
+    if (!widget.isExpanded) return;
+
+    setState(() {
+      // Only allow dragging to the right (minimize direction)
+      _dragOffset = math.max(0, _dragOffset + details.delta.dx);
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    if (!widget.isExpanded) return;
+
+    const minimizeThreshold = 80.0;
+    final shouldMinimize = _dragOffset > minimizeThreshold;
+
+    _isDragging = false;
+
+    if (shouldMinimize) {
+      HapticFeedback.lightImpact();
+      // Notify parent to collapse; snapping back will be handled by
+      // the rebuild with isExpanded = false.
+      widget.onExpand?.call();
+      setState(() {
+        _dragOffset = 0.0;
+      });
+    } else {
+      // Just snap back – much cheaper than a custom spring animation
+      HapticFeedback.selectionClick();
+      setState(() {
+        _dragOffset = 0.0;
+      });
+    }
+  }
+
+  // --- UI pieces --------------------------------------------------------------
+
   Widget _buildCollapsedView() {
-    return AnimatedBuilder(
-      animation: _pulseController,
-      builder: (context, child) {
-        final scale = 1.0 + (_pulseController.value * 0.08);
-        return Transform.scale(
-          scale: scale,
-          child: Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: _getBannerColor(),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: _getAccentColor().withOpacity(0.6),
-                width: 2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: _getAccentColor().withOpacity(0.3),
-                  blurRadius: 12,
-                  spreadRadius: 2,
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: _getBannerColor(),
+        shape: BoxShape.circle,
+        border: Border.all(color: _getAccentColor().withOpacity(0.6), width: 2),
+      ),
+      child: Stack(
+        children: [
+          Center(child: Icon(_getBannerIcon(), color: Colors.white, size: 28)),
+          if (widget.notification.count > 1 &&
+              widget.notification.type !=
+                  NotificationBannerType.wildernessSpawn)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: _getAccentColor(),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
                 ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(-2, 2),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                ClipOval(child: _buildShimmerEffect()),
-                Center(
-                  child: Icon(_getBannerIcon(), color: Colors.white, size: 28),
-                ),
-                if (widget.notification.count > 1)
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: _getAccentColor(),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 20,
-                        minHeight: 20,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${widget.notification.count}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
+                constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                child: Center(
+                  child: Text(
+                    '${widget.notification.count}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-              ],
+                ),
+              ),
             ),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -475,163 +244,131 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
           color: _getAccentColor().withOpacity(0.4),
           width: 1.5,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: _getAccentColor().withOpacity(0.3),
-            blurRadius: 16,
-            spreadRadius: 2,
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 12,
-            offset: const Offset(-3, 3),
-          ),
-        ],
       ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                bottomLeft: Radius.circular(12),
-              ),
-              child: _buildShimmerEffect(),
-            ),
-          ),
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                bottomLeft: Radius.circular(12),
-              ),
-              child: CustomPaint(
-                painter: AlchemicalPatternPainter(
-                  color: Colors.white.withOpacity(0.05),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _getAccentColor().withOpacity(0.3),
+                  width: 1,
                 ),
               ),
+              child: Icon(_getBannerIcon(), color: _getAccentColor(), size: 24),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: _getAccentColor().withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    _getBannerIcon(),
-                    color: _getAccentColor(),
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              widget.notification.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.8,
-                                shadows: [
-                                  Shadow(color: Colors.black45, blurRadius: 2),
-                                ],
-                              ),
-                            ),
-                          ),
-                          if (widget.notification.count > 1) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _getAccentColor(),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Text(
-                                '${widget.notification.count}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      if (widget.notification.subtitle != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          widget.notification.subtitle!,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            shadows: const [
+                      Flexible(
+                        child: Text(
+                          widget.notification.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
+                            shadows: [
                               Shadow(color: Colors.black45, blurRadius: 2),
                             ],
+                          ),
+                        ),
+                      ),
+                      if (widget.notification.count > 1 &&
+                          widget.notification.type !=
+                              NotificationBannerType.wildernessSpawn) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getAccentColor(),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            '${widget.notification.count}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
                       ],
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    widget.onDismiss();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.2),
-                      shape: BoxShape.circle,
+                  if (widget.notification.subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.notification.subtitle!,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        shadows: const [
+                          Shadow(color: Colors.black45, blurRadius: 2),
+                        ],
+                      ),
                     ),
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: Colors.white.withOpacity(0.7),
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ],
+                  ],
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                widget.onDismiss();
+              },
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.close_rounded,
+                  color: Colors.white.withOpacity(0.7),
+                  size: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  // --- Build ------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
-    return SlideTransition(
-      position: _slideAnimation,
-      child: FadeTransition(
-        opacity: _fadeAnimation,
+    // We apply drag transform only when expanded (so minimized bubble stays put)
+    final bool applyDrag = widget.isExpanded && _dragOffset > 0;
+
+    return AnimatedSlide(
+      offset: _isShown ? Offset.zero : const Offset(1.0, 0.0),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      child: AnimatedOpacity(
+        opacity: _isShown ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 250),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
@@ -648,47 +385,18 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget>
           onHorizontalDragEnd: _handleDragEnd,
           child: Container(
             margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
-            child: AnimatedBuilder(
-              animation: _expandController,
-              builder: (context, child) {
-                Widget bannerWidget;
-
-                if (_expandController.value == 0.0) {
-                  bannerWidget = _buildCollapsedView();
-                } else if (_expandController.value == 1.0) {
-                  bannerWidget = _buildExpandedView();
-                } else {
-                  // During transition
-                  bannerWidget = Opacity(
-                    opacity: 0.7 + (_expandController.value * 0.3),
-                    child: Transform.scale(
-                      scale: 0.9 + (_expandController.value * 0.1),
-                      alignment: Alignment.centerRight,
-                      child: _expandController.value > 0.5
-                          ? _buildExpandedView()
-                          : _buildCollapsedView(),
-                    ),
-                  );
-                }
-
-                // Apply drag transformation when expanded
-                if (widget.isExpanded && _dragOffset > 0) {
-                  final normalizedDrag = (_dragOffset / 300.0).clamp(0.0, 1.0);
-                  final opacity = 1.0 - (normalizedDrag * 0.6);
-                  final scale = 1.0 - (normalizedDrag * 0.2);
-
-                  bannerWidget = Transform.translate(
-                    offset: Offset(_dragOffset, 0),
-                    child: Transform.scale(
-                      scale: scale,
-                      alignment: Alignment.centerRight,
-                      child: Opacity(opacity: opacity, child: bannerWidget),
-                    ),
-                  );
-                }
-
-                return bannerWidget;
-              },
+            child: Transform.translate(
+              offset: applyDrag ? Offset(_dragOffset, 0) : Offset.zero,
+              child: AnimatedCrossFade(
+                duration: const Duration(milliseconds: 200),
+                firstChild: _buildCollapsedView(),
+                secondChild: _buildExpandedView(),
+                crossFadeState: widget.isExpanded
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+                // Keep size transitions smooth
+                sizeCurve: Curves.easeOut,
+              ),
             ),
           ),
         ),

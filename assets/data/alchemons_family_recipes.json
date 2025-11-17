@@ -4,10 +4,10 @@
 
     "let+pip":  { "mask": 40, "let": 30, "pip": 30 },
     "let+mane": { "horn": 40, "pip": 30, "mane": 30 },
-    "let+mask": { "pip": 60, "let": 20, "mask": 20 },
-    "let+horn": { "mane": 60, "let": 20, "horn": 20 },
+    "let+mask": { "pip": 80, "let": 10, "mask": 10 },
+    "let+horn": { "mane": 80, "let": 10, "horn": 10 },
 
-    "pip+mane":  { "pip": 30, "mane": 30, "mask": 15, "horn": 15 },
+    "pip+mane":  { "pip": 35, "mane": 35, "mask": 15, "horn": 15 },
 
     "pip+horn": { "horn": 30, "pip": 30, "kin": 20, "mane": 20 },
 

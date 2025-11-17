@@ -234,10 +234,32 @@ class StaminaState {
   final int bars;
   final int max;
   final DateTime? nextTickUtc;
-
   const StaminaState({required this.bars, required this.max, this.nextTickUtc});
+}
 
-  double get fill01 => max <= 0 ? 0.0 : bars / max;
-  bool get atCap => bars >= max;
-  bool get empty => bars <= 0;
+extension StaminaHelpers on StaminaService {
+  /// Compute stamina state based on DB row and the current time.
+  StaminaState computeState(CreatureInstance row, {DateTime? nowUtc}) {
+    nowUtc ??= DateTime.now().toUtc();
+    final nowMs = nowUtc.millisecondsSinceEpoch;
+    final maxBars = effectiveMaxStamina(row);
+    final regenPerBarMs = regenPerBar.inMilliseconds;
+
+    int bars = row.staminaBars;
+    DateTime? nextTickUtc;
+
+    if (bars < maxBars) {
+      final elapsedMs = nowMs - row.staminaLastUtcMs;
+      final gained = elapsedMs ~/ regenPerBarMs;
+      bars = (bars + gained).clamp(0, maxBars);
+
+      if (bars < maxBars) {
+        final remainder = elapsedMs % regenPerBarMs;
+        final msToNext = regenPerBarMs - remainder;
+        nextTickUtc = nowUtc.add(Duration(milliseconds: msToNext));
+      }
+    }
+
+    return StaminaState(bars: bars, max: maxBars, nextTickUtc: nextTickUtc);
+  }
 }

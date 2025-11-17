@@ -23,19 +23,16 @@ volcanoEncounterPools(SceneDefinition scene) {
     ), // Lavalet
     EncounterEntry(
       speciesId: 'LET10',
-      rarity: EncounterRarity.common,
+      rarity: EncounterRarity.uncommon,
     ), // Dustlet (ash)
-    // Uncommon
+
     EncounterEntry(
       speciesId: 'MAN01',
       rarity: EncounterRarity.uncommon,
     ), // Firemane
+    EncounterEntry(speciesId: 'PIP06', rarity: EncounterRarity.rare), // Lavapip
     EncounterEntry(
-      speciesId: 'PIP06',
-      rarity: EncounterRarity.uncommon,
-    ), // Lavapip
-    EncounterEntry(
-      speciesId: 'MAN06',
+      speciesId: 'PIP01',
       rarity: EncounterRarity.uncommon,
     ), // Lavamane
     // Rare
@@ -45,46 +42,29 @@ volcanoEncounterPools(SceneDefinition scene) {
     ), // Firehorn
     EncounterEntry(
       speciesId: 'HOR06',
-      rarity: EncounterRarity.rare,
+      rarity: EncounterRarity.legendary,
     ), // Lavahorn
     EncounterEntry(
       speciesId: 'MSK01',
       rarity: EncounterRarity.rare,
     ), // Firemask
-    EncounterEntry(
-      speciesId: 'MSK06',
-      rarity: EncounterRarity.rare,
-    ), // Lavamask
-    // Legendary
-    EncounterEntry(
-      speciesId: 'KIN01',
-      rarity: EncounterRarity.legendary,
-    ), // Firekin
-    EncounterEntry(
-      speciesId: 'WNG06',
-      rarity: EncounterRarity.legendary,
-    ), // Lavawing
   ]);
 
   if (isDay(now)) {
     entries.addAll([
       EncounterEntry(
-        speciesId: 'HOR11',
-        rarity: EncounterRarity.rare,
-      ), // Crystalhorn (gems)
+        speciesId: 'WNG06',
+        rarity: EncounterRarity.legendary,
+      ), // Lavawing
+      //firewing
+      EncounterEntry(
+        speciesId: 'WNG01',
+        rarity: EncounterRarity.legendary,
+      ), // Firewing
     ]);
   } else if (isNight(now)) {
     entries.addAll([
       // --- Night Spawns ---
-      // Dark
-      EncounterEntry(
-        speciesId: 'LET15',
-        rarity: EncounterRarity.uncommon,
-      ), // Darklet
-      EncounterEntry(
-        speciesId: 'MAN15',
-        rarity: EncounterRarity.uncommon,
-      ), // Darkmane
       // Spirit
       EncounterEntry(
         speciesId: 'LET14',
@@ -92,8 +72,18 @@ volcanoEncounterPools(SceneDefinition scene) {
       ), // Spiritlet
       EncounterEntry(
         speciesId: 'MSK14',
-        rarity: EncounterRarity.rare,
+        rarity: EncounterRarity.legendary,
       ), // Spiritmask
+      EncounterEntry(
+        speciesId: 'MSK06',
+        rarity: EncounterRarity.rare,
+      ), // Lavamask
+      //firekin
+      EncounterEntry(
+        speciesId: 'KIN01',
+        rarity: EncounterRarity.legendary,
+      ), // Firekin
+      // Legendary
     ]);
   }
 

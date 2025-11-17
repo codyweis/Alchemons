@@ -162,7 +162,6 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _settings = context.read<AlchemonsDatabase>().settingsDao;
-    _refreshAllStamina();
     () async {
       final raw = await _settings.getSetting(_prefsKey);
       if (!mounted || raw == null || raw.isEmpty) return;
@@ -172,16 +171,6 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
         _searchController.text = _searchText;
       }
     }();
-  }
-
-  Future<void> _refreshAllStamina() async {
-    final stamina = context.read<StaminaService>();
-    final db = context.read<AlchemonsDatabase>();
-
-    final instances = await db.creatureDao.getAllInstances();
-    for (final inst in instances) {
-      await stamina.refreshAndGet(inst.instanceId);
-    }
   }
 
   @override
@@ -244,6 +233,37 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     }).toList();
   }
 
+  // Add this method inside _AllCreatureInstancesState:
+
+  List<CreatureInstance> _applySearchFilter(
+    List<CreatureInstance> instances,
+    CreatureCatalog repo,
+    String searchText,
+  ) {
+    if (searchText.trim().isEmpty) {
+      return instances;
+    }
+
+    final searchLower = searchText.trim().toLowerCase();
+
+    return instances.where((inst) {
+      // Check instance nickname
+      if (inst.nickname != null &&
+          inst.nickname!.toLowerCase().contains(searchLower)) {
+        return true;
+      }
+
+      // Check species base name
+      final creature = repo.getCreatureById(inst.baseId);
+      if (creature != null &&
+          creature.name.toLowerCase().contains(searchLower)) {
+        return true;
+      }
+
+      return false;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
@@ -252,7 +272,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     return StreamBuilder<List<CreatureInstance>>(
       // **OPTIMIZED: Use database-level filtering**
       stream: db.creatureDao.watchFilteredInstances(
-        searchText: _searchText.trim().isEmpty ? null : _searchText.trim(),
+        searchText: null,
         filterNature: _filterNature,
         filterPrismatic: _filterPrismatic,
         filterVariant: _filterVariant,
@@ -264,6 +284,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
 
         // Apply client-side filters for genetics (size/tint)
         instances = _applyClientSideFilters(instances);
+        instances = _applySearchFilter(instances, repo, _searchText);
 
         final hasFiltersActive =
             _filterPrismatic ||
@@ -667,6 +688,14 @@ class _FiltersPanel extends StatelessWidget {
     required this.onClearAll,
   });
 
+  bool _hasActiveFilters() {
+    return filterPrismatic ||
+        filterNature != null ||
+        sizeValueText != null ||
+        tintValueText != null ||
+        variantValueText != null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -676,7 +705,7 @@ class _FiltersPanel extends StatelessWidget {
           top: BorderSide(color: theme.border, width: 1),
           bottom: BorderSide(color: theme.border, width: 1),
         ),
-        color: theme.surfaceAlt.withOpacity(.4),
+        color: theme.surface,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -704,7 +733,7 @@ class _FiltersPanel extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 5),
           SizedBox(
             height: 34,
             child: ListView(
@@ -757,7 +786,7 @@ class _FiltersPanel extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
           // Filters section
           Padding(
@@ -782,7 +811,7 @@ class _FiltersPanel extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 5),
           SizedBox(
             height: 34,
             child: ListView(
@@ -790,12 +819,16 @@ class _FiltersPanel extends StatelessWidget {
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
+                if (_hasActiveFilters())
+                  _ClearChip(theme: theme, onTap: onClearAll),
+
+                const SizedBox(width: 8),
                 _FilterChip(
                   theme: theme,
-                  icon: Icons.auto_awesome,
-                  label: 'Prismatic',
-                  active: filterPrismatic,
-                  onTap: onTogglePrismatic,
+                  icon: Icons.science_rounded,
+                  label: variantValueText ?? 'Variant',
+                  active: variantValueText != null,
+                  onTap: onCycleVariant,
                 ),
                 const SizedBox(width: 8),
                 _FilterChip(
@@ -814,14 +847,7 @@ class _FiltersPanel extends StatelessWidget {
                   onTap: onCycleTint,
                 ),
                 const SizedBox(width: 8),
-                _FilterChip(
-                  theme: theme,
-                  icon: Icons.science_rounded,
-                  label: variantValueText ?? 'Variant',
-                  active: variantValueText != null,
-                  onTap: onCycleVariant,
-                ),
-                const SizedBox(width: 8),
+
                 _FilterChip(
                   theme: theme,
                   icon: Icons.psychology_rounded,
@@ -846,7 +872,13 @@ class _FiltersPanel extends StatelessWidget {
                   },
                 ),
                 const SizedBox(width: 8),
-                _ClearChip(theme: theme, onTap: onClearAll),
+                _FilterChip(
+                  theme: theme,
+                  icon: Icons.auto_awesome,
+                  label: 'Prismatic',
+                  active: filterPrismatic,
+                  onTap: onTogglePrismatic,
+                ),
               ],
             ),
           ),
@@ -981,10 +1013,8 @@ class _ClearChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.clear_rounded, size: 14, color: Colors.red.shade300),
-            const SizedBox(width: 6),
             Text(
-              'Clear All',
+              'CLEAR',
               style: TextStyle(
                 color: Colors.red.shade300,
                 fontSize: 12,

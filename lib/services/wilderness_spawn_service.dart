@@ -249,7 +249,7 @@ class WildernessSpawnService extends ChangeNotifier {
 
         // Spawn a random count across available points
         // 💡 Pass both pools down
-        await _spawnBatchAtRandomFreePoints(
+        final spawned = await _spawnBatchAtRandomFreePoints(
           sceneId,
           scene,
           sceneWide,
@@ -257,12 +257,16 @@ class WildernessSpawnService extends ChangeNotifier {
         );
 
         // Schedule the next event time using the global window
-        await scheduleNextSpawnTime(sceneId);
+        if (spawned) {
+          await scheduleNextSpawnTime(sceneId);
+        } else {
+          debugPrint('⏱️ Skipping reschedule for $sceneId; no spawns created.');
+        }
       }
     }
   }
 
-  Future<void> _spawnBatchAtRandomFreePoints(
+  Future<bool> _spawnBatchAtRandomFreePoints(
     String sceneId,
     SceneDefinition scene,
     // 💡 UPDATED SIGNATURE
@@ -275,7 +279,7 @@ class WildernessSpawnService extends ChangeNotifier {
 
     if (freePoints.isEmpty) {
       debugPrint('⚠️  No available spawn points in $sceneId for due spawn');
-      return;
+      return false;
     }
 
     // Roll how many to spawn: 1..freePoints.length
@@ -337,6 +341,7 @@ class WildernessSpawnService extends ChangeNotifier {
     }
 
     notifyListeners();
+    return true;
   }
 
   // ------------------------------------------------------------
@@ -352,8 +357,6 @@ class WildernessSpawnService extends ChangeNotifier {
     debugPrint('❌ Removed spawn: $sceneId/$spawnPointId');
 
     if (!hasAnySpawnsInScene(sceneId)) {
-      await scheduleNextSpawnTime(sceneId);
-
       // Cancel notification if no spawns anywhere
       if (!hasAnyActiveSpawns) {
         await _pushNotifications.cancelWildernessNotifications();

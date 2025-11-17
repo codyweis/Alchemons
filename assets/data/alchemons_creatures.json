@@ -8,8 +8,7 @@
       "Mane": "MAN",
       "Mask": "MSK",
       "Pip": "PIP",
-      "Wing": "WNG",
-      "Mystic": "MYS"
+      "Wing": "WNG"
     },
     "baseRarityByFamily": {
       "Let": "Common",
@@ -18,8 +17,7 @@
       "Mask": "Rare",
       "Horn": "Rare",
       "Wing": "Legendary",
-      "Kin": "Legendary",
-      "Mystic": "Mystic"
+      "Kin": "Legendary"
     },
     "rarityBumpElements": [
       "Light",

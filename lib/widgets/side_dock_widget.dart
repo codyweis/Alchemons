@@ -10,6 +10,7 @@ class SideDockFloating extends StatelessWidget {
   final VoidCallback onField;
   final bool highlightField; // NEW: Add highlight parameter
   final bool showHarvestDot; // NEW
+  final bool lockNonField;
 
   const SideDockFloating({
     super.key,
@@ -21,45 +22,70 @@ class SideDockFloating extends StatelessWidget {
     required this.onField,
     this.highlightField = false, // NEW: Default to false
     this.showHarvestDot = false,
+    this.lockNonField = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    Widget _lockWrap({required bool locked, required Widget child}) {
+      if (!locked) return child;
+      return Opacity(
+        opacity: 0.35,
+        child: IgnorePointer(ignoring: true, child: child),
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // FIELD: highlighted, never locked
         _FloatingSideButton(
           theme: theme,
           label: 'Field',
           assetPath: 'assets/images/ui/fieldicon.png',
           onTap: onField,
           size: 60,
-          highlight: highlightField, // NEW: Pass highlight state
+          highlight: highlightField,
         ),
 
         const SizedBox(height: 16),
-        _FloatingSideButton(
-          theme: theme,
-          label: 'Enhance',
-          assetPath: 'assets/images/ui/enhanceicon.png',
-          onTap: onEnhance,
+
+        // ENHANCE: lock when lockNonField == true
+        _lockWrap(
+          locked: lockNonField,
+          child: _FloatingSideButton(
+            theme: theme,
+            label: 'Enhance',
+            assetPath: 'assets/images/ui/enhanceicon.png',
+            onTap: onEnhance,
+          ),
         ),
+
         const SizedBox(height: 16),
-        _FloatingSideButton(
-          theme: theme,
-          label: 'Extract',
-          assetPath: 'assets/images/ui/extracticon.png',
-          onTap: onHarvest,
-          showDot: showHarvestDot,
+
+        _lockWrap(
+          locked: lockNonField,
+          child: _FloatingSideButton(
+            theme: theme,
+            label: 'Extract',
+            assetPath: 'assets/images/ui/extracticon.png',
+            onTap: onHarvest,
+            showDot: showHarvestDot,
+          ),
         ),
+
         const SizedBox(height: 16),
-        _FloatingSideButton(
-          theme: theme,
-          label: 'Compete',
-          assetPath: 'assets/images/ui/competeicon.png',
-          onTap: onBattle,
-          size: 80,
+
+        _lockWrap(
+          locked: lockNonField,
+          child: _FloatingSideButton(
+            theme: theme,
+            label: 'Compete',
+            assetPath: 'assets/images/ui/competeicon.png',
+            onTap: onBattle,
+            size: 80,
+          ),
         ),
       ],
     );
@@ -131,6 +157,7 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     final imageWithBadge = SizedBox(
       width: widget.size,
@@ -147,11 +174,7 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
             ),
           ),
           if (widget.showDot)
-            const Positioned(
-              right: -2, // tweak if your asset has extra padding
-              top: -2,
-              child: _RedDotTiny(),
-            ),
+            const Positioned(right: -2, top: -2, child: _RedDotTiny()),
         ],
       ),
     );
@@ -176,6 +199,7 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
       ),
     );
 
+    // Highlight behavior only
     if (widget.highlight) {
       return AnimatedBuilder(
         animation: _pulseAnimation,
@@ -225,6 +249,7 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
       );
     }
 
+    // Not highlighted → just normal button
     return button;
   }
 }

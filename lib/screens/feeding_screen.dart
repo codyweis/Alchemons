@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/creature_image.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
+import 'package:alchemons/widgets/tutorial_step.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -43,15 +45,134 @@ class _FeedingScreenState extends State<FeedingScreen>
   int? _preFeedLevel;
   int? _preFeedXp;
 
+  // Tutorial state
+  bool _feedingTutorialChecked = false;
+
   // Search state (species stage)
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late final ScrollController _speciesScrollCtrl;
 
+  bool _showAllInstances = false;
+
   @override
   void initState() {
     super.initState();
     _speciesScrollCtrl = ScrollController();
+
+    // Check first-time tutorial after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowFeedingTutorial();
+    });
+  }
+
+  Future<void> _maybeShowFeedingTutorial() async {
+    if (_feedingTutorialChecked) return;
+    _feedingTutorialChecked = true;
+
+    if (!mounted) return;
+
+    final db = context.read<AlchemonsDatabase>();
+    final settings = db.settingsDao; // assumes AlchemonsDatabase exposes this
+    final hasSeen = await settings.hasSeenFeedingTutorial();
+    if (hasSeen || !mounted) return;
+
+    final theme = context.read<FactionTheme>();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: theme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Row(
+            children: [
+              Text(
+                'Enhancement Basics',
+                style: TextStyle(
+                  color: theme.text,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This screen lets you power up your creatures by consuming others of the same species.',
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              TutorialStep(
+                theme: theme,
+                icon: Icons.pets_rounded,
+                title: 'Step 1 – Choose Species',
+                body: 'Pick which species you want to enhance.',
+              ),
+              const SizedBox(height: 6),
+
+              TutorialStep(
+                theme: theme,
+                icon: Icons.person_search_rounded,
+                title: 'Step 2 – Choose Specimen',
+                body:
+                    'Select the specific creature that will gain levels and stats.',
+              ),
+              const SizedBox(height: 6),
+
+              TutorialStep(
+                theme: theme,
+                icon: Icons.local_fire_department_rounded,
+                title: 'Step 3 – Select Fodder',
+                body:
+                    'Choose other specimens of the same species to consume. '
+                    'They will be permanently lost in exchange for XP and stat growth.',
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tip: You can long-press a specimen to inspect its details before using it as fodder.',
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                'Got it',
+                style: TextStyle(
+                  color: theme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    // Mark as seen so we don't show it again
+    if (mounted) {
+      await settings.setFeedingTutorialSeen();
+    }
   }
 
   @override
@@ -59,6 +180,13 @@ class _FeedingScreenState extends State<FeedingScreen>
     _searchController.dispose();
     _speciesScrollCtrl.dispose();
     super.dispose();
+  }
+
+  String get _currentStage {
+    if (_showAllInstances) return 'all_instances'; // <-- ADD THIS LINE
+    if (_isPickingSpecies) return 'species';
+    if (_isPickingInstance) return 'instance';
+    return 'fodder';
   }
 
   // helper to build species summary list
@@ -86,28 +214,23 @@ class _FeedingScreenState extends State<FeedingScreen>
   bool get _isPickingFodder =>
       _targetSpeciesId != null && _targetInstanceId != null;
 
-  String get _currentStage {
-    if (_isPickingSpecies) return 'species';
-    if (_isPickingInstance) return 'instance';
-    return 'fodder';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
     final db = context.watch<AlchemonsDatabase>();
 
     return Scaffold(
-      floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
-      floatingActionButton: FloatingCloseButton(
-        size: 50,
-        onTap: () {
-          HapticFeedback.lightImpact();
-          Navigator.of(context).maybePop();
-        },
-        theme: theme,
-      ),
-
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: _currentStage == 'species'
+          ? FloatingCloseButton(
+              size: 50,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).maybePop();
+              },
+              theme: theme,
+            )
+          : null, // <-- hide FAB on other stages
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
@@ -125,6 +248,7 @@ class _FeedingScreenState extends State<FeedingScreen>
               ),
             ),
             child: SafeArea(
+              bottom: false,
               child: Column(
                 children: [
                   _StageHeader(
@@ -132,6 +256,16 @@ class _FeedingScreenState extends State<FeedingScreen>
                     stage: _currentStage,
                     selectedCount: _selectedFodder.length,
                     onBack: _handleBack,
+                    onOpenAllInstances: () {
+                      HapticFeedback.lightImpact();
+                      setState(() {
+                        _showAllInstances = true;
+                        _targetSpeciesId = null;
+                        _targetInstanceId = null;
+                        _searchController.clear();
+                        _searchQuery = '';
+                      });
+                    },
                   ),
                   const SizedBox(height: 10),
 
@@ -190,6 +324,10 @@ class _FeedingScreenState extends State<FeedingScreen>
     List<CreatureInstance> instances,
   ) {
     final repo = context.read<CreatureCatalog>();
+    if (_showAllInstances) {
+      // <-- ADD THIS BLOCK
+      return _buildAllInstancesStage(theme, instances, repo);
+    }
 
     if (_isPickingSpecies) {
       return _buildSpeciesStage(theme, instances, repo);
@@ -201,6 +339,33 @@ class _FeedingScreenState extends State<FeedingScreen>
 
     // fodder
     return _buildFodderStage(theme, instances);
+  }
+
+  // NEW WIDGET METHOD
+  Widget _buildAllInstancesStage(
+    FactionTheme theme,
+    List<CreatureInstance> instances,
+    CreatureCatalog repo,
+  ) {
+    if (instances.isEmpty) {
+      return const _NoSpeciesOwnedWrapper();
+    }
+
+    return AllCreatureInstances(
+      theme: theme,
+      selectedInstanceIds:
+          const [], // No instances are "selected" in this context
+      onTap: (inst) {
+        setState(() {
+          // This tap selects the TARGET instance
+          _showAllInstances = false; // Move out of this view
+          _targetSpeciesId = inst.baseId;
+          _targetInstanceId = inst.instanceId;
+          _selectedFodder.clear();
+          _preview = null;
+        });
+      },
+    );
   }
 
   // Stage 1: choose species
@@ -539,7 +704,11 @@ class _FeedingScreenState extends State<FeedingScreen>
 
   void _handleBack() {
     setState(() {
-      if (_isPickingFodder) {
+      if (_showAllInstances) {
+        _showAllInstances = false;
+        _searchController.clear();
+        _searchQuery = '';
+      } else if (_isPickingFodder) {
         _targetInstanceId = null;
         _selectedFodder.clear();
         _preview = null;
@@ -661,12 +830,14 @@ class _StageHeader extends StatelessWidget {
   final String stage;
   final int selectedCount;
   final VoidCallback onBack;
+  final VoidCallback? onOpenAllInstances;
 
   const _StageHeader({
     required this.theme,
     required this.stage,
     required this.selectedCount,
     required this.onBack,
+    this.onOpenAllInstances,
   });
 
   @override
@@ -720,6 +891,22 @@ class _StageHeader extends StatelessWidget {
               ],
             ),
           ),
+          // ADD THIS BLOCK
+          if (stage == 'species' && onOpenAllInstances != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onOpenAllInstances,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: theme.border),
+                ),
+                child: const Icon(Icons.grid_view_rounded, size: 18),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -731,6 +918,8 @@ class _StageHeader extends StatelessWidget {
         return ('Choose Species', 'Select which species to enhance');
       case 'instance':
         return ('Choose Specimen', 'Select the specimen to strengthen');
+      case 'all_instances':
+        return ('All Specimens', 'Select the specimen to enhance');
       case 'fodder':
         return (
           'Select Fodder',

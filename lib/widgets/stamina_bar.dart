@@ -49,7 +49,7 @@ class StaminaBar extends StatelessWidget {
   }
 }
 
-class StaminaBadge extends StatelessWidget {
+class StaminaBadge extends StatefulWidget {
   final String instanceId;
   final bool showCountdown;
 
@@ -59,12 +59,21 @@ class StaminaBadge extends StatelessWidget {
     this.showCountdown = true,
   });
 
-  String _fmt(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    if (h <= 0 && m <= 0) return 'soon';
-    if (h <= 0) return '${m}m';
-    return '${h}h ${m}m';
+  @override
+  State<StaminaBadge> createState() => _StaminaBadgeState();
+}
+
+class _StaminaBadgeState extends State<StaminaBadge> {
+  late final Stream<DateTime> _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    // Tick once per second
+    _ticker = Stream.periodic(
+      const Duration(seconds: 1),
+      (_) => DateTime.now(),
+    );
   }
 
   @override
@@ -73,60 +82,57 @@ class StaminaBadge extends StatelessWidget {
     final stamina = context.read<StaminaService>();
 
     return StreamBuilder<CreatureInstance?>(
-      stream: db.creatureDao.watchInstanceById(instanceId),
-      builder: (context, snapshot) {
-        final row = snapshot.data;
+      stream: db.creatureDao.watchInstanceById(widget.instanceId),
+      builder: (context, instSnap) {
+        final row = instSnap.data;
+        if (row == null) return _empty;
 
-        if (row == null) {
-          return const SizedBox(
-            height: 16,
-            width: 60,
-            child: SizedBox.shrink(),
-          );
-        }
-
-        final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-        final maxStamina = stamina.effectiveMaxStamina(row);
-
-        // Calculate time until next bar
-        final regenPerBar = stamina.regenPerBar;
-        final untilNextMs = (row.staminaBars >= maxStamina)
-            ? 0
-            : (row.staminaLastUtcMs + regenPerBar.inMilliseconds) - now;
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.local_fire_department,
-              size: 14,
-              color: Colors.green,
-            ),
-            const SizedBox(width: 4),
-            StaminaBar(
-              current: row.staminaBars,
-              max: maxStamina,
-              size: 8,
-              gap: 2,
-            ),
-            if (showCountdown) ...[
-              const SizedBox(width: 6),
-              Text(
-                row.staminaBars >= maxStamina
-                    ? 'full'
-                    : '${_fmt(Duration(milliseconds: untilNextMs.clamp(0, 1 << 31)))}',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: row.staminaBars >= maxStamina
-                      ? Colors.green.shade700
-                      : Colors.grey.shade600,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
+        return StreamBuilder<DateTime>(
+          stream: _ticker,
+          builder: (_, __) {
+            final state = stamina.computeState(row);
+            return _buildUi(state);
+          },
         );
       },
+    );
+  }
+
+  Widget get _empty => const SizedBox(width: 60, height: 16);
+
+  Widget _buildUi(StaminaState state) {
+    String countdown = 'full';
+    if (state.bars < state.max && widget.showCountdown) {
+      final now = DateTime.now().toUtc();
+      final next = state.nextTickUtc ?? now;
+      final diff = next.difference(now);
+      final m = diff.inMinutes.remainder(60);
+      final h = diff.inHours;
+
+      countdown = h > 0 ? '${h}h ${m}m' : '${m}m';
+      if (diff.isNegative) countdown = 'soon';
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.local_fire_department, size: 14, color: Colors.green),
+        const SizedBox(width: 4),
+        StaminaBar(current: state.bars, max: state.max, size: 8, gap: 2),
+        if (widget.showCountdown) ...[
+          const SizedBox(width: 6),
+          Text(
+            countdown,
+            style: TextStyle(
+              fontSize: 10,
+              color: state.bars >= state.max
+                  ? Colors.green.shade700
+                  : Colors.grey.shade600,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

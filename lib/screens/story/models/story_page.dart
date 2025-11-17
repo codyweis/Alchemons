@@ -190,8 +190,7 @@ class AlchemonsStory {
       type: StoryPageType.loading,
       mainText: 'INITIALIZING LABORATORY SYSTEMS [ v3.7 ]',
       backgroundColor: Colors.black,
-      backgroundImagePath: 'assets/images/backgrounds/mainbackground.png',
-      autoAdvanceDuration: const Duration(milliseconds: 1600),
+      backgroundImagePath: 'assets/images/ui/trialsicon.png',
     ),
     const StoryPage(
       type: StoryPageType.narrative,
@@ -255,8 +254,8 @@ class AlchemonsStory {
   static List<StoryPage> get breedingIntro => [
     const StoryPage(
       type: StoryPageType.elementIntro,
-      mainText: '',
-      subtitle: 'One becomes two again. Did two ever exist?',
+      mainText: 'Did two ever exist?',
+      subtitle: 'Two becomes one again.',
       backgroundColor: Color(0xFF101010),
       textColor: Color(0xFFE0D2FF),
       useTypewriterEffect: true,
@@ -279,7 +278,7 @@ class AlchemonsStory {
       type: StoryPageType.loading,
       mainText: 'INITIALIZING LABORATORY SYSTEMS',
       backgroundColor: Colors.black,
-      backgroundImagePath: 'assets/images/backgrounds/mainbackground.png',
+      backgroundImagePath: 'assets/images/ui/trialsicon.png',
     ),
   ];
 }

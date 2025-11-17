@@ -60,6 +60,12 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   NavSection _currentSection = NavSection.home;
 
+  final GlobalKey<CreaturesScreenState> _creaturesKey =
+      GlobalKey<CreaturesScreenState>();
+
+  // NEW: guard so we only request once per launch
+  bool _creaturesTutorialRequested = false;
+
   void _goToSection(NavSection section, {int? breedInitialTab}) {
     if (section == _currentSection) return;
 
@@ -67,6 +73,12 @@ class _MainShellState extends State<MainShell> {
       _currentSection = section;
     });
     HapticFeedback.mediumImpact();
+
+    // Trigger tutorials when user actually visits these sections:
+    if (section == NavSection.creatures && !_creaturesTutorialRequested) {
+      _creaturesTutorialRequested = true;
+      _creaturesKey.currentState?.maybeShowCreaturesTutorial();
+    }
   }
 
   int get _navIndex {
@@ -79,31 +91,27 @@ class _MainShellState extends State<MainShell> {
         return 2;
       case NavSection.breed:
         return 3;
-      case NavSection.enhance:
-        return 4;
       case NavSection.inventory:
-        return 5;
+        return 4;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Theme just for the BottomNav
     final theme = context.watch<FactionTheme>();
 
     return Scaffold(
       extendBody: true,
       body: IndexedStack(
-        index: _navIndex, // enum order: home, creatures, shop, ...
+        index: _navIndex,
         children: [
           HomeScreen(
             isActive: _currentSection == NavSection.home,
             onNavigateSection: _goToSection,
           ),
-          const CreaturesScreen(),
+          CreaturesScreen(key: _creaturesKey),
           const ShopScreen(),
           BreedScreen(onGoToSection: _goToSection),
-          const FeedingScreen(),
           const InventoryScreen(),
         ],
       ),
@@ -157,61 +165,50 @@ class _HomeScreenState extends State<HomeScreen>
   // FEATURED HERO STATE
   PresentationData? _featuredData;
   String? _featuredInstanceId;
+  bool _animationsEnabled = false;
 
   void _updateAnimationState() {
-    if (widget.isActive) {
-      if (!_breathingController.isAnimating) {
-        _breathingController.repeat(reverse: true);
-      }
-      if (!_rotationController.isAnimating) {
-        _rotationController.repeat();
-      }
-      if (!_particleController.isAnimating) {
-        _particleController.repeat();
-      }
-      if (!_waveController.isAnimating) {
-        _waveController.repeat();
-      }
-      if (!_glowController.isAnimating) {
-        _glowController.repeat(reverse: true);
-      }
-    } else {
-      _breathingController.stop();
-      _rotationController.stop();
-      _particleController.stop();
-      _waveController.stop();
-      _glowController.stop();
-    }
+    // home tab active AND this route is the top-most one
+    final modalRoute = ModalRoute.of(context);
+    final routeIsCurrent = modalRoute?.isCurrent ?? true;
+    final shouldEnable =
+        widget.isActive && routeIsCurrent && !_isFieldTutorialActive;
+
+    if (shouldEnable == _animationsEnabled) return;
+
+    setState(() {
+      _animationsEnabled = shouldEnable;
+    });
   }
 
   @override
   void initState() {
     super.initState();
 
-    // Create controllers
     _breathingController = AnimationController(
       duration: const Duration(seconds: 3),
       vsync: this,
-    );
+    )..repeat(reverse: true);
+
     _rotationController = AnimationController(
       duration: const Duration(seconds: 20),
       vsync: this,
-    );
+    )..repeat();
+
     _particleController = AnimationController(
       duration: const Duration(seconds: 15),
       vsync: this,
-    );
+    )..repeat();
+
     _waveController = AnimationController(
       duration: const Duration(seconds: 4),
       vsync: this,
-    );
+    )..repeat();
+
     _glowController = AnimationController(
       duration: const Duration(milliseconds: 1600),
       vsync: this,
-    );
-
-    // Start/stop based on whether Home is the active tab
-    _updateAnimationState();
+    )..repeat(reverse: true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _initializeApp();
@@ -234,32 +231,17 @@ class _HomeScreenState extends State<HomeScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     routeObserver.subscribe(this, ModalRoute.of(context)!);
+    _updateAnimationState();
   }
 
   @override
   void didPushNext() {
-    // STOP all home screen animations
-    _breathingController.stop();
-    _rotationController.stop();
-    _particleController.stop();
-    _waveController.stop();
-    _glowController.stop();
+    _updateAnimationState(); // route no longer current → disables TickerMode
   }
 
   @override
   void didPopNext() {
-    // Only resume stuff if the home tab is actually the visible tab
-    if (!widget.isActive) return;
-
-    _breathingController.repeat(reverse: true);
-    _rotationController.repeat();
-    _particleController.repeat();
-    _waveController.repeat();
-    _glowController.repeat(reverse: true);
-
-    if (_isInitialized) {
-      _refreshNotificationsNow();
-    }
+    _updateAnimationState();
   }
 
   @override
@@ -285,12 +267,14 @@ class _HomeScreenState extends State<HomeScreen>
     final completed = await db.settingsDao.hasCompletedFieldTutorial();
 
     if (!completed) {
-      // Lock navigation during tutorial
       await db.settingsDao.setNavLocked(true);
 
       setState(() {
         _isFieldTutorialActive = true;
+        _activeNotifications.clear();
       });
+
+      _updateAnimationState(); // 🔹 ensure animations disable for tutorial
     }
   }
 
@@ -299,23 +283,21 @@ class _HomeScreenState extends State<HomeScreen>
 
     HapticFeedback.mediumImpact();
 
-    // Navigate to map with tutorial flag
     final tutorialCompleted = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => const MapScreen(isTutorial: true)),
     );
 
     if (tutorialCompleted == true && mounted) {
-      // Mark tutorial as completed
       final db = context.read<AlchemonsDatabase>();
       await db.settingsDao.setFieldTutorialCompleted();
-
-      // Unlock navigation
       await db.settingsDao.setNavLocked(false);
 
       setState(() {
         _isFieldTutorialActive = false;
       });
+
+      _updateAnimationState(); // 🔹 re-enable after tutorial
     }
   }
 
@@ -331,24 +313,13 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (!mounted) return;
 
-      // First-time experience
+      // First-time intro is handled in AppGate now.
+      // If somehow we still don't have a faction yet, just bail for now.
       if (faction == null) {
-        final storyCompleted = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(builder: (_) => const StoryIntroScreen()),
+        debugPrint(
+          'HomeScreen._initializeApp: faction is null; intro flow should have run in AppGate.',
         );
-
-        if (!mounted || storyCompleted != true) return;
-
-        final selected = await showDialog<FactionId>(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => const FactionPickerDialog(),
-        );
-
-        if (!mounted || selected == null) return;
-        await factionSvc.setId(selected);
-        faction = selected;
+        return;
       }
 
       if (!mounted) return;
@@ -433,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Manual refresh when landing on Home / returning to Home
   Future<void> _refreshNotificationsNow() async {
-    if (!mounted) return;
+    if (!mounted || _isFieldTutorialActive) return;
 
     final db = context.read<AlchemonsDatabase>();
     final slots = await db.incubatorDao.watchSlots().first;
@@ -463,7 +434,7 @@ class _HomeScreenState extends State<HomeScreen>
       _showNotification(
         NotificationBanner(
           type: NotificationBannerType.wildernessSpawn,
-          title: 'CREATURES DETECTED',
+          title: 'SPECIMENS DETECTED',
           subtitle:
               'Wild specimens available in $scenesWithSpawns location${scenesWithSpawns > 1 ? 's' : ''}',
           count: totalSpawns,
@@ -537,7 +508,7 @@ class _HomeScreenState extends State<HomeScreen>
       _showNotification(
         NotificationBanner(
           type: NotificationBannerType.eggReady,
-          title: 'EGG READY TO HATCH',
+          title: 'Alchemon ready to extract!',
           subtitle: 'Tap to view incubator',
           count: readyEggs,
           stateKey: stateKey,
@@ -647,7 +618,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showNotification(NotificationBanner banner) {
-    if (!mounted) return;
+    if (!mounted || _isFieldTutorialActive) return; // 🔹 block during tutorial
+
     setState(() {
       // Ensure ONLY ONE banner per type at a time.
       _activeNotifications.removeWhere((n) => n.type == banner.type);
@@ -934,18 +906,21 @@ class _HomeScreenState extends State<HomeScreen>
             return Stack(
               children: [
                 // Background is always the home background here
-                RepaintBoundary(
-                  child: InteractiveBackground(
-                    particleController: _particleController,
-                    rotationController: _rotationController,
-                    waveController: _waveController,
-                    primaryColor: theme.primary,
-                    secondaryColor: theme.secondary,
-                    accentColor: theme.accent,
-                    factionType: currentFaction,
-                    particleSpeed: speeds.particle,
-                    rotationSpeed: speeds.rotation,
-                    elementalSpeed: speeds.elemental,
+                TickerMode(
+                  enabled: _animationsEnabled,
+                  child: RepaintBoundary(
+                    child: InteractiveBackground(
+                      particleController: _particleController,
+                      rotationController: _rotationController,
+                      waveController: _waveController,
+                      primaryColor: theme.primary,
+                      secondaryColor: theme.secondary,
+                      accentColor: theme.accent,
+                      factionType: currentFaction,
+                      particleSpeed: speeds.particle,
+                      rotationSpeed: speeds.rotation,
+                      elementalSpeed: speeds.elemental,
+                    ),
                   ),
                 ),
 
@@ -960,26 +935,27 @@ class _HomeScreenState extends State<HomeScreen>
                         SizedBox(
                           height: 260,
                           child: Center(
-                            child: FeaturedHeroInteractive(
-                              data: _featuredData!,
-                              theme: theme,
-                              breathing: _breathingController,
-                              onLongPressChoose: _handleChooseFeaturedInstance,
-                              onTapDetails: _handleOpenFeaturedDetails,
-                              instance: _featuredData!.instance,
-                              creature: _featuredData!.creature,
+                            child: TickerMode(
+                              enabled: _animationsEnabled,
+                              child: FeaturedHeroInteractive(
+                                data: _featuredData!,
+                                theme: theme,
+                                breathing: _breathingController,
+                                onLongPressChoose:
+                                    _handleChooseFeaturedInstance,
+                                onTapDetails: _handleOpenFeaturedDetails,
+                                instance: _featuredData!.instance,
+                                creature: _featuredData!.creature,
+                              ),
                             ),
                           ),
                         ),
                       ],
 
-                      // Home content only
                       Expanded(child: _buildHomeContent(theme)),
                     ],
                   ),
                 ),
-
-                // Side dock + bubbles + notifications stay here; they’re home-only
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 140,
                   left: 0,
@@ -1089,45 +1065,57 @@ class _HomeScreenState extends State<HomeScreen>
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 125,
                   right: 5,
-                  child: GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      CupertinoPageRoute(
-                        builder: (_) => const BossBattleScreen(),
-                        fullscreenDialog: true,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        ClipRect(
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            heightFactor: .9, // crop bottom ~20%
-                            child: Image.asset(
-                              'assets/images/ui/trialsicon.png',
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.cover,
+                  child: Opacity(
+                    opacity: _isFieldTutorialActive
+                        ? 0.4
+                        : 1.0, // Dim when tutorial active
+                    child: IgnorePointer(
+                      ignoring:
+                          _isFieldTutorialActive, // Disable interaction during tutorial
+                      child: GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const BossBattleScreen(),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            ClipRect(
+                              child: Align(
+                                alignment: Alignment.topCenter,
+                                heightFactor: .9, // Crop bottom ~20%
+                                child: Image.asset(
+                                  'assets/images/ui/trialsicon.png',
+                                  width: 80,
+                                  height: 80,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
                             ),
-                          ),
+                            Text(
+                              'BATTLE',
+                              style: TextStyle(
+                                color: theme.text,
+                                fontSize: 12,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          'BATTLE',
-                          style: TextStyle(
-                            color: theme.text,
-                            fontSize: 12,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
 
-                FloatingBubblesOverlay(
-                  regionPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-                  discoveredCreatures: discovered,
-                  theme: theme,
+                // Side dock etc. (static, doesn’t need TickerMode)
+                TickerMode(
+                  enabled: _animationsEnabled,
+                  child: FloatingBubblesOverlay(
+                    regionPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+                    discoveredCreatures: discovered,
+                    theme: theme,
+                  ),
                 ),
 
                 if (_activeNotifications.isNotEmpty)
@@ -1165,14 +1153,14 @@ class _HomeScreenState extends State<HomeScreen>
 
     final granted = await starterService.ensureStarterGranted(
       faction,
-      tutorialHatch: const Duration(seconds: 20),
+      tutorialHatch: const Duration(seconds: 10),
     );
 
     if (granted) {
       await spawnService.clearSceneSpawns('valley');
       await spawnService.scheduleNextSpawnTime(
         'valley',
-        windowMax: Duration(seconds: 20),
+        windowMax: Duration(seconds: 10),
       );
       if (!mounted) return;
       await SystemDialog.show(
@@ -1200,20 +1188,34 @@ class _HomeScreenState extends State<HomeScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            AvatarButton(
-              theme: theme,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                // use cupertino nav
-                Navigator.push(
-                  context,
-                  CupertinoPageRoute(
-                    builder: (_) => ProfileScreen(() => Navigator.pop(context)),
-                    fullscreenDialog: true,
+            // 🔹 Disable + dim Profile button during Field Tutorial
+            if (_isFieldTutorialActive)
+              Opacity(
+                opacity: 0.35,
+                child: IgnorePointer(
+                  ignoring: true,
+                  child: AvatarButton(
+                    theme: theme,
+                    onTap: () {}, // disabled during tutorial
                   ),
-                );
-              },
-            ),
+                ),
+              )
+            else
+              AvatarButton(
+                theme: theme,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.push(
+                    context,
+                    CupertinoPageRoute(
+                      builder: (_) =>
+                          ProfileScreen(() => Navigator.pop(context)),
+                      fullscreenDialog: true,
+                    ),
+                  );
+                },
+              ),
+
             Expanded(
               child: Align(
                 alignment: Alignment.centerRight,
@@ -1236,10 +1238,12 @@ class _HomeScreenState extends State<HomeScreen>
                     ? Image.asset(
                         'assets/images/ui/alchemonstitle.png',
                         height: 300,
+                        gaplessPlayback: true,
                       )
                     : Image.asset(
                         'assets/images/ui/alchemonstitledark.png',
                         height: 300,
+                        gaplessPlayback: true,
                       ),
               ),
             ),

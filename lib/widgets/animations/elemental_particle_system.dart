@@ -364,17 +364,17 @@ class AlchemyBrewingPainter extends CustomPainter {
     // 1. Save the canvas, applying the "additive" blend mode
     // This makes all overlapping particles add their color, creating a bright,
     // energetic, and non-confetti look.
-    canvas.saveLayer(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..blendMode = BlendMode.plus,
-    );
+    // canvas.saveLayer(
+    //   Rect.fromLTWH(0, 0, size.width, size.height),
+    //   Paint()..blendMode = BlendMode.plus,
+    // );
 
     // Draw main particles
     for (final particle in particles) {
       _drawParticle(canvas, particle);
     }
 
-    canvas.restore();
+    //canvas.restore();
 
     // Energy field when brewing is intense (disabled during fusion to declutter)
     if (speedMultiplier > 2.0 && !isFusion) {
@@ -686,43 +686,6 @@ class AlchemyBrewingPainter extends CustomPainter {
     }
   }
 
-  void _drawAlchemicalSymbol(Canvas canvas, Paint paint, int type) {
-    final path = Path();
-
-    switch (type % 4) {
-      case 0: // Triangle with line
-        path.moveTo(0, -8);
-        path.lineTo(-6, 6);
-        path.lineTo(6, 6);
-        path.close();
-        path.moveTo(-8, 0);
-        path.lineTo(8, 0);
-        break;
-      case 1: // Circle with cross
-        path.addOval(const Rect.fromLTWH(-6, -6, 12, 12));
-        path.moveTo(0, -9);
-        path.lineTo(0, 9);
-        path.moveTo(-9, 0);
-        path.lineTo(9, 0);
-        break;
-      case 2: // Inverted triangle
-        path.moveTo(0, 8);
-        path.lineTo(-6, -6);
-        path.lineTo(6, -6);
-        path.close();
-        break;
-      case 3: // Diamond
-        path.moveTo(0, -8);
-        path.lineTo(6, 0);
-        path.lineTo(0, 8);
-        path.lineTo(-6, 0);
-        path.close();
-        break;
-    }
-
-    canvas.drawPath(path, paint);
-  }
-
   void _drawSacredGeometry(
     Canvas canvas,
     Size size,
@@ -912,41 +875,6 @@ class AlchemyBrewingPainter extends CustomPainter {
     }
   }
 
-  void _drawFloatingSymbols(
-    Canvas canvas,
-    Offset center,
-    Size size,
-    Color baseColor,
-    double rotation,
-    double breathe,
-    double progress,
-  ) {
-    final maxRadius = min(size.width, size.height) * 0.35;
-
-    final symbolPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8
-      ..color = baseColor.withOpacity(0.2 * progress * breathe)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
-
-    // Floating alchemical symbols
-    for (int i = 0; i < 4; i++) {
-      final angle = (i * pi / 2) + rotation * 0.2;
-      final floatRadius = maxRadius * (0.8 + 0.1 * sin(rotation * 2 + i));
-      final symbolPos =
-          center + Offset(cos(angle) * floatRadius, sin(angle) * floatRadius);
-
-      canvas.save();
-      canvas.translate(symbolPos.dx, symbolPos.dy);
-      canvas.rotate(rotation * 0.5 + i * pi / 4);
-      canvas.scale(0.7 + 0.3 * breathe);
-
-      _drawAlchemicalSymbol(canvas, symbolPaint, i);
-
-      canvas.restore();
-    }
-  }
-
   double easeOut(double x) => 1 - pow(1 - x, 2).toDouble();
 
   Color _blendColors(Color c1, Color c2) {
@@ -1010,11 +938,24 @@ class _AlchemyBrewingParticleSystemState
   late ElementConfig _configA;
   ElementConfig? _configB;
   final Random _random = Random();
-  Size _lastSize = const Size(200, 200);
+
+  Size _lastSize = Size.zero;
+  bool _hasInitializedParticles = false;
+
+  void _onFusionStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.completed &&
+        mounted &&
+        _hasInitializedParticles) {
+      setState(() {
+        _initParticles(); // create the idle particles using the *real* size
+      });
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+
     _configA =
         ElementalConfigs.getConfig(widget.parentATypeId) ??
         ElementalConfigs.fire;
@@ -1030,13 +971,11 @@ class _AlchemyBrewingParticleSystemState
     _fusionCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2500),
-    );
+    )..addStatusListener(_onFusionStatusChanged);
 
     _particles = [];
     _sparks = [];
-    _initParticles();
 
-    // If fusion is already true on first build, kick it off.
     if (widget.fusion) {
       _fusionPlayed = true;
       _fusionCtrl.forward();
@@ -1049,19 +988,9 @@ class _AlchemyBrewingParticleSystemState
 
     if (widget.fusion && !_fusionPlayed) {
       _fusionPlayed = true;
-      _fusionCtrl.forward();
+      _fusionCtrl.forward(from: 0.0);
     }
 
-    // NEW: When fusion animation completes, replace particles
-    _fusionCtrl.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
-        setState(() {
-          _initParticles(); // This will now create only 2 idle particles
-        });
-      }
-    });
-
-    // Re-init if element types change
     if (oldWidget.parentATypeId != widget.parentATypeId ||
         oldWidget.parentBTypeId != widget.parentBTypeId) {
       _configA =
@@ -1070,7 +999,10 @@ class _AlchemyBrewingParticleSystemState
       _configB = widget.parentBTypeId != null
           ? ElementalConfigs.getConfig(widget.parentBTypeId!)
           : null;
-      _initParticles();
+
+      if (_hasInitializedParticles) {
+        _initParticles(); // only when we actually know size
+      }
     }
   }
 
@@ -1306,6 +1238,7 @@ class _AlchemyBrewingParticleSystemState
   @override
   void dispose() {
     _controller.dispose();
+    _fusionCtrl.removeStatusListener(_onFusionStatusChanged);
     _fusionCtrl.dispose();
     super.dispose();
   }
@@ -1326,11 +1259,20 @@ class _AlchemyBrewingParticleSystemState
         return LayoutBuilder(
           builder: (context, constraints) {
             final newSize = Size(constraints.maxWidth, constraints.maxHeight);
-            if (_lastSize != newSize) {
+
+            if (newSize != Size.zero && newSize != _lastSize) {
               _lastSize = newSize;
+
+              if (!_hasInitializedParticles) {
+                _hasInitializedParticles = true;
+                _initParticles(); // first time: now we have real size
+              }
             }
 
-            _updateParticles();
+            if (_hasInitializedParticles) {
+              _updateParticles();
+            }
+
             return CustomPaint(
               painter: AlchemyBrewingPainter(
                 particles: _particles,

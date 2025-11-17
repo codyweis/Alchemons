@@ -179,4 +179,31 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
       'require_faction_picker',
     ).map((v) => v == '1' || (v != null && v.toLowerCase() == 'true'));
   }
+
+  Future<bool> hasSeenFeedingTutorial() async {
+    final v = await getSetting('feeding_tutorial_seen');
+    return v == '1';
+  }
+
+  Future<void> setFeedingTutorialSeen() async {
+    await setSetting('feeding_tutorial_seen', '1');
+  }
+
+  Future<bool> hasSeenBiomeHarvestTutorial() async {
+    final v = await getSetting('biome_harvest_tutorial_seen');
+    return v == '1';
+  }
+
+  Future<void> setBiomeHarvestTutorialSeen() async {
+    await setSetting('biome_harvest_tutorial_seen', '1');
+  }
+
+  Future<bool> hasSeenCreaturesTutorial() async {
+    final v = await getSetting('creatures_screen_tutorial_seen');
+    return v == '1';
+  }
+
+  Future<void> setCreaturesTutorialSeen() async {
+    await setSetting('creatures_screen_tutorial_seen', '1');
+  }
 }

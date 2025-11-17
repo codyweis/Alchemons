@@ -123,13 +123,13 @@ class PushNotificationService {
 
     await _notifications.zonedSchedule(
       eggHatchingBaseId + safeSlotIndex,
-      '🥚 Egg Ready to Extract!',
-      'Your creature specimen is ready for extraction',
+      'Alchemon ready to extract!',
+      'Your specimen is ready for extraction',
       scheduledDate,
       _notificationDetails(
         channelId: 'egg_hatching',
         channelName: 'Egg Hatching',
-        channelDescription: 'Notifications when eggs are ready to hatch',
+        channelDescription: 'Notifications when specimens are ready to extract',
         importance: Importance.high,
         priority: Priority.high,
         payload: 'egg_ready:$eggId',

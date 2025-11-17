@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-enum NavSection { home, creatures, shop, enhance, breed, inventory }
+enum NavSection { home, creatures, shop, breed, inventory }
 
 class BottomNav extends StatefulWidget {
   const BottomNav({
@@ -27,6 +27,17 @@ class BottomNav extends StatefulWidget {
 class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   late final AnimationController _expandController;
   late final Animation<double> _expandAnimation;
+
+  static bool _navIconsCached = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_navIconsCached) {
+      _navIconsCached = true;
+      _precacheNavIcons();
+    }
+  }
 
   @override
   void initState() {
@@ -54,6 +65,26 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   void dispose() {
     _expandController.dispose();
     super.dispose();
+  }
+
+  Future<void> _precacheNavIcons() async {
+    const paths = <String>[
+      'assets/images/ui/inventorylight.png',
+      'assets/images/ui/inventorydark.png',
+      'assets/images/ui/dexicon_light.png',
+      'assets/images/ui/dexicon.png',
+      'assets/images/ui/homeicon2.png',
+      'assets/images/ui/breedicon.png',
+      'assets/images/ui/shopicon2.png',
+    ];
+
+    for (final path in paths) {
+      try {
+        await precacheImage(AssetImage(path), context);
+      } catch (e) {
+        debugPrint('Failed to precache bottom nav icon $path: $e');
+      }
+    }
   }
 
   Future<void> _handleTap(
@@ -250,6 +281,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                           child: FittedBox(
                             fit: BoxFit.cover,
                             child: Image.asset(
+                              gaplessPlayback: true,
                               icon,
                               fit: BoxFit.contain,
                               color: iconColor,
