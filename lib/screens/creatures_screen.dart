@@ -13,6 +13,7 @@ import 'package:alchemons/widgets/creature_image.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/draggable_sheet.dart';
 import 'package:alchemons/widgets/filterchip_solod.dart';
+import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/silhouette_widget.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
@@ -509,24 +510,32 @@ class CreaturesScreenState extends State<CreaturesScreen>
   void _showAllInstancesView(FactionTheme theme) {
     Navigator.of(context).push(
       PageRouteBuilder(
-        opaque: false,
-        barrierDismissible: true,
-        barrierColor: Colors.black54,
         transitionDuration: const Duration(milliseconds: 300),
-        reverseTransitionDuration: const Duration(milliseconds: 250),
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return DraggableSheet(
-            animation: animation,
-            theme: theme,
-            onInstanceTap: (inst) {
-              final repo = context.read<CreatureCatalog>();
-              final creature = repo.getCreatureById(inst.baseId);
-              if (creature != null) {
-                Navigator.pop(context);
-                _openDetailsForInstance(creature, inst);
-              }
-            },
-          );
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            AllInstancesPage(
+              theme: theme,
+              onInstanceTap: (inst) {
+                final repo = context.read<CreatureCatalog>();
+                final creature = repo.getCreatureById(inst.baseId);
+                if (creature != null) {
+                  Navigator.pop(context);
+                  _openDetailsForInstance(creature, inst);
+                }
+              },
+            ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0); // start from bottom
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+
+          final tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
+          final offsetAnimation = animation.drive(tween);
+
+          return SlideTransition(position: offsetAnimation, child: child);
         },
       ),
     );
@@ -1563,4 +1572,46 @@ class _StickyFilterBar extends SliverPersistentHeaderDelegate {
       old.isGrid != isGrid ||
       old.showCounts != showCounts ||
       old.theme != theme;
+}
+
+class AllInstancesPage extends StatelessWidget {
+  final FactionTheme theme;
+  final ValueChanged<CreatureInstance> onInstanceTap;
+
+  const AllInstancesPage({
+    super.key,
+    required this.theme,
+    required this.onInstanceTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: FloatingCloseButton(
+        onTap: () => Navigator.of(context).pop(),
+        theme: theme,
+      ),
+      backgroundColor: theme.surface,
+      appBar: AppBar(
+        backgroundColor: theme.surfaceAlt,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'All Specimens',
+          style: TextStyle(color: theme.text, fontWeight: FontWeight.w800),
+        ),
+        iconTheme: IconThemeData(color: theme.text),
+      ),
+      body: SafeArea(
+        child: AllCreatureInstances(
+          theme: theme,
+          onTap: (inst) => onInstanceTap(inst),
+        ),
+      ),
+    );
+  }
 }

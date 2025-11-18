@@ -761,12 +761,18 @@ class _PartyMemberCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
+    final stamina = context.read<StaminaService>();
 
     return FutureBuilder<CreatureInstance?>(
       future: db.creatureDao.getInstance(member.instanceId),
       builder: (context, snap) {
         final inst = snap.data;
         final base = inst == null ? null : repo.getCreatureById(inst.baseId);
+
+        // Use stamina service for display instead of raw DB values
+        final StaminaState? state = inst != null
+            ? stamina.computeState(inst)
+            : null;
 
         return GestureDetector(
           onTap: onTap,
@@ -792,7 +798,6 @@ class _PartyMemberCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Beauty stat - only show when selected
                 if (selected) ...[
                   Text(
                     'Beauty ${inst?.statBeauty.toStringAsFixed(2) ?? '--'}',
@@ -804,8 +809,6 @@ class _PartyMemberCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                 ],
-
-                // Sprite
                 if (inst != null && base != null)
                   SizedBox(
                     width: 48,
@@ -820,8 +823,9 @@ class _PartyMemberCard extends StatelessWidget {
                   const SizedBox(width: 48, height: 48),
                 const SizedBox(height: 6),
 
-                if (inst != null)
-                  StaminaBar(current: inst.staminaBars, max: inst.staminaMax),
+                // ✅ Use computed stamina (bars + max) instead of raw DB fields
+                if (state != null)
+                  StaminaBar(current: state.bars, max: state.max),
               ],
             ),
           ),

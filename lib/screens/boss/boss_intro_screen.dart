@@ -6,7 +6,7 @@ import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/screens/boss/battle_screen.dart';
-import 'package:alchemons/screens/party_picker.dart';
+import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/services/boss_battle_engine_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -593,7 +593,7 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
             onPressed: () async {
               final result = await Navigator.push<List<PartyMember>>(
                 context,
-                MaterialPageRoute(builder: (_) => const PartyPickerPage()),
+                MaterialPageRoute(builder: (_) => const PartyPickerScreen()),
               );
             },
             style: ElevatedButton.styleFrom(

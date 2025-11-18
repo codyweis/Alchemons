@@ -14,7 +14,7 @@ import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
-import 'package:alchemons/screens/party_picker.dart';
+import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/screens/scenes/scene_page.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_access_service.dart';
@@ -120,7 +120,7 @@ class _MapScreenState extends State<MapScreen>
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const PartyPickerPage(),
+                        builder: (_) => const PartyPickerScreen(),
                       ),
                     );
                   },
@@ -416,7 +416,7 @@ class _MapScreenState extends State<MapScreen>
     if (!context.mounted) return;
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const PartyPickerPage()),
+      MaterialPageRoute(builder: (_) => const PartyPickerScreen()),
     );
     if (result == null) return;
     selectedParty = (result as List).cast<PartyMember>();

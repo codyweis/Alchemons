@@ -35,7 +35,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
-import 'package:alchemons/screens/feeding_screen.dart';
+import 'package:alchemons/screens/feeding/feeding_screen.dart';
 import 'package:alchemons/screens/harvest_screen.dart';
 import 'package:alchemons/screens/profile_screen.dart';
 import 'package:alchemons/screens/shop/shop_screen.dart';

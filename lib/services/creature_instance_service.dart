@@ -177,8 +177,8 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     // Since you can only feed same-species anyway!
     const baseXp = 25.0;
 
-    // Level factor: +10% per level beyond 1
-    final levelFactor = 1.0 + 0.10 * (fodder.level - 1);
+    // Level factor: +200% per level beyond 1
+    final levelFactor = 1.0 + 2 * (fodder.level - 1);
 
     // Prismatic bonus
     final prismaticMult = fodder.isPrismaticSkin ? 1.5 : 1.0;

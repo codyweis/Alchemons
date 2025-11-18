@@ -271,6 +271,7 @@ class _ShopScreenState extends State<ShopScreen> {
                         theme,
                         allCurrencies,
                         inventoryByKey,
+                        resourceBalances,
                       ),
 
                       const SizedBox(height: 16),
@@ -612,7 +613,11 @@ class _ShopScreenState extends State<ShopScreen> {
     FactionTheme theme,
     Map<String, int> allCurrencies,
     Map<String, int> inventory,
+    Map<String, int> resourceBalances,
   ) {
+    final mergedBalances = <String, int>{}
+      ..addAll(allCurrencies)
+      ..addAll(resourceBalances);
     return Consumer<ShopService>(
       builder: (context, shopService, _) {
         final deviceOffers = ShopService.allOffers
@@ -621,23 +626,43 @@ class _ShopScreenState extends State<ShopScreen> {
 
         final cards = deviceOffers.map((offer) {
           final canPurchase = shopService.canPurchase(offer.id);
+          // 3. Check affordability against the MERGED balances
           final canAffordUnit = offer.cost.entries.every(
-            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+            (e) => (mergedBalances[e.key] ?? 0) >= e.value,
           );
 
           final invKey = offer.inventoryKey;
           final invQty = invKey != null ? (inventory[invKey] ?? 0) : 0;
           final status = invQty > 0 ? 'x$invQty' : null;
 
-          final costWidgets = <Widget>[
-            for (final entry in offer.cost.entries)
-              CostChip(
-                currencyType: entry.key,
-                amount: entry.value,
-                available: allCurrencies[entry.key] ?? 0,
-              ),
-          ];
+          final costWidgets = <Widget>[];
 
+          for (final entry in offer.cost.entries) {
+            if (entry.key.startsWith('res_')) {
+              // It is an Elemental Resource
+              final res = ElementResources.all.firstWhere(
+                (r) => r.settingsKey == entry.key,
+                orElse: () => ElementResources.all.first,
+              );
+
+              costWidgets.add(
+                MiniCostChip(
+                  resource: res,
+                  required: entry.value,
+                  current: resourceBalances[entry.key] ?? 0,
+                ),
+              );
+            } else {
+              // It is Gold or Silver
+              costWidgets.add(
+                CostChip(
+                  currencyType: entry.key,
+                  amount: entry.value,
+                  available: allCurrencies[entry.key] ?? 0,
+                ),
+              );
+            }
+          }
           final card = GameShopCard(
             key: ValueKey('device-${offer.id}'),
             title: offer.name,
@@ -652,9 +677,10 @@ class _ShopScreenState extends State<ShopScreen> {
           return GestureDetector(
             onTap: () {
               if (canPurchase) {
-                _handlePurchase(context, offer, allCurrencies, canAffordUnit);
+                // 5. Pass mergedBalances so purchase logic checks resources too
+                _handlePurchase(context, offer, mergedBalances, canAffordUnit);
               } else {
-                _showDetails(context, offer, allCurrencies, canAffordUnit);
+                _showDetails(context, offer, mergedBalances, canAffordUnit);
               }
             },
             child: card,

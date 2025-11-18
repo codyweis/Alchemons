@@ -238,24 +238,45 @@ class StaminaState {
 }
 
 extension StaminaHelpers on StaminaService {
-  /// Compute stamina state based on DB row and the current time.
+  /// Compute stamina state based on DB row and the current time,
+  /// using the same regen rules as _applyRegen.
   StaminaState computeState(CreatureInstance row, {DateTime? nowUtc}) {
     nowUtc ??= DateTime.now().toUtc();
     final nowMs = nowUtc.millisecondsSinceEpoch;
-    final maxBars = effectiveMaxStamina(row);
-    final regenPerBarMs = regenPerBar.inMilliseconds;
 
+    // --- Same nature-aware regen as _applyRegen ---
+    final NatureDef? n = (row.natureId == null || row.natureId!.isEmpty)
+        ? null
+        : NatureCatalog.byId(row.natureId!);
+
+    final regenMult = (() {
+      final v = n?.effect.modifiers['stamina_regen_mult'];
+      final d = (v is num) ? v.toDouble() : 1.0;
+      return d.clamp(0.25, 4.0);
+    })();
+
+    final effectiveMsPerBar = (regenPerBar.inMilliseconds / regenMult)
+        .clamp(60 * 1000, 365 * 24 * 3600 * 1000)
+        .toInt();
+    // ------------------------------------------------
+
+    final maxBars = effectiveMaxStamina(row);
     int bars = row.staminaBars;
     DateTime? nextTickUtc;
 
     if (bars < maxBars) {
       final elapsedMs = nowMs - row.staminaLastUtcMs;
-      final gained = elapsedMs ~/ regenPerBarMs;
-      bars = (bars + gained).clamp(0, maxBars);
 
-      if (bars < maxBars) {
-        final remainder = elapsedMs % regenPerBarMs;
-        final msToNext = regenPerBarMs - remainder;
+      if (elapsedMs >= effectiveMsPerBar) {
+        final gained = elapsedMs ~/ effectiveMsPerBar;
+        bars = (bars + gained).clamp(0, maxBars);
+        if (bars < maxBars) {
+          final remainder = elapsedMs % effectiveMsPerBar;
+          final msToNext = effectiveMsPerBar - remainder;
+          nextTickUtc = nowUtc.add(Duration(milliseconds: msToNext));
+        }
+      } else {
+        final msToNext = effectiveMsPerBar - elapsedMs;
         nextTickUtc = nowUtc.add(Duration(milliseconds: msToNext));
       }
     }
