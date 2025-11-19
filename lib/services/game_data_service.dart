@@ -4,7 +4,6 @@ import 'package:drift/drift.dart';
 import '../database/alchemons_db.dart';
 import '../models/creature.dart';
 
-/// View model for UI: typed + easy to consume.
 class CreatureEntry {
   final Creature creature;
   final PlayerCreature player;

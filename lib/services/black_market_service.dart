@@ -8,6 +8,7 @@ import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/database/alchemons_db.dart'; // <-- use Settings table
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
@@ -34,7 +35,7 @@ class DailyOffer {
 }
 
 class BlackMarketService extends ChangeNotifier {
-  BlackMarketService(this._db) {
+  BlackMarketService(this._db, this._constellationEffectsService) {
     _checkStatus();
     _updateWeeklyContent();
     _initFromSettings(); // fire-and-forget: restores week + purchased set
@@ -47,6 +48,7 @@ class BlackMarketService extends ChangeNotifier {
 
   // ----------------- deps -----------------
   final AlchemonsDatabase _db;
+  final ConstellationEffectsService _constellationEffectsService;
 
   // ----------------- constants ------------
   static const int _openHour = 18; // 6 PM
@@ -70,7 +72,7 @@ class BlackMarketService extends ChangeNotifier {
   String _lastPurchaseDate = ''; // = lastWeekKey (yyyy-MM-dd of Monday)
 
   // ----------------- public API -----------
-  bool get isOpen => _isOpen;
+  bool get isOpen => !_isOpen;
   String get premiumRarity => _premiumRarity;
   String get premiumType => _premiumType;
   double get premiumBonus => _premiumBonus;
@@ -88,8 +90,9 @@ class BlackMarketService extends ChangeNotifier {
   // ----------------- schedule/open window -----------
   void _checkStatus() {
     final now = DateTime.now();
-    // Black Market open from 4 PM to 4 AM (16:00 - 04:00)
-    final newStatus = now.hour >= _openHour || now.hour < _closeHour;
+
+    final alwaysOpen = _constellationEffectsService.has24x7BlackMarket();
+    final newStatus = alwaysOpen || _isOpenAt(now);
 
     if (newStatus != _isOpen) {
       _isOpen = newStatus;
@@ -98,48 +101,59 @@ class BlackMarketService extends ChangeNotifier {
   }
 
   bool _isOpenAt(DateTime t) => t.hour >= _openHour || t.hour < _closeHour;
-
   DateTime _at(DateTime base, int hour, {int addDays = 0}) => DateTime(
     base.year,
     base.month,
     base.day,
     hour,
   ).add(Duration(days: addDays));
-
   DateTime getNextOpenTime() {
+    if (_constellationEffectsService.has24x7BlackMarket()) {
+      // Conceptually "now" – already open.
+      return DateTime.now();
+    }
+
     final now = DateTime.now();
 
-    // Today’s and tomorrow’s open anchors
     final todayOpen = _at(now, _openHour);
     final tomorrowOpen = _at(now, _openHour, addDays: 1);
 
-    // If currently closed (04:00–15:59), open next is today at 16:00 (if not passed)
     if (!_isOpenAt(now)) {
       return now.isBefore(todayOpen) ? todayOpen : tomorrowOpen;
     }
 
-    // If currently open (16:00–03:59), next open is tomorrow 16:00
     return tomorrowOpen;
   }
 
   DateTime getNextCloseTime() {
+    if (_constellationEffectsService.has24x7BlackMarket()) {
+      // Never really closes – return now so countdowns show 0.
+      return DateTime.now();
+    }
+
     final now = DateTime.now();
 
-    // If open and before 04:00, close is today 04:00
     if (now.hour < _closeHour) return _at(now, _closeHour);
-
-    // If open and >= 16:00, close is tomorrow 04:00
     if (now.hour >= _openHour) return _at(now, _closeHour, addDays: 1);
 
-    // If currently closed (04:00–15:59), the next close corresponds to upcoming open window
     return _at(now, _closeHour, addDays: 1);
   }
 
   Duration _nonNeg(Duration d) => d.isNegative ? Duration.zero : d;
-  Duration getTimeUntilOpen() =>
-      _nonNeg(getNextOpenTime().difference(DateTime.now()));
-  Duration getTimeUntilClose() =>
-      _nonNeg(getNextCloseTime().difference(DateTime.now()));
+
+  Duration getTimeUntilOpen() {
+    if (_constellationEffectsService.has24x7BlackMarket()) {
+      return Duration.zero;
+    }
+    return _nonNeg(getNextOpenTime().difference(DateTime.now()));
+  }
+
+  Duration getTimeUntilClose() {
+    if (_constellationEffectsService.has24x7BlackMarket()) {
+      return Duration.zero;
+    }
+    return _nonNeg(getNextCloseTime().difference(DateTime.now()));
+  }
 
   // ----------------- weekly helpers ----------------
   // Monday-start week key (yyyy-MM-dd of Monday)

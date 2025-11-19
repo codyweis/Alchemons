@@ -368,16 +368,20 @@ class _ShopScreenState extends State<ShopScreen> {
 
         final cards = effectOffers.map((offer) {
           final canPurchase = shopService.canPurchase(offer.id);
-          final canAffordUnit = offer.cost.entries.every(
+
+          // 👇 use effective (possibly discounted) cost
+          final effectiveCost = shopService.getEffectiveCost(offer);
+          final canAffordUnit = effectiveCost.entries.every(
             (e) => (allCurrencies[e.key] ?? 0) >= e.value,
           );
 
           final invKey = offer.inventoryKey;
+
           final invQty = invKey != null ? (inventory[invKey] ?? 0) : 0;
           final status = invQty > 0 ? 'x$invQty' : null;
 
           final costWidgets = <Widget>[
-            for (final entry in offer.cost.entries)
+            for (final entry in effectiveCost.entries)
               CostChip(
                 currencyType: entry.key,
                 amount: entry.value,
@@ -458,8 +462,12 @@ class _ShopScreenState extends State<ShopScreen> {
         }
 
         final canPurchase = shopService.canPurchase(offer.id);
-        final price = offer.cost['silver'] ?? 100;
+
+        // 👇 apply discount to vial price too
+        final effectiveCost = shopService.getEffectiveCost(offer);
+        final price = effectiveCost['silver'] ?? (offer.cost['silver'] ?? 100);
         final canAfford = (allCurrencies['silver'] ?? 0) >= price;
+
         final isPurchased = !canPurchase;
 
         // Build cost chips
@@ -626,8 +634,9 @@ class _ShopScreenState extends State<ShopScreen> {
 
         final cards = deviceOffers.map((offer) {
           final canPurchase = shopService.canPurchase(offer.id);
-          // 3. Check affordability against the MERGED balances
-          final canAffordUnit = offer.cost.entries.every(
+
+          final effectiveCost = shopService.getEffectiveCost(offer);
+          final canAffordUnit = effectiveCost.entries.every(
             (e) => (mergedBalances[e.key] ?? 0) >= e.value,
           );
 
@@ -637,9 +646,9 @@ class _ShopScreenState extends State<ShopScreen> {
 
           final costWidgets = <Widget>[];
 
-          for (final entry in offer.cost.entries) {
+          for (final entry in effectiveCost.entries) {
             if (entry.key.startsWith('res_')) {
-              // It is an Elemental Resource
+              // Elemental Resource
               final res = ElementResources.all.firstWhere(
                 (r) => r.settingsKey == entry.key,
                 orElse: () => ElementResources.all.first,
@@ -653,7 +662,6 @@ class _ShopScreenState extends State<ShopScreen> {
                 ),
               );
             } else {
-              // It is Gold or Silver
               costWidgets.add(
                 CostChip(
                   currencyType: entry.key,
@@ -726,7 +734,9 @@ class _ShopScreenState extends State<ShopScreen> {
 
         final cards = instantOffers.map((offer) {
           final canPurchase = shopService.canPurchase(offer.id);
-          final canAffordUnit = offer.cost.entries.every(
+
+          final effectiveCost = shopService.getEffectiveCost(offer);
+          final canAffordUnit = effectiveCost.entries.every(
             (e) => (allCurrencies[e.key] ?? 0) >= e.value,
           );
 
@@ -735,7 +745,7 @@ class _ShopScreenState extends State<ShopScreen> {
           final status = invQty > 0 ? 'x$invQty' : null;
 
           final costWidgets = <Widget>[
-            for (final entry in offer.cost.entries)
+            for (final entry in effectiveCost.entries)
               CostChip(
                 currencyType: entry.key,
                 amount: entry.value,
@@ -802,15 +812,14 @@ class _ShopScreenState extends State<ShopScreen> {
         final cards = exchangeOffers.map<Widget>((offer) {
           final canPurchase = shopService.canPurchase(offer.id);
 
-          // --- BUILD A NORMAL GAME SHOP CARD ---
-
-          final canAffordUnit = offer.cost.entries.every(
+          final effectiveCost = shopService.getEffectiveCost(offer);
+          final canAffordUnit = effectiveCost.entries.every(
             (e) => (mergedBalances[e.key] ?? 0) >= e.value,
           );
-
           // ... (rest of your existing logic for cost widgets) ...
+
           final List<Widget> costWidgets = [];
-          offer.cost.forEach((key, amount) {
+          effectiveCost.forEach((key, amount) {
             if (key.startsWith('res_')) {
               final res = ElementResources.all.firstWhere(
                 (r) => r.settingsKey == key,
@@ -833,7 +842,6 @@ class _ShopScreenState extends State<ShopScreen> {
               );
             }
           });
-
           final card = GameShopCard(
             key: ValueKey('fx-${offer.id}'),
             title: offer.name,
@@ -929,12 +937,14 @@ class _ShopScreenState extends State<ShopScreen> {
 
         final cards = specialOffers.map((offer) {
           final canPurchase = shopService.canPurchase(offer.id);
-          final canAffordUnit = offer.cost.entries.every(
+
+          final effectiveCost = shopService.getEffectiveCost(offer);
+          final canAffordUnit = effectiveCost.entries.every(
             (e) => (allCurrencies[e.key] ?? 0) >= e.value,
           );
 
           final costWidgets = <Widget>[
-            for (final entry in offer.cost.entries)
+            for (final entry in effectiveCost.entries)
               CostChip(
                 currencyType: entry.key,
                 amount: entry.value,

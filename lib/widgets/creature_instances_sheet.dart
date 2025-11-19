@@ -107,7 +107,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
   late SettingsDao _settings;
   async.Timer? _saveTimer;
 
-  String get _prefsKey => 'instances_filters_${widget.species.id}';
+  String get _prefsKey => 'instances_filters';
 
   // persist the minimal UI state
   Map<String, dynamic> _toPrefs() => {

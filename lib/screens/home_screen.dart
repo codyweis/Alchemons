@@ -8,6 +8,8 @@ import 'package:alchemons/screens/game_screen.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
+import 'package:alchemons/screens/upgrade_tree/constellation_points_widget.dart';
+import 'package:alchemons/screens/upgrade_tree/constellation_screen.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
@@ -325,7 +327,6 @@ class _HomeScreenState extends State<HomeScreen>
       if (!mounted) return;
       final spawnService = context.read<WildernessSpawnService>();
 
-      await factionSvc.ensureAirExtraSlotUnlocked();
       await _grantStarterIfNeeded(faction, spawnService);
 
       // Load featured hero
@@ -657,13 +658,13 @@ class _HomeScreenState extends State<HomeScreen>
     FactionId faction,
   ) {
     switch (faction) {
-      case FactionId.fire:
+      case FactionId.volcanic:
         return (particle: .1, rotation: 0.1, elemental: .3);
-      case FactionId.water:
+      case FactionId.oceanic:
         return (particle: 1, rotation: 0.1, elemental: .5);
-      case FactionId.air:
+      case FactionId.verdant:
         return (particle: 1, rotation: 0.1, elemental: 1);
-      case FactionId.earth:
+      case FactionId.earthen:
         return (particle: 1, rotation: 0.1, elemental: 0.2);
     }
   }
@@ -900,7 +901,7 @@ class _HomeScreenState extends State<HomeScreen>
             required discovered,
           }) {
             final factionSvc = context.watch<FactionService>();
-            final currentFaction = factionSvc.current ?? FactionId.water;
+            final currentFaction = factionSvc.current ?? FactionId.oceanic;
             final speeds = _speedFor(currentFaction);
 
             return Stack(
@@ -1045,15 +1046,26 @@ class _HomeScreenState extends State<HomeScreen>
                                 ),
                               );
                             },
+
                       onBattle: _isFieldTutorialActive
                           ? () {}
                           : () {
                               HapticFeedback.mediumImpact();
                               Navigator.push(
                                 context,
-                                CupertinoPageRoute(
-                                  builder: (_) => const GameScreen(),
-                                  fullscreenDialog: true,
+                                MaterialPageRoute(
+                                  builder: (_) => const BossBattleScreen(),
+                                ),
+                              );
+                            },
+                      onBoss: _isFieldTutorialActive
+                          ? () {}
+                          : () {
+                              HapticFeedback.mediumImpact();
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const BossBattleScreen(),
                                 ),
                               );
                             },
@@ -1062,50 +1074,31 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
 
                 // RIGHT-SIDE BUTTON (new)
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 125,
-                  right: 5,
-                  child: Opacity(
-                    opacity: _isFieldTutorialActive
-                        ? 0.4
-                        : 1.0, // Dim when tutorial active
-                    child: IgnorePointer(
-                      ignoring:
-                          _isFieldTutorialActive, // Disable interaction during tutorial
-                      child: GestureDetector(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const BossBattleScreen(),
+                Stack(
+                  children: [
+                    // --- 1. First Icon (Your existing "BATTLE" icon) ---
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 125,
+                      right: 0,
+                      child: Opacity(
+                        opacity: _isFieldTutorialActive ? 0.4 : 1.0,
+                        child: IgnorePointer(
+                          ignoring: _isFieldTutorialActive,
+                          child: GestureDetector(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const BossBattleScreen(),
+                              ),
+                            ),
+                            child: Column(
+                              children: [ConstellationPointsWidget()],
+                            ),
                           ),
-                        ),
-                        child: Column(
-                          children: [
-                            ClipRect(
-                              child: Align(
-                                alignment: Alignment.topCenter,
-                                heightFactor: .9, // Crop bottom ~20%
-                                child: Image.asset(
-                                  'assets/images/ui/trialsicon.png',
-                                  width: 80,
-                                  height: 80,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              'BATTLE',
-                              style: TextStyle(
-                                color: theme.text,
-                                fontSize: 12,
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
 
                 // Side dock etc. (static, doesn’t need TickerMode)

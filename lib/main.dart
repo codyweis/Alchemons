@@ -10,6 +10,7 @@ import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
+import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -149,6 +150,7 @@ class _AppGateState extends State<AppGate> {
       if (mustPick) _openPicker();
 
       if (!mounted) return;
+      await context.read<ConstellationService>().calculateRetroactivePoints();
       setState(() {
         _readyToShowShell = true;
       });
@@ -245,7 +247,6 @@ class _AppGateState extends State<AppGate> {
       'assets/images/ui/enhanceicon.png',
       'assets/images/ui/fieldicon.png',
       'assets/images/ui/competeicon.png',
-      'assets/images/ui/extractionicon.png',
 
       // Title images (both light/dark variants)
       'assets/images/ui/alchemonstitle.png',

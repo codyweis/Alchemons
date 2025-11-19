@@ -33,12 +33,14 @@ class WildernessService {
     required double partyLuck,
     required double matchupMult, // e.g., type synergy 0.8..1.3
     bool hasEartherPerk = false,
+    double wildernessBonus = 0.0,
   }) {
     double c = base * (1.0 + partyLuck) * matchupMult;
 
     if (hasEartherPerk) {
       c *= 1.25; // Earther: +25% success
     }
+    c += wildernessBonus;
 
     return c.clamp(0.01, 0.95);
   }

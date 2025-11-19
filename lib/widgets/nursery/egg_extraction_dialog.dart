@@ -11,7 +11,6 @@ class ExtractionDialog extends StatefulWidget {
   final IncubatorSlot slot;
   final Color primaryColor;
   final bool isUndiscovered;
-  final bool showAirPredict;
   final VoidCallback onExtract;
   final VoidCallback onDiscard;
   final VoidCallback onCancel;
@@ -20,7 +19,6 @@ class ExtractionDialog extends StatefulWidget {
     required this.slot,
     required this.primaryColor,
     required this.isUndiscovered,
-    required this.showAirPredict,
     required this.onExtract,
     required this.onDiscard,
     required this.onCancel,
@@ -190,45 +188,6 @@ class ExtractionDialogState extends State<ExtractionDialog>
                     ),
                   ),
                 ),
-
-                // Undiscovered badge (Air faction only)
-                if (widget.showAirPredict && widget.isUndiscovered) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.teal.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.teal.withOpacity(0.4),
-                        width: 2,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.insights_rounded,
-                          size: 16,
-                          color: Colors.teal.shade300,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'UNDISCOVERED',
-                          style: TextStyle(
-                            color: Colors.teal.shade300,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
 
                 const SizedBox(height: 32),
 

@@ -9,6 +9,8 @@ import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/breeding_service.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
@@ -95,17 +97,22 @@ class AppProviders extends StatelessWidget {
           create: (ctx) => HarvestService(ctx.read<AlchemonsDatabase>()),
         ),
 
-        ChangeNotifierProvider<BlackMarketService>(
-          create: (ctx) => BlackMarketService(ctx.read<AlchemonsDatabase>()),
-        ),
-
         ChangeNotifierProvider<BossProgressNotifier>(
           create: (ctx) => BossProgressNotifier(),
         ),
 
-        ChangeNotifierProvider(
-          create: (ctx) => ShopService(ctx.read<AlchemonsDatabase>()),
+        ChangeNotifierProvider<ConstellationEffectsService>(
+          create: (context) =>
+              ConstellationEffectsService(context.read<AlchemonsDatabase>()),
         ),
+
+        ChangeNotifierProvider(
+          create: (ctx) => BlackMarketService(
+            ctx.read<AlchemonsDatabase>(),
+            ctx.read<ConstellationEffectsService>(),
+          ),
+        ),
+
         ChangeNotifierProvider(
           create: (ctx) => InventoryService(ctx.read<AlchemonsDatabase>()),
         ),
@@ -138,20 +145,30 @@ class AppProviders extends StatelessWidget {
         // Creature repository provider (this is your "repo catalog")
         Provider<CreatureCatalog>.value(value: gameDataService.catalog),
 
+        ChangeNotifierProvider<FactionService>(
+          create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
+        ),
         ChangeNotifierProvider(
           create: (context) =>
               WildernessSpawnService(context.read<AlchemonsDatabase>()),
         ),
 
         Provider(
-          create: (context) => CatchService(context.read<AlchemonsDatabase>()),
+          create: (context) => CatchService(
+            context.read<AlchemonsDatabase>(),
+            context.read<ConstellationEffectsService>(),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (ctx) => ShopService(
+            ctx.read<AlchemonsDatabase>(),
+            ctx.read<ConstellationEffectsService>(),
+            ctx.read<FactionService>(),
+          ),
         ),
 
         ChangeNotifierProvider<SelectedPartyNotifier>(
           create: (_) => SelectedPartyNotifier(),
-        ),
-        ChangeNotifierProvider<FactionService>(
-          create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
         ),
 
         ProxyProvider2<FactionService, ThemeNotifier, FactionTheme>(
@@ -193,6 +210,11 @@ class AppProviders extends StatelessWidget {
             db: ctx.read<AlchemonsDatabase>(),
             payloadFactory: ctx.read<EggPayloadFactory>(),
           ),
+        ),
+
+        ChangeNotifierProvider(
+          create: (context) =>
+              ConstellationService(context.read<AlchemonsDatabase>()),
         ),
 
         // Single loader for all catalogs (recipes, natures, genetics)
@@ -252,6 +274,8 @@ class AppProviders extends StatelessWidget {
                   engine: engine,
                   payloadFactory: payloadFactory,
                   wildRandomizer: wildRandomizer,
+                  constellation: ctx.read<ConstellationEffectsService>(),
+                  factions: ctx.read<FactionService>(),
                 );
               },
         ),

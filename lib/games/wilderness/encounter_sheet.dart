@@ -22,7 +22,11 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_service.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/likelihood_analyzer.dart';
+import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
@@ -93,6 +97,47 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _show();
     });
+  }
+
+  String _familyKeyForCreature(Creature c) {
+    if (c.mutationFamily != null && c.mutationFamily!.isNotEmpty) {
+      return c.mutationFamily!.toUpperCase();
+    }
+    final match = RegExp(r'^[A-Za-z]+').firstMatch(c.id);
+    final letters = match?.group(0) ?? c.id;
+    return letters.toUpperCase();
+  }
+
+  Future<void> _showCrossSpeciesLockedDialog(
+    BuildContext context,
+    String familyA,
+    String familyB,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final theme = context.read<FactionTheme>();
+        return AlertDialog(
+          title: Text(
+            'Further Research Required',
+            style: TextStyle(color: theme.text),
+          ),
+          content: Text(
+            'Your current field protocols only support fusion within the '
+            'same lineage family.\n\n'
+            'To attempt wild breeding between $familyA and $familyB specimens, '
+            'unlock the Cross-Species Lineage node in the Breeder constellation.',
+            style: TextStyle(color: theme.text),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _show() {
@@ -250,14 +295,48 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
     try {
       final db = ctx.read<AlchemonsDatabase>();
+      final repo = ctx.read<CreatureCatalog>();
       final wilderness = WildernessService(db, ctx.read<StaminaService>());
-      final instance = await db.creatureDao.getInstance(_chosenInstanceId!);
 
-      final totalLuck = instance != null ? (instance.statBeauty / 100.0) : 0.0;
+      final instance = await db.creatureDao.getInstance(_chosenInstanceId!);
+      if (instance == null) {
+        setState(() => _status = 'Error loading specimen data');
+        return;
+      }
+
+      // --- Cross-species check BEFORE stamina / roll / cinematic ---
+      final speciesA = repo.getCreatureById(instance.baseId);
+      final speciesB = wildCreature;
+
+      if (speciesA == null) {
+        setState(() => _status = 'Error loading species data');
+        return;
+      }
+
+      final famA = _familyKeyForCreature(speciesA);
+      final famB = _familyKeyForCreature(speciesB);
+      final sameFamily = famA == famB;
+
+      final skills = await db.constellationDao.getUnlockedSkillIds();
+      final hasCrossSpecies = skills.contains('breeder_cross_species');
+
+      if (!sameFamily && !hasCrossSpecies) {
+        await _showCrossSpeciesLockedDialog(ctx, famA, famB);
+        setState(() {
+          _status = 'Further research required for cross-species fusion.';
+        });
+        return;
+      }
+      // --------------------------------------------------------------
+      final constellation = context.read<ConstellationEffectsService>();
+      final harvestBonus = constellation.getWildernessHarvestBonus();
+      final totalLuck = instance.statBeauty / 100.0;
+
       final p = wilderness.computeBreedChance(
         base: widget.encounter.baseBreedChance,
         partyLuck: totalLuck,
         matchupMult: 1.0,
+        wildernessBonus: harvestBonus,
       );
 
       final spent = await wilderness.trySpendForAttempt(_chosenInstanceId!);
@@ -273,9 +352,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       final success = wilderness.rollSuccess(p);
       if (success) {
-        final repo = ctx.read<CreatureCatalog>();
-
-        final speciesA = repo.getCreatureById(instance!.baseId);
+        final speciesA = repo.getCreatureById(instance.baseId);
         final speciesB = wildCreature;
 
         Color colorOf(Creature? c, Color fallback) =>
@@ -322,8 +399,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
             );
           }
 
-          if (speciesB?.spriteData != null) {
-            final sheet = sheetFromCreature(speciesB!);
+          if (speciesB.spriteData != null) {
+            final sheet = sheetFromCreature(speciesB);
             return SizedBox(
               width: 120,
               height: 120,
@@ -434,6 +511,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       engine: engine,
       payloadFactory: payloadFactory,
       wildRandomizer: randomizer,
+      constellation: ctx.read<ConstellationEffectsService>(),
+      factions: ctx.read<FactionService>(),
     );
 
     // Single call: service will randomize wild, breed, and compute analysis.
@@ -469,10 +548,20 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final baseHatchDelay =
         BreedConstants.rarityHatchTimes[rarityKey] ??
         const Duration(minutes: 10);
-    final hatchAtUtc = DateTime.now().toUtc().add(baseHatchDelay);
+
+    // 👇 apply nature + constellation
+    final natureMult = hatchMultForNature(capturedCreature.nature?.id);
+    final constellation = ctx.read<ConstellationEffectsService>();
+    final gestationReduction = constellation.getGestationReduction();
+    final totalMult = natureMult * (1.0 - gestationReduction);
+
+    final adjustedDelay = Duration(
+      milliseconds: (baseHatchDelay.inMilliseconds * totalMult).round(),
+    );
+
+    final hatchAtUtc = DateTime.now().toUtc().add(adjustedDelay);
 
     final factory = EggPayloadFactory(repo);
-
     final payload = factory.createWildCapturePayload(capturedCreature);
     final payloadJson = payload.toJsonString();
 
@@ -484,7 +573,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         eggId: eggId,
         resultCreatureId: capturedCreature.id,
         rarity: capturedCreature.rarity,
-        remaining: baseHatchDelay,
+        remaining: adjustedDelay,
         payloadJson: payloadJson,
       );
     } else {

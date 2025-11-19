@@ -112,10 +112,13 @@ class CreatureSelectionSheet extends StatefulWidget {
 }
 
 class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
-  String _selectedFilter = 'All';
-  String _selectedSort = 'Name';
+  static String _lastSelectedFilter = 'All';
+  static String _lastSelectedSort = 'Name';
   String _searchQuery = '';
   final _searchController = TextEditingController();
+
+  late String _selectedFilter;
+  late String _selectedSort;
 
   late InstanceDetailMode _detailMode;
 
@@ -123,11 +126,16 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
   void initState() {
     super.initState();
     _detailMode = widget.initialDetailMode;
+    _selectedFilter = _lastSelectedFilter;
+    _selectedSort = _lastSelectedSort;
+    _detailMode = widget.initialDetailMode;
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _lastSelectedFilter = _selectedFilter;
+    _lastSelectedSort = _selectedSort;
     super.dispose();
   }
 

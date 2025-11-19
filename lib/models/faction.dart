@@ -1,5 +1,5 @@
 // lib/models/faction.dart
-enum FactionId { fire, water, air, earth }
+enum FactionId { volcanic, oceanic, verdant, earthen }
 
 class FactionPerk {
   final String code; // e.g. 'HellRaiser'
@@ -17,55 +17,55 @@ class FactionDef {
 }
 
 class Factions {
-  static const fire = FactionDef(FactionId.fire, 'Fire', '🔥', [
-    FactionPerk(
-      'HellRaiser',
-      'Hell Raiser',
-      '5% increased XP to all creatures when leveling',
-    ),
+  static const volcanic = FactionDef(FactionId.volcanic, 'Volcanic', '🔥', [
     FactionPerk(
       'FireBreeder',
       'Fire Breeder',
-      '50% off breed timers created when using a fire parent',
+      '50% chance to get half off extraction timers when using two fire specimens',
+    ),
+    FactionPerk(
+      'VolcanicHarvester',
+      'Volcanic Harvester',
+      'Extreme discounts on volcanic harvesting devices',
     ),
   ]);
 
-  static const water = FactionDef(FactionId.water, 'Water', '🌊', [
+  static const oceanic = FactionDef(FactionId.oceanic, 'Oceanic', '🌊', [
     FactionPerk(
       'WaterBreeder',
       'Water Breeder',
-      'Water creatures may not lose stamina when breeding together',
+      '50% chance Water specimens don\'t lose stamina when breeding together',
     ),
     FactionPerk(
-      'AquaSanctuary',
-      'Aqua Sanctuary',
-      'After each expedition, Water creatures return fully rested',
+      'OceanicHarvester',
+      'Oceanic Harvester',
+      'Extreme discounts on oceanic harvesting devices',
     ),
   ]);
 
-  static const air = FactionDef(FactionId.air, 'Air', '💨', [
-    FactionPerk('AirDrop', 'AirDrop', 'Unlock an extra breeding slot'),
+  static const verdant = FactionDef(FactionId.verdant, 'Verdant', '💨', [
+    FactionPerk('AirDrop', 'AirDrop', 'Unlock an extra extraction chamber'),
     FactionPerk(
-      'AirSensory',
-      'Air Sensory',
-      'Predict if a fusion is undiscovered',
+      'VerdantHarvester',
+      'Verdant Harvester',
+      'Extreme discounts on verdant harvesting devices',
     ),
   ]);
 
-  static const earth = FactionDef(FactionId.earth, 'Earth', '🌍', [
+  static const earthen = FactionDef(FactionId.earthen, 'Earthen', '🌍', [
     FactionPerk(
-      'LandExplorer',
-      'Land Explorer',
-      'Earthen creatures gain 50% increased extraction speed',
+      'EarthenSale',
+      'Earthen Sale',
+      '50% increase in value to earthen specimens sold',
     ),
     FactionPerk(
-      'Earther',
-      'Earther',
-      '25% increase success rate in wilderness',
+      'EarthenHarvester',
+      'Earthen Harvester',
+      'Extreme discounts on earthen harvesting devices',
     ),
   ]);
 
-  static const all = [fire, water, air, earth];
+  static const all = [volcanic, oceanic, verdant, earthen];
 
   static FactionDef byId(FactionId id) => all.firstWhere((f) => f.id == id);
 }

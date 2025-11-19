@@ -18,7 +18,6 @@ class SlotInfoDialog extends StatefulWidget {
   final double progress; // 0..1
 
   final bool isUndiscovered;
-  final bool showAirPredict;
   final VoidCallback onAccelerate;
   final VoidCallback onReturn;
   final VoidCallback onClose;
@@ -31,7 +30,6 @@ class SlotInfoDialog extends StatefulWidget {
     required this.remaining,
     required this.progress,
     required this.isUndiscovered,
-    required this.showAirPredict,
     required this.onAccelerate,
     required this.onReturn,
     required this.onClose,
@@ -401,45 +399,6 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                       ),
 
                       const SizedBox(height: 18),
-
-                      // Undiscovered badge (Air faction only)
-                      if (widget.showAirPredict && widget.isUndiscovered)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.teal.withOpacity(.15),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: Colors.teal.withOpacity(.4),
-                              width: 2,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.insights_rounded,
-                                size: 16,
-                                color: Colors.teal.shade300,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'UNDISCOVERED',
-                                style: TextStyle(
-                                  color: Colors.teal.shade300,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: .8,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      const SizedBox(height: 16),
 
                       // Status card (live time remaining, computed INSIDE the AnimatedBuilder so it changes)
                       Container(

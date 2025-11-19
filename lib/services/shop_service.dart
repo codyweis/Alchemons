@@ -3,7 +3,10 @@ import 'dart:math' as math;
 
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
+import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
@@ -41,14 +44,39 @@ class ShopOffer {
 
 class ShopService extends ChangeNotifier {
   final AlchemonsDatabase _db;
+  final ConstellationEffectsService _constellations;
+  final FactionService _factions;
 
   // Track purchases
   final Map<String, int> _purchaseCounts = {}; // offerId -> count
   final Map<String, DateTime> _lastPurchaseTime = {}; // offerId -> last time
 
-  ShopService(this._db) {
+  ShopService(this._db, this._constellations, this._factions) {
     _loadPurchaseHistory();
     _loadInventoryCache();
+  }
+
+  /// Faction-based discount for standard wild harvesters.
+  /// Each faction gets 90% off *its own* biome harvester (pays 10% of base).
+  double _harvesterFactionMultiplier(ShopOffer offer) {
+    // Get current faction (adjust getter name to match your FactionService)
+    final faction = _factions.current; // e.g. FactionId.volcanic
+
+    switch (offer.id) {
+      case 'device.harvest.std.volcanic':
+        return faction == FactionId.volcanic ? 0.1 : 1.0;
+      case 'device.harvest.std.oceanic':
+        return faction == FactionId.oceanic ? 0.1 : 1.0;
+      case 'device.harvest.std.verdant':
+        return faction == FactionId.verdant ? 0.1 : 1.0;
+      case 'device.harvest.std.earthen':
+        return faction == FactionId.earthen ? 0.1 : 1.0;
+
+      // No matching faction for arcane in the enum you showed earlier,
+      // so we leave the Arcane harvester at full price for everyone.
+      default:
+        return 1.0;
+    }
   }
 
   static Widget? getAlchemyEffectPreview(
@@ -182,7 +210,7 @@ class ShopService extends ChangeNotifier {
       name: 'Wild Harvester – Volcanic',
       description: 'Standard device. Chance-based.',
       icon: Icons.local_fire_department_rounded,
-      cost: const {'silver': 100, 'res_volcanic': 100},
+      cost: const {'silver': 999, 'res_volcanic': 100},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -194,7 +222,7 @@ class ShopService extends ChangeNotifier {
       name: 'Wild Harvester – Oceanic',
       description: 'Standard device. Chance-based.',
       icon: Icons.water_rounded,
-      cost: const {'silver': 500, 'res_oceanic': 100},
+      cost: const {'silver': 999, 'res_oceanic': 100},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -206,7 +234,7 @@ class ShopService extends ChangeNotifier {
       name: 'Wild Harvester – Verdant',
       description: 'Standard device. Chance-based.',
       icon: Icons.eco_rounded,
-      cost: const {'silver': 100, 'res_verdant': 100},
+      cost: const {'silver': 999, 'res_verdant': 100},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -218,7 +246,7 @@ class ShopService extends ChangeNotifier {
       name: 'Wild Harvester – Earthen',
       description: 'Standard device. Chance-based.',
       icon: Icons.terrain_rounded,
-      cost: const {'silver': 100, 'res_earthen': 100},
+      cost: const {'silver': 999, 'res_earthen': 100},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -230,7 +258,7 @@ class ShopService extends ChangeNotifier {
       name: 'Wild Harvester – Arcane',
       description: 'Standard device. Chance-based.',
       icon: Icons.auto_awesome_rounded,
-      cost: const {'silver': 200, 'res_arcane': 200},
+      cost: const {'silver': 999, 'res_arcane': 500},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -259,7 +287,7 @@ class ShopService extends ChangeNotifier {
       description: 'Complete one active fusion vial instantly.',
       assetName: 'assets/images/ui/instantbreedicon.png',
       icon: Icons.access_alarms,
-      cost: const {'silver': 5000},
+      cost: const {'silver': 10000},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -270,9 +298,9 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'fx.silver_to_gold.unit',
       name: 'Silver → Gold (10g)',
-      description: 'Convert 20,000 silver to 10 gold.',
+      description: 'Convert 50,000 silver to 10 gold.',
       icon: Icons.currency_exchange_rounded,
-      cost: const {'silver': 20000},
+      cost: const {'silver': 50000},
       reward: const {'gold': 10},
       rewardType: 'currency',
       limit: PurchaseLimit.unlimited,
@@ -562,6 +590,37 @@ class ShopService extends ChangeNotifier {
     }
   }
 
+  /// Get the *effective* cost of an offer after constellation + faction discounts
+  Map<String, int> getEffectiveCost(ShopOffer offer) {
+    final baseCost = offer.cost;
+
+    // 🔮 Constellation discount
+    final reduction = _constellations.getShopPriceReduction(); // e.g. 0.20
+    var factor = (1.0 - reduction).clamp(0.0, 1.0);
+
+    // 🪓 Faction discount for harvesters (90% off own biome)
+    final harvesterMult = _harvesterFactionMultiplier(offer);
+    factor = (factor * harvesterMult).clamp(0.0, 1.0);
+
+    if (factor >= 0.999) {
+      return Map<String, int>.from(baseCost);
+    }
+
+    final discounted = <String, int>{};
+
+    baseCost.forEach((key, value) {
+      if (value <= 0) {
+        discounted[key] = value;
+      } else {
+        final raw = (value * factor).ceil();
+        final clamped = raw > value ? value : raw;
+        discounted[key] = clamped < 1 ? 1 : clamped;
+      }
+    });
+
+    return discounted;
+  }
+
   /// Purchase with optional quantity for unlimited items
   Future<bool> purchase(String offerId, {int qty = 1}) async {
     if (!canPurchase(offerId)) return false;
@@ -569,9 +628,10 @@ class ShopService extends ChangeNotifier {
     final offer = _resolveOfferById(offerId);
     if (offer == null) return false;
 
-    // Compute total cost (per-unit * qty)
+    // Compute total cost (per-unit * qty), using discounted constellation price
+    final perUnitCost = getEffectiveCost(offer);
     final totalCost = <String, int>{};
-    offer.cost.forEach((k, v) => totalCost[k] = v * qty);
+    perUnitCost.forEach((k, v) => totalCost[k] = v * qty);
 
     // Check affordability
     final currencies = await _db.currencyDao.getAllCurrencies();

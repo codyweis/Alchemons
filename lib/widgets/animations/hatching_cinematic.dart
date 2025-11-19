@@ -190,14 +190,16 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     final outer = size.shortestSide * 0.22;
     final innerR = size.shortestSide * 0.12;
 
-    // Flower
+    // Flower - NOTE: Paint colors are now at FULL opacity
+    // We'll apply the geometry opacity separately when drawing
     {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec);
       final p = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color = base.withOpacity(0.35)
+        ..color =
+            base // Full opacity here
         ..isAntiAlias = true;
       c.save();
       c.translate(center.dx, center.dy);
@@ -210,14 +212,14 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
       cache.flower = rec.endRecording();
     }
 
-    // Cube-ish
+    // Cube-ish - Same here, full opacity
     {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec);
       final p = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8
-        ..color = base.withOpacity(0.25);
+        ..color = base; // Full opacity
       c.save();
       c.translate(center.dx, center.dy);
       final pts = <Offset>[];
@@ -233,7 +235,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
       final inner = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color = base.withOpacity(0.6);
+        ..color = base; // Full opacity
       c.drawCircle(Offset.zero, innerR * 0.55, inner);
       c.restore();
       cache.cube = rec.endRecording();
@@ -548,7 +550,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
       canvas.drawRect(Offset.zero & size, vignettePaint);
     }
 
-    // ====== Sacred Geometry (cached pictures) ======
+    // ====== Sacred Geometry (cached pictures with proper opacity) ======
     if (geoOpacity > 0) {
       final rot1 =
           2 * pi * Curves.easeOutCubic.transform((t - 0.40).clamp(0.0, .5) * 2);
@@ -557,23 +559,38 @@ class _CoreAndGeometryPainter extends CustomPainter {
           pi *
           Curves.easeOutCubic.transform((t - 0.48).clamp(0.0, .5) * 2);
 
-      // Flower (outer)
+      // Flower (outer) - Apply opacity via saveLayer
       if (_flowerPic != null) {
         canvas.save();
         canvas.translate(center.dx, center.dy);
         canvas.rotate(rot1);
         canvas.translate(-center.dx, -center.dy);
+
+        // Apply geometry opacity properly
+        final opacityPaint = Paint()
+          ..color = Color.fromRGBO(255, 255, 255, geoOpacity);
+        canvas.saveLayer(null, opacityPaint);
         canvas.drawPicture(_flowerPic!);
-        canvas.restore();
+        canvas.restore(); // restore saveLayer
+
+        canvas.restore(); // restore transform
       }
 
+      // Cube - Apply opacity via saveLayer
       if (_cubePic != null) {
         canvas.save();
         canvas.translate(center.dx, center.dy);
         canvas.rotate(rot2);
         canvas.translate(-center.dx, -center.dy);
+
+        // Apply geometry opacity properly
+        final opacityPaint = Paint()
+          ..color = Color.fromRGBO(255, 255, 255, geoOpacity);
+        canvas.saveLayer(null, opacityPaint);
         canvas.drawPicture(_cubePic!);
-        canvas.restore();
+        canvas.restore(); // restore saveLayer
+
+        canvas.restore(); // restore transform
       }
     }
 

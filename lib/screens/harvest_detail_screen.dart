@@ -7,6 +7,7 @@ import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/providers/app_providers.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
@@ -429,6 +430,9 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
   }
 
   void _handleCollect(BiomeFarmState farm) async {
+    // 🔹 Snapshot the job BEFORE collecting (it will be cleared by collect)
+    final previousJob = farm.activeJob;
+
     HapticFeedback.mediumImpact();
     await _collectCtrl.forward(from: 0);
 
@@ -440,27 +444,146 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       SnackBar(
         duration: const Duration(seconds: 2),
         showCloseIcon: true,
-        content: Text(
-          'Collected $got ${widget.biome.resourceLabel}',
-        ), // UPDATED: simplified
+        content: Text('Collected $got ${widget.biome.resourceLabel}'),
         behavior: SnackBarBehavior.floating,
       ),
     );
 
     await _refreshCreatureCache();
+
+    // 🔹 If no previous job, nothing to reload
+    if (previousJob == null) return;
+
+    // 🔹 Check constellation skill
+    final constellations = context.read<ConstellationEffectsService>();
+    if (!constellations.hasInstantReload()) return;
+
+    final theme = context.read<FactionTheme>();
+
+    // 🔹 Ask player if they want to reload the same creature
+    final shouldReload = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: theme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Row(
+          children: [
+            const Icon(Icons.refresh_rounded, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              'Reload creature?',
+              style: TextStyle(
+                color: theme.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Send this Alchemon straight back into the extractor with the same settings?',
+          style: TextStyle(
+            color: theme.textMuted,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Not now',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Reload',
+              style: TextStyle(
+                color: theme.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldReload != true || !mounted) return;
+
+    // 🔹 Try to restart the same job instantly
+    final db = context.read<AlchemonsDatabase>();
+    final repo = context.read<CreatureCatalog>();
+
+    final inst = await db.creatureDao.getInstance(
+      previousJob.creatureInstanceId,
+    );
+    if (inst == null) {
+      _showToast(
+        'That creature is no longer available.',
+        icon: Icons.error_outline,
+        color: Colors.red.shade400,
+      );
+      return;
+    }
+
+    if (inst.staminaBars == 0) {
+      _showToast(
+        'This creature is too exhausted to work right now.',
+        icon: Icons.error_outline,
+        color: Colors.red.shade400,
+      );
+      return;
+    }
+
+    final base = repo.getCreatureById(inst.baseId);
+    if (base == null || base.types.isEmpty) return;
+
+    final creatureTypeId = base.types.first;
+    await widget.service.setActiveElement(widget.biome, creatureTypeId);
+
+    final ok = await widget.service.startJob(
+      biome: widget.biome,
+      creatureInstanceId: inst.instanceId,
+      duration: Duration(milliseconds: previousJob.durationMs),
+      ratePerMinute: previousJob.ratePerMinute,
+    );
+
+    if (!mounted) return;
+
+    if (!ok) {
+      _showToast(
+        'Could not reload extraction.',
+        icon: Icons.error_outline,
+        color: Colors.red.shade400,
+      );
+    } else {
+      HapticFeedback.mediumImpact();
+      _showToast(
+        'Chamber reloaded!',
+        icon: Icons.refresh_rounded,
+        color: theme.primary,
+      );
+      await _refreshCreatureCache();
+    }
   }
 
-  void _handleCancel() async {
+  void _handleCancel(theme) async {
     if (_collectCtrl.isAnimating) return;
 
     // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Cancel Extraction?'),
-        content: const Text(
+        title: Text('Cancel Extraction?', style: TextStyle(color: theme.text)),
+        content: Text(
           'Are you sure you want to cancel this extraction? '
           'Your specimens will be returned, but progress will be lost.',
+          style: TextStyle(color: theme.text),
         ),
         actions: [
           TextButton(
@@ -686,7 +809,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
                                       onCollect: farm.completed
                                           ? () => _handleCollect(farm)
                                           : null,
-                                      onCancel: _handleCancel,
+                                      onCancel: () => _handleCancel(theme),
                                     ),
                                 ],
                               ),

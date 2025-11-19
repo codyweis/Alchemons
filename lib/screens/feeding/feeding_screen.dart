@@ -1,5 +1,6 @@
 import 'package:alchemons/screens/feeding/feeding_stages.dart';
 import 'package:alchemons/screens/feeding/feeding_widgets.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
@@ -375,11 +376,13 @@ class _FeedingScreenState extends State<FeedingScreen>
       final db = context.read<AlchemonsDatabase>();
       final repo = context.read<CreatureCatalog>();
       final feedService = CreatureInstanceService(db);
+      final constellationEffects = context.read<ConstellationEffectsService>();
 
       final result = await feedService.previewFeed(
         targetInstanceId: _targetInstanceId!,
         fodderInstanceIds: _selectedFodder.toList(),
         repo: repo,
+        constellationEffects: constellationEffects,
         maxLevel: 10,
         strictSpecies: true,
       );
@@ -404,18 +407,17 @@ class _FeedingScreenState extends State<FeedingScreen>
 
     try {
       final repo = context.read<CreatureCatalog>();
-      final factions = context.read<FactionService>();
       final feedService = CreatureInstanceService(db);
+      final constellationEffects = context.read<ConstellationEffectsService>();
 
       final result = await feedService.feedInstances(
         targetInstanceId: _targetInstanceId!,
         fodderInstanceIds: _selectedFodder.toList(),
         repo: repo,
-        factions: factions,
+        constellationEffects: constellationEffects,
         maxLevel: 10,
         strictSpecies: true,
       );
-
       if (!mounted) return;
 
       if (result.ok) {

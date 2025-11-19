@@ -173,7 +173,7 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
     final speedFactor = isDark ? 1.0 : .5;
     final c = widget.waveController;
     switch (widget.factionType) {
-      case FactionId.fire:
+      case FactionId.volcanic:
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -199,7 +199,7 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
             ),
           ],
         );
-      case FactionId.water:
+      case FactionId.oceanic:
         return RepaintBoundary(
           child: CustomPaint(
             painter: RainSplashPainter(
@@ -213,7 +213,7 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
             willChange: true,
           ),
         );
-      case FactionId.air:
+      case FactionId.verdant:
         return RepaintBoundary(
           child: CustomPaint(
             painter: AirPainter(
@@ -226,7 +226,7 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
             willChange: true,
           ),
         );
-      case FactionId.earth:
+      case FactionId.earthen:
         return RepaintBoundary(
           child: CustomPaint(
             painter: EarthPlantsPainter(

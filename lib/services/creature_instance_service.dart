@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:uuid/uuid.dart';
@@ -190,9 +191,11 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
   /// - Grants +0.1 to fodder's highest stat
   /// - Applies -0.01 penalty to target's lowest stat (much gentler)
   /// - Uses 0.01 increments for fine control
+  /// - NOW WITH CONSTELLATION BONUSES!
   static Map<String, double> calculateStatGains({
     required db.CreatureInstance target,
     required List<db.CreatureInstance> fodders,
+    ConstellationEffectsService? constellationEffects,
   }) {
     final gains = <String, double>{
       'speed': 0.0,
@@ -254,6 +257,26 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
           (currentTargetStats[lowestStatName]! - penalty).clamp(0.0, 5.0);
     }
 
+    // ⭐ APPLY CONSTELLATION BONUSES ⭐
+    if (constellationEffects != null) {
+      // Each fodder consumed grants the constellation bonus
+      final bonusPerFodder = {
+        'speed': constellationEffects.getStatBoostMultiplier('speed'),
+        'intelligence': constellationEffects.getStatBoostMultiplier(
+          'intelligence',
+        ),
+        'strength': constellationEffects.getStatBoostMultiplier('strength'),
+        'beauty': constellationEffects.getStatBoostMultiplier('beauty'),
+      };
+
+      bonusPerFodder.forEach((stat, bonus) {
+        if (bonus > 0) {
+          // Apply bonus per fodder consumed
+          gains[stat] = (gains[stat] ?? 0) + (bonus * fodders.length);
+        }
+      });
+    }
+
     return gains;
   }
 
@@ -261,6 +284,7 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     required String targetInstanceId,
     required List<String> fodderInstanceIds,
     required CreatureCatalog repo,
+    ConstellationEffectsService? constellationEffects,
     int maxLevel = 10,
     bool strictSpecies = true,
   }) async {
@@ -297,7 +321,17 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       totalXp += (raw * mult).round();
     }
 
-    final statGains = calculateStatGains(target: target, fodders: fodders);
+    // Apply XP constellation bonus
+    if (constellationEffects != null) {
+      final xpMult = constellationEffects.getXpBoostMultiplier();
+      totalXp = (totalXp * xpMult).round();
+    }
+
+    final statGains = calculateStatGains(
+      target: target,
+      fodders: fodders,
+      constellationEffects: constellationEffects,
+    );
 
     final cappedGains = <String, double>{};
     cappedGains['speed'] = min(
@@ -342,7 +376,7 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     required String targetInstanceId,
     required List<String> fodderInstanceIds,
     required CreatureCatalog repo,
-    required FactionService factions,
+    ConstellationEffectsService? constellationEffects,
     int maxLevel = 10,
     bool strictSpecies = true,
   }) async {
@@ -384,10 +418,21 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
         ? NatureCatalog.byId(target.natureId!)
         : null;
     final xpMult = (n?.effect['xp_gain_mult'])?.toDouble() ?? 1.0;
-    final appliedXp =
-        ((totalXp * xpMult) * factions.fireXpMultiplierOnLevelGain()).round();
 
-    final statGains = calculateStatGains(target: target, fodders: fodders);
+    // Apply constellation XP boost
+    double constellationXpMult = 1.0;
+    if (constellationEffects != null) {
+      constellationXpMult = constellationEffects.getXpBoostMultiplier();
+    }
+
+    // Factions no longer affect XP
+    final appliedXp = (totalXp * xpMult * constellationXpMult).round();
+
+    final statGains = calculateStatGains(
+      target: target,
+      fodders: fodders,
+      constellationEffects: constellationEffects,
+    );
 
     final cappedGains = <String, double>{};
     cappedGains['speed'] = min(

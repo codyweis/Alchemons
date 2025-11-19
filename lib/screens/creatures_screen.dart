@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:alchemons/database/daos/settings_dao.dart';
+import 'package:alchemons/screens/breeding_milestones_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
@@ -484,6 +485,36 @@ class CreaturesScreenState extends State<CreaturesScreen>
       builder: (_) {
         return BottomSheetShell(
           theme: theme,
+          titleAction: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      BreedingMilestoneScreen(speciesId: species.id),
+                ),
+              );
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.surfaceAlt,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: theme.border),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.emoji_nature_rounded, // whatever icon makes sense
+                      size: 20,
+                      color: theme.textMuted,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           title: '${species.name} Specimens',
           child: InstancesSheet(
             species: species,

@@ -458,7 +458,6 @@ class _LoadingScreenState extends State<_LoadingScreen> {
       'assets/images/ui/enhanceicon.png',
       'assets/images/ui/fieldicon.png',
       'assets/images/ui/competeicon.png',
-      'assets/images/ui/extractionicon.png',
     ];
 
     // Match BottomNav's icon sizes (inactive ≈ 55, expanded tops out around ~80–120)

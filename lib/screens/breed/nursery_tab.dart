@@ -276,8 +276,7 @@ class _NurseryTabState extends State<NurseryTab> {
             slot.rarity ?? 'common',
           );
           final statusColor = ready ? Colors.green : rarityColor;
-          final factions = context.read<FactionService>();
-          final showAirPredict = factions.current == FactionId.air;
+
           final isUndiscovered =
               _undiscoveredCache[slot.resultCreatureId!] == true;
 
@@ -304,7 +303,6 @@ class _NurseryTabState extends State<NurseryTab> {
               remaining,
               progress,
               isUndiscovered,
-              showAirPredict,
             ),
           );
         }
@@ -340,10 +338,9 @@ class _NurseryTabState extends State<NurseryTab> {
     Duration remaining,
     double? progress,
     bool isUndiscovered,
-    bool showAirPredict,
   ) {
     if (ready) {
-      _showExtractionDialog(slot, primaryColor, isUndiscovered, showAirPredict);
+      _showExtractionDialog(slot, primaryColor, isUndiscovered);
     } else {
       showDialog(
         context: context,
@@ -353,7 +350,6 @@ class _NurseryTabState extends State<NurseryTab> {
           slot: slot,
           primaryColor: primaryColor,
           isUndiscovered: isUndiscovered,
-          showAirPredict: showAirPredict,
           maxSeenNowUtc: widget.maxSeenNowUtc,
           onAccelerate: () {
             Navigator.pop(context);
@@ -377,7 +373,6 @@ class _NurseryTabState extends State<NurseryTab> {
     IncubatorSlot slot,
     Color primaryColor,
     bool isUndiscovered,
-    bool showAirPredict,
   ) {
     showDialog(
       context: context,
@@ -387,7 +382,6 @@ class _NurseryTabState extends State<NurseryTab> {
         slot: slot,
         primaryColor: primaryColor,
         isUndiscovered: isUndiscovered,
-        showAirPredict: showAirPredict,
         onExtract: () {
           Navigator.pop(context);
           _hatchFromSlot(slot);
@@ -1006,7 +1000,6 @@ class _SlotInfoDialogWrapper extends StatefulWidget {
   final IncubatorSlot slot;
   final Color primaryColor;
   final bool isUndiscovered;
-  final bool showAirPredict;
   final DateTime? maxSeenNowUtc;
   final VoidCallback onAccelerate;
   final VoidCallback onReturn;
@@ -1017,7 +1010,6 @@ class _SlotInfoDialogWrapper extends StatefulWidget {
     required this.slot,
     required this.primaryColor,
     required this.isUndiscovered,
-    required this.showAirPredict,
     required this.maxSeenNowUtc,
     required this.onAccelerate,
     required this.onReturn,
@@ -1097,7 +1089,6 @@ class _SlotInfoDialogWrapperState extends State<_SlotInfoDialogWrapper> {
           remaining: remaining,
           progress: progress.clamp(0, 1),
           isUndiscovered: widget.isUndiscovered,
-          showAirPredict: widget.showAirPredict,
           onAccelerate: widget.onAccelerate,
           onInstantHatch: widget.onInstantHatch,
           onReturn: widget.onReturn,

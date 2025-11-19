@@ -14,12 +14,14 @@ import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/screens/breed/utils/breed_utils.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/services/breeding_engine.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/widgets/animations/breed_result_animation.dart';
 import 'package:alchemons/widgets/animations/database_typing_animation.dart';
 import 'package:alchemons/widgets/animations/hatching_cinematic.dart';
@@ -260,8 +262,11 @@ class EggHatching {
     final payloadJson = payload.toJsonString();
 
     final eggId = db.creatureDao.makeInstanceId('EGG');
-    final adjustedHatchDelay = _calculateHatchTime(rarity);
-
+    final adjustedHatchDelay = _calculateHatchTime(
+      context,
+      offspring,
+      bothParentsFire: false,
+    );
     // Try to place in incubator
     final free = await db.incubatorDao.firstFreeSlot();
 
@@ -303,10 +308,33 @@ class EggHatching {
   }
 
   // Helper for hatch time calculation
-  static Duration _calculateHatchTime(String rarity) {
-    final key = rarity.toLowerCase();
-    return BreedConstants.rarityHatchTimes[key] ??
-        const Duration(minutes: 10); // same default as breeding
+
+  static Duration _calculateHatchTime(
+    BuildContext context,
+    Creature offspring, {
+    bool bothParentsFire = false,
+  }) {
+    final key = offspring.rarity.toLowerCase();
+    final base =
+        BreedConstants.rarityHatchTimes[key] ?? const Duration(minutes: 10);
+
+    // Nature speed-up / slow-down
+    final natureMult = hatchMultForNature(offspring.nature?.id);
+
+    // Constellation gestation reduction (0–0.15)
+    final constellation = context.read<ConstellationEffectsService>();
+    final gestationReduction = constellation.getGestationReduction();
+
+    // 🔥 Volcanic Fire Breeder perk
+    final factions = context.read<FactionService>();
+    final fireMult = factions.fireBreederTimeMultiplier(
+      bothParentsFire: bothParentsFire,
+    );
+
+    // Combine all multipliers
+    final totalMult = natureMult * (1.0 - gestationReduction) * fireMult;
+
+    return Duration(milliseconds: (base.inMilliseconds * totalMult).round());
   }
   // ============================================================================
   // PRIVATE HELPERS

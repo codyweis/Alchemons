@@ -80,13 +80,13 @@ class StarterGrantService {
   // Map faction → the Let that matches its element.
   String _pickLetForFaction(FactionId faction) {
     switch (faction) {
-      case FactionId.fire:
+      case FactionId.volcanic:
         return 'LET01'; // Fire
-      case FactionId.water:
+      case FactionId.oceanic:
         return 'LET02'; // Water
-      case FactionId.earth:
+      case FactionId.earthen:
         return 'LET03'; // Earth
-      case FactionId.air:
+      case FactionId.verdant:
         return 'LET04'; // Air
     }
   }

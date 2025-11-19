@@ -52,7 +52,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
         philosophy: info.philosophy,
         description: info.description,
         perks: info.perks
-            .map((p) => _Perk(title: p.name, description: p.description))
+            .map((p) => _Perk(title: p.title, description: p.description))
             .toList(),
         primaryColor: primary,
         secondaryColor: secondary,
@@ -64,7 +64,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
 
     return [
       make(
-        FactionId.fire,
+        FactionId.volcanic,
         uiTitle: 'Volcanic',
         primary: const Color(0xFFFF6B35),
         secondary: const Color(0xFFFF8C42),
@@ -73,7 +73,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
         orb: 'assets/images/factions/volcanic.png',
       ),
       make(
-        FactionId.water,
+        FactionId.oceanic,
         uiTitle: 'Oceanic',
         primary: const Color(0xFF4ECDC4),
         secondary: const Color(0xFF45B7D1),
@@ -82,7 +82,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
         orb: 'assets/images/factions/oceanic.png',
       ),
       make(
-        FactionId.earth,
+        FactionId.earthen,
         uiTitle: 'Earthen',
         primary: const Color(0xFF95D5B2),
         secondary: const Color(0xFF74C69D),
@@ -91,7 +91,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
         orb: 'assets/images/factions/earthen.png',
       ),
       make(
-        FactionId.air,
+        FactionId.verdant,
         uiTitle: 'Verdant',
         primary: const Color(0xFFF3E8FF),
         secondary: const Color(0xFFD4C5F9),

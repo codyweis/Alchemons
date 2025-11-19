@@ -497,14 +497,14 @@ class EggPayloadFactory {
 
   String _factionKey(FactionId faction) {
     switch (faction) {
-      case FactionId.fire:
-        return 'fire';
-      case FactionId.water:
-        return 'water';
-      case FactionId.earth:
-        return 'earth';
-      case FactionId.air:
-        return 'air';
+      case FactionId.volcanic:
+        return 'volcanic';
+      case FactionId.oceanic:
+        return 'oceanic';
+      case FactionId.earthen:
+        return 'earthen';
+      case FactionId.verdant:
+        return 'verdant';
     }
   }
 }

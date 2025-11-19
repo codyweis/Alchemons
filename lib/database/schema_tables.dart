@@ -219,3 +219,48 @@ class NotificationDismissals extends Table {
   @override
   Set<Column> get primaryKey => {notificationType};
 }
+
+class BreedingStatistics extends Table {
+  TextColumn get speciesId => text()(); // e.g., "LET01"
+  IntColumn get totalBred => integer().withDefault(const Constant(0))();
+  IntColumn get lastMilestoneAwarded => integer().withDefault(
+    const Constant(0),
+  )(); // Last milestone number (1, 2, 3...)
+  DateTimeColumn get lastBredAtUtc => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {speciesId};
+}
+
+/// Tracks which constellation skills have been unlocked
+class ConstellationUnlocks extends Table {
+  TextColumn get skillId => text()(); // e.g., "breeder_lineage_analyzer"
+  DateTimeColumn get unlockedAtUtc => dateTime()();
+  IntColumn get pointsCost => integer()(); // Historical record of what it cost
+
+  @override
+  Set<Column> get primaryKey => {skillId};
+}
+
+/// Tracks constellation point balance and history
+class ConstellationPoints extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get currentBalance => integer().withDefault(const Constant(0))();
+  IntColumn get totalEarned => integer().withDefault(const Constant(0))();
+  IntColumn get totalSpent => integer().withDefault(const Constant(0))();
+  BoolColumn get hasSeenFinale =>
+      boolean().withDefault(const Constant(false))(); // ADD THIS LINE
+  DateTimeColumn get lastUpdatedUtc => dateTime()();
+}
+
+/// Optional: Detailed point transaction log for debugging/history
+class ConstellationTransactions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get transactionType =>
+      text()(); // 'earned_breeding', 'earned_boss', 'spent_skill'
+  IntColumn get amount => integer()(); // Positive for earn, negative for spend
+  TextColumn get sourceId =>
+      text().nullable()(); // Species ID or skill ID or boss ID
+  TextColumn get description => text()(); // Human-readable description
+  DateTimeColumn get createdAtUtc => dateTime()();
+}

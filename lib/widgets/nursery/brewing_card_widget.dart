@@ -34,13 +34,32 @@ class NurseryBrewingCard extends StatefulWidget {
   State<NurseryBrewingCard> createState() => _NurseryBrewingCardState();
 }
 
-class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
+class _NurseryBrewingCardState extends State<NurseryBrewingCard>
+    with SingleTickerProviderStateMixin {
   List<String>? _parentTypes;
+  late AnimationController _glowController;
+  late Animation<double> _glowAnimation;
 
   @override
   void initState() {
     super.initState();
     _extractParentTypes();
+
+    // Set up glow animation
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+
+    _glowAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    super.dispose();
   }
 
   void _extractParentTypes() {
@@ -112,49 +131,77 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard> {
     final theme = widget.theme;
     return GestureDetector(
       onTap: widget.onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme!.brightness == Brightness.light
-              ? const Color.fromARGB(255, 18, 18, 18)
-              : Colors.black,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: theme.text.withOpacity(0.5), width: .5),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Stack(
-            children: [
-              if (_parentTypes != null && _parentTypes!.isNotEmpty)
-                Positioned.fill(
-                  child: AlchemyBrewingParticleSystem(
-                    parentATypeId: _parentTypes![0],
-                    parentBTypeId: _parentTypes!.length > 1
-                        ? _parentTypes![1]
-                        : null,
-                    particleCount: 80,
-                    speedMultiplier: _speedFromProgress, // 👈 simplified
-                    fusion: widget.isReady,
-                    useSimpleFusion: widget.useSimpleFusion,
-                    theme: widget.theme,
-                  ),
-                ),
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 1.0,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withOpacity(0.1),
-                      ],
+      child: AnimatedBuilder(
+        animation: _glowAnimation,
+        builder: (context, child) {
+          return Container(
+            decoration: BoxDecoration(
+              color: theme!.brightness == Brightness.light
+                  ? const Color.fromARGB(255, 18, 18, 18)
+                  : Colors.black,
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(
+                color: widget.isReady
+                    ? const Color(0xFFFFD700) // Gold color
+                    : theme.text.withOpacity(0.5),
+                width: widget.isReady ? 1.0 : 0.5,
+              ),
+              boxShadow: widget.isReady
+                  ? [
+                      BoxShadow(
+                        color: const Color(
+                          0xFFFFD700,
+                        ).withOpacity(0.5 * _glowAnimation.value),
+                        blurRadius: 1 * _glowAnimation.value,
+                        spreadRadius: 2 * _glowAnimation.value,
+                      ),
+                      BoxShadow(
+                        color: const Color(
+                          0xFFFFD700,
+                        ).withOpacity(0.3 * _glowAnimation.value),
+                        blurRadius: 20 * _glowAnimation.value,
+                        spreadRadius: 4 * _glowAnimation.value,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(
+                children: [
+                  if (_parentTypes != null && _parentTypes!.isNotEmpty)
+                    Positioned.fill(
+                      child: AlchemyBrewingParticleSystem(
+                        parentATypeId: _parentTypes![0],
+                        parentBTypeId: _parentTypes!.length > 1
+                            ? _parentTypes![1]
+                            : null,
+                        particleCount: 80,
+                        speedMultiplier: _speedFromProgress,
+                        fusion: widget.isReady,
+                        useSimpleFusion: widget.useSimpleFusion,
+                        theme: widget.theme,
+                      ),
+                    ),
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: 1.0,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.1),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

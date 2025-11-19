@@ -127,7 +127,7 @@ class _HatchCinematicState extends State<HatchCinematic>
             primaryColor: widget.palette.shell,
             secondaryColor: widget.palette.shell.withOpacity(0.7),
             accentColor: widget.palette.shell.withOpacity(0.5),
-            factionType: widget.factionId ?? FactionId.air,
+            factionType: widget.factionId ?? FactionId.verdant,
             particleSpeed: 0.6, // Slower, more ambient
             rotationSpeed: 0.4, // Gentle rotation
             elementalSpeed: 0.5, // Subtle elemental effects

@@ -9,6 +9,7 @@ import 'package:alchemons/screens/boss/battle_screen.dart';
 import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/services/boss_battle_engine_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -679,6 +680,7 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
   ) async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
+    final staminaService = StaminaService(db);
 
     final instances = await db.creatureDao.listAllInstances();
     final selectedInstances = party.members
@@ -700,7 +702,57 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
       return;
     }
 
-    final playerTeam = selectedInstances
+    // Refresh stamina for all party members and check if they have enough
+    final refreshedInstances = <CreatureInstance>[];
+    for (final inst in selectedInstances) {
+      final refreshed = await staminaService.refreshAndGet(inst.instanceId);
+      if (refreshed == null) {
+        _showToast(
+          'Error checking stamina',
+          icon: Icons.error,
+          color: Colors.red,
+        );
+        return;
+      }
+      refreshedInstances.add(refreshed);
+    }
+
+    // Check if any party member lacks stamina
+    final lowStaminaCreatures = refreshedInstances
+        .where((inst) => inst.staminaBars < 1)
+        .toList();
+
+    if (lowStaminaCreatures.isNotEmpty) {
+      final names = lowStaminaCreatures
+          .map((inst) {
+            final creature = repo.getCreatureById(inst.baseId);
+            return creature?.name ?? 'Unknown';
+          })
+          .take(2)
+          .join(', ');
+
+      _showToast(
+        lowStaminaCreatures.length == 1
+            ? '$names needs rest! (0 stamina)'
+            : '${lowStaminaCreatures.length} creatures need rest!',
+        icon: Icons.battery_0_bar,
+        color: Colors.red,
+      );
+      return;
+    }
+
+    // Deduct 1 stamina bar from each party member
+    for (final inst in refreshedInstances) {
+      final nowUtc = DateTime.now().toUtc();
+      final nowMs = nowUtc.millisecondsSinceEpoch;
+      await db.creatureDao.updateStamina(
+        instanceId: inst.instanceId,
+        staminaBars: inst.staminaBars - 1,
+        staminaLastUtcMs: nowMs,
+      );
+    }
+
+    final playerTeam = refreshedInstances
         .map((inst) {
           final creature = repo.getCreatureById(inst.baseId);
           if (creature == null) return null;
@@ -800,8 +852,6 @@ class _BossStat extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
@@ -862,19 +912,8 @@ class _BossMoveCard extends StatelessWidget {
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
-        preferBelow: false, // still shows above the icon
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: _getMoveTypeColor(),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(_getMoveTypeIcon(), color: Colors.white, size: 14),
-            ),
-            // Wrap the icon container in a Tooltip
-            const SizedBox(width: 10),
             // Display the move name directly in the Row
             Text(
               move.name,

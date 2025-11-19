@@ -8,6 +8,7 @@ class BottomSheetShell extends StatelessWidget {
   final double initialChildSize;
   final double minChildSize;
   final double maxChildSize;
+  final Widget? titleAction;
 
   const BottomSheetShell({
     super.key,
@@ -17,6 +18,7 @@ class BottomSheetShell extends StatelessWidget {
     this.initialChildSize = 0.7,
     this.minChildSize = 0.4,
     this.maxChildSize = .95,
+    this.titleAction,
   });
 
   @override
@@ -73,6 +75,10 @@ class BottomSheetShell extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (titleAction != null) ...[
+                        titleAction!, // ADD THIS
+                        const SizedBox(width: 8),
+                      ],
                       GestureDetector(
                         onTap: () => Navigator.of(context).pop(),
                         child: Container(

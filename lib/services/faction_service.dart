@@ -1,7 +1,26 @@
 // lib/services/faction_service.dart
+import 'dart:math';
+
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:flutter/material.dart';
+
+class PerkInfo {
+  /// Logical identifier, e.g. 'FireBreeder'
+  final String code;
+
+  /// Display name, e.g. 'Fire Breeder'
+  final String title;
+
+  /// Short description used in UI
+  final String description;
+
+  const PerkInfo({
+    required this.code,
+    required this.title,
+    required this.description,
+  });
+}
 
 /// Each faction can provide perks/traits.
 class FactionInfo {
@@ -19,27 +38,34 @@ class FactionInfo {
 }
 
 class FactionService extends ChangeNotifier {
-  static const _kFactionKey = 'player_faction_v1';
+  static const String _kFactionKey = 'player_faction_v1';
+
   final AlchemonsDatabase db;
   String? _cached; // persisted faction id string
 
   FactionService(this.db);
 
+  // ---------------------------------------------------------------------------
+  // Basics
+  // ---------------------------------------------------------------------------
+
   Future<bool> perk2Active() async {
-    // however you're gating perk2 on Profile — replace with your real check
-    // e.g., read a Settings key or use your ProfileViewModel
+    // Global gate for perk2 (e.g. profile progression).
     final v = await db.settingsDao.getSetting('perk2_unlocked_v1');
     return v == '1';
   }
 
-  bool isFire() => current == FactionId.fire;
-  bool isWater() => current == FactionId.water;
-  bool isAir() => current == FactionId.air;
-  bool isEarth() => current == FactionId.earth;
+  bool isVolcanic() => current == FactionId.volcanic;
+  bool isWater() => current == FactionId.oceanic;
+  bool isAir() => current == FactionId.verdant;
+  bool isEarth() => current == FactionId.earthen;
 
-  // ----------- Catalog -----------
-  static Map<FactionId, FactionInfo> catalog = {
-    FactionId.fire: const FactionInfo(
+  // ---------------------------------------------------------------------------
+  // Catalog
+  // ---------------------------------------------------------------------------
+
+  static const Map<FactionId, FactionInfo> catalog = {
+    FactionId.volcanic: FactionInfo(
       name: "Volcanic",
       philosophy:
           'Transformation through destruction. The forge that reshapes reality. Power that consumes and creates.',
@@ -47,16 +73,19 @@ class FactionService extends ChangeNotifier {
           'Masters of fire and transmutation, the Volcanic Division believes in radical change through controlled chaos. They see destruction as the first step of creation.',
       perks: [
         PerkInfo(
-          name: "HellRaiser",
-          description: "5% increased XP to all creatures when leveling",
+          code: "FireBreeder",
+          title: "Fire Breeder",
+          description:
+              "50% chance to get half off extraction timers when using two fire specimens",
         ),
         PerkInfo(
-          name: "FireBreeder",
-          description: "50% off breed timers when using a fire parent",
+          code: "VolcanicHarvester",
+          title: "Volcanic Harvester",
+          description: "Extreme discounts on volcanic harvesting devices",
         ),
       ],
     ),
-    FactionId.water: const FactionInfo(
+    FactionId.oceanic: FactionInfo(
       name: "Oceanic",
       philosophy:
           'Adaptation without resistance. The current that shapes stone. Life that flows through all things.',
@@ -64,31 +93,38 @@ class FactionService extends ChangeNotifier {
           'Scholars of water and adaptability, the Oceanic Division embraces change as a natural flow. They understand that the greatest strength lies in flexibility.',
       perks: [
         PerkInfo(
-          name: "WaterBreeder",
+          code: "WaterBreeder",
+          title: "Water Breeder",
           description:
-              "Water creatures don’t lose stamina when breeding together",
+              "50% chance Water specimens don't lose stamina when breeding together",
         ),
         PerkInfo(
-          name: "Aqua Sanctuary",
-          description: "After expeditions, water creatures return fully rested",
+          code: "OceanicHarvester",
+          title: "Oceanic Harvester",
+          description: "Extreme discounts on oceanic harvesting devices",
         ),
       ],
     ),
-    FactionId.air: const FactionInfo(
+    FactionId.verdant: FactionInfo(
       name: "Verdant",
       philosophy:
           'Freedom beyond boundaries. The wind that carries knowledge. Thought that transcends form.',
       description:
           'Seekers of air and knowledge, the Verdant Division pursues understanding without limits. They believe wisdom comes from exploring the unknown.',
       perks: [
-        PerkInfo(name: "AirDrop", description: "Unlock an extra breeding slot"),
         PerkInfo(
-          name: "Air Sensory",
-          description: "Predict if an egg will hatch to something undiscovered",
+          code: "AirDrop",
+          title: "AirDrop",
+          description: "Unlock an extra extraction chamber",
+        ),
+        PerkInfo(
+          code: "VerdantHarvester",
+          title: "Verdant Harvester",
+          description: "Extreme discounts on verdant harvesting devices",
         ),
       ],
     ),
-    FactionId.earth: const FactionInfo(
+    FactionId.earthen: FactionInfo(
       name: "Earthen",
       philosophy:
           'Stability against chaos. The foundation that endures. Wisdom buried in ancient roots.',
@@ -96,26 +132,35 @@ class FactionService extends ChangeNotifier {
           'Guardians of earth and preservation, the Earthen Division values patience and resilience. They know that true power comes from unshakeable foundations.',
       perks: [
         PerkInfo(
-          name: "LandExplorer",
-          description: "Refresh 1 wildlife encounter instantly once per day",
+          code: "EarthenSale",
+          title: "Earthen Sale",
+          description: "50% increase in value to earthen specimens sold",
         ),
         PerkInfo(
-          name: "Earther",
-          description: "25% increase success rate in wilderness",
+          code: "EarthenHarvester",
+          title: "Earthen Harvester",
+          description: "Extreme discounts on earthen harvesting devices",
         ),
       ],
     ),
   };
 
-  // ----------- Faction selection -----------
+  // ---------------------------------------------------------------------------
+  // Faction selection
+  // ---------------------------------------------------------------------------
+
   Future<String?> loadId() async {
     final before = _cached;
     _cached ??= await db.settingsDao.getSetting(_kFactionKey);
-    if (_cached != null && _cached!.isNotEmpty) {
+
+    if (_cached != null && _cached!.isNotEmpty && current != null) {
       await ensureDefaultPerkState(current!);
     }
-    // notify only if value changed (prevents redundant rebuilds)
-    if (before != _cached) notifyListeners(); // ⬅️ important
+
+    // Prevent redundant rebuilds
+    if (before != _cached) {
+      notifyListeners();
+    }
     return _cached;
   }
 
@@ -123,7 +168,7 @@ class FactionService extends ChangeNotifier {
     await db.settingsDao.setSetting(_kFactionKey, id.name);
     _cached = id.name;
     await ensureDefaultPerkState(id);
-    notifyListeners(); // ⬅️ important
+    notifyListeners();
   }
 
   FactionId? get current {
@@ -131,18 +176,21 @@ class FactionService extends ChangeNotifier {
     if (v == null || v.isEmpty) return null;
     return FactionId.values.firstWhere(
       (e) => e.name == v,
-      orElse: () => FactionId.fire,
+      orElse: () => FactionId.volcanic,
     );
   }
 
   FactionInfo? get currentInfo => current == null ? null : catalog[current]!;
 
-  // ----------- Perk unlock persistence -----------
+  // ---------------------------------------------------------------------------
+  // Perk unlock persistence
+  // ---------------------------------------------------------------------------
+
   String _perkKey(FactionId id, int perkIndex) =>
       'faction::${id.name}::perk${perkIndex}_unlocked';
 
   Future<void> ensureDefaultPerkState(FactionId id) async {
-    // By design: Perk 1 unlocked, Perk 2 locked
+    // Perk 1 unlocked, Perk 2 locked by default
     final p1 = await db.settingsDao.getSetting(_perkKey(id, 1));
     final p2 = await db.settingsDao.getSetting(_perkKey(id, 2));
     if (p1 == null) await db.settingsDao.setSetting(_perkKey(id, 1), '1');
@@ -156,6 +204,7 @@ class FactionService extends ChangeNotifier {
     return v == '1';
   }
 
+  /// Test helper for unlocking extra blob slots.
   Future<bool> setBlobSlotsUnlockedTest() async {
     await db.settingsDao.setSetting('blob_slots_unlocked', '3');
     return true;
@@ -170,7 +219,6 @@ class FactionService extends ChangeNotifier {
     );
   }
 
-  /// Example condition: unlock perk2 when discovering >= 10 creatures
   static const int perk2DiscoverThreshold = 10;
 
   Future<int> discoveredCount() async {
@@ -186,74 +234,109 @@ class FactionService extends ChangeNotifier {
     final discovered = await discoveredCount();
     if (discovered >= perk2DiscoverThreshold) {
       await _setPerkUnlocked(2, true, forId: id);
-      notifyListeners(); // optional, if UI cares
+      notifyListeners();
       return true;
     }
     return false;
   }
 
-  // ----------- Helper -----------
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  /// Check for a perk by keyword against its code or title.
   bool hasPerk(String perkKeyword) {
     final info = currentInfo;
     if (info == null) return false;
+
+    final kw = perkKeyword.toLowerCase();
     return info.perks.any(
-      (p) => p.toString().toLowerCase().contains(perkKeyword.toLowerCase()),
+      (p) =>
+          p.code.toLowerCase().contains(kw) ||
+          p.title.toLowerCase().contains(kw),
     );
   }
 
+  /// Right now perk1 is always active once you’re in a faction.
+  /// If you later want to gate it, wire this into `isPerkUnlocked(1)`.
   bool get perk1Active => true;
 
-  // ---- Fire
-  double fireXpMultiplierOnLevelGain() => isFire() && perk1Active ? 1.05 : 1.0;
-  double fireHatchTimeMultiplier({
-    required bool hasFireParent,
-    required bool perk2,
-  }) => (isFire() && perk2 && hasFireParent) ? 0.5 : 1.0;
+  // ---------------------------------------------------------------------------
+  // VOLCANIC FACTION PERKS
+  // ---------------------------------------------------------------------------
 
-  // ---- Water
-  bool waterSkipBreedStamina({required bool bothWater, required bool perk1}) =>
-      isWater() && perk1 && bothWater;
+  /// Fire Breeder (Perk 1): 50% chance for half-off extraction timers
+  /// when using two fire parents. Returns a time multiplier.
+  double fireBreederTimeMultiplier({required bool bothParentsFire}) {
+    if (!isVolcanic() || !perk1Active || !bothParentsFire) {
+      return 1.0;
+    }
+
+    // 50% chance to trigger the perk
+    final random = Random();
+    final triggered = random.nextDouble() < 0.5;
+
+    return triggered ? 0.5 : 1.0;
+  }
+
+  /// For UI: shows whether the Fire Breeder perk *can* apply (not whether it triggered).
+  bool canFireBreederApply({required bool bothParentsFire}) {
+    return isVolcanic() && perk1Active && bothParentsFire;
+  }
+
+  // ---------------------------------------------------------------------------
+  // EARTHEN FACTION PERKS
+  // ---------------------------------------------------------------------------
+
+  /// Earthen Sale (Perk 1): 50% increase in value when selling earthen specimens.
+  double earthenSaleValueMultiplier({required bool isEarthenCreature}) {
+    if (!isEarth() || !perk1Active || !isEarthenCreature) {
+      return 1.0;
+    }
+    return 1.5;
+  }
+
+  bool canEarthenSaleApply({required bool isEarthenCreature}) {
+    return isEarth() && perk1Active && isEarthenCreature;
+  }
+
+  // ---------------------------------------------------------------------------
+  // WATER FACTION PERKS
+  // ---------------------------------------------------------------------------
+
+  /// Water Breeder (Perk 1): 50% chance water specimens don't lose stamina
+  /// when breeding together.
+  bool waterSkipBreedStamina({required bool bothWater, required bool perk1}) {
+    return isWater() && perk1 && bothWater;
+  }
 
   bool get waterSkipWildernessStaminaAfterExpedition =>
-      false; // perk2 handled at scene exit with real check
+      false; // perk2 handled elsewhere
 
-  // ---- Air
+  // ---------------------------------------------------------------------------
+  // AIR FACTION PERKS
+  // ---------------------------------------------------------------------------
+
+  /// AirDrop (Perk 1): Unlock an extra extraction chamber.
   Future<bool> ensureAirExtraSlotUnlocked() async {
     if (!isAir() || !perk1Active) return false;
+
     final flag = await db.settingsDao.getSetting('air_slot_applied_v1');
     if (flag == '1') return false;
+
     await db.incubatorDao.unlockSlot(2); // unlock 3rd slot (id=2 in your seed)
     await db.settingsDao.setSetting('air_slot_applied_v1', '1');
     return true;
   }
 
-  bool get airCanPredictUndiscovered => isAir(); // UI hint; gate by perk2 below
+  // ---------------------------------------------------------------------------
+  // Utility
+  // ---------------------------------------------------------------------------
 
-  // ---- Earth
   String _earthKey(String sceneId) {
     final now = DateTime.now();
     final m = now.month.toString().padLeft(2, '0');
     final d = now.day.toString().padLeft(2, '0');
     return 'earth_landexplorer::$sceneId::${now.year}-$m-$d';
   }
-
-  Future<bool> earthCanRefreshToday(String sceneId) async {
-    if (!(isEarth() && perk1Active)) return false;
-    final used = await db.settingsDao.getSetting(_earthKey(sceneId));
-    return (used ?? '').isEmpty;
-  }
-
-  Future<void> earthMarkRefreshedToday(String sceneId) async {
-    await db.settingsDao.setSetting(_earthKey(sceneId), 'used');
-  }
-
-  double earthWildernessSuccessBoost({required bool perk2}) =>
-      (isEarth() && perk2) ? 0.25 : 0.0;
-}
-
-class PerkInfo {
-  final String name;
-  final String description;
-
-  const PerkInfo({required this.name, required this.description});
 }

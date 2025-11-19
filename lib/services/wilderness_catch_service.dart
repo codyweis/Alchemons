@@ -4,6 +4,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:flutter/foundation.dart';
 
 enum CatchDeviceType { volcanic, oceanic, verdant, earthen, arcane, guaranteed }
@@ -63,9 +64,11 @@ extension CatchDeviceTypeX on CatchDeviceType {
 
 class CatchService {
   final AlchemonsDatabase db;
+  final ConstellationEffectsService constellation;
   final Random _rng;
 
-  CatchService(this.db, {Random? rng}) : _rng = rng ?? Random();
+  CatchService(this.db, this.constellation, {Random? rng})
+    : _rng = rng ?? Random();
 
   /// Check if player has at least one device of the given type
   Future<bool> hasDevice(CatchDeviceType device) async {
@@ -187,8 +190,25 @@ class CatchService {
       throw Exception('Failed to consume ${device.label}');
     }
 
-    // Calculate catch chance
-    final catchChance = calculateCatchChance(device, target.rarity);
+    // Guaranteed device always succeeds, even before constellation logic
+    if (device == CatchDeviceType.guaranteed) {
+      debugPrint(
+        '🎯 Catch attempt: ${device.label} on ${target.name} '
+        '(${target.rarity}) - GUARANTEED SUCCESS',
+      );
+      return true;
+    }
+
+    // Base catch chance from rarity/device
+    final baseChance = calculateCatchChance(
+      device,
+      target.rarity,
+      hasMatchingFaction: true,
+    );
+
+    // 🌿 Constellation harvesting bonus: +5% / +10% / +15% flat
+    final bonus = constellation.getWildernessHarvestBonus(); // 0.0–0.15
+    final catchChance = (baseChance + bonus).clamp(0.01, 0.98);
 
     // Roll for success
     final roll = _rng.nextDouble();
@@ -196,7 +216,10 @@ class CatchService {
 
     debugPrint(
       '🎯 Catch attempt: ${device.label} on ${target.name} '
-      '(${target.rarity}) - ${(catchChance * 100).toStringAsFixed(0)}% chance, '
+      '(${target.rarity}) - '
+      'base ${(baseChance * 100).toStringAsFixed(0)}%, '
+      'bonus ${(bonus * 100).toStringAsFixed(0)}%, '
+      'final ${(catchChance * 100).toStringAsFixed(0)}% chance, '
       'rolled ${(roll * 100).toStringAsFixed(0)}, ${success ? "SUCCESS" : "FAILED"}',
     );
 

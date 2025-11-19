@@ -1,4 +1,6 @@
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/screens/feeding/constellation_bonus_display.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/providers/app_providers.dart';
@@ -694,6 +696,7 @@ class FeedFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMaxLevel = targetInstance?.level == 10;
+    final constellationEffects = context.watch<ConstellationEffectsService>();
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -750,6 +753,7 @@ class FeedFooter extends StatelessWidget {
               ],
             ],
             const SizedBox(height: 12),
+            _buildConstellationBonuses(theme, constellationEffects),
           ],
           EnhanceButton(
             theme: theme,
@@ -763,6 +767,68 @@ class FeedFooter extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _buildConstellationBonuses(
+  FactionTheme theme,
+  ConstellationEffectsService effects,
+) {
+  final strengthBoost = effects.getStatBoostMultiplier('strength');
+  final intBoost = effects.getStatBoostMultiplier('intelligence');
+  final beautyBoost = effects.getStatBoostMultiplier('beauty');
+  final speedBoost = effects.getStatBoostMultiplier('speed');
+
+  final hasAnyBoost =
+      strengthBoost > 0 || intBoost > 0 || beautyBoost > 0 || speedBoost > 0;
+
+  if (!hasAnyBoost) return const SizedBox.shrink();
+
+  return Container(
+    margin: const EdgeInsets.only(top: 8, bottom: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: theme.primary.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: theme.primary.withOpacity(0.3)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Constellation Bonuses',
+          style: TextStyle(
+            color: theme.primary,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (strengthBoost > 0) _buildBonusPill('STR', strengthBoost, theme),
+        if (intBoost > 0) _buildBonusPill('INT', intBoost, theme),
+        if (beautyBoost > 0) _buildBonusPill('BEA', beautyBoost, theme),
+        if (speedBoost > 0) _buildBonusPill('SPD', speedBoost, theme),
+      ],
+    ),
+  );
+}
+
+Widget _buildBonusPill(String label, double bonus, FactionTheme theme) {
+  return Container(
+    margin: const EdgeInsets.only(left: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: theme.primary.withOpacity(0.2),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Text(
+      '$label +${(bonus * 100).toStringAsFixed(1)}%',
+      style: TextStyle(
+        color: theme.primary,
+        fontSize: 9,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
 }
 
 // ---------- Enhance Button ----------

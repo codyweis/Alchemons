@@ -11,7 +11,9 @@ import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_engine.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:alchemons/utils/genetics_util.dart';
@@ -24,6 +26,8 @@ class BreedingServiceV2 {
   final BreedingEngine engine;
   final EggPayloadFactory payloadFactory;
   final WildCreatureRandomizer wildRandomizer;
+  final ConstellationEffectsService constellation; // 👈 NEW
+  final FactionService factions;
 
   // Access catalog via engine so we don’t need another injected param
   CreatureCatalog get repository => engine.repository;
@@ -34,7 +38,38 @@ class BreedingServiceV2 {
     required this.engine,
     required this.payloadFactory,
     required this.wildRandomizer,
+    required this.constellation, // 👈 NEW
+    required this.factions,
   });
+
+  String _familyKeyForCreature(Creature c) {
+    if (c.mutationFamily != null && c.mutationFamily!.isNotEmpty) {
+      return c.mutationFamily!.toUpperCase();
+    }
+    final match = RegExp(r'^[A-Za-z]+').firstMatch(c.id);
+    final letters = match?.group(0) ?? c.id;
+    return letters.toUpperCase();
+  }
+
+  /// Returns true if cross-species breeding is allowed between these two base IDs,
+  /// based on mutationFamily + constellation unlock state.
+  Future<bool> _canCrossBreed(String baseIdA, String baseIdB) async {
+    final baseA = repository.getCreatureById(baseIdA);
+    final baseB = repository.getCreatureById(baseIdB);
+
+    // If either base is missing, don't hard-block breeding.
+    if (baseA == null || baseB == null) return true;
+
+    final famA = _familyKeyForCreature(baseA);
+    final famB = _familyKeyForCreature(baseB);
+
+    // Same family is always allowed
+    if (famA == famB) return true;
+
+    // Different family → require Cross-Species Lineage skill
+    final unlocked = await db.constellationDao.getUnlockedSkillIds();
+    return unlocked.contains('breeder_cross_species');
+  }
 
   /// Regular breeding between two owned instances
   ///
@@ -48,6 +83,12 @@ class BreedingServiceV2 {
     // kept for backward compat; ignored now
     String? likelihoodAnalysisJson,
   }) async {
+    // ---- Cross-species gate (owned vs owned) ----
+    final allowed = await _canCrossBreed(parent1.baseId, parent2.baseId);
+    if (!allowed) {
+      return EggCreationResult.failure('Cross-species synthesis is locked.');
+    }
+    // ---------------------------------------------
     final result = engine.breedInstances(parent1, parent2);
 
     if (!result.success || result.creature == null) {
@@ -56,7 +97,16 @@ class BreedingServiceV2 {
 
     final offspring = result.creature!;
 
-    // Compute analysis based on *this* offspring
+    // For fire perk: check if both parents are Fire-type
+    final baseA = repository.getCreatureById(parent1.baseId);
+    final baseB = repository.getCreatureById(parent2.baseId);
+
+    final bothParentsFire =
+        baseA != null &&
+        baseB != null &&
+        baseA.types.contains('Fire') &&
+        baseB.types.contains('Fire');
+
     final analysisJson = _buildInstanceBreedingAnalysis(
       parent1,
       parent2,
@@ -68,7 +118,7 @@ class BreedingServiceV2 {
       likelihoodAnalysisJson: analysisJson,
     );
 
-    return _createEgg(offspring, payload);
+    return _createEgg(offspring, payload, bothParentsFire: bothParentsFire);
   }
 
   /// Wild breeding - breed instance with wild catalog creature
@@ -81,6 +131,15 @@ class BreedingServiceV2 {
     // kept for compat; ignored
     String? likelihoodAnalysisJson,
   }) async {
+    // ---- Cross-species gate (owned vs wild) ----
+    final allowed = await _canCrossBreed(ownedParent.baseId, wildCreature.id);
+    if (!allowed) {
+      return EggCreationResult.failure(
+        'Cross-species synthesis with wild specimens is locked.',
+      );
+    }
+    // --------------------------------------------
+
     // Randomize wild creature's attributes ONCE
     final randomizedWild = wildRandomizer.randomizeWildCreature(
       wildCreature,
@@ -108,12 +167,19 @@ class BreedingServiceV2 {
 
     final payload = payloadFactory.fromWildBreeding(
       offspring,
-      ownedParent, // Parent A (owned)
-      randomizedWild, // Parent B (wild used for breeding)
+      ownedParent,
+      randomizedWild,
       likelihoodAnalysisJson: analysisJson,
     );
 
-    return _createEgg(offspring, payload);
+    // Fire perk: owned parent + wild both Fire?
+    final ownedBase = repository.getCreatureById(ownedParent.baseId);
+    final bothParentsFire =
+        ownedBase != null &&
+        ownedBase.types.contains('Fire') &&
+        randomizedWild.types.contains('Fire');
+
+    return _createEgg(offspring, payload, bothParentsFire: bothParentsFire);
   }
 
   /// Create starter egg (starters have no RNG/analysis)
@@ -238,6 +304,7 @@ class BreedingServiceV2 {
     Creature creature,
     EggPayload payload, {
     Duration? customHatchDuration,
+    bool bothParentsFire = false,
   }) async {
     final rarityKey = creature.rarity.toLowerCase();
     final baseHatchDelay =
@@ -245,8 +312,12 @@ class BreedingServiceV2 {
         BreedConstants.rarityHatchTimes[rarityKey] ??
         const Duration(minutes: 10);
 
-    // Apply nature modifier
-    final adjustedDelay = _applyHatchModifiers(baseHatchDelay, creature);
+    // Apply nature + constellation + (maybe) fire perk
+    final adjustedDelay = _applyHatchModifiers(
+      baseHatchDelay,
+      creature,
+      bothParentsFire: bothParentsFire,
+    );
 
     final eggId = _generateEggId(payload.source);
     final payloadJson = payload.toJsonString();
@@ -282,9 +353,30 @@ class BreedingServiceV2 {
     }
   }
 
-  Duration _applyHatchModifiers(Duration base, Creature creature) {
+  Duration _applyHatchModifiers(
+    Duration base,
+    Creature creature, {
+    bool bothParentsFire = false,
+  }) {
     final natureMult = hatchMultForNature(creature.nature?.id);
-    return Duration(milliseconds: (base.inMilliseconds * natureMult).round());
+
+    // Constellation gestation reduction (0–0.15)
+    final gestationReduction = constellation.getGestationReduction();
+
+    // 🔥 Volcanic Fire Breeder perk
+    // FactionService internally checks:
+    // - current faction == Volcanic
+    // - perk1Active
+    // - bothParentsFire
+    // and does the 50% RNG. Returns 1.0 or 0.5.
+    final fireMult = factions.fireBreederTimeMultiplier(
+      bothParentsFire: bothParentsFire,
+    );
+
+    // Nature can make it slower/faster; constellation and fire perk reduce time
+    final totalMult = natureMult * (1.0 - gestationReduction) * fireMult;
+
+    return Duration(milliseconds: (base.inMilliseconds * totalMult).round());
   }
 
   String _generateEggId(String source) {
@@ -297,13 +389,13 @@ class BreedingServiceV2 {
 
   String _pickStarterForFaction(FactionId faction) {
     switch (faction) {
-      case FactionId.fire:
+      case FactionId.volcanic:
         return 'LET01';
-      case FactionId.water:
+      case FactionId.oceanic:
         return 'LET02';
-      case FactionId.earth:
+      case FactionId.earthen:
         return 'LET03';
-      case FactionId.air:
+      case FactionId.verdant:
         return 'LET04';
     }
   }

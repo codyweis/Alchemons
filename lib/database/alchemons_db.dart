@@ -1,6 +1,7 @@
 // lib/database/alchemons_db.dart
 import 'dart:convert';
 import 'package:alchemons/constants/element_resources.dart';
+import 'package:alchemons/database/daos/constellation_dao.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/harvest_biome.dart';
@@ -46,6 +47,11 @@ part 'alchemons_db.g.dart';
 
     // Notification dismissals
     NotificationDismissals,
+
+    ConstellationPoints,
+    ConstellationTransactions,
+    ConstellationUnlocks,
+    BreedingStatistics,
   ],
   daos: [
     SettingsDao,
@@ -55,13 +61,14 @@ part 'alchemons_db.g.dart';
     InventoryDao,
     BiomeDao,
     ShopDao,
+    ConstellationDao,
   ],
 )
 class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 28;
+  int get schemaVersion => 30;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -179,6 +186,26 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
       }
       if (from < 28) {
         await m.addColumn(creatureInstances, creatureInstances.alchemyEffect);
+      }
+      if (from < 29) {
+        await m.createTable(breedingStatistics);
+        await m.createTable(constellationUnlocks);
+        await m.createTable(constellationTransactions);
+        await m.createTable(constellationPoints);
+
+        final pointsExist =
+            await (select(settings)
+                  ..where((t) => t.key.equals('constellation_points')))
+                .getSingleOrNull();
+        if (pointsExist == null) {
+          await _setSetting('constellation_points', '0');
+        }
+      }
+      if (from < 30) {
+        await m.addColumn(
+          constellationPoints,
+          constellationPoints.hasSeenFinale,
+        );
       }
     },
   );

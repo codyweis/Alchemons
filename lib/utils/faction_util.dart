@@ -51,25 +51,25 @@ class _Role {
 
 // Dark theme: bright, vivid colors that pop on dark backgrounds
 const _darkRoles = <FactionId, _Role>{
-  FactionId.fire: _Role(
+  FactionId.volcanic: _Role(
     Color(0xFFEF5350), // bright red
     Color(0xFFFF7043), // coral
     Color(0xFFFF6E40), // vivid orange-red
     Color(0xFFFFAB91), // soft peach
   ),
-  FactionId.water: _Role(
+  FactionId.oceanic: _Role(
     Color(0xFF64B5F6), // bright blue
     Color(0xFF26C6DA), // cyan
     Color(0xFF54A1C5), // ocean blue
     Color(0xFF9AD7F2), // soft sky
   ),
-  FactionId.air: _Role(
+  FactionId.verdant: _Role(
     Color(0xFFAECAD6), // muted teal
     Color(0xFFC7E3EA), // pale cyan
     Color(0xFF9FB0B9), // steel blue
     Color(0xFFD7E6EE), // very pale blue
   ),
-  FactionId.earth: _Role(
+  FactionId.earthen: _Role(
     Color(0xFF7C5F3B), // brown
     Color(0xFF2A8437), // forest green
     Color(0xFF846933), // golden brown
@@ -79,25 +79,25 @@ const _darkRoles = <FactionId, _Role>{
 
 // Light theme: darker, saturated colors for contrast on light backgrounds
 const _lightRoles = <FactionId, _Role>{
-  FactionId.fire: _Role(
+  FactionId.volcanic: _Role(
     Color.fromARGB(255, 255, 129, 129), // deep red
     Color(0xFFE64A19), // deep orange
     Color(0xFFFF5722), // vivid deep orange
     Color(0xFFFF8A65), // medium coral
   ),
-  FactionId.water: _Role(
+  FactionId.oceanic: _Role(
     Color(0xFF1976D2), // deep blue
     Color.fromARGB(255, 213, 240, 255), // dark cyan
     Color(0xFF0288D1), // strong blue
     Color(0xFF4FC3F7), // medium sky blue
   ),
-  FactionId.air: _Role(
+  FactionId.verdant: _Role(
     Color(0xFF546E7A), // dark blue-grey
     Color.fromARGB(255, 0, 0, 0),
     Color(0xFF78909C), // medium blue-grey
     Color(0xFF90A4AE), // light blue-grey
   ),
-  FactionId.earth: _Role(
+  FactionId.earthen: _Role(
     Color(0xFF5D4037), // deep brown
     Color(0xFF388E3C), // deep green
     Color(0xFF6D4C41), // rich brown
@@ -138,22 +138,22 @@ const _lightBorder = Color(0x14000000); // ~8% black
 
 Map<FactionId?, List<Color>> _darkGrad = {
   null: const [Color(0xFF0A0E27), Color(0xFF111638), Color(0xFF171C44)],
-  FactionId.fire: const [
+  FactionId.volcanic: const [
     Color(0xFF1A0D0D),
     Color(0xFF2A0E12),
     Color(0xFF3A1712),
   ],
-  FactionId.water: const [
+  FactionId.oceanic: const [
     Color(0xFF0A0E27),
     Color(0xFF0B1D3A),
     Color(0xFF0C2A4A),
   ],
-  FactionId.air: const [
+  FactionId.verdant: const [
     Color(0xFF0E1720),
     Color(0xFF0F1C24),
     Color(0xFF12242B),
   ],
-  FactionId.earth: const [
+  FactionId.earthen: const [
     Color(0xFF0F120D),
     Color(0xFF141A12),
     Color(0xFF1A2416),
@@ -162,22 +162,22 @@ Map<FactionId?, List<Color>> _darkGrad = {
 
 Map<FactionId?, List<Color>> _lightGrad = {
   null: const [Color(0xFFE8ECFF), Color(0xFFDCE3FF), Color(0xFFD0D9FF)],
-  FactionId.fire: const [
+  FactionId.volcanic: const [
     Color(0xFFFFE5E5), // warm peachy-pink
     Color(0xFFFFD6D6), // deeper warm pink
     Color(0xFFFFC7C7), // rich coral-pink
   ],
-  FactionId.water: const [
+  FactionId.oceanic: const [
     Color(0xFFD6EBFF), // vibrant sky blue
     Color(0xFFC2E0FF), // deeper sky
     Color(0xFFADD4FF), // rich blue
   ],
-  FactionId.air: const [
+  FactionId.verdant: const [
     Color(0xFFE1F1F7), // soft cyan-white
     Color(0xFFD2E8F2), // deeper cyan
     Color(0xFFC3DFED), // rich cyan-grey
   ],
-  FactionId.earth: const [
+  FactionId.earthen: const [
     Color(0xFFF0EBE0), // warm cream
     Color(0xFFE8E0D0), // deeper cream
     Color(0xFFDFD5C0), // rich tan
@@ -196,17 +196,17 @@ FactionTheme factionThemeFor(
       : (id == null ? _defaultLightRole : _lightRoles[id] ?? _defaultLightRole);
 
   if (brightness == Brightness.dark) {
-    // Custom dark overrides you had for Fire/Earth surfaces preserved
+    // Custom dark overrides you had for volcanic/earthen surfaces preserved
     final surface = switch (id) {
-      FactionId.fire => const Color.fromARGB(255, 18, 12, 12),
-      FactionId.earth => const Color.fromARGB(255, 9, 14, 8),
+      FactionId.volcanic => const Color.fromARGB(255, 18, 12, 12),
+      FactionId.earthen => const Color.fromARGB(255, 9, 14, 8),
       _ => _darkSurface,
     };
     final surfaceAlt = switch (id) {
-      FactionId.fire => const Color.fromARGB(255, 25, 11, 11),
-      FactionId.earth => const Color.fromARGB(141, 9, 12, 8),
-      FactionId.water => const Color.fromARGB(112, 14, 17, 32),
-      FactionId.air => const Color.fromARGB(111, 61, 72, 95),
+      FactionId.volcanic => const Color.fromARGB(255, 25, 11, 11),
+      FactionId.earthen => const Color.fromARGB(141, 9, 12, 8),
+      FactionId.oceanic => const Color.fromARGB(112, 14, 17, 32),
+      FactionId.verdant => const Color.fromARGB(111, 61, 72, 95),
       _ => _darkSurfaceAlt,
     };
 
@@ -226,22 +226,22 @@ FactionTheme factionThemeFor(
   } else {
     // Light scheme with faction-tinted surfaces
     final surface = switch (id) {
-      FactionId.fire => const Color(0xFFFFF5F5), // warm pink-white
-      FactionId.water => const Color(0xFFF0F9FF), // cool blue-white
-      FactionId.air => const Color(0xFFF5FAFE), // airy cyan-white
-      FactionId.earth => const Color(0xFFFAF8F3), // warm beige-white
+      FactionId.volcanic => const Color(0xFFFFF5F5), // warm pink-white
+      FactionId.oceanic => const Color(0xFFF0F9FF), // cool blue-white
+      FactionId.verdant => const Color(0xFFF5FAFE), // verdanty cyan-white
+      FactionId.earthen => const Color(0xFFFAF8F3), // warm beige-white
       _ => _lightSurface, // neutral fallback
     };
     final surfaceAlt = switch (id) {
-      FactionId.fire => const Color(0xFFFFEBEB), // slightly deeper warm
-      FactionId.water => const Color(0xFFE6F4FF), // slightly deeper cool
-      FactionId.air => const Color(0xFFEBF7FD), // slightly deeper airy
-      FactionId.earth => const Color.fromARGB(
+      FactionId.volcanic => const Color(0xFFFFEBEB), // slightly deeper warm
+      FactionId.oceanic => const Color(0xFFE6F4FF), // slightly deeper cool
+      FactionId.verdant => const Color(0xFFEBF7FD), // slightly deeper verdanty
+      FactionId.earthen => const Color.fromARGB(
         173,
         245,
         242,
         234,
-      ), // slightly deeper earth
+      ), // slightly deeper earthen
       _ => _lightSurfaceAlt, // neutral fallback
     };
 

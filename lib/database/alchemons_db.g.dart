@@ -6385,6 +6385,1471 @@ class NotificationDismissalsCompanion
   }
 }
 
+class $ConstellationPointsTable extends ConstellationPoints
+    with TableInfo<$ConstellationPointsTable, ConstellationPoint> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ConstellationPointsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _currentBalanceMeta = const VerificationMeta(
+    'currentBalance',
+  );
+  @override
+  late final GeneratedColumn<int> currentBalance = GeneratedColumn<int>(
+    'current_balance',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _totalEarnedMeta = const VerificationMeta(
+    'totalEarned',
+  );
+  @override
+  late final GeneratedColumn<int> totalEarned = GeneratedColumn<int>(
+    'total_earned',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _totalSpentMeta = const VerificationMeta(
+    'totalSpent',
+  );
+  @override
+  late final GeneratedColumn<int> totalSpent = GeneratedColumn<int>(
+    'total_spent',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _hasSeenFinaleMeta = const VerificationMeta(
+    'hasSeenFinale',
+  );
+  @override
+  late final GeneratedColumn<bool> hasSeenFinale = GeneratedColumn<bool>(
+    'has_seen_finale',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_seen_finale" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _lastUpdatedUtcMeta = const VerificationMeta(
+    'lastUpdatedUtc',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastUpdatedUtc =
+      GeneratedColumn<DateTime>(
+        'last_updated_utc',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    currentBalance,
+    totalEarned,
+    totalSpent,
+    hasSeenFinale,
+    lastUpdatedUtc,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'constellation_points';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ConstellationPoint> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('current_balance')) {
+      context.handle(
+        _currentBalanceMeta,
+        currentBalance.isAcceptableOrUnknown(
+          data['current_balance']!,
+          _currentBalanceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_earned')) {
+      context.handle(
+        _totalEarnedMeta,
+        totalEarned.isAcceptableOrUnknown(
+          data['total_earned']!,
+          _totalEarnedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_spent')) {
+      context.handle(
+        _totalSpentMeta,
+        totalSpent.isAcceptableOrUnknown(data['total_spent']!, _totalSpentMeta),
+      );
+    }
+    if (data.containsKey('has_seen_finale')) {
+      context.handle(
+        _hasSeenFinaleMeta,
+        hasSeenFinale.isAcceptableOrUnknown(
+          data['has_seen_finale']!,
+          _hasSeenFinaleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_updated_utc')) {
+      context.handle(
+        _lastUpdatedUtcMeta,
+        lastUpdatedUtc.isAcceptableOrUnknown(
+          data['last_updated_utc']!,
+          _lastUpdatedUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastUpdatedUtcMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ConstellationPoint map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ConstellationPoint(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      currentBalance: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}current_balance'],
+      )!,
+      totalEarned: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_earned'],
+      )!,
+      totalSpent: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_spent'],
+      )!,
+      hasSeenFinale: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_seen_finale'],
+      )!,
+      lastUpdatedUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_updated_utc'],
+      )!,
+    );
+  }
+
+  @override
+  $ConstellationPointsTable createAlias(String alias) {
+    return $ConstellationPointsTable(attachedDatabase, alias);
+  }
+}
+
+class ConstellationPoint extends DataClass
+    implements Insertable<ConstellationPoint> {
+  final int id;
+  final int currentBalance;
+  final int totalEarned;
+  final int totalSpent;
+  final bool hasSeenFinale;
+  final DateTime lastUpdatedUtc;
+  const ConstellationPoint({
+    required this.id,
+    required this.currentBalance,
+    required this.totalEarned,
+    required this.totalSpent,
+    required this.hasSeenFinale,
+    required this.lastUpdatedUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['current_balance'] = Variable<int>(currentBalance);
+    map['total_earned'] = Variable<int>(totalEarned);
+    map['total_spent'] = Variable<int>(totalSpent);
+    map['has_seen_finale'] = Variable<bool>(hasSeenFinale);
+    map['last_updated_utc'] = Variable<DateTime>(lastUpdatedUtc);
+    return map;
+  }
+
+  ConstellationPointsCompanion toCompanion(bool nullToAbsent) {
+    return ConstellationPointsCompanion(
+      id: Value(id),
+      currentBalance: Value(currentBalance),
+      totalEarned: Value(totalEarned),
+      totalSpent: Value(totalSpent),
+      hasSeenFinale: Value(hasSeenFinale),
+      lastUpdatedUtc: Value(lastUpdatedUtc),
+    );
+  }
+
+  factory ConstellationPoint.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ConstellationPoint(
+      id: serializer.fromJson<int>(json['id']),
+      currentBalance: serializer.fromJson<int>(json['currentBalance']),
+      totalEarned: serializer.fromJson<int>(json['totalEarned']),
+      totalSpent: serializer.fromJson<int>(json['totalSpent']),
+      hasSeenFinale: serializer.fromJson<bool>(json['hasSeenFinale']),
+      lastUpdatedUtc: serializer.fromJson<DateTime>(json['lastUpdatedUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'currentBalance': serializer.toJson<int>(currentBalance),
+      'totalEarned': serializer.toJson<int>(totalEarned),
+      'totalSpent': serializer.toJson<int>(totalSpent),
+      'hasSeenFinale': serializer.toJson<bool>(hasSeenFinale),
+      'lastUpdatedUtc': serializer.toJson<DateTime>(lastUpdatedUtc),
+    };
+  }
+
+  ConstellationPoint copyWith({
+    int? id,
+    int? currentBalance,
+    int? totalEarned,
+    int? totalSpent,
+    bool? hasSeenFinale,
+    DateTime? lastUpdatedUtc,
+  }) => ConstellationPoint(
+    id: id ?? this.id,
+    currentBalance: currentBalance ?? this.currentBalance,
+    totalEarned: totalEarned ?? this.totalEarned,
+    totalSpent: totalSpent ?? this.totalSpent,
+    hasSeenFinale: hasSeenFinale ?? this.hasSeenFinale,
+    lastUpdatedUtc: lastUpdatedUtc ?? this.lastUpdatedUtc,
+  );
+  ConstellationPoint copyWithCompanion(ConstellationPointsCompanion data) {
+    return ConstellationPoint(
+      id: data.id.present ? data.id.value : this.id,
+      currentBalance: data.currentBalance.present
+          ? data.currentBalance.value
+          : this.currentBalance,
+      totalEarned: data.totalEarned.present
+          ? data.totalEarned.value
+          : this.totalEarned,
+      totalSpent: data.totalSpent.present
+          ? data.totalSpent.value
+          : this.totalSpent,
+      hasSeenFinale: data.hasSeenFinale.present
+          ? data.hasSeenFinale.value
+          : this.hasSeenFinale,
+      lastUpdatedUtc: data.lastUpdatedUtc.present
+          ? data.lastUpdatedUtc.value
+          : this.lastUpdatedUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConstellationPoint(')
+          ..write('id: $id, ')
+          ..write('currentBalance: $currentBalance, ')
+          ..write('totalEarned: $totalEarned, ')
+          ..write('totalSpent: $totalSpent, ')
+          ..write('hasSeenFinale: $hasSeenFinale, ')
+          ..write('lastUpdatedUtc: $lastUpdatedUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    currentBalance,
+    totalEarned,
+    totalSpent,
+    hasSeenFinale,
+    lastUpdatedUtc,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ConstellationPoint &&
+          other.id == this.id &&
+          other.currentBalance == this.currentBalance &&
+          other.totalEarned == this.totalEarned &&
+          other.totalSpent == this.totalSpent &&
+          other.hasSeenFinale == this.hasSeenFinale &&
+          other.lastUpdatedUtc == this.lastUpdatedUtc);
+}
+
+class ConstellationPointsCompanion extends UpdateCompanion<ConstellationPoint> {
+  final Value<int> id;
+  final Value<int> currentBalance;
+  final Value<int> totalEarned;
+  final Value<int> totalSpent;
+  final Value<bool> hasSeenFinale;
+  final Value<DateTime> lastUpdatedUtc;
+  const ConstellationPointsCompanion({
+    this.id = const Value.absent(),
+    this.currentBalance = const Value.absent(),
+    this.totalEarned = const Value.absent(),
+    this.totalSpent = const Value.absent(),
+    this.hasSeenFinale = const Value.absent(),
+    this.lastUpdatedUtc = const Value.absent(),
+  });
+  ConstellationPointsCompanion.insert({
+    this.id = const Value.absent(),
+    this.currentBalance = const Value.absent(),
+    this.totalEarned = const Value.absent(),
+    this.totalSpent = const Value.absent(),
+    this.hasSeenFinale = const Value.absent(),
+    required DateTime lastUpdatedUtc,
+  }) : lastUpdatedUtc = Value(lastUpdatedUtc);
+  static Insertable<ConstellationPoint> custom({
+    Expression<int>? id,
+    Expression<int>? currentBalance,
+    Expression<int>? totalEarned,
+    Expression<int>? totalSpent,
+    Expression<bool>? hasSeenFinale,
+    Expression<DateTime>? lastUpdatedUtc,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (currentBalance != null) 'current_balance': currentBalance,
+      if (totalEarned != null) 'total_earned': totalEarned,
+      if (totalSpent != null) 'total_spent': totalSpent,
+      if (hasSeenFinale != null) 'has_seen_finale': hasSeenFinale,
+      if (lastUpdatedUtc != null) 'last_updated_utc': lastUpdatedUtc,
+    });
+  }
+
+  ConstellationPointsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? currentBalance,
+    Value<int>? totalEarned,
+    Value<int>? totalSpent,
+    Value<bool>? hasSeenFinale,
+    Value<DateTime>? lastUpdatedUtc,
+  }) {
+    return ConstellationPointsCompanion(
+      id: id ?? this.id,
+      currentBalance: currentBalance ?? this.currentBalance,
+      totalEarned: totalEarned ?? this.totalEarned,
+      totalSpent: totalSpent ?? this.totalSpent,
+      hasSeenFinale: hasSeenFinale ?? this.hasSeenFinale,
+      lastUpdatedUtc: lastUpdatedUtc ?? this.lastUpdatedUtc,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (currentBalance.present) {
+      map['current_balance'] = Variable<int>(currentBalance.value);
+    }
+    if (totalEarned.present) {
+      map['total_earned'] = Variable<int>(totalEarned.value);
+    }
+    if (totalSpent.present) {
+      map['total_spent'] = Variable<int>(totalSpent.value);
+    }
+    if (hasSeenFinale.present) {
+      map['has_seen_finale'] = Variable<bool>(hasSeenFinale.value);
+    }
+    if (lastUpdatedUtc.present) {
+      map['last_updated_utc'] = Variable<DateTime>(lastUpdatedUtc.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConstellationPointsCompanion(')
+          ..write('id: $id, ')
+          ..write('currentBalance: $currentBalance, ')
+          ..write('totalEarned: $totalEarned, ')
+          ..write('totalSpent: $totalSpent, ')
+          ..write('hasSeenFinale: $hasSeenFinale, ')
+          ..write('lastUpdatedUtc: $lastUpdatedUtc')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ConstellationTransactionsTable extends ConstellationTransactions
+    with TableInfo<$ConstellationTransactionsTable, ConstellationTransaction> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ConstellationTransactionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _transactionTypeMeta = const VerificationMeta(
+    'transactionType',
+  );
+  @override
+  late final GeneratedColumn<String> transactionType = GeneratedColumn<String>(
+    'transaction_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<int> amount = GeneratedColumn<int>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtUtcMeta = const VerificationMeta(
+    'createdAtUtc',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAtUtc = GeneratedColumn<DateTime>(
+    'created_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    transactionType,
+    amount,
+    sourceId,
+    description,
+    createdAtUtc,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'constellation_transactions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ConstellationTransaction> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('transaction_type')) {
+      context.handle(
+        _transactionTypeMeta,
+        transactionType.isAcceptableOrUnknown(
+          data['transaction_type']!,
+          _transactionTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_transactionTypeMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_descriptionMeta);
+    }
+    if (data.containsKey('created_at_utc')) {
+      context.handle(
+        _createdAtUtcMeta,
+        createdAtUtc.isAcceptableOrUnknown(
+          data['created_at_utc']!,
+          _createdAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtUtcMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ConstellationTransaction map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ConstellationTransaction(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      transactionType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transaction_type'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}amount'],
+      )!,
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      ),
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      createdAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at_utc'],
+      )!,
+    );
+  }
+
+  @override
+  $ConstellationTransactionsTable createAlias(String alias) {
+    return $ConstellationTransactionsTable(attachedDatabase, alias);
+  }
+}
+
+class ConstellationTransaction extends DataClass
+    implements Insertable<ConstellationTransaction> {
+  final int id;
+  final String transactionType;
+  final int amount;
+  final String? sourceId;
+  final String description;
+  final DateTime createdAtUtc;
+  const ConstellationTransaction({
+    required this.id,
+    required this.transactionType,
+    required this.amount,
+    this.sourceId,
+    required this.description,
+    required this.createdAtUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['transaction_type'] = Variable<String>(transactionType);
+    map['amount'] = Variable<int>(amount);
+    if (!nullToAbsent || sourceId != null) {
+      map['source_id'] = Variable<String>(sourceId);
+    }
+    map['description'] = Variable<String>(description);
+    map['created_at_utc'] = Variable<DateTime>(createdAtUtc);
+    return map;
+  }
+
+  ConstellationTransactionsCompanion toCompanion(bool nullToAbsent) {
+    return ConstellationTransactionsCompanion(
+      id: Value(id),
+      transactionType: Value(transactionType),
+      amount: Value(amount),
+      sourceId: sourceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceId),
+      description: Value(description),
+      createdAtUtc: Value(createdAtUtc),
+    );
+  }
+
+  factory ConstellationTransaction.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ConstellationTransaction(
+      id: serializer.fromJson<int>(json['id']),
+      transactionType: serializer.fromJson<String>(json['transactionType']),
+      amount: serializer.fromJson<int>(json['amount']),
+      sourceId: serializer.fromJson<String?>(json['sourceId']),
+      description: serializer.fromJson<String>(json['description']),
+      createdAtUtc: serializer.fromJson<DateTime>(json['createdAtUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'transactionType': serializer.toJson<String>(transactionType),
+      'amount': serializer.toJson<int>(amount),
+      'sourceId': serializer.toJson<String?>(sourceId),
+      'description': serializer.toJson<String>(description),
+      'createdAtUtc': serializer.toJson<DateTime>(createdAtUtc),
+    };
+  }
+
+  ConstellationTransaction copyWith({
+    int? id,
+    String? transactionType,
+    int? amount,
+    Value<String?> sourceId = const Value.absent(),
+    String? description,
+    DateTime? createdAtUtc,
+  }) => ConstellationTransaction(
+    id: id ?? this.id,
+    transactionType: transactionType ?? this.transactionType,
+    amount: amount ?? this.amount,
+    sourceId: sourceId.present ? sourceId.value : this.sourceId,
+    description: description ?? this.description,
+    createdAtUtc: createdAtUtc ?? this.createdAtUtc,
+  );
+  ConstellationTransaction copyWithCompanion(
+    ConstellationTransactionsCompanion data,
+  ) {
+    return ConstellationTransaction(
+      id: data.id.present ? data.id.value : this.id,
+      transactionType: data.transactionType.present
+          ? data.transactionType.value
+          : this.transactionType,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      createdAtUtc: data.createdAtUtc.present
+          ? data.createdAtUtc.value
+          : this.createdAtUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConstellationTransaction(')
+          ..write('id: $id, ')
+          ..write('transactionType: $transactionType, ')
+          ..write('amount: $amount, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('description: $description, ')
+          ..write('createdAtUtc: $createdAtUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    transactionType,
+    amount,
+    sourceId,
+    description,
+    createdAtUtc,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ConstellationTransaction &&
+          other.id == this.id &&
+          other.transactionType == this.transactionType &&
+          other.amount == this.amount &&
+          other.sourceId == this.sourceId &&
+          other.description == this.description &&
+          other.createdAtUtc == this.createdAtUtc);
+}
+
+class ConstellationTransactionsCompanion
+    extends UpdateCompanion<ConstellationTransaction> {
+  final Value<int> id;
+  final Value<String> transactionType;
+  final Value<int> amount;
+  final Value<String?> sourceId;
+  final Value<String> description;
+  final Value<DateTime> createdAtUtc;
+  const ConstellationTransactionsCompanion({
+    this.id = const Value.absent(),
+    this.transactionType = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.description = const Value.absent(),
+    this.createdAtUtc = const Value.absent(),
+  });
+  ConstellationTransactionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String transactionType,
+    required int amount,
+    this.sourceId = const Value.absent(),
+    required String description,
+    required DateTime createdAtUtc,
+  }) : transactionType = Value(transactionType),
+       amount = Value(amount),
+       description = Value(description),
+       createdAtUtc = Value(createdAtUtc);
+  static Insertable<ConstellationTransaction> custom({
+    Expression<int>? id,
+    Expression<String>? transactionType,
+    Expression<int>? amount,
+    Expression<String>? sourceId,
+    Expression<String>? description,
+    Expression<DateTime>? createdAtUtc,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (transactionType != null) 'transaction_type': transactionType,
+      if (amount != null) 'amount': amount,
+      if (sourceId != null) 'source_id': sourceId,
+      if (description != null) 'description': description,
+      if (createdAtUtc != null) 'created_at_utc': createdAtUtc,
+    });
+  }
+
+  ConstellationTransactionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? transactionType,
+    Value<int>? amount,
+    Value<String?>? sourceId,
+    Value<String>? description,
+    Value<DateTime>? createdAtUtc,
+  }) {
+    return ConstellationTransactionsCompanion(
+      id: id ?? this.id,
+      transactionType: transactionType ?? this.transactionType,
+      amount: amount ?? this.amount,
+      sourceId: sourceId ?? this.sourceId,
+      description: description ?? this.description,
+      createdAtUtc: createdAtUtc ?? this.createdAtUtc,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (transactionType.present) {
+      map['transaction_type'] = Variable<String>(transactionType.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<int>(amount.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (createdAtUtc.present) {
+      map['created_at_utc'] = Variable<DateTime>(createdAtUtc.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConstellationTransactionsCompanion(')
+          ..write('id: $id, ')
+          ..write('transactionType: $transactionType, ')
+          ..write('amount: $amount, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('description: $description, ')
+          ..write('createdAtUtc: $createdAtUtc')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ConstellationUnlocksTable extends ConstellationUnlocks
+    with TableInfo<$ConstellationUnlocksTable, ConstellationUnlock> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ConstellationUnlocksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _skillIdMeta = const VerificationMeta(
+    'skillId',
+  );
+  @override
+  late final GeneratedColumn<String> skillId = GeneratedColumn<String>(
+    'skill_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unlockedAtUtcMeta = const VerificationMeta(
+    'unlockedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<DateTime> unlockedAtUtc =
+      GeneratedColumn<DateTime>(
+        'unlocked_at_utc',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _pointsCostMeta = const VerificationMeta(
+    'pointsCost',
+  );
+  @override
+  late final GeneratedColumn<int> pointsCost = GeneratedColumn<int>(
+    'points_cost',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [skillId, unlockedAtUtc, pointsCost];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'constellation_unlocks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ConstellationUnlock> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('skill_id')) {
+      context.handle(
+        _skillIdMeta,
+        skillId.isAcceptableOrUnknown(data['skill_id']!, _skillIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_skillIdMeta);
+    }
+    if (data.containsKey('unlocked_at_utc')) {
+      context.handle(
+        _unlockedAtUtcMeta,
+        unlockedAtUtc.isAcceptableOrUnknown(
+          data['unlocked_at_utc']!,
+          _unlockedAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_unlockedAtUtcMeta);
+    }
+    if (data.containsKey('points_cost')) {
+      context.handle(
+        _pointsCostMeta,
+        pointsCost.isAcceptableOrUnknown(data['points_cost']!, _pointsCostMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pointsCostMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {skillId};
+  @override
+  ConstellationUnlock map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ConstellationUnlock(
+      skillId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}skill_id'],
+      )!,
+      unlockedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}unlocked_at_utc'],
+      )!,
+      pointsCost: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}points_cost'],
+      )!,
+    );
+  }
+
+  @override
+  $ConstellationUnlocksTable createAlias(String alias) {
+    return $ConstellationUnlocksTable(attachedDatabase, alias);
+  }
+}
+
+class ConstellationUnlock extends DataClass
+    implements Insertable<ConstellationUnlock> {
+  final String skillId;
+  final DateTime unlockedAtUtc;
+  final int pointsCost;
+  const ConstellationUnlock({
+    required this.skillId,
+    required this.unlockedAtUtc,
+    required this.pointsCost,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['skill_id'] = Variable<String>(skillId);
+    map['unlocked_at_utc'] = Variable<DateTime>(unlockedAtUtc);
+    map['points_cost'] = Variable<int>(pointsCost);
+    return map;
+  }
+
+  ConstellationUnlocksCompanion toCompanion(bool nullToAbsent) {
+    return ConstellationUnlocksCompanion(
+      skillId: Value(skillId),
+      unlockedAtUtc: Value(unlockedAtUtc),
+      pointsCost: Value(pointsCost),
+    );
+  }
+
+  factory ConstellationUnlock.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ConstellationUnlock(
+      skillId: serializer.fromJson<String>(json['skillId']),
+      unlockedAtUtc: serializer.fromJson<DateTime>(json['unlockedAtUtc']),
+      pointsCost: serializer.fromJson<int>(json['pointsCost']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'skillId': serializer.toJson<String>(skillId),
+      'unlockedAtUtc': serializer.toJson<DateTime>(unlockedAtUtc),
+      'pointsCost': serializer.toJson<int>(pointsCost),
+    };
+  }
+
+  ConstellationUnlock copyWith({
+    String? skillId,
+    DateTime? unlockedAtUtc,
+    int? pointsCost,
+  }) => ConstellationUnlock(
+    skillId: skillId ?? this.skillId,
+    unlockedAtUtc: unlockedAtUtc ?? this.unlockedAtUtc,
+    pointsCost: pointsCost ?? this.pointsCost,
+  );
+  ConstellationUnlock copyWithCompanion(ConstellationUnlocksCompanion data) {
+    return ConstellationUnlock(
+      skillId: data.skillId.present ? data.skillId.value : this.skillId,
+      unlockedAtUtc: data.unlockedAtUtc.present
+          ? data.unlockedAtUtc.value
+          : this.unlockedAtUtc,
+      pointsCost: data.pointsCost.present
+          ? data.pointsCost.value
+          : this.pointsCost,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConstellationUnlock(')
+          ..write('skillId: $skillId, ')
+          ..write('unlockedAtUtc: $unlockedAtUtc, ')
+          ..write('pointsCost: $pointsCost')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(skillId, unlockedAtUtc, pointsCost);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ConstellationUnlock &&
+          other.skillId == this.skillId &&
+          other.unlockedAtUtc == this.unlockedAtUtc &&
+          other.pointsCost == this.pointsCost);
+}
+
+class ConstellationUnlocksCompanion
+    extends UpdateCompanion<ConstellationUnlock> {
+  final Value<String> skillId;
+  final Value<DateTime> unlockedAtUtc;
+  final Value<int> pointsCost;
+  final Value<int> rowid;
+  const ConstellationUnlocksCompanion({
+    this.skillId = const Value.absent(),
+    this.unlockedAtUtc = const Value.absent(),
+    this.pointsCost = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ConstellationUnlocksCompanion.insert({
+    required String skillId,
+    required DateTime unlockedAtUtc,
+    required int pointsCost,
+    this.rowid = const Value.absent(),
+  }) : skillId = Value(skillId),
+       unlockedAtUtc = Value(unlockedAtUtc),
+       pointsCost = Value(pointsCost);
+  static Insertable<ConstellationUnlock> custom({
+    Expression<String>? skillId,
+    Expression<DateTime>? unlockedAtUtc,
+    Expression<int>? pointsCost,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (skillId != null) 'skill_id': skillId,
+      if (unlockedAtUtc != null) 'unlocked_at_utc': unlockedAtUtc,
+      if (pointsCost != null) 'points_cost': pointsCost,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ConstellationUnlocksCompanion copyWith({
+    Value<String>? skillId,
+    Value<DateTime>? unlockedAtUtc,
+    Value<int>? pointsCost,
+    Value<int>? rowid,
+  }) {
+    return ConstellationUnlocksCompanion(
+      skillId: skillId ?? this.skillId,
+      unlockedAtUtc: unlockedAtUtc ?? this.unlockedAtUtc,
+      pointsCost: pointsCost ?? this.pointsCost,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (skillId.present) {
+      map['skill_id'] = Variable<String>(skillId.value);
+    }
+    if (unlockedAtUtc.present) {
+      map['unlocked_at_utc'] = Variable<DateTime>(unlockedAtUtc.value);
+    }
+    if (pointsCost.present) {
+      map['points_cost'] = Variable<int>(pointsCost.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConstellationUnlocksCompanion(')
+          ..write('skillId: $skillId, ')
+          ..write('unlockedAtUtc: $unlockedAtUtc, ')
+          ..write('pointsCost: $pointsCost, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BreedingStatisticsTable extends BreedingStatistics
+    with TableInfo<$BreedingStatisticsTable, BreedingStatistic> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BreedingStatisticsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _speciesIdMeta = const VerificationMeta(
+    'speciesId',
+  );
+  @override
+  late final GeneratedColumn<String> speciesId = GeneratedColumn<String>(
+    'species_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _totalBredMeta = const VerificationMeta(
+    'totalBred',
+  );
+  @override
+  late final GeneratedColumn<int> totalBred = GeneratedColumn<int>(
+    'total_bred',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastMilestoneAwardedMeta =
+      const VerificationMeta('lastMilestoneAwarded');
+  @override
+  late final GeneratedColumn<int> lastMilestoneAwarded = GeneratedColumn<int>(
+    'last_milestone_awarded',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastBredAtUtcMeta = const VerificationMeta(
+    'lastBredAtUtc',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastBredAtUtc =
+      GeneratedColumn<DateTime>(
+        'last_bred_at_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    speciesId,
+    totalBred,
+    lastMilestoneAwarded,
+    lastBredAtUtc,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'breeding_statistics';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BreedingStatistic> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('species_id')) {
+      context.handle(
+        _speciesIdMeta,
+        speciesId.isAcceptableOrUnknown(data['species_id']!, _speciesIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_speciesIdMeta);
+    }
+    if (data.containsKey('total_bred')) {
+      context.handle(
+        _totalBredMeta,
+        totalBred.isAcceptableOrUnknown(data['total_bred']!, _totalBredMeta),
+      );
+    }
+    if (data.containsKey('last_milestone_awarded')) {
+      context.handle(
+        _lastMilestoneAwardedMeta,
+        lastMilestoneAwarded.isAcceptableOrUnknown(
+          data['last_milestone_awarded']!,
+          _lastMilestoneAwardedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_bred_at_utc')) {
+      context.handle(
+        _lastBredAtUtcMeta,
+        lastBredAtUtc.isAcceptableOrUnknown(
+          data['last_bred_at_utc']!,
+          _lastBredAtUtcMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {speciesId};
+  @override
+  BreedingStatistic map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BreedingStatistic(
+      speciesId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}species_id'],
+      )!,
+      totalBred: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_bred'],
+      )!,
+      lastMilestoneAwarded: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_milestone_awarded'],
+      )!,
+      lastBredAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_bred_at_utc'],
+      ),
+    );
+  }
+
+  @override
+  $BreedingStatisticsTable createAlias(String alias) {
+    return $BreedingStatisticsTable(attachedDatabase, alias);
+  }
+}
+
+class BreedingStatistic extends DataClass
+    implements Insertable<BreedingStatistic> {
+  final String speciesId;
+  final int totalBred;
+  final int lastMilestoneAwarded;
+  final DateTime? lastBredAtUtc;
+  const BreedingStatistic({
+    required this.speciesId,
+    required this.totalBred,
+    required this.lastMilestoneAwarded,
+    this.lastBredAtUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['species_id'] = Variable<String>(speciesId);
+    map['total_bred'] = Variable<int>(totalBred);
+    map['last_milestone_awarded'] = Variable<int>(lastMilestoneAwarded);
+    if (!nullToAbsent || lastBredAtUtc != null) {
+      map['last_bred_at_utc'] = Variable<DateTime>(lastBredAtUtc);
+    }
+    return map;
+  }
+
+  BreedingStatisticsCompanion toCompanion(bool nullToAbsent) {
+    return BreedingStatisticsCompanion(
+      speciesId: Value(speciesId),
+      totalBred: Value(totalBred),
+      lastMilestoneAwarded: Value(lastMilestoneAwarded),
+      lastBredAtUtc: lastBredAtUtc == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastBredAtUtc),
+    );
+  }
+
+  factory BreedingStatistic.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BreedingStatistic(
+      speciesId: serializer.fromJson<String>(json['speciesId']),
+      totalBred: serializer.fromJson<int>(json['totalBred']),
+      lastMilestoneAwarded: serializer.fromJson<int>(
+        json['lastMilestoneAwarded'],
+      ),
+      lastBredAtUtc: serializer.fromJson<DateTime?>(json['lastBredAtUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'speciesId': serializer.toJson<String>(speciesId),
+      'totalBred': serializer.toJson<int>(totalBred),
+      'lastMilestoneAwarded': serializer.toJson<int>(lastMilestoneAwarded),
+      'lastBredAtUtc': serializer.toJson<DateTime?>(lastBredAtUtc),
+    };
+  }
+
+  BreedingStatistic copyWith({
+    String? speciesId,
+    int? totalBred,
+    int? lastMilestoneAwarded,
+    Value<DateTime?> lastBredAtUtc = const Value.absent(),
+  }) => BreedingStatistic(
+    speciesId: speciesId ?? this.speciesId,
+    totalBred: totalBred ?? this.totalBred,
+    lastMilestoneAwarded: lastMilestoneAwarded ?? this.lastMilestoneAwarded,
+    lastBredAtUtc: lastBredAtUtc.present
+        ? lastBredAtUtc.value
+        : this.lastBredAtUtc,
+  );
+  BreedingStatistic copyWithCompanion(BreedingStatisticsCompanion data) {
+    return BreedingStatistic(
+      speciesId: data.speciesId.present ? data.speciesId.value : this.speciesId,
+      totalBred: data.totalBred.present ? data.totalBred.value : this.totalBred,
+      lastMilestoneAwarded: data.lastMilestoneAwarded.present
+          ? data.lastMilestoneAwarded.value
+          : this.lastMilestoneAwarded,
+      lastBredAtUtc: data.lastBredAtUtc.present
+          ? data.lastBredAtUtc.value
+          : this.lastBredAtUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BreedingStatistic(')
+          ..write('speciesId: $speciesId, ')
+          ..write('totalBred: $totalBred, ')
+          ..write('lastMilestoneAwarded: $lastMilestoneAwarded, ')
+          ..write('lastBredAtUtc: $lastBredAtUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(speciesId, totalBred, lastMilestoneAwarded, lastBredAtUtc);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BreedingStatistic &&
+          other.speciesId == this.speciesId &&
+          other.totalBred == this.totalBred &&
+          other.lastMilestoneAwarded == this.lastMilestoneAwarded &&
+          other.lastBredAtUtc == this.lastBredAtUtc);
+}
+
+class BreedingStatisticsCompanion extends UpdateCompanion<BreedingStatistic> {
+  final Value<String> speciesId;
+  final Value<int> totalBred;
+  final Value<int> lastMilestoneAwarded;
+  final Value<DateTime?> lastBredAtUtc;
+  final Value<int> rowid;
+  const BreedingStatisticsCompanion({
+    this.speciesId = const Value.absent(),
+    this.totalBred = const Value.absent(),
+    this.lastMilestoneAwarded = const Value.absent(),
+    this.lastBredAtUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BreedingStatisticsCompanion.insert({
+    required String speciesId,
+    this.totalBred = const Value.absent(),
+    this.lastMilestoneAwarded = const Value.absent(),
+    this.lastBredAtUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : speciesId = Value(speciesId);
+  static Insertable<BreedingStatistic> custom({
+    Expression<String>? speciesId,
+    Expression<int>? totalBred,
+    Expression<int>? lastMilestoneAwarded,
+    Expression<DateTime>? lastBredAtUtc,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (speciesId != null) 'species_id': speciesId,
+      if (totalBred != null) 'total_bred': totalBred,
+      if (lastMilestoneAwarded != null)
+        'last_milestone_awarded': lastMilestoneAwarded,
+      if (lastBredAtUtc != null) 'last_bred_at_utc': lastBredAtUtc,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BreedingStatisticsCompanion copyWith({
+    Value<String>? speciesId,
+    Value<int>? totalBred,
+    Value<int>? lastMilestoneAwarded,
+    Value<DateTime?>? lastBredAtUtc,
+    Value<int>? rowid,
+  }) {
+    return BreedingStatisticsCompanion(
+      speciesId: speciesId ?? this.speciesId,
+      totalBred: totalBred ?? this.totalBred,
+      lastMilestoneAwarded: lastMilestoneAwarded ?? this.lastMilestoneAwarded,
+      lastBredAtUtc: lastBredAtUtc ?? this.lastBredAtUtc,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (speciesId.present) {
+      map['species_id'] = Variable<String>(speciesId.value);
+    }
+    if (totalBred.present) {
+      map['total_bred'] = Variable<int>(totalBred.value);
+    }
+    if (lastMilestoneAwarded.present) {
+      map['last_milestone_awarded'] = Variable<int>(lastMilestoneAwarded.value);
+    }
+    if (lastBredAtUtc.present) {
+      map['last_bred_at_utc'] = Variable<DateTime>(lastBredAtUtc.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BreedingStatisticsCompanion(')
+          ..write('speciesId: $speciesId, ')
+          ..write('totalBred: $totalBred, ')
+          ..write('lastMilestoneAwarded: $lastMilestoneAwarded, ')
+          ..write('lastBredAtUtc: $lastBredAtUtc, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   _$AlchemonsDatabase(QueryExecutor e) : super(e);
   $AlchemonsDatabaseManager get managers => $AlchemonsDatabaseManager(this);
@@ -6410,6 +7875,14 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   late final $SpawnScheduleTable spawnSchedule = $SpawnScheduleTable(this);
   late final $NotificationDismissalsTable notificationDismissals =
       $NotificationDismissalsTable(this);
+  late final $ConstellationPointsTable constellationPoints =
+      $ConstellationPointsTable(this);
+  late final $ConstellationTransactionsTable constellationTransactions =
+      $ConstellationTransactionsTable(this);
+  late final $ConstellationUnlocksTable constellationUnlocks =
+      $ConstellationUnlocksTable(this);
+  late final $BreedingStatisticsTable breedingStatistics =
+      $BreedingStatisticsTable(this);
   late final SettingsDao settingsDao = SettingsDao(this as AlchemonsDatabase);
   late final CurrencyDao currencyDao = CurrencyDao(this as AlchemonsDatabase);
   late final CreatureDao creatureDao = CreatureDao(this as AlchemonsDatabase);
@@ -6421,6 +7894,9 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   );
   late final BiomeDao biomeDao = BiomeDao(this as AlchemonsDatabase);
   late final ShopDao shopDao = ShopDao(this as AlchemonsDatabase);
+  late final ConstellationDao constellationDao = ConstellationDao(
+    this as AlchemonsDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6441,6 +7917,10 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
     activeSceneEntry,
     spawnSchedule,
     notificationDismissals,
+    constellationPoints,
+    constellationTransactions,
+    constellationUnlocks,
+    breedingStatistics,
   ];
 }
 
@@ -9872,6 +11352,863 @@ typedef $$NotificationDismissalsTableProcessedTableManager =
       NotificationDismissal,
       PrefetchHooks Function()
     >;
+typedef $$ConstellationPointsTableCreateCompanionBuilder =
+    ConstellationPointsCompanion Function({
+      Value<int> id,
+      Value<int> currentBalance,
+      Value<int> totalEarned,
+      Value<int> totalSpent,
+      Value<bool> hasSeenFinale,
+      required DateTime lastUpdatedUtc,
+    });
+typedef $$ConstellationPointsTableUpdateCompanionBuilder =
+    ConstellationPointsCompanion Function({
+      Value<int> id,
+      Value<int> currentBalance,
+      Value<int> totalEarned,
+      Value<int> totalSpent,
+      Value<bool> hasSeenFinale,
+      Value<DateTime> lastUpdatedUtc,
+    });
+
+class $$ConstellationPointsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $ConstellationPointsTable> {
+  $$ConstellationPointsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get currentBalance => $composableBuilder(
+    column: $table.currentBalance,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalEarned => $composableBuilder(
+    column: $table.totalEarned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalSpent => $composableBuilder(
+    column: $table.totalSpent,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hasSeenFinale => $composableBuilder(
+    column: $table.hasSeenFinale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastUpdatedUtc => $composableBuilder(
+    column: $table.lastUpdatedUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ConstellationPointsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $ConstellationPointsTable> {
+  $$ConstellationPointsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get currentBalance => $composableBuilder(
+    column: $table.currentBalance,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalEarned => $composableBuilder(
+    column: $table.totalEarned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalSpent => $composableBuilder(
+    column: $table.totalSpent,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hasSeenFinale => $composableBuilder(
+    column: $table.hasSeenFinale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastUpdatedUtc => $composableBuilder(
+    column: $table.lastUpdatedUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ConstellationPointsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $ConstellationPointsTable> {
+  $$ConstellationPointsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get currentBalance => $composableBuilder(
+    column: $table.currentBalance,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get totalEarned => $composableBuilder(
+    column: $table.totalEarned,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get totalSpent => $composableBuilder(
+    column: $table.totalSpent,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get hasSeenFinale => $composableBuilder(
+    column: $table.hasSeenFinale,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastUpdatedUtc => $composableBuilder(
+    column: $table.lastUpdatedUtc,
+    builder: (column) => column,
+  );
+}
+
+class $$ConstellationPointsTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $ConstellationPointsTable,
+          ConstellationPoint,
+          $$ConstellationPointsTableFilterComposer,
+          $$ConstellationPointsTableOrderingComposer,
+          $$ConstellationPointsTableAnnotationComposer,
+          $$ConstellationPointsTableCreateCompanionBuilder,
+          $$ConstellationPointsTableUpdateCompanionBuilder,
+          (
+            ConstellationPoint,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $ConstellationPointsTable,
+              ConstellationPoint
+            >,
+          ),
+          ConstellationPoint,
+          PrefetchHooks Function()
+        > {
+  $$ConstellationPointsTableTableManager(
+    _$AlchemonsDatabase db,
+    $ConstellationPointsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ConstellationPointsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ConstellationPointsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ConstellationPointsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> currentBalance = const Value.absent(),
+                Value<int> totalEarned = const Value.absent(),
+                Value<int> totalSpent = const Value.absent(),
+                Value<bool> hasSeenFinale = const Value.absent(),
+                Value<DateTime> lastUpdatedUtc = const Value.absent(),
+              }) => ConstellationPointsCompanion(
+                id: id,
+                currentBalance: currentBalance,
+                totalEarned: totalEarned,
+                totalSpent: totalSpent,
+                hasSeenFinale: hasSeenFinale,
+                lastUpdatedUtc: lastUpdatedUtc,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> currentBalance = const Value.absent(),
+                Value<int> totalEarned = const Value.absent(),
+                Value<int> totalSpent = const Value.absent(),
+                Value<bool> hasSeenFinale = const Value.absent(),
+                required DateTime lastUpdatedUtc,
+              }) => ConstellationPointsCompanion.insert(
+                id: id,
+                currentBalance: currentBalance,
+                totalEarned: totalEarned,
+                totalSpent: totalSpent,
+                hasSeenFinale: hasSeenFinale,
+                lastUpdatedUtc: lastUpdatedUtc,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ConstellationPointsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $ConstellationPointsTable,
+      ConstellationPoint,
+      $$ConstellationPointsTableFilterComposer,
+      $$ConstellationPointsTableOrderingComposer,
+      $$ConstellationPointsTableAnnotationComposer,
+      $$ConstellationPointsTableCreateCompanionBuilder,
+      $$ConstellationPointsTableUpdateCompanionBuilder,
+      (
+        ConstellationPoint,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $ConstellationPointsTable,
+          ConstellationPoint
+        >,
+      ),
+      ConstellationPoint,
+      PrefetchHooks Function()
+    >;
+typedef $$ConstellationTransactionsTableCreateCompanionBuilder =
+    ConstellationTransactionsCompanion Function({
+      Value<int> id,
+      required String transactionType,
+      required int amount,
+      Value<String?> sourceId,
+      required String description,
+      required DateTime createdAtUtc,
+    });
+typedef $$ConstellationTransactionsTableUpdateCompanionBuilder =
+    ConstellationTransactionsCompanion Function({
+      Value<int> id,
+      Value<String> transactionType,
+      Value<int> amount,
+      Value<String?> sourceId,
+      Value<String> description,
+      Value<DateTime> createdAtUtc,
+    });
+
+class $$ConstellationTransactionsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $ConstellationTransactionsTable> {
+  $$ConstellationTransactionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get transactionType => $composableBuilder(
+    column: $table.transactionType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ConstellationTransactionsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $ConstellationTransactionsTable> {
+  $$ConstellationTransactionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get transactionType => $composableBuilder(
+    column: $table.transactionType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ConstellationTransactionsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $ConstellationTransactionsTable> {
+  $$ConstellationTransactionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get transactionType => $composableBuilder(
+    column: $table.transactionType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAtUtc => $composableBuilder(
+    column: $table.createdAtUtc,
+    builder: (column) => column,
+  );
+}
+
+class $$ConstellationTransactionsTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $ConstellationTransactionsTable,
+          ConstellationTransaction,
+          $$ConstellationTransactionsTableFilterComposer,
+          $$ConstellationTransactionsTableOrderingComposer,
+          $$ConstellationTransactionsTableAnnotationComposer,
+          $$ConstellationTransactionsTableCreateCompanionBuilder,
+          $$ConstellationTransactionsTableUpdateCompanionBuilder,
+          (
+            ConstellationTransaction,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $ConstellationTransactionsTable,
+              ConstellationTransaction
+            >,
+          ),
+          ConstellationTransaction,
+          PrefetchHooks Function()
+        > {
+  $$ConstellationTransactionsTableTableManager(
+    _$AlchemonsDatabase db,
+    $ConstellationTransactionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ConstellationTransactionsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ConstellationTransactionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ConstellationTransactionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> transactionType = const Value.absent(),
+                Value<int> amount = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<DateTime> createdAtUtc = const Value.absent(),
+              }) => ConstellationTransactionsCompanion(
+                id: id,
+                transactionType: transactionType,
+                amount: amount,
+                sourceId: sourceId,
+                description: description,
+                createdAtUtc: createdAtUtc,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String transactionType,
+                required int amount,
+                Value<String?> sourceId = const Value.absent(),
+                required String description,
+                required DateTime createdAtUtc,
+              }) => ConstellationTransactionsCompanion.insert(
+                id: id,
+                transactionType: transactionType,
+                amount: amount,
+                sourceId: sourceId,
+                description: description,
+                createdAtUtc: createdAtUtc,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ConstellationTransactionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $ConstellationTransactionsTable,
+      ConstellationTransaction,
+      $$ConstellationTransactionsTableFilterComposer,
+      $$ConstellationTransactionsTableOrderingComposer,
+      $$ConstellationTransactionsTableAnnotationComposer,
+      $$ConstellationTransactionsTableCreateCompanionBuilder,
+      $$ConstellationTransactionsTableUpdateCompanionBuilder,
+      (
+        ConstellationTransaction,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $ConstellationTransactionsTable,
+          ConstellationTransaction
+        >,
+      ),
+      ConstellationTransaction,
+      PrefetchHooks Function()
+    >;
+typedef $$ConstellationUnlocksTableCreateCompanionBuilder =
+    ConstellationUnlocksCompanion Function({
+      required String skillId,
+      required DateTime unlockedAtUtc,
+      required int pointsCost,
+      Value<int> rowid,
+    });
+typedef $$ConstellationUnlocksTableUpdateCompanionBuilder =
+    ConstellationUnlocksCompanion Function({
+      Value<String> skillId,
+      Value<DateTime> unlockedAtUtc,
+      Value<int> pointsCost,
+      Value<int> rowid,
+    });
+
+class $$ConstellationUnlocksTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $ConstellationUnlocksTable> {
+  $$ConstellationUnlocksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get skillId => $composableBuilder(
+    column: $table.skillId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get unlockedAtUtc => $composableBuilder(
+    column: $table.unlockedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pointsCost => $composableBuilder(
+    column: $table.pointsCost,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ConstellationUnlocksTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $ConstellationUnlocksTable> {
+  $$ConstellationUnlocksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get skillId => $composableBuilder(
+    column: $table.skillId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get unlockedAtUtc => $composableBuilder(
+    column: $table.unlockedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pointsCost => $composableBuilder(
+    column: $table.pointsCost,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ConstellationUnlocksTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $ConstellationUnlocksTable> {
+  $$ConstellationUnlocksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get skillId =>
+      $composableBuilder(column: $table.skillId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get unlockedAtUtc => $composableBuilder(
+    column: $table.unlockedAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get pointsCost => $composableBuilder(
+    column: $table.pointsCost,
+    builder: (column) => column,
+  );
+}
+
+class $$ConstellationUnlocksTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $ConstellationUnlocksTable,
+          ConstellationUnlock,
+          $$ConstellationUnlocksTableFilterComposer,
+          $$ConstellationUnlocksTableOrderingComposer,
+          $$ConstellationUnlocksTableAnnotationComposer,
+          $$ConstellationUnlocksTableCreateCompanionBuilder,
+          $$ConstellationUnlocksTableUpdateCompanionBuilder,
+          (
+            ConstellationUnlock,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $ConstellationUnlocksTable,
+              ConstellationUnlock
+            >,
+          ),
+          ConstellationUnlock,
+          PrefetchHooks Function()
+        > {
+  $$ConstellationUnlocksTableTableManager(
+    _$AlchemonsDatabase db,
+    $ConstellationUnlocksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ConstellationUnlocksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ConstellationUnlocksTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ConstellationUnlocksTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> skillId = const Value.absent(),
+                Value<DateTime> unlockedAtUtc = const Value.absent(),
+                Value<int> pointsCost = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ConstellationUnlocksCompanion(
+                skillId: skillId,
+                unlockedAtUtc: unlockedAtUtc,
+                pointsCost: pointsCost,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String skillId,
+                required DateTime unlockedAtUtc,
+                required int pointsCost,
+                Value<int> rowid = const Value.absent(),
+              }) => ConstellationUnlocksCompanion.insert(
+                skillId: skillId,
+                unlockedAtUtc: unlockedAtUtc,
+                pointsCost: pointsCost,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ConstellationUnlocksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $ConstellationUnlocksTable,
+      ConstellationUnlock,
+      $$ConstellationUnlocksTableFilterComposer,
+      $$ConstellationUnlocksTableOrderingComposer,
+      $$ConstellationUnlocksTableAnnotationComposer,
+      $$ConstellationUnlocksTableCreateCompanionBuilder,
+      $$ConstellationUnlocksTableUpdateCompanionBuilder,
+      (
+        ConstellationUnlock,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $ConstellationUnlocksTable,
+          ConstellationUnlock
+        >,
+      ),
+      ConstellationUnlock,
+      PrefetchHooks Function()
+    >;
+typedef $$BreedingStatisticsTableCreateCompanionBuilder =
+    BreedingStatisticsCompanion Function({
+      required String speciesId,
+      Value<int> totalBred,
+      Value<int> lastMilestoneAwarded,
+      Value<DateTime?> lastBredAtUtc,
+      Value<int> rowid,
+    });
+typedef $$BreedingStatisticsTableUpdateCompanionBuilder =
+    BreedingStatisticsCompanion Function({
+      Value<String> speciesId,
+      Value<int> totalBred,
+      Value<int> lastMilestoneAwarded,
+      Value<DateTime?> lastBredAtUtc,
+      Value<int> rowid,
+    });
+
+class $$BreedingStatisticsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $BreedingStatisticsTable> {
+  $$BreedingStatisticsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get speciesId => $composableBuilder(
+    column: $table.speciesId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalBred => $composableBuilder(
+    column: $table.totalBred,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastMilestoneAwarded => $composableBuilder(
+    column: $table.lastMilestoneAwarded,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastBredAtUtc => $composableBuilder(
+    column: $table.lastBredAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BreedingStatisticsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $BreedingStatisticsTable> {
+  $$BreedingStatisticsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get speciesId => $composableBuilder(
+    column: $table.speciesId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalBred => $composableBuilder(
+    column: $table.totalBred,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastMilestoneAwarded => $composableBuilder(
+    column: $table.lastMilestoneAwarded,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastBredAtUtc => $composableBuilder(
+    column: $table.lastBredAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BreedingStatisticsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $BreedingStatisticsTable> {
+  $$BreedingStatisticsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get speciesId =>
+      $composableBuilder(column: $table.speciesId, builder: (column) => column);
+
+  GeneratedColumn<int> get totalBred =>
+      $composableBuilder(column: $table.totalBred, builder: (column) => column);
+
+  GeneratedColumn<int> get lastMilestoneAwarded => $composableBuilder(
+    column: $table.lastMilestoneAwarded,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastBredAtUtc => $composableBuilder(
+    column: $table.lastBredAtUtc,
+    builder: (column) => column,
+  );
+}
+
+class $$BreedingStatisticsTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $BreedingStatisticsTable,
+          BreedingStatistic,
+          $$BreedingStatisticsTableFilterComposer,
+          $$BreedingStatisticsTableOrderingComposer,
+          $$BreedingStatisticsTableAnnotationComposer,
+          $$BreedingStatisticsTableCreateCompanionBuilder,
+          $$BreedingStatisticsTableUpdateCompanionBuilder,
+          (
+            BreedingStatistic,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $BreedingStatisticsTable,
+              BreedingStatistic
+            >,
+          ),
+          BreedingStatistic,
+          PrefetchHooks Function()
+        > {
+  $$BreedingStatisticsTableTableManager(
+    _$AlchemonsDatabase db,
+    $BreedingStatisticsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BreedingStatisticsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BreedingStatisticsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BreedingStatisticsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> speciesId = const Value.absent(),
+                Value<int> totalBred = const Value.absent(),
+                Value<int> lastMilestoneAwarded = const Value.absent(),
+                Value<DateTime?> lastBredAtUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BreedingStatisticsCompanion(
+                speciesId: speciesId,
+                totalBred: totalBred,
+                lastMilestoneAwarded: lastMilestoneAwarded,
+                lastBredAtUtc: lastBredAtUtc,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String speciesId,
+                Value<int> totalBred = const Value.absent(),
+                Value<int> lastMilestoneAwarded = const Value.absent(),
+                Value<DateTime?> lastBredAtUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BreedingStatisticsCompanion.insert(
+                speciesId: speciesId,
+                totalBred: totalBred,
+                lastMilestoneAwarded: lastMilestoneAwarded,
+                lastBredAtUtc: lastBredAtUtc,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BreedingStatisticsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $BreedingStatisticsTable,
+      BreedingStatistic,
+      $$BreedingStatisticsTableFilterComposer,
+      $$BreedingStatisticsTableOrderingComposer,
+      $$BreedingStatisticsTableAnnotationComposer,
+      $$BreedingStatisticsTableCreateCompanionBuilder,
+      $$BreedingStatisticsTableUpdateCompanionBuilder,
+      (
+        BreedingStatistic,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $BreedingStatisticsTable,
+          BreedingStatistic
+        >,
+      ),
+      BreedingStatistic,
+      PrefetchHooks Function()
+    >;
 
 class $AlchemonsDatabaseManager {
   final _$AlchemonsDatabase _db;
@@ -9908,4 +12245,15 @@ class $AlchemonsDatabaseManager {
         _db,
         _db.notificationDismissals,
       );
+  $$ConstellationPointsTableTableManager get constellationPoints =>
+      $$ConstellationPointsTableTableManager(_db, _db.constellationPoints);
+  $$ConstellationTransactionsTableTableManager get constellationTransactions =>
+      $$ConstellationTransactionsTableTableManager(
+        _db,
+        _db.constellationTransactions,
+      );
+  $$ConstellationUnlocksTableTableManager get constellationUnlocks =>
+      $$ConstellationUnlocksTableTableManager(_db, _db.constellationUnlocks);
+  $$BreedingStatisticsTableTableManager get breedingStatistics =>
+      $$BreedingStatisticsTableTableManager(_db, _db.breedingStatistics);
 }

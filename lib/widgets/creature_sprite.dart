@@ -205,26 +205,61 @@ class _CreatureSpriteState extends State<CreatureSprite>
   }
 
   Future<void> _loadAnimation() async {
-    final image = await Flame.images.load(widget.spritePath);
+    try {
+      final images = Flame.images;
 
-    // columns per row on the sheet
-    final cols = (widget.totalFrames + widget.rows - 1) ~/ widget.rows;
+      // If the image is already cached, do everything synchronously
+      if (images.containsKey(widget.spritePath)) {
+        final image = images.fromCache(widget.spritePath);
 
-    final anim = SpriteAnimation.fromFrameData(
-      image,
-      SpriteAnimationData.sequenced(
-        amount: widget.totalFrames,
-        amountPerRow: cols,
-        textureSize: widget.frameSize,
-        stepTime: widget.stepTime,
-        loop: true,
-      ),
-    );
+        final cols = (widget.totalFrames + widget.rows - 1) ~/ widget.rows;
 
-    setState(() {
-      _spriteAnimation = anim;
-      _spriteTicker = anim.createTicker();
-    });
+        final anim = SpriteAnimation.fromFrameData(
+          image,
+          SpriteAnimationData.sequenced(
+            amount: widget.totalFrames,
+            amountPerRow: cols,
+            textureSize: widget.frameSize,
+            stepTime: widget.stepTime,
+            loop: true,
+          ),
+        );
+
+        // Synchronous path: no placeholder frame needed
+        _spriteAnimation = anim;
+        _spriteTicker = anim.createTicker();
+
+        // We *can* call setState so the initial build uses animation instead of placeholder
+        setState(() {});
+        return;
+      }
+
+      // Otherwise, fall back to async loading
+      final image = await images.load(widget.spritePath);
+
+      final cols = (widget.totalFrames + widget.rows - 1) ~/ widget.rows;
+
+      final anim = SpriteAnimation.fromFrameData(
+        image,
+        SpriteAnimationData.sequenced(
+          amount: widget.totalFrames,
+          amountPerRow: cols,
+          textureSize: widget.frameSize,
+          stepTime: widget.stepTime,
+          loop: true,
+        ),
+      );
+
+      setState(() {
+        _spriteAnimation = anim;
+        _spriteTicker = anim.createTicker();
+        _loadError = null;
+      });
+    } catch (e) {
+      setState(() {
+        _loadError = e.toString();
+      });
+    }
   }
 }
 

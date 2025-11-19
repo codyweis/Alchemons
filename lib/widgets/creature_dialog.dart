@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/components.dart';
@@ -911,6 +912,12 @@ class _AnalysisScrollArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Read constellation skill state
+    final constellation = context.watch<ConstellationEffectsService>();
+    final hasLineageAnalyzer = constellation.hasLineageAnalyzer();
+    final hasGeneAnalyzer = constellation.hasGeneAnalyzer();
+    final hasPotentialAnalyzer = constellation.hasPotentialAnalyzer();
+
     return SingleChildScrollView(
       controller: controller,
       physics: const BouncingScrollPhysics(),
@@ -918,12 +925,19 @@ class _AnalysisScrollArea extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // BEHAVIOR / NATURE – unlocked by Gene Analyzer
           SectionBlock(
             theme: theme,
             title: 'Behavioral Analysis',
-            child: _BehaviorBlock(creature: creature, textColor: theme.text),
+            child: _BehaviorBlock(
+              creature: creature,
+              textColor: theme.text,
+              showNatureDetails: hasGeneAnalyzer, // NEW
+            ),
           ),
           const SizedBox(height: 16),
+
+          // GENETIC PROFILE (always visible)
           SectionBlock(
             theme: theme,
             title: 'Genetic Analysis',
@@ -931,10 +945,34 @@ class _AnalysisScrollArea extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
+          // STAT POTENTIALS – gated by Potential Analyzer
           if (isInstance && instanceId != null)
-            StatPotentialBlock(theme: theme, instanceId: instanceId),
+            hasPotentialAnalyzer
+                ? StatPotentialBlock(theme: theme, instanceId: instanceId!)
+                : SectionBlock(
+                    theme: theme,
+                    title: 'Stat Potentials',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Detailed stat potentials are currently obscured.',
+                          style: TextStyle(color: theme.text, fontSize: 11),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '',
+                          style: TextStyle(
+                            color: theme.textMuted,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
           if (isInstance) const SizedBox(height: 16),
 
+          // LINEAGE TREE – always visible, but advanced stats are gated below
           if (isInstance && instance != null) ...[
             SectionBlock(
               theme: theme,
@@ -944,6 +982,7 @@ class _AnalysisScrollArea extends StatelessWidget {
             const SizedBox(height: 16),
           ],
 
+          // PARENT SNAPSHOTS (base lineage info)
           if (parentage != null) ...[
             Text(
               'PARENT SPECIMENS',
@@ -955,7 +994,6 @@ class _AnalysisScrollArea extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-
             ParentCard(
               theme: theme,
               snap: parentage!.parentA,
@@ -986,8 +1024,30 @@ class _AnalysisScrollArea extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 16),
+
+          // ADVANCED BREEDING OUTCOME STATS – gated by Lineage Analyzer
           if (parentage != null && isInstance && instanceId != null) ...[
-            _BreedingAnalysisSection(theme: theme, instanceId: instanceId!),
+            if (hasLineageAnalyzer)
+              _BreedingAnalysisSection(theme: theme, instanceId: instanceId!)
+            else
+              SectionBlock(
+                theme: theme,
+                title: 'Breeding Analysis',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Advanced lineage and outcome statistics obscured.',
+                      style: TextStyle(color: theme.text, fontSize: 11),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '',
+                      style: TextStyle(color: theme.textMuted, fontSize: 10),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 16),
           ],
         ],
@@ -1003,44 +1063,66 @@ class _AnalysisScrollArea extends StatelessWidget {
 class _BehaviorBlock extends StatelessWidget {
   final Creature creature;
   final Color? textColor;
+  final bool showNatureDetails; // NEW
 
   const _BehaviorBlock({
     required this.creature,
     this.textColor = const Color(0xFFE8EAED),
+    required this.showNatureDetails, // NEW
   });
 
   @override
   Widget build(BuildContext context) {
     final n = creature.nature;
-    if (n != null) {
-      return Column(
-        children: [
-          LabeledInlineValue(
-            label: 'Nature Type',
-            valueText: n.id,
-            valueColor: textColor,
-          ),
-          if (n.effect.modifiers.isNotEmpty)
-            LabeledInlineValue(
-              label: 'Active Effects',
-              valueText: _formatNatureEffects(n.effect),
-              valueColor: textColor,
-            )
-          else
-            LabeledInlineValue(
-              label: 'Effects',
-              valueText: 'No special behavioral modifications known',
-              valueColor: textColor,
-            ),
-        ],
-      );
-    } else {
+
+    // No nature at all → same as before
+    if (n == null) {
       return LabeledInlineValue(
         label: 'Nature',
         valueText: 'Unspecified - Standard behavioral pattern',
         valueColor: textColor,
       );
     }
+
+    // We always show the basic nature id
+    final children = <Widget>[
+      LabeledInlineValue(
+        label: 'Nature Type',
+        valueText: n.id,
+        valueColor: textColor,
+      ),
+    ];
+
+    // But the detailed effect breakdown is only visible if Gene Analyzer is unlocked
+    if (!showNatureDetails) {
+      children.add(
+        LabeledInlineValue(
+          label: 'Effects',
+          valueText: 'Behavioral modifiers are obscured.',
+          valueColor: textColor,
+        ),
+      );
+    } else {
+      if (n.effect.modifiers.isNotEmpty) {
+        children.add(
+          LabeledInlineValue(
+            label: 'Active Effects',
+            valueText: _formatNatureEffects(n.effect),
+            valueColor: textColor,
+          ),
+        );
+      } else {
+        children.add(
+          LabeledInlineValue(
+            label: 'Effects',
+            valueText: 'No special behavioral modifications known',
+            valueColor: textColor,
+          ),
+        );
+      }
+    }
+
+    return Column(children: children);
   }
 
   String _formatNatureEffects(NatureEffect effect) {

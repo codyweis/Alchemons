@@ -5,6 +5,7 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_service.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
@@ -60,6 +61,48 @@ class _BreedingTabState extends State<BreedingTab>
 
   late Animation<double> _orbScaleAnim;
   late Animation<double> _orbSpinSpeedAnim;
+
+  String _familyKeyForCreature(Creature c) {
+    if (c.mutationFamily != null && c.mutationFamily!.isNotEmpty) {
+      return c.mutationFamily!.toUpperCase();
+    }
+    final match = RegExp(r'^[A-Za-z]+').firstMatch(c.id);
+    final letters = match?.group(0) ?? c.id;
+    return letters.toUpperCase();
+  }
+
+  Future<void> _showCrossSpeciesLockedDialog(
+    BuildContext context,
+    String familyA,
+    String familyB,
+  ) async {
+    final theme = context.read<FactionTheme>();
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(
+            'Further Research Required',
+            style: TextStyle(color: theme.text),
+          ),
+          content: Text(
+            'Your current alchemical research only supports fusion within the '
+            'same lineage family.\n\n'
+            'To attempt breeding between $familyA and $familyB specimens, '
+            'you must first unlock the Cross-Species Lineage node in the '
+            'Breeder constellation.',
+            style: TextStyle(color: theme.text),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -824,13 +867,40 @@ class _BreedingTabState extends State<BreedingTab>
   // instead of calling _performBreeding() directly,
   // we first run the dissolve fade, then call _performBreeding()
   Future<void> _onBreedTap() async {
+    if (selectedParent1 == null || selectedParent2 == null) return;
+
+    // --- Cross-species check runs BEFORE any cinematic / fade ---
+    final repo = context.read<CreatureCatalog>();
+    final speciesA = repo.getCreatureById(selectedParent1!.baseId);
+    final speciesB = repo.getCreatureById(selectedParent2!.baseId);
+
+    if (speciesA == null || speciesB == null) {
+      _showToast('Error loading species data', color: Colors.red);
+      return;
+    }
+
+    final famA = _familyKeyForCreature(speciesA);
+    final famB = _familyKeyForCreature(speciesB);
+    final sameFamily = famA == famB;
+
+    final db = context.read<AlchemonsDatabase>();
+    final skills = await db.constellationDao.getUnlockedSkillIds();
+    final hasCrossSpecies = skills.contains('breeder_cross_species');
+
+    if (!sameFamily && !hasCrossSpecies) {
+      await _showCrossSpeciesLockedDialog(context, famA, famB);
+      // Do NOT start fade / cinematic; we just bail out cleanly.
+      return;
+    }
+    // -------------------------------------------------------------
+
     // play fade from 1 -> 0, orb ramps up
     await _preCinematicFadeController.forward();
 
-    // let that max-charged orb hang on screen briefly
+    // let that max-charged orb hang briefly
     await Future.delayed(const Duration(milliseconds: 400));
 
-    // now jump to cinematic
+    // now jump to cinematic + actual breeding
     await _performBreeding();
 
     // reset fade for next time
@@ -980,9 +1050,15 @@ class _BreedingTabState extends State<BreedingTab>
       return; // Lucky! No stamina cost
     }
 
-    // Spend stamina normally
-    await stamina.spendForBreeding(parent1.instanceId);
-    await stamina.spendForBreeding(parent2.instanceId);
+    // Spend stamina normally WITH creature data for nature modifiers
+    await stamina.spendForBreeding(
+      parent1.instanceId,
+      instanceOverlayForNature: speciesA,
+    );
+    await stamina.spendForBreeding(
+      parent2.instanceId,
+      instanceOverlayForNature: speciesB,
+    );
   }
 
   // CORRECTED _showCreatureSelection method for breeding_tab.dart

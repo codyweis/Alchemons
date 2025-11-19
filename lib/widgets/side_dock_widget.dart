@@ -6,11 +6,13 @@ class SideDockFloating extends StatelessWidget {
   final VoidCallback onEnhance;
   final VoidCallback onHarvest;
   final VoidCallback onCompetitions;
-  final VoidCallback onBattle;
   final VoidCallback onField;
   final bool highlightField; // NEW: Add highlight parameter
   final bool showHarvestDot; // NEW
   final bool lockNonField;
+  //battle
+  final VoidCallback onBattle;
+  final VoidCallback onBoss;
 
   const SideDockFloating({
     super.key,
@@ -18,16 +20,17 @@ class SideDockFloating extends StatelessWidget {
     required this.onEnhance,
     required this.onHarvest,
     required this.onCompetitions,
-    required this.onBattle,
     required this.onField,
     this.highlightField = false, // NEW: Default to false
     this.showHarvestDot = false,
     this.lockNonField = false,
+    required this.onBattle,
+    required this.onBoss,
   });
 
   @override
   Widget build(BuildContext context) {
-    Widget _lockWrap({required bool locked, required Widget child}) {
+    Widget lockWrap({required bool locked, required Widget child}) {
       if (!locked) return child;
       return Opacity(
         opacity: 0.35,
@@ -45,16 +48,17 @@ class SideDockFloating extends StatelessWidget {
           label: 'Field',
           assetPath: 'assets/images/ui/fieldicon.png',
           onTap: onField,
-          size: 60,
+          size: 70,
           highlight: highlightField,
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
 
         // ENHANCE: lock when lockNonField == true
-        _lockWrap(
+        lockWrap(
           locked: lockNonField,
           child: _FloatingSideButton(
+            size: 70,
             theme: theme,
             label: 'Enhance',
             assetPath: 'assets/images/ui/enhanceicon.png',
@@ -62,29 +66,38 @@ class SideDockFloating extends StatelessWidget {
           ),
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
 
-        _lockWrap(
+        lockWrap(
           locked: lockNonField,
           child: _FloatingSideButton(
             theme: theme,
+            size: 70,
             label: 'Extract',
             assetPath: 'assets/images/ui/extracticon.png',
             onTap: onHarvest,
             showDot: showHarvestDot,
           ),
         ),
-
-        const SizedBox(height: 16),
-
-        _lockWrap(
+        // lockWrap(
+        //   locked: lockNonField,
+        //   child: _FloatingSideButton(
+        //     theme: theme,
+        //     size: 80,
+        //     label: 'Competitions',
+        //     assetPath: 'assets/images/ui/competeicon.png',
+        //     onTap: onCompetitions,
+        //   ),
+        // ),
+        const SizedBox(height: 10),
+        lockWrap(
           locked: lockNonField,
           child: _FloatingSideButton(
             theme: theme,
-            label: 'Compete',
-            assetPath: 'assets/images/ui/competeicon.png',
-            onTap: onBattle,
             size: 80,
+            label: 'Battle',
+            assetPath: 'assets/images/ui/trialsicon.png',
+            onTap: onBattle,
           ),
         ),
       ],

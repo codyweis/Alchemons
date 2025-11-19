@@ -1,4 +1,6 @@
 import 'package:alchemons/navigation/world_transition.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
@@ -62,6 +64,238 @@ class _MapScreenState extends State<MapScreen>
       await Future.delayed(const Duration(milliseconds: 150));
       if (mounted) _mapController.forward();
     });
+  }
+
+  Future<void> _handlePeekRegion(String biomeId) async {
+    if (widget.isTutorial) return;
+
+    final theme = context.read<FactionTheme>();
+    final spawnService = context.read<WildernessSpawnService>();
+    final constellations = context.read<ConstellationEffectsService>();
+
+    // Only available if the constellation is unlocked
+    if (!constellations.hasWildernessPreview()) {
+      _showToast(
+        context,
+        'Unlock Alchemic Wild Peek to preview wild spawns.',
+        Icons.visibility_off_rounded,
+        Colors.orange.shade400,
+      );
+      return;
+    }
+
+    final spawnPointIds = spawnService.getActiveSpawnPoints(biomeId);
+    if (spawnPointIds.isEmpty) {
+      _showToast(
+        context,
+        'No wild creatures detected in this area.',
+        Icons.search_off_rounded,
+        Colors.orange.shade400,
+      );
+      return;
+    }
+
+    final repo = context.read<CreatureCatalog>();
+
+    Color _rarityColor(String rarityName) {
+      switch (rarityName) {
+        case 'legendary':
+          return const Color(0xFFFFD700);
+        case 'rare':
+          return Colors.cyanAccent;
+        case 'uncommon':
+          return Colors.lightGreenAccent;
+        default:
+          return theme.textMuted;
+      }
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: theme.accent, width: 1.4),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.remove_red_eye_rounded,
+                  color: theme.accent,
+                  size: 26,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Wilderness Peek',
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Current wild spawns in this biome:',
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+
+                // List of spawns
+                SizedBox(
+                  height: 220,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: spawnPointIds.length,
+                    itemBuilder: (context, index) {
+                      final spawnPointId = spawnPointIds[index];
+                      final roll = spawnService.getSpawnAt(
+                        biomeId,
+                        spawnPointId,
+                      );
+                      if (roll == null) {
+                        return ListTile(
+                          dense: true,
+                          title: Text(
+                            'Unknown creature',
+                            style: TextStyle(
+                              color: theme.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        );
+                      }
+
+                      final base = repo.getCreatureById(roll.speciesId);
+                      final rarityName = roll.rarity.name;
+                      final rarityColor = _rarityColor(rarityName);
+
+                      return ListTile(
+                        dense: true,
+
+                        title: Text(
+                          base?.name ?? roll.speciesId,
+                          style: TextStyle(
+                            color: theme.text,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: rarityColor.withOpacity(.16),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: rarityColor, width: 1),
+                          ),
+                          child: Text(
+                            rarityName.toUpperCase(),
+                            style: TextStyle(
+                              color: rarityColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .6,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Buttons
+                Row(
+                  children: [
+                    // Close
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: theme.surfaceAlt,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: theme.accent.withOpacity(.3),
+                              width: 1.2,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'CLOSE',
+                            style: TextStyle(
+                              color: theme.text,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              letterSpacing: .5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+
+                    // Reset spawns
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          await spawnService.clearSceneSpawns(biomeId);
+                          if (!mounted) return;
+                          _showToast(
+                            context,
+                            'Spawns reset for this biome.',
+                            Icons.refresh_rounded,
+                            theme.accent,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: theme.surface,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: theme.accent, width: 1.4),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'RESET SPAWNS',
+                            style: TextStyle(
+                              color: theme.text,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              letterSpacing: .5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -250,6 +484,9 @@ class _MapScreenState extends State<MapScreen>
                       onSelectRegion: (biomeId, scene) {
                         _handleRegionTap(context, biomeId, scene);
                       },
+                      onPeekRegion: (biomeId) {
+                        _handlePeekRegion(biomeId);
+                      },
                     ),
                   ),
                 ),
@@ -375,23 +612,6 @@ class _MapScreenState extends State<MapScreen>
     if (widget.isTutorial) {
       // check access / refresh if earth faction perk
       var ok = await access.canEnter(biomeId);
-      if (!ok && await factions.earthCanRefreshToday(biomeId)) {
-        final useRefresh = await _showRefreshDialog(context);
-        if (useRefresh == true) {
-          await access.refreshWilderness(biomeId);
-          await factions.earthMarkRefreshedToday(biomeId);
-
-          if (!context.mounted) return;
-          _showToast(
-            context,
-            'LandExplorer activated: breeding ground refreshed.',
-            Icons.forest_rounded,
-            Colors.green.shade400,
-          );
-
-          ok = true;
-        }
-      }
 
       if (!ok) {
         final left = access.timeUntilReset();
@@ -740,11 +960,13 @@ class _ExpeditionMap extends StatelessWidget {
     required this.theme,
     required this.onSelectRegion,
     this.isTutorial = false,
+    this.onPeekRegion,
   });
 
   final FactionTheme theme;
   final void Function(String biomeId, SceneDefinition scene) onSelectRegion;
   final bool isTutorial;
+  final void Function(String biomeId)? onPeekRegion; // NEW
 
   @override
   Widget build(BuildContext context) {
@@ -776,6 +998,12 @@ class _ExpeditionMap extends StatelessWidget {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => onSelectRegion(biomeId, scene),
+              onLongPress: () {
+                if (onPeekRegion != null) {
+                  HapticFeedback.selectionClick();
+                  onPeekRegion!(biomeId);
+                }
+              },
               child: SizedBox(
                 width: 140,
                 height: 140,
