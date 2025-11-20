@@ -1,13 +1,12 @@
 import 'dart:ui';
 import 'dart:math' as math;
 
-import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
-import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/components.dart';
+import 'package:flame/game.dart';
 
-class CreatureSpriteComponent extends PositionComponent
-    with HasGameRef<SceneGame> {
+class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
+    with HasGameRef<G> {
   final SpriteSheetDef sheet;
   final SpriteVisuals visuals;
   final Vector2 desiredSize;
@@ -25,7 +24,7 @@ class CreatureSpriteComponent extends PositionComponent
   Future<void> onLoad() async {
     size = desiredSize;
 
-    final image = game.images.fromCache(sheet.path);
+    final image = game.images.fromCache(sheet.path); // or gameRef.images
     final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
 
     final anim = SpriteAnimation.fromFrameData(
@@ -53,9 +52,7 @@ class CreatureSpriteComponent extends PositionComponent
           ..paint.filterQuality = FilterQuality.high
           ..scale = Vector2.all(finalScale);
 
-    // Apply initial color filters
     _applyColorFilters();
-
     add(_anim);
   }
 

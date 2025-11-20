@@ -1,3 +1,4 @@
+// lib/games/survival/party_picker_screen.dart
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/providers/selected_party.dart';
@@ -9,9 +10,11 @@ import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import 'party_picker_empty_state.dart';
 import 'party_picker_widgets.dart';
 import 'party_picker_dialogs.dart';
+// import your SurvivalGameScreen / route as needed
 
 class PartyPickerScreen extends StatefulWidget {
   const PartyPickerScreen({super.key});
@@ -76,9 +79,22 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
     final db = context.watch<AlchemonsDatabase>();
+    final party = context.watch<SelectedPartyNotifier>();
+
+    final maxSize = SelectedPartyNotifier.maxSize;
+    final currentSize = party.members.length;
+    final canStartSurvival = currentSize == maxSize;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: canStartSurvival
+            ? () => _startSurvivalRun(context, party)
+            : null,
+        label: Text('Start Survival ($currentSize/$maxSize)'),
+        icon: const Icon(Icons.play_arrow_rounded),
+      ),
       body: Stack(
         children: [
           Container(
@@ -127,6 +143,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
 
                   // Footer with party info
                   PartyFooter(theme: theme),
+                  const SizedBox(height: 72), // padding so FAB doesn't overlay
                 ],
               ),
             ),
@@ -182,7 +199,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
 
     return Column(
       children: [
-        // Search bar with toggle button
+        // Search bar
         Padding(
           padding: const EdgeInsets.fromLTRB(5, 0, 5, 5),
           child: Row(
@@ -248,6 +265,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
             ],
           ),
         ),
+
         // Results count if searching
         if (_searchQuery.isNotEmpty)
           Padding(
@@ -331,17 +349,14 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     }
 
     final party = context.watch<SelectedPartyNotifier>();
+    final selectedIds = party.members.map((m) => m.instanceId).toList();
 
     return InstancesSheet(
       species: species,
       theme: theme,
       selectionMode: true,
       initialDetailMode: InstanceDetailMode.stats,
-      selectedInstanceIds: [
-        if (party.members.isNotEmpty) party.members[0].instanceId,
-        if (party.members.length > 1) party.members[1].instanceId,
-        if (party.members.length > 2) party.members[2].instanceId,
-      ],
+      selectedInstanceIds: selectedIds,
       onTap: (inst) {
         context.read<SelectedPartyNotifier>().toggle(inst.instanceId);
       },
@@ -360,5 +375,20 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
         _selectedSpeciesId = null;
       }
     });
+  }
+
+  void _startSurvivalRun(BuildContext context, SelectedPartyNotifier party) {
+    // You have party.members (List<PartyMember> with instanceId).
+    // Here you can navigate to your SurvivalGameScreen and resolve these IDs there.
+    //
+    // Example (adjust to your actual screen/route):
+    //
+    // Navigator.of(context).push(
+    //   MaterialPageRoute(
+    //     builder: (_) => SurvivalGameScreen(
+    //       partyInstanceIds: party.members.map((m) => m.instanceId).toList(),
+    //     ),
+    //   ),
+    // );
   }
 }

@@ -1,5 +1,5 @@
 // lib/game/attack_animations.dart
-import 'package:alchemons/services/boss_battle_engine_service.dart';
+import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';

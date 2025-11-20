@@ -3,7 +3,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:alchemons/games/boss/attack_animations.dart';
 import 'package:alchemons/games/boss/sprite_battle_adapter.dart';
-import 'package:alchemons/services/boss_battle_engine_service.dart';
+import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/game.dart';

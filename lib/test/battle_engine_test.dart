@@ -2,7 +2,7 @@
 // Copy this to your test folder and run: flutter test
 
 import 'package:alchemons/models/boss/boss_model.dart';
-import 'package:alchemons/services/boss_battle_engine_service.dart';
+import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

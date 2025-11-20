@@ -2,8 +2,12 @@
 import 'package:flutter/foundation.dart';
 import '../models/wilderness.dart'; // PartyMember
 
+// lib/providers/selected_party_notifier.dart
+import 'package:flutter/foundation.dart';
+import '../models/wilderness.dart'; // PartyMember
+
 class SelectedPartyNotifier extends ChangeNotifier {
-  static const maxSize = 3;
+  static const maxSize = 4; // ⬅️ changed from 3 to 4
 
   final List<PartyMember> _members = [];
   List<PartyMember> get members => List.unmodifiable(_members);

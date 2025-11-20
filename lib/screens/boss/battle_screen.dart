@@ -1,6 +1,6 @@
 // lib/screens/battle_screen_flame.dart
 import 'package:alchemons/games/boss/battle_game.dart';
-import 'package:alchemons/services/boss_battle_engine_service.dart';
+import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flame/game.dart';

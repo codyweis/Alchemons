@@ -1,6 +1,7 @@
 // (imports unchanged except where noted)
 import 'dart:async' as async;
 
+import 'package:alchemons/games/survival/survival_game_screen.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/screens/boss/boss_intro_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
@@ -1093,6 +1094,45 @@ class _HomeScreenState extends State<HomeScreen>
                             ),
                             child: Column(
                               children: [ConstellationPointsWidget()],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    //go to survival battle screen on tap
+                    // --- 2. Second Icon (NEW ICON) ---
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 200,
+                      right: 0,
+                      child: Opacity(
+                        opacity: _isFieldTutorialActive ? 0.4 : 1.0,
+                        child: IgnorePointer(
+                          ignoring: _isFieldTutorialActive,
+                          child: GestureDetector(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SurvivalGameScreen(),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.shield,
+                                  size: 36,
+                                  color: theme.accent,
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'SURVIVAL',
+                                  style: TextStyle(
+                                    color: theme.textMuted,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),

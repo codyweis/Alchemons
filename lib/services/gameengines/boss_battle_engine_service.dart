@@ -878,3 +878,40 @@ class BattleEngine {
     return sorted;
   }
 }
+
+extension BattleCombatantScaling on BattleCombatant {
+  /// Returns a *copy* with scaled combat stats (HP, atk, def, speed).
+  BattleCombatant scaledCopy({
+    required String newId,
+    String? newName,
+    double hpScale = 1.0,
+    double atkScale = 1.0,
+    double defScale = 1.0,
+    double spdScale = 1.0,
+  }) {
+    final copy = BattleCombatant(
+      id: newId,
+      name: newName ?? name,
+      types: types,
+      family: family,
+      statSpeed: statSpeed,
+      statIntelligence: statIntelligence,
+      statStrength: statStrength,
+      statBeauty: statBeauty,
+      level: level,
+      instanceRef: instanceRef,
+      speciesRef: speciesRef,
+    );
+
+    // Override the calculated combat stats
+    copy.maxHp = (maxHp * hpScale).round();
+    copy.currentHp = copy.maxHp;
+    copy.physAtk = (physAtk * atkScale).round();
+    copy.elemAtk = (elemAtk * atkScale).round();
+    copy.physDef = (physDef * defScale).round();
+    copy.elemDef = (elemDef * defScale).round();
+    copy.speed = (speed * spdScale).round();
+
+    return copy;
+  }
+}
