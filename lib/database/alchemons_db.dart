@@ -200,8 +200,8 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
         if (pointsExist == null) {
           await _setSetting('constellation_points', '0');
         }
-      }
-      if (from < 30) {
+      } else if (from < 30) {
+        // Only runs for from == 29
         await m.addColumn(
           constellationPoints,
           constellationPoints.hasSeenFinale,

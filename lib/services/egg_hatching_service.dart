@@ -15,6 +15,7 @@ import 'package:alchemons/screens/breed/utils/breed_utils.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -408,6 +409,17 @@ class EggHatching {
   }) async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
+
+    // Track breeding for constellation points
+    // (starters and vials don't count toward breeding milestones)
+
+    try {
+      final constellationSvc = context.read<ConstellationService>();
+      await constellationSvc.incrementBreedCount(offspring.id);
+    } catch (e) {
+      // Don't break hatching if constellation tracking fails
+      debugPrint('⚠️ Failed to track breeding for constellation: $e');
+    }
 
     // 👇 Capture a stable, root-level context up front
     final NavigatorState nav = Navigator.of(context, rootNavigator: true);

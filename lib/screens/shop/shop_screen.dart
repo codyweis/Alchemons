@@ -1185,6 +1185,7 @@ class _ShopScreenState extends State<ShopScreen> {
       inventoryQty: 0,
       canPurchase: canAfford,
       canAfford: canAfford,
+      effectiveCost: offer.cost,
     );
     if (!shouldProceed || !context.mounted) return;
 
@@ -1221,6 +1222,7 @@ class _ShopScreenState extends State<ShopScreen> {
       canPurchase: canPurchaseDaily,
       // The currency affordability check (canAfford)
       canAfford: isCurrencyAffordable,
+      effectiveCost: offer.cost,
     );
   }
 
@@ -1228,16 +1230,16 @@ class _ShopScreenState extends State<ShopScreen> {
     BuildContext context,
     ShopOffer offer,
     Map<String, int> currencies,
-    // The canAfford passed from the grid is usually just the currency check
     bool isCurrencyAffordable,
   ) async {
     final theme = context.read<FactionTheme>();
     final shopService = context.read<ShopService>();
 
-    // 🎯 NEW: Get the daily purchase limit status
+    // 🎯 Get the effective (discounted) cost
+    final effectiveCost = shopService.getEffectiveCost(offer);
+
     final canPurchaseDaily = shopService.canPurchase(offer.id);
 
-    // Get inventory quantity for this item
     final invQty = offer.inventoryKey != null
         ? shopService.inventoryCountForOffer(offer.id)
         : 0;
@@ -1249,20 +1251,22 @@ class _ShopScreenState extends State<ShopScreen> {
       theme: theme,
       currencies: currencies,
       inventoryQty: invQty,
-      // The overall purchase eligibility from the ShopService (daily limit)
       canPurchase: canPurchaseDaily,
-      // The currency affordability check (canAfford)
       canAfford: isCurrencyAffordable,
+      effectiveCost: effectiveCost,
     );
-    // NOTE: The dialog ensures 'shouldProceed' will only be true if canPurchaseDaily is true AND isCurrencyAffordable is true
+
     if (!shouldProceed || !context.mounted) return;
+
     // STEP 2: Purchase confirmation (qty for eligible items)
     final qty = await showPurchaseConfirmationDialog(
       context: context,
       offer: offer,
       theme: theme,
       currencies: currencies,
+      effectiveCost: effectiveCost, // 👈 PASS THE EFFECTIVE COST
     );
+
     if (qty == null || !context.mounted) return;
 
     HapticFeedback.lightImpact();

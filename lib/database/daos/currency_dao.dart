@@ -139,10 +139,21 @@ class CurrencyDao extends DatabaseAccessor<AlchemonsDatabase>
   Future<Map<String, int>> getAllCurrencies() async {
     final goldFuture = getGoldBalance();
     final silverFuture = getSilverBalance();
-    final softFuture = getSoftBalance(); // Assuming you have this
+    final softFuture = getSoftBalance();
 
     final results = await Future.wait([goldFuture, silverFuture, softFuture]);
 
-    return {'gold': results[0], 'silver': results[1], 'soft': results[2]};
+    final currencies = {
+      'gold': results[0],
+      'silver': results[1],
+      'soft': results[2],
+    };
+
+    // 👇 ADD: Get all resources and merge them in
+    for (final key in ElementResources.settingsKeys) {
+      currencies[key] = await getResource(key);
+    }
+
+    return currencies;
   }
 }

@@ -72,7 +72,7 @@ class BlackMarketService extends ChangeNotifier {
   String _lastPurchaseDate = ''; // = lastWeekKey (yyyy-MM-dd of Monday)
 
   // ----------------- public API -----------
-  bool get isOpen => !_isOpen;
+  bool get isOpen => _isOpen;
   String get premiumRarity => _premiumRarity;
   String get premiumType => _premiumType;
   double get premiumBonus => _premiumBonus;

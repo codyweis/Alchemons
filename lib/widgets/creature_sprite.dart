@@ -225,12 +225,14 @@ class _CreatureSpriteState extends State<CreatureSprite>
           ),
         );
 
-        // Synchronous path: no placeholder frame needed
-        _spriteAnimation = anim;
-        _spriteTicker = anim.createTicker();
-
-        // We *can* call setState so the initial build uses animation instead of placeholder
-        setState(() {});
+        // Synchronous path: set state immediately if we're mounted
+        if (mounted) {
+          setState(() {
+            _spriteAnimation = anim;
+            _spriteTicker = anim.createTicker();
+            _loadError = null;
+          });
+        }
         return;
       }
 

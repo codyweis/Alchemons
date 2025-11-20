@@ -402,33 +402,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     }
   }
 
-  // Helper to get nature bonus
-  int _getNatureBonus(String? natureId) {
-    final nature = (natureId ?? '').toLowerCase();
-    return switch (nature) {
-      'metabolic' => 20,
-      'dormant' => -20,
-      _ => 0,
-    };
-  }
-
-  double _sizeMultiplier(String? size) {
-    switch ((size ?? '').toLowerCase()) {
-      case 'tiny':
-        return 0.5;
-      case 'small':
-        return 0.8;
-      case 'normal':
-        return 1.0;
-      case 'large':
-        return 1.1;
-      case 'giant':
-        return 2.0;
-      default:
-        return 1.0;
-    }
-  }
-
   void _handleCollect(BiomeFarmState farm) async {
     // 🔹 Snapshot the job BEFORE collecting (it will be cleared by collect)
     final previousJob = farm.activeJob;

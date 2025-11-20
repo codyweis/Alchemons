@@ -80,68 +80,6 @@ class FeaturedCreaturePresentation extends StatelessWidget {
   }
 }
 
-// Little frosted label pill
-class _SpecimenChip extends StatelessWidget {
-  final FactionTheme theme;
-  final String title;
-  final String subtitle;
-  const _SpecimenChip({
-    required this.theme,
-    required this.title,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.35),
-            border: Border.all(
-              color: theme.accent.withOpacity(0.6),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.5),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Text(
-                title.toUpperCase(),
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ============================================================================
 // INTERACTIVE HERO WRAPPER
 // (you said we can move this to your other widget file later)

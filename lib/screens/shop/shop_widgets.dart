@@ -123,7 +123,9 @@ Future<bool> showItemDetailDialog({
   required int inventoryQty,
   required bool canPurchase,
   required bool canAfford,
+  Map<String, int>? effectiveCost,
 }) async {
+  final displayCost = effectiveCost ?? offer.cost;
   return await showDialog<bool>(
         context: context,
         builder: (ctx) => Dialog(
@@ -272,7 +274,7 @@ Future<bool> showItemDetailDialog({
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
                     children: [
-                      for (final entry in offer.cost.entries)
+                      for (final entry in displayCost.entries)
                         DialogResourceDisplay(
                           type: entry.key,
                           amount: entry.value,
@@ -1360,6 +1362,7 @@ Future<int?> showPurchaseConfirmationDialog({
   required ShopOffer offer,
   required FactionTheme theme,
   required Map<String, int> currencies,
+  Map<String, int>? effectiveCost, // 👈 ADD THIS PARAMETER
 }) async {
   int qty = 1;
   final shopService = context.read<ShopService>();
@@ -1367,7 +1370,9 @@ Future<int?> showPurchaseConfirmationDialog({
 
   Map<String, int> previewCost() {
     final m = <String, int>{};
-    offer.cost.forEach((k, v) => m[k] = v * qty);
+    // 👇 USE effectiveCost if provided, otherwise fall back to offer.cost
+    final baseCost = effectiveCost ?? offer.cost;
+    baseCost.forEach((k, v) => m[k] = v * qty);
     return m;
   }
 

@@ -610,24 +610,21 @@ class _InstancesSheetState extends State<InstancesSheet> {
                               onTap: () async {
                                 // Only check stamina if required
                                 if (widget.requireStamina) {
-                                  final refreshed = await stamina.refreshAndGet(
+                                  // Get the current DB row
+                                  final row = await db.creatureDao.getInstance(
                                     inst.instanceId,
                                   );
-                                  final canUse =
-                                      (refreshed?.staminaBars ?? 0) >= 1;
+                                  if (row == null) return;
+
+                                  // Use computeState instead of refreshAndGet to match UI calculation
+                                  final state = stamina.computeState(row);
+                                  final canUse = state.bars >= 1;
 
                                   if (!canUse) {
-                                    final perBar = stamina.regenPerBar;
-                                    final now = DateTime.now()
-                                        .toUtc()
-                                        .millisecondsSinceEpoch;
-                                    final last =
-                                        refreshed?.staminaLastUtcMs ?? now;
-                                    final elapsed = now - last;
-                                    final remMs =
-                                        perBar.inMilliseconds -
-                                        (elapsed % perBar.inMilliseconds);
-                                    final mins = (remMs / 60000).ceil();
+                                    final now = DateTime.now().toUtc();
+                                    final next = state.nextTickUtc ?? now;
+                                    final diff = next.difference(now);
+                                    final mins = diff.inMinutes.clamp(0, 999);
 
                                     if (!mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
