@@ -17,10 +17,10 @@ class SurvivalGameScreen extends StatefulWidget {
 }
 
 class _SurvivalGameScreenState extends State<SurvivalGameScreen> {
-  SurvivalGame? _game;
+  SurvivalHoardGame? _game;
   bool _isLoading = false;
 
-  final game = SurvivalGame.godTeam();
+  // final game = SurvivalGame.godTeam();
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +39,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen> {
         fit: StackFit.expand,
         children: [
           //Positioned.fill(child: GameWidget(game: _game!)),
-          Positioned.fill(child: GameWidget(game: game)),
+          Positioned.fill(child: GameWidget(game: _game!)),
           // Top bar
           SafeArea(
             child: Padding(
@@ -348,7 +348,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen> {
       } else {
         if (mounted) {
           setState(() {
-            _game = SurvivalGame(party: party);
+            _game = SurvivalHoardGame(party: party);
           });
         }
       }

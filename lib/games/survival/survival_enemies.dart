@@ -1,5 +1,10 @@
 import 'dart:math';
+import 'dart:ui';
+import 'package:alchemons/games/survival/components/alchemy_orb.dart';
+import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
+import 'package:flame/components.dart';
+import 'package:flutter/material.dart';
 
 /// 5 Enemy Tiers with scaling stats
 enum EnemyTier {
@@ -244,6 +249,88 @@ class SurvivalEnemyCatalog {
       );
     } catch (e) {
       return null;
+    }
+  }
+}
+
+class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
+  final int level;
+  final AlchemyOrb targetOrb;
+
+  late int hp;
+  late int maxHp;
+  bool isDead = false;
+
+  HoardEnemy({
+    required Vector2 position,
+    required this.level,
+    required this.targetOrb,
+  }) : super(position: position, size: Vector2.all(60), anchor: Anchor.center) {
+    maxHp = 50 + (level * 20);
+    hp = maxHp;
+  }
+
+  @override
+  Future<void> onLoad() async {
+    // Simple visual
+    add(CircleComponent(radius: 25, paint: Paint()..color = Colors.red));
+  }
+
+  @override
+  void update(double dt) {
+    if (isDead) return;
+
+    // Move towards Orb
+    final dir = (targetOrb.position - position).normalized();
+    position += dir * (80.0 * dt); // Speed 80
+
+    // Simple collision with Orb (Range 50)
+    if (position.distanceTo(targetOrb.position) < 80) {
+      targetOrb.takeDamage(5 + level);
+      isDead = true; // Suicide bomber style or stop and attack?
+      // Let's make them explode on impact for "Hoard" feel
+      removeFromParent();
+      gameRef.removeEnemy(this);
+    }
+  }
+
+  void takeDamage(int amount) {
+    hp -= amount;
+    if (hp <= 0) {
+      isDead = true;
+      removeFromParent();
+      gameRef.removeEnemy(this);
+    }
+  }
+}
+
+class SimpleProjectile extends PositionComponent {
+  final Vector2 start;
+  final Vector2 end;
+  final Color color;
+  final VoidCallback onHit;
+  double t = 0;
+
+  SimpleProjectile({
+    required this.start,
+    required this.end,
+    required this.color,
+    required this.onHit,
+  }) : super(position: start, size: Vector2.all(10));
+
+  @override
+  void render(Canvas canvas) {
+    canvas.drawCircle(Offset.zero, 8, Paint()..color = color);
+  }
+
+  @override
+  void update(double dt) {
+    t += dt * 3.0; // Speed factor
+    if (t >= 1.0) {
+      onHit();
+      removeFromParent();
+    } else {
+      position = start + (end - start) * t;
     }
   }
 }
