@@ -1109,12 +1109,12 @@ class _HomeScreenState extends State<HomeScreen>
                         child: IgnorePointer(
                           ignoring: _isFieldTutorialActive,
                           child: GestureDetector(
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const SurvivalGameScreen(),
-                              ),
-                            ),
+                            onTap: () =>
+                                Navigator.of(context, rootNavigator: true).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const SurvivalGameScreen(),
+                                  ),
+                                ),
                             child: Column(
                               children: [
                                 Icon(

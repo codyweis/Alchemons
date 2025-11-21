@@ -1,22 +1,12 @@
-import 'dart:math' as math;
-
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/providers/selected_party.dart';
-import 'package:alchemons/screens/party_picker/party_picker_empty_state.dart';
-import 'package:alchemons/screens/party_picker/party_picker_widgets.dart';
+import 'package:alchemons/games/survival/survival_engine.dart';
+import 'package:alchemons/games/survival/survival_party_picker.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 
-import 'package:alchemons/widgets/all_instaces_grid.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
-
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class SurvivalGameScreen extends StatefulWidget {
@@ -27,509 +17,350 @@ class SurvivalGameScreen extends StatefulWidget {
 }
 
 class _SurvivalGameScreenState extends State<SurvivalGameScreen> {
-  // Flame game instance (null until started)
   SurvivalGame? _game;
-  bool _isStarting = false;
+  bool _isLoading = false;
 
-  // Party picker state (same logic as PartyPickerScreen)
-  String? _selectedSpeciesId;
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  late final ScrollController _speciesScrollCtrl;
-  bool _showAllInstances = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _speciesScrollCtrl = ScrollController();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _speciesScrollCtrl.dispose();
-    super.dispose();
-  }
-
-  bool get _isPickingSpecies => _selectedSpeciesId == null;
-  bool get _isPickingInstance => _selectedSpeciesId != null;
-
-  String get _currentStage {
-    if (_showAllInstances) return 'all_instances';
-    if (_isPickingSpecies) return 'species';
-    return 'instance';
-  }
+  final game = SurvivalGame.godTeam();
 
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
-    final party = context.watch<SelectedPartyNotifier>();
-    final maxSize = SelectedPartyNotifier.maxSize;
-    final currentSize = party.members.length;
 
+    if (_game != null) {
+      return _buildGameView(theme);
+    }
+
+    return _buildFormationPrompt(theme);
+  }
+
+  Widget _buildGameView(FactionTheme theme) {
     return Scaffold(
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          // --- Background / Game layer ---
-          Positioned.fill(
-            child: _game == null
-                ? Container(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: const Alignment(0, -0.4),
-                        radius: 1.2,
-                        colors: [theme.surfaceAlt, theme.surface, Colors.black],
-                        stops: const [0.0, 0.4, 1.0],
-                      ),
-                    ),
-                  )
-                : GameWidget(game: _game!),
-          ),
-
-          // --- Top bar: close button & title ---
+          //Positioned.fill(child: GameWidget(game: _game!)),
+          Positioned.fill(child: GameWidget(game: game)),
+          // Top bar
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    color: Colors.white,
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Endless Survival',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (_game != null)
-                    Text(
-                      'Watching...',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
-                    ),
-                ],
-              ),
+              padding: const EdgeInsets.all(12),
+              child: Row(children: [_buildBackButton(theme)]),
             ),
           ),
-
-          // --- Picker overlay (only when game not started) ---
-          if (_game == null)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                height: math.min(
-                  MediaQuery.of(context).size.height * 0.78,
-                  620,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.surface.withOpacity(0.96),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(18),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.4),
-                      blurRadius: 16,
-                      offset: const Offset(0, -4),
-                    ),
-                  ],
-                ),
-                child: _buildPickerOverlay(context, theme),
-              ),
-            ),
         ],
       ),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // PICKER OVERLAY (party picker content)
-  // ---------------------------------------------------------------------------
-
-  Widget _buildPickerOverlay(BuildContext context, FactionTheme theme) {
-    final db = context.watch<AlchemonsDatabase>();
-    final party = context.watch<SelectedPartyNotifier>();
-    final maxSize = SelectedPartyNotifier.maxSize;
-    final currentSize = party.members.length;
-    final canStart = !_isStarting && currentSize == maxSize;
-
-    return Column(
-      children: [
-        // Handle bar
-        const SizedBox(height: 6),
-        Container(
-          width: 40,
-          height: 4,
+  Widget _buildBackButton(FactionTheme theme) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Leave Game?'),
+              content: const Text('Your progress will be lost.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Leave'),
+                ),
+              ],
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.white24,
-            borderRadius: BorderRadius.circular(999),
+            color: Colors.black.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormationPrompt(FactionTheme theme) {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(0, -0.4),
+            radius: 1.2,
+            colors: [theme.surfaceAlt, theme.surface, Colors.black],
+            stops: const [0.0, 0.4, 1.0],
           ),
         ),
-        const SizedBox(height: 8),
-
-        // Header
-        StageHeader(
-          theme: theme,
-          stage: _currentStage,
-          onBack: _handleBack,
-          onOpenAllInstances: () {
-            HapticFeedback.lightImpact();
-            setState(() {
-              _showAllInstances = true;
-              _selectedSpeciesId = null;
-              _searchController.clear();
-              _searchQuery = '';
-            });
-          },
-        ),
-        const SizedBox(height: 6),
-
-        // Party summary + Start button
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: Row(
+        child: SafeArea(
+          child: Column(
             children: [
-              Text(
-                'Party: $currentSize/$maxSize',
-                style: TextStyle(
-                  color: theme.text,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(child: PartyFooter(theme: theme)),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: canStart ? () => _onStartPressed(context) : null,
-                icon: _isStarting
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.play_arrow_rounded),
-                label: Text('Start'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.accent,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: theme.accent.withOpacity(0.3),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
+              _buildHeader(theme),
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.grid_4x4,
+                          size: 80,
+                          color: theme.accent.withOpacity(0.8),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Endless Survival',
+                          style: TextStyle(
+                            color: theme.text,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Build a strategic 2x2 formation\nto survive endless waves',
+                          style: TextStyle(
+                            color: theme.textMuted,
+                            fontSize: 15,
+                            height: 1.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 32),
+                        _buildInfoCard(
+                          theme,
+                          Icons.shield_rounded,
+                          'Front Row',
+                          'Takes 75% of enemy attacks',
+                          Colors.blue,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildInfoCard(
+                          theme,
+                          Icons.favorite_rounded,
+                          'Back Row',
+                          'Protected - only 25% targeted',
+                          Colors.pink,
+                        ),
+                        const SizedBox(height: 32),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isLoading
+                                ? null
+                                : _openFormationSelector,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.accent,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: theme.surface,
+                              disabledForegroundColor: theme.textMuted,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: _isLoading
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 24,
+                                  ),
+                            label: Text(
+                              _isLoading ? 'Loading...' : 'Select Formation',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
             ],
           ),
         ),
-
-        // Divider
-        Divider(color: theme.border.withOpacity(0.6), thickness: 1, height: 1),
-
-        // Main picker content
-        Expanded(
-          child: StreamBuilder<List<CreatureInstance>>(
-            stream: db.creatureDao.watchAllInstances(),
-            builder: (context, snap) {
-              final instances = snap.data ?? [];
-              return _buildStageContent(theme, instances);
-            },
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  Widget _buildStageContent(
+  Widget _buildInfoCard(
     FactionTheme theme,
-    List<CreatureInstance> instances,
+    IconData icon,
+    String title,
+    String description,
+    Color color,
   ) {
-    final repo = context.read<CreatureCatalog>();
-
-    if (_showAllInstances) {
-      return _buildAllInstancesStage(theme, instances, repo);
-    }
-
-    if (_isPickingSpecies) {
-      return _buildSpeciesStage(theme, instances, repo);
-    }
-
-    return _buildInstanceStage(theme, repo);
-  }
-
-  // Helper: build species list data (species + count)
-  List<Map<String, dynamic>> buildSpeciesListData({
-    required List<CreatureInstance> instances,
-    required CreatureCatalog repo,
-  }) {
-    final countBySpecies = <String, int>{};
-    for (final inst in instances) {
-      countBySpecies[inst.baseId] = (countBySpecies[inst.baseId] ?? 0) + 1;
-    }
-
-    final result = <Map<String, dynamic>>[];
-    for (final speciesId in countBySpecies.keys) {
-      final creature = repo.getCreatureById(speciesId);
-      if (creature == null) continue;
-      result.add({'creature': creature, 'count': countBySpecies[speciesId]});
-    }
-    return result;
-  }
-
-  // Stage: Species list
-  Widget _buildSpeciesStage(
-    FactionTheme theme,
-    List<CreatureInstance> instances,
-    CreatureCatalog repo,
-  ) {
-    final speciesData = buildSpeciesListData(instances: instances, repo: repo);
-
-    if (speciesData.isEmpty) {
-      return const NoSpeciesOwnedWrapper();
-    }
-
-    final filteredSpeciesData = _searchQuery.isEmpty
-        ? speciesData
-        : speciesData.where((data) {
-            final creature = data['creature'] as Creature;
-            final name = creature.name.toLowerCase();
-            final types = creature.types.join(' ').toLowerCase();
-            final query = _searchQuery.toLowerCase();
-            return name.contains(query) || types.contains(query);
-          }).toList();
-
-    return Column(
-      children: [
-        // Search bar
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
-          child: Container(
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: theme.surfaceAlt,
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(color: theme.border.withOpacity(.5), width: 1),
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search species...',
-                hintStyle: TextStyle(
-                  color: theme.textMuted.withOpacity(.5),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-                prefixIcon: Icon(
-                  Icons.search_rounded,
-                  color: theme.textMuted,
-                  size: 20,
-                ),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(
-                          Icons.clear_rounded,
-                          color: theme.textMuted,
-                          size: 20,
-                        ),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
-                      )
-                    : null,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-              ),
-            ),
+            child: Icon(icon, color: color, size: 24),
           ),
-        ),
-
-        if (_searchQuery.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-            child: Row(
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${filteredSpeciesData.length} result${filteredSpeciesData.length == 1 ? '' : 's'}',
+                  title,
                   style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    color: theme.text,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(color: theme.textMuted, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(FactionTheme theme) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            color: Colors.white,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Survival Mode',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  'Test your team against endless waves',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
-
-        Expanded(
-          child: filteredSpeciesData.isEmpty
-              ? NoResultsFound(theme: theme)
-              : ListView.builder(
-                  controller: _speciesScrollCtrl,
-                  padding: const EdgeInsets.fromLTRB(5, 0, 5, 12),
-                  itemCount: filteredSpeciesData.length,
-                  itemBuilder: (context, i) {
-                    final creature =
-                        filteredSpeciesData[i]['creature'] as Creature;
-                    final count = filteredSpeciesData[i]['count'] as int;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 5),
-                      child: SpeciesRow(
-                        theme: theme,
-                        creature: creature,
-                        count: count,
-                        onTap: () {
-                          setState(() {
-                            _selectedSpeciesId = creature.id;
-                            _searchController.clear();
-                            _searchQuery = '';
-                          });
-                        },
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  // Stage: All instances grid
-  Widget _buildAllInstancesStage(
-    FactionTheme theme,
-    List<CreatureInstance> instances,
-    CreatureCatalog repo,
-  ) {
-    if (instances.isEmpty) {
-      return const NoSpeciesOwnedWrapper();
+  Future<void> _openFormationSelector() async {
+    final formationSlots = await Navigator.of(context).push<Map<int, String>>(
+      MaterialPageRoute(
+        builder: (_) => const SurvivalFormationSelectorScreen(),
+      ),
+    );
+
+    if (formationSlots != null && mounted) {
+      await _startGameWithFormation(formationSlots);
     }
-
-    final party = context.watch<SelectedPartyNotifier>();
-
-    return AllCreatureInstances(
-      theme: theme,
-      selectedInstanceIds: party.members.map((m) => m.instanceId).toList(),
-      onTap: (inst) {
-        context.read<SelectedPartyNotifier>().toggle(inst.instanceId);
-      },
-    );
   }
 
-  // Stage: Instances for one species
-  Widget _buildInstanceStage(FactionTheme theme, CreatureCatalog repo) {
-    final species = repo.getCreatureById(_selectedSpeciesId!);
-    if (species == null) {
-      return Center(
-        child: Text('Species missing', style: TextStyle(color: theme.text)),
-      );
-    }
+  Future<void> _startGameWithFormation(Map<int, String> formationSlots) async {
+    if (_isLoading) return;
 
-    final party = context.watch<SelectedPartyNotifier>();
-    final selectedIds = party.members.map((m) => m.instanceId).toList();
-
-    return InstancesSheet(
-      species: species,
-      theme: theme,
-      selectionMode: true,
-      initialDetailMode: InstanceDetailMode.stats,
-      selectedInstanceIds: selectedIds,
-      onTap: (inst) {
-        context.read<SelectedPartyNotifier>().toggle(inst.instanceId);
-      },
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Actions
-  // ---------------------------------------------------------------------------
-
-  void _handleBack() {
-    setState(() {
-      if (_showAllInstances) {
-        _showAllInstances = false;
-        _searchController.clear();
-        _searchQuery = '';
-      } else if (_isPickingInstance) {
-        _selectedSpeciesId = null;
+    // Validate formation
+    if (!SurvivalFormationHelper.isFormationValid(formationSlots)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid formation - please try again'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-    });
-  }
-
-  Future<void> _onStartPressed(BuildContext context) async {
-    if (_isStarting) return;
-
-    final party = context.read<SelectedPartyNotifier>();
-    final ids = party.members.map((m) => m.instanceId).toList();
-
-    if (ids.length < SelectedPartyNotifier.maxSize) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select 4 creatures for Survival first.')),
-      );
       return;
     }
 
-    setState(() {
-      _isStarting = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final db = context.read<AlchemonsDatabase>();
       final catalog = context.read<CreatureCatalog>();
 
-      final team = <BattleCombatant>[];
+      // Build party with formation positions
+      final party = await SurvivalFormationHelper.buildPartyFromFormation(
+        formationSlots: formationSlots,
+        db: db,
+        catalog: catalog,
+      );
 
-      for (final id in ids) {
-        // TODO: adapt to your DAO method name
-        final instance = await db.creatureDao.getInstance(id);
-        if (instance == null) continue;
-
-        final species = catalog.getCreatureById(instance.baseId);
-        if (species == null) continue;
-
-        team.add(
-          BattleCombatant.fromInstance(instance: instance, creature: species),
-        );
-      }
-
-      if (team.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not build a team for Survival.')),
-        );
+      if (party.length < 4) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not load all team members'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       } else {
-        setState(() {
-          _game = SurvivalGame(team: team);
-        });
+        if (mounted) {
+          setState(() {
+            _game = SurvivalGame(party: party);
+          });
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error starting Survival: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error starting game: $e')));
+      }
     } finally {
       if (mounted) {
-        setState(() {
-          _isStarting = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }

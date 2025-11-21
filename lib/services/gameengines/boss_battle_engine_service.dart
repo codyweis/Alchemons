@@ -12,6 +12,7 @@ class BattleCombatant {
   final List<String> types; // Element types
   final String family; // Let, Pip, Mane, etc.
 
+  /// Optional references used for rendering
   final CreatureInstance? instanceRef;
   final Creature? speciesRef;
 
@@ -55,18 +56,23 @@ class BattleCombatant {
     currentHp = maxHp;
   }
 
-  // ✅ Convenience: compute sheet/visuals if the optional refs exist
+  // ── Visual helpers ───────────────────────────────────────
+
+  /// Lazily compute the sprite sheet definition from the species, if available.
   SpriteSheetDef? get sheetDef {
     final species = speciesRef;
     if (species == null) return null;
     return sheetFromCreature(species);
   }
 
-  SpriteVisuals? get spriteVisuals {
+  /// Lazily compute the per-instance visuals (hue, scale, tint, etc.).
+  /// Return type is dynamic to stay compatible with whatever your
+  /// CreatureSpriteComponent expects from visualsFromInstance().
+  dynamic get spriteVisuals {
     final species = speciesRef;
-    if (species == null) return null;
-    // pass instance if you have prismatic/genes there; otherwise null
-    return visualsFromInstance(species, instanceRef);
+    final inst = instanceRef;
+    if (species == null || inst == null) return null;
+    return visualsFromInstance(species, inst);
   }
 
   void _calculateCombatStats() {
@@ -99,32 +105,37 @@ class BattleCombatant {
       statStrength: instance.statStrength,
       statBeauty: instance.statBeauty,
       level: instance.level,
-      // 🔹 store for rendering
       instanceRef: instance,
       speciesRef: creature,
     );
   }
 
   factory BattleCombatant.fromBoss(Boss boss) {
-    return BattleCombatant(
-        id: boss.id,
-        name: boss.name,
-        types: [boss.element],
-        family: 'Boss',
-        statSpeed: boss.spd.toDouble(),
-        statIntelligence: 50.0,
-        statStrength: 50.0,
-        statBeauty: 50.0,
-        level: boss.recommendedLevel,
-        // instanceRef/speciesRef can be null for bosses if they don’t use the same pipeline
-      )
-      ..maxHp = boss.hp
-      ..currentHp = boss.hp
-      ..physAtk = boss.atk
-      ..elemAtk = boss.atk
-      ..physDef = boss.def
-      ..elemDef = boss.def
-      ..speed = boss.spd;
+    // Bosses don’t use the same sprite pipeline, so instance/species refs are null.
+    final bc = BattleCombatant(
+      id: boss.id,
+      name: boss.name,
+      types: [boss.element],
+      family: 'Boss',
+      statSpeed: boss.spd.toDouble(),
+      statIntelligence: 50.0,
+      statStrength: 50.0,
+      statBeauty: 50.0,
+      level: boss.recommendedLevel,
+      instanceRef: null,
+      speciesRef: null,
+    );
+
+    // Override calculated stats with boss-defined stats
+    bc.maxHp = boss.hp;
+    bc.currentHp = boss.hp;
+    bc.physAtk = boss.atk;
+    bc.elemAtk = boss.atk;
+    bc.physDef = boss.def;
+    bc.elemDef = boss.def;
+    bc.speed = boss.spd;
+
+    return bc;
   }
 
   bool get isAlive => currentHp > 0;
@@ -186,7 +197,9 @@ class BattleCombatant {
     return spd;
   }
 
-  void takeDamage(int damage) {
+  void takeDamage(int rawDamage) {
+    var damage = rawDamage;
+
     // Shield absorbs first
     if (shieldHp != null && shieldHp! > 0) {
       if (shieldHp! >= damage) {
@@ -198,6 +211,7 @@ class BattleCombatant {
       }
     }
 
+    if (damage <= 0) return;
     currentHp = max(0, currentHp - damage);
   }
 
@@ -250,7 +264,7 @@ class BattleCombatant {
 
 class StatusEffect {
   final String type; // burn, poison, regen, etc.
-  final int damagePerTurn; // or heal per turn if positive
+  final int damagePerTurn; // or heal per turn if negative
   int duration;
 
   StatusEffect({
@@ -458,6 +472,7 @@ class BattleResult {
 
 /// Main battle engine - handles all combat calculations
 class BattleEngine {
+  static bool isSurvivalMode = false;
   static final Random _random = Random();
 
   // Type effectiveness from AdvantagesLogic.csv
@@ -579,8 +594,8 @@ class BattleEngine {
     }
 
     // Lightning element: 20% higher crit chance
-    bool isLightning = attacker.types.contains('Lightning');
-    double critChance = isLightning ? 0.25 : 0.05;
+    final isLightning = attacker.types.contains('Lightning');
+    final critChance = isLightning ? 0.25 : 0.05;
 
     if (_random.nextDouble() < critChance) {
       isCritical = true;
@@ -601,7 +616,7 @@ class BattleEngine {
     if (attacker.types.contains('Dark')) {
       final heal = (damage * 0.2).toInt();
       attacker.heal(heal);
-      messages.add('${attacker.name} drained ${heal} HP!');
+      messages.add('${attacker.name} drained $heal HP!');
     }
 
     // Blood element: Empower (recoil)
@@ -609,12 +624,12 @@ class BattleEngine {
       damage = (damage * 1.25).toInt();
       final recoil = (attacker.maxHp * 0.05).toInt();
       attacker.takeDamage(recoil);
-      messages.add('${attacker.name} took ${recoil} recoil damage!');
+      messages.add('${attacker.name} took $recoil recoil damage!');
     }
 
     // Deal damage
     defender.takeDamage(damage);
-    messages.add('${defender.name} took ${damage} damage!');
+    messages.add('${defender.name} took $damage damage!');
 
     return BattleResult(
       damage: damage,
@@ -722,12 +737,12 @@ class BattleEngine {
         }
 
         attacker.needsRecharge = true;
-        return null; // Continue with normal attack at 2x damage
+        return null; // Continue with normal attack logic (you can add a damage multiplier there if desired)
 
-      case 'Kin': // Kin's-blessing: Team heal
+      case 'Kin': // Kin's-blessing: Self-heal
         final healAmount = (attacker.statIntelligence * 3).toInt();
         attacker.heal(healAmount);
-        messages.add('${attacker.name} healed ${healAmount} HP!');
+        messages.add('${attacker.name} healed $healAmount HP!');
         return BattleResult(
           damage: 0,
           isCritical: false,
@@ -749,7 +764,7 @@ class BattleEngine {
           );
         } else {
           attacker.isCharging = false;
-          return null; // Continue with 2.5x damage
+          return null; // Continue with big damage in normal flow
         }
     }
 
@@ -764,13 +779,15 @@ class BattleEngine {
     if (attacker.types.isEmpty) return;
 
     final element = attacker.types.first;
+    final statusScale = isSurvivalMode ? 0.5 : 1.0; // 50% in survival
 
     switch (element) {
       case 'Fire':
         defender.applyStatusEffect(
           StatusEffect(
             type: 'burn',
-            damagePerTurn: (defender.maxHp * 0.06).toInt(),
+            damagePerTurn: (defender.maxHp * 0.06 * statusScale)
+                .toInt(), // was 0.06
             duration: 3,
           ),
         );
@@ -781,7 +798,8 @@ class BattleEngine {
         defender.applyStatusEffect(
           StatusEffect(
             type: 'poison',
-            damagePerTurn: (defender.maxHp * 0.08).toInt(),
+            damagePerTurn: (defender.maxHp * 0.08 * statusScale)
+                .toInt(), // was 0.08
             duration: 3,
           ),
         );
@@ -857,7 +875,7 @@ class BattleEngine {
       } else if (effect.damagePerTurn < 0) {
         final healing = -effect.damagePerTurn;
         combatant.heal(healing);
-        messages.add('${combatant.name} recovered ${healing} HP!');
+        messages.add('${combatant.name} recovered $healing HP!');
       }
     }
 
@@ -881,6 +899,7 @@ class BattleEngine {
 
 extension BattleCombatantScaling on BattleCombatant {
   /// Returns a *copy* with scaled combat stats (HP, atk, def, speed).
+  /// Visual refs (speciesRef / instanceRef) are preserved so sprites still work.
   BattleCombatant scaledCopy({
     required String newId,
     String? newName,
