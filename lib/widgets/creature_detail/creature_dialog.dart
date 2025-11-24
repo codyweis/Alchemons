@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
+import 'package:alchemons/widgets/survival_specs_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/components.dart';
@@ -22,18 +24,20 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 
-import '../models/creature.dart';
+import '../../models/creature.dart';
 
 class CreatureDetailsDialog extends StatefulWidget {
   final Creature creature;
   final bool isDiscovered;
   final String? instanceId;
+  final bool openBattleTab;
 
   const CreatureDetailsDialog({
     super.key,
     required this.creature,
     required this.isDiscovered,
     this.instanceId,
+    this.openBattleTab = false,
   });
 
   @override
@@ -44,6 +48,7 @@ class CreatureDetailsDialog extends StatefulWidget {
     Creature creature,
     bool isDiscovered, {
     String? instanceId,
+    bool openBattleTab = false,
   }) async {
     await showDialog(
       context: context,
@@ -52,6 +57,7 @@ class CreatureDetailsDialog extends StatefulWidget {
         creature: creature,
         isDiscovered: isDiscovered || instanceId != null,
         instanceId: instanceId,
+        openBattleTab: openBattleTab,
       ),
     );
   }
@@ -78,20 +84,32 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   CreatureInstance? _instance; // << keep instance row once
   int? _instanceLevel;
 
+  int _initialTabIndex() {
+    // Only creatures that are "discovered" have multiple tabs.
+    if (!widget.isDiscovered) return 0;
+
+    // Battle tab is index 2: [0 = OVERVIEW, 1 = ANALYSIS, 2 = BATTLE]
+    if (widget.openBattleTab && widget.instanceId != null) {
+      return 2;
+    }
+
+    return 0;
+  }
+
   @override
   void initState() {
     super.initState();
     _effectiveCreature = widget.creature;
 
     _tabController = TabController(
-      length: widget.isDiscovered ? 2 : 1,
+      length: widget.isDiscovered ? 3 : 1, // Changed from 2 to 3
       vsync: this,
+      initialIndex: _initialTabIndex(), // <- use helper
     );
 
     _pageController = PageController(viewportFraction: 1.0);
     _analysisScrollController = ScrollController();
 
-    // If we have an instance, hydrate asynchronously but keep the same shell.
     if (widget.instanceId != null) {
       _hydrateFromInstance(widget.instanceId!);
     }
@@ -357,6 +375,21 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                           },
                           instanceId: widget.instanceId,
                         ),
+                        // 3. Battle (New)
+                        if (instance != null)
+                          BattleScrollArea(
+                            theme: theme,
+                            creature: effective,
+                            instance: instance,
+                          )
+                        else
+                          // Fallback if looking at a catalog entry without an instance
+                          Center(
+                            child: Text(
+                              "Battle data requires a live specimen.",
+                              style: TextStyle(color: theme.textMuted),
+                            ),
+                          ),
                       ],
                     )
                   : UnknownScrollArea(theme: theme),
@@ -605,6 +638,7 @@ class _DialogTabSelector extends StatelessWidget {
           tabs: const [
             Tab(text: 'OVERVIEW'),
             Tab(text: 'ANALYSIS'),
+            Tab(text: 'BATTLE'), // New Tab
           ],
         ),
       ),

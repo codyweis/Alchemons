@@ -25,7 +25,7 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/utils/faction_util.dart'; // FactionTheme
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/widgets/creature_dialog.dart';
+import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 
 import '../models/creature.dart';

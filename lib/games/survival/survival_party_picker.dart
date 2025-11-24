@@ -6,6 +6,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
 import 'package:flutter/material.dart';
@@ -21,9 +22,29 @@ class SurvivalFormationSelectorScreen extends StatefulWidget {
 
 class _SurvivalFormationSelectorScreenState
     extends State<SurvivalFormationSelectorScreen> {
-  final Map<int, String> _formationSlots = {};
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  SortBy _sortBy = SortBy.levelHigh;
+  bool _filterPrismatic = false;
+  String? _filterSize;
+  String? _filterTint;
+  String? _filterVariant;
+  String? _filterNature;
 
-  bool get _isFormationComplete => _formationSlots.length == 4;
+  /// 0–3: active (FormationPosition indices)
+  final Map<int, String> _activeSlots = {};
+
+  /// 0–3: bench slots (local indices), we’ll encode them differently when we return.
+  final Map<int, String> _benchSlots = {};
+
+  bool get _hasFullActive => _activeSlots.length == 4;
+  int get _totalSelected => _activeSlots.length + _benchSlots.length;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,413 +65,7 @@ class _SurvivalFormationSelectorScreenState
           child: Column(
             children: [
               _buildHeader(theme),
-              Expanded(child: Center(child: _buildFormationPreview(theme, db))),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(FactionTheme theme) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            color: Colors.white,
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          const SizedBox(width: 8),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Formation Setup',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  'Tap slots to select creatures',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFormationPreview(FactionTheme theme, AlchemonsDatabase db) {
-    final repo = context.watch<CreatureCatalog>();
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.surfaceAlt.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _isFormationComplete ? Colors.green : theme.border,
-          width: 2,
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.grid_4x4,
-                color: _isFormationComplete ? Colors.green : theme.textMuted,
-                size: 24,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Formation (${_formationSlots.length}/4)',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              if (_formationSlots.isNotEmpty)
-                TextButton(
-                  onPressed: () => setState(() => _formationSlots.clear()),
-                  child: Text(
-                    'Clear',
-                    style: TextStyle(color: theme.textMuted, fontSize: 13),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          FutureBuilder<List<CreatureInstance>>(
-            future: db.creatureDao.getAllInstances(),
-            builder: (context, snapshot) {
-              final allInstances = snapshot.data ?? [];
-
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'FRONT ROW (75% targeted)',
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildFormationSlot(
-                          theme,
-                          FormationPosition.frontLeft,
-                          allInstances,
-                          repo,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildFormationSlot(
-                          theme,
-                          FormationPosition.frontRight,
-                          allInstances,
-                          repo,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'BACK ROW (25% targeted)',
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildFormationSlot(
-                          theme,
-                          FormationPosition.backLeft,
-                          allInstances,
-                          repo,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildFormationSlot(
-                          theme,
-                          FormationPosition.backRight,
-                          allInstances,
-                          repo,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _isFormationComplete
-                  ? () => Navigator.of(context).pop(_formationSlots)
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: theme.surface,
-                disabledForegroundColor: theme.textMuted,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              icon: const Icon(Icons.check_rounded, size: 24),
-              label: Text(
-                _isFormationComplete
-                    ? 'Confirm Formation'
-                    : 'Select 4 Creatures',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFormationSlot(
-    FactionTheme theme,
-    FormationPosition position,
-    List<CreatureInstance> allInstances,
-    CreatureCatalog repo,
-  ) {
-    final instanceId = _formationSlots[position.index];
-
-    if (instanceId == null) {
-      return _buildEmptyFormationSlot(theme, position);
-    }
-
-    final instance = allInstances
-        .where((inst) => inst.instanceId == instanceId)
-        .firstOrNull;
-
-    if (instance == null) {
-      return _buildEmptyFormationSlot(theme, position);
-    }
-
-    final species = repo.getCreatureById(instance.baseId);
-    return _buildFilledFormationSlot(theme, position, species, instance);
-  }
-
-  Widget _buildEmptyFormationSlot(
-    FactionTheme theme,
-    FormationPosition position,
-  ) {
-    return GestureDetector(
-      onTap: () => _openCreatureSelectionSheet(position),
-      child: Container(
-        height: 120,
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.border, width: 2),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add_circle_outline, color: theme.textMuted, size: 40),
-            const SizedBox(height: 8),
-            Text(
-              _getPositionLabel(position),
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilledFormationSlot(
-    FactionTheme theme,
-    FormationPosition position,
-    Creature? species,
-    CreatureInstance instance,
-  ) {
-    return GestureDetector(
-      onTap: () {
-        setState(() => _formationSlots.remove(position.index));
-      },
-      child: Container(
-        height: 120,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.green, width: 3),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.green.withOpacity(0.3),
-              blurRadius: 12,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (species != null)
-              Expanded(
-                child: InstanceSprite(
-                  creature: species,
-                  instance: instance,
-                  size: 48,
-                ),
-              )
-            else
-              const Icon(Icons.help_outline, size: 48),
-            const SizedBox(height: 6),
-            Text(
-              species?.name ?? 'Unknown',
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-            Text(
-              'Lv ${instance.level}',
-              style: const TextStyle(
-                color: Colors.amber,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _getPositionLabel(FormationPosition position) {
-    switch (position) {
-      case FormationPosition.frontLeft:
-        return 'Front Left';
-      case FormationPosition.frontRight:
-        return 'Front Right';
-      case FormationPosition.backLeft:
-        return 'Back Left';
-      case FormationPosition.backRight:
-        return 'Back Right';
-    }
-  }
-
-  Future<void> _openCreatureSelectionSheet(FormationPosition position) async {
-    final selectedInstanceId = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => _CreatureSelectionSheet(
-        position: position,
-        alreadySelectedIds: _formationSlots.values.toSet(),
-      ),
-    );
-
-    if (selectedInstanceId != null && mounted) {
-      setState(() {
-        _formationSlots[position.index] = selectedInstanceId;
-      });
-    }
-  }
-}
-
-// Bottom sheet for selecting creatures
-class _CreatureSelectionSheet extends StatefulWidget {
-  final FormationPosition position;
-  final Set<String> alreadySelectedIds;
-
-  const _CreatureSelectionSheet({
-    required this.position,
-    required this.alreadySelectedIds,
-  });
-
-  @override
-  State<_CreatureSelectionSheet> createState() =>
-      _CreatureSelectionSheetState();
-}
-
-class _CreatureSelectionSheetState extends State<_CreatureSelectionSheet> {
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  SortBy _sortBy = SortBy.levelHigh;
-  bool _filterPrismatic = false;
-  String? _filterSize;
-  String? _filterTint;
-  String? _filterVariant;
-  String? _filterNature;
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
-    final db = context.watch<AlchemonsDatabase>();
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.9,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: theme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(color: theme.border, width: 2),
-          ),
-          child: Column(
-            children: [
-              _buildSheetHeader(theme),
+              _buildFormationBar(theme, db),
               const SizedBox(height: 8),
               _buildFiltersPanel(theme),
               const SizedBox(height: 8),
@@ -470,84 +85,374 @@ class _CreatureSelectionSheetState extends State<_CreatureSelectionSheet> {
                       return _buildEmptyState(theme);
                     }
 
-                    return _buildInstanceGrid(
-                      theme,
-                      instances,
-                      scrollController,
-                    );
+                    return _buildInstanceGrid(theme, instances);
                   },
                 ),
               ),
+              _buildConfirmButton(theme),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _buildSheetHeader(FactionTheme theme) {
-    return Container(
+  Widget _buildHeader(FactionTheme theme) {
+    return Padding(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.border)),
-      ),
-      child: Column(
+      child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: theme.textMuted.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(2),
+          IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            color: Colors.white,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Formation & Bench',
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  'Select 4 active + up to 4 bench',
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(Icons.pets, color: theme.accent, size: 24),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Select Creature',
-                      style: TextStyle(
-                        color: theme.text,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      _getPositionLabel(widget.position),
-                      style: TextStyle(color: theme.textMuted, fontSize: 13),
-                    ),
-                  ],
-                ),
+          if (_activeSlots.isNotEmpty || _benchSlots.isNotEmpty)
+            TextButton(
+              onPressed: () => setState(() {
+                _activeSlots.clear();
+                _benchSlots.clear();
+              }),
+              child: Text(
+                'Clear All',
+                style: TextStyle(color: theme.accent, fontSize: 13),
               ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                color: theme.textMuted,
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
+            ),
         ],
       ),
     );
   }
 
-  String _getPositionLabel(FormationPosition position) {
-    switch (position) {
-      case FormationPosition.frontLeft:
-        return 'Front Left (75% targeted)';
-      case FormationPosition.frontRight:
-        return 'Front Right (75% targeted)';
-      case FormationPosition.backLeft:
-        return 'Back Left (25% targeted)';
-      case FormationPosition.backRight:
-        return 'Back Right (25% targeted)';
+  Widget _buildFormationBar(FactionTheme theme, AlchemonsDatabase db) {
+    final repo = context.watch<CreatureCatalog>();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.surfaceAlt.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _hasFullActive ? Colors.green : theme.border,
+          width: 2,
+        ),
+      ),
+      child: FutureBuilder<List<CreatureInstance>>(
+        future: db.creatureDao.getAllInstances(),
+        builder: (context, snapshot) {
+          final allInstances = snapshot.data ?? [];
+
+          return Column(
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.grid_4x4,
+                    color: _hasFullActive ? Colors.green : theme.textMuted,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Frontline (${_activeSlots.length}/4)',
+                    style: TextStyle(
+                      color: theme.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildCompactSlot(
+                      theme,
+                      FormationPosition.frontLeft,
+                      'Front L',
+                      allInstances,
+                      repo,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildCompactSlot(
+                      theme,
+                      FormationPosition.frontRight,
+                      'Front R',
+                      allInstances,
+                      repo,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildCompactSlot(
+                      theme,
+                      FormationPosition.backLeft,
+                      'Back L',
+                      allInstances,
+                      repo,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildCompactSlot(
+                      theme,
+                      FormationPosition.backRight,
+                      'Back R',
+                      allInstances,
+                      repo,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    Icons.chair_alt_rounded,
+                    color: _benchSlots.isNotEmpty
+                        ? Colors.orangeAccent
+                        : theme.textMuted,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Bench (${_benchSlots.length}/4)',
+                    style: TextStyle(
+                      color: theme.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildBenchSlot(theme, 0, 'B1', allInstances, repo),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildBenchSlot(theme, 1, 'B2', allInstances, repo),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildBenchSlot(theme, 2, 'B3', allInstances, repo),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildBenchSlot(theme, 3, 'B4', allInstances, repo),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBenchSlot(
+    FactionTheme theme,
+    int benchIndex,
+    String label,
+    List<CreatureInstance> allInstances,
+    CreatureCatalog repo,
+  ) {
+    final instanceId = _benchSlots[benchIndex];
+    final instance = instanceId != null
+        ? allInstances.firstWhere(
+            (inst) => inst.instanceId == instanceId,
+            orElse: () => allInstances.first,
+          )
+        : null;
+
+    if (instance == null) {
+      return Container(
+        height: 60,
+        decoration: BoxDecoration(
+          color: theme.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.border, width: 1.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add, color: theme.textMuted, size: 18),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
     }
+
+    final species = repo.getCreatureById(instance.baseId);
+
+    return GestureDetector(
+      onTap: () => setState(() => _benchSlots.remove(benchIndex)),
+      child: Container(
+        height: 60,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: theme.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orangeAccent, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orangeAccent.withOpacity(0.2),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (species != null)
+              Expanded(
+                child: InstanceSprite(
+                  creature: species,
+                  instance: instance,
+                  size: 24,
+                ),
+              )
+            else
+              const Icon(Icons.help_outline, size: 24),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 8,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactSlot(
+    FactionTheme theme,
+    FormationPosition position,
+    String label,
+    List<CreatureInstance> allInstances,
+    CreatureCatalog repo,
+  ) {
+    final instanceId = _activeSlots[position.index];
+
+    final instance = instanceId != null
+        ? allInstances.firstWhere(
+            (inst) => inst.instanceId == instanceId,
+            orElse: () => allInstances.first,
+          )
+        : null;
+
+    if (instance == null) {
+      return Container(
+        height: 70,
+        decoration: BoxDecoration(
+          color: theme.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.border, width: 1.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add, color: theme.textMuted, size: 20),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final species = repo.getCreatureById(instance.baseId);
+
+    return GestureDetector(
+      onTap: () => setState(() => _activeSlots.remove(position.index)),
+      child: Container(
+        height: 70,
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: theme.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.green, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.withOpacity(0.2),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (species != null)
+              Expanded(
+                child: InstanceSprite(
+                  creature: species,
+                  instance: instance,
+                  size: 32,
+                ),
+              )
+            else
+              const Icon(Icons.help_outline, size: 32),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                color: theme.textMuted,
+                fontSize: 8,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildFiltersPanel(FactionTheme theme) {
@@ -662,12 +567,11 @@ class _CreatureSelectionSheetState extends State<_CreatureSelectionSheet> {
   Widget _buildInstanceGrid(
     FactionTheme theme,
     List<CreatureInstance> instances,
-    ScrollController scrollController,
   ) {
     final repo = context.watch<CreatureCatalog>();
+    final selectedIds = {..._activeSlots.values, ..._benchSlots.values};
 
     return GridView.builder(
-      controller: scrollController,
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
@@ -679,11 +583,9 @@ class _CreatureSelectionSheetState extends State<_CreatureSelectionSheet> {
       itemBuilder: (context, index) {
         final instance = instances[index];
         final species = repo.getCreatureById(instance.baseId);
-        final isAlreadySelected = widget.alreadySelectedIds.contains(
-          instance.instanceId,
-        );
+        final isSelected = selectedIds.contains(instance.instanceId);
 
-        return _buildInstanceCard(theme, species, instance, isAlreadySelected);
+        return _buildInstanceCard(theme, species, instance, isSelected);
       },
     );
   }
@@ -692,23 +594,66 @@ class _CreatureSelectionSheetState extends State<_CreatureSelectionSheet> {
     FactionTheme theme,
     Creature? species,
     CreatureInstance instance,
-    bool isAlreadySelected,
+    bool isSelected,
   ) {
+    final isInActive = _activeSlots.containsValue(instance.instanceId);
+    final isInBench = _benchSlots.containsValue(instance.instanceId);
+    final canSelectActive = !isSelected && _activeSlots.length < 4;
+    final canSelectBench = !isSelected && _benchSlots.length < 4;
+    final canSelect = !isSelected && (canSelectActive || canSelectBench);
+
     return GestureDetector(
-      onTap: isAlreadySelected
-          ? null
-          : () => Navigator.of(context).pop(instance.instanceId),
+      onLongPress: () => CreatureDetailsDialog.show(
+        context,
+        species!,
+        true,
+        instanceId: instance.instanceId,
+        openBattleTab: true,
+      ),
+      onTap: () {
+        if (isSelected) {
+          // Remove from whichever slot it's in
+          setState(() {
+            _activeSlots.removeWhere((_, id) => id == instance.instanceId);
+            _benchSlots.removeWhere((_, id) => id == instance.instanceId);
+          });
+        } else if (canSelect) {
+          setState(() {
+            // Fill active first, then bench
+            if (_activeSlots.length < 4) {
+              final nextSlot = _getNextAvailableActiveSlot();
+              if (nextSlot != null) {
+                _activeSlots[nextSlot.index] = instance.instanceId;
+              }
+            } else if (_benchSlots.length < 4) {
+              final nextBenchIdx = _getNextAvailableBenchIndex();
+              if (nextBenchIdx != null) {
+                _benchSlots[nextBenchIdx] = instance.instanceId;
+              }
+            }
+          });
+        }
+      },
       child: Opacity(
-        opacity: isAlreadySelected ? 0.4 : 1.0,
+        opacity: (!canSelect && !isSelected) ? 0.4 : 1.0,
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: theme.surfaceAlt,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isAlreadySelected ? theme.textMuted : theme.border,
-              width: 1.5,
+              color: isSelected ? Colors.green : theme.border,
+              width: isSelected ? 2.5 : 1.5,
             ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.green.withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -744,16 +689,7 @@ class _CreatureSelectionSheetState extends State<_CreatureSelectionSheet> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              if (instance.nickname != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  instance.nickname!,
-                  style: TextStyle(color: theme.textMuted, fontSize: 9),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              if (isAlreadySelected) ...[
+              if (isSelected) ...[
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -761,13 +697,13 @@ class _CreatureSelectionSheetState extends State<_CreatureSelectionSheet> {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: theme.textMuted.withOpacity(0.2),
+                    color: Colors.green.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    'SELECTED',
-                    style: TextStyle(
-                      color: theme.textMuted,
+                    _getSlotLabelForInstance(instance.instanceId),
+                    style: const TextStyle(
+                      color: Colors.green,
                       fontSize: 8,
                       fontWeight: FontWeight.w800,
                     ),
@@ -775,6 +711,108 @@ class _CreatureSelectionSheetState extends State<_CreatureSelectionSheet> {
                 ),
               ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getSlotLabelForInstance(String instanceId) {
+    final activePos = _findActiveSlotForInstance(instanceId);
+    if (activePos != null) return _getSlotLabel(activePos);
+
+    final benchIdx = _findBenchSlotForInstance(instanceId);
+    if (benchIdx != null) return 'B${benchIdx + 1}';
+
+    return '';
+  }
+
+  FormationPosition? _findActiveSlotForInstance(String instanceId) {
+    for (final entry in _activeSlots.entries) {
+      if (entry.value == instanceId) {
+        return FormationPosition.values[entry.key];
+      }
+    }
+    return null;
+  }
+
+  int? _findBenchSlotForInstance(String instanceId) {
+    for (final entry in _benchSlots.entries) {
+      if (entry.value == instanceId) return entry.key;
+    }
+    return null;
+  }
+
+  FormationPosition? _getNextAvailableActiveSlot() {
+    for (final position in FormationPosition.values) {
+      if (!_activeSlots.containsKey(position.index)) {
+        return position;
+      }
+    }
+    return null;
+  }
+
+  int? _getNextAvailableBenchIndex() {
+    for (int i = 0; i < 4; i++) {
+      if (!_benchSlots.containsKey(i)) return i;
+    }
+    return null;
+  }
+
+  String _getSlotLabel(FormationPosition? position) {
+    if (position == null) return '';
+    switch (position) {
+      case FormationPosition.frontLeft:
+        return 'FL';
+      case FormationPosition.frontRight:
+        return 'FR';
+      case FormationPosition.backLeft:
+        return 'BL';
+      case FormationPosition.backRight:
+        return 'BR';
+    }
+  }
+
+  Widget _buildConfirmButton(FactionTheme theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.surface,
+        border: Border(top: BorderSide(color: theme.border)),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: _hasFullActive
+              ? () {
+                  final result = <int, String>{};
+
+                  // 0–3: active (same as before)
+                  result.addAll(_activeSlots);
+
+                  // 100–103: bench slots (encoded)
+                  _benchSlots.forEach((benchIdx, id) {
+                    result[100 + benchIdx] = id;
+                  });
+
+                  Navigator.of(context).pop(result);
+                }
+              : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: theme.surfaceAlt,
+            disabledForegroundColor: theme.textMuted,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          icon: const Icon(Icons.check_rounded, size: 24),
+          label: Text(
+            _hasFullActive
+                ? 'Confirm Formation'
+                : 'Select ${4 - _activeSlots.length} More Frontline',
           ),
         ),
       ),

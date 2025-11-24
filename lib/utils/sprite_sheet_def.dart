@@ -1,3 +1,4 @@
+// lib/utils/sprite_sheet_def.dart
 import 'dart:ui';
 
 import 'package:alchemons/database/alchemons_db.dart';
@@ -7,12 +8,14 @@ import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/components.dart';
 
+/// Sprite sheet configuration for animated creatures
 class SpriteSheetDef {
   final String path;
   final int totalFrames;
   final int rows;
   final Vector2 frameSize;
   final double stepTime;
+
   const SpriteSheetDef({
     required this.path,
     required this.totalFrames,
@@ -22,14 +25,17 @@ class SpriteSheetDef {
   });
 }
 
+/// Visual modifiers applied to a creature sprite (genetics + effects)
 class SpriteVisuals {
-  final double scale; // e.g. 0.75..1.3
-  final double saturation; // S
-  final double brightness; // V
-  final double hueShiftDeg; // degrees
-  final bool isPrismatic;
-  final Color? tint; // lineage tint, optional
-  final bool isAlbino; // convenience flag
+  final double scale; // from size genes (0.75-1.3)
+  final double saturation; // S channel
+  final double brightness; // V channel
+  final double hueShiftDeg; // hue rotation in degrees
+  final bool isPrismatic; // animated rainbow effect
+  final Color? tint; // optional lineage-based tint
+  final bool isAlbino; // computed flag for special rendering
+  final String? alchemyEffect; // 'alchemy_glow', 'volcanic_aura', etc.
+  final String? variantFaction; // 'Pyro', 'Aqua', etc. for elemental aura color
 
   const SpriteVisuals({
     required this.scale,
@@ -39,9 +45,12 @@ class SpriteVisuals {
     required this.isPrismatic,
     required this.tint,
     required this.isAlbino,
+    this.alchemyEffect,
+    this.variantFaction,
   });
 }
 
+/// Extract sprite sheet configuration from creature definition
 SpriteSheetDef sheetFromCreature(Creature c) => SpriteSheetDef(
   path: c.spriteData!.spriteSheetPath,
   totalFrames: c.spriteData!.totalFrames,
@@ -53,10 +62,12 @@ SpriteSheetDef sheetFromCreature(Creature c) => SpriteSheetDef(
   stepTime: c.spriteData!.frameDurationMs / 1000.0,
 );
 
+/// Extract visual modifiers from creature instance genetics
 SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
   final g = inst != null
       ? decodeGenetics(inst.geneticsJson)
       : creature!.genetics;
+
   final scale = scaleFromGenes(g);
   final hue = hueFromGenes(g);
   final sat = satFromGenes(g);
@@ -65,7 +76,7 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
 
   final isPrismatic = inst?.isPrismaticSkin ?? creature!.isPrismaticSkin;
 
-  // keep your special-case albino/prismatic rules here
+  // Special case: albino rendering (high brightness, no prismatic)
   final isAlbino = (bri == 1.45) && !isPrismatic;
 
   return SpriteVisuals(
@@ -76,5 +87,7 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
     isPrismatic: isPrismatic,
     tint: tint,
     isAlbino: isAlbino,
+    alchemyEffect: inst?.alchemyEffect, // Pull from instance if available
+    variantFaction: inst?.variantFaction, // Pull from instance if available
   );
 }

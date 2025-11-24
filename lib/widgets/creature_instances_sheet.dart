@@ -20,7 +20,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/harvest_rate.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
-import 'package:alchemons/widgets/creature_dialog.dart';
+import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 
 class InstancesSheet extends StatefulWidget {
   final Creature species;

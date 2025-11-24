@@ -13,7 +13,7 @@ import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/blob_party/bubble_widget.dart';
 import 'package:alchemons/widgets/blob_party/floating_creature.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
-import 'package:alchemons/widgets/creature_dialog.dart';
+import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';

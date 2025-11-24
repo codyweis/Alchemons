@@ -1,163 +1,746 @@
+// // lib/games/survival/survival_creature_sprite.dart
+// import 'dart:math' as math;
+// import 'package:alchemons/games/survival/components/alchemy_projectile.dart'; // REQUIRED IMPORT
+// import 'package:alchemons/games/survival/survival_combat.dart';
+// import 'package:alchemons/games/survival/survival_enemies.dart';
+// import 'package:alchemons/games/survival/survival_game.dart';
+// import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
+// import 'package:flame/components.dart';
+// import 'package:flame/effects.dart';
+// import 'package:flutter/material.dart';
+
+// class HoardGuardian extends PositionComponent
+//     with HasGameRef<SurvivalHoardGame> {
+//   final SurvivalUnit unit;
+//   bool isDead = false;
+
+//   double _basicAttackTimer = 0;
+//   double _specialAbilityTimer = 0;
+//   late double _basicInterval;
+//   late double _specialInterval;
+
+//   bool _isFlipped = false;
+//   late PositionComponent _spriteContainer;
+
+//   HoardGuardian({required this.unit, required Vector2 position})
+//     : super(position: position, size: Vector2.all(100), anchor: Anchor.center);
+
+//   @override
+//   Future<void> onLoad() async {
+//     // --- 1. STAT SCALING SETUP ---
+//     _basicInterval = 1.5 / unit.cooldownReduction;
+//     _specialInterval = 8.0 / unit.cooldownReduction;
+
+//     // Initialize sprite container
+//     _spriteContainer = PositionComponent(
+//       size: size,
+//       anchor: Anchor.center,
+//       position: size / 2,
+//     );
+//     add(_spriteContainer);
+
+//     // Visuals
+//     if (unit.sheetDef != null && unit.spriteVisuals != null) {
+//       final visual =
+//           CreatureSpriteComponent<SurvivalHoardGame>(
+//               sheet: unit.sheetDef!,
+//               visuals: unit.spriteVisuals!,
+//               desiredSize: size * 0.8,
+//               alchemyEffect: unit.spriteVisuals!.alchemyEffect,
+//               variantFaction: unit.spriteVisuals!.variantFaction,
+//             )
+//             ..anchor = Anchor.center
+//             ..position = _spriteContainer.size / 2;
+//       _spriteContainer.add(visual);
+//     } else {
+//       _spriteContainer.add(
+//         CircleComponent(
+//           radius: 40,
+//           paint: Paint()
+//             ..color = _getElementColor(
+//               unit.types.firstOrNull ?? 'Normal',
+//             ).withOpacity(0.7),
+//           anchor: Anchor.center,
+//           position: _spriteContainer.size / 2,
+//         ),
+//       );
+//     }
+//     _addNameLabel();
+//   }
+
+//   @override
+//   void update(double dt) {
+//     super.update(dt);
+//     SurvivalCombat.tickRealtimeStatuses(unit, dt);
+
+//     if (isDead || unit.isDead) {
+//       if (!isDead) {
+//         isDead = true;
+//         _playDeathAnimation();
+//       }
+//       return;
+//     }
+
+//     // --- 2. COMBAT LOGIC ---
+
+//     if (_basicAttackTimer > 0) _basicAttackTimer -= dt;
+//     if (_specialAbilityTimer > 0) _specialAbilityTimer -= dt;
+
+//     final target = gameRef.getNearestEnemy(position, unit.attackRange);
+
+//     if (target != null) {
+//       _faceTarget(target.position);
+
+//       // PRIORITY SYSTEM:
+//       if (_specialAbilityTimer <= 0) {
+//         _performSpecialAbility(target);
+//         _specialAbilityTimer = _specialInterval;
+//       } else if (_basicAttackTimer <= 0) {
+//         _performBasicAttack(target);
+//         _basicAttackTimer = _basicInterval;
+//       }
+//     }
+//   }
+
+//   void _performBasicAttack(HoardEnemy target) {
+//     // Basic = Physical Damage, uses Strength
+//     final damage = SurvivalCombat.computeHitDamage(
+//       SurvivalAttackContext(
+//         attacker: unit,
+//         defender: target.unit,
+//         damageKind: SurvivalDamageKind.physical,
+//         isSpecial: false,
+//       ),
+//     );
+
+//     // FIX 1: Reset the angle explicitly to stop unwanted spinning.
+//     _spriteContainer.angle = 0.0;
+
+//     // Subtle animation
+//     _spriteContainer.add(
+//       ScaleEffect.to(
+//         Vector2(1.1, 0.9),
+//         EffectController(duration: 0.1, reverseDuration: 0.1),
+//       ),
+//     );
+
+//     // FIX 2: Use the Elemental Alchemy Projectile logic
+//     final color = _getElementColor(unit.types.firstOrNull ?? 'Normal');
+//     final (shape, speed) = _getBasicAttackProperties(unit.family);
+
+//     gameRef.spawnAlchemyProjectile(
+//       // Corrected call
+//       start: position,
+//       target: target,
+//       damage: damage,
+//       color: color,
+//       shape: shape,
+//       speed: speed,
+//     );
+//   }
+
+//   void _performSpecialAbility(HoardEnemy mainTarget) {
+//     // FIX 1: Reset the angle explicitly to stop unwanted spinning.
+//     _spriteContainer.angle = 0.0;
+
+//     // Big animation "Cast"
+//     _spriteContainer.add(
+//       SequenceEffect([
+//         ScaleEffect.by(Vector2.all(1.3), EffectController(duration: 0.2)),
+//         ScaleEffect.by(Vector2.all(1 / 1.3), EffectController(duration: 0.2)),
+//       ]),
+//     );
+
+//     // Ability logic depends on Family
+//     switch (unit.family) {
+//       case 'Let':
+//         _doAoeAbility(mainTarget);
+//         break;
+//       case 'Horn':
+//         _doShieldAbility();
+//         break;
+//       case 'Wing':
+//         _doMultiShotAbility(mainTarget);
+//         break;
+//       case 'Mystic':
+//         _doHealAbility();
+//         break;
+//       case 'Pip':
+//       case 'Mane':
+//         _doRapidFireAbility(mainTarget);
+//         break;
+//       default:
+//         _doGenericNuke(mainTarget);
+//     }
+//   }
+
+//   // --- ABILITY IMPLEMENTATIONS ---
+
+//   void _doAoeAbility(HoardEnemy target) {
+//     final dmg = _calcSpecialDmg(target.unit);
+//     final color = _getElementColor(unit.types.firstOrNull ?? 'Fire');
+//     final (shape, speed) = _getBasicAttackProperties(
+//       unit.family,
+//     ); // Use special shape
+
+//     gameRef.spawnAlchemyProjectile(
+//       // Corrected call
+//       start: position,
+//       target: target,
+//       damage: dmg,
+//       color: color,
+//       shape: shape,
+//       speed: speed,
+//     );
+
+//     final neighbors = gameRef.getEnemiesInRange(target.position, 150);
+//     for (var n in neighbors) {
+//       if (n != target) n.takeDamage((dmg * 0.6).toInt());
+//     }
+//   }
+
+//   void _doShieldAbility() {
+//     final amount = 20 + (unit.statIntelligence * 5).toInt();
+//     gameRef.orb.heal(amount);
+
+//     add(
+//       CircleComponent(
+//         radius: 60,
+//         paint: Paint()
+//           ..color = Colors.cyan.withOpacity(0.3)
+//           ..style = PaintingStyle.stroke
+//           ..strokeWidth = 4,
+//       )..add(RemoveEffect(delay: 1.0)),
+//     );
+//   }
+
+//   void _doMultiShotAbility(HoardEnemy primary) {
+//     final targets = gameRef.getRandomEnemies(3);
+//     if (!targets.contains(primary)) targets.add(primary);
+
+//     final color = _getElementColor(unit.types.firstOrNull ?? 'Air');
+//     final (shape, speed) = _getBasicAttackProperties(unit.family);
+
+//     for (var t in targets) {
+//       final dmg = _calcSpecialDmg(t.unit);
+//       gameRef.spawnAlchemyProjectile(
+//         // Corrected call
+//         start: position,
+//         target: t,
+//         damage: dmg,
+//         color: color,
+//         shape: shape,
+//         speed: speed,
+//       );
+//     }
+//   }
+
+//   void _doHealAbility() {
+//     final heal = (unit.statIntelligence * 8 + 40).toInt();
+//     gameRef.orb.heal(heal);
+
+//     add(
+//       CircleComponent(
+//           radius: 10,
+//           paint: Paint()
+//             ..color = Colors.white
+//             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15),
+//         )
+//         ..add(
+//           ScaleEffect.to(Vector2.all(15.0), EffectController(duration: 0.4)),
+//         )
+//         ..add(RemoveEffect(delay: 0.4)),
+//     );
+//   }
+
+//   void _doRapidFireAbility(HoardEnemy target) async {
+//     final color = _getElementColor(unit.types.firstOrNull ?? 'Plant');
+//     final (shape, speed) = _getBasicAttackProperties(unit.family);
+
+//     for (int i = 0; i < 5; i++) {
+//       if (target.isDead) break;
+//       final dmg = (_calcSpecialDmg(target.unit) * 0.3).toInt();
+
+//       gameRef.spawnAlchemyProjectile(
+//         // Corrected call
+//         start: position,
+//         target: target,
+//         damage: dmg,
+//         color: color,
+//         shape: shape,
+//         speed: speed,
+//       );
+//       await Future.delayed(const Duration(milliseconds: 150));
+//     }
+//   }
+
+//   void _doGenericNuke(HoardEnemy target) {
+//     final dmg = (_calcSpecialDmg(target.unit) * 1.8).toInt();
+//     final color = _getElementColor(unit.types.firstOrNull ?? 'Normal');
+//     final (shape, speed) = _getBasicAttackProperties(unit.family);
+
+//     gameRef.spawnAlchemyProjectile(
+//       // Corrected call
+//       start: position,
+//       target: target,
+//       damage: dmg,
+//       color: color,
+//       shape: shape,
+//       speed: speed,
+//     );
+//   }
+
+//   // --- NEW PROJECTILE HELPERS (Duplicated from earlier) ---
+
+//   (ProjectileShape shape, double speed) _getBasicAttackProperties(
+//     String family,
+//   ) {
+//     double speedMod = 1.0;
+//     ProjectileShape shape;
+
+//     switch (family) {
+//       case 'Wing':
+//       case 'Pip':
+//         shape = ProjectileShape.blade;
+//         speedMod = 1.3;
+//         break;
+//       case 'Let':
+//         shape = ProjectileShape.shard;
+//         speedMod = 1.0;
+//         break;
+//       case 'Mystic':
+//       case 'Spirit':
+//         shape = ProjectileShape.star;
+//         speedMod = 0.9;
+//         break;
+//       case 'Mane':
+//       case 'Plant':
+//         shape = ProjectileShape.thorn;
+//         speedMod = 1.1;
+//         break;
+//       case 'Horn':
+//       default:
+//         shape = ProjectileShape.orb;
+//         speedMod = 0.8;
+//         break;
+//     }
+//     return (shape, speedMod);
+//   }
+
+//   int _calcSpecialDmg(SurvivalUnit defender) {
+//     return SurvivalCombat.computeHitDamage(
+//       SurvivalAttackContext(
+//         attacker: unit,
+//         defender: defender,
+//         damageKind: SurvivalDamageKind.elemental,
+//         isSpecial: true,
+//       ),
+//     );
+//   }
+
+//   // --- UTILS ---
+
+//   void takeDamage(int amount) {
+//     if (isDead) return;
+//     unit.takeDamage(amount);
+//     _flashDamage();
+//     if (unit.isDead) {
+//       isDead = true;
+//       _playDeathAnimation();
+//     }
+//   }
+
+//   void _flashDamage() {
+//     _spriteContainer.add(
+//       SequenceEffect([
+//         ScaleEffect.to(Vector2(1.1, 0.9), EffectController(duration: 0.06)),
+//         ScaleEffect.to(Vector2.all(1.0), EffectController(duration: 0.08)),
+//       ]),
+//     );
+//   }
+
+//   void _playDeathAnimation() {
+//     add(
+//       SequenceEffect([
+//         ScaleEffect.to(Vector2.zero(), EffectController(duration: 0.4)),
+//         RemoveEffect(),
+//       ]),
+//     );
+
+//     add(MoveEffect.by(Vector2(0, 30), EffectController(duration: 0.4)));
+//   }
+
+//   void _faceTarget(Vector2 targetPos) {
+//     final shouldFlip = targetPos.x < position.x;
+//     if (shouldFlip != _isFlipped) {
+//       _isFlipped = shouldFlip;
+//       _spriteContainer.scale.x = _isFlipped ? -1 : 1;
+//     }
+//   }
+
+//   void _addNameLabel() {
+//     add(
+//       TextComponent(
+//         text: unit.name,
+//         anchor: Anchor.center,
+//         position: Vector2(size.x / 2, size.y + 10),
+//         textRenderer: TextPaint(
+//           style: const TextStyle(
+//             color: Colors.white,
+//             fontSize: 10,
+//             fontWeight: FontWeight.bold,
+//             shadows: [Shadow(blurRadius: 2, color: Colors.black)],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+
+//   Color _getElementColor(String type) {
+//     switch (type) {
+//       case 'Fire':
+//       case 'Lava':
+//         return Colors.deepOrange;
+//       case 'Water':
+//       case 'Steam':
+//         return Colors.blueAccent;
+//       case 'Ice':
+//         return Colors.cyanAccent;
+//       case 'Earth':
+//       case 'Mud':
+//         return Colors.brown;
+//       case 'Air':
+//       case 'Dust':
+//         return Colors.blueGrey;
+//       case 'Lightning':
+//         return Colors.yellowAccent;
+//       case 'Plant':
+//         return Colors.green;
+//       case 'Poison':
+//         return Colors.purpleAccent;
+//       case 'Crystal':
+//         return Colors.tealAccent;
+//       case 'Spirit':
+//         return Colors.indigoAccent;
+//       case 'Dark':
+//         return Colors.purple.shade900;
+//       case 'Light':
+//         return Colors.amberAccent;
+//       case 'Blood':
+//         return Colors.redAccent;
+//       default:
+//         return Colors.grey;
+//     }
+//   }
+// }
+// lib/games/survival/survival_creature_sprite.dart
 import 'dart:math' as math;
+import 'package:alchemons/games/survival/components/alchemy_projectile.dart'; // REQUIRED IMPORT
+import 'package:alchemons/games/survival/components/survival_attacks.dart';
+import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
+import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
-import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
-import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart'; // Your existing widget
 
 class HoardGuardian extends PositionComponent
     with HasGameRef<SurvivalHoardGame> {
-  final BattleCombatant combatant;
+  final SurvivalUnit unit;
+  bool isDead = false;
 
-  // Action Logic
-  double _cooldownTimer = 0;
-  late double _abilityCooldown;
-  double _attackRange = 150.0; // Default range
+  double _basicAttackTimer = 0;
+  double _specialAbilityTimer = 0;
+  late double _basicInterval;
+  late double _specialInterval;
 
-  // Visuals
-  late PositionComponent visualContainer;
   bool _isFlipped = false;
+  late PositionComponent _spriteContainer;
 
-  HoardGuardian({required this.combatant, required Vector2 position})
-    : super(position: position, size: Vector2.all(100), anchor: Anchor.center) {
-    // --- CORE LOGIC: SPEED STAT ---
-    // Higher speed = Lower cooldown.
-    // Base cooldown is 3 seconds. Speed 5.0 makes it ~1 second.
-    double speedMod = math.max(0.1, combatant.statSpeed);
-    _abilityCooldown = 3.0 / (1 + (speedMod * 0.4));
-
-    // Range based on Intelligence (Ranged) vs Strength (Melee)
-    if (combatant.statIntelligence > combatant.statStrength) {
-      _attackRange = 400.0; // Ranged
-    }
-  }
+  HoardGuardian({required this.unit, required Vector2 position})
+    : super(position: position, size: Vector2.all(100), anchor: Anchor.center);
 
   @override
   Future<void> onLoad() async {
-    // Use your existing visual logic
-    if (combatant.sheetDef != null && combatant.spriteVisuals != null) {
-      final visual = CreatureSpriteComponent(
-        sheet: combatant.sheetDef!,
-        visuals: combatant.spriteVisuals!,
-        desiredSize: size,
-      );
-      visual.anchor = Anchor.center;
-      visual.position = size / 2;
-      add(visual);
+    // --- 1. STAT SCALING SETUP ---
+    _basicInterval = .9 / unit.cooldownReduction;
+    _specialInterval = 5.0 / unit.cooldownReduction;
+
+    // Initialize sprite container
+    _spriteContainer = PositionComponent(
+      size: size,
+      anchor: Anchor.center,
+      position: size / 2,
+    );
+    add(_spriteContainer);
+
+    // Visuals
+    if (unit.sheetDef != null && unit.spriteVisuals != null) {
+      final visual =
+          CreatureSpriteComponent<SurvivalHoardGame>(
+              sheet: unit.sheetDef!,
+              visuals: unit.spriteVisuals!,
+              desiredSize: size * 0.8,
+              alchemyEffect: unit.spriteVisuals!.alchemyEffect,
+              variantFaction: unit.spriteVisuals!.variantFaction,
+            )
+            ..anchor = Anchor.center
+            ..position = _spriteContainer.size / 2;
+      _spriteContainer.add(visual);
     } else {
-      // Fallback
-      add(
+      _spriteContainer.add(
         CircleComponent(
           radius: 40,
-          paint: Paint()..color = Colors.green,
+          paint: Paint()
+            ..color = _getElementColor(
+              unit.types.firstOrNull ?? 'Normal',
+            ).withOpacity(0.7),
           anchor: Anchor.center,
-          position: size / 2,
+          position: _spriteContainer.size / 2,
         ),
       );
     }
-
-    // HP Bar
-    add(_buildHpBar());
-  }
-
-  Component _buildHpBar() {
-    return RectangleComponent(
-      size: Vector2(60, 6),
-      position: Vector2(size.x / 2, -10),
-      anchor: Anchor.center,
-      paint: Paint()..color = Colors.black,
-      children: [
-        RectangleComponent(
-          size: Vector2(60, 6),
-          paint: Paint()..color = Colors.greenAccent,
-          // We update scale.x in update() for HP
-          key: ComponentKey.named('hp_fill'),
-        ),
-      ],
-    );
+    _addNameLabel();
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-    if (combatant.isDead) {
-      removeFromParent();
+    SurvivalCombat.tickRealtimeStatuses(unit, dt);
+
+    if (isDead || unit.isDead) {
+      if (!isDead) {
+        isDead = true;
+        _playDeathAnimation();
+      }
       return;
     }
 
-    // Update Cooldown
-    if (_cooldownTimer > 0) _cooldownTimer -= dt;
+    // --- 2. COMBAT LOGIC ---
 
-    // Find Target
-    final target = gameRef.getNearestEnemy(position, _attackRange);
+    if (_basicAttackTimer > 0) _basicAttackTimer -= dt;
+    if (_specialAbilityTimer > 0) _specialAbilityTimer -= dt;
+
+    final target = gameRef.getNearestEnemy(position, unit.attackRange);
 
     if (target != null) {
       _faceTarget(target.position);
-      if (_cooldownTimer <= 0) {
-        _performAbility(target);
+
+      // PRIORITY SYSTEM:
+      if (_specialAbilityTimer <= 0) {
+        _performSpecialAbility(target);
+        _specialAbilityTimer = _specialInterval;
+      } else if (_basicAttackTimer <= 0) {
+        _performBasicAttack(target);
+        _basicAttackTimer = _basicInterval;
       }
     }
   }
 
-  void _faceTarget(Vector2 targetPos) {
-    bool shouldFlip = targetPos.x < position.x;
-    if (shouldFlip != _isFlipped) {
-      _isFlipped = shouldFlip;
-      // Flip visual horizontally
-      scale.x = _isFlipped ? -1 : 1;
-      // Keep HP bar correct way text-wise if you had text, but for rects it's fine
-    }
-  }
-
-  void _performAbility(HoardEnemy target) {
-    _cooldownTimer = _abilityCooldown;
-
-    // Determine move type based on highest stat
-    bool isSpecial =
-        combatant.level >= 5 &&
-        (math.Random().nextDouble() < 0.3); // 30% chance for special if leveled
-
-    // Calculate Damage using your BattleCombatant stats
-    int damage = 0;
-    if (combatant.statStrength > combatant.statIntelligence) {
-      damage = combatant.physAtk; // Use physical
-    } else {
-      damage = combatant.elemAtk; // Use elemental
-    }
-
-    if (isSpecial) damage = (damage * 1.5).round();
-
-    // Visual Effect (Juice)
-    add(
-      SequenceEffect([
-        ScaleEffect.by(
-          Vector2.all(1.2),
-          EffectController(duration: 0.1, alternate: true),
-        ),
-      ]),
+  void _performBasicAttack(HoardEnemy target) {
+    // Basic = Physical Damage, uses Strength
+    final damage = SurvivalCombat.computeHitDamage(
+      SurvivalAttackContext(
+        attacker: unit,
+        defender: target.unit,
+        damageKind: SurvivalDamageKind.physical,
+        isSpecial: false,
+      ),
     );
 
-    // Create Projectile or Instant Hit
-    gameRef.spawnProjectile(
+    // FIX 1: Reset the angle explicitly to stop unwanted spinning.
+    _spriteContainer.angle = 0.0;
+
+    // Subtle animation
+    _spriteContainer.add(
+      ScaleEffect.to(
+        Vector2(1.1, 0.9),
+        EffectController(duration: 0.1, reverseDuration: 0.1),
+      ),
+    );
+
+    // DELEGATE TO MANAGER
+    SurvivalAttackManager.performBasic(
+      game: gameRef,
+      attacker: this,
+      target: target,
+    );
+
+    // FIX 2: Use the Elemental Alchemy Projectile logic
+    final color = _getElementColor(unit.types.firstOrNull ?? 'Normal');
+    final (shape, speed) = _getBasicAttackProperties(unit.family);
+
+    gameRef.spawnAlchemyProjectile(
+      // Corrected call
       start: position,
       target: target,
       damage: damage,
-      color: _getElementColor(combatant.types.firstOrNull ?? 'Normal'),
+      color: color,
+      shape: shape,
+      speed: speed,
+    );
+  }
+
+  void _performSpecialAbility(HoardEnemy mainTarget) {
+    // FIX 1: Reset the angle explicitly to stop unwanted spinning.
+    _spriteContainer.angle = 0.0;
+
+    // Big animation "Cast"
+    _spriteContainer.add(
+      SequenceEffect([
+        ScaleEffect.by(Vector2.all(1.3), EffectController(duration: 0.2)),
+        ScaleEffect.by(Vector2.all(1 / 1.3), EffectController(duration: 0.2)),
+      ]),
+    );
+
+    SurvivalAttackManager.performSpecial(
+      game: gameRef,
+      attacker: this,
+      target: mainTarget,
+    );
+  }
+
+  // --- NEW PROJECTILE HELPERS (Duplicated from earlier) ---
+
+  (ProjectileShape shape, double speed) _getBasicAttackProperties(
+    String family,
+  ) {
+    double speedMod = 1.0;
+    ProjectileShape shape;
+
+    switch (family) {
+      case 'Wing':
+      case 'Pip':
+        shape = ProjectileShape.blade;
+        speedMod = 1.3;
+        break;
+      case 'Let':
+        shape = ProjectileShape.shard;
+        speedMod = 1.0;
+        break;
+      case 'Mystic':
+      case 'Spirit':
+        shape = ProjectileShape.star;
+        speedMod = 0.9;
+        break;
+      case 'Mane':
+      case 'Plant':
+        shape = ProjectileShape.thorn;
+        speedMod = 1.1;
+        break;
+      case 'Horn':
+      default:
+        shape = ProjectileShape.orb;
+        speedMod = 0.8;
+        break;
+    }
+    return (shape, speedMod);
+  }
+
+  int _calcSpecialDmg(SurvivalUnit defender) {
+    return SurvivalCombat.computeHitDamage(
+      SurvivalAttackContext(
+        attacker: unit,
+        defender: defender,
+        damageKind: SurvivalDamageKind.elemental,
+        isSpecial: true,
+      ),
+    );
+  }
+
+  // --- UTILS ---
+
+  void takeDamage(int amount) {
+    if (isDead) return;
+    unit.takeDamage(amount);
+    _flashDamage();
+    if (unit.isDead) {
+      isDead = true;
+      _playDeathAnimation();
+    }
+  }
+
+  void _flashDamage() {
+    _spriteContainer.add(
+      SequenceEffect([
+        ScaleEffect.to(Vector2(1.1, 0.9), EffectController(duration: 0.06)),
+        ScaleEffect.to(Vector2.all(1.0), EffectController(duration: 0.08)),
+      ]),
+    );
+  }
+
+  void _playDeathAnimation() {
+    add(
+      SequenceEffect([
+        ScaleEffect.to(Vector2.zero(), EffectController(duration: 0.4)),
+        RemoveEffect(),
+      ]),
+    );
+
+    add(MoveEffect.by(Vector2(0, 30), EffectController(duration: 0.4)));
+  }
+
+  void _faceTarget(Vector2 targetPos) {
+    final shouldFlip = targetPos.x < position.x;
+    if (shouldFlip != _isFlipped) {
+      _isFlipped = shouldFlip;
+      _spriteContainer.scale.x = _isFlipped ? -1 : 1;
+    }
+  }
+
+  void _addNameLabel() {
+    add(
+      TextComponent(
+        text: unit.name,
+        anchor: Anchor.center,
+        position: Vector2(size.x / 2, size.y + 10),
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            shadows: [Shadow(blurRadius: 2, color: Colors.black)],
+          ),
+        ),
+      ),
     );
   }
 
   Color _getElementColor(String type) {
     switch (type) {
       case 'Fire':
-        return Colors.orange;
+      case 'Lava':
+        return Colors.deepOrange;
       case 'Water':
-        return Colors.blue;
+      case 'Steam':
+        return Colors.blueAccent;
+      case 'Ice':
+        return Colors.cyanAccent;
+      case 'Earth':
+      case 'Mud':
+        return Colors.brown;
+      case 'Air':
+      case 'Dust':
+        return Colors.blueGrey;
+      case 'Lightning':
+        return Colors.yellowAccent;
       case 'Plant':
         return Colors.green;
+      case 'Poison':
+        return Colors.purpleAccent;
+      case 'Crystal':
+        return Colors.tealAccent;
+      case 'Spirit':
+        return Colors.indigoAccent;
+      case 'Dark':
+        return Colors.purple.shade900;
+      case 'Light':
+        return Colors.amberAccent;
+      case 'Blood':
+        return Colors.redAccent;
       default:
-        return Colors.white;
+        return Colors.grey;
     }
   }
 }

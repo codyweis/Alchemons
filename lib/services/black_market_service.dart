@@ -276,7 +276,8 @@ class BlackMarketService extends ChangeNotifier {
     final offers = <DailyOffer>[];
 
     // Offer 1: Currency exchange
-    final goldAmount = 10 + ((seed % 5) * 100);
+    final goldAmount = (seed % 5) + 1;
+
     offers.add(
       DailyOffer(
         id: 'gold_exchange_$seed',

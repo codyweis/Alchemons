@@ -50,7 +50,7 @@ import 'package:alchemons/widgets/element_resource_widget.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/creature_dialog.dart';
+import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'breed/breed_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -1102,38 +1102,31 @@ class _HomeScreenState extends State<HomeScreen>
                     //go to survival battle screen on tap
                     // --- 2. Second Icon (NEW ICON) ---
                     Positioned(
-                      top: MediaQuery.of(context).padding.top + 200,
-                      right: 0,
-                      child: Opacity(
-                        opacity: _isFieldTutorialActive ? 0.4 : 1.0,
-                        child: IgnorePointer(
-                          ignoring: _isFieldTutorialActive,
-                          child: GestureDetector(
-                            onTap: () =>
-                                Navigator.of(context, rootNavigator: true).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const SurvivalGameScreen(),
-                                  ),
+                      top: MediaQuery.of(context).padding.top + 220,
+                      right: 15,
+                      child: IgnorePointer(
+                        ignoring: _isFieldTutorialActive,
+                        child: GestureDetector(
+                          onTap: () =>
+                              Navigator.of(context, rootNavigator: true).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const SurvivalGameScreen(),
                                 ),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.shield,
-                                  size: 36,
-                                  color: theme.accent,
+                              ),
+                          child: Column(
+                            children: [
+                              Icon(Icons.shield, size: 36, color: Colors.black),
+                              SizedBox(height: 4),
+                              Text(
+                                'SURVIVAL',
+                                style: TextStyle(
+                                  color: theme.textMuted,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.4,
                                 ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'SURVIVAL',
-                                  style: TextStyle(
-                                    color: theme.textMuted,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.4,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
