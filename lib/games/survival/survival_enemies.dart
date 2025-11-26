@@ -1,8 +1,9 @@
+// lib/games/survival/survival_enemies.dart
 import 'dart:math';
 import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_orb.dart';
-import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
+import 'package:alchemons/games/survival/scaling_system.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
@@ -10,25 +11,57 @@ import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 
-enum EnemyRole {
-  charger, // rushes the orb
-  shooter, // stays at distance and shoots guardians / orb
-}
+enum EnemyRole { charger, shooter }
 
-/// Boss behavior archetypes for variety
 enum BossArchetype {
-  orbitingSummoner, // floats around orb and periodically spawns minions
-  bulletHell, // mostly stationary turret that fires radial volleys
-  ringBreaker, // slow heavy boss that dives toward rings and nova-pulses
+  juggernaut, // currently all bosses share the same simple AI, archetype kept for future flavor
+  summoner,
+  artillery,
 }
 
-/// 5 Enemy Tiers with scaling stats
+/// Creature families (not guardian families)
+enum CreatureFamily {
+  // Tier 1 - Swarm
+  gloop,
+  skitter,
+  wisp,
+  mote,
+  speck,
+  // Tier 2 - Grunt / Brute
+  crawler,
+  shambler,
+  lurker,
+  creep,
+  // Tier 3 - Elite
+  ravager,
+  stalker,
+  howler,
+  shade,
+  // Tier 4 - Champion / MiniBoss
+  brute,
+  terror,
+  dread,
+  blight,
+  // Tier 5 - Titan / Boss
+  colossus,
+  leviathan,
+  behemoth,
+  apex,
+}
+
 enum EnemyTier {
-  swarm(1, 'Swarm', 0.2, 0.3), // Weakest, most numerous
-  grunt(2, 'Grunt', 0.8, 0.7),
-  elite(3, 'Elite', 1.0, 0.9),
-  champion(4, 'Champion', 1.3, 1.2),
-  titan(5, 'Titan', 1.8, 1.6); // Strongest, rarest
+  // Tier 1 - fodder / swarm
+  swarm(1, 'Swarm', 0.6, 0.6),
+
+  // Tier 2 - “brute” units: fewer, tougher than swarm
+  grunt(2, 'Brute', 0.7, 0.7),
+
+  // Tier 3 - elites: small packs, noticeable threat
+  elite(3, 'Elite', 0.8, 0.8),
+
+  // Tier 4/5 are reserved for mini-boss/boss scaling, not regular trash
+  champion(4, 'MiniBoss', 1.0, 0.9),
+  titan(5, 'Boss', 1.4, 1.2);
 
   final int tier;
   final String name;
@@ -38,7 +71,6 @@ enum EnemyTier {
   const EnemyTier(this.tier, this.name, this.statMultiplier, this.hpMultiplier);
 }
 
-/// 17 Elemental Types
 const List<String> allElements = [
   'Fire',
   'Water',
@@ -59,30 +91,98 @@ const List<String> allElements = [
   'Blood',
 ];
 
-/// Enemy template combining tier + element
 class SurvivalEnemyTemplate {
   final EnemyTier tier;
   final String element;
-  final String family; // For move compatibility
+  final CreatureFamily creatureFamily;
 
   const SurvivalEnemyTemplate({
     required this.tier,
     required this.element,
-    required this.family,
+    required this.creatureFamily,
   });
 
-  String get name => '${tier.name} ${element}ling';
-  String get id => '${element.toLowerCase()}_${tier.name.toLowerCase()}';
+  String get name => '${creatureFamily.name.capitalize()} ${element}ling';
+  String get id =>
+      '${element.toLowerCase()}_${tier.name.toLowerCase()}_${creatureFamily.name}';
+  String get family => creatureFamily.name;
 }
 
-/// Enemy catalog with all combinations
+extension StringExtension on String {
+  String capitalize() =>
+      isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
+}
+
 class SurvivalEnemyCatalog {
   static final Random _rng = Random();
-
   static final List<SurvivalEnemyTemplate> _allTemplates =
       _generateAllTemplates();
 
-  /// Get template by exact element and tier
+  static List<SurvivalEnemyTemplate> _generateAllTemplates() {
+    final templates = <SurvivalEnemyTemplate>[];
+    for (final tier in EnemyTier.values) {
+      for (final element in allElements) {
+        final families = _getFamiliesForTier(tier);
+        for (final family in families) {
+          templates.add(
+            SurvivalEnemyTemplate(
+              tier: tier,
+              element: element,
+              creatureFamily: family,
+            ),
+          );
+        }
+      }
+    }
+    return templates;
+  }
+
+  /// Map tiers to visual “families”.
+  ///  - swarm  = fodder blobs (lots of them)
+  ///  - grunt  = “brute” blobs (tougher frontliners)
+  ///  - elite  = rare elite packs
+  ///  - champion/titan = mini-boss / boss visuals
+  static List<CreatureFamily> _getFamiliesForTier(EnemyTier tier) {
+    switch (tier) {
+      case EnemyTier.swarm:
+        return [
+          CreatureFamily.gloop,
+          CreatureFamily.skitter,
+          CreatureFamily.wisp,
+          CreatureFamily.mote,
+          CreatureFamily.speck,
+        ];
+      case EnemyTier.grunt:
+        return [
+          CreatureFamily.crawler,
+          CreatureFamily.shambler,
+          CreatureFamily.lurker,
+          CreatureFamily.creep,
+        ];
+      case EnemyTier.elite:
+        return [
+          CreatureFamily.ravager,
+          CreatureFamily.stalker,
+          CreatureFamily.howler,
+          CreatureFamily.shade,
+        ];
+      case EnemyTier.champion:
+        return [
+          CreatureFamily.brute,
+          CreatureFamily.terror,
+          CreatureFamily.dread,
+          CreatureFamily.blight,
+        ];
+      case EnemyTier.titan:
+        return [
+          CreatureFamily.colossus,
+          CreatureFamily.leviathan,
+          CreatureFamily.behemoth,
+          CreatureFamily.apex,
+        ];
+    }
+  }
+
   static SurvivalEnemyTemplate? getTemplate(String element, int tierNum) {
     try {
       final tier = EnemyTier.values.firstWhere((t) => t.tier == tierNum);
@@ -92,22 +192,6 @@ class SurvivalEnemyCatalog {
     } catch (e) {
       return null;
     }
-  }
-
-  static List<SurvivalEnemyTemplate> _generateAllTemplates() {
-    final templates = <SurvivalEnemyTemplate>[];
-    for (final tier in EnemyTier.values) {
-      for (final element in allElements) {
-        templates.add(
-          SurvivalEnemyTemplate(
-            tier: tier,
-            element: element,
-            family: _getElementFamily(element),
-          ),
-        );
-      }
-    }
-    return templates;
   }
 
   static SurvivalEnemyTemplate getRandomTemplateForTier(int tierNum) {
@@ -120,143 +204,33 @@ class SurvivalEnemyCatalog {
     required SurvivalEnemyTemplate template,
     required int tier,
     required int wave,
+    bool isShooter = false,
   }) {
-    final baseLevel = _getBaseLevelForTier(tier, wave);
-    final baseStats = _getBaseStats(tier);
-    double clampStat(double v) => v.clamp(0.0, 5.0);
-
-    final enemyTier = template.tier;
-
-    final unit = SurvivalUnit(
-      id: '...',
-      name: template.name,
-      types: [template.element],
-      family: template.family,
-      statSpeed: clampStat(baseStats['speed']!),
-      statIntelligence: clampStat(baseStats['intelligence']!),
-      statStrength: clampStat(baseStats['strength']!),
-      statBeauty: clampStat(baseStats['beauty']!),
-      level: baseLevel,
+    return ImprovedScalingSystem.buildScaledEnemy(
+      template: template,
+      tier: tier,
+      wave: wave,
+      isShooter: isShooter,
     );
-
-    // --- TIER MULTIPLIERS (gentle) ---
-    unit.maxHp = (unit.maxHp * enemyTier.hpMultiplier).round();
-    unit.currentHp = unit.maxHp;
-    unit.physAtk = (unit.physAtk * enemyTier.statMultiplier).round();
-    unit.elemAtk = (unit.elemAtk * enemyTier.statMultiplier).round();
-
-    // --- WAVE SCALING (keep pretty chill) ---
-    final tierNum = enemyTier.tier.toDouble();
-    final waveDifficulty = (1.0 + (wave - 1) * 0.02).clamp(1.0, 2.0);
-    final tierFactor = (0.9 + (tierNum - 1) * 0.10).clamp(0.9, 1.6);
-
-    final atkScale = (0.40 * waveDifficulty * tierFactor).clamp(0.4, 0.9);
-    final hpScale = (0.70 * waveDifficulty * tierFactor).clamp(0.8, 1.4);
-
-    unit.maxHp = (unit.maxHp * hpScale).round();
-    unit.currentHp = unit.maxHp;
-    unit.physAtk = (unit.physAtk * atkScale).round();
-    unit.elemAtk = (unit.elemAtk * atkScale).round();
-
-    return unit;
   }
 
-  static int _getBaseLevelForTier(int tier, int wave) {
-    switch (tier) {
-      case 1:
-        return max(1, wave ~/ 2);
-      case 2:
-        return max(2, 2 + wave ~/ 2);
-      case 3:
-        return max(5, 5 + wave ~/ 2);
-      case 4:
-        return max(7, 7 + wave ~/ 2);
-      case 5:
-        return max(10, 10 + wave ~/ 2);
-      default:
-        return 1;
-    }
+  static SurvivalUnit buildMiniBoss({
+    required SurvivalEnemyTemplate template,
+    required int wave,
+  }) {
+    return ImprovedScalingSystem.buildMiniBoss(template: template, wave: wave);
   }
 
-  static Map<String, double> _getBaseStats(int tier) {
-    double baseSpeed, baseInt, baseStr, baseBeauty;
-    switch (tier) {
-      case 1: // Swarm
-        baseSpeed = 0.5 + _rng.nextDouble() * 0.7;
-        baseInt = 0.5 + _rng.nextDouble() * 0.6;
-        baseStr = 0.8 + _rng.nextDouble() * 0.8;
-        baseBeauty = 0.6 + _rng.nextDouble() * 0.5;
-        break;
-      case 2: // Grunt
-        baseSpeed = 1.4 + _rng.nextDouble() * 0.7;
-        baseInt = 1.2 + _rng.nextDouble() * 0.7;
-        baseStr = 1.3 + _rng.nextDouble() * 0.9;
-        baseBeauty = 1.0 + _rng.nextDouble() * 0.6;
-        break;
-      case 3: // Elite
-        baseSpeed = 1.6 + _rng.nextDouble() * 0.7;
-        baseInt = 1.8 + _rng.nextDouble() * 0.7;
-        baseStr = 2.2 + _rng.nextDouble() * 0.7;
-        baseBeauty = 1.5 + _rng.nextDouble() * 0.6;
-        break;
-      case 4: // Champion
-        baseSpeed = 2.4 + _rng.nextDouble() * 0.7;
-        baseInt = 2.4 + _rng.nextDouble() * 0.7;
-        baseStr = 2.8 + _rng.nextDouble() * 0.7;
-        baseBeauty = 2.0 + _rng.nextDouble() * 0.6;
-        break;
-      case 5: // Titan
-        baseSpeed = 2.8 + _rng.nextDouble() * 0.6;
-        baseInt = 3.0 + _rng.nextDouble() * 0.6;
-        baseStr = 3.2 + _rng.nextDouble() * 0.6;
-        baseBeauty = 2.6 + _rng.nextDouble() * 0.6;
-        break;
-      default:
-        baseSpeed = baseInt = baseStr = 2.0;
-        baseBeauty = 1.5;
-        break;
-    }
-    return {
-      'speed': baseSpeed,
-      'intelligence': baseInt,
-      'strength': baseStr,
-      'beauty': baseBeauty,
-    };
-  }
-
-  static String _getElementFamily(String element) {
-    switch (element) {
-      case 'Fire':
-      case 'Lava':
-      case 'Blood':
-        return 'Let'; // Aggressive
-      case 'Water':
-      case 'Ice':
-      case 'Steam':
-        return 'Pip'; // Quick
-      case 'Earth':
-      case 'Mud':
-      case 'Crystal':
-        return 'Horn'; // Defensive
-      case 'Air':
-      case 'Dust':
-      case 'Lightning':
-        return 'Wing'; // Fast
-      case 'Plant':
-      case 'Poison':
-        return 'Mane'; // Tricky
-      case 'Spirit':
-      case 'Light':
-      case 'Dark':
-        return 'Mystic'; // Magical
-      default:
-        return 'Let';
-    }
+  static SurvivalUnit buildMegaBoss({
+    required SurvivalEnemyTemplate template,
+    required int wave,
+  }) {
+    return ImprovedScalingSystem.buildMegaBoss(template: template, wave: wave);
   }
 }
 
 // ============================================================================
-//                                GAME ENTITIES
+//                                HOARD ENEMY
 // ============================================================================
 
 class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
@@ -266,18 +240,22 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   final SurvivalUnit unit;
   final double sizeScale;
 
-  /// Boss flags
   final BossArchetype? bossArchetype;
   final bool isMegaBoss;
   bool isBoss = false;
+  bool isMiniBoss = false;
 
-  /// External speed scale (set by spawner, no gameRef in constructor)
   final double speedMultiplier;
-
   bool isDead = false;
 
-  // Movement & Combat Vars
-  late double _moveSpeed;
+  // Logical blob radius used for visuals + hitbox
+  final double _logicalRadius;
+
+  // -- Physics & Movement --
+  late double _maxSpeed;
+  Vector2 _velocity = Vector2.zero();
+  double get mass => template.tier.tier.toDouble() + (isMegaBoss ? 10.0 : 0.0);
+
   late int _contactDamage;
   late int _shotDamage;
   late double _baseAttackCooldown;
@@ -286,21 +264,20 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   double _orbitAngle = 0.0;
   double _meleeCooldown = 0;
 
-  // Passive Strategy Vars
   double _timeAlive = 0;
   double _timeSinceLastDamage = 0;
 
-  // Dasher specific
-  double _dashTimer = 0;
-  bool _isDashing = false;
+  // Boss state (simplified)
+  bool get isAnyBoss => isBoss || isMiniBoss || isMegaBoss;
+  bool _isInvulnerable = false;
+  double _bossAttackCooldown = 0.0;
 
-  // Boss behavior state
-  double _bossPhaseTime = 0;
-  double _bossSummonTimer = 0;
-  double _bossVolleyTimer = 0;
-
+  // HP bar smoothing
   RectangleComponent? _hpFill;
-  late CircleComponent _coreVisual; // Stores color for logic use
+  double _hpVisual = 1.0;
+  double _hpBarBaseWidth = 0.0;
+
+  late CircleComponent _coreVisual;
   late AlchemicalBlobBody _body;
 
   HoardEnemy({
@@ -313,84 +290,197 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     this.bossArchetype,
     this.isMegaBoss = false,
     this.speedMultiplier = 1.0,
-  }) : super(
+  }) : _logicalRadius =
+           (12.0 + (template.tier.tier * 1.5)) * sizeScale, // visual + hitbox
+       super(
          position: position,
-         size: Vector2.all(60 * sizeScale),
+         size: Vector2.all(
+           ((12.0 + (template.tier.tier * 1.5)) * sizeScale) *
+               2, // match blob radius
+         ),
          anchor: Anchor.center,
        ) {
     _orbitAngle = Random().nextDouble() * pi * 2;
-    scale = Vector2.all(1.0); // keep parent scale stable
+    scale = Vector2.all(1.0);
+
+    // If an archetype is provided or it's a mega boss, treat as boss
+    if (bossArchetype != null && !isMegaBoss && !isMiniBoss) {
+      isBoss = true;
+    }
+
     _configureBehaviorFromUnit();
+
+    // Bosses start invulnerable during entrance
+    if (isAnyBoss) {
+      _isInvulnerable = true;
+    }
   }
 
   void _configureBehaviorFromUnit() {
     final baseSpeed = 60.0;
+
     if (role == EnemyRole.charger) {
-      _moveSpeed = baseSpeed * (1.0 + unit.statStrength * 0.18);
-      _contactDamage = (unit.physAtk * 0.85).round();
-      _shotDamage = (unit.elemAtk * 0.3).round();
+      _maxSpeed = baseSpeed * (1.0 + unit.statStrength * 0.15);
+      _contactDamage = (unit.physAtk * 0.7).round();
+      _shotDamage = (unit.elemAtk * 0.2).round();
     } else {
-      _moveSpeed = baseSpeed * (0.9 + unit.statSpeed * 0.22);
-      _contactDamage = (unit.physAtk * 0.30).round();
-      _shotDamage = (unit.elemAtk * 1.0).round();
+      _maxSpeed = baseSpeed * (0.85 + unit.statSpeed * 0.18);
+      _contactDamage = (unit.physAtk * 0.2).round();
+      _shotDamage = (unit.elemAtk * 0.45).round();
     }
 
-    // Boss speed scaling is handled via speedMultiplier from the spawner
-    _moveSpeed *= speedMultiplier;
+    // Strong, simple boss multipliers
+    if (isAnyBoss) {
+      final bossMult = isMegaBoss
+          ? 2.5
+          : (isBoss ? 2.0 : 1.6); // mini < boss < mega
 
-    _baseAttackCooldown = role == EnemyRole.charger
-        ? 2.5 / unit.cooldownReduction
-        : 1.6 / unit.cooldownReduction;
+      _contactDamage = max(10, (_contactDamage * bossMult).round());
+      _shotDamage = max(8, (_shotDamage * bossMult).round());
+
+      _baseAttackCooldown =
+          (role == EnemyRole.charger ? 2.0 : 1.8) /
+          max(0.5, unit.cooldownReduction);
+    } else {
+      _baseAttackCooldown = role == EnemyRole.charger
+          ? 2.5 / unit.cooldownReduction
+          : 2.2 / unit.cooldownReduction;
+    }
+
     _attackCooldown = _baseAttackCooldown;
+    _maxSpeed *= speedMultiplier;
   }
 
   @override
   Future<void> onLoad() async {
-    // Color based on Element
     final baseColor = _elementColor(template.element);
+    final radius = _logicalRadius;
 
-    // Calculate base size
-    final radius = (15.0 + (template.tier.tier * 2.0)) * sizeScale;
+    add(
+      AlchemicalTrail(
+        color: baseColor,
+        radius: radius * 0.6,
+        maxParticles: isAnyBoss ? 20 : 8,
+      ),
+    );
 
-    // --- BLOB BODY ---
     _body = AlchemicalBlobBody(
       template: template,
       role: role,
       color: baseColor,
-      isBoss: isBoss,
+      isBoss: isAnyBoss,
       radius: radius,
     );
     add(_body);
 
-    // Invisible core used just to store the color for projectile logic
     _coreVisual = CircleComponent(paint: Paint()..color = baseColor);
     _coreVisual.opacity = 0;
     add(_coreVisual);
 
-    // Floating Particles (runes) for higher tiers
-    if (template.tier.tier >= 3) {
+    // Elites get extra runes; bosses stay clean blobs.
+    if (template.tier.tier >= 3 && !isAnyBoss) {
       _addFloatingRunes(baseColor, template.tier.tier - 1);
     }
 
-    // Boss ring
-    if (isBoss) {
-      add(
-        CircleComponent(
-          radius: 40 + (template.tier.tier * 3.0) * sizeScale,
-          paint: Paint()
-            ..color = baseColor.withOpacity(0.3)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3,
-          anchor: Anchor.center,
-          position: Vector2.zero(),
-        ),
-      );
+    if (isAnyBoss) {
+      _setupBossVisuals(baseColor, radius);
+      _startBossEntrance();
+    }
+  }
+
+  void _startBossEntrance() {
+    final entranceDuration = isMegaBoss ? 5.0 : 3.5;
+
+    final dir = (targetOrb.position - position).normalized();
+
+    // Pulsing invulnerability shield (temporary)
+    final shield = CircleComponent(
+      radius: _logicalRadius * 1.1,
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.white.withOpacity(0.4)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4,
+    );
+    shield.add(
+      ScaleEffect.by(
+        Vector2.all(1.15),
+        EffectController(duration: 0.4, alternate: true, infinite: true),
+      ),
+    );
+    add(shield);
+
+    // Warning rings expanding from boss (temporary telegraph)
+    for (int i = 0; i < 4; i++) {
+      Future.delayed(Duration(milliseconds: i * 600), () {
+        if (!isMounted) return;
+
+        gameRef.world.add(
+          CircleComponent(
+            radius: 40,
+            position: position.clone(),
+            anchor: Anchor.center,
+            paint: Paint()
+              ..color = _elementColor(template.element).withOpacity(0.5)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 3,
+          )..add(
+            SequenceEffect([
+              ScaleEffect.to(
+                Vector2.all(12),
+                EffectController(duration: 1.2, curve: Curves.easeOut),
+              ),
+              RemoveEffect(),
+            ]),
+          ),
+        );
+      });
     }
 
-    // HP bar only for bosses
-    if (isBoss) {
-      _buildHpBar();
-    }
+    // Slow approach movement
+    add(
+      MoveEffect.by(
+        dir * 300,
+        EffectController(duration: entranceDuration, curve: Curves.easeInOut),
+      ),
+    );
+
+    // End entrance after duration
+    Future.delayed(
+      Duration(milliseconds: (entranceDuration * 1000).toInt()),
+      () {
+        if (!isMounted || isDead) return;
+
+        _isInvulnerable = false;
+        shield.removeFromParent();
+
+        _triggerScreenShake(isMegaBoss ? 12.0 : 8.0);
+
+        // Shockwave
+        gameRef.world.add(
+          CircleComponent(
+            radius: _logicalRadius * 1.1,
+            position: position.clone(),
+            anchor: Anchor.center,
+            paint: Paint()
+              ..color = _elementColor(template.element)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 6,
+          )..add(
+            SequenceEffect([
+              ScaleEffect.to(Vector2.all(5), EffectController(duration: 0.4)),
+              RemoveEffect(),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+
+  void _setupBossVisuals(Color baseColor, double radius) {
+    // Bosses are just big blobs with a health bar.
+    // No permanent rotating rings or orbit lines; keeps the arena clean.
+    _buildHpBar();
   }
 
   void _addFloatingRunes(Color color, int count) {
@@ -404,7 +494,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     for (int i = 0; i < count; i++) {
       orbitContainer.add(
         RectangleComponent(
-          size: Vector2(6, 6),
+          size: Vector2(5, 5),
           position: Vector2(
             orbitRadius * cos(i * 2 * pi / count),
             orbitRadius * sin(i * 2 * pi / count),
@@ -414,7 +504,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
           paint: Paint()
             ..color = color
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 2,
+            ..strokeWidth = 1.5,
         ),
       );
     }
@@ -425,17 +515,39 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   }
 
   void _buildHpBar() {
+    final r = _logicalRadius;
+
+    // Width scales with radius but stays within sane limits.
+    final barWidth =
+        (r *
+                (isMegaBoss
+                    ? 2.4
+                    : isMiniBoss
+                    ? 1.8
+                    : 1.5))
+            .clamp(60.0, isMegaBoss ? 220.0 : 160.0);
+    final barHeight = isMegaBoss ? 10.0 : 6.0;
+
+    // Always just above the visual blob, not multiplied twice by sizeScale.
+    final yOffset = -r - (isMegaBoss ? 32.0 : 24.0);
+
     final bg = RectangleComponent(
-      size: Vector2(40 * sizeScale, 5),
+      size: Vector2(barWidth, barHeight),
       anchor: Anchor.center,
-      position: Vector2(0, -40 * sizeScale),
+      position: Vector2(0, yOffset),
       paint: Paint()..color = Colors.black87,
     );
+
+    _hpBarBaseWidth = barWidth - 4;
+
     final fill = RectangleComponent(
-      size: Vector2(38 * sizeScale, 3),
+      size: Vector2(_hpBarBaseWidth, barHeight - 2),
       anchor: Anchor.centerLeft,
-      position: Vector2(-19 * sizeScale, 0),
-      paint: Paint()..color = Colors.redAccent,
+      position: Vector2(-barWidth / 2 + 2, 0),
+      paint: Paint()
+        ..color = isMegaBoss
+            ? Colors.red
+            : (isMiniBoss ? Colors.yellow : Colors.orange),
     );
     bg.add(fill);
     _hpFill = fill;
@@ -452,276 +564,150 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     _meleeCooldown = (_meleeCooldown - dt).clamp(0, double.infinity);
     _attackCooldown = (_attackCooldown - dt).clamp(0, double.infinity);
 
-    // Logic Ticks
     SurvivalCombat.tickRealtimeStatuses(unit, dt);
-    _applyUniquePassives(dt); // Strategy update
 
     if (unit.isDead) {
       _die();
       return;
     }
 
-    // AI Logic
-    _updateAI(dt);
+    if (isAnyBoss) {
+      _updateSimpleBossAI(dt);
+    } else {
+      _updateMovementAndAI(dt);
+    }
 
-    // Update HP Visual (only if bar exists, i.e., bosses)
+    // Smooth HP bar
     if (_hpFill != null) {
-      final ratio = unit.hpPercent.clamp(0.0, 1.0);
-      _hpFill!.scale.x = ratio;
+      final targetRatio = unit.hpPercent.clamp(0.0, 1.0);
+      // FPS-friendly exponential smoothing
+      final lerpFactor = 1 - pow(0.001, dt);
+      _hpVisual += (targetRatio - _hpVisual) * lerpFactor;
+      _hpFill!.size.x = _hpBarBaseWidth * _hpVisual;
     }
   }
 
-  void _applyUniquePassives(double dt) {
-    // 1. REGENERATION (Nature/Plant/Water)
-    if (template.family == 'Mane' || template.family == 'Pip') {
-      if (_timeSinceLastDamage > 2.5 && unit.currentHp < unit.maxHp) {
-        final heal = (unit.maxHp * 0.05 * dt).ceil();
-        unit.currentHp = min(unit.maxHp, unit.currentHp + heal);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SIMPLE, FLOWY BOSS AI (CLEAN ORBIT RING, NO GLITCHING INTO CENTER)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _updateSimpleBossAI(double dt) {
+    // Bosses stay in a ring around the orb
+    final desiredRadius = isMegaBoss ? 420.0 : 320.0;
+    final minRadius = isMegaBoss ? 280.0 : 240.0; // never inside this
+    final maxRadius = desiredRadius + 80.0; // don't wander too far out
+
+    final center = targetOrb.position;
+    final toCenter = center - position;
+    final dist = toCenter.length;
+
+    Vector2 moveDir = Vector2.zero();
+
+    if (dist < 1.0) {
+      // super safety: if we ever land basically on top of the orb, shove outward
+      moveDir = Vector2(1, 0);
+    } else {
+      final radialIn = toCenter / dist;
+      final radialOut = -radialIn;
+
+      // Hard band: if we get way too close or too far, strongly correct
+      if (dist < minRadius) {
+        moveDir += radialOut; // push away from center
+      } else if (dist > maxRadius) {
+        moveDir += radialIn; // pull back toward center
+      } else {
+        // Soft steering to hug the desired radius
+        if (dist > desiredRadius + 20) moveDir += radialIn * 0.7;
+        if (dist < desiredRadius - 20) moveDir += radialOut * 0.7;
+
+        // Tangential orbit motion so they “flow” around the orb
+        final tangent = Vector2(-radialIn.y, radialIn.x);
+        moveDir += tangent * 0.9;
+
+        // Very small separation so they don't jitter like crazy
+        // Comment this out entirely if you want bosses to ignore other enemies.
+        moveDir += _computeSeparation(radius: size.x * 1.0) * 0.2;
       }
     }
 
-    // 2. ACCELERATION (Fire/Lava - 'Let' Family)
-    if (template.family == 'Let') {
-      if (_timeAlive < 10) {
-        _moveSpeed += dt * 3.0;
-      }
+    if (moveDir.length2 > 0) {
+      moveDir.normalize();
+    }
+
+    final bossSpeed = _maxSpeed * (isMegaBoss ? 0.85 : 0.65);
+    final desiredVel = moveDir * bossSpeed;
+
+    _velocity.lerp(desiredVel, dt * 4.0);
+    position += _velocity * dt;
+
+    if (_velocity.length2 > 10) {
+      final targetAngle = atan2(_velocity.y, _velocity.x);
+      angle = _smoothAngle(angle, targetAngle, dt * 6.0);
+    }
+
+    // Simple boss attack rhythm
+    _bossAttackCooldown -= dt;
+    if (_bossAttackCooldown <= 0) {
+      _performBossAttack();
     }
   }
 
-  // ==========================================================================
-  //                             AI & MOVEMENT
-  // ==========================================================================
+  void _performBossAttack() {
+    final rng = Random().nextDouble();
 
-  void _updateAI(double dt) {
-    if (isBoss && bossArchetype != null) {
-      _updateBossAI(dt);
-      return;
+    if (rng < 0.5) {
+      // Main pattern: radial shots
+      _fireRadialVolley(projectiles: isMegaBoss ? 18 : 12);
+      _bossAttackCooldown = isMegaBoss ? 3.0 : 3.5;
+    } else {
+      // Secondary pattern: summon minions
+      if (!isMegaBoss) {
+        _summonMinions(isBoss ? 5 : 3);
+      } else {
+        _summonMinions(6);
+      }
+      _bossAttackCooldown = isMegaBoss ? 3.2 : 2.8;
     }
+  }
 
-    // 1. Determine Target
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REGULAR ENEMY MOVEMENT / AI
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _updateMovementAndAI(double dt) {
     final targetGuardian = gameRef.getRandomGuardianInRange(
       center: position,
       range: 800,
     );
 
-    // 2. Calculate "Steering"
-    Vector2 steering = Vector2.zero();
-    double currentMoveSpeed = _moveSpeed;
+    Vector2 steeringForce = Vector2.zero();
+    double currentMaxSpeed = _maxSpeed;
 
     if (role == EnemyRole.shooter) {
-      steering = _getShooterSteering(targetGuardian, dt);
+      steeringForce = _getShooterSteering(targetGuardian, dt);
       _tryShoot(targetGuardian);
     } else {
-      steering = _getChargerSteering(
+      steeringForce = _getChargerSteering(
         targetGuardian,
         dt,
-        outSpeed: (s) => currentMoveSpeed = s,
+        outSpeed: (s) => currentMaxSpeed = s,
       );
     }
 
-    // 3. Separation
-    final separation = _computeSeparation(radius: 50.0);
+    final separationForce = _computeSeparation(radius: size.x * 0.8);
 
-    // 4. Combine Forces
-    Vector2 finalDir = (steering + separation * 1.8);
-    if (finalDir.length2 > 0.01) {
-      finalDir.normalize();
-    }
+    Vector2 desiredVelocity =
+        (steeringForce + separationForce * 2.5).normalized() * currentMaxSpeed;
+    double turnSpeed = 4.0;
+    _velocity.lerp(desiredVelocity, dt * turnSpeed);
+    position += _velocity * dt;
 
-    // 5. Apply Movement
-    position += finalDir * (currentMoveSpeed * dt);
-
-    // 6. Smooth Rotation
-    if (finalDir.length2 > 0.1) {
-      final double targetAngle = atan2(finalDir.y, finalDir.x);
-      angle = _smoothAngle(angle, targetAngle, dt * 8.0);
+    if (_velocity.length2 > 10) {
+      final double targetAngle = atan2(_velocity.y, _velocity.x);
+      angle = _smoothAngle(angle, targetAngle, dt * 6.0);
     }
   }
 
-  // ------------------------- Boss AI ---------------------------------------
-
-  void _updateBossAI(double dt) {
-    _bossPhaseTime += dt;
-    _bossSummonTimer += dt;
-    _bossVolleyTimer += dt;
-
-    switch (bossArchetype!) {
-      case BossArchetype.orbitingSummoner:
-        _updateOrbitingSummoner(dt);
-        break;
-      case BossArchetype.bulletHell:
-        _updateBulletHell(dt);
-        break;
-      case BossArchetype.ringBreaker:
-        _updateRingBreaker(dt);
-        break;
-    }
-  }
-
-  // Boss pattern 1: orbiting summoner
-  void _updateOrbitingSummoner(double dt) {
-    const double orbitRadiusBase = 520.0;
-    final double orbitRadius = orbitRadiusBase * (isMegaBoss ? 1.1 : 1.0);
-    final double orbitSpeed = isMegaBoss ? 0.45 : 0.3;
-
-    _orbitAngle += orbitSpeed * dt;
-
-    final desiredPos =
-        targetOrb.position +
-        Vector2(cos(_orbitAngle), sin(_orbitAngle)) * orbitRadius;
-
-    final toTarget = desiredPos - position;
-    position += toTarget * (dt * 1.5);
-
-    // Face inward toward the orb
-    final dirToOrb = targetOrb.position - position;
-    angle = _smoothAngle(angle, atan2(dirToOrb.y, dirToOrb.x), dt * 4.0);
-
-    // Summon minion rings periodically
-    final double summonInterval = isMegaBoss ? 4.0 : 6.0;
-    if (_bossSummonTimer >= summonInterval) {
-      _bossSummonTimer = 0;
-      final tier = template.tier.tier.clamp(1, 4);
-      final count = isMegaBoss ? 10 : 6;
-
-      gameRef.spawnBossMinions(
-        boss: this,
-        element: template.element,
-        tier: tier,
-        count: count,
-        ringRadius: 160,
-      );
-    }
-
-    // Shooters also fire while orbiting
-    if (role == EnemyRole.shooter) {
-      _tryShoot(gameRef.getRandomGuardianInRange(center: position, range: 999));
-    }
-  }
-
-  // Boss pattern 2: bullet-hell turret
-  void _updateBulletHell(double dt) {
-    final targetAnchor =
-        targetOrb.position + Vector2(0, isMegaBoss ? -260 : -220);
-    final toAnchor = targetAnchor - position;
-    position += toAnchor * (dt * 1.2);
-
-    // Slow spin for style
-    angle += dt * 0.6;
-
-    // Fire radial volleys
-    final double volleyInterval = isMegaBoss ? 2.2 : 3.0;
-    if (_bossVolleyTimer >= volleyInterval) {
-      _bossVolleyTimer = 0;
-      _fireRadialVolley(projectiles: isMegaBoss ? 18 : 12);
-    }
-
-    // Occasionally surround with a guard ring
-    final double summonInterval = isMegaBoss ? 8.0 : 10.0;
-    if (_bossSummonTimer >= summonInterval) {
-      _bossSummonTimer = 0;
-      gameRef.spawnBossMinions(
-        boss: this,
-        element: template.element,
-        tier: template.tier.tier.clamp(1, 3),
-        count: isMegaBoss ? 8 : 5,
-        ringRadius: 200,
-      );
-    }
-  }
-
-  void _fireRadialVolley({int projectiles = 12}) {
-    final col = _coreVisual.paint?.color ?? _elementColor(template.element);
-    final damage = (_shotDamage * (isMegaBoss ? 1.5 : 1.0)).round();
-
-    for (int i = 0; i < projectiles; i++) {
-      final theta = (i / projectiles) * 2 * pi + _bossPhaseTime * 0.3;
-      final dir = Vector2(cos(theta), sin(theta));
-      final end = position + dir * 900;
-
-      gameRef.spawnEnemyProjectile(
-        start: position.clone(),
-        targetPosition: end,
-        color: col,
-        onHit: () {
-          final guardians = gameRef.getGuardiansInRange(center: end, range: 80);
-          for (final g in guardians) {
-            g.takeDamage(damage);
-          }
-          if (end.distanceTo(targetOrb.position) < 120) {
-            targetOrb.takeDamage(damage);
-          }
-        },
-      );
-    }
-  }
-
-  // Boss pattern 3: ring breaker
-  void _updateRingBreaker(double dt) {
-    final HoardGuardian? nearestGuardian = gameRef.getRandomGuardianInRange(
-      center: position,
-      range: 1200,
-    );
-
-    final Vector2 focus = nearestGuardian?.position ?? targetOrb.position;
-    final toFocus = focus - position;
-    if (toFocus.length2 > 1) {
-      final dir = toFocus.normalized();
-      final double speed = isMegaBoss ? _moveSpeed * 0.7 : _moveSpeed * 0.5;
-      position += dir * speed * dt;
-      angle = _smoothAngle(angle, atan2(dir.y, dir.x), dt * 3.0);
-    }
-
-    // Nova pulses on a rhythm
-    final double novaInterval = isMegaBoss ? 5.0 : 7.0;
-    if (_bossPhaseTime >= novaInterval) {
-      _bossPhaseTime = 0;
-      _doRingBreakerNova();
-    }
-
-    // Also shoot a bit if shooter
-    if (role == EnemyRole.shooter) {
-      _tryShoot(nearestGuardian);
-    }
-  }
-
-  void _doRingBreakerNova() {
-    final color = _coreVisual.paint?.color ?? _elementColor(template.element);
-    final radius = isMegaBoss ? 260.0 : 220.0;
-    final dmg = (_contactDamage * (isMegaBoss ? 1.4 : 1.1)).round();
-
-    add(
-      CircleComponent(
-        radius: radius * 0.2,
-        paint: Paint()
-          ..color = color.withOpacity(0.4)
-          ..blendMode = BlendMode.plus,
-        anchor: Anchor.center,
-        position: Vector2.zero(),
-      )..add(
-        SequenceEffect([
-          ScaleEffect.to(Vector2.all(1.8), EffectController(duration: 0.4)),
-          RemoveEffect(),
-        ]),
-      ),
-    );
-
-    final guardians = gameRef.getGuardiansInRange(
-      center: position,
-      range: radius,
-    );
-    for (final g in guardians) {
-      g.takeDamage(dmg);
-      final push = (g.position - position)..normalize();
-      g.position += push * 60;
-    }
-
-    if (position.distanceTo(targetOrb.position) <= radius) {
-      targetOrb.takeDamage(dmg);
-    }
-  }
-
-  /// Calculates a force that pushes this enemy away from crowded neighbors.
   Vector2 _computeSeparation({double radius = 50.0}) {
     Vector2 separation = Vector2.zero();
     int count = 0;
@@ -734,9 +720,16 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       final dist = position.distanceTo(other.position);
       if (dist < 0.1) continue;
 
+      if (mass > other.mass + 1) continue;
+
       Vector2 push = (position - other.position).normalized();
-      push /= dist;
-      separation += push;
+      double weight = 1.0 - (dist / radius);
+
+      if (other.mass > mass) {
+        weight *= 1.5;
+      }
+
+      separation += push * weight;
       count++;
     }
 
@@ -758,32 +751,16 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     if (guardian != null) {
       final gDist = position.distanceTo(guardian.position);
       final oDist = position.distanceTo(targetOrb.position);
-      if (gDist < oDist * 0.8) {
+      if (gDist < oDist * 0.75) {
         dest = guardian.position;
         huntingGuardian = true;
       }
     }
 
-    if (_isDasherType) {
-      _dashTimer -= dt;
-      if (_dashTimer <= 0) {
-        _isDashing = !_isDashing;
-        _dashTimer = _isDashing ? 0.4 : 0.8;
-      }
-
-      if (_isDashing) {
-        outSpeed(_moveSpeed * 2.8);
-        _body.scale.lerp(Vector2(1.4, 0.6), dt * 10);
-      } else {
-        outSpeed(_moveSpeed * 0.2);
-        _body.scale.lerp(Vector2.all(1.0), dt * 5);
-      }
-    } else {
-      outSpeed(_moveSpeed);
-    }
+    outSpeed(_maxSpeed);
 
     final distToTarget = position.distanceTo(dest);
-    if (distToTarget < (huntingGuardian ? 45 : 60)) {
+    if (distToTarget < (huntingGuardian ? 40 : 55)) {
       _applyContactDamage(
         huntingGuardian ? guardian : targetOrb,
         huntingGuardian,
@@ -794,69 +771,59 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   }
 
   Vector2 _getShooterSteering(HoardGuardian? guardian, double dt) {
-    if (_isOrbiterType) {
-      const double orbitRadius = 380.0;
-      const double orbitSpeed = 0.7;
-      _orbitAngle += orbitSpeed * dt;
+    final targetPos = guardian?.position ?? targetOrb.position;
+    final toTarget = targetPos - position;
+    final dist = toTarget.length;
+    final dir = toTarget.normalized();
 
-      final orbitPos =
-          targetOrb.position +
-          Vector2(cos(_orbitAngle), sin(_orbitAngle)) * orbitRadius;
-
-      return (orbitPos - position).normalized();
+    if (dist > _idealRange + 60) {
+      return dir;
+    } else if (dist < _idealRange - 60) {
+      return -dir;
     } else {
-      final targetPos = guardian?.position ?? targetOrb.position;
-      final toTarget = targetPos - position;
-      final dist = toTarget.length;
-      final dir = toTarget.normalized();
-
-      if (dist > _idealRange + 70) {
-        return dir;
-      } else if (dist < _idealRange - 70) {
-        return -dir;
-      } else {
-        return Vector2(-dir.y, dir.x) * 0.6;
-      }
+      return Vector2(-dir.y, dir.x) * 0.5;
     }
   }
 
-  /// Shooter projectiles – actually hit guardians/orb.
   void _tryShoot(HoardGuardian? guardian) {
     if (_attackCooldown > 0) return;
 
-    final projectileColor =
-        (_coreVisual.paint?.color ?? _elementColor(template.element));
+    final projectileColor = _elementColor(template.element);
 
     if (guardian != null && !guardian.isDead) {
       gameRef.spawnEnemyProjectile(
         start: position.clone(),
         targetPosition: guardian.position.clone(),
         color: projectileColor,
-        onHit: () {
-          guardian.takeDamage(_shotDamage);
-        },
+        onHit: () => guardian.takeDamage(_shotDamage),
       );
     } else {
       gameRef.spawnEnemyProjectile(
         start: position.clone(),
         targetPosition: targetOrb.position.clone(),
         color: projectileColor,
-        onHit: () {
-          targetOrb.takeDamage(_shotDamage);
-        },
+        onHit: () => targetOrb.takeDamage(_shotDamage),
       );
     }
 
     _attackCooldown = _baseAttackCooldown;
   }
 
+  void _summonMinions(int count) {
+    gameRef.spawnBossMinions(
+      boss: this,
+      element: template.element,
+      tier: template.tier.tier.clamp(1, 3),
+      count: count,
+      ringRadius: 180,
+    );
+  }
+
   void _applyContactDamage(dynamic target, bool isGuardian) {
-    if (_isDrainerType) {
+    if (isAnyBoss) {
       if (_meleeCooldown <= 0) {
         target.takeDamage(_contactDamage);
-        unit.currentHp = (unit.currentHp + (_contactDamage * 0.5).round())
-            .clamp(0, unit.maxHp);
-        _meleeCooldown = 0.8;
+        _meleeCooldown = 0.9;
       }
     } else {
       target.takeDamage(_contactDamage);
@@ -871,72 +838,21 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     return current + diff * rate;
   }
 
-  // --- STRATEGIC TYPE GETTERS ---
-  bool get _isDasherType =>
-      (template.element == 'Air' ||
-          template.element == 'Lightning' ||
-          template.element == 'Light') &&
-      role == EnemyRole.charger;
-
-  bool get _isOrbiterType =>
-      (role == EnemyRole.shooter) &&
-      (template.element == 'Air' ||
-          template.element == 'Lightning' ||
-          template.element == 'Spirit');
-
-  bool get _isDrainerType =>
-      (template.element == 'Dark' || template.element == 'Poison');
-
-  bool get _isSplitterType =>
-      !isBoss &&
-      template.tier.tier > 1 &&
-      (template.element == 'Mud' ||
-          template.element == 'Plant' ||
-          template.element == 'Blood');
-
-  bool get _isExploderType =>
-      !isBoss && (template.element == 'Fire' || template.element == 'Lava');
-
-  void _triggerExplosion() {
-    final double radius = 120.0 * sizeScale;
-    add(
-      CircleComponent(
-        radius: radius * 0.8,
-        paint: Paint()
-          ..color = Colors.orange.withOpacity(0.5)
-          ..blendMode = BlendMode.plus,
-        anchor: Anchor.center,
-        position: Vector2.zero(),
-      )..add(
-        SequenceEffect([
-          ScaleEffect.to(Vector2.all(1.5), EffectController(duration: 0.2)),
-          RemoveEffect(),
-        ]),
-      ),
-    );
-
-    final guardians = gameRef.getGuardiansInRange(
-      center: position,
-      range: radius,
-    );
-    final explosionDamage = (_contactDamage * 0.8).round();
-    for (final g in guardians) {
-      g.takeDamage(explosionDamage);
-    }
-    if (position.distanceTo(targetOrb.position) <= radius) {
-      targetOrb.takeDamage(explosionDamage);
-    }
-  }
-
   void takeDamage(int amount) {
     if (isDead) return;
 
-    _timeSinceLastDamage = 0;
-
-    if (template.family == 'Horn') {
-      amount = (amount * 0.75).round();
+    if (_isInvulnerable) {
+      // Visual feedback that damage was blocked
+      add(
+        ColorEffect(
+          Colors.white.withOpacity(0.3),
+          EffectController(duration: 0.1),
+        ),
+      );
+      return;
     }
 
+    _timeSinceLastDamage = 0;
     unit.takeDamage(amount);
 
     _body.add(
@@ -953,11 +869,31 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     if (isDead) return;
     isDead = true;
 
-    if (_isSplitterType) {
-      gameRef.spawnSplitChildren(parent: this, count: 2, speedMultiplier: 1.4);
-    }
+    if (isAnyBoss) {
+      _triggerScreenShake(20.0);
 
-    if (_isExploderType) _triggerExplosion();
+      for (int i = 0; i < 20; i++) {
+        final angle = (i / 20) * pi * 2;
+        final speed = 200 + Random().nextDouble() * 100;
+
+        gameRef.world.add(
+          CircleComponent(
+            radius: 8,
+            position: position.clone(),
+            anchor: Anchor.center,
+            paint: Paint()..color = _elementColor(template.element),
+          )..add(
+            SequenceEffect([
+              MoveEffect.by(
+                Vector2(cos(angle), sin(angle)) * speed,
+                EffectController(duration: 0.6, curve: Curves.easeOut),
+              ),
+              RemoveEffect(),
+            ]),
+          ),
+        );
+      }
+    }
 
     add(
       SequenceEffect([
@@ -969,6 +905,43 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       ]),
     );
     gameRef.removeEnemy(this);
+  }
+
+  void _triggerScreenShake(double intensity) {
+    final offset = Vector2(
+      (Random().nextDouble() - 0.5) * intensity,
+      (Random().nextDouble() - 0.5) * intensity,
+    );
+    gameRef.cameraComponent.viewfinder.position += offset;
+    gameRef.cameraComponent.viewfinder.add(
+      MoveEffect.by(-offset, EffectController(duration: 0.1)),
+    );
+  }
+
+  void _fireRadialVolley({int projectiles = 10}) {
+    final col = _elementColor(template.element);
+    final damage = (_shotDamage * (isMegaBoss ? 1.0 : 0.7)).round();
+
+    for (int i = 0; i < projectiles; i++) {
+      final theta = (i / projectiles) * 2 * pi + _timeAlive * 0.25;
+      final dir = Vector2(cos(theta), sin(theta));
+      final end = position + dir * 800;
+
+      gameRef.spawnEnemyProjectile(
+        start: position.clone(),
+        targetPosition: end,
+        color: col,
+        onHit: () {
+          final guardians = gameRef.getGuardiansInRange(center: end, range: 70);
+          for (final g in guardians) {
+            g.takeDamage(damage);
+          }
+          if (end.distanceTo(targetOrb.position) < 100) {
+            targetOrb.takeDamage(damage);
+          }
+        },
+      );
+    }
   }
 
   Color _elementColor(String element) {
@@ -1013,6 +986,10 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   }
 }
 
+// ============================================================================
+//  SIMPLE PROJECTILE (if you still need it elsewhere)
+// ============================================================================
+
 class SimpleProjectile extends PositionComponent {
   final Vector2 start;
   final Vector2 end;
@@ -1029,12 +1006,12 @@ class SimpleProjectile extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
-    canvas.drawCircle(Offset.zero, 8, Paint()..color = color);
+    canvas.drawCircle(Offset.zero, 6, Paint()..color = color);
   }
 
   @override
   void update(double dt) {
-    t += dt * 3.0;
+    t += dt * 2.2;
     if (t >= 1.0) {
       onHit();
       removeFromParent();
@@ -1045,7 +1022,7 @@ class SimpleProjectile extends PositionComponent {
 }
 
 // ============================================================================
-//                          THE ANIMATED BLOB BODY
+//  BLOB BODY (shared for all enemies; bosses are just bigger / slower pulses)
 // ============================================================================
 
 class AlchemicalBlobBody extends PositionComponent with HasPaint {
@@ -1056,13 +1033,12 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
   final double radius;
 
   double _time = 0;
-
   late Paint _borderPaint;
   late Paint _glowPaint;
   late Paint _eyePaint;
   late Paint _eyePupilPaint;
-
   late double _phaseOffset;
+  double _pulseSpeed = 2.0;
 
   AlchemicalBlobBody({
     required this.template,
@@ -1073,6 +1049,7 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
   }) : super(size: Vector2.all(radius * 2), anchor: Anchor.center) {
     _phaseOffset = Random().nextDouble() * 100;
     scale = Vector2.all(1.0);
+    if (isBoss) _pulseSpeed = 1.0;
   }
 
   @override
@@ -1088,7 +1065,7 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
 
     _glowPaint = Paint()
       ..color = color
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, isBoss ? 30 : 20);
 
     _eyePaint = Paint()..color = Colors.white;
     _eyePupilPaint = Paint()..color = Colors.black;
@@ -1102,31 +1079,28 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
     if (role == EnemyRole.shooter) {
       angle = sin(_time * 0.5) * 0.1;
     }
+
+    final breath = 1.0 + sin(_time * _pulseSpeed) * 0.05;
+    scale = Vector2.all(breath);
   }
 
   @override
   void render(Canvas canvas) {
     final center = size / 2;
-
     canvas.drawCircle(center.toOffset(), radius * 0.8, _glowPaint);
 
     final path = _createBlobPath(center, radius * 0.85);
-
     canvas.drawPath(path, paint);
+
+    final innerRimPaint = Paint()
+      ..color = Colors.white.withOpacity(0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+    canvas.drawPath(_createBlobPath(center, radius * 0.65), innerRimPaint);
     canvas.drawPath(path, _borderPaint);
-
     _drawFace(canvas, center);
-
-    if (isBoss) {
-      canvas.drawCircle(
-        center.toOffset(),
-        radius * 0.5,
-        Paint()
-          ..color = Colors.white.withOpacity(0.5)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-    }
   }
 
   Path _createBlobPath(Vector2 center, double r) {
@@ -1138,31 +1112,32 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
     double amplitude = 3.0;
     double speed = 4.0;
 
-    switch (template.family) {
-      case 'Let':
-        frequency = 6.0;
-        amplitude = 5.0;
-        speed = 8.0;
-        break;
-      case 'Pip':
-        frequency = 3.0;
-        amplitude = 4.0;
-        speed = 3.0;
-        break;
-      case 'Horn':
+    switch (template.creatureFamily) {
+      case CreatureFamily.gloop:
+      case CreatureFamily.shambler:
         frequency = 2.0;
-        amplitude = 2.0;
-        speed = 1.0;
+        amplitude = 5.0;
+        speed = 2.0;
         break;
-      case 'Wing':
+      case CreatureFamily.skitter:
+      case CreatureFamily.crawler:
         frequency = 8.0;
         amplitude = 2.0;
         speed = 10.0;
         break;
-      case 'Mystic':
+      case CreatureFamily.wisp:
+      case CreatureFamily.shade:
         frequency = 4.0;
         amplitude = 6.0;
-        speed = 2.0;
+        speed = 3.0;
+        break;
+      case CreatureFamily.ravager:
+      case CreatureFamily.brute:
+        frequency = 6.0;
+        amplitude = 4.0;
+        speed = 8.0;
+        break;
+      default:
         break;
     }
 
@@ -1173,12 +1148,10 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
 
     for (int i = 0; i <= points; i++) {
       final theta = i * angleStep;
-
       final noise =
           sin(theta * frequency + _time * speed + _phaseOffset) * amplitude;
       final noise2 =
           cos(theta * (frequency + 2) - _time * speed) * (amplitude * 0.5);
-
       final currentRadius = r + noise + noise2;
       final x = center.x + cos(theta) * currentRadius;
       final y = center.y + sin(theta) * currentRadius;
@@ -1198,22 +1171,7 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
     final eyeOffsetY = -radius * 0.1;
     final eyeSize = radius * 0.15;
 
-    if (role == EnemyRole.charger && template.family == 'Let') {
-      _drawAngryEye(
-        canvas,
-        center.x - eyeOffsetX,
-        center.y + eyeOffsetY,
-        eyeSize,
-        true,
-      );
-      _drawAngryEye(
-        canvas,
-        center.x + eyeOffsetX,
-        center.y + eyeOffsetY,
-        eyeSize,
-        false,
-      );
-    } else if (role == EnemyRole.shooter) {
+    if (role == EnemyRole.shooter) {
       canvas.drawCircle(
         Offset(center.x, center.y - radius * 0.1),
         eyeSize * 1.5,
@@ -1247,20 +1205,89 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
       );
     }
   }
+}
 
-  void _drawAngryEye(
-    Canvas canvas,
-    double x,
-    double y,
-    double size,
-    bool isLeft,
-  ) {
-    final path = Path();
-    path.moveTo(x, y - size);
-    path.lineTo(x + (isLeft ? size : -size), y);
-    path.lineTo(x, y + size);
-    path.lineTo(x - (isLeft ? size : -size), y);
-    path.close();
-    canvas.drawPath(path, _eyePaint);
+class AlchemicalTrail extends PositionComponent {
+  final Color color;
+  final double radius;
+  final int maxParticles;
+  final List<_TrailParticle> _particles = [];
+  double _spawnTimer = 0;
+
+  AlchemicalTrail({
+    required this.color,
+    required this.radius,
+    this.maxParticles = 10,
+  });
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+
+    if (parent is! PositionComponent) return;
+    final parentPc = parent as PositionComponent;
+
+    _spawnTimer += dt;
+    if (_spawnTimer > 0.1) {
+      _spawnTimer = 0;
+      _particles.add(
+        _TrailParticle(
+          position: Vector2(
+            -cos(parentPc.angle) * (radius * 0.5),
+            -sin(parentPc.angle) * (radius * 0.5),
+          ),
+          life: 1.0,
+          scale: 1.0,
+          angle: parentPc.angle,
+        ),
+      );
+    }
+
+    for (int i = _particles.length - 1; i >= 0; i--) {
+      final particle = _particles[i];
+      particle.life -= dt * 1.5;
+
+      final driftDir = Vector2(cos(particle.angle), sin(particle.angle));
+      particle.position -= driftDir * (dt * 40);
+      particle.scale = particle.life;
+
+      if (particle.life <= 0) {
+        _particles.removeAt(i);
+      }
+    }
+
+    if (_particles.length > maxParticles) {
+      _particles.removeAt(0);
+    }
   }
+
+  @override
+  void render(Canvas canvas) {
+    final paint = Paint()
+      ..color = color
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+
+    for (final particle in _particles) {
+      paint.color = color.withOpacity(0.4 * particle.life);
+      canvas.drawCircle(
+        particle.position.toOffset(),
+        radius * 0.6 * particle.scale,
+        paint,
+      );
+    }
+  }
+}
+
+class _TrailParticle {
+  Vector2 position;
+  double life;
+  double scale;
+  double angle;
+
+  _TrailParticle({
+    required this.position,
+    required this.life,
+    required this.scale,
+    required this.angle,
+  });
 }

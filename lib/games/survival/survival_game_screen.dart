@@ -1,4 +1,5 @@
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/survival/components/debug_teams_picker.dart';
 import 'package:alchemons/games/survival/survival_engine.dart';
 import 'package:alchemons/games/survival/survival_party_picker.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -32,6 +33,20 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen> {
       setState(() {
         _familyPage = _familyPageController.page ?? 0;
       });
+    });
+  }
+
+  Future<void> _openDebugTeamPicker() async {
+    if (_isLoading) return;
+
+    final party = await Navigator.of(context).push<List<PartyMember>>(
+      MaterialPageRoute(builder: (_) => const SurvivalDebugTeamPickerScreen()),
+    );
+
+    if (party == null || !mounted) return;
+
+    setState(() {
+      _game = SurvivalHoardGame(party: party, onGameOver: _handleGameOver);
     });
   }
 
@@ -185,6 +200,26 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen> {
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.3,
                             ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton.icon(
+                          onPressed: _isLoading ? null : _openDebugTeamPicker,
+
+                          label: const Text(
+                            'Pick Prebuilt Team',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.orangeAccent,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                           ),
                         ),
                       ),
@@ -551,20 +586,9 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen> {
         return true;
       }());
 
-      if (useDebugTeam) {
-        final debugParty = DebugTeams.makeGodTeam();
-
-        setState(() {
-          _game = SurvivalHoardGame(
-            party: debugParty,
-            onGameOver: _handleGameOver,
-          );
-        });
-        return;
+      if (formationSlots != null && mounted) {
+        await _startGameWithFormation(formationSlots);
       }
-
-      // normal behavior:
-      await _startGameWithFormation(formationSlots);
     }
   }
 
@@ -1283,7 +1307,7 @@ const List<_FamilyInfo> _familyInfos = [
     description:
         'Lays down hazards that melt anything standing in them. Great for choke points and attrition waves.',
     bestPowerups: 'Int/Beauty Transmute, Empower Hazards',
-    assetPath: 'assets/images/creatures/uncommon/MAN01_firemane.png',
+    assetPath: 'assets/images/creatures/uncommon/MAN03_earthmane.png',
   ),
   _FamilyInfo(
     id: 'Mask',

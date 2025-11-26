@@ -12,6 +12,10 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
+/// HORN FAMILY - NOVA MECHANIC
+/// Point-blank AoE burst with knockback and self-shield
+/// Rank 1+: Elemental effects based on type
+/// Rank 5 (MAX): Cataclysmic nova with massive radius and effects
 class HornNovaMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -20,120 +24,131 @@ class HornNovaMechanic {
     String element,
   ) {
     final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
-
-    // Base nova numbers
-    double radius = 200.0 + (10.0 * rank);
-    double knockbackForce = 150.0 + (30.0 * rank);
-    double dmgMult = 1.5 + (0.15 * rank);
-
-    // Rank 5: “Seismic Slam” – bigger, nastier nova
-    if (rank >= 5) {
-      radius *= 1.3;
-      knockbackForce *= 1.4;
-      dmgMult *= 1.3;
-      SurvivalAttackManager.triggerScreenShake(game, 8.0);
-    }
-
     final color = SurvivalAttackManager.getElementColor(element);
 
-    // Visual ring
-    final ring = CircleComponent(
-      radius: 10,
-      paint: Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = (rank >= 5) ? 10 : 5
-        ..color = color.withOpacity(0.8),
-      anchor: Anchor.center,
-      position: attacker.size / 2,
-    );
+    // Base nova parameters scale with rank
+    final baseRadius = 120.0 + rank * 20;
+    final baseDmg = (calcDmg(attacker, null) * (1.8 + 0.3 * rank)).toInt();
+    final baseKnockback = 60.0 + rank * 15;
 
-    attacker.add(ring);
+    // Rank 5: Cataclysmic nova
+    final isCataclysmic = rank >= 5;
+    final radius = isCataclysmic ? baseRadius * 2 : baseRadius;
+    final damage = isCataclysmic ? (baseDmg * 1.5).toInt() : baseDmg;
+    final knockback = isCataclysmic ? baseKnockback * 1.5 : baseKnockback;
+
+    // Visual: Expanding ring
+    final ring = CircleComponent(
+      radius: 50,
+      position: attacker.position.clone(),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = color.withOpacity(0.7)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = isCataclysmic ? 12 : 8,
+    );
 
     ring.add(
       ScaleEffect.to(
-        Vector2.all(radius / 10),
-        EffectController(duration: 0.35, curve: Curves.easeOutQuad),
+        Vector2.all(radius / 20),
+        EffectController(duration: 0.25, curve: Curves.easeOut),
       ),
     );
-    ring.add(OpacityEffect.fadeOut(EffectController(duration: 0.35)));
-    ring.add(RemoveEffect(delay: 0.35));
+    ring.add(OpacityEffect.fadeOut(EffectController(duration: 0.3)));
+    ring.add(RemoveEffect(delay: 0.31));
 
-    // Base nova damage + knockback
-    final enemies = game.getEnemiesInRange(attacker.position, radius);
-    final dmg = (calcDmg(attacker, null) * dmgMult).toInt();
+    game.world.add(ring);
 
-    for (var e in enemies) {
-      e.takeDamage(dmg);
-      final dir = (e.position - attacker.position).normalized();
-      e.add(
+    // Screen shake
+    SurvivalAttackManager.triggerScreenShake(game, isCataclysmic ? 10.0 : 5.0);
+
+    // Deal damage and knockback
+    final victims = game.getEnemiesInRange(attacker.position, radius);
+    for (final v in victims) {
+      final dist = v.position.distanceTo(attacker.position);
+      final falloff = 1.0 - (dist / radius) * 0.3;
+
+      v.takeDamage((damage * falloff).toInt());
+
+      // Knockback away from attacker
+      final dir = (v.position - attacker.position).normalized();
+      v.add(
         MoveEffect.by(
-          dir * knockbackForce,
-          EffectController(duration: 0.2, curve: Curves.decelerate),
+          dir * knockback,
+          EffectController(duration: 0.2, curve: Curves.easeOut),
         ),
       );
+
+      ImpactVisuals.play(game, v.position, element, scale: 0.6);
     }
 
-    // Elemental augment (powers on at rank 1)
+    // Self-shield
+    final shieldAmount = (attacker.unit.maxHp * (0.15 + 0.04 * rank))
+        .toInt()
+        .clamp(30, 500);
+    attacker.unit.shieldHp = (attacker.unit.shieldHp ?? 0) + shieldAmount;
+
+    // Apply elemental effect
     if (rank >= 1) {
-      _applyElementalNovaAugment(
+      _applyElementalNova(
         game: game,
         attacker: attacker,
         element: element,
         rank: rank,
-        center: attacker.position.clone(),
+        center: attacker.position,
         radius: radius,
-        baseDamage: dmg,
-        enemiesHit: enemies,
+        enemiesHit: victims,
+        baseDamage: damage,
       );
     }
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  ELEMENT ROUTER
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  static void _applyElementalNovaAugment({
+  static void _applyElementalNova({
     required SurvivalHoardGame game,
     required HoardGuardian attacker,
     required String element,
     required int rank,
     required Vector2 center,
     required double radius,
-    required int baseDamage,
     required List<HoardEnemy> enemiesHit,
+    required int baseDamage,
   }) {
     switch (element) {
-      // 🔥 FIRE / LAVA / BLOOD – aggressive frontline
+      // 🔥 FIRE / LAVA / BLOOD
       case 'Fire':
-        _fireNova(game, attacker, rank, center, radius);
+        _fireNova(game, attacker, rank, center, radius, enemiesHit);
         break;
       case 'Lava':
-        _lavaNova(game, attacker, rank, center, radius);
+        _lavaNova(game, attacker, rank, center, radius, enemiesHit);
         break;
       case 'Blood':
-        _bloodNova(game, attacker, rank, center, radius, baseDamage);
+        _bloodNova(game, attacker, rank, center, enemiesHit, baseDamage);
         break;
 
-      // 💧 WATER / ICE / STEAM – sustain & control
+      // 💧 WATER / ICE / STEAM
       case 'Water':
         _waterNova(game, attacker, rank, center, radius);
         break;
       case 'Ice':
-        _iceNova(game, attacker, rank, center, radius);
+        _iceNova(game, attacker, rank, center, radius, enemiesHit);
         break;
       case 'Steam':
-        _steamNova(game, attacker, rank, center, radius);
+        _steamNova(game, attacker, rank, center, radius, enemiesHit);
         break;
 
-      // 🌿 PLANT / POISON – thorns & rot
+      // 🌿 PLANT / POISON
       case 'Plant':
-        _plantNova(game, attacker, rank, center, radius);
+        _plantNova(game, attacker, rank, center, radius, enemiesHit);
         break;
       case 'Poison':
-        _poisonNova(game, attacker, rank, center, radius);
+        _poisonNova(game, attacker, rank, center, enemiesHit);
         break;
 
-      // 🌍 EARTH / MUD / CRYSTAL – armor & terrain
+      // 🌍 EARTH / MUD / CRYSTAL
       case 'Earth':
         _earthNova(game, attacker, rank, center, radius);
         break;
@@ -141,26 +156,26 @@ class HornNovaMechanic {
         _mudNova(game, attacker, rank, center, radius);
         break;
       case 'Crystal':
-        _crystalNova(game, attacker, rank, center, radius);
+        _crystalNova(game, attacker, rank, center, enemiesHit);
         break;
 
-      // 🌬️ AIR / DUST – disruption & control
+      // 🌬️ AIR / DUST / LIGHTNING
       case 'Air':
-        _airNova(game, attacker, rank, center, radius);
+        _airNova(game, attacker, rank, center, radius, enemiesHit);
         break;
       case 'Dust':
-        _dustNova(game, attacker, rank, center, radius);
+        _dustNova(game, attacker, rank, center, radius, enemiesHit);
         break;
       case 'Lightning':
-        _lightningNova(game, attacker, rank, center, radius, enemiesHit);
+        _lightningNova(game, attacker, rank, center, enemiesHit);
         break;
 
-      // 🌗 SPIRIT / DARK / LIGHT – holy / soul / shadow twists
+      // 🌗 SPIRIT / DARK / LIGHT
       case 'Spirit':
-        _spiritNova(game, attacker, rank, center, radius);
+        _spiritNova(game, attacker, rank, center, enemiesHit, baseDamage);
         break;
       case 'Dark':
-        _darkNova(game, attacker, rank, center, radius);
+        _darkNova(game, attacker, rank, center, enemiesHit);
         break;
       case 'Light':
         _lightNova(game, attacker, rank, center, radius);
@@ -171,121 +186,130 @@ class HornNovaMechanic {
     }
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  FIRE / LAVA / BLOOD
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Fire Horn – “Blazing Ring”: leave a short fire ring after knockback
+  /// Fire Nova - Ignites all enemies hit
   static void _fireNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
     double radius,
+    List<HoardEnemy> victims,
   ) {
-    final color = SurvivalAttackManager.getElementColor('Fire');
-    final ringRadius = radius * 1.05;
-    final duration = 3.0 + 0.4 * (rank - 1);
-    final dps = (attacker.unit.statIntelligence * (1.5 + 0.2 * rank))
+    final burnDmg = (attacker.unit.statIntelligence * (2.0 + 0.3 * rank))
         .toInt()
-        .clamp(3, 180);
+        .clamp(3, 120);
 
-    final zone = CircleComponent(
-      radius: ringRadius,
-      position: center,
-      anchor: Anchor.center,
-      paint: Paint()
-        ..color = color.withOpacity(0.25)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6,
-    );
+    for (final v in victims) {
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Burn',
+          damagePerTick: burnDmg,
+          ticksRemaining: 4 + rank,
+          tickInterval: 0.5,
+        ),
+      );
+    }
 
-    zone.add(
-      TimerComponent(
-        period: 0.5,
-        repeat: true,
-        onTick: () {
-          final victims = game.getEnemiesInRange(center, ringRadius + 8);
-          for (final v in victims) {
-            v.takeDamage(dps);
-            ImpactVisuals.play(game, v.position, 'Fire', scale: 0.4);
-          }
-        },
-      ),
-    );
+    // Rank 5: Leave fire ring
+    if (rank >= 5) {
+      final fireRing = CircleComponent(
+        radius: radius * 0.8,
+        position: center,
+        anchor: Anchor.center,
+        paint: Paint()
+          ..color = Colors.deepOrange.withOpacity(0.2)
+          ..style = PaintingStyle.fill,
+      );
 
-    zone.add(RemoveEffect(delay: duration));
-    game.world.add(zone);
+      fireRing.add(
+        TimerComponent(
+          period: 0.5,
+          repeat: true,
+          onTick: () {
+            final ringVictims = game.getEnemiesInRange(center, radius * 0.8);
+            for (final v in ringVictims) {
+              v.takeDamage(burnDmg);
+            }
+          },
+        ),
+      );
+
+      fireRing.add(RemoveEffect(delay: 3.0));
+      game.world.add(fireRing);
+    }
   }
 
-  /// Lava Horn – “Magma Shock”: extra stun-ish knockback near the caster
+  /// Lava Nova - Massive damage and extended knockback
   static void _lavaNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
     double radius,
+    List<HoardEnemy> victims,
   ) {
-    final color = SurvivalAttackManager.getElementColor('Lava');
-    final innerRadius = radius * 0.6;
-    final victims = game.getEnemiesInRange(center, innerRadius);
-
+    // Extra knockback
     for (final v in victims) {
       final dir = (v.position - center).normalized();
       v.add(
         MoveEffect.by(
-          dir * (80.0 + rank * 10.0),
-          EffectController(duration: 0.15, curve: Curves.easeOut),
-        ),
-      );
-      // brief jitter to simulate “stagger”
-      v.add(
-        ScaleEffect.by(
-          Vector2(1.05, 0.95),
-          EffectController(duration: 0.15, alternate: true, repeatCount: 1),
+          dir * (50.0 + 15.0 * rank),
+          EffectController(duration: 0.15),
         ),
       );
     }
 
-    game.world.add(
-      CircleComponent(
-        radius: innerRadius,
-        position: center,
-        anchor: Anchor.center,
-        paint: Paint()
-          ..color = color.withOpacity(0.3)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4,
-      )..add(RemoveEffect(delay: 0.4)),
-    );
+    // Extra damage
+    final extraDmg = (calcDmg(attacker, null) * (0.4 + 0.1 * rank)).toInt();
+    for (final v in victims) {
+      v.takeDamage(extraDmg);
+    }
   }
 
-  /// Blood Horn – “Crimson Crash”: damage → lifesteal for self + orb
+  /// Blood Nova - Massive lifesteal from all enemies
   static void _bloodNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
-    double radius,
+    List<HoardEnemy> victims,
     int baseDamage,
   ) {
-    final victims = game.getEnemiesInRange(center, radius);
-    int total = baseDamage * victims.length;
-    if (total <= 0) return;
+    int totalDrained = 0;
 
-    final selfHeal = (total * (0.25 + 0.05 * (rank - 1))).toInt();
-    final orbHeal = (total * 0.2).toInt();
+    for (final v in victims) {
+      final drain = (baseDamage * (0.2 + 0.05 * rank)).toInt();
+      v.takeDamage(drain);
+      totalDrained += drain;
+    }
 
-    attacker.unit.heal(selfHeal);
-    game.orb.heal(orbHeal);
-    ImpactVisuals.play(game, attacker.position, 'Blood', scale: 1.0);
+    // Heal self heavily
+    attacker.unit.heal((totalDrained * 0.5).toInt());
+    ImpactVisuals.playHeal(game, attacker.position);
+
+    // Heal orb
+    game.orb.heal((totalDrained * 0.25).toInt());
+
+    // Rank 5: Also heal nearby guardians
+    if (rank >= 5) {
+      final allies = game.getGuardiansInRange(center: center, range: 300);
+      for (final g in allies) {
+        if (g != attacker) {
+          g.unit.heal((totalDrained * 0.15).toInt());
+        }
+      }
+    }
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  WATER / ICE / STEAM
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Water Horn – “Tidal Shock”: pushes enemies further & heals nearby allies
+  /// Water Nova - Tidal burst that heals allies
   static void _waterNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -293,175 +317,189 @@ class HornNovaMechanic {
     Vector2 center,
     double radius,
   ) {
-    final heal = (attacker.unit.statIntelligence * (2.0 + 0.2 * rank))
+    final healAmount = (attacker.unit.statIntelligence * (3.0 + 0.6 * rank))
         .toInt()
-        .clamp(5, 160);
+        .clamp(10, 200);
 
-    for (final g in game.guardians) {
-      if (!g.isDead && g.position.distanceTo(center) <= radius * 1.1) {
-        g.unit.heal(heal);
-        ImpactVisuals.play(game, g.position, 'Water', scale: 0.6);
-      }
+    // Heal all guardians in range
+    final allies = game.getGuardiansInRange(center: center, range: radius);
+    for (final g in allies) {
+      g.unit.heal(healAmount);
+      ImpactVisuals.playHeal(game, g.position, scale: 0.7);
     }
 
-    // Mild extra splash push on enemies
-    final victims = game.getEnemiesInRange(center, radius * 1.1);
-    for (final v in victims) {
-      final dir = (v.position - center).normalized();
-      v.position += dir * (30.0 + 8.0 * rank);
+    // Heal orb if in range
+    if (game.orb.position.distanceTo(center) <= radius) {
+      game.orb.heal((healAmount * 0.5).toInt());
     }
   }
 
-  /// Ice Horn – “Glacial Slam”: strong slow near the edge
+  /// Ice Nova - Freezing burst with heavy slow
   static void _iceNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
     double radius,
+    List<HoardEnemy> victims,
   ) {
-    final ringRadius = radius * 1.0;
-    final duration = 3.0 + 0.5 * (rank - 1);
-    final color = SurvivalAttackManager.getElementColor('Ice');
+    // Apply slow zone
+    final slowDuration = 10.0 + 0.4 * rank;
+    final slowStrength = 50.0 + 4.0 * rank;
 
-    final zone = CircleComponent(
-      radius: ringRadius,
+    final slowZone = CircleComponent(
+      radius: radius * 0.9,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()
-        ..color = color.withOpacity(0.25)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5,
+      paint: Paint()..color = Colors.cyanAccent.withOpacity(0.2),
     );
 
-    zone.add(
+    slowZone.add(
       TimerComponent(
-        period: 0.35,
+        period: 0.3,
         repeat: true,
         onTick: () {
-          final victims = game.getEnemiesInRange(center, ringRadius + 8);
-          for (final v in victims) {
+          final zoneVictims = game.getEnemiesInRange(center, radius * 0.9);
+          for (final v in zoneVictims) {
             final pushBack =
-                (v.targetOrb.position - v.position).normalized() * -10;
+                (v.targetOrb.position - v.position).normalized() *
+                -slowStrength;
             v.position += pushBack;
-            ImpactVisuals.play(game, v.position, 'Ice', scale: 0.4);
           }
         },
       ),
     );
 
-    zone.add(RemoveEffect(delay: duration));
-    game.world.add(zone);
+    slowZone.add(RemoveEffect(delay: slowDuration));
+    game.world.add(slowZone);
+
+    // Rank 5: Brief freeze on initial hit
+    if (rank >= 5) {
+      for (final v in victims) {
+        v.add(MoveEffect.by(Vector2.zero(), EffectController(duration: 1.0)));
+      }
+    }
   }
 
-  /// Steam Horn – “Scalding Burst”: chips and tiny orb regen
+  /// Steam Nova - Scalding burst with confusion
   static void _steamNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
     double radius,
+    List<HoardEnemy> victims,
   ) {
-    final color = SurvivalAttackManager.getElementColor('Steam');
-    final victims = game.getEnemiesInRange(center, radius * 1.1);
-    final chip = (attacker.unit.statIntelligence * (1.2 + 0.15 * rank))
-        .toInt()
-        .clamp(3, 120);
+    final rng = Random();
+    final scaldDmg = (calcDmg(attacker, null) * (0.3 + 0.08 * rank)).toInt();
 
     for (final v in victims) {
-      v.takeDamage(chip);
-    }
-    if (victims.isNotEmpty) {
-      game.orb.heal(2 + rank);
-    }
+      v.takeDamage(scaldDmg);
 
-    game.world.add(
-      CircleComponent(
-        radius: radius * 1.1,
-        position: center,
-        anchor: Anchor.center,
-        paint: Paint()
-          ..color = color.withOpacity(0.25)
-          ..style = PaintingStyle.fill,
-      )..add(RemoveEffect(delay: 0.3)),
-    );
+      // Confusion: scatter movement
+      final randomDir = Vector2(
+        (rng.nextDouble() - 0.5) * 2,
+        (rng.nextDouble() - 0.5) * 2,
+      ).normalized();
+
+      v.add(
+        MoveEffect.by(
+          randomDir * (40.0 + 10.0 * rank),
+          EffectController(duration: 0.3),
+        ),
+      );
+    }
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  PLANT / POISON
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Plant Horn – “Thorn Shock”: spawn thorny ring that damages crossing enemies
+  /// Plant Nova - Thorn burst with root effect
   static void _plantNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
     double radius,
+    List<HoardEnemy> victims,
   ) {
-    final color = SurvivalAttackManager.getElementColor('Plant');
-    final ringRadius = radius * 1.05;
-    final duration = 5.0 + 0.3 * (rank - 1);
-    final dps = (attacker.unit.statIntelligence * (1.7 + 0.2 * rank))
+    final thornDmg = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
         .toInt()
-        .clamp(3, 180);
+        .clamp(2, 80);
 
-    final zone = CircleComponent(
-      radius: ringRadius,
+    for (final v in victims) {
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Thorns',
+          damagePerTick: thornDmg,
+          ticksRemaining: 5 + rank,
+          tickInterval: 0.4,
+        ),
+      );
+    }
+
+    // Root zone
+    final rootDuration = 2.0 + 0.3 * rank;
+    final rootStrength = 12.0 + 3.0 * rank;
+
+    final rootZone = CircleComponent(
+      radius: radius * 0.7,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()
-        ..color = color.withOpacity(0.25)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5,
+      paint: Paint()..color = Colors.green.withOpacity(0.2),
     );
 
-    zone.add(
+    rootZone.add(
       TimerComponent(
-        period: 0.5,
+        period: 0.3,
         repeat: true,
         onTick: () {
-          final victims = game.getEnemiesInRange(center, ringRadius + 4);
-          for (final v in victims) {
-            v.takeDamage(dps);
+          final zoneVictims = game.getEnemiesInRange(center, radius * 0.7);
+          for (final v in zoneVictims) {
+            final pushBack =
+                (v.targetOrb.position - v.position).normalized() *
+                -rootStrength;
+            v.position += pushBack;
           }
         },
       ),
     );
 
-    zone.add(RemoveEffect(delay: duration));
-    game.world.add(zone);
+    rootZone.add(RemoveEffect(delay: rootDuration));
+    game.world.add(rootZone);
   }
 
-  /// Poison Horn – “Toxic Pulse”: apply poison to nova victims
+  /// Poison Nova - Spreads heavy poison
   static void _poisonNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
-    double radius,
+    List<HoardEnemy> victims,
   ) {
-    final victims = game.getEnemiesInRange(center, radius);
+    final poisonDmg = (attacker.unit.statIntelligence * (1.2 + 0.25 * rank))
+        .toInt()
+        .clamp(3, 100);
+
     for (final v in victims) {
       v.unit.applyStatusEffect(
         SurvivalStatusEffect(
           type: 'Poison',
-          damagePerTick:
-              (attacker.unit.statIntelligence * (0.8 + 0.15 * rank)).toInt() +
-              2,
-          ticksRemaining: 6 + rank,
-          tickInterval: 0.5,
+          damagePerTick: poisonDmg,
+          ticksRemaining: 8 + rank,
+          tickInterval: 0.4,
         ),
       );
-      ImpactVisuals.play(game, v.position, 'Poison', scale: 0.5);
+      ImpactVisuals.play(game, v.position, 'Poison', scale: 0.7);
     }
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  EARTH / MUD / CRYSTAL
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Earth Horn – “Stoneguard Nova”: extra shield for the caster
+  /// Earth Nova - Extra tough shield and AoE
   static void _earthNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -469,21 +507,34 @@ class HornNovaMechanic {
     Vector2 center,
     double radius,
   ) {
-    final shield = (attacker.unit.maxHp * (0.10 + 0.03 * (rank - 1)))
-        .toInt()
-        .clamp(10, 400);
-    attacker.unit.heal(shield);
-    ImpactVisuals.play(game, attacker.position, 'Earth', scale: 1.0);
+    // Extra shield
+    final extraShield = (attacker.unit.maxHp * (0.1 + 0.03 * rank)).toInt();
+    attacker.unit.shieldHp = (attacker.unit.shieldHp ?? 0) + extraShield;
 
-    // Slight extra pull-back on nearby enemies
-    final victims = game.getEnemiesInRange(center, radius * 0.9);
-    for (final v in victims) {
-      final pushBack = (v.targetOrb.position - v.position).normalized() * -8.0;
-      v.position += pushBack;
+    // Shield nearby guardians
+    final allies = game.getGuardiansInRange(center: center, range: radius);
+    for (final g in allies) {
+      g.unit.shieldHp = (g.unit.shieldHp ?? 0) + (extraShield * 0.4).toInt();
+    }
+
+    // Rank 5: Taunt effect (enemies prioritize attacker)
+    if (rank >= 5) {
+      // Visual taunt indicator
+      final tauntRing = CircleComponent(
+        radius: 50,
+        position: attacker.position.clone(),
+        anchor: Anchor.center,
+        paint: Paint()
+          ..color = Colors.brown.withOpacity(0.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4,
+      );
+      tauntRing.add(RemoveEffect(delay: 3.0));
+      game.world.add(tauntRing);
     }
   }
 
-  /// Mud Horn – “Quagmire Slam”: creates a sticky inner zone
+  /// Mud Nova - Heavy slow explosion
   static void _mudNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -491,217 +542,245 @@ class HornNovaMechanic {
     Vector2 center,
     double radius,
   ) {
-    final color = SurvivalAttackManager.getElementColor('Mud');
-    final innerRadius = radius * 0.7;
-    final duration = 5.0 + 0.4 * (rank - 1);
+    final slowDuration = 4.0 + 0.5 * rank;
+    final slowStrength = 25.0 + 5.0 * rank;
 
-    final zone = CircleComponent(
-      radius: innerRadius,
+    final mudZone = CircleComponent(
+      radius: radius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()
-        ..color = color.withOpacity(0.3)
-        ..style = PaintingStyle.fill,
+      paint: Paint()..color = Colors.brown.shade600.withOpacity(0.3),
     );
 
-    zone.add(
+    mudZone.add(
       TimerComponent(
-        period: 0.35,
+        period: 0.2,
         repeat: true,
         onTick: () {
-          final victims = game.getEnemiesInRange(center, innerRadius);
+          final victims = game.getEnemiesInRange(center, radius);
           for (final v in victims) {
             final pushBack =
-                (v.targetOrb.position - v.position).normalized() * -12.0;
+                (v.targetOrb.position - v.position).normalized() *
+                -slowStrength;
             v.position += pushBack;
           }
         },
       ),
     );
 
-    zone.add(RemoveEffect(delay: duration));
-    game.world.add(zone);
+    mudZone.add(RemoveEffect(delay: slowDuration));
+    game.world.add(mudZone);
   }
 
-  /// Crystal Horn – “Shard Armor”: shards explode outward after nova
+  /// Crystal Nova - Shatters into homing shards
   static void _crystalNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
-    double radius,
+    List<HoardEnemy> victims,
   ) {
-    final color = SurvivalAttackManager.getElementColor('Crystal');
-    final shardCount = 5 + rank;
-    final dmg = (calcDmg(attacker, null) * (0.8 + 0.15 * rank)).toInt().clamp(
-      5,
-      220,
-    );
+    final shardCount = 6 + rank * 2;
+    final shardDmg = (calcDmg(attacker, null) * (0.4 + 0.08 * rank)).toInt();
+
+    final rng = Random();
+    final allEnemies = game.getEnemiesInRange(center, 500);
 
     for (int i = 0; i < shardCount; i++) {
-      final angle = (2 * pi * i) / shardCount;
-      final targetPos =
-          center + Vector2(cos(angle), sin(angle)) * (radius + 60);
-      // Wrap static position in a temporary PositionComponent since the API expects a PositionComponent target.
-      final tempTarget = PositionComponent(position: targetPos);
+      if (allEnemies.isEmpty) break;
+      final target = allEnemies[rng.nextInt(allEnemies.length)];
 
-      game.spawnAlchemyProjectile(
-        start: center,
-        target: tempTarget,
-        damage: dmg,
-        color: color,
-        shape: ProjectileShape.shard,
-        speed: 2.2,
-        isEnemy: false,
-        onHit: () {
-          final victims = game.getEnemiesInRange(targetPos, 45);
-          for (final v in victims) {
-            v.takeDamage(dmg);
-            ImpactVisuals.play(game, v.position, 'Crystal', scale: 0.6);
-          }
-        },
-      );
+      Future.delayed(Duration(milliseconds: i * 50), () {
+        if (target.isDead) return;
+
+        game.spawnAlchemyProjectile(
+          start: center,
+          target: target,
+          damage: shardDmg,
+          color: Colors.tealAccent,
+          shape: ProjectileShape.shard,
+          speed: 3.0,
+          isEnemy: false,
+          onHit: () {
+            target.takeDamage(shardDmg);
+            ImpactVisuals.play(game, target.position, 'Crystal', scale: 0.5);
+          },
+        );
+      });
     }
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  AIR / DUST / LIGHTNING
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Air Horn – “Gale Nova”: huge knockback + clear space
+  /// Air Nova - Massive knockback with second pulse
   static void _airNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
     double radius,
+    List<HoardEnemy> victims,
   ) {
-    final victims = game.getEnemiesInRange(center, radius * 1.1);
+    // Extra knockback
     for (final v in victims) {
       final dir = (v.position - center).normalized();
       v.add(
         MoveEffect.by(
-          dir * (160.0 + 20.0 * rank),
-          EffectController(duration: 0.25, curve: Curves.easeOut),
+          dir * (80.0 + 20.0 * rank),
+          EffectController(duration: 0.2, curve: Curves.easeOut),
         ),
       );
     }
-    ImpactVisuals.play(game, center, 'Air', scale: 1.2);
+
+    // Rank 5: Second pulse
+    if (rank >= 5) {
+      Future.delayed(const Duration(milliseconds: 400), () {
+        final secondVictims = game.getEnemiesInRange(center, radius * 1.3);
+        for (final v in secondVictims) {
+          final dir = (v.position - center).normalized();
+          v.add(MoveEffect.by(dir * 60.0, EffectController(duration: 0.15)));
+        }
+        ImpactVisuals.playExplosion(game, center, 'Air', radius * 1.3);
+      });
+    }
   }
 
-  /// Dust Horn – “Dustburst”: confuse enemies nearby
+  /// Dust Nova - Blinding burst
   static void _dustNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
     double radius,
+    List<HoardEnemy> victims,
   ) {
     final rng = Random();
-    final victims = game.getEnemiesInRange(center, radius);
+
     for (final v in victims) {
-      final offset = Vector2(
-        (rng.nextDouble() - 0.5) * (18 + 3 * rank),
-        (rng.nextDouble() - 0.5) * (18 + 3 * rank),
+      // Heavy confusion
+      final jitter = Vector2(
+        (rng.nextDouble() - 0.5) * (40 + 10 * rank),
+        (rng.nextDouble() - 0.5) * (40 + 10 * rank),
       );
-      v.position += offset;
+      v.position += jitter;
     }
+
+    // Dust cloud
+    final cloud = CircleComponent(
+      radius: radius * 0.8,
+      position: center,
+      anchor: Anchor.center,
+      paint: Paint()..color = Colors.amber.shade300.withOpacity(0.3),
+    );
+
+    cloud.add(
+      TimerComponent(
+        period: 0.3,
+        repeat: true,
+        onTick: () {
+          final cloudVictims = game.getEnemiesInRange(center, radius * 0.8);
+          for (final v in cloudVictims) {
+            final jitter = Vector2(
+              (rng.nextDouble() - 0.5) * 15,
+              (rng.nextDouble() - 0.5) * 15,
+            );
+            v.position += jitter;
+          }
+        },
+      ),
+    );
+
+    cloud.add(RemoveEffect(delay: 2.0 + 0.3 * rank));
+    game.world.add(cloud);
   }
 
-  /// Lightning Horn – “Thundercrash”: extra chain lightning after nova
+  /// Lightning Nova - Chain lightning from attacker
   static void _lightningNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
-    double radius,
-    List<HoardEnemy> enemiesHit,
+    List<HoardEnemy> victims,
   ) {
-    final rng = Random();
-    final maxChains = 2 + rank;
+    final chainDmg = (calcDmg(attacker, null) * (0.5 + 0.1 * rank)).toInt();
 
-    for (final src in enemiesHit) {
+    for (final v in victims) {
+      // Chain from each victim
       final nearby = game
-          .getEnemiesInRange(src.position, radius * 0.9)
-          .where((e) => e != src);
-      final candidates = nearby.toList();
-      if (candidates.isEmpty) continue;
+          .getEnemiesInRange(v.position, 200)
+          .where((e) => e != v && !victims.contains(e))
+          .take(2);
 
-      final chains = min(maxChains, candidates.length);
-      for (int i = 0; i < chains; i++) {
-        final target = candidates[rng.nextInt(candidates.length)];
-        final dmg = (calcDmg(attacker, target) * (0.7 + 0.15 * rank))
-            .toInt()
-            .clamp(4, 180);
+      for (final n in nearby) {
         game.spawnAlchemyProjectile(
-          start: src.position,
-          target: target,
-          damage: dmg,
-          color: SurvivalAttackManager.getElementColor('Lightning'),
+          start: v.position,
+          target: n,
+          damage: chainDmg,
+          color: Colors.yellow,
           shape: ProjectileShape.bolt,
-          speed: 3.0,
+          speed: 4.0,
           isEnemy: false,
           onHit: () {
-            target.takeDamage(dmg);
-            ImpactVisuals.play(game, target.position, 'Lightning', scale: 0.7);
+            n.takeDamage(chainDmg);
+            ImpactVisuals.play(game, n.position, 'Lightning', scale: 0.6);
           },
         );
       }
     }
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  SPIRIT / DARK / LIGHT
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Spirit Horn – “Echoing Slam”: delayed ghostly echo nova
+  /// Spirit Nova - Draining burst with lifesteal
   static void _spiritNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
-    double radius,
+    List<HoardEnemy> victims,
+    int baseDamage,
   ) {
-    final delayMs = (600 - 50 * (rank - 1)).clamp(300, 600);
-    Future.delayed(Duration(milliseconds: delayMs), () {
-      final victims = game.getEnemiesInRange(center, radius * 0.9);
-      final dmg = (calcDmg(attacker, null) * (0.6 + 0.15 * rank)).toInt().clamp(
-        5,
-        220,
-      );
-      for (final v in victims) {
-        v.takeDamage(dmg);
-        ImpactVisuals.play(game, v.position, 'Spirit', scale: 0.8);
-      }
-    });
+    int totalDrained = 0;
+
+    for (final v in victims) {
+      final drain = (baseDamage * (0.25 + 0.05 * rank)).toInt();
+      v.takeDamage(drain);
+      totalDrained += drain;
+      ImpactVisuals.play(game, v.position, 'Spirit', scale: 0.7);
+    }
+
+    // Heal self
+    attacker.unit.heal((totalDrained * 0.4).toInt());
   }
 
-  /// Dark Horn – “Shadowquake”: drains enemies, heals orb
+  /// Dark Nova - Execute and bonus vs low HP
   static void _darkNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     Vector2 center,
-    double radius,
+    List<HoardEnemy> victims,
   ) {
-    final victims = game.getEnemiesInRange(center, radius);
-    int total = 0;
-    final dmg = (calcDmg(attacker, null) * (0.9 + 0.2 * rank)).toInt().clamp(
-      5,
-      220,
-    );
+    final executeThreshold = 0.2 + 0.05 * rank;
+
     for (final v in victims) {
-      v.takeDamage(dmg);
-      total += dmg;
-      ImpactVisuals.play(game, v.position, 'Dark', scale: 0.7);
-    }
-    if (total > 0) {
-      final orbHeal = (total * 0.25).toInt();
-      game.orb.heal(orbHeal);
+      if (!v.isBoss && v.unit.hpPercent < executeThreshold) {
+        v.takeDamage(99999);
+        ImpactVisuals.play(game, v.position, 'Dark', scale: 1.3);
+      } else if (v.unit.hpPercent < 0.5) {
+        // Bonus damage to wounded
+        final bonusDmg = (calcDmg(attacker, v) * (0.5 + 0.1 * rank)).toInt();
+        v.takeDamage(bonusDmg);
+        ImpactVisuals.play(game, v.position, 'Dark', scale: 0.8);
+      }
     }
   }
 
-  /// Light Horn – “Radiant Shock”: nova that also buffs nearby allies
+  /// Light Nova - Holy burst that heals team
   static void _lightNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -709,25 +788,25 @@ class HornNovaMechanic {
     Vector2 center,
     double radius,
   ) {
-    final victims = game.getEnemiesInRange(center, radius);
-    final dmg = (calcDmg(attacker, null) * (0.8 + 0.15 * rank)).toInt().clamp(
-      5,
-      220,
-    );
-    for (final v in victims) {
-      v.takeDamage(dmg);
-      ImpactVisuals.play(game, v.position, 'Light', scale: 0.8);
+    final healAmount = (attacker.unit.statIntelligence * (4.0 + 0.8 * rank))
+        .toInt()
+        .clamp(15, 300);
+
+    // Heal all guardians
+    for (final g in game.guardians) {
+      if (!g.isDead) {
+        g.unit.heal(healAmount);
+        ImpactVisuals.playHeal(game, g.position, scale: 0.7);
+      }
     }
 
-    // Simulate a short “defensive buff” as bonus healing
-    for (final g in game.guardians) {
-      if (!g.isDead && g.position.distanceTo(center) <= radius * 1.1) {
-        final heal = (g.unit.maxHp * (0.04 + 0.01 * rank)).toInt().clamp(
-          5,
-          200,
-        );
-        g.unit.heal(heal);
-        ImpactVisuals.play(game, g.position, 'Light', scale: 0.6);
+    // Heal orb
+    game.orb.heal((healAmount * 0.5).toInt());
+
+    // Rank 5: Cleanse debuffs
+    if (rank >= 5) {
+      for (final g in game.guardians) {
+        g.unit.statusEffects.clear();
       }
     }
   }

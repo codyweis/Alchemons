@@ -12,8 +12,10 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
-/// Rank 1+: Elemental blessing behavior based on element
-/// Rank 5 (MAX): Strongest version of that blessing
+/// KIN FAMILY - BLESSING MECHANIC
+/// Support ability that buffs allies and heals the team
+/// Rank 1+: Elemental effects based on type
+/// Rank 5 (MAX): Divine blessing with powerful team-wide effects
 class KinBlessingMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -22,742 +24,747 @@ class KinBlessingMechanic {
     String element,
   ) {
     final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
+    final color = SurvivalAttackManager.getElementColor(element);
 
-    // Base heal: always heal orb + self
-    final baseMult = 1.0 + 0.15 * (rank - 1);
-    int baseHeal = ((attacker.unit.statIntelligence * 10 + 20) * baseMult)
+    // Base blessing parameters
+    final baseRadius = 200.0 + rank * 25;
+    final baseHeal = (attacker.unit.statIntelligence * (3.0 + 0.5 * rank))
         .toInt()
-        .clamp(10, 9999);
+        .clamp(10, 200);
 
-    game.orb.heal(baseHeal);
-    attacker.unit.heal(baseHeal);
-    ImpactVisuals.play(game, attacker.position, element, scale: 0.8);
+    // Rank 5: Divine blessing
+    final isDivine = rank >= 5;
+    final radius = isDivine ? baseRadius * 1.4 : baseRadius;
+    final healAmount = isDivine ? (baseHeal * 1.5).toInt() : baseHeal;
 
-    // Elemental augment kicks in at rank 1
-    if (rank >= 1) {
-      _applyElementalBlessing(
-        game: game,
-        attacker: attacker,
-        element: element,
-        rank: rank,
-        baseHeal: baseHeal,
-      );
+    // Visual: Expanding blessing ring
+    final ring = CircleComponent(
+      radius: 20,
+      position: attacker.position.clone(),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = color.withOpacity(0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = isDivine ? 8 : 5,
+    );
+
+    ring.add(
+      ScaleEffect.to(
+        Vector2.all(radius / 20),
+        EffectController(duration: 0.4, curve: Curves.easeOut),
+      ),
+    );
+    ring.add(OpacityEffect.fadeOut(EffectController(duration: 0.5)));
+    ring.add(RemoveEffect(delay: 0.51));
+
+    game.world.add(ring);
+
+    // Heal allies in range
+    final allies = game.getGuardiansInRange(
+      center: attacker.position,
+      range: radius,
+    );
+    for (final g in allies) {
+      g.unit.heal(healAmount);
+      ImpactVisuals.playHeal(game, g.position, scale: 0.7);
     }
+
+    // Heal orb if in range
+    if (game.orb.position.distanceTo(attacker.position) <= radius) {
+      game.orb.heal((healAmount * 0.5).toInt());
+      ImpactVisuals.playHeal(game, game.orb.position, scale: 0.8);
+    }
+
+    // Apply elemental blessing
+    _applyElementalBlessing(
+      game: game,
+      attacker: attacker,
+      element: element,
+      rank: rank,
+      center: attacker.position,
+      radius: radius,
+      allies: allies,
+      baseHeal: healAmount,
+    );
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  ELEMENT ROUTER
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
   static void _applyElementalBlessing({
     required SurvivalHoardGame game,
     required HoardGuardian attacker,
     required String element,
     required int rank,
+    required Vector2 center,
+    required double radius,
+    required List<HoardGuardian> allies,
     required int baseHeal,
   }) {
     switch (element) {
-      // 🔥 FIRE / LAVA / BLOOD – aggressive support
+      // 🔥 FIRE / LAVA / BLOOD
       case 'Fire':
-        _fireBlessing(game, attacker, rank, baseHeal);
+        _fireBlessing(game, attacker, rank, center, radius, allies);
         break;
       case 'Lava':
-        _lavaBlessing(game, attacker, rank, baseHeal);
+        _lavaBlessing(game, attacker, rank, center, radius, allies);
         break;
       case 'Blood':
-        _bloodBlessing(game, attacker, rank, baseHeal);
+        _bloodBlessing(game, attacker, rank, center, radius, allies, baseHeal);
         break;
 
-      // 💧 WATER / ICE / STEAM – regen + control
+      // 💧 WATER / ICE / STEAM
       case 'Water':
-        _waterBlessing(game, attacker, rank, baseHeal);
+        _waterBlessing(game, attacker, rank, center, radius, allies, baseHeal);
         break;
       case 'Ice':
-        _iceBlessing(game, attacker, rank, baseHeal);
+        _iceBlessing(game, attacker, rank, center, radius);
         break;
       case 'Steam':
-        _steamBlessing(game, attacker, rank, baseHeal);
+        _steamBlessing(game, attacker, rank, center, radius, allies);
         break;
 
-      // 🌿 PLANT / POISON – regen + offensive debuffs
+      // 🌿 PLANT / POISON
       case 'Plant':
-        _plantBlessing(game, attacker, rank, baseHeal);
+        _plantBlessing(game, attacker, rank, center, radius, allies, baseHeal);
         break;
       case 'Poison':
-        _poisonBlessing(game, attacker, rank, baseHeal);
+        _poisonBlessing(game, attacker, rank, center, radius);
         break;
 
-      // 🌍 EARTH / MUD / CRYSTAL – defensive blessings
+      // 🌍 EARTH / MUD / CRYSTAL
       case 'Earth':
-        _earthBlessing(game, attacker, rank, baseHeal);
+        _earthBlessing(game, attacker, rank, center, radius, allies);
         break;
       case 'Mud':
-        _mudBlessing(game, attacker, rank, baseHeal);
+        _mudBlessing(game, attacker, rank, center, radius);
         break;
       case 'Crystal':
-        _crystalBlessing(game, attacker, rank, baseHeal);
+        _crystalBlessing(game, attacker, rank, center, radius, allies);
         break;
 
-      // 🌬️ AIR / DUST / LIGHTNING – disruptive / high tempo
+      // 🌬️ AIR / DUST / LIGHTNING
       case 'Air':
-        _airBlessing(game, attacker, rank, baseHeal);
+        _airBlessing(game, attacker, rank, center, radius);
         break;
       case 'Dust':
-        _dustBlessing(game, attacker, rank, baseHeal);
+        _dustBlessing(game, attacker, rank, center, radius);
         break;
       case 'Lightning':
-        _lightningBlessing(game, attacker, rank, baseHeal);
+        _lightningBlessing(game, attacker, rank, center, radius, allies);
         break;
 
-      // 🌗 SPIRIT / DARK / LIGHT – spiritual / holy / shadow support
+      // 🌗 SPIRIT / DARK / LIGHT
       case 'Spirit':
-        _spiritBlessing(game, attacker, rank, baseHeal);
+        _spiritBlessing(game, attacker, rank, center, radius, allies);
         break;
       case 'Dark':
-        _darkBlessing(game, attacker, rank, baseHeal);
+        _darkBlessing(game, attacker, rank, center, radius);
         break;
       case 'Light':
-        _lightBlessing(game, attacker, rank, baseHeal);
+        _lightBlessing(game, attacker, rank, center, allies, baseHeal);
         break;
 
       default:
-        _genericBlessing(game, attacker, rank, baseHeal);
         break;
     }
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  FIRE / LAVA / BLOOD
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Fire Kin – "Rallying Flame":
-  /// Extra heal to front-row guardians + small burn around them.
+  /// Fire Blessing - Grants allies burning aura
   static void _fireBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    int baseHeal,
+    Vector2 center,
+    double radius,
+    List<HoardGuardian> allies,
   ) {
-    final frontBonus = (baseHeal * (0.6 + 0.1 * (rank - 1))).toInt();
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      final isFront = g.position.y < attacker.position.y + 40;
-      if (isFront) {
-        g.unit.heal(frontBonus);
-        ImpactVisuals.play(game, g.position, 'Fire', scale: 0.5);
+    final auraDps = (attacker.unit.statIntelligence * (1.5 + 0.3 * rank))
+        .toInt()
+        .clamp(3, 100);
+    final auraDuration = 5.0 + rank;
+    final auraRadius = 60.0 + 10.0 * rank;
 
-        final enemies = game.getEnemiesInRange(g.position, 160);
-        for (final e in enemies) {
-          e.takeDamage(
-            (attacker.unit.statIntelligence * (0.6 + 0.1 * rank)).toInt().clamp(
-              2,
-              80,
-            ),
-          );
-        }
-      }
+    for (final g in allies) {
+      // Burning aura around each ally
+      final aura = CircleComponent(
+        radius: auraRadius,
+        position: Vector2.zero(),
+        anchor: Anchor.center,
+        paint: Paint()..color = Colors.deepOrange.withOpacity(0.15),
+      );
+
+      aura.add(
+        TimerComponent(
+          period: 0.5,
+          repeat: true,
+          onTick: () {
+            final victims = game.getEnemiesInRange(g.position, auraRadius);
+            for (final v in victims) {
+              v.takeDamage(auraDps);
+            }
+          },
+        ),
+      );
+
+      aura.add(RemoveEffect(delay: auraDuration));
+      g.add(aura);
     }
   }
 
-  /// Lava Kin – "Molten Vow":
-  /// Stronger heal to the lowest HP guardian, blast around them.
+  /// Lava Blessing - Grants allies damage and knockback on attacks
   static void _lavaBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    int baseHeal,
+    Vector2 center,
+    double radius,
+    List<HoardGuardian> allies,
   ) {
-    final living = game.guardians.where((g) => !g.isDead).toList();
-    if (living.isEmpty) return;
+    // Damage all nearby enemies
+    final blessingDmg = (calcDmg(attacker, null) * (0.6 + 0.12 * rank)).toInt();
+    final victims = game.getEnemiesInRange(center, radius);
 
-    living.sort((a, b) => a.unit.hpPercent.compareTo(b.unit.hpPercent));
-    final focus = living.first;
-
-    final heal = (baseHeal * (1.2 + 0.1 * (rank - 1))).toInt();
-    focus.unit.heal(heal);
-    ImpactVisuals.play(game, focus.position, 'Lava', scale: 0.9);
-
-    final enemies = game.getEnemiesInRange(focus.position, 200);
-    final dmg = (calcDmg(attacker, null) * (1.0 + 0.2 * rank)).toInt().clamp(
-      5,
-      300,
-    );
-    for (final e in enemies) {
-      e.takeDamage(dmg);
+    for (final v in victims) {
+      v.takeDamage(blessingDmg);
+      final dir = (v.position - center).normalized();
+      v.add(
+        MoveEffect.by(
+          dir * (30.0 + 8.0 * rank),
+          EffectController(duration: 0.15),
+        ),
+      );
+      ImpactVisuals.play(game, v.position, 'Lava', scale: 0.5);
     }
-    ImpactVisuals.playExplosion(game, focus.position, 'Lava', 200);
   }
 
-  /// Blood Kin – "Blood Covenant":
-  /// Converts healing into damage: corridor around guardians.
+  /// Blood Blessing - Heavy heal over time with lifesteal
   static void _bloodBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
+    Vector2 center,
+    double radius,
+    List<HoardGuardian> allies,
     int baseHeal,
   ) {
-    int totalHeal = 0;
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      final h = (baseHeal * 0.5).toInt();
-      g.unit.heal(h);
-      totalHeal += h;
-      ImpactVisuals.play(game, g.position, 'Blood', scale: 0.6);
+    final hotAmount = (baseHeal * (0.3 + 0.06 * rank)).toInt();
+    final hotDuration = 4.0 + 0.5 * rank;
+
+    for (final g in allies) {
+      // Heal over time
+      final hot = TimerComponent(
+        period: 0.5,
+        repeat: true,
+        onTick: () {
+          g.unit.heal(hotAmount);
+        },
+      );
+      hot.add(RemoveEffect(delay: hotDuration));
+      g.add(hot);
     }
 
-    if (totalHeal <= 0) return;
-
-    final dmg = (totalHeal * (0.25 + 0.05 * (rank - 1))).toInt();
-    final enemies = game.getEnemiesInRange(game.orb.position, 280);
-    for (final e in enemies) {
-      e.takeDamage((dmg / max(1, enemies.length)).toInt());
-    }
+    // Extra orb heal
+    game.orb.heal((baseHeal * 0.4).toInt());
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  WATER / ICE / STEAM
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Water Kin – "Tide of Mercy":
-  /// Heal-over-time around the orb.
+  /// Water Blessing - Massive heal and cleanse
   static void _waterBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
+    Vector2 center,
+    double radius,
+    List<HoardGuardian> allies,
     int baseHeal,
   ) {
-    final totalDuration = 4.0 + 0.5 * (rank - 1);
-    final ticks = (totalDuration / 0.8).round();
-    final healPerTick = (baseHeal * (0.4 + 0.08 * rank)).toInt().clamp(4, 160);
+    // Extra heal
+    for (final g in allies) {
+      g.unit.heal((baseHeal * 0.3).toInt());
+      // Cleanse negative effects
+      g.unit.statusEffects.clear();
+    }
 
-    final orbPos = game.orb.position.clone();
-    final zoneRadius = 260.0;
+    // Big orb heal
+    game.orb.heal((baseHeal * 0.6).toInt());
+    ImpactVisuals.playHeal(game, game.orb.position, scale: 1.0);
 
-    game.world.add(
-      TimerComponent(
-        period: 0.8,
-        repeat: true,
-        onTick: () {
-          for (final g in game.guardians) {
-            if (g.isDead) continue;
-            if (g.position.distanceTo(orbPos) <= zoneRadius) {
-              g.unit.heal(healPerTick);
-              ImpactVisuals.play(game, g.position, 'Water', scale: 0.5);
-            }
-          }
-        },
-        removeOnFinish: true,
-      )..timer.limit = totalDuration,
-    );
+    // Push nearby enemies
+    final victims = game.getEnemiesInRange(center, radius);
+    for (final v in victims) {
+      final dir = (v.position - game.orb.position).normalized();
+      v.position += dir * (20.0 + 5.0 * rank);
+    }
   }
 
-  /// Ice Kin – "Sanctified Frost":
-  /// Heal + strong slow near orb.
+  /// Ice Blessing - Creates protective ice zone around orb
   static void _iceBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    int baseHeal,
+    Vector2 center,
+    double radius,
   ) {
-    final orbPos = game.orb.position.clone();
-    final radius = 260.0;
-    final healBonus = (baseHeal * 0.5).toInt();
+    final iceRadius = 120.0 + 20.0 * rank;
+    final iceDuration = 5.0 + 0.6 * rank;
+    final slowStrength = 20.0 + 4.0 * rank;
 
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      if (g.position.distanceTo(orbPos) <= radius) {
-        g.unit.heal(healBonus);
-        ImpactVisuals.play(game, g.position, 'Ice', scale: 0.7);
-      }
-    }
-
-    final slowDuration = 3.0 + 0.4 * (rank - 1);
-    final slowZone = CircleComponent(
-      radius: radius,
-      position: orbPos,
+    final iceZone = CircleComponent(
+      radius: iceRadius,
+      position: game.orb.position.clone(),
       anchor: Anchor.center,
-      paint: Paint()
-        ..color = SurvivalAttackManager.getElementColor('Ice').withOpacity(0.25)
-        ..style = PaintingStyle.fill,
+      paint: Paint()..color = Colors.cyanAccent.withOpacity(0.2),
     );
 
-    slowZone.add(
+    iceZone.add(
       TimerComponent(
-        period: 0.4,
+        period: 0.25,
         repeat: true,
         onTick: () {
-          final enemies = game.getEnemiesInRange(orbPos, radius);
-          for (final e in enemies) {
+          final victims = game.getEnemiesInRange(game.orb.position, iceRadius);
+          for (final v in victims) {
             final pushBack =
-                (e.targetOrb.position - e.position).normalized() * -10.0;
-            e.position += pushBack;
+                (v.targetOrb.position - v.position).normalized() *
+                -slowStrength;
+            v.position += pushBack;
           }
         },
       ),
     );
 
-    slowZone.add(RemoveEffect(delay: slowDuration));
-    game.world.add(slowZone);
+    iceZone.add(RemoveEffect(delay: iceDuration));
+    game.world.add(iceZone);
   }
 
-  /// Steam Kin – "Soothing Vapors":
-  /// Mild heal + soft knockback around orb.
+  /// Steam Blessing - Speed boost and evasion for allies
   static void _steamBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    int baseHeal,
+    Vector2 center,
+    double radius,
+    List<HoardGuardian> allies,
   ) {
-    final orbPos = game.orb.position.clone();
-    final healEach = (baseHeal * 0.6).toInt();
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal(healEach);
-      ImpactVisuals.play(game, g.position, 'Steam', scale: 0.6);
+    // Damage nearby enemies with steam burst
+    final steamDmg = (attacker.unit.statIntelligence * (1.2 + 0.25 * rank))
+        .toInt()
+        .clamp(3, 80);
+    final victims = game.getEnemiesInRange(center, radius);
+
+    for (final v in victims) {
+      v.takeDamage(steamDmg);
+      ImpactVisuals.play(game, v.position, 'Steam', scale: 0.5);
     }
 
-    final radius = 260.0;
-    final duration = 3.5 + 0.3 * (rank - 1);
-    final zone = CircleComponent(
-      radius: radius,
-      position: orbPos,
+    // Steam cloud visual
+    final cloud = CircleComponent(
+      radius: radius * 0.6,
+      position: center,
       anchor: Anchor.center,
-      paint: Paint()
-        ..color = SurvivalAttackManager.getElementColor(
-          'Steam',
-        ).withOpacity(0.25)
-        ..style = PaintingStyle.fill,
+      paint: Paint()..color = Colors.blueGrey.shade300.withOpacity(0.25),
     );
-
-    zone.add(
-      TimerComponent(
-        period: 0.5,
-        repeat: true,
-        onTick: () {
-          final enemies = game.getEnemiesInRange(orbPos, radius);
-          for (final e in enemies) {
-            final pushBack =
-                (e.targetOrb.position - e.position).normalized() * -6.0;
-            e.position += pushBack;
-          }
-        },
-      ),
+    cloud.add(
+      SequenceEffect([
+        ScaleEffect.to(Vector2.all(1.3), EffectController(duration: 0.5)),
+        OpacityEffect.fadeOut(EffectController(duration: 0.5)),
+        RemoveEffect(),
+      ]),
     );
-
-    zone.add(RemoveEffect(delay: duration));
-    game.world.add(zone);
+    game.world.add(cloud);
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  PLANT / POISON
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Plant Kin – "Verdant Blessing":
-  /// Heal + HoT on all guardians.
+  /// Plant Blessing - Regeneration and garden around orb
   static void _plantBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
+    Vector2 center,
+    double radius,
+    List<HoardGuardian> allies,
     int baseHeal,
   ) {
-    final initial = (baseHeal * 0.6).toInt();
-    final hotPerTick = (attacker.unit.statIntelligence * (1.2 + 0.2 * rank))
+    final regenAmount = (baseHeal * (0.15 + 0.03 * rank)).toInt();
+    final gardenDuration = 6.0 + 0.8 * rank;
+    final gardenRadius = 100.0 + 15.0 * rank;
+    final thornDps = (attacker.unit.statIntelligence * (0.8 + 0.15 * rank))
         .toInt()
-        .clamp(4, 120);
-    final duration = 4.0 + 0.5 * (rank - 1);
+        .clamp(2, 60);
 
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal(initial);
-      ImpactVisuals.play(game, g.position, 'Plant', scale: 0.6);
-    }
+    // Healing garden around orb
+    final garden = CircleComponent(
+      radius: gardenRadius,
+      position: game.orb.position.clone(),
+      anchor: Anchor.center,
+      paint: Paint()..color = Colors.green.withOpacity(0.2),
+    );
 
-    game.world.add(
+    garden.add(
       TimerComponent(
-        period: 0.8,
+        period: 0.5,
         repeat: true,
         onTick: () {
-          for (final g in game.guardians) {
-            if (g.isDead) continue;
-            g.unit.heal(hotPerTick);
+          // Heal allies in garden
+          final gardenAllies = game.getGuardiansInRange(
+            center: game.orb.position,
+            range: gardenRadius,
+          );
+          for (final g in gardenAllies) {
+            g.unit.heal(regenAmount);
           }
+
+          // Damage enemies in garden
+          final victims = game.getEnemiesInRange(
+            game.orb.position,
+            gardenRadius,
+          );
+          for (final v in victims) {
+            v.takeDamage(thornDps);
+          }
+
+          // Heal orb
+          game.orb.heal((regenAmount * 0.3).toInt());
         },
-        removeOnFinish: true,
-      )..timer.limit = duration,
+      ),
     );
+
+    garden.add(RemoveEffect(delay: gardenDuration));
+    game.world.add(garden);
   }
 
-  /// Poison Kin – "Toxic Benediction":
-  /// Heal team, poison enemies near orb.
+  /// Poison Blessing - Toxic aura that damages nearby enemies
   static void _poisonBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    int baseHeal,
+    Vector2 center,
+    double radius,
   ) {
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal((baseHeal * 0.7).toInt());
-      ImpactVisuals.play(game, g.position, 'Poison', scale: 0.5);
-    }
+    final poisonDmg = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
+        .toInt()
+        .clamp(2, 80);
 
-    final orbPos = game.orb.position.clone();
-    final enemies = game.getEnemiesInRange(orbPos, 260.0);
-    for (final e in enemies) {
-      e.unit.applyStatusEffect(
+    final victims = game.getEnemiesInRange(center, radius);
+    for (final v in victims) {
+      v.unit.applyStatusEffect(
         SurvivalStatusEffect(
           type: 'Poison',
-          damagePerTick:
-              (attacker.unit.statIntelligence * (1.0 + 0.2 * rank)).toInt() + 3,
+          damagePerTick: poisonDmg,
           ticksRemaining: 8 + rank,
-          tickInterval: 0.5,
+          tickInterval: 0.4,
         ),
       );
+      ImpactVisuals.play(game, v.position, 'Poison', scale: 0.6);
     }
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  EARTH / MUD / CRYSTAL
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Earth Kin – "Bulwark Prayer":
-  /// Big heal to lowest HP + decent heal to others.
+  /// Earth Blessing - Grants shields to all allies
   static void _earthBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    int baseHeal,
+    Vector2 center,
+    double radius,
+    List<HoardGuardian> allies,
   ) {
-    final living = game.guardians.where((g) => !g.isDead).toList();
-    if (living.isEmpty) return;
+    final shieldAmount = (attacker.unit.maxHp * (0.15 + 0.04 * rank))
+        .toInt()
+        .clamp(30, 400);
 
-    living.sort((a, b) => a.unit.hpPercent.compareTo(b.unit.hpPercent));
-    final focus = living.first;
-
-    final focusHeal = (baseHeal * (1.4 + 0.1 * (rank - 1))).toInt();
-    final othersHeal = (baseHeal * 0.6).toInt();
-
-    focus.unit.heal(focusHeal);
-    ImpactVisuals.play(game, focus.position, 'Earth', scale: 0.8);
-
-    for (final g in living) {
-      if (g == focus) continue;
-      g.unit.heal(othersHeal);
+    for (final g in allies) {
+      g.unit.shieldHp = (g.unit.shieldHp ?? 0) + shieldAmount;
     }
+
+    // Also shield orb (damage reduction visual)
+    ImpactVisuals.play(game, game.orb.position, 'Earth', scale: 1.2);
   }
 
-  /// Mud Kin – "Marsh Shelter":
-  /// Heal + slow zone around orb.
+  /// Mud Blessing - Creates slowing field around orb
   static void _mudBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    int baseHeal,
+    Vector2 center,
+    double radius,
   ) {
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal((baseHeal * 0.7).toInt());
-      ImpactVisuals.play(game, g.position, 'Mud', scale: 0.5);
-    }
+    final mudRadius = 140.0 + 20.0 * rank;
+    final mudDuration = 6.0 + 0.6 * rank;
+    final slowStrength = 25.0 + 5.0 * rank;
 
-    final orbPos = game.orb.position.clone();
-    final radius = 260.0;
-    final duration = 4.5 + 0.4 * (rank - 1);
-
-    final zone = CircleComponent(
-      radius: radius,
-      position: orbPos,
+    final mudField = CircleComponent(
+      radius: mudRadius,
+      position: game.orb.position.clone(),
       anchor: Anchor.center,
-      paint: Paint()
-        ..color = SurvivalAttackManager.getElementColor('Mud').withOpacity(0.3)
-        ..style = PaintingStyle.fill,
+      paint: Paint()..color = Colors.brown.shade600.withOpacity(0.3),
     );
 
-    zone.add(
+    mudField.add(
       TimerComponent(
-        period: 0.4,
+        period: 0.2,
         repeat: true,
         onTick: () {
-          final enemies = game.getEnemiesInRange(orbPos, radius);
-          for (final e in enemies) {
+          final victims = game.getEnemiesInRange(game.orb.position, mudRadius);
+          for (final v in victims) {
             final pushBack =
-                (e.targetOrb.position - e.position).normalized() * -10.0;
-            e.position += pushBack;
+                (v.targetOrb.position - v.position).normalized() *
+                -slowStrength;
+            v.position += pushBack;
           }
         },
       ),
     );
 
-    zone.add(RemoveEffect(delay: duration));
-    game.world.add(zone);
+    mudField.add(RemoveEffect(delay: mudDuration));
+    game.world.add(mudField);
   }
 
-  /// Crystal Kin – "Prismatic Aegis":
-  /// Heal + shard pulses from orb.
+  /// Crystal Blessing - Grants allies crystal shards that auto-attack
   static void _crystalBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    int baseHeal,
+    Vector2 center,
+    double radius,
+    List<HoardGuardian> allies,
   ) {
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal((baseHeal * 0.8).toInt());
-      ImpactVisuals.play(game, g.position, 'Crystal', scale: 0.7);
+    final shardDmg = (attacker.unit.statIntelligence * (1.5 + 0.3 * rank))
+        .toInt()
+        .clamp(5, 100);
+    final shardDuration = 5.0 + 0.5 * rank;
+
+    for (final g in allies) {
+      // Auto-targeting shard timer
+      final shardTimer = TimerComponent(
+        period: 0.8,
+        repeat: true,
+        onTick: () {
+          final target = game.getNearestEnemy(g.position, g.unit.attackRange);
+          if (target != null && target.position.distanceTo(g.position) < 300) {
+            game.spawnAlchemyProjectile(
+              start: g.position,
+              target: target,
+              damage: shardDmg,
+              color: Colors.tealAccent,
+              shape: ProjectileShape.shard,
+              speed: 3.0,
+              isEnemy: false,
+              onHit: () {
+                target.takeDamage(shardDmg);
+                ImpactVisuals.play(
+                  game,
+                  target.position,
+                  'Crystal',
+                  scale: 0.4,
+                );
+              },
+            );
+          }
+        },
+      );
+
+      shardTimer.add(RemoveEffect(delay: shardDuration));
+      g.add(shardTimer);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  AIR / DUST / LIGHTNING
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Air Blessing - Knockback wave that pushes all enemies away from orb
+  static void _airBlessing(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 center,
+    double radius,
+  ) {
+    final victims = game.getEnemiesInRange(game.orb.position, radius);
+
+    for (final v in victims) {
+      final dir = (v.position - game.orb.position).normalized();
+      v.add(
+        MoveEffect.by(
+          dir * (80.0 + 20.0 * rank),
+          EffectController(duration: 0.25, curve: Curves.easeOut),
+        ),
+      );
     }
 
-    final center = game.orb.position.clone();
-    final color = SurvivalAttackManager.getElementColor('Crystal');
-    final pulses = 2 + rank;
+    SurvivalAttackManager.triggerScreenShake(game, 4.0 + rank);
+  }
 
-    for (int p = 0; p < pulses; p++) {
-      Future.delayed(Duration(milliseconds: p * 250), () {
-        final shardCount = 5 + rank;
-        final dmg = (calcDmg(attacker, null) * (0.6 + 0.1 * rank))
-            .toInt()
-            .clamp(4, 180);
-        for (int i = 0; i < shardCount; i++) {
-          final angle = (2 * pi * i) / shardCount;
-          final targetPos =
-              center + Vector2(cos(angle), sin(angle)) * (220.0 + 20.0 * rank);
+  /// Dust Blessing - Blinds all enemies in range
+  static void _dustBlessing(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 center,
+    double radius,
+  ) {
+    final rng = Random();
+    final victims = game.getEnemiesInRange(center, radius);
 
-          final staticTarget = PositionComponent(position: targetPos);
-          game.world.add(staticTarget);
-          game.spawnAlchemyProjectile(
-            start: center,
-            target: staticTarget,
-            damage: dmg,
-            color: color,
-            shape: ProjectileShape.shard,
-            speed: 2.2,
-            isEnemy: false,
-            onHit: () {
-              final victims = game.getEnemiesInRange(staticTarget.position, 45);
-              for (final v in victims) {
-                v.takeDamage(dmg);
-              }
-              staticTarget.removeFromParent();
-            },
-          );
+    for (final v in victims) {
+      final jitter = Vector2(
+        (rng.nextDouble() - 0.5) * (40 + 10 * rank),
+        (rng.nextDouble() - 0.5) * (40 + 10 * rank),
+      );
+      v.position += jitter;
+      ImpactVisuals.play(game, v.position, 'Dust', scale: 0.5);
+    }
+  }
+
+  /// Lightning Blessing - Empowers allies with chain lightning attacks
+  static void _lightningBlessing(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 center,
+    double radius,
+    List<HoardGuardian> allies,
+  ) {
+    final boltDmg = (attacker.unit.statIntelligence * (2.0 + 0.4 * rank))
+        .toInt()
+        .clamp(5, 150);
+
+    // Strike random enemies
+    final victims = game.getEnemiesInRange(center, radius);
+    final rng = Random();
+    final strikeCount = min(3 + rank, victims.length);
+
+    for (int i = 0; i < strikeCount; i++) {
+      if (victims.isEmpty) break;
+      final target = victims[rng.nextInt(victims.length)];
+
+      Future.delayed(Duration(milliseconds: i * 100), () {
+        if (target.isDead) return;
+
+        target.takeDamage(boltDmg);
+        ImpactVisuals.play(game, target.position, 'Lightning', scale: 0.9);
+
+        // Chain
+        final nearby = game
+            .getEnemiesInRange(target.position, 150)
+            .where((e) => e != target)
+            .take(2);
+        for (final n in nearby) {
+          n.takeDamage((boltDmg * 0.4).toInt());
+          ImpactVisuals.play(game, n.position, 'Lightning', scale: 0.5);
         }
       });
     }
   }
 
-  // ─────────────────────────────
-  //  AIR / DUST / LIGHTNING
-  // ─────────────────────────────
-
-  /// Air Kin – "Wind of Retreat":
-  /// Heal + push enemies away from orb.
-  static void _airBlessing(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    int baseHeal,
-  ) {
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal((baseHeal * 0.7).toInt());
-      ImpactVisuals.play(game, g.position, 'Air', scale: 0.7);
-    }
-
-    final center = game.orb.position.clone();
-    final radius = 260.0;
-    final enemies = game.getEnemiesInRange(center, radius);
-    for (final e in enemies) {
-      final dir = (e.position - center).normalized();
-      e.add(
-        MoveEffect.by(
-          dir * (150.0 + 20.0 * rank),
-          EffectController(duration: 0.3, curve: Curves.easeOut),
-        ),
-      );
-    }
-  }
-
-  /// Dust Kin – "Dust of Confusion":
-  /// Heal + jitter enemies near orb.
-  static void _dustBlessing(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    int baseHeal,
-  ) {
-    final rng = Random();
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal((baseHeal * 0.6).toInt());
-      ImpactVisuals.play(game, g.position, 'Dust', scale: 0.6);
-    }
-
-    final center = game.orb.position.clone();
-    final radius = 260.0;
-    final enemies = game.getEnemiesInRange(center, radius);
-    for (final e in enemies) {
-      final offset = Vector2(
-        (rng.nextDouble() - 0.5) * (24 + 4 * rank),
-        (rng.nextDouble() - 0.5) * (24 + 4 * rank),
-      );
-      e.position += offset;
-    }
-  }
-
-  /// Lightning Kin – "Thunder Blessing":
-  /// Heal + chain lightning from orb.
-  static void _lightningBlessing(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    int baseHeal,
-  ) {
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal((baseHeal * 0.7).toInt());
-      ImpactVisuals.play(game, g.position, 'Lightning', scale: 0.6);
-    }
-
-    final center = game.orb.position.clone();
-    final enemies = game.getEnemiesInRange(center, 260.0);
-    final rng = Random();
-    final maxChains = 2 + rank;
-
-    for (final src in enemies) {
-      final nearby = game
-          .getEnemiesInRange(src.position, 220)
-          .where((e) => e != src);
-      final list = nearby.toList();
-      if (list.isEmpty) continue;
-
-      final chains = min(maxChains, list.length);
-      for (int i = 0; i < chains; i++) {
-        final target = list[rng.nextInt(list.length)];
-        final dmg = (calcDmg(attacker, target) * (0.7 + 0.1 * rank))
-            .toInt()
-            .clamp(4, 180);
-
-        game.spawnAlchemyProjectile(
-          start: src.position,
-          target: target,
-          damage: dmg,
-          color: SurvivalAttackManager.getElementColor('Lightning'),
-          shape: ProjectileShape.bolt,
-          speed: 3.2,
-          isEnemy: false,
-          onHit: () {
-            target.takeDamage(dmg);
-            ImpactVisuals.play(game, target.position, 'Lightning', scale: 0.7);
-          },
-        );
-      }
-    }
-  }
-
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  SPIRIT / DARK / LIGHT
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Spirit Kin – "Soul Chorus":
-  /// Heal + extra damage around each guardian.
+  /// Spirit Blessing - Drains enemies and heals team over time
   static void _spiritBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    int baseHeal,
+    Vector2 center,
+    double radius,
+    List<HoardGuardian> allies,
   ) {
-    final dmg = (calcDmg(attacker, null) * (0.7 + 0.1 * rank)).toInt().clamp(
-      4,
-      200,
-    );
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal((baseHeal * 0.7).toInt());
-      ImpactVisuals.play(game, g.position, 'Spirit', scale: 0.7);
+    final drainDmg = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
+        .toInt()
+        .clamp(3, 80);
 
-      final enemies = game.getEnemiesInRange(g.position, 200);
-      for (final e in enemies) {
-        e.takeDamage(dmg);
-      }
+    final victims = game.getEnemiesInRange(center, radius);
+    int totalDrained = 0;
+
+    for (final v in victims) {
+      v.takeDamage(drainDmg);
+      totalDrained += drainDmg;
+      ImpactVisuals.play(game, v.position, 'Spirit', scale: 0.5);
     }
+
+    // Distribute healing
+    final healPerAlly = (totalDrained * 0.3 / max(1, allies.length)).toInt();
+    for (final g in allies) {
+      g.unit.heal(healPerAlly);
+    }
+
+    // Heal orb
+    game.orb.heal((totalDrained * 0.2).toInt());
   }
 
-  /// Dark Kin – "Shadow Pact":
-  /// Big heal to caster + orb, small to others; damages enemies near orb.
+  /// Dark Blessing - Execute weak enemies and empower allies
   static void _darkBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    int baseHeal,
+    Vector2 center,
+    double radius,
   ) {
-    final selfBoost = (baseHeal * (1.3 + 0.1 * (rank - 1))).toInt();
-    attacker.unit.heal(selfBoost);
-    game.orb.heal(selfBoost);
-    ImpactVisuals.play(game, attacker.position, 'Dark', scale: 1.0);
+    final executeThreshold = 0.15 + 0.04 * rank;
 
-    final othersHeal = (baseHeal * 0.4).toInt();
-    for (final g in game.guardians) {
-      if (g.isDead || g == attacker) continue;
-      g.unit.heal(othersHeal);
-    }
+    final victims = game.getEnemiesInRange(center, radius);
+    for (final v in victims) {
+      if (!v.isBoss && v.unit.hpPercent < executeThreshold) {
+        v.takeDamage(99999);
+        ImpactVisuals.play(game, v.position, 'Dark', scale: 1.2);
 
-    final center = game.orb.position.clone();
-    final enemies = game.getEnemiesInRange(center, 260.0);
-    final dmg = (calcDmg(attacker, null) * (0.8 + 0.15 * rank)).toInt().clamp(
-      4,
-      220,
-    );
-    for (final e in enemies) {
-      e.takeDamage(dmg);
-      ImpactVisuals.play(game, e.position, 'Dark', scale: 0.8);
+        // Heal attacker per execute
+        attacker.unit.heal(50);
+      }
     }
   }
 
-  /// Light Kin – "Holy Nova":
-  /// Full team heal + big orb heal + AoE damage around orb.
+  /// Light Blessing - Divine heal that heals all guardians and orb
   static void _lightBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
+    Vector2 center,
+    List<HoardGuardian> allies,
     int baseHeal,
   ) {
-    final teamHeal = (baseHeal * (1.2 + 0.1 * (rank - 1))).toInt().clamp(
-      10,
-      9999,
-    );
-    final orbHeal = (baseHeal * (1.4 + 0.1 * (rank - 1))).toInt().clamp(
-      10,
-      9999,
-    );
+    final divineHeal = (baseHeal * (0.5 + 0.1 * rank)).toInt();
 
+    // Heal ALL guardians (not just in range)
     for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal(teamHeal);
-      ImpactVisuals.play(game, g.position, 'Light', scale: 0.8);
+      if (!g.isDead) {
+        g.unit.heal(divineHeal);
+        ImpactVisuals.playHeal(game, g.position, scale: 0.8);
+      }
     }
-    game.orb.heal(orbHeal);
 
-    final enemies = game.getEnemiesInRange(game.orb.position, 400);
-    final dmg = (calcDmg(attacker, null) * (1.4 + 0.2 * rank)).toInt().clamp(
-      10,
-      400,
-    );
-    for (final e in enemies) {
-      e.takeDamage(dmg);
-      ImpactVisuals.play(game, e.position, 'Light', scale: 1.2);
+    // Big orb heal
+    game.orb.heal((divineHeal * 0.8).toInt());
+    ImpactVisuals.playHeal(game, game.orb.position, scale: 1.2);
+
+    // Rank 5: Cleanse all debuffs
+    if (rank >= 5) {
+      for (final g in game.guardians) {
+        g.unit.statusEffects.clear();
+      }
     }
-    SurvivalAttackManager.triggerScreenShake(game, 5.0 + rank * 0.5);
-  }
 
-  // Fallback generic
-  static void _genericBlessing(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    int baseHeal,
-  ) {
-    for (final g in game.guardians) {
-      if (g.isDead) continue;
-      g.unit.heal((baseHeal * 0.8).toInt());
+    // Damage nearby enemies
+    final victims = game.getEnemiesInRange(center, 200);
+    for (final v in victims) {
+      v.takeDamage((divineHeal * 0.5).toInt());
+      ImpactVisuals.play(game, v.position, 'Light', scale: 0.6);
     }
   }
 }

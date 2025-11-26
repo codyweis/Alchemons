@@ -522,19 +522,20 @@ class HoardGuardian extends PositionComponent
     if (_basicAttackTimer > 0) _basicAttackTimer -= dt;
     if (_specialAbilityTimer > 0) _specialAbilityTimer -= dt;
 
-    final target = gameRef.getNearestEnemy(position, unit.attackRange);
+    final basicTarget = gameRef.getNearestEnemy(position, unit.attackRange);
+    final specialTarget = gameRef.getNearestEnemy(
+      position,
+      unit.specialAbilityRange,
+    );
 
-    if (target != null) {
-      _faceTarget(target.position);
-
-      // PRIORITY SYSTEM:
-      if (_specialAbilityTimer <= 0) {
-        _performSpecialAbility(target);
-        _specialAbilityTimer = _specialInterval;
-      } else if (_basicAttackTimer <= 0) {
-        _performBasicAttack(target);
-        _basicAttackTimer = _basicInterval;
-      }
+    if (specialTarget != null && _specialAbilityTimer <= 0) {
+      _faceTarget(specialTarget.position);
+      _performSpecialAbility(specialTarget);
+      _specialAbilityTimer = _specialInterval;
+    } else if (basicTarget != null && _basicAttackTimer <= 0) {
+      _faceTarget(basicTarget.position);
+      _performBasicAttack(basicTarget);
+      _basicAttackTimer = _basicInterval;
     }
   }
 

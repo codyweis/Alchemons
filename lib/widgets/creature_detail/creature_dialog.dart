@@ -377,7 +377,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                         ),
                         // 3. Battle (New)
                         if (instance != null)
-                          BattleScrollArea(
+                          ImprovedBattleScrollArea(
                             theme: theme,
                             creature: effective,
                             instance: instance,

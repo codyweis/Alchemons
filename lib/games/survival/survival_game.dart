@@ -5,11 +5,13 @@ import 'package:alchemons/games/survival/components/alchemy_orb.dart';
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/guardian_slot_indicator.dart';
 import 'package:alchemons/games/survival/components/survival_hud.dart';
+import 'package:alchemons/games/survival/scaling_system.dart';
+import 'package:alchemons/games/survival/special_attacks/ability_config.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
 import 'package:alchemons/games/survival/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_engine.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
-import 'package:alchemons/games/survival/survival_spawner.dart';
+import 'package:alchemons/games/survival/survival_spawner_v2.dart';
 
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
@@ -34,14 +36,7 @@ class GuardianSlot {
   bool get isUnbound => boundUnitId == null;
 }
 
-enum AlchemyUpgradeKind {
-  maxHp,
-  strength,
-  intelligence,
-  beauty,
-  deployBench,
-  specialAbility,
-}
+enum AlchemyUpgradeKind { maxHp, deployBench, specialAbility, orbHeal }
 
 class AlchemyChoiceOption {
   final AlchemyUpgradeKind kind;
@@ -100,8 +95,10 @@ class SurvivalHoardGame extends FlameGame
 
   int get totalChoicesMade => _totalChoicesMade;
 
-  // Calculate cost dynamically: Base 15 + (10 per Level)
-  int get _killsRequiredForNextLevel => 15 + (_totalChoicesMade * 10);
+  List<HoardEnemy> get enemies => _enemies;
+
+  // Calculate cost dynamically: Base 100 + (15 per Level)
+  int get _killsRequiredForNextLevel => 100 + (_totalChoicesMade * 15);
 
   int get killsSinceLastChoice => _killsSinceLastChoice;
   int get killsRequiredForNextLevel => _killsRequiredForNextLevel;
@@ -123,7 +120,7 @@ class SurvivalHoardGame extends FlameGame
   final ValueNotifier<AlchemyChoiceState?> alchemyChoiceNotifier =
       ValueNotifier<AlchemyChoiceState?>(null);
 
-  double _startZoom = .5;
+  double _startZoom = .4;
 
   SurvivalHoardGame({required this.party, required this.onGameOver});
 
@@ -160,12 +157,12 @@ class SurvivalHoardGame extends FlameGame
 
     world.add(AlchemyRuneBackground());
 
-    orb = AlchemyOrb(maxHp: 1000);
+    orb = AlchemyOrb(maxHp: 500);
     world.add(orb);
 
     _initGuardianSlots();
 
-    add(SurvivalSpawner());
+    add(ImprovedSurvivalSpawner());
 
     _setupFormation();
     _initBenchFromParty();
@@ -205,21 +202,21 @@ class SurvivalHoardGame extends FlameGame
       }
     }
 
-    // RING 1 (Inner Defense) - Radius 220
+    // RING 1 (Inner Defense) - Radius 260 (previously 220)
     // Indices 0-7. Kept at 8 slots so your _setupFormation() logic works perfectly.
-    addRing(220.0, 8, angleOffset: -math.pi / 2);
+    addRing(260.0, 8, angleOffset: -math.pi / 2);
 
-    // RING 2 (Mid Field) - Radius 380
+    // RING 2 (Mid Field) - Radius 460 (previously 380)
     // 12 Slots. Good for general crowd control units.
-    addRing(380.0, 12, angleOffset: 0);
+    addRing(460.0, 12, angleOffset: 0);
 
-    // RING 3 (Long Range) - Radius 580
+    // RING 3 (Long Range) - Radius 700 (previously 580)
     // 16 Slots. Great for snipers (Wing/Pip).
-    addRing(580.0, 16, angleOffset: math.pi / 8);
+    addRing(700.0, 16, angleOffset: math.pi / 8);
 
-    // RING 4 (Outposts) - Radius 820
+    // RING 4 (Outposts) - Radius 980 (previously 820)
     // 20 Slots. Way out there. Good for intercepting bosses early.
-    addRing(820.0, 20, angleOffset: 0);
+    addRing(980.0, 20, angleOffset: 0);
   }
 
   void _initBenchFromParty() {
@@ -244,10 +241,12 @@ class SurvivalHoardGame extends FlameGame
         spriteVisuals: c.spriteVisuals,
       );
 
+      // Apply scaling once so bench units are on the same power curve
+      _applyScalingToGuardian(unit);
+
       _benchUnits.add(unit);
     }
   }
-
   // --- HELPERS ---
 
   void addHoardEnemy(HoardEnemy enemy) {
@@ -266,10 +265,19 @@ class SurvivalHoardGame extends FlameGame
     final unit = _pendingDeployUnit;
     if (unit == null) return;
 
+    if (slotIndex < 0 || slotIndex >= _slots.length) {
+      return;
+    }
+
     final slot = _slots[slotIndex];
 
-    // Ensure slot is available
+    // Slot must be empty
     if (!slot.isEmpty) {
+      return;
+    }
+
+    // If already bound, it must be bound to THIS unit
+    if (slot.boundUnitId != null && slot.boundUnitId != unit.id) {
       return;
     }
 
@@ -297,7 +305,6 @@ class SurvivalHoardGame extends FlameGame
     }
 
     isInAlchemyPause = false;
-    // We no longer call resumeEngine() here, as the engine is never paused.
   }
 
   HoardGuardian? getRandomGuardianInRange({
@@ -391,7 +398,7 @@ class SurvivalHoardGame extends FlameGame
         killValue; // or keep a separate visible counter if you want UI to stay “true”
     score += enemy.template.tier.tier * 10 * killValue;
 
-    _handleKillProgression(killValue * 2);
+    _handleKillProgression(killValue);
   }
 
   void _handleKillProgression(int killValue) {
@@ -454,7 +461,7 @@ class SurvivalHoardGame extends FlameGame
         if (nextRank == 1) {
           effectText = describeSpecialRank1(unit);
         } else {
-          // generic message for higher ranks
+          // Generic message for higher ranks
           effectText =
               'Empowers ${unit.types.firstOrNull ?? unit.family} special '
               '(more damage, bigger area & stronger effects).';
@@ -477,15 +484,13 @@ class SurvivalHoardGame extends FlameGame
       );
 
       if (transmuteRank < maxRank) {
-        final totalHpPct = ((math.pow(1.075, transmuteRank) - 1) * 100)
-            .toStringAsFixed(0);
-
+        final nextRank = transmuteRank + 1;
         candidates.add(
           AlchemyChoiceOption(
             kind: AlchemyUpgradeKind.maxHp,
             label: 'Transmute ${g.unit.name}',
             description:
-                '+7.5% HP, +Stats across board\n(Current: \nRank ${transmuteRank + 1}',
+                '+7.5% HP & +10% core stats\n(Rank $nextRank of $maxRank)',
             targetUnit: g.unit,
           ),
         );
@@ -493,24 +498,19 @@ class SurvivalHoardGame extends FlameGame
     }
 
     // 3. Fallback: If we don't have enough options to fill 4 slots, add generic heals
-    // This happens if you have few units or everything is maxed.
     while (candidates.length < 4) {
       candidates.add(
         AlchemyChoiceOption(
-          kind: AlchemyUpgradeKind.maxHp,
+          kind: AlchemyUpgradeKind.orbHeal,
           label: "Restoration",
           description: "Heal the Alchemy Orb by 200 HP.",
-          targetUnit: orb.isDestroyed
-              ? null
-              : (livingGuardians.isNotEmpty
-                    ? livingGuardians.first.unit
-                    : null),
+          targetUnit: null, // doesn't need a unit
         ),
       );
-      // Break loop if we have no units to even target for the dummy check
+
+      // If there is literally nothing else to offer, break to avoid infinite loop
       if (livingGuardians.isEmpty && !hasSpace) break;
     }
-
     // 4. Select exactly 4 Options (or fewer if total candidates < 4)
     candidates.shuffle();
     final selectedOptions = candidates.take(4).toList();
@@ -539,13 +539,23 @@ class SurvivalHoardGame extends FlameGame
   }
 
   void applyAlchemyChoice(AlchemyChoiceOption option) {
-    if (option.targetUnit == null) {
+    // Global options that don't need a unit
+    if (option.kind == AlchemyUpgradeKind.orbHeal) {
+      if (!orb.isDestroyed) {
+        orb.heal(200);
+      }
       alchemyChoiceNotifier.value = null;
       isInAlchemyPause = false;
       return;
     }
 
-    final unit = option.targetUnit!;
+    // Everything below here requires a unit
+    final unit = option.targetUnit;
+    if (unit == null) {
+      alchemyChoiceNotifier.value = null;
+      isInAlchemyPause = false;
+      return;
+    }
 
     // Bench deploy stays as-is
     if (option.kind == AlchemyUpgradeKind.deployBench) {
@@ -563,7 +573,6 @@ class SurvivalHoardGame extends FlameGame
     }
 
     // 3) Otherwise: ENHANCE (Transmute) → buff every category
-
     double scaleGain(double stat) {
       return math.max(0.2, stat * 0.10);
     }
@@ -572,13 +581,13 @@ class SurvivalHoardGame extends FlameGame
     unit.statIntelligence += scaleGain(unit.statIntelligence);
     unit.statBeauty += scaleGain(unit.statBeauty);
     unit.statSpeed += scaleGain(unit.statSpeed);
-    // HP buff
+
     unit.maxHp = (unit.maxHp * 1.075).round();
     unit.currentHp = unit.maxHp;
 
     unit.calculateCombatStats();
+    _applyScalingToGuardian(unit);
 
-    // Track rank so your UI / options know how many times we’ve enhanced
     _incrementUpgradeRank(unit.id, AlchemyUpgradeKind.maxHp);
 
     alchemyChoiceNotifier.value = null;
@@ -588,15 +597,18 @@ class SurvivalHoardGame extends FlameGame
   void _startDeployFromBench(SurvivalUnit unit) {
     _pendingDeployUnit = unit;
 
-    // Only check for s.isEmpty (currently vacant slot).
-    final availableSlots = _slots.where((s) => s.isEmpty).toList();
+    // Only slots that are currently empty AND either unbound or already this unit's seat.
+    final availableSlots = _slots.where((s) {
+      if (!s.isEmpty) return false;
+      if (s.boundUnitId == null) return true;
+      return s.boundUnitId == unit.id;
+    }).toList();
 
-    // Safety: if all 8 slots are full, bail out and resume
+    // Safety: if there are no valid slots, bail out and resume the game.
     if (availableSlots.isEmpty) {
       _pendingDeployUnit = null;
       alchemyChoiceNotifier.value = null;
       isInAlchemyPause = false;
-      // Removed resumeEngine() call
       return;
     }
 
@@ -618,7 +630,6 @@ class SurvivalHoardGame extends FlameGame
 
     // Game remains paused until a slot is tapped.
   }
-
   // --- PROJECTILES & COMBAT ---
 
   void spawnAlchemyProjectile({
@@ -650,6 +661,23 @@ class SurvivalHoardGame extends FlameGame
           },
     );
     world.add(projectile);
+  }
+
+  void _applyScalingToGuardian(SurvivalUnit unit) {
+    final counts = _unitUpgradeCounts[unit.id] ?? {};
+    final element = unit.types.firstOrNull ?? 'Normal';
+    final abilityRank = getSpecialAbilityRank(unit.id, element);
+
+    final scaling = ImprovedScalingSystem.calculateGuardianScaling(
+      baseLevel: unit.level,
+      strUpgrades: 0, // You don't track these separately
+      intUpgrades: 0,
+      beautyUpgrades: 0,
+      hpUpgrades: counts[AlchemyUpgradeKind.maxHp] ?? 0,
+      abilityRank: abilityRank,
+    );
+
+    ImprovedScalingSystem.applyGuardianScaling(unit, scaling);
   }
 
   void spawnSplitChildren({
@@ -787,6 +815,9 @@ class SurvivalHoardGame extends FlameGame
         spriteVisuals: c.spriteVisuals,
       );
 
+      // Apply scaling for starters too (takes into account any future upgrade counts)
+      _applyScalingToGuardian(unit);
+
       final guardian = HoardGuardian(
         unit: unit,
         position: orb.position + slot.offset,
@@ -899,283 +930,6 @@ class AlchemyRuneBackground extends PositionComponent {
 }
 
 String describeSpecialRank1(SurvivalUnit unit) {
-  final family = unit.family;
-  final element = unit.types.firstOrNull ?? 'Neutral';
-
-  switch (family) {
-    case 'Let':
-      return _describeLetRank1(element);
-    case 'Pip':
-      return _describePipRank1(element);
-    case 'Mane':
-      return _describeManeRank1(element);
-    case 'Horn':
-      return _describeHornRank1(element);
-    case 'Wing':
-      return _describeWingRank1(element);
-    case 'Mask':
-      return _describeMaskRank1(element);
-    case 'Kin':
-      return _describeKinRank1(element);
-    case 'Mystic':
-      return _describeMysticRank1(element);
-    default:
-      return 'Unlock: unique ${element} special upgrade.';
-  }
-}
-
-String _describeLetRank1(String element) {
-  switch (element) {
-    case 'Fire':
-    case 'Lava':
-      return 'Unlock: Meteor leaves a burning crater and heals you from damage dealt.';
-    case 'Blood':
-      return 'Unlock: Meteor heavily drains enemies and converts it to self-heal.';
-    case 'Water':
-    case 'Ice':
-    case 'Steam':
-      return 'Unlock: Meteor chills the area, slowing and pushing enemies away.';
-    case 'Earth':
-    case 'Mud':
-    case 'Crystal':
-      return 'Unlock: Meteor slams harder and shatters, damaging around the impact.';
-    case 'Air':
-    case 'Dust':
-    case 'Lightning':
-      return 'Unlock: Meteor falls faster and knocks enemies back in a shockwave.';
-    case 'Plant':
-    case 'Poison':
-      return 'Unlock: Meteor poisons / seeds a damaging patch on impact.';
-    case 'Spirit':
-    case 'Dark':
-      return 'Unlock: Meteor amplifies damage on low HP enemies (finisher feel).';
-    case 'Light':
-      return 'Unlock: Meteor blasts enemies and lightly heals nearby allies.';
-    default:
-      return 'Unlock: Elemental Meteor upgrade based on type.';
-  }
-}
-
-String _describePipRank1(String element) {
-  switch (element) {
-    case 'Fire':
-    case 'Lava':
-      return 'Unlock: Ricochet shots leave burning hits on enemies.';
-    case 'Blood':
-      return 'Unlock: Ricochet drains enemies and heals the Orb.';
-    case 'Water':
-    case 'Ice':
-    case 'Steam':
-      return 'Unlock: Ricochet splashes, nudging enemies and lightly healing allies.';
-    case 'Plant':
-    case 'Poison':
-      return 'Unlock: Ricochet spreads poison / thorns to multiple enemies.';
-    case 'Earth':
-    case 'Mud':
-    case 'Crystal':
-      return 'Unlock: Ricochet hits knock enemies around and feel heavier.';
-    case 'Air':
-    case 'Dust':
-    case 'Lightning':
-      return 'Unlock: Ricochet travels faster and chains between enemies.';
-    case 'Spirit':
-    case 'Dark':
-      return 'Unlock: Ricochet adds a draining / entropy tick to each bounce.';
-    case 'Light':
-      return 'Unlock: Ricochet lightly heals allies when it bounces.';
-    default:
-      return 'Unlock: Elemental Ricochet upgrade based on type.';
-  }
-}
-
-String _describeManeRank1(String element) {
-  switch (element) {
-    case 'Fire':
-    case 'Lava':
-      return 'Unlock: Hazard zone becomes a burning field of fire damage.';
-    case 'Blood':
-      return 'Unlock: Hazard zone drains enemies and heals the caster.';
-    case 'Water':
-    case 'Ice':
-    case 'Steam':
-      return 'Unlock: Hazard zone slows and pushes enemies while ticking damage.';
-    case 'Plant':
-    case 'Poison':
-      return 'Unlock: Hazard zone becomes a toxic/thorn patch with strong DoT.';
-    case 'Earth':
-    case 'Mud':
-    case 'Crystal':
-      return 'Unlock: Hazard zone pulls or bogs enemies down (heavy slow).';
-    case 'Air':
-    case 'Dust':
-    case 'Lightning':
-      return 'Unlock: Hazard zone jitters / shocks enemies caught inside.';
-    case 'Spirit':
-    case 'Dark':
-      return 'Unlock: Hazard zone saps enemies and sustains the caster.';
-    case 'Light':
-      return 'Unlock: Hazard zone damages enemies and gently heals allies inside.';
-    default:
-      return 'Unlock: Elemental Hazard upgrade based on type.';
-  }
-}
-
-String _describeHornRank1(String element) {
-  switch (element) {
-    case 'Fire':
-    case 'Lava':
-      return 'Unlock: Nova ignites enemies around you.';
-    case 'Blood':
-      return 'Unlock: Nova damages enemies and heals you from the impact.';
-    case 'Water':
-    case 'Ice':
-    case 'Steam':
-      return 'Unlock: Nova strongly slows and pushes enemies away.';
-    case 'Plant':
-    case 'Poison':
-      return 'Unlock: Nova applies poison / thorn damage around you.';
-    case 'Earth':
-    case 'Mud':
-    case 'Crystal':
-      return 'Unlock: Nova hits harder and grants a sturdier shield.';
-    case 'Air':
-    case 'Dust':
-    case 'Lightning':
-      return 'Unlock: Nova knocks enemies back and shocks them.';
-    case 'Spirit':
-    case 'Dark':
-      return 'Unlock: Nova saps enemies in a ring around you.';
-    case 'Light':
-      return 'Unlock: Nova blasts enemies and heals nearby allies.';
-    default:
-      return 'Unlock: Elemental Nova upgrade based on type.';
-  }
-}
-
-String _describeWingRank1(String element) {
-  switch (element) {
-    case 'Fire':
-    case 'Lava':
-      return 'Unlock: Beam leaves a burning line on the ground.';
-    case 'Blood':
-      return 'Unlock: Beam converts damage into lifesteal for the team.';
-    case 'Water':
-    case 'Ice':
-    case 'Steam':
-      return 'Unlock: Beam slows enemies and can heal allies near its path.';
-    case 'Plant':
-    case 'Poison':
-      return 'Unlock: Beam seeds thorn/poison patches along its path.';
-    case 'Earth':
-    case 'Mud':
-    case 'Crystal':
-      return 'Unlock: Beam knocks enemies back and toughens the caster.';
-    case 'Air':
-    case 'Dust':
-    case 'Lightning':
-      return 'Unlock: Beam blows enemies away and may chain lightning.';
-    case 'Spirit':
-    case 'Dark':
-      return 'Unlock: Beam deals extra damage to weakened enemies.';
-    case 'Light':
-      return 'Unlock: Beam heals allies near it and scorches enemies.';
-    default:
-      return 'Unlock: Elemental Beam upgrade based on type.';
-  }
-}
-
-String _describeMaskRank1(String element) {
-  switch (element) {
-    case 'Fire':
-    case 'Lava':
-      return 'Unlock: Void burns enemies as they are pulled in.';
-    case 'Blood':
-      return 'Unlock: Void drains HP from trapped enemies to heal you.';
-    case 'Water':
-    case 'Ice':
-    case 'Steam':
-      return 'Unlock: Void slows or wets enemies while pulling them.';
-    case 'Plant':
-    case 'Poison':
-      return 'Unlock: Void applies thorns/poison to enemies caught inside.';
-    case 'Earth':
-    case 'Mud':
-    case 'Crystal':
-      return 'Unlock: Void becomes more controlling, holding enemies longer.';
-    case 'Air':
-    case 'Dust':
-    case 'Lightning':
-      return 'Unlock: Void jitters or shocks enemies pulled into it.';
-    case 'Spirit':
-    case 'Dark':
-      return 'Unlock: Void saps enemies and sets up a big finisher.';
-    case 'Light':
-      return 'Unlock: Void purifies around the center and buffs nearby allies.';
-    default:
-      return 'Unlock: Elemental Void upgrade based on type.';
-  }
-}
-
-String _describeKinRank1(String element) {
-  switch (element) {
-    case 'Fire':
-    case 'Lava':
-      return 'Unlock: Blessing powers up frontliners and burns nearby foes.';
-    case 'Blood':
-      return 'Unlock: Blessing converts healing into damage to enemies.';
-    case 'Water':
-    case 'Ice':
-    case 'Steam':
-      return 'Unlock: Blessing adds regen/slow aura around the Orb.';
-    case 'Plant':
-    case 'Poison':
-      return 'Unlock: Blessing adds team regen and poisons enemies near the base.';
-    case 'Earth':
-    case 'Mud':
-    case 'Crystal':
-      return 'Unlock: Blessing gives bigger heals and toughens the team.';
-    case 'Air':
-    case 'Dust':
-    case 'Lightning':
-      return 'Unlock: Blessing heals allies and pushes/shocks enemies back.';
-    case 'Spirit':
-    case 'Dark':
-      return 'Unlock: Blessing heals allies and damages enemies near the Orb.';
-    case 'Light':
-      return 'Unlock: Holy Nova – huge team heal and AoE Light damage.';
-    default:
-      return 'Unlock: Elemental Blessing upgrade based on type.';
-  }
-}
-
-String _describeMysticRank1(String element) {
-  switch (element) {
-    case 'Fire':
-    case 'Lava':
-      return 'Unlock: Orbitals explode in small fire blasts on hit.';
-    case 'Blood':
-      return 'Unlock: Orbitals heal the caster heavily when they connect.';
-    case 'Water':
-    case 'Ice':
-    case 'Steam':
-      return 'Unlock: Orbitals heal allies or slow enemies around impact.';
-    case 'Plant':
-    case 'Poison':
-      return 'Unlock: Orbitals leave small thorn/poison zones at impact.';
-    case 'Earth':
-    case 'Mud':
-    case 'Crystal':
-      return 'Unlock: Orbitals create sturdy blasts or shard chains on hit.';
-    case 'Air':
-    case 'Dust':
-    case 'Lightning':
-      return 'Unlock: Orbitals push, confuse, or chain lightning between enemies.';
-    case 'Spirit':
-    case 'Dark':
-      return 'Unlock: Orbitals drain or deal spectral burst damage on impact.';
-    case 'Light':
-      return 'Unlock: Orbitals heal allies in the impact area and burn enemies.';
-    default:
-      return 'Unlock: Elemental Orbital upgrade based on type.';
-  }
+  final element = unit.types.firstOrNull ?? 'Normal';
+  return AbilitySystemConfig.getAbilityDescription(unit.family, element, 1);
 }

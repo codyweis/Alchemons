@@ -40,6 +40,8 @@ class SurvivalUnit {
   final SpriteSheetDef? sheetDef;
   final SpriteVisuals? spriteVisuals;
 
+  late double specialAbilityRange;
+
   SurvivalUnit({
     required this.id,
     required this.name,
@@ -65,8 +67,8 @@ class SurvivalUnit {
     switch (family.toLowerCase()) {
       case 'horn':
         // Frontline tank: High HP/Str, Low Range (Int).
-        statStrength += 1.0;
-        statIntelligence -= 1.0; // Melee range
+        statStrength += 0.5;
+        statIntelligence -= 0.5; // Melee range
         statBeauty += 0.2;
         break;
 
@@ -113,45 +115,55 @@ class SurvivalUnit {
     statBeauty = statBeauty.clamp(0.2, 10.0);
   }
 
+  double _curve(double x) => pow(x / 3.0, 1.8).toDouble();
   void calculateCombatStats() {
-    // Scale 0-5 range to useful integers
-    final sSpd = statSpeed * 20;
-    final sInt = statIntelligence * 20;
-    final sStr = statStrength * 20;
-    final sBea = statBeauty * 20;
+    final speedScale = _curve(statSpeed);
+    final intScale = _curve(statIntelligence);
+    final strScale = _curve(statStrength);
+    final beaScale = _curve(statBeauty);
 
-    // HP: Strength gives bulk
-    maxHp = (level * 15 + sStr * 2.0).round();
+    final sSpd = speedScale * 60;
+    final sInt = intScale * 70;
+    final sStr = strScale * 80;
+    final sBea = beaScale * 80;
 
-    // Basic Attacks (Strength)
-    physAtk = (sStr * 0.6 + level * 3).round();
+    maxHp = (level * 18 + sStr * 2.0).round();
 
-    // Special Abilities (Beauty)
-    // CHANGED: Now uses Beauty instead of Intelligence
-    elemAtk = (sBea * 0.6 + level * 3).round();
+    physAtk = (sStr * 0.65 + level * 3.5).round();
+    elemAtk = (sBea * 0.65 + level * 3.5).round();
 
-    // Defenses
-    // Phys Def: Strength (Bulk) + Intelligence (Parry/Read moves)
-    physDef = ((sStr + sInt) * 0.2 + level).round();
+    physDef = ((sStr + sInt) * 0.20 + level * 0.8).round();
+    elemDef = ((sBea + sInt) * 0.20 + level * 0.8).round();
 
-    // Elem Def: Beauty (Magic Resist) + Intelligence (Mental Fortitude)
-    elemDef = ((sBea + sInt) * 0.2 + level).round();
-
-    // --- NEW MECHANICS ---
-
-    // Speed: Reduces cooldowns.
     cooldownReduction = 1.0 + (statSpeed * 0.12);
-
-    // Intelligence: Critical Hit Chance.
-    // CHANGED: Moved from Beauty. "Precision" logic.
-    // 5.0 Int = ~25% Crit Chance.
     critChance = (statIntelligence / 20.0).clamp(0.0, 0.40);
 
-    // Intelligence: Attack Range.
-    // CHANGED: Intelligence directly scales range.
-    // 0.2 Int (Dumb) = ~160 Range (Melee)
-    // 5.0 Int (Smart) = ~500 Range (Sniper)
     attackRange = 150.0 + (statIntelligence * 70.0);
+
+    specialAbilityRange = attackRange * _getSpecialRangeMultiplier(family);
+  }
+
+  double _getSpecialRangeMultiplier(String family) {
+    switch (family.toLowerCase()) {
+      case 'let':
+        return 1.0; // Meteor has longer range
+      case 'wing':
+        return 2.0; // Beam reaches far
+      case 'mask':
+        return 1.0; // Traps are long-range
+      case 'kin':
+        return 2.0; // Blessing has huge range
+      case 'horn':
+        return 0.6; // Nova is melee-range only
+      case 'mane':
+        return 1.5; // Barrage slightly shorter
+      case 'pip':
+        return 1.0; // Same as basic
+      case 'mystic':
+        return 1.0; // Same as basic
+      default:
+        return 1.0;
+    }
   }
 
   bool get isAlive => currentHp > 0;

@@ -19,9 +19,51 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
-// ... [SurvivalAttackManager and performBasic remain unchanged] ...
-// Copy the top part of your file down to 'class LetMeteorMechanic'
-// I will rewrite the Mechanic classes below to include the new logic.
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GLOBAL DAMAGE CALCULATOR
+// ═══════════════════════════════════════════════════════════════════════════════
+double calcDmg(HoardGuardian att, HoardEnemy? def) {
+  final defUnit =
+      def?.unit ??
+      SurvivalUnit(
+        id: 'dummy',
+        name: 'dummy',
+        types: [],
+        family: '',
+        level: 1,
+        statSpeed: 1,
+        statIntelligence: 1,
+        statStrength: 1,
+        statBeauty: 1,
+      );
+
+  final dmg = SurvivalCombat.computeHitDamage(
+    SurvivalAttackContext(
+      attacker: att.unit,
+      defender: defUnit,
+      damageKind: SurvivalDamageKind.elemental,
+      isSpecial: true,
+    ),
+  ).toDouble();
+
+  // 🧪 DAMAGE DEBUG
+  print('''
+[DMG DEBUG]
+  Wave: ${att.game.currentWave}
+  Attacker: ${att.unit.id} (${att.unit.family})
+    HP: ${att.unit.currentHp}/${att.unit.maxHp}
+    physAtk: ${att.unit.physAtk}, elemAtk: ${att.unit.elemAtk}
+  Target: ${defUnit.name} (tier: ${def?.template.tier.tier ?? '-'} wave: ${def?.gameRef.currentWave ?? '-'})
+    HP: ${defUnit.currentHp}/${defUnit.maxHp}
+  BaseHit: $dmg
+''');
+
+  return dmg;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SURVIVAL ATTACK MANAGER
+// ═══════════════════════════════════════════════════════════════════════════════
 
 class SurvivalAttackManager {
   static void triggerScreenShake(SurvivalHoardGame game, double intensity) {
@@ -46,8 +88,10 @@ class SurvivalAttackManager {
     if (target == null &&
         family != 'Horn' &&
         family != 'Mask' &&
-        family != 'Kin')
+        family != 'Kin' &&
+        family != 'Mystic') {
       return;
+    }
 
     switch (family) {
       case 'Let':
@@ -57,13 +101,13 @@ class SurvivalAttackManager {
         PipRicochetMechanic.execute(game, attacker, target!, element);
         break;
       case 'Mane':
-        ManeHazardMechanic.execute(game, attacker, target, element);
+        ManeBarrageMechanic.execute(game, attacker, target, element);
         break;
       case 'Horn':
         HornNovaMechanic.execute(game, attacker, target, element);
         break;
       case 'Mask':
-        MaskVoidMechanic.execute(game, attacker, target, element);
+        MaskTrapMechanic.execute(game, attacker, target, element);
         break;
       case 'Wing':
         WingPierceMechanic.execute(game, attacker, target!, element);
@@ -88,8 +132,9 @@ class SurvivalAttackManager {
   }) {
     final element = attacker.unit.types.firstOrNull ?? 'Normal';
     double speed = 1.0;
-    if (attacker.unit.family == 'Wing' || attacker.unit.family == 'Pip')
+    if (attacker.unit.family == 'Wing' || attacker.unit.family == 'Pip') {
       speed = 1.4;
+    }
     if (attacker.unit.family == 'Horn') speed = 0.8;
 
     _fireProjectile(
@@ -179,6 +224,18 @@ class SurvivalAttackManager {
         isSpecial: damageMult > 1.0,
       ),
     );
+
+    // 💥 BASIC ATTACK DEBUG
+    print('''
+[BASIC ATTACK]
+  Wave: ${game.currentWave}
+  Attacker: ${attacker.unit.id} (${attacker.unit.family})
+  Element: $element  damageMult: $damageMult
+  RawHit: $damage  Final: ${(damage * damageMult).round()}
+  Target: ${target.unit.name}
+    HP: ${target.unit.currentHp}/${target.unit.maxHp}
+''');
+
     final color = getElementColor(element);
     final shape = overrideShape ?? _getShapeForElement(element);
 
@@ -197,38 +254,44 @@ class SurvivalAttackManager {
     );
   }
 
-  // [Copy _getElementColor and _getShapeForElement from previous file]
   static Color getElementColor(String element) {
     switch (element) {
       case 'Fire':
+        return Colors.deepOrange;
       case 'Lava':
+        return Colors.orange.shade800;
       case 'Blood':
-        return Colors.deepOrangeAccent;
+        return Colors.red.shade700;
       case 'Water':
+        return Colors.blueAccent;
       case 'Ice':
-      case 'Steam':
         return Colors.cyanAccent;
+      case 'Steam':
+        return Colors.blueGrey.shade300;
       case 'Earth':
-      case 'Mud':
-      case 'Dust':
         return Colors.brown;
+      case 'Mud':
+        return Colors.brown.shade600;
+      case 'Dust':
+        return Colors.amber.shade300;
       case 'Air':
-        return Colors.lightBlueAccent;
+        return Colors.lightBlue.shade200;
       case 'Lightning':
-      case 'Crystal':
         return Colors.yellow;
+      case 'Crystal':
+        return Colors.tealAccent;
       case 'Plant':
-        return Colors.greenAccent;
+        return Colors.green;
       case 'Poison':
-      case 'Dark':
-        return Colors.purpleAccent;
-      case 'Light':
-        return Colors.amber;
+        return Colors.purple;
       case 'Spirit':
-      case 'Mystic':
-        return Colors.indigoAccent;
+        return Colors.indigo;
+      case 'Dark':
+        return Colors.purple.shade900;
+      case 'Light':
+        return Colors.amber.shade100;
       default:
-        return Colors.white;
+        return Colors.grey;
     }
   }
 
@@ -247,115 +310,20 @@ class SurvivalAttackManager {
       case 'Ice':
         return ProjectileShape.blade;
       case 'Spirit':
-      case 'Mystic':
+      case 'Dark':
+      case 'Light':
         return ProjectileShape.star;
+      case 'Crystal':
+        return ProjectileShape.shard;
       default:
         return ProjectileShape.orb;
     }
   }
 }
 
-// ============================================================
-//  REDESIGNED MECHANICS WITH RANK BONUSES
-// ============================================================
-
-class PiercingProjectile extends PositionComponent {
-  final Vector2 start;
-  final Vector2 end;
-  final double speed;
-  final double width;
-  final int damage;
-  final Color color;
-  final SurvivalHoardGame game;
-  final HoardGuardian attacker; // Added attacker reference
-  final int rank; // Added rank
-
-  final Set<HoardEnemy> _hitList = {};
-
-  PiercingProjectile({
-    required this.start,
-    required this.end,
-    required this.speed,
-    required this.width,
-    required this.damage,
-    required this.color,
-    required this.game,
-    required this.attacker,
-    required this.rank,
-  }) : super(position: start, size: Vector2(40, width), anchor: Anchor.center);
-
-  @override
-  Future<void> onLoad() async {
-    final angle = atan2(end.y - start.y, end.x - start.x);
-    this.angle = angle;
-
-    add(
-      RectangleComponent(
-        size: Vector2(60, width),
-        anchor: Anchor.center,
-        paint: Paint()
-          ..color = color
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-      ),
-    );
-
-    add(
-      MoveEffect.to(
-        end,
-        EffectController(
-          duration: start.distanceTo(end) / speed,
-          curve: Curves.linear,
-        ),
-      ),
-    );
-    add(RemoveEffect(delay: start.distanceTo(end) / speed));
-  }
-
-  @override
-  void update(double dt) {
-    super.update(dt);
-    final hitBoxRadius = width / 2 + 10;
-    final victims = game.getEnemiesInRange(position, hitBoxRadius);
-
-    for (var v in victims) {
-      if (!_hitList.contains(v)) {
-        _hitList.add(v);
-        v.takeDamage(damage);
-        ImpactVisuals.play(game, v.position, 'Air', scale: 0.5);
-
-        // RANK 1 BONUS: PRECISION HEAL
-        if (rank >= 1) {
-          attacker.unit.heal((damage * 0.05).toInt().clamp(1, 50));
-        }
-      }
-    }
-  }
-}
-
-// [Include helper methods _calcDmg, ImpactVisuals, OrbitParticle from previous file]
-double calcDmg(HoardGuardian att, HoardEnemy? def) {
-  final defUnit =
-      def?.unit ??
-      SurvivalUnit(
-        id: 'dummy',
-        name: 'dummy',
-        types: [],
-        family: '',
-        level: 1,
-        statSpeed: 1,
-        statIntelligence: 1,
-        statStrength: 1,
-        statBeauty: 1,
-      );
-  return SurvivalCombat.computeHitDamage(
-    SurvivalAttackContext(
-      attacker: att.unit,
-      defender: defUnit,
-      damageKind: SurvivalDamageKind.elemental,
-      isSpecial: true,
-    ),
-  ).toDouble();
-}
+// ═══════════════════════════════════════════════════════════════════════════════
+//  IMPACT VISUALS
+// ═══════════════════════════════════════════════════════════════════════════════
 
 class ImpactVisuals {
   static void playExplosion(
@@ -427,7 +395,144 @@ class ImpactVisuals {
       ),
     );
   }
+
+  static void playHeal(
+    SurvivalHoardGame game,
+    Vector2 pos, {
+    double scale = 1.0,
+  }) {
+    final colors = [Colors.greenAccent, Colors.cyan, Colors.lightGreenAccent];
+    game.world.add(
+      ParticleSystemComponent(
+        particle: Particle.generate(
+          count: 6,
+          lifespan: 0.5,
+          generator: (i) => AcceleratedParticle(
+            speed: Vector2(
+              (Random().nextDouble() - 0.5) * 60,
+              -80 - Random().nextDouble() * 40,
+            ),
+            child: CircleParticle(
+              radius: 3 * scale,
+              paint: Paint()..color = colors[Random().nextInt(colors.length)],
+            ),
+          ),
+        ),
+        position: pos,
+      ),
+    );
+  }
+
+  static void playBeamTrail(
+    SurvivalHoardGame game,
+    Vector2 start,
+    Vector2 end,
+    String element,
+    double width,
+  ) {
+    final color = SurvivalAttackManager.getElementColor(element);
+
+    final dir = end - start;
+    final length = dir.length;
+    if (length == 0) return;
+
+    // Same idea as your debug line, but simpler:
+    final direction = dir.normalized();
+    final angle = Vector2(1, 0).angleToSigned(direction);
+
+    final beam = RectangleComponent(
+      size: Vector2(length, width),
+      position: start.clone(),
+      anchor: Anchor.centerLeft, // same as your debug line
+      angle: angle,
+      paint: Paint()..color = color.withOpacity(0.5),
+    );
+
+    beam.add(OpacityEffect.fadeOut(EffectController(duration: 0.4)));
+    beam.add(RemoveEffect(delay: 0.41));
+    game.world.add(beam);
+  }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PIERCING PROJECTILE (Used by Wing)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class PiercingProjectile extends PositionComponent {
+  final Vector2 start;
+  final Vector2 end;
+  final double speed;
+  final double width;
+  final int damage;
+  final Color color;
+  final SurvivalHoardGame game;
+  final HoardGuardian attacker;
+  final int rank;
+
+  final Set<HoardEnemy> _hitList = {};
+
+  PiercingProjectile({
+    required this.start,
+    required this.end,
+    required this.speed,
+    required this.width,
+    required this.damage,
+    required this.color,
+    required this.game,
+    required this.attacker,
+    required this.rank,
+  }) : super(position: start, size: Vector2(40, width), anchor: Anchor.center);
+
+  @override
+  Future<void> onLoad() async {
+    final angle = atan2(end.y - start.y, end.x - start.x);
+    this.angle = angle;
+
+    add(
+      RectangleComponent(
+        size: Vector2(60, width),
+        anchor: Anchor.center,
+        paint: Paint()
+          ..color = color
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      ),
+    );
+
+    add(
+      MoveEffect.to(
+        end,
+        EffectController(
+          duration: start.distanceTo(end) / speed,
+          curve: Curves.linear,
+        ),
+      ),
+    );
+    add(RemoveEffect(delay: start.distanceTo(end) / speed));
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    final hitBoxRadius = width / 2 + 10;
+    final victims = game.getEnemiesInRange(position, hitBoxRadius);
+
+    for (var v in victims) {
+      if (!_hitList.contains(v)) {
+        _hitList.add(v);
+        v.takeDamage(damage);
+        ImpactVisuals.play(game, v.position, 'Air', scale: 0.5);
+
+        if (rank >= 1) {
+          attacker.unit.heal((damage * 0.05).toInt().clamp(1, 50));
+        }
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ORBIT PARTICLE (Used by Mystic)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 class OrbitParticle extends Particle {
   final Particle child;

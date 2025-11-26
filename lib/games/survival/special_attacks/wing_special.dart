@@ -12,6 +12,10 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
+/// WING FAMILY - PIERCE MECHANIC
+/// Fires a fast, piercing beam that hits all enemies in a line
+/// Rank 1+: Elemental effects based on type
+/// Rank 5 (MAX): Devastating wide beam with extended effects
 class WingPierceMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -21,154 +25,164 @@ class WingPierceMechanic {
   ) {
     final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
 
-    double dmgMult = 2.0 + (0.2 * rank);
-    double width = 40.0 + (5.0 * rank);
+    // Base beam parameters scale with rank
+    final baseWidth = 50.0 + rank * 6;
+    final baseRange = 1000.0 + rank * 200;
+    final baseDmg = (calcDmg(attacker, target) * (1.6 + 0.25 * rank)).toInt();
 
-    // Rank 5: Hyper Beam
-    if (rank >= 5) {
-      width = 120.0;
-      dmgMult *= 1.5;
-      SurvivalAttackManager.triggerScreenShake(game, 4.0);
+    // Rank 5: Devastating beam
+    final isDevastating = rank >= 5;
+    final width = isDevastating ? baseWidth * 5.0 : baseWidth;
+    final range = isDevastating ? baseRange * 2.0 : baseRange;
+    final damage = isDevastating ? (baseDmg * 3.4).toInt() : baseDmg;
+
+    // Calculate beam path
+    final direction = (target.position - attacker.position).normalized();
+    final endPos = attacker.position + direction * range;
+
+    // Visual beam effect
+    ImpactVisuals.playBeamTrail(
+      game,
+      attacker.position,
+      endPos,
+      element,
+      width,
+    );
+
+    // Get all enemies in path FIRST
+    final pathVictims = _getEnemiesInPath(
+      game,
+      attacker.position,
+      endPos,
+      width * 0.7,
+    );
+
+    // ✅ ADD THIS: Deal base damage to all enemies in path
+    for (final victim in pathVictims) {
+      victim.takeDamage(damage);
+      ImpactVisuals.play(game, victim.position, element, scale: 0.7);
     }
 
-    final direction = (target.position - attacker.position).normalized();
-    final start = attacker.position.clone();
-    final end = start + (direction * 900);
-    final color = SurvivalAttackManager.getElementColor(element);
-
-    final baseDamage = (calcDmg(attacker, target) * dmgMult).toInt().clamp(
-      1,
-      99999,
-    );
-
-    // Spawn the visual + hit-registration projectile
-    final speed = 1200.0;
-    final travelTime = start.distanceTo(end) / speed;
-
-    final lance = PiercingProjectile(
-      start: start,
-      end: end,
-      speed: speed,
-      width: width,
-      damage: baseDamage,
-      color: color,
+    // Then apply elemental effects
+    _applyElementalPierce(
       game: game,
       attacker: attacker,
-      rank: rank, // still used by projectile for its own logic
+      element: element,
+      rank: rank,
+      victims: pathVictims,
+      damage: damage,
+      startPos: attacker.position,
+      endPos: endPos,
     );
-
-    game.world.add(lance);
-
-    // After the beam has passed, apply the elemental augment along its path
-    Future.delayed(Duration(milliseconds: (travelTime * 1000).round()), () {
-      _applyElementalWingAugment(
-        game: game,
-        attacker: attacker,
-        element: element,
-        rank: rank,
-        start: start,
-        end: end,
-        baseDamage: baseDamage,
-        beamWidth: width,
-      );
-    });
+    //debug dmg
+    print(
+      'Wing Pierce: element=$element rank=$rank victims=${pathVictims.length} damage=$damage',
+    );
   }
 
-  // ─────────────────────────────
-  //  ELEMENT ROUTER
-  // ─────────────────────────────
+  static List<HoardEnemy> _getEnemiesInPath(
+    SurvivalHoardGame game,
+    Vector2 start,
+    Vector2 end,
+    double width,
+  ) {
+    final result = <HoardEnemy>[];
+    final direction = (end - start).normalized();
+    final perpendicular = Vector2(-direction.y, direction.x);
+    final length = start.distanceTo(end);
 
-  static void _applyElementalWingAugment({
+    for (final enemy in game.enemies) {
+      if (enemy.isDead) continue;
+
+      // Project enemy position onto beam line
+      final toEnemy = enemy.position - start;
+      final alongBeam = toEnemy.dot(direction);
+      final perpDist = (toEnemy.dot(perpendicular)).abs();
+
+      if (alongBeam >= 0 && alongBeam <= length && perpDist <= width) {
+        result.add(enemy);
+      }
+    }
+
+    return result;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  ELEMENT ROUTER
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  static void _applyElementalPierce({
     required SurvivalHoardGame game,
     required HoardGuardian attacker,
     required String element,
     required int rank,
-    required Vector2 start,
-    required Vector2 end,
-    required int baseDamage,
-    required double beamWidth,
+    required List<HoardEnemy> victims,
+    required int damage,
+    required Vector2 startPos,
+    required Vector2 endPos,
   }) {
-    // Approximate a “corridor” by sampling along the line
-    final enemiesInCorridor = _sampleEnemiesAlongLine(
-      game: game,
-      start: start,
-      end: end,
-      radius: beamWidth / 2 + 25.0,
-      samples: 6 + rank, // more samples at higher rank
-    );
-
-    if (enemiesInCorridor.isEmpty) return;
-
     switch (element) {
       // 🔥 FIRE / LAVA / BLOOD
       case 'Fire':
-        _fireWing(
-          game,
-          attacker,
-          rank,
-          start,
-          end,
-          beamWidth,
-          enemiesInCorridor,
-        );
+        _firePierce(game, attacker, rank, victims);
         break;
       case 'Lava':
-        _lavaWing(game, attacker, rank, start, end, enemiesInCorridor);
+        _lavaPierce(game, attacker, rank, victims, startPos, endPos);
         break;
       case 'Blood':
-        _bloodWing(game, attacker, rank, enemiesInCorridor, baseDamage);
+        _bloodPierce(game, attacker, rank, victims, damage);
         break;
 
       // 💧 WATER / ICE / STEAM
       case 'Water':
-        _waterWing(game, attacker, rank, start, end, enemiesInCorridor);
+        _waterPierce(game, attacker, rank, victims, startPos);
         break;
       case 'Ice':
-        _iceWing(game, attacker, rank, start, end, enemiesInCorridor);
+        _icePierce(game, attacker, rank, victims);
         break;
       case 'Steam':
-        _steamWing(game, attacker, rank, start, end, enemiesInCorridor);
+        _steamPierce(game, attacker, rank, victims);
         break;
 
       // 🌿 PLANT / POISON
       case 'Plant':
-        _plantWing(game, attacker, rank, start, end);
+        _plantPierce(game, attacker, rank, victims);
         break;
       case 'Poison':
-        _poisonWing(game, attacker, rank, enemiesInCorridor);
+        _poisonPierce(game, attacker, rank, victims);
         break;
 
       // 🌍 EARTH / MUD / CRYSTAL
       case 'Earth':
-        _earthWing(game, attacker, rank, enemiesInCorridor);
+        _earthPierce(game, attacker, rank, victims, damage);
         break;
       case 'Mud':
-        _mudWing(game, attacker, rank, start, end);
+        _mudPierce(game, attacker, rank, victims);
         break;
       case 'Crystal':
-        _crystalWing(game, attacker, rank, start, end, enemiesInCorridor);
+        _crystalPierce(game, attacker, rank, victims, damage);
         break;
 
       // 🌬️ AIR / DUST / LIGHTNING
       case 'Air':
-        _airWing(game, attacker, rank, enemiesInCorridor);
+        _airPierce(game, attacker, rank, victims, startPos);
         break;
       case 'Dust':
-        _dustWing(game, attacker, rank, enemiesInCorridor);
+        _dustPierce(game, attacker, rank, victims);
         break;
       case 'Lightning':
-        _lightningWing(game, attacker, rank, enemiesInCorridor);
+        _lightningPierce(game, attacker, rank, victims, damage);
         break;
 
       // 🌗 SPIRIT / DARK / LIGHT
       case 'Spirit':
-        _spiritWing(game, attacker, rank, start, end, enemiesInCorridor);
+        _spiritPierce(game, attacker, rank, victims, damage);
         break;
       case 'Dark':
-        _darkWing(game, attacker, rank, enemiesInCorridor);
+        _darkPierce(game, attacker, rank, victims, damage);
         break;
       case 'Light':
-        _lightWing(game, attacker, rank, start, end, enemiesInCorridor);
+        _lightPierce(game, attacker, rank, victims);
         break;
 
       default:
@@ -176,589 +190,519 @@ class WingPierceMechanic {
     }
   }
 
-  // Simple corridor sampler: sample points along the beam and union enemy sets
-  static List<HoardEnemy> _sampleEnemiesAlongLine({
-    required SurvivalHoardGame game,
-    required Vector2 start,
-    required Vector2 end,
-    required double radius,
-    required int samples,
-  }) {
-    final result = <HoardEnemy>{};
-    final dir = end - start;
-    for (int i = 0; i <= samples; i++) {
-      final t = i / samples;
-      final pos = start + dir * t;
-      result.addAll(game.getEnemiesInRange(pos, radius));
-    }
-    return result.toList();
-  }
-
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   //  FIRE / LAVA / BLOOD
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Fire Wing – “Flame Line”: leaves a burning line that damages over time
-  static void _fireWing(
+  /// Fire Pierce - Ignites all pierced enemies
+  static void _firePierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 start,
-    Vector2 end,
-    double width,
-    List<HoardEnemy> corridorEnemies,
+    List<HoardEnemy> victims,
   ) {
-    final color = SurvivalAttackManager.getElementColor('Fire');
-    final duration = 3.0 + 0.4 * (rank - 1);
-    final dps = (attacker.unit.statIntelligence * (1.5 + 0.2 * rank))
+    final burnDmg = (attacker.unit.statIntelligence * (2.0 + 0.35 * rank))
         .toInt()
-        .clamp(3, 180);
+        .clamp(3, 120);
 
-    final line = RectangleComponent(
-      size: Vector2(start.distanceTo(end), width * 1.2),
-      position: start,
-      anchor: Anchor.centerLeft,
-      paint: Paint()
-        ..color = color.withOpacity(0.25)
-        ..style = PaintingStyle.fill,
-    );
-
-    line.angle = (end - start).angleToSigned(Vector2(1, 0));
-
-    line.add(
-      TimerComponent(
-        period: 0.5,
-        repeat: true,
-        onTick: () {
-          final victims = _sampleEnemiesAlongLine(
-            game: game,
-            start: start,
-            end: end,
-            radius: width / 2 + 20,
-            samples: 8,
-          );
-          for (final v in victims) {
-            v.takeDamage(dps);
-            ImpactVisuals.play(game, v.position, 'Fire', scale: 0.4);
-          }
-        },
-      ),
-    );
-
-    line.add(RemoveEffect(delay: duration));
-    game.world.add(line);
-  }
-
-  /// Lava Wing – “Magma Impact”: explosion at the end of the beam
-  static void _lavaWing(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 start,
-    Vector2 end,
-    List<HoardEnemy> corridorEnemies,
-  ) {
-    final radius = 110.0 + rank * 10;
-    final dmg = (calcDmg(attacker, null) * (1.2 + 0.2 * rank)).toInt().clamp(
-      10,
-      300,
-    );
-    final victims = game.getEnemiesInRange(end, radius);
     for (final v in victims) {
-      v.takeDamage(dmg);
-      ImpactVisuals.play(game, v.position, 'Lava', scale: 0.9);
-    }
-    ImpactVisuals.playExplosion(game, end, 'Lava', radius);
-  }
-
-  /// Blood Wing – “Hemorrhage Lance”: corridor damage → team lifesteal
-  static void _bloodWing(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    List<HoardEnemy> corridorEnemies,
-    int baseDamage,
-  ) {
-    if (corridorEnemies.isEmpty) return;
-    final total = (baseDamage * corridorEnemies.length);
-    final selfHeal = (total * (0.3 + 0.05 * (rank - 1))).toInt();
-    final teamHeal = (total * 0.25).toInt();
-    attacker.unit.heal(selfHeal);
-    for (final g in game.guardians) {
-      if (!g.isDead && g != attacker) {
-        g.unit.heal((teamHeal / (game.guardians.length - 1)).round());
-      }
-    }
-    ImpactVisuals.play(game, attacker.position, 'Blood', scale: 1.0);
-  }
-
-  // ─────────────────────────────
-  //  WATER / ICE / STEAM
-  // ─────────────────────────────
-
-  /// Water Wing – “Riptide Beam”: heals guardians near the path, nudges enemies
-  static void _waterWing(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 start,
-    Vector2 end,
-    List<HoardEnemy> corridorEnemies,
-  ) {
-    final healEach = (attacker.unit.statIntelligence * (1.6 + 0.2 * rank))
-        .toInt()
-        .clamp(4, 120);
-    final guardians = game.guardians;
-    for (final g in guardians) {
-      if (g.isDead) continue;
-      // rough check: if guardian is somewhat close to the beam line
-      final near = _sampleEnemiesAlongLine(
-        game: game,
-        start: start,
-        end: end,
-        radius: 120,
-        samples: 4,
-      ).map((e) => e.position).any((pos) => g.position.distanceTo(pos) < 90);
-      if (near) {
-        g.unit.heal(healEach);
-        ImpactVisuals.play(game, g.position, 'Water', scale: 0.5);
-      }
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Burn',
+          damagePerTick: burnDmg,
+          ticksRemaining: 4 + rank,
+          tickInterval: 0.5,
+        ),
+      );
+      ImpactVisuals.play(game, v.position, 'Fire', scale: 0.6);
     }
 
-    // small push-back on enemies away from orb
-    for (final v in corridorEnemies) {
-      final pushBack = (v.targetOrb.position - v.position).normalized() * -8.0;
-      v.position += pushBack;
-    }
-  }
-
-  /// Ice Wing – “Frost Line”: enemies along the path are heavily slowed
-  static void _iceWing(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 start,
-    Vector2 end,
-    List<HoardEnemy> corridorEnemies,
-  ) {
-    for (final v in corridorEnemies) {
-      final pushBack = (v.targetOrb.position - v.position).normalized() * -10.0;
-      v.position += pushBack;
-      ImpactVisuals.play(game, v.position, 'Ice', scale: 0.5);
-    }
-  }
-
-  /// Steam Wing – “Fog Beam”: creates a short-lived fog corridor that slows
-  static void _steamWing(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 start,
-    Vector2 end,
-    List<HoardEnemy> corridorEnemies,
-  ) {
-    final color = SurvivalAttackManager.getElementColor('Steam');
-    final width = 120.0 + rank * 10;
-    final duration = 3.5 + 0.4 * (rank - 1);
-
-    final fog = RectangleComponent(
-      size: Vector2(start.distanceTo(end), width),
-      position: start,
-      anchor: Anchor.centerLeft,
-      paint: Paint()
-        ..color = color.withOpacity(0.3)
-        ..style = PaintingStyle.fill,
-    );
-    fog.angle = (end - start).angleToSigned(Vector2(1, 0));
-
-    fog.add(
-      TimerComponent(
-        period: 0.5,
-        repeat: true,
-        onTick: () {
-          final victims = _sampleEnemiesAlongLine(
-            game: game,
-            start: start,
-            end: end,
-            radius: width / 2,
-            samples: 6,
-          );
-          for (final v in victims) {
-            final pushBack =
-                (v.targetOrb.position - v.position).normalized() * -7.0;
-            v.position += pushBack;
+    // Rank 5: Enemies explode on death
+    if (rank >= 5) {
+      for (final v in victims) {
+        if (v.isDead) {
+          final nearby = game.getEnemiesInRange(v.position, 80);
+          for (final n in nearby) {
+            n.takeDamage((burnDmg * 2).toInt());
           }
-        },
-      ),
-    );
-
-    fog.add(RemoveEffect(delay: duration));
-    game.world.add(fog);
+          ImpactVisuals.playExplosion(game, v.position, 'Fire', 80);
+        }
+      }
+    }
   }
 
-  // ─────────────────────────────
-  //  PLANT / POISON
-  // ─────────────────────────────
-
-  /// Plant Wing – “Vine Shot”: leaves thorn patches along the beam
-  static void _plantWing(
+  /// Lava Pierce - Leaves fire trail along beam path
+  static void _lavaPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 start,
-    Vector2 end,
+    List<HoardEnemy> victims,
+    Vector2 startPos,
+    Vector2 endPos,
   ) {
-    final segments = 3 + rank;
-    final color = SurvivalAttackManager.getElementColor('Plant');
-    final dps = (attacker.unit.statIntelligence * (1.6 + 0.2 * rank))
+    final trailDps = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
         .toInt()
-        .clamp(3, 180);
+        .clamp(2, 80);
+    final trailDuration = 2.0 + 0.3 * rank;
 
-    for (int i = 1; i <= segments; i++) {
-      final t = i / (segments + 1);
-      final pos = start + (end - start) * t;
+    // Create fire trail along beam path
+    final direction = (endPos - startPos).normalized();
+    final length = startPos.distanceTo(endPos);
+    final segmentCount = (length / 80).floor();
 
-      final zone = CircleComponent(
-        radius: 60.0 + rank * 4,
-        position: pos,
+    for (int i = 0; i < segmentCount; i++) {
+      final segmentPos = startPos + direction * (i * 80 + 40);
+
+      final fireSegment = CircleComponent(
+        radius: 30,
+        position: segmentPos,
         anchor: Anchor.center,
-        paint: Paint()
-          ..color = color.withOpacity(0.25)
-          ..style = PaintingStyle.fill,
+        paint: Paint()..color = Colors.orange.shade800.withOpacity(0.25),
       );
 
-      zone.add(
+      fireSegment.add(
         TimerComponent(
-          period: 0.6,
+          period: 0.4,
           repeat: true,
           onTick: () {
-            final victims = game.getEnemiesInRange(pos, zone.radius);
-            for (final v in victims) {
-              v.takeDamage(dps);
+            final segVictims = game.getEnemiesInRange(segmentPos, 35);
+            for (final v in segVictims) {
+              v.takeDamage(trailDps);
             }
           },
         ),
       );
 
-      zone.add(RemoveEffect(delay: 4.0));
-      game.world.add(zone);
+      fireSegment.add(RemoveEffect(delay: trailDuration));
+      game.world.add(fireSegment);
     }
   }
 
-  /// Poison Wing – “Toxic Ray”: applies poison DoT to corridor enemies
-  static void _poisonWing(
+  /// Blood Pierce - Heavy lifesteal from all pierced enemies
+  static void _bloodPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    List<HoardEnemy> corridorEnemies,
+    List<HoardEnemy> victims,
+    int damage,
   ) {
-    for (final v in corridorEnemies) {
-      v.unit.applyStatusEffect(
-        SurvivalStatusEffect(
-          type: 'Poison',
-          damagePerTick:
-              (attacker.unit.statIntelligence * (0.8 + 0.15 * rank)).toInt() +
-              2,
-          ticksRemaining: 6 + rank,
-          tickInterval: 0.5,
-        ),
+    int totalDrained = 0;
+
+    for (final v in victims) {
+      final drain = (damage * (0.2 + 0.05 * rank)).toInt();
+      v.takeDamage(drain);
+      totalDrained += drain;
+    }
+
+    // Heal self
+    attacker.unit.heal((totalDrained * 0.5).toInt());
+    ImpactVisuals.playHeal(game, attacker.position, scale: 0.8);
+
+    // Heal orb
+    game.orb.heal((totalDrained * 0.25).toInt());
+
+    // Rank 5: Also heal nearby allies
+    if (rank >= 5) {
+      final allies = game.getGuardiansInRange(
+        center: attacker.position,
+        range: 200,
       );
-      ImpactVisuals.play(game, v.position, 'Poison', scale: 0.5);
+      for (final g in allies) {
+        if (g != attacker) {
+          g.unit.heal((totalDrained * 0.1).toInt());
+        }
+      }
     }
   }
 
-  // ─────────────────────────────
-  //  EARTH / MUD / CRYSTAL
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  WATER / ICE / STEAM
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Earth Wing – “Stone Lance”: extra knockback + small shield for attacker
-  static void _earthWing(
+  /// Water Pierce - Pushes enemies along beam direction
+  static void _waterPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    List<HoardEnemy> corridorEnemies,
+    List<HoardEnemy> victims,
+    Vector2 startPos,
   ) {
-    for (final v in corridorEnemies) {
-      final dir = (v.position - attacker.position).normalized();
+    for (final v in victims) {
+      final pushDir = (v.position - startPos).normalized();
       v.add(
         MoveEffect.by(
-          dir * (60.0 + rank * 10.0),
+          pushDir * (40.0 + 10.0 * rank),
           EffectController(duration: 0.2, curve: Curves.easeOut),
         ),
       );
     }
 
-    final shield = (attacker.unit.maxHp * (0.06 + 0.02 * (rank - 1)))
+    // Heal attacker
+    final healAmount = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
         .toInt()
-        .clamp(10, 300);
-    attacker.unit.heal(shield);
-    ImpactVisuals.play(game, attacker.position, 'Earth', scale: 0.9);
+        .clamp(3, 60);
+    attacker.unit.heal(healAmount * victims.length.clamp(1, 5));
   }
 
-  /// Mud Wing – “Gutter Beam”: leaves a sticky slow line
-  static void _mudWing(
+  /// Ice Pierce - Freezing ray that slows/freezes
+  static void _icePierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 start,
-    Vector2 end,
+    List<HoardEnemy> victims,
   ) {
-    final color = SurvivalAttackManager.getElementColor('Mud');
-    final width = 120.0;
-    final duration = 4.5 + 0.4 * (rank - 1);
+    final slowStrength = 15.0 + 3.0 * rank;
 
-    final gutter = RectangleComponent(
-      size: Vector2(start.distanceTo(end), width),
-      position: start,
-      anchor: Anchor.centerLeft,
-      paint: Paint()
-        ..color = color.withOpacity(0.35)
-        ..style = PaintingStyle.fill,
-    );
-    gutter.angle = (end - start).angleToSigned(Vector2(1, 0));
+    for (final v in victims) {
+      // Push back (slow effect)
+      final pushBack =
+          (v.targetOrb.position - v.position).normalized() * -slowStrength;
+      v.position += pushBack;
+      ImpactVisuals.play(game, v.position, 'Ice', scale: 0.5);
+    }
 
-    gutter.add(
-      TimerComponent(
-        period: 0.4,
-        repeat: true,
-        onTick: () {
-          final victims = _sampleEnemiesAlongLine(
-            game: game,
-            start: start,
-            end: end,
-            radius: width / 2,
-            samples: 6,
-          );
-          for (final v in victims) {
-            final pushBack =
-                (v.targetOrb.position - v.position).normalized() * -10.0;
-            v.position += pushBack;
-          }
-        },
-      ),
-    );
-
-    gutter.add(RemoveEffect(delay: duration));
-    game.world.add(gutter);
+    // Rank 5: Freeze first enemy hit
+    if (rank >= 5 && victims.isNotEmpty) {
+      victims.first.add(
+        MoveEffect.by(Vector2.zero(), EffectController(duration: 1.5)),
+      );
+    }
   }
 
-  /// Crystal Wing – “Prism Ray”: spawns shard bolts from enemies hit
-  static void _crystalWing(
+  /// Steam Pierce - Scalding beam with splash damage
+  static void _steamPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 start,
-    Vector2 end,
-    List<HoardEnemy> corridorEnemies,
+    List<HoardEnemy> victims,
   ) {
-    final color = SurvivalAttackManager.getElementColor('Crystal');
-    final rng = Random();
+    final splashDmg = (attacker.unit.statIntelligence * (0.8 + 0.15 * rank))
+        .toInt()
+        .clamp(2, 60);
 
-    for (final src in corridorEnemies) {
+    for (final v in victims) {
+      // Splash to nearby
       final nearby = game
-          .getEnemiesInRange(src.position, 220)
-          .where((e) => e != src);
-      final list = nearby.toList();
-      if (list.isEmpty) continue;
-
-      final count = min(1 + rank, list.length);
-      for (int i = 0; i < count; i++) {
-        final target = list[rng.nextInt(list.length)];
-        final dmg = (calcDmg(attacker, target) * (0.7 + 0.1 * rank))
-            .toInt()
-            .clamp(4, 150);
-
-        game.spawnAlchemyProjectile(
-          start: src.position,
-          target: target,
-          damage: dmg,
-          color: color,
-          shape: ProjectileShape.shard,
-          speed: 2.6,
-          isEnemy: false,
-          onHit: () {
-            target.takeDamage(dmg);
-            ImpactVisuals.play(game, target.position, 'Crystal', scale: 0.6);
-          },
-        );
+          .getEnemiesInRange(v.position, 60)
+          .where((e) => !victims.contains(e));
+      for (final n in nearby) {
+        n.takeDamage(splashDmg);
+        ImpactVisuals.play(game, n.position, 'Steam', scale: 0.4);
       }
     }
   }
 
-  // ─────────────────────────────
-  //  AIR / DUST / LIGHTNING
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  PLANT / POISON
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Air Wing – “Gale Lance”: blows enemies away from the orb strongly
-  static void _airWing(
+  /// Plant Pierce - Thorn lance with DoT
+  static void _plantPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    List<HoardEnemy> corridorEnemies,
+    List<HoardEnemy> victims,
   ) {
-    for (final v in corridorEnemies) {
-      final dir = (v.position - game.orb.position).normalized();
-      v.add(
-        MoveEffect.by(
-          dir * (150.0 + 20.0 * rank),
-          EffectController(duration: 0.25, curve: Curves.easeOut),
+    final thornDmg = (attacker.unit.statIntelligence * (0.8 + 0.15 * rank))
+        .toInt()
+        .clamp(2, 60);
+
+    for (final v in victims) {
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Thorns',
+          damagePerTick: thornDmg,
+          ticksRemaining: 5 + rank,
+          tickInterval: 0.4,
         ),
       );
     }
-    SurvivalAttackManager.triggerScreenShake(game, 2.0 + rank * 0.4);
   }
 
-  /// Dust Wing – “Sandline”: confuse + jitter enemies along path
-  static void _dustWing(
+  /// Poison Pierce - Toxic beam that spreads poison
+  static void _poisonPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    List<HoardEnemy> corridorEnemies,
+    List<HoardEnemy> victims,
   ) {
-    final rng = Random();
-    for (final v in corridorEnemies) {
-      final offset = Vector2(
-        (rng.nextDouble() - 0.5) * (20 + 3 * rank),
-        (rng.nextDouble() - 0.5) * (20 + 3 * rank),
+    final poisonDmg = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
+        .toInt()
+        .clamp(2, 80);
+
+    for (final v in victims) {
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Poison',
+          damagePerTick: poisonDmg,
+          ticksRemaining: 8 + rank,
+          tickInterval: 0.4,
+        ),
       );
-      v.position += offset;
+
+      // Spread to nearby
+      if (rank >= 3) {
+        final nearby = game
+            .getEnemiesInRange(v.position, 80)
+            .where((e) => !victims.contains(e))
+            .take(2);
+        for (final n in nearby) {
+          n.unit.applyStatusEffect(
+            SurvivalStatusEffect(
+              type: 'Poison',
+              damagePerTick: (poisonDmg * 0.5).toInt(),
+              ticksRemaining: 4,
+              tickInterval: 0.5,
+            ),
+          );
+        }
+      }
     }
   }
 
-  /// Lightning Wing – “Railstorm”: small chains from each hit enemy
-  static void _lightningWing(
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  EARTH / MUD / CRYSTAL
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Earth Pierce - Heavy impact with armor shred
+  static void _earthPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    List<HoardEnemy> corridorEnemies,
+    List<HoardEnemy> victims,
+    int damage,
   ) {
+    final bonusDmg = (damage * (0.2 + 0.05 * rank)).toInt();
+
+    for (final v in victims) {
+      v.takeDamage(bonusDmg);
+      v.unit.applyStatModifier(
+        SurvivalStatModifier(
+          type: 'defense_down',
+          remainingSeconds: 3.0 + 0.5 * rank,
+        ),
+      );
+      ImpactVisuals.play(game, v.position, 'Earth', scale: 0.6);
+    }
+
+    // Shield self
+    final shieldAmount = (attacker.unit.maxHp * (0.05 + 0.02 * rank)).toInt();
+    attacker.unit.shieldHp = (attacker.unit.shieldHp ?? 0) + shieldAmount;
+  }
+
+  /// Mud Pierce - Sticky beam that heavily slows
+  static void _mudPierce(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    List<HoardEnemy> victims,
+  ) {
+    final slowStrength = 25.0 + 5.0 * rank;
+
+    for (final v in victims) {
+      final pushBack =
+          (v.targetOrb.position - v.position).normalized() * -slowStrength;
+      v.position += pushBack;
+    }
+  }
+
+  /// Crystal Pierce - Shatters on each hit, spawning shards
+  static void _crystalPierce(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    List<HoardEnemy> victims,
+    int damage,
+  ) {
+    final shardDmg = (damage * (0.3 + 0.06 * rank)).toInt();
     final rng = Random();
-    final maxChains = 1 + rank;
 
-    for (final src in corridorEnemies) {
+    for (final v in victims) {
+      // Spawn shards to nearby enemies
       final nearby = game
-          .getEnemiesInRange(src.position, 220)
-          .where((e) => e != src);
-      final list = nearby.toList();
-      if (list.isEmpty) continue;
+          .getEnemiesInRange(v.position, 200)
+          .where((e) => !victims.contains(e))
+          .toList();
 
-      final chains = min(maxChains, list.length);
-      for (int i = 0; i < chains; i++) {
-        final target = list[rng.nextInt(list.length)];
-        final dmg = (calcDmg(attacker, target) * (0.6 + 0.1 * rank))
-            .toInt()
-            .clamp(4, 150);
+      final shardCount = min(2 + (rank ~/ 2), nearby.length);
+      for (int i = 0; i < shardCount; i++) {
+        if (nearby.isEmpty) break;
+        final target = nearby[rng.nextInt(nearby.length)];
 
         game.spawnAlchemyProjectile(
-          start: src.position,
+          start: v.position,
           target: target,
-          damage: dmg,
-          color: SurvivalAttackManager.getElementColor('Lightning'),
-          shape: ProjectileShape.bolt,
-          speed: 3.2,
+          damage: shardDmg,
+          color: Colors.tealAccent,
+          shape: ProjectileShape.shard,
+          speed: 3.0,
           isEnemy: false,
           onHit: () {
-            target.takeDamage(dmg);
-            ImpactVisuals.play(game, target.position, 'Lightning', scale: 0.7);
+            target.takeDamage(shardDmg);
+            ImpactVisuals.play(game, target.position, 'Crystal', scale: 0.4);
           },
         );
       }
     }
   }
 
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  AIR / DUST / LIGHTNING
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Air Pierce - Sonic boom with heavy knockback
+  static void _airPierce(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    List<HoardEnemy> victims,
+    Vector2 startPos,
+  ) {
+    for (final v in victims) {
+      final dir = (v.position - startPos).normalized();
+      v.add(
+        MoveEffect.by(
+          dir * (80.0 + 20.0 * rank),
+          EffectController(duration: 0.2, curve: Curves.easeOut),
+        ),
+      );
+    }
+
+    SurvivalAttackManager.triggerScreenShake(game, 3.0 + rank * 0.5);
+  }
+
+  /// Dust Pierce - Blinding ray
+  static void _dustPierce(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    List<HoardEnemy> victims,
+  ) {
+    final rng = Random();
+
+    for (final v in victims) {
+      // Confusion
+      final jitter = Vector2(
+        (rng.nextDouble() - 0.5) * (30 + 6 * rank),
+        (rng.nextDouble() - 0.5) * (30 + 6 * rank),
+      );
+      v.position += jitter;
+    }
+  }
+
+  /// Lightning Pierce - Chain lightning from each pierced enemy
+  static void _lightningPierce(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    List<HoardEnemy> victims,
+    int damage,
+  ) {
+    final chainDmg = (damage * (0.4 + 0.08 * rank)).toInt();
+    final rng = Random();
+
+    for (final v in victims) {
+      final nearby = game
+          .getEnemiesInRange(v.position, 180)
+          .where((e) => e != v && !victims.contains(e))
+          .toList();
+
+      final chainCount = min(1 + (rank ~/ 2), nearby.length);
+      for (int i = 0; i < chainCount; i++) {
+        if (nearby.isEmpty) break;
+        final target = nearby[rng.nextInt(nearby.length)];
+
+        game.spawnAlchemyProjectile(
+          start: v.position,
+          target: target,
+          damage: chainDmg,
+          color: Colors.yellow,
+          shape: ProjectileShape.bolt,
+          speed: 4.5,
+          isEnemy: false,
+          onHit: () {
+            target.takeDamage(chainDmg);
+            ImpactVisuals.play(game, target.position, 'Lightning', scale: 0.6);
+          },
+        );
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   //  SPIRIT / DARK / LIGHT
-  // ─────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Spirit Wing – “Phantom Trace”: delayed ghost explosions along the path
-  static void _spiritWing(
+  /// Spirit Pierce - Draining beam
+  static void _spiritPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 start,
-    Vector2 end,
-    List<HoardEnemy> corridorEnemies,
+    List<HoardEnemy> victims,
+    int damage,
   ) {
-    final delayMs = (500 - 40 * (rank - 1)).clamp(200, 500);
-    final radius = 70.0 + rank * 6;
-    final dmg = (calcDmg(attacker, null) * (0.7 + 0.15 * rank)).toInt().clamp(
-      5,
-      180,
-    );
+    int totalDrained = 0;
 
-    Future.delayed(Duration(milliseconds: delayMs), () {
-      final victims = _sampleEnemiesAlongLine(
-        game: game,
-        start: start,
-        end: end,
-        radius: radius,
-        samples: 6,
-      );
-      for (final v in victims) {
-        v.takeDamage(dmg);
-        ImpactVisuals.play(game, v.position, 'Spirit', scale: 0.8);
+    for (final v in victims) {
+      final drain = (damage * (0.25 + 0.05 * rank)).toInt();
+      v.takeDamage(drain);
+      totalDrained += drain;
+      ImpactVisuals.play(game, v.position, 'Spirit', scale: 0.6);
+    }
+
+    // Heal self
+    attacker.unit.heal((totalDrained * 0.4).toInt());
+  }
+
+  /// Dark Pierce - Executes low HP enemies along path
+  static void _darkPierce(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    List<HoardEnemy> victims,
+    int damage,
+  ) {
+    final executeThreshold = 0.2 + 0.05 * rank;
+    final bonusDmg = (damage * (0.5 + 0.1 * rank)).toInt();
+
+    for (final v in victims) {
+      if (!v.isBoss && v.unit.hpPercent < executeThreshold) {
+        v.takeDamage(99999);
+        ImpactVisuals.play(game, v.position, 'Dark', scale: 1.2);
+      } else if (v.unit.hpPercent < 0.5) {
+        v.takeDamage(bonusDmg);
+        ImpactVisuals.play(game, v.position, 'Dark', scale: 0.7);
       }
-    });
-  }
-
-  /// Dark Wing – “Umbral Beam”: extra chip + self lifesteal
-  static void _darkWing(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    List<HoardEnemy> corridorEnemies,
-  ) {
-    int total = 0;
-    final dmgFactor = (0.5 + 0.1 * rank);
-    for (final v in corridorEnemies) {
-      final dmg = (calcDmg(attacker, v) * dmgFactor).toInt().clamp(4, 150);
-      v.takeDamage(dmg);
-      total += dmg;
-      ImpactVisuals.play(game, v.position, 'Dark', scale: 0.7);
-    }
-    if (total > 0) {
-      attacker.unit.heal((total * (0.3 + 0.05 * rank)).toInt());
     }
   }
 
-  /// Light Wing – “Radiant Beam”: buffs allies near the line & scorches enemies
-  static void _lightWing(
+  /// Light Pierce - Holy ray that heals allies along path
+  static void _lightPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 start,
-    Vector2 end,
-    List<HoardEnemy> corridorEnemies,
+    List<HoardEnemy> victims,
   ) {
-    final guardians = game.guardians;
-    final healEach = (attacker.unit.statIntelligence * (1.4 + 0.2 * rank))
+    final healAmount = (attacker.unit.statIntelligence * (2.0 + 0.4 * rank))
         .toInt()
-        .clamp(4, 140);
+        .clamp(5, 120);
 
-    for (final g in guardians) {
-      if (g.isDead) continue;
-      final distToLine = _distanceToSegment(g.position, start, end);
-      if (distToLine <= 140) {
-        g.unit.heal(healEach);
-        ImpactVisuals.play(game, g.position, 'Light', scale: 0.6);
+    // Heal all guardians
+    for (final g in game.guardians) {
+      if (!g.isDead) {
+        g.unit.heal(healAmount);
+        ImpactVisuals.playHeal(game, g.position, scale: 0.5);
       }
     }
 
-    for (final v in corridorEnemies) {
-      final dmg = (calcDmg(attacker, v) * (0.8 + 0.1 * rank)).toInt().clamp(
-        4,
-        150,
-      );
-      v.takeDamage(dmg);
+    // Extra damage visual
+    for (final v in victims) {
       ImpactVisuals.play(game, v.position, 'Light', scale: 0.8);
     }
-  }
 
-  // Helper for approximate distance from point to segment (for Light buff)
-  static double _distanceToSegment(Vector2 p, Vector2 a, Vector2 b) {
-    final ab = b - a;
-    final t = ((p - a).dot(ab) / ab.length2).clamp(0.0, 1.0);
-    final proj = a + ab * t;
-    return p.distanceTo(proj);
+    // Rank 5: Heal orb
+    if (rank >= 5) {
+      game.orb.heal((healAmount * 0.5).toInt());
+    }
   }
 }

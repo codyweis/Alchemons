@@ -12,990 +12,930 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
-/// Rank 1+: Elemental pull + unique detonation per element
-/// Rank 5 (MAX): Strongest version (Dark gets execute-style finisher)
-class MaskVoidMechanic {
+/// MASK FAMILY - TRAP FIELD MECHANIC
+/// Deploy strategic elemental traps that trigger on enemy contact
+/// Rank 1+: Elemental trap effects
+/// Rank 5 (MAX): Interconnected trap grid with devastating effects
+class MaskTrapMechanic {
   static void execute(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     HoardEnemy? target,
     String element,
   ) {
-    final center =
-        target?.position.clone() ?? attacker.position + Vector2(100, 0);
     final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
-
-    double radius = 150.0 + (15.0 * rank);
-    double pullStrength = 5.0 + rank * 1.5;
-    double duration = 1.5 + 0.2 * rank;
-
     final color = SurvivalAttackManager.getElementColor(element);
 
-    final voidZone = CircleComponent(
-      radius: 5,
-      position: center,
+    // Base trap parameters
+    final baseTrapCount = 2 + rank;
+    final trapRadius = 60.0 + rank * 8;
+    final trapDuration = 8.0 + rank * 1.5;
+
+    // Rank 5: Grid formation
+    final isGrid = rank >= 5;
+    final trapCount = isGrid ? baseTrapCount * 2 : baseTrapCount;
+
+    // Deploy traps in strategic positions
+    final deployPos = target?.position ?? (attacker.position + Vector2(150, 0));
+
+    if (isGrid) {
+      // Grid formation for rank 5
+      _deployTrapGrid(
+        game: game,
+        attacker: attacker,
+        element: element,
+        rank: rank,
+        center: deployPos,
+        count: trapCount,
+        radius: trapRadius,
+        duration: trapDuration,
+        color: color,
+      );
+    } else {
+      // Spread formation
+      _deployTrapSpread(
+        game: game,
+        attacker: attacker,
+        element: element,
+        rank: rank,
+        center: deployPos,
+        count: trapCount,
+        radius: trapRadius,
+        duration: trapDuration,
+        color: color,
+      );
+    }
+  }
+
+  static void _deployTrapSpread({
+    required SurvivalHoardGame game,
+    required HoardGuardian attacker,
+    required String element,
+    required int rank,
+    required Vector2 center,
+    required int count,
+    required double radius,
+    required double duration,
+    required Color color,
+  }) {
+    for (int i = 0; i < count; i++) {
+      final angle = (2 * pi * i) / count;
+      final offset = Vector2(cos(angle), sin(angle)) * (120 + rank * 20);
+      final trapPos = center + offset;
+
+      _createTrap(
+        game: game,
+        attacker: attacker,
+        element: element,
+        rank: rank,
+        position: trapPos,
+        radius: radius,
+        duration: duration,
+        color: color,
+      );
+    }
+  }
+
+  static void _deployTrapGrid({
+    required SurvivalHoardGame game,
+    required HoardGuardian attacker,
+    required String element,
+    required int rank,
+    required Vector2 center,
+    required int count,
+    required double radius,
+    required double duration,
+    required Color color,
+  }) {
+    final gridSize = sqrt(count).ceil();
+    final spacing = 140.0;
+    final offset = (gridSize - 1) * spacing / 2;
+
+    int placed = 0;
+    for (int x = 0; x < gridSize && placed < count; x++) {
+      for (int y = 0; y < gridSize && placed < count; y++) {
+        final trapPos =
+            center + Vector2(x * spacing - offset, y * spacing - offset);
+
+        _createTrap(
+          game: game,
+          attacker: attacker,
+          element: element,
+          rank: rank,
+          position: trapPos,
+          radius: radius,
+          duration: duration,
+          color: color,
+        );
+        placed++;
+      }
+    }
+  }
+
+  static void _createTrap({
+    required SurvivalHoardGame game,
+    required HoardGuardian attacker,
+    required String element,
+    required int rank,
+    required Vector2 position,
+    required double radius,
+    required double duration,
+    required Color color,
+  }) {
+    final trap = CircleComponent(
+      radius: radius,
+      position: position,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.black
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+        ..color = color.withOpacity(0.3)
+        ..style = PaintingStyle.fill,
     );
 
-    // Visual growth + pulse
-    final endScale = 4.0 + rank * 0.4;
-    voidZone.add(
-      ScaleEffect.to(Vector2.all(endScale), EffectController(duration: 0.25)),
-    );
-    voidZone.add(
-      SequenceEffect([
-        ScaleEffect.by(
-          Vector2.all(0.9),
-          EffectController(duration: 0.5, alternate: true, repeatCount: 3),
-        ),
-        RemoveEffect(delay: duration),
-      ]),
+    // Visual ring
+    trap.add(
+      CircleComponent(
+        radius: radius,
+        anchor: Anchor.center,
+        position: Vector2(radius, radius),
+        paint: Paint()
+          ..color = color.withOpacity(0.6)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      ),
     );
 
-    game.world.add(voidZone);
+    bool hasTriggered = false;
 
-    // Core pull + elemental tick
-    voidZone.add(
+    // Check for enemy contact
+    trap.add(
       TimerComponent(
         period: 0.1,
         repeat: true,
         onTick: () {
-          // if removed early, bail
-          if (voidZone.parent == null) return;
+          if (hasTriggered) return;
 
-          final victims = game.getEnemiesInRange(center, radius);
-          for (final v in victims) {
-            final pull = (center - v.position).normalized() * pullStrength;
-            v.position += pull;
-
-            _applyElementalMaskTick(
+          final victims = game.getEnemiesInRange(position, radius);
+          if (victims.isNotEmpty) {
+            hasTriggered = true;
+            _triggerTrap(
               game: game,
               attacker: attacker,
               element: element,
               rank: rank,
-              center: center,
-              enemy: v,
+              position: position,
+              radius: radius,
+              victims: victims,
+            );
+            trap.removeFromParent();
+          }
+        },
+      ),
+    );
+
+    // Fade and remove after duration
+    trap.add(
+      SequenceEffect([
+        OpacityEffect.to(0.2, EffectController(duration: duration * 0.7)),
+        OpacityEffect.fadeOut(EffectController(duration: duration * 0.3)),
+        RemoveEffect(),
+      ]),
+    );
+
+    game.world.add(trap);
+  }
+
+  static void _triggerTrap({
+    required SurvivalHoardGame game,
+    required HoardGuardian attacker,
+    required String element,
+    required int rank,
+    required Vector2 position,
+    required double radius,
+    required List<HoardEnemy> victims,
+  }) {
+    // Base damage
+    final baseDmg = (calcDmg(attacker, null) * (1.4 + 0.25 * rank)).toInt();
+
+    for (final v in victims) {
+      v.takeDamage(baseDmg);
+      ImpactVisuals.play(game, v.position, element, scale: 0.9);
+    }
+
+    // Apply elemental effect
+    _applyElementalTrap(
+      game: game,
+      attacker: attacker,
+      element: element,
+      rank: rank,
+      position: position,
+      radius: radius,
+      victims: victims,
+      baseDamage: baseDmg,
+    );
+
+    // Visual explosion
+    ImpactVisuals.playExplosion(game, position, element, radius);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  ELEMENT ROUTER
+  // ═══════════════════════════════════════════════════════════════════════
+
+  static void _applyElementalTrap({
+    required SurvivalHoardGame game,
+    required HoardGuardian attacker,
+    required String element,
+    required int rank,
+    required Vector2 position,
+    required double radius,
+    required List<HoardEnemy> victims,
+    required int baseDamage,
+  }) {
+    switch (element) {
+      // 🔥 FIRE / LAVA / BLOOD
+      case 'Fire':
+        _fireTrap(game, attacker, rank, position, radius, victims);
+        break;
+      case 'Lava':
+        _lavaTrap(game, attacker, rank, position, radius, victims);
+        break;
+      case 'Blood':
+        _bloodTrap(game, attacker, rank, position, victims, baseDamage);
+        break;
+
+      // 💧 WATER / ICE / STEAM
+      case 'Water':
+        _waterTrap(game, attacker, rank, position, radius, victims);
+        break;
+      case 'Ice':
+        _iceTrap(game, attacker, rank, position, radius, victims);
+        break;
+      case 'Steam':
+        _steamTrap(game, attacker, rank, position, radius, victims);
+        break;
+
+      // 🌿 PLANT / POISON
+      case 'Plant':
+        _plantTrap(game, attacker, rank, position, radius, victims);
+        break;
+      case 'Poison':
+        _poisonTrap(game, attacker, rank, position, victims);
+        break;
+
+      // 🌍 EARTH / MUD / CRYSTAL
+      case 'Earth':
+        _earthTrap(game, attacker, rank, position, radius, victims);
+        break;
+      case 'Mud':
+        _mudTrap(game, attacker, rank, position, radius, victims);
+        break;
+      case 'Crystal':
+        _crystalTrap(game, attacker, rank, position, victims, baseDamage);
+        break;
+
+      // 🌬️ AIR / DUST / LIGHTNING
+      case 'Air':
+        _airTrap(game, attacker, rank, position, victims);
+        break;
+      case 'Dust':
+        _dustTrap(game, attacker, rank, position, victims);
+        break;
+      case 'Lightning':
+        _lightningTrap(game, attacker, rank, position, victims, baseDamage);
+        break;
+
+      // 🌗 SPIRIT / DARK / LIGHT
+      case 'Spirit':
+        _spiritTrap(game, attacker, rank, position, victims, baseDamage);
+        break;
+      case 'Dark':
+        _darkTrap(game, attacker, rank, position, victims);
+        break;
+      case 'Light':
+        _lightTrap(game, attacker, rank, position, radius);
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  FIRE / LAVA / BLOOD
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Fire Trap - Ignites and leaves burning zone
+  static void _fireTrap(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 position,
+    double radius,
+    List<HoardEnemy> victims,
+  ) {
+    final burnDmg = (attacker.unit.statIntelligence * (1.5 + 0.3 * rank))
+        .toInt()
+        .clamp(3, 100);
+
+    for (final v in victims) {
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Burn',
+          damagePerTick: burnDmg,
+          ticksRemaining: 5 + rank,
+          tickInterval: 0.5,
+        ),
+      );
+    }
+
+    // Leave fire zone
+    final fireZone = CircleComponent(
+      radius: radius * 0.8,
+      position: position,
+      anchor: Anchor.center,
+      paint: Paint()..color = Colors.deepOrange.withOpacity(0.25),
+    );
+
+    fireZone.add(
+      TimerComponent(
+        period: 0.5,
+        repeat: true,
+        onTick: () {
+          final zoneVictims = game.getEnemiesInRange(position, radius * 0.8);
+          for (final v in zoneVictims) {
+            v.takeDamage((burnDmg * 0.5).toInt());
+          }
+        },
+      ),
+    );
+
+    fireZone.add(RemoveEffect(delay: 3.0 + rank * 0.4));
+    game.world.add(fireZone);
+  }
+
+  /// Lava Trap - Knockback explosion with lava pool
+  static void _lavaTrap(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 position,
+    double radius,
+    List<HoardEnemy> victims,
+  ) {
+    for (final v in victims) {
+      final dir = (v.position - position).normalized();
+      v.add(
+        MoveEffect.by(
+          dir * (60.0 + 12.0 * rank),
+          EffectController(duration: 0.2, curve: Curves.easeOut),
+        ),
+      );
+    }
+
+    // Lava pool
+    final pool = CircleComponent(
+      radius: radius * 0.7,
+      position: position,
+      anchor: Anchor.center,
+      paint: Paint()..color = Colors.orange.shade800.withOpacity(0.35),
+    );
+
+    pool.add(
+      TimerComponent(
+        period: 0.4,
+        repeat: true,
+        onTick: () {
+          final poolVictims = game.getEnemiesInRange(position, radius * 0.7);
+          for (final v in poolVictims) {
+            v.takeDamage(
+              (attacker.unit.statIntelligence * (1.2 + 0.2 * rank))
+                  .toInt()
+                  .clamp(3, 80),
             );
           }
         },
       ),
     );
 
-    // Final detonation after duration
-    Future.delayed(Duration(milliseconds: (duration * 1000).round()), () {
-      if (voidZone.parent == null) return;
-
-      final victims = game.getEnemiesInRange(center, radius * 0.9);
-      _applyElementalMaskDetonation(
-        game: game,
-        attacker: attacker,
-        element: element,
-        rank: rank,
-        center: center,
-        radius: radius * 0.9,
-        victims: victims,
-      );
-
-      SurvivalAttackManager.triggerScreenShake(game, 3.0 + rank * 0.4);
-      voidZone.removeFromParent();
-    });
+    pool.add(RemoveEffect(delay: 2.5 + rank * 0.3));
+    game.world.add(pool);
   }
 
-  // ─────────────────────────────
-  //  TICK EFFECTS WHILE PULLING
-  // ─────────────────────────────
-
-  static void _applyElementalMaskTick({
-    required SurvivalHoardGame game,
-    required HoardGuardian attacker,
-    required String element,
-    required int rank,
-    required Vector2 center,
-    required HoardEnemy enemy,
-  }) {
-    switch (element) {
-      // 🔥 FIRE / LAVA / BLOOD
-      case 'Fire':
-        _fireTick(game, attacker, rank, enemy);
-        break;
-      case 'Lava':
-        _lavaTick(game, attacker, rank, enemy);
-        break;
-      case 'Blood':
-        _bloodTick(game, attacker, rank, enemy);
-        break;
-
-      // 💧 WATER / ICE / STEAM
-      case 'Water':
-        _waterTick(game, attacker, rank, enemy);
-        break;
-      case 'Ice':
-        _iceTick(game, attacker, rank, enemy, center);
-        break;
-      case 'Steam':
-        _steamTick(game, attacker, rank, enemy);
-        break;
-
-      // 🌿 PLANT / POISON
-      case 'Plant':
-        _plantTick(game, attacker, rank, enemy);
-        break;
-      case 'Poison':
-        _poisonTick(game, attacker, rank, enemy);
-        break;
-
-      // 🌍 EARTH / MUD / CRYSTAL
-      case 'Earth':
-        _earthTick(game, attacker, rank, enemy, center);
-        break;
-      case 'Mud':
-        _mudTick(game, attacker, rank, enemy, center);
-        break;
-      case 'Crystal':
-        _crystalTick(game, attacker, rank, enemy, center);
-        break;
-
-      // 🌬️ AIR / DUST / LIGHTNING
-      case 'Air':
-        _airTick(game, attacker, rank, enemy, center);
-        break;
-      case 'Dust':
-        _dustTick(game, attacker, rank, enemy);
-        break;
-      case 'Lightning':
-        _lightningTick(game, attacker, rank, enemy, center);
-        break;
-
-      // 🌗 SPIRIT / DARK / LIGHT
-      case 'Spirit':
-        _spiritTick(game, attacker, rank, enemy);
-        break;
-      case 'Dark':
-        _darkTick(game, attacker, rank, enemy);
-        break;
-      case 'Light':
-        _lightTick(game, attacker, rank, enemy, center);
-        break;
-      default:
-        break;
-    }
-  }
-
-  // ─────────────────────────────
-  //  FINAL DETONATION EFFECTS
-  // ─────────────────────────────
-
-  static void _applyElementalMaskDetonation({
-    required SurvivalHoardGame game,
-    required HoardGuardian attacker,
-    required String element,
-    required int rank,
-    required Vector2 center,
-    required double radius,
-    required List<HoardEnemy> victims,
-  }) {
-    switch (element) {
-      // 🔥 FIRE / LAVA / BLOOD
-      case 'Fire':
-        _fireDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Lava':
-        _lavaDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Blood':
-        _bloodDetonate(game, attacker, rank, center, radius, victims);
-        break;
-
-      // 💧 WATER / ICE / STEAM
-      case 'Water':
-        _waterDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Ice':
-        _iceDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Steam':
-        _steamDetonate(game, attacker, rank, center, radius, victims);
-        break;
-
-      // 🌿 PLANT / POISON
-      case 'Plant':
-        _plantDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Poison':
-        _poisonDetonate(game, attacker, rank, center, radius, victims);
-        break;
-
-      // 🌍 EARTH / MUD / CRYSTAL
-      case 'Earth':
-        _earthDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Mud':
-        _mudDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Crystal':
-        _crystalDetonate(game, attacker, rank, center, radius, victims);
-        break;
-
-      // 🌬️ AIR / DUST / LIGHTNING
-      case 'Air':
-        _airDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Dust':
-        _dustDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Lightning':
-        _lightningDetonate(game, attacker, rank, center, radius, victims);
-        break;
-
-      // 🌗 SPIRIT / DARK / LIGHT
-      case 'Spirit':
-        _spiritDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Dark':
-        _darkDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      case 'Light':
-        _lightDetonate(game, attacker, rank, center, radius, victims);
-        break;
-      default:
-        _genericDetonate(game, attacker, rank, center, radius, victims);
-        break;
-    }
-  }
-
-  // ─────────────────────────────
-  //  TICK IMPLEMENTATIONS
-  // ─────────────────────────────
-
-  // FIRE – small burn per tick
-  static void _fireTick(
+  /// Blood Trap - Drains enemies and heals team
+  static void _bloodTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    HoardEnemy enemy,
-  ) {
-    final burn = (attacker.unit.statIntelligence * (0.4 + 0.1 * rank))
-        .toInt()
-        .clamp(1, 40);
-    enemy.takeDamage(burn);
-  }
-
-  // LAVA – slightly stronger burn
-  static void _lavaTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-  ) {
-    final burn = (attacker.unit.statIntelligence * (0.6 + 0.12 * rank))
-        .toInt()
-        .clamp(1, 60);
-    enemy.takeDamage(burn);
-  }
-
-  // BLOOD – small drain → heal attacker
-  static void _bloodTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-  ) {
-    final dmg = (attacker.unit.statIntelligence * (0.4 + 0.08 * rank))
-        .toInt()
-        .clamp(1, 40);
-    enemy.takeDamage(dmg);
-    attacker.unit.heal((dmg * 0.4).toInt());
-  }
-
-  // WATER – chip + little orb heal over time if something inside
-  static void _waterTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-  ) {
-    final dmg = (attacker.unit.statIntelligence * 0.3).toInt().clamp(0, 30);
-    if (dmg > 0) enemy.takeDamage(dmg);
-    game.orb.heal(1); // trickle sustain
-  }
-
-  // ICE – slows by nudging back slightly from orb side
-  static void _iceTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-    Vector2 center,
-  ) {
-    final push = (enemy.targetOrb.position - enemy.position).normalized() * -4;
-    enemy.position += push;
-  }
-
-  // STEAM – very light chip, almost no damage
-  static void _steamTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-  ) {
-    final dmg = (attacker.unit.statIntelligence * 0.2).toInt().clamp(0, 20);
-    if (dmg > 0) enemy.takeDamage(dmg);
-  }
-
-  // PLANT – small thorny chip
-  static void _plantTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-  ) {
-    final dmg = (attacker.unit.statIntelligence * (0.35 + 0.08 * rank))
-        .toInt()
-        .clamp(1, 40);
-    enemy.takeDamage(dmg);
-  }
-
-  // POISON – apply/refresh poison status
-  static void _poisonTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-  ) {
-    enemy.unit.applyStatusEffect(
-      SurvivalStatusEffect(
-        type: 'Poison',
-        damagePerTick:
-            (attacker.unit.statIntelligence * (0.5 + 0.1 * rank)).toInt() + 1,
-        ticksRemaining: 2 + rank,
-        tickInterval: 0.4,
-      ),
-    );
-  }
-
-  // EARTH – chip + tiny push-away from orb (more control)
-  static void _earthTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-    Vector2 center,
-  ) {
-    final dmg = (attacker.unit.statIntelligence * 0.35).toInt().clamp(0, 35);
-    if (dmg > 0) enemy.takeDamage(dmg);
-  }
-
-  // MUD – extra slow: slightly stronger drag
-  static void _mudTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-    Vector2 center,
-  ) {
-    // pulling is already happening – we just add a bit of sticky feel (no extra dmg)
-    enemy.position += (center - enemy.position).normalized() * 0.5;
-  }
-
-  // CRYSTAL – small shard chip
-  static void _crystalTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-    Vector2 center,
-  ) {
-    final dmg = (attacker.unit.statIntelligence * 0.4).toInt().clamp(0, 40);
-    if (dmg > 0) enemy.takeDamage(dmg);
-  }
-
-  // AIR – slightly “floaty” jitter inward
-  static void _airTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-    Vector2 center,
-  ) {
-    // The main pull does the work; here we just give a tiny extra wobble
-  }
-
-  // DUST – jitter/confuse
-  static void _dustTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-  ) {
-    final rng = Random();
-    final offset = Vector2(
-      (rng.nextDouble() - 0.5) * 4,
-      (rng.nextDouble() - 0.5) * 4,
-    );
-    enemy.position += offset;
-  }
-
-  // LIGHTNING – tiny zap every tick
-  static void _lightningTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-    Vector2 center,
-  ) {
-    final dmg = (attacker.unit.statIntelligence * (0.4 + 0.1 * rank))
-        .toInt()
-        .clamp(1, 40);
-    enemy.takeDamage(dmg);
-  }
-
-  // SPIRIT – chip + visual ghost feel
-  static void _spiritTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-  ) {
-    final dmg = (attacker.unit.statIntelligence * 0.4).toInt().clamp(0, 35);
-    if (dmg > 0) enemy.takeDamage(dmg);
-  }
-
-  // DARK – entropy-like constant chip
-  static void _darkTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-  ) {
-    final dmg = (attacker.unit.statIntelligence * (0.5 + 0.1 * rank))
-        .toInt()
-        .clamp(1, 40);
-    enemy.takeDamage(dmg);
-  }
-
-  // LIGHT – purifying chip
-  static void _lightTick(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    HoardEnemy enemy,
-    Vector2 center,
-  ) {
-    final dmg = (attacker.unit.statIntelligence * 0.4).toInt().clamp(0, 35);
-    if (dmg > 0) enemy.takeDamage(dmg);
-  }
-
-  // ─────────────────────────────
-  //  DETONATION IMPLEMENTATIONS
-  // ─────────────────────────────
-
-  // SHARED helper: base detonation dmg
-  static int _baseDetonationDamage(HoardGuardian attacker, int rank) {
-    return (calcDmg(attacker, null) * (2.0 + 0.3 * rank)).toInt().clamp(
-      5,
-      9999,
-    );
-  }
-
-  // FIRE – big burn blast
-  static void _fireDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
+    Vector2 position,
     List<HoardEnemy> victims,
+    int baseDamage,
   ) {
-    final dmg = _baseDetonationDamage(attacker, rank);
+    int totalDrain = 0;
+
     for (final v in victims) {
-      v.takeDamage(dmg);
-      ImpactVisuals.play(game, v.position, 'Fire', scale: 1.0);
-    }
-    ImpactVisuals.playExplosion(game, center, 'Fire', radius);
-  }
-
-  // LAVA – higher dmg, more knockback
-  static void _lavaDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
-    List<HoardEnemy> victims,
-  ) {
-    final dmg = (_baseDetonationDamage(attacker, rank) * 1.2).toInt();
-    for (final v in victims) {
-      v.takeDamage(dmg);
-      final dir = (v.position - center).normalized();
-      v.position += dir * (60.0 + 10.0 * rank);
-      ImpactVisuals.play(game, v.position, 'Lava', scale: 1.2);
-    }
-    ImpactVisuals.playExplosion(game, center, 'Lava', radius);
-  }
-
-  // BLOOD – moderate dmg → big lifesteal to team & orb
-  static void _bloodDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
-    List<HoardEnemy> victims,
-  ) {
-    final dmg = _baseDetonationDamage(attacker, rank);
-    int total = 0;
-    for (final v in victims) {
-      v.takeDamage(dmg);
-      total += dmg;
-      ImpactVisuals.play(game, v.position, 'Blood', scale: 1.0);
-    }
-    if (total > 0) {
-      final selfHeal = (total * (0.3 + 0.05 * (rank - 1))).toInt();
-      final teamHeal = (total * 0.25).toInt();
-      final orbHeal = (total * 0.25).toInt();
-
-      attacker.unit.heal(selfHeal);
-      for (final g in game.guardians) {
-        if (!g.isDead && g != attacker) {
-          g.unit.heal((teamHeal / (game.guardians.length - 1)).round());
-        }
-      }
-      game.orb.heal(orbHeal);
-    }
-  }
-
-  // WATER – heal allies near center, dmg enemies
-  static void _waterDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
-    List<HoardEnemy> victims,
-  ) {
-    final dmg = (_baseDetonationDamage(attacker, rank) * 0.8).toInt();
-    for (final v in victims) {
-      v.takeDamage(dmg);
-      ImpactVisuals.play(game, v.position, 'Water', scale: 0.9);
+      final drain = (baseDamage * (0.3 + 0.06 * rank)).toInt();
+      v.takeDamage(drain);
+      totalDrain += drain;
     }
 
-    final heal = (attacker.unit.statIntelligence * (5 + 1.5 * rank))
-        .toInt()
-        .clamp(10, 200);
+    // Heal team
+    final healPerAlly = (totalDrain * 0.4 / max(1, game.guardians.length))
+        .toInt();
     for (final g in game.guardians) {
-      if (!g.isDead && g.position.distanceTo(center) <= radius * 1.1) {
-        g.unit.heal(heal);
-        ImpactVisuals.play(game, g.position, 'Water', scale: 0.7);
+      if (!g.isDead) {
+        g.unit.heal(healPerAlly);
       }
     }
+
+    // Heal orb
+    game.orb.heal((totalDrain * 0.2).toInt());
   }
 
-  // ICE – strong root-ish slow & decent dmg
-  static void _iceDetonate(
+  // ═══════════════════════════════════════════════════════════════════════
+  //  WATER / ICE / STEAM
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Water Trap - Launches enemies upward then heals allies
+  static void _waterTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 center,
+    Vector2 position,
     double radius,
     List<HoardEnemy> victims,
   ) {
-    final dmg = _baseDetonationDamage(attacker, rank);
     for (final v in victims) {
-      v.takeDamage(dmg);
-      final pushBack = (v.targetOrb.position - v.position).normalized() * -15.0;
-      v.position += pushBack;
-      ImpactVisuals.play(game, v.position, 'Ice', scale: 1.0);
-    }
-    ImpactVisuals.playExplosion(game, center, 'Ice', radius);
-  }
-
-  // STEAM – light dmg, good orb heal if many inside
-  static void _steamDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
-    List<HoardEnemy> victims,
-  ) {
-    final dmg = (_baseDetonationDamage(attacker, rank) * 0.7).toInt();
-    for (final v in victims) {
-      v.takeDamage(dmg);
-      ImpactVisuals.play(game, v.position, 'Steam', scale: 0.9);
-    }
-    if (victims.isNotEmpty) {
-      game.orb.heal((victims.length * (8 + 2 * rank)).toInt());
-    }
-  }
-
-  // PLANT – seeds a lingering thorn hazard
-  static void _plantDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
-    List<HoardEnemy> victims,
-  ) {
-    final dmg = _baseDetonationDamage(attacker, rank);
-    for (final v in victims) {
-      v.takeDamage(dmg);
-      ImpactVisuals.play(game, v.position, 'Plant', scale: 1.0);
-    }
-
-    // Thorn hazard stays after
-    final hazardRadius = radius * 0.9;
-    final dps = (attacker.unit.statIntelligence * (1.6 + 0.2 * rank))
-        .toInt()
-        .clamp(3, 200);
-    final duration = 4.0 + 0.4 * (rank - 1);
-
-    final zone = CircleComponent(
-      radius: hazardRadius,
-      position: center,
-      anchor: Anchor.center,
-      paint: Paint()
-        ..color = SurvivalAttackManager.getElementColor(
-          'Plant',
-        ).withOpacity(0.25)
-        ..style = PaintingStyle.fill,
-    );
-
-    zone.add(
-      TimerComponent(
-        period: 0.6,
-        repeat: true,
-        onTick: () {
-          final victims2 = game.getEnemiesInRange(center, hazardRadius);
-          for (final v in victims2) {
-            v.takeDamage(dps);
-          }
-        },
-      ),
-    );
-
-    zone.add(RemoveEffect(delay: duration));
-    game.world.add(zone);
-  }
-
-  // POISON – heavy poison application, ok dmg
-  static void _poisonDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
-    List<HoardEnemy> victims,
-  ) {
-    final dmg = (_baseDetonationDamage(attacker, rank) * 0.8).toInt();
-    for (final v in victims) {
-      v.takeDamage(dmg ~/ 2);
-      v.unit.applyStatusEffect(
-        SurvivalStatusEffect(
-          type: 'Poison',
-          damagePerTick:
-              (attacker.unit.statIntelligence * (1.0 + 0.2 * rank)).toInt() + 4,
-          ticksRemaining: 8 + rank,
-          tickInterval: 0.5,
+      final dir = (v.position - position).normalized();
+      v.add(
+        MoveEffect.by(
+          dir * (40.0 + 8.0 * rank),
+          EffectController(duration: 0.25, curve: Curves.easeOut),
         ),
       );
-      ImpactVisuals.play(game, v.position, 'Poison', scale: 1.0);
-    }
-  }
-
-  // EARTH – decent dmg + shield to allies near center
-  static void _earthDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
-    List<HoardEnemy> victims,
-  ) {
-    final dmg = _baseDetonationDamage(attacker, rank);
-    for (final v in victims) {
-      v.takeDamage(dmg);
-      ImpactVisuals.play(game, v.position, 'Earth', scale: 1.0);
     }
 
-    final shield = (attacker.unit.maxHp * (0.08 + 0.02 * (rank - 1)))
+    // Heal allies in area
+    final healAmount = (attacker.unit.statIntelligence * (2.0 + 0.4 * rank))
         .toInt()
-        .clamp(10, 400);
-    for (final g in game.guardians) {
-      if (!g.isDead && g.position.distanceTo(center) <= radius * 1.1) {
-        g.unit.heal(shield);
-        ImpactVisuals.play(game, g.position, 'Earth', scale: 0.8);
-      }
+        .clamp(5, 100);
+
+    final allies = game.getGuardiansInRange(center: position, range: radius);
+    for (final g in allies) {
+      g.unit.heal(healAmount);
+      ImpactVisuals.playHeal(game, g.position, scale: 0.6);
     }
   }
 
-  // MUD – big slow puddle after detonate
-  static void _mudDetonate(
+  /// Ice Trap - Freezes and creates ice walls
+  static void _iceTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 center,
+    Vector2 position,
     double radius,
     List<HoardEnemy> victims,
   ) {
-    final dmg = (_baseDetonationDamage(attacker, rank) * 0.9).toInt();
+    final freezeDuration = 1.0 + rank * 0.3;
+
     for (final v in victims) {
-      v.takeDamage(dmg);
-      ImpactVisuals.play(game, v.position, 'Mud', scale: 1.0);
+      v.add(
+        MoveEffect.by(
+          Vector2.zero(),
+          EffectController(duration: freezeDuration),
+        ),
+      );
     }
 
-    final slowRadius = radius;
-    final duration = 4.5 + 0.4 * (rank - 1);
-    final zone = CircleComponent(
-      radius: slowRadius,
-      position: center,
+    // Slow zone after freeze
+    final slowZone = CircleComponent(
+      radius: radius,
+      position: position,
       anchor: Anchor.center,
-      paint: Paint()
-        ..color = SurvivalAttackManager.getElementColor('Mud').withOpacity(0.3)
-        ..style = PaintingStyle.fill,
+      paint: Paint()..color = Colors.cyanAccent.withOpacity(0.2),
     );
 
-    zone.add(
+    slowZone.add(
       TimerComponent(
-        period: 0.4,
+        period: 0.3,
         repeat: true,
         onTick: () {
-          final victims2 = game.getEnemiesInRange(center, slowRadius);
-          for (final v in victims2) {
+          final zoneVictims = game.getEnemiesInRange(position, radius);
+          for (final v in zoneVictims) {
             final pushBack =
-                (v.targetOrb.position - v.position).normalized() * -10.0;
+                (v.targetOrb.position - v.position).normalized() *
+                -(12.0 + rank * 2);
             v.position += pushBack;
           }
         },
       ),
     );
-    zone.add(RemoveEffect(delay: duration));
-    game.world.add(zone);
+
+    slowZone.add(RemoveEffect(delay: 3.0 + rank * 0.5));
+    game.world.add(slowZone);
   }
 
-  // CRYSTAL – shards explode outward from center
-  static void _crystalDetonate(
+  /// Steam Trap - Pressure explosion with confusion
+  static void _steamTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 center,
+    Vector2 position,
     double radius,
     List<HoardEnemy> victims,
   ) {
-    final baseDmg = _baseDetonationDamage(attacker, rank);
+    final rng = Random();
+
     for (final v in victims) {
-      v.takeDamage((baseDmg * 0.6).toInt());
-      ImpactVisuals.play(game, v.position, 'Crystal', scale: 0.9);
-    }
+      final randomDir = Vector2(
+        (rng.nextDouble() - 0.5) * 2,
+        (rng.nextDouble() - 0.5) * 2,
+      ).normalized();
 
-    final color = SurvivalAttackManager.getElementColor('Crystal');
-    final shardCount = 6 + rank;
-    final shardDmg = (baseDmg * 0.7).toInt();
-
-    for (int i = 0; i < shardCount; i++) {
-      final angle = (2 * pi * i) / shardCount;
-      final targetPos =
-          center + Vector2(cos(angle), sin(angle)) * (radius + 60);
-
-      // Wrap target position in a PositionComponent as spawnAlchemyProjectile expects a PositionComponent.
-      final targetComponent = PositionComponent(position: targetPos.clone());
-      game.world.add(targetComponent);
-
-      game.spawnAlchemyProjectile(
-        start: center,
-        target: targetComponent,
-        damage: shardDmg,
-        color: color,
-        shape: ProjectileShape.shard,
-        speed: 2.4,
-        isEnemy: false,
-        onHit: () {
-          final victims2 = game.getEnemiesInRange(targetComponent.position, 50);
-          for (final v in victims2) {
-            v.takeDamage(shardDmg);
-          }
-          // Clean up temporary target component
-          targetComponent.removeFromParent();
-        },
-      );
-    }
-  }
-
-  // AIR – big outward blow after pull
-  static void _airDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
-    List<HoardEnemy> victims,
-  ) {
-    final dmg = (_baseDetonationDamage(attacker, rank) * 0.9).toInt();
-    for (final v in victims) {
-      v.takeDamage(dmg);
-      final dir = (v.position - center).normalized();
       v.add(
         MoveEffect.by(
-          dir * (120.0 + 15.0 * rank),
-          EffectController(duration: 0.25, curve: Curves.easeOut),
+          randomDir * (30.0 + 6.0 * rank),
+          EffectController(duration: 0.2),
         ),
       );
-      ImpactVisuals.play(game, v.position, 'Air', scale: 1.0);
     }
-  }
 
-  // DUST – confuse burst
-  static void _dustDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
-    List<HoardEnemy> victims,
-  ) {
-    final dmg = (_baseDetonationDamage(attacker, rank) * 0.7).toInt();
-    final rng = Random();
-    for (final v in victims) {
-      v.takeDamage(dmg);
-      final offset = Vector2(
-        (rng.nextDouble() - 0.5) * (40 + 5 * rank),
-        (rng.nextDouble() - 0.5) * (40 + 5 * rank),
+    // Heal allies who pass through steam
+    final allies = game.getGuardiansInRange(center: position, range: radius);
+    for (final g in allies) {
+      g.unit.heal(
+        (attacker.unit.statIntelligence * (1.0 + 0.2 * rank)).toInt().clamp(
+          3,
+          60,
+        ),
       );
-      v.position += offset;
-      ImpactVisuals.play(game, v.position, 'Dust', scale: 0.9);
     }
   }
 
-  // LIGHTNING – arcs between victims inside
-  static void _lightningDetonate(
+  // ═══════════════════════════════════════════════════════════════════════
+  //  PLANT / POISON
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Plant Trap - Roots enemies and creates thorn zone
+  static void _plantTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 center,
+    Vector2 position,
     double radius,
     List<HoardEnemy> victims,
   ) {
-    final base = (_baseDetonationDamage(attacker, rank) * 0.8).toInt();
-    final rng = Random();
+    final thornDmg = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
+        .toInt()
+        .clamp(2, 70);
+
     for (final v in victims) {
-      v.takeDamage(base);
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Thorns',
+          damagePerTick: thornDmg,
+          ticksRemaining: 6 + rank,
+          tickInterval: 0.4,
+        ),
+      );
     }
 
-    // small chain arcs
-    for (final src in victims) {
-      final nearby = game
-          .getEnemiesInRange(src.position, radius * 0.7)
-          .where((e) => e != src);
-      final list = nearby.toList();
-      if (list.isEmpty) continue;
+    // Root zone
+    final rootZone = CircleComponent(
+      radius: radius,
+      position: position,
+      anchor: Anchor.center,
+      paint: Paint()..color = Colors.green.withOpacity(0.25),
+    );
 
-      final chains = min(1 + rank, list.length);
-      for (int i = 0; i < chains; i++) {
-        final target = list[rng.nextInt(list.length)];
-        final dmg = (base * 0.8).toInt();
+    rootZone.add(
+      TimerComponent(
+        period: 0.3,
+        repeat: true,
+        onTick: () {
+          final zoneVictims = game.getEnemiesInRange(position, radius);
+          for (final v in zoneVictims) {
+            final pushBack =
+                (v.targetOrb.position - v.position).normalized() *
+                -(10.0 + rank * 2);
+            v.position += pushBack;
+          }
+        },
+      ),
+    );
+
+    rootZone.add(RemoveEffect(delay: 3.0 + rank * 0.5));
+    game.world.add(rootZone);
+  }
+
+  /// Poison Trap - Releases spreading poison cloud
+  static void _poisonTrap(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 position,
+    List<HoardEnemy> victims,
+  ) {
+    final poisonDmg = (attacker.unit.statIntelligence * (1.2 + 0.25 * rank))
+        .toInt()
+        .clamp(3, 90);
+
+    for (final v in victims) {
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Poison',
+          damagePerTick: poisonDmg,
+          ticksRemaining: 8 + rank,
+          tickInterval: 0.4,
+        ),
+      );
+    }
+
+    // Spreading poison cloud
+    if (rank >= 3) {
+      for (final v in victims) {
+        final nearby = game
+            .getEnemiesInRange(v.position, 100)
+            .where((e) => !victims.contains(e));
+        for (final n in nearby) {
+          n.unit.applyStatusEffect(
+            SurvivalStatusEffect(
+              type: 'Poison',
+              damagePerTick: (poisonDmg * 0.6).toInt(),
+              ticksRemaining: 5,
+              tickInterval: 0.5,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  EARTH / MUD / CRYSTAL
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Earth Trap - Creates spike pillars and barriers
+  static void _earthTrap(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 position,
+    double radius,
+    List<HoardEnemy> victims,
+  ) {
+    for (final v in victims) {
+      // Brief stun
+      v.add(
+        MoveEffect.by(
+          Vector2.zero(),
+          EffectController(duration: 0.5 + rank * 0.1),
+        ),
+      );
+    }
+
+    // Grant shield to nearby allies
+    final allies = game.getGuardiansInRange(
+      center: position,
+      range: radius * 1.2,
+    );
+    final shieldAmount = (attacker.unit.maxHp * (0.08 + 0.02 * rank))
+        .toInt()
+        .clamp(20, 300);
+    for (final g in allies) {
+      g.unit.shieldHp = (g.unit.shieldHp ?? 0) + shieldAmount;
+    }
+  }
+
+  /// Mud Trap - Slowing quicksand pit
+  static void _mudTrap(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 position,
+    double radius,
+    List<HoardEnemy> victims,
+  ) {
+    final mudZone = CircleComponent(
+      radius: radius,
+      position: position,
+      anchor: Anchor.center,
+      paint: Paint()..color = Colors.brown.shade600.withOpacity(0.35),
+    );
+
+    mudZone.add(
+      TimerComponent(
+        period: 0.2,
+        repeat: true,
+        onTick: () {
+          final zoneVictims = game.getEnemiesInRange(position, radius);
+          for (final v in zoneVictims) {
+            final pushBack =
+                (v.targetOrb.position - v.position).normalized() *
+                -(20.0 + rank * 4);
+            v.position += pushBack;
+          }
+        },
+      ),
+    );
+
+    mudZone.add(RemoveEffect(delay: 4.0 + rank * 0.6));
+    game.world.add(mudZone);
+  }
+
+  /// Crystal Trap - Shoots homing shards at enemies
+  static void _crystalTrap(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 position,
+    List<HoardEnemy> victims,
+    int baseDamage,
+  ) {
+    final shardCount = 4 + rank * 2;
+    final shardDmg = (baseDamage * (0.5 + 0.1 * rank)).toInt();
+
+    final rng = Random();
+    final allEnemies = game.getEnemiesInRange(position, 400);
+
+    for (int i = 0; i < min(shardCount, allEnemies.length); i++) {
+      final target = allEnemies[rng.nextInt(allEnemies.length)];
+
+      Future.delayed(Duration(milliseconds: i * 60), () {
+        if (target.isDead) return;
 
         game.spawnAlchemyProjectile(
-          start: src.position,
+          start: position,
           target: target,
-          damage: dmg,
-          color: SurvivalAttackManager.getElementColor('Lightning'),
-          shape: ProjectileShape.bolt,
+          damage: shardDmg,
+          color: Colors.tealAccent,
+          shape: ProjectileShape.shard,
           speed: 3.0,
           isEnemy: false,
           onHit: () {
-            target.takeDamage(dmg);
-            ImpactVisuals.play(game, target.position, 'Lightning', scale: 0.7);
+            target.takeDamage(shardDmg);
+            ImpactVisuals.play(game, target.position, 'Crystal', scale: 0.5);
+          },
+        );
+      });
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  AIR / DUST / LIGHTNING
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Air Trap - Creates tornado that pulls then launches
+  static void _airTrap(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 position,
+    List<HoardEnemy> victims,
+  ) {
+    for (final v in victims) {
+      final dir = (v.position - position).normalized();
+      v.add(
+        MoveEffect.by(
+          dir * (100.0 + 20.0 * rank),
+          EffectController(duration: 0.25, curve: Curves.easeOut),
+        ),
+      );
+    }
+  }
+
+  /// Dust Trap - Blinding dust cloud
+  static void _dustTrap(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 position,
+    List<HoardEnemy> victims,
+  ) {
+    final rng = Random();
+
+    for (final v in victims) {
+      final jitter = Vector2(
+        (rng.nextDouble() - 0.5) * (40 + 8 * rank),
+        (rng.nextDouble() - 0.5) * (40 + 8 * rank),
+      );
+      v.position += jitter;
+    }
+  }
+
+  /// Lightning Trap - Electric fence with chains
+  static void _lightningTrap(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    int rank,
+    Vector2 position,
+    List<HoardEnemy> victims,
+    int baseDamage,
+  ) {
+    final chainDmg = (baseDamage * (0.6 + 0.1 * rank)).toInt();
+
+    for (final v in victims) {
+      // Stun
+      v.add(
+        MoveEffect.by(
+          Vector2.zero(),
+          EffectController(duration: 0.4 + rank * 0.1),
+        ),
+      );
+
+      // Chain to nearby
+      final nearby = game
+          .getEnemiesInRange(v.position, 150)
+          .where((e) => e != v)
+          .take(2);
+
+      for (final n in nearby) {
+        game.spawnAlchemyProjectile(
+          start: v.position,
+          target: n,
+          damage: chainDmg,
+          color: Colors.yellow,
+          shape: ProjectileShape.bolt,
+          speed: 4.0,
+          isEnemy: false,
+          onHit: () {
+            n.takeDamage(chainDmg);
+            ImpactVisuals.play(game, n.position, 'Lightning', scale: 0.6);
           },
         );
       }
     }
   }
 
-  // SPIRIT – spectral execute-style burst (but softer than Dark)
-  static void _spiritDetonate(
+  // ═══════════════════════════════════════════════════════════════════════
+  //  SPIRIT / DARK / LIGHT
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Spirit Trap - Spawns attacking spirits
+  static void _spiritTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 center,
-    double radius,
+    Vector2 position,
     List<HoardEnemy> victims,
+    int baseDamage,
   ) {
-    final dmg = _baseDetonationDamage(attacker, rank);
+    int totalDrain = 0;
+
     for (final v in victims) {
-      var finalDmg = dmg;
-      if (v.unit.hpPercent < 0.25) {
-        finalDmg = (finalDmg * 1.5).toInt();
-      }
-      v.takeDamage(finalDmg);
-      ImpactVisuals.play(game, v.position, 'Spirit', scale: 1.2);
+      final drain = (baseDamage * (0.3 + 0.06 * rank)).toInt();
+      v.takeDamage(drain);
+      totalDrain += drain;
     }
+
+    // Heal attacker
+    attacker.unit.heal((totalDrain * 0.5).toInt());
   }
 
-  // DARK – the true EVENT HORIZON; rank 5 execute lives here
-  static void _darkDetonate(
+  /// Dark Trap - Mini black hole with execute
+  static void _darkTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 center,
-    double radius,
+    Vector2 position,
     List<HoardEnemy> victims,
   ) {
-    final dmg = _baseDetonationDamage(attacker, rank);
+    final executeThreshold = 0.20 + 0.05 * rank;
 
     for (final v in victims) {
-      if (rank >= 5 && !v.isBoss && v.unit.hpPercent < 0.30) {
-        // Event Horizon: execute non-boss under 30% HP
+      if (!v.isBoss && v.unit.hpPercent < executeThreshold) {
         v.takeDamage(99999);
-        ImpactVisuals.play(game, v.position, 'Blood', scale: 2.0);
+        ImpactVisuals.play(game, v.position, 'Dark', scale: 1.3);
       } else {
-        v.takeDamage(dmg);
-        ImpactVisuals.play(game, v.position, 'Dark', scale: 1.5);
+        // Pull toward center
+        final pull = (position - v.position).normalized() * (40 + rank * 8);
+        v.position += pull;
       }
     }
   }
 
-  // LIGHT – purifying implosion: heal allies near center, damage enemies
-  static void _lightDetonate(
+  /// Light Trap - Blinds and heals allies
+  static void _lightTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
-    Vector2 center,
+    Vector2 position,
     double radius,
-    List<HoardEnemy> victims,
   ) {
-    final dmg = (_baseDetonationDamage(attacker, rank) * 0.9).toInt();
-    for (final v in victims) {
-      v.takeDamage(dmg);
-      ImpactVisuals.play(game, v.position, 'Light', scale: 1.2);
-    }
-
-    final heal = (attacker.unit.statIntelligence * (6 + 1.5 * rank))
+    // Heal allies in range
+    final healAmount = (attacker.unit.statIntelligence * (3.0 + 0.6 * rank))
         .toInt()
-        .clamp(20, 260);
-    for (final g in game.guardians) {
-      if (!g.isDead && g.position.distanceTo(center) <= radius * 1.1) {
-        g.unit.heal(heal);
-        ImpactVisuals.play(game, g.position, 'Light', scale: 1.0);
-      }
-    }
-  }
+        .clamp(10, 150);
 
-  // Fallback, in case we somehow hit a weird element string
-  static void _genericDetonate(
-    SurvivalHoardGame game,
-    HoardGuardian attacker,
-    int rank,
-    Vector2 center,
-    double radius,
-    List<HoardEnemy> victims,
-  ) {
-    final dmg = _baseDetonationDamage(attacker, rank);
-    for (final v in victims) {
-      v.takeDamage(dmg);
+    final allies = game.getGuardiansInRange(
+      center: position,
+      range: radius * 1.3,
+    );
+    for (final g in allies) {
+      g.unit.heal(healAmount);
+      ImpactVisuals.playHeal(game, g.position, scale: 0.7);
     }
-    ImpactVisuals.playExplosion(game, center, 'Dark', radius);
+
+    // Heal orb
+    game.orb.heal((healAmount * 0.5).toInt());
   }
 }
