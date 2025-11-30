@@ -620,12 +620,15 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen> {
             children: [
               _buildStatRow('TIME', stats.formattedTime, Colors.white),
               const SizedBox(height: 4),
-              _buildStatRow('KILLS', stats.kills.toString(), Colors.redAccent),
-              const SizedBox(height: 4),
               _buildStatRow(
                 'SCORE',
                 stats.score.toString(),
                 Colors.yellowAccent,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Wave: ${stats.wave}',
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
           ),
@@ -1279,27 +1282,28 @@ const List<_FamilyInfo> _familyInfos = [
   _FamilyInfo(
     id: 'Mane',
     name: 'Mane',
-    role: 'Zone Control',
+    role: 'Barrage DPS',
     description:
-        'Lays down hazards that melt anything standing in them. Great for choke points and attrition waves.',
-    bestPowerups: 'Int/Beauty Transmute, Empower Hazards',
+        'Unleashes rapid-fire elemental volleys in a cone. Shreds clustered enemies with sustained damage.',
+    bestPowerups: 'Speed/Beauty Transmute, Empower Barrage',
     assetPath: 'assets/images/creatures/uncommon/MAN03_earthmane.png',
   ),
   _FamilyInfo(
     id: 'Mask',
     name: 'Mask',
-    role: 'Debuff / Control',
+    role: 'Trap Specialist',
     description:
-        'Twists the battlefield with debuffs and crowd control, making tough waves manageable.',
-    bestPowerups: 'Beauty Transmute, Empower Special, Extra Deploy',
+        'Deploys elemental trap fields that trigger on contact. Great for choke points and area denial.',
+    bestPowerups: 'Int/Beauty Transmute, Empower Traps, Extra Deploy',
     assetPath: 'assets/images/creatures/rare/MAS01_firemask.png',
   ),
   _FamilyInfo(
     id: 'Horn',
     name: 'Horn',
     role: 'Frontline Tank',
-    description: 'Bulky guardians that hold the line.',
-    bestPowerups: 'Transmute (HP/def), Extra Deploy, Empower Special',
+    description:
+        'Bulky guardians that hold the line with protective Novas. Knocks enemies back and shields allies.',
+    bestPowerups: 'HP Transmute, Extra Deploy, Empower Nova',
     assetPath: 'assets/images/creatures/rare/HOR01_firehorn.png',
   ),
   _FamilyInfo(

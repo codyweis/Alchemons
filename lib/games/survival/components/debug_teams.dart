@@ -426,181 +426,6 @@ class DebugTeams {
     ];
   }
 
-  /// Strong Team: All stats 3.0 - 4.5 (some 2s allowed for specialized builds)
-  static List<PartyMember> makeStrongTeam() {
-    return [
-      PartyMember(
-        combatant: _makeCreature(
-          id: 'strong_iron_horn',
-          name: 'Earthhorn',
-          types: ['Earth'],
-          family: 'Horn',
-          level: 10,
-          speed: 2.2, // Low speed
-          intelligence: 4.0,
-          strength: 4.5, // High strength
-          beauty: 4.5,
-          sheetDef: _getSpriteSheetDef(
-            'Earth',
-            'Horn',
-            idPrefix: 'HOR03',
-            category: 'rare',
-          ),
-          visuals: const SpriteVisuals(),
-        ),
-        position: FormationPosition.frontLeft,
-      ),
-      PartyMember(
-        combatant: _makeCreature(
-          id: 'strong_dragon_wing',
-          name: 'Firewing',
-          types: ['Fire'],
-          family: 'Wing',
-          level: 10,
-          speed: 4.5,
-          intelligence: 3.8,
-          strength: 4.2,
-          beauty: 4.0,
-          sheetDef: _getSpriteSheetDef(
-            'Fire',
-            'Wing',
-            idPrefix: 'WNG01',
-            category: 'legendary',
-          ),
-          visuals: const SpriteVisuals(),
-        ),
-        position: FormationPosition.frontRight,
-      ),
-      PartyMember(
-        combatant: _makeCreature(
-          id: 'strong_void_Wing',
-          name: 'Darkwing',
-          types: ['Dark'],
-          family: 'Wing',
-          level: 10,
-          speed: 4.2,
-          intelligence: 4.5,
-          strength: 2.8,
-          beauty: 4.8,
-          sheetDef: _getSpriteSheetDef(
-            'Dark',
-            'Wing',
-            idPrefix: 'WNG15',
-            category: 'legendary',
-          ),
-          visuals: const SpriteVisuals(),
-        ),
-        position: FormationPosition.backLeft,
-      ),
-      PartyMember(
-        combatant: _makeCreature(
-          id: 'strong_radiant_kin',
-          name: 'Lightkin',
-          types: ['Light'],
-          family: 'Kin',
-          level: 10,
-          speed: 4.0,
-          intelligence: 4.2,
-          strength: 3.0,
-          beauty: 4.5,
-          sheetDef: _getSpriteSheetDef(
-            'Light',
-            'Kin',
-            idPrefix: 'KIN16',
-            category: 'legendary',
-          ),
-          visuals: const SpriteVisuals(),
-        ),
-        position: FormationPosition.backRight,
-      ),
-      // Bench
-      PartyMember(
-        combatant: _makeCreature(
-          id: 'strong_magma_let',
-          name: 'Lavalet',
-          types: ['Lava'],
-          family: 'Let',
-          level: 10,
-          speed: 3.8,
-          intelligence: 3.5,
-          strength: 4.4,
-          beauty: 4.2,
-          sheetDef: _getSpriteSheetDef(
-            'Lava',
-            'Let',
-            idPrefix: 'LET06',
-            category: 'common',
-          ),
-          visuals: const SpriteVisuals(),
-        ),
-        position: FormationPosition.backRight,
-      ),
-      PartyMember(
-        combatant: _makeCreature(
-          id: 'strong_toxin_mane',
-          name: 'Poisonmane',
-          types: ['Poison'],
-          family: 'Mane',
-          level: 10,
-          speed: 4.5,
-          intelligence: 3.9,
-          strength: 4.0,
-          beauty: 4.1,
-          sheetDef: _getSpriteSheetDef(
-            'Poison',
-            'Mane',
-            idPrefix: 'MAN13',
-            category: 'uncommon',
-          ),
-          visuals: const SpriteVisuals(),
-        ),
-        position: FormationPosition.backRight,
-      ),
-      PartyMember(
-        combatant: _makeCreature(
-          id: 'strong_storm_pip',
-          name: 'Lightningpip',
-          types: ['Lightning'],
-          family: 'Pip',
-          level: 10,
-          speed: 4.3,
-          intelligence: 4.6,
-          strength: 4.2,
-          beauty: 3.8,
-          sheetDef: _getSpriteSheetDef(
-            'Lightning',
-            'Pip',
-            idPrefix: 'PIP07',
-            category: 'uncommon',
-          ),
-          visuals: const SpriteVisuals(),
-        ),
-        position: FormationPosition.backRight,
-      ),
-      PartyMember(
-        combatant: _makeCreature(
-          id: 'strong_dust_mask',
-          name: 'Dustmask',
-          types: ['Dust'],
-          family: 'Mask',
-          level: 10,
-          speed: 3.4,
-          intelligence: 4.1,
-          strength: 3.5,
-          beauty: 4.9,
-          sheetDef: _getSpriteSheetDef(
-            'Dust',
-            'Mask',
-            idPrefix: 'MSK10',
-            category: 'rare',
-          ),
-          visuals: const SpriteVisuals(),
-        ),
-        position: FormationPosition.backRight,
-      ),
-    ];
-  }
-
   // ---------------------------------------------------------------------------
   // EXISTING TEST TEAMS (Names corrected)
   // ---------------------------------------------------------------------------
@@ -610,20 +435,20 @@ class DebugTeams {
       // front
       PartyMember(
         combatant: _makeCreature(
-          id: 'testA_fl_blaze_let',
-          name: 'Firelet',
-          types: ['Fire'],
-          family: 'Let',
+          id: 'testA_fl_dark_mask',
+          name: 'DarkMask',
+          types: ['Dark'],
+          family: 'Mask',
           level: 10,
           speed: 3.2,
           intelligence: 3.8,
-          strength: 4.6,
+          strength: 3.6,
           beauty: 3.0,
           sheetDef: _getSpriteSheetDef(
-            'Fire',
-            'Let',
-            idPrefix: 'LET01',
-            category: 'common',
+            'Dark',
+            'Mask',
+            idPrefix: 'MSK15',
+            category: 'rare',
           ),
           visuals: const SpriteVisuals(),
         ),
@@ -659,7 +484,7 @@ class DebugTeams {
           types: ['Lightning'],
           family: 'Wing',
           level: 10,
-          speed: 4.5,
+          speed: 3.5,
           intelligence: 3.6,
           strength: 3.8,
           beauty: 3.4,
@@ -967,11 +792,6 @@ class DebugTeams {
       id: 'avg',
       label: 'Average Team (2.5-3.5)',
       party: makeAverageTeam(),
-    ),
-    _DebugTeamInfo(
-      id: 'strong',
-      label: 'Strong Team (3.0-4.5)',
-      party: makeStrongTeam(),
     ),
     _DebugTeamInfo(id: 'A', label: 'Team A – Balanced', party: makeTestTeamA()),
     _DebugTeamInfo(id: 'E', label: 'Team E – Chaos', party: makeTestTeamE()),

@@ -62,11 +62,13 @@ class SurvivalGameStats {
   final int kills;
   final int score;
   final double timeElapsed;
+  final int wave;
 
   SurvivalGameStats({
     required this.kills,
     required this.score,
     required this.timeElapsed,
+    required this.wave,
   });
 
   String get formattedTime {
@@ -74,6 +76,8 @@ class SurvivalGameStats {
     final seconds = (timeElapsed % 60).toInt().toString().padLeft(2, '0');
     return '$minutes:$seconds';
   }
+
+  String get formattedWave => 'Wave $wave';
 }
 
 class SurvivalHoardGame extends FlameGame
@@ -111,6 +115,8 @@ class SurvivalHoardGame extends FlameGame
   final ValueNotifier<HoardGuardian?> selectedGuardianNotifier =
       ValueNotifier<HoardGuardian?>(null);
 
+  Vector2? _lastFocalPoint;
+
   // Convenience helpers:
   void selectGuardian(HoardGuardian? guardian) {
     selectedGuardianNotifier.value = guardian;
@@ -133,7 +139,7 @@ class SurvivalHoardGame extends FlameGame
   bool isInAlchemyPause = false;
 
   final ValueNotifier<SurvivalGameStats> statsNotifier = ValueNotifier(
-    SurvivalGameStats(kills: 0, score: 0, timeElapsed: 0),
+    SurvivalGameStats(kills: 0, score: 0, timeElapsed: 0, wave: 1),
   );
 
   final ValueNotifier<AlchemyChoiceState?> alchemyChoiceNotifier =
@@ -406,6 +412,7 @@ class SurvivalHoardGame extends FlameGame
       kills: kills,
       score: score,
       timeElapsed: timeElapsed,
+      wave: currentWave,
     );
 
     if (orb.isDestroyed) {
@@ -913,19 +920,45 @@ class SurvivalHoardGame extends FlameGame
   }
 
   @override
-  void onScaleStart(ScaleStartInfo info) =>
-      _startZoom = cameraComponent.viewfinder.zoom;
+  void onScaleStart(ScaleStartInfo info) {
+    _startZoom = cameraComponent.viewfinder.zoom;
+    _lastFocalPoint = info.eventPosition.global;
+  }
 
   @override
   void onScaleUpdate(ScaleUpdateInfo info) {
-    if (!info.scale.global.isIdentity()) {
-      cameraComponent.viewfinder.zoom = (_startZoom * info.scale.global.y)
-          .clamp(0.3, 3.0);
+    final currentFocalPoint = info.eventPosition.global;
+
+    // ----- Decide if this is a pinch (zoom) or a pan -----
+    final scale = info.scale.global;
+    final sx = scale.x;
+    final sy = scale.y;
+
+    // Uniform scalar derived from both axes
+    final dominantScale = (sx - 1.0).abs() > (sy - 1.0).abs() ? sx : sy;
+
+    // Small deadzone so tiny jitter doesn't zoom
+    final isPinch = (dominantScale - 1.0).abs() > 0.01;
+
+    if (isPinch) {
+      // ----- ZOOM -----
+      final newZoom = (_startZoom * dominantScale).clamp(0.2, 1.4);
+      cameraComponent.viewfinder.zoom = newZoom;
     } else {
-      // Allow panning/movement even if the game logic is paused
-      cameraComponent.viewfinder.position +=
-          (-info.delta.global / cameraComponent.viewfinder.zoom);
+      // ----- PAN -----
+      if (_lastFocalPoint != null) {
+        final delta = currentFocalPoint - _lastFocalPoint!;
+        cameraComponent.viewfinder.position -=
+            (delta / cameraComponent.viewfinder.zoom);
+      }
     }
+
+    _lastFocalPoint = currentFocalPoint;
+  }
+
+  @override
+  void onScaleEnd(ScaleEndInfo info) {
+    _lastFocalPoint = null;
   }
 }
 

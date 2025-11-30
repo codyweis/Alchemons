@@ -87,6 +87,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     };
   }
 
+  bool _initialized = false;
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -98,34 +99,34 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     _db = context.read<AlchemonsDatabase>();
     _repo = context.read<CreatureCatalog>();
 
-    // Mark active scene in DB (to clean spawns if interrupted)
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _db
-          .into(_db.activeSceneEntry)
-          .insertOnConflictUpdate(
-            ActiveSceneEntryCompanion.insert(
-              sceneId: widget.sceneId,
-              enteredAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
-            ),
-          );
+    if (!_initialized) {
+      _initialized = true;
 
-      // 🆕 Show tutorial dialog after scene loads
-      if (widget.isTutorial && !_tutorialDialogShown && mounted) {
-        _tutorialDialogShown = true;
-        await Future.delayed(
-          const Duration(milliseconds: 500),
-        ); // Small delay for scene to render
-        if (mounted) {
-          await _showWelcomeDialog();
+      _spawnService.markSceneActive(widget.sceneId);
+      _spawnService.addListener(_onSpawnServiceChanged);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _db
+            .into(_db.activeSceneEntry)
+            .insertOnConflictUpdate(
+              ActiveSceneEntryCompanion.insert(
+                sceneId: widget.sceneId,
+                enteredAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+              ),
+            );
+
+        if (widget.isTutorial && !_tutorialDialogShown && mounted) {
+          _tutorialDialogShown = true;
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) {
+            await _showWelcomeDialog();
+          }
         }
-      }
-    });
+      });
+    }
 
-    // Initial sync of persisted spawns -> local encounter service
+    // Always sync spawns (in case they changed externally)
     _syncSpawnsFromService();
-
-    // Listen for spawn changes while this page is alive
-    _spawnService.addListener(_onSpawnServiceChanged);
   }
 
   // 🆕 Tutorial welcome dialog
@@ -146,7 +147,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _maybeRestoreWaterParty();
-
+    _spawnService.markSceneInactive(widget.sceneId);
     // stop listening
     _spawnService.removeListener(_onSpawnServiceChanged);
 

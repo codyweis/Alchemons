@@ -277,6 +277,16 @@ class WildernessSpawnService extends ChangeNotifier {
     }
   }
 
+  void markSceneActive(String sceneId) {
+    _activeScenes.add(sceneId);
+    debugPrint('🎯 Scene $sceneId marked ACTIVE - spawning disabled');
+  }
+
+  void markSceneInactive(String sceneId) {
+    _activeScenes.remove(sceneId);
+    debugPrint('🎯 Scene $sceneId marked INACTIVE');
+  }
+
   Future<bool> _spawnBatchAtRandomFreePoints(
     String sceneId,
     SceneDefinition scene,

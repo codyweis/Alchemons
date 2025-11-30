@@ -18,7 +18,11 @@ class PushNotificationService {
 
   // Notification IDs - using separate ranges to prevent collisions
   static const int eggHatchingBaseId = 1000; // 1000-1099 for individual eggs
-  static const int eggReadyConsolidatedId = 1100; // Single ID for consolidated
+  static const int eggReadyConsolidatedId =
+      1100; // Single ID for immediate consolidated "X eggs ready now"
+  static const int eggHatchingConsolidatedBaseId =
+      1200; // 1200-1299 for *scheduled* consolidated eggs by time window
+
   static const int wildernessSpawnBaseId =
       2000; // 2000-2099 for individual spawns
   static const int wildernessConsolidatedId =
@@ -26,6 +30,13 @@ class PushNotificationService {
   static const int harvestReadyBaseId =
       3000; // 3000-3099 for individual harvests
   static const int harvestConsolidatedId = 3100; // Single ID for consolidated
+
+  // Tracking for egg hatch time windows (to suppress multi-spam)
+  // Key: normalized hatch time (to minute, ISO string)
+  // Value: list of slot indices that hatch in that minute
+  final Map<String, List<int>> _eggHatchWindowSlots = {};
+  // Key: normalized hatch time -> consolidated notification ID for that window
+  final Map<String, int> _eggHatchWindowConsolidatedIds = {};
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -97,6 +108,11 @@ class PushNotificationService {
     // You can handle navigation here based on payload
   }
 
+  // Helper: normalize a DateTime to the minute (for grouping hatch windows)
+  DateTime _normalizeToMinute(DateTime time) {
+    return DateTime(time.year, time.month, time.day, time.hour, time.minute);
+  }
+
   // ============================================================================
   // EGG HATCHING NOTIFICATIONS
   // ============================================================================
@@ -119,29 +135,113 @@ class PushNotificationService {
 
     // Use safe slot index (0-99 range)
     final safeSlotIndex = (slotIndex ?? 0).clamp(0, 99);
+
+    // Group eggs that hatch in the same minute into a single scheduled
+    // consolidated notification to prevent "4 eggs -> 4 notifications" spam.
+    final normalized = _normalizeToMinute(hatchTime);
+    final windowKey = normalized.toIso8601String();
+
+    final windowSlots = _eggHatchWindowSlots.putIfAbsent(
+      windowKey,
+      () => <int>[],
+    );
+    if (!windowSlots.contains(safeSlotIndex)) {
+      windowSlots.add(safeSlotIndex);
+    }
+
     final scheduledDate = tz.TZDateTime.from(hatchTime, tz.local);
 
-    await _notifications.zonedSchedule(
-      eggHatchingBaseId + safeSlotIndex,
-      'Alchemon ready to extract!',
-      'Your specimen is ready for extraction',
-      scheduledDate,
-      _notificationDetails(
-        channelId: 'egg_hatching',
-        channelName: 'Egg Hatching',
-        channelDescription: 'Notifications when specimens are ready to extract',
-        importance: Importance.high,
-        priority: Priority.high,
-        payload: 'egg_ready:$eggId',
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    );
+    if (windowSlots.length == 1) {
+      // Only one egg in this time window -> schedule per-egg notification.
+      await _notifications.zonedSchedule(
+        eggHatchingBaseId + safeSlotIndex,
+        'Alchemon ready to extract!',
+        'Your specimen is ready for extraction',
+        scheduledDate,
+        _notificationDetails(
+          channelId: 'egg_hatching',
+          channelName: 'Egg Hatching',
+          channelDescription:
+              'Notifications when specimens are ready to extract',
+          importance: Importance.high,
+          priority: Priority.high,
+          payload: 'egg_ready:$eggId',
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
 
-    debugPrint(
-      '📅 Scheduled egg hatching notification for $scheduledDate (slot $safeSlotIndex, ID: ${eggHatchingBaseId + safeSlotIndex})',
-    );
+      debugPrint(
+        '📅 Scheduled egg hatching notification for $scheduledDate '
+        '(slot $safeSlotIndex, ID: ${eggHatchingBaseId + safeSlotIndex})',
+      );
+    } else {
+      // 2+ eggs in the same minute window -> suppress multi-spam:
+      //  - cancel all individual notifications in this window
+      //  - schedule (or update) a single consolidated notification for the window
+
+      // Cancel all individual notifications for this window
+      for (final slot in windowSlots) {
+        final id = eggHatchingBaseId + slot;
+        await _notifications.cancel(id);
+        debugPrint(
+          '🔕 Cancelled individual egg notification for slot $slot '
+          '(ID: $id) in window $windowKey',
+        );
+      }
+
+      // Get / assign a consolidated ID for this window
+      int consolidatedId;
+      if (_eggHatchWindowConsolidatedIds.containsKey(windowKey)) {
+        consolidatedId = _eggHatchWindowConsolidatedIds[windowKey]!;
+        // Cancel previous consolidated so we can reschedule with updated count
+        await _notifications.cancel(consolidatedId);
+        debugPrint(
+          '🔁 Updating consolidated egg notification for window $windowKey '
+          '(old ID: $consolidatedId)',
+        );
+      } else {
+        // Use a stable offset within 0-99 for consolidated window IDs
+        final index = _eggHatchWindowConsolidatedIds.length % 100;
+        consolidatedId = eggHatchingConsolidatedBaseId + index;
+        _eggHatchWindowConsolidatedIds[windowKey] = consolidatedId;
+        debugPrint(
+          '🆕 Assigned consolidated egg window ID $consolidatedId '
+          'for window $windowKey',
+        );
+      }
+
+      final eggCount = windowSlots.length;
+      final title = eggCount > 1
+          ? '$eggCount Eggs Ready!'
+          : 'Egg Ready!'; // fallback
+      final body = eggCount > 1
+          ? 'You have $eggCount specimens ready for extraction'
+          : 'Your specimen is ready for extraction';
+
+      await _notifications.zonedSchedule(
+        consolidatedId,
+        title,
+        body,
+        scheduledDate,
+        _notificationDetails(
+          channelId: 'egg_hatching',
+          channelName: 'Egg Hatching',
+          channelDescription: 'Notifications when eggs are ready to hatch',
+          importance: Importance.high,
+          priority: Priority.high,
+          payload: 'eggs_window_ready:$eggCount',
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
+
+      debugPrint(
+        '📅 Scheduled consolidated egg window notification for $scheduledDate '
+        '(window $windowKey, count: $eggCount, ID: $consolidatedId)',
+      );
+    }
   }
 
+  // Immediate consolidated "X eggs ready now" (e.g., called when app does a check)
   Future<void> showEggReadyNotification({required int count}) async {
     if (!_initialized) await initialize();
 
@@ -171,15 +271,30 @@ class PushNotificationService {
       final safeSlotIndex = slotIndex.clamp(0, 99);
       await _notifications.cancel(eggHatchingBaseId + safeSlotIndex);
       debugPrint(
-        '🔕 Cancelled egg notification for slot $safeSlotIndex (ID: ${eggHatchingBaseId + safeSlotIndex})',
+        '🔕 Cancelled egg notification for slot $safeSlotIndex '
+        '(ID: ${eggHatchingBaseId + safeSlotIndex})',
       );
+
+      // Note: we do not try to surgically update window consolidation here.
+      // If you need that, you can extend this to also adjust _eggHatchWindowSlots.
     } else {
-      // Cancel all egg notifications (individual + consolidated)
+      // Cancel all egg notifications (individual + immediate consolidated
+      // + scheduled consolidated windows)
       for (int i = 0; i < 100; i++) {
         await _notifications.cancel(eggHatchingBaseId + i);
       }
       await _notifications.cancel(eggReadyConsolidatedId);
-      debugPrint('🔕 Cancelled all egg notifications');
+
+      for (int i = 0; i < 100; i++) {
+        await _notifications.cancel(eggHatchingConsolidatedBaseId + i);
+      }
+
+      _eggHatchWindowSlots.clear();
+      _eggHatchWindowConsolidatedIds.clear();
+
+      debugPrint(
+        '🔕 Cancelled all egg notifications (individual + consolidated)',
+      );
     }
   }
 
@@ -228,7 +343,8 @@ class PushNotificationService {
     );
 
     debugPrint(
-      '📅 Scheduled wilderness spawn notification for $biomeName at $scheduledDate (ID: ${wildernessSpawnBaseId + biomeIndex})',
+      '📅 Scheduled wilderness spawn notification for $biomeName at $scheduledDate '
+      '(ID: ${wildernessSpawnBaseId + biomeIndex})',
     );
   }
 
@@ -305,7 +421,8 @@ class PushNotificationService {
     );
 
     debugPrint(
-      '📅 Scheduled harvest ready notification for $biomeId at $scheduledDate (ID: ${harvestReadyBaseId + biomeIndex})',
+      '📅 Scheduled harvest ready notification for $biomeId at $scheduledDate '
+      '(ID: ${harvestReadyBaseId + biomeIndex})',
     );
   }
 
@@ -339,7 +456,8 @@ class PushNotificationService {
       final biomeIndex = biomeNames.indexOf(biomeId).clamp(0, 99);
       await _notifications.cancel(harvestReadyBaseId + biomeIndex);
       debugPrint(
-        '🔕 Cancelled harvest notification for $biomeId (ID: ${harvestReadyBaseId + biomeIndex})',
+        '🔕 Cancelled harvest notification for $biomeId '
+        '(ID: ${harvestReadyBaseId + biomeIndex})',
       );
     } else {
       // Cancel all harvest notifications (individual + consolidated)
@@ -391,6 +509,8 @@ class PushNotificationService {
   // Cancel all notifications
   Future<void> cancelAll() async {
     await _notifications.cancelAll();
+    _eggHatchWindowSlots.clear();
+    _eggHatchWindowConsolidatedIds.clear();
     debugPrint('🔕 Cancelled all notifications');
   }
 

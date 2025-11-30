@@ -314,7 +314,7 @@ class _DamagePreview extends StatelessWidget {
 }
 
 // ===============================================
-// DYNAMIC SPECIAL ABILITY CARD
+// DYNAMIC SPECIAL ABILITY CARD (3-TIER SYSTEM)
 // ===============================================
 class _DynamicSpecialAbilityCard extends StatefulWidget {
   final FactionTheme theme;
@@ -329,7 +329,7 @@ class _DynamicSpecialAbilityCard extends StatefulWidget {
 
 class _DynamicSpecialAbilityCardState
     extends State<_DynamicSpecialAbilityCard> {
-  int _selectedRank = 0; // 0 = base, 1-5 = ranks
+  int _selectedRank = 0; // 0 = base, 1 = unlock, 2 = strengthened, 3 = ultimate
 
   @override
   Widget build(BuildContext context) {
@@ -378,7 +378,7 @@ class _DynamicSpecialAbilityCardState
                     ),
                   ),
                   Text(
-                    "Scales with Beauty • Unlocks elemental upgrades",
+                    "Scales with Beauty • 3 elemental upgrades",
                     style: TextStyle(
                       color: widget.theme.secondary,
                       fontSize: 10,
@@ -415,13 +415,17 @@ class _DynamicSpecialAbilityCardState
         ),
         const SizedBox(height: 8),
 
-        // Rank Buttons
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: List.generate(6, (index) {
-            return _rankButton(index);
-          }),
+        // Rank Buttons (4 buttons: BASE + 3 tiers)
+        Row(
+          children: [
+            _rankButton(0, 'BASE', null),
+            const SizedBox(width: 8),
+            _rankButton(1, 'I', 'UNLOCK'),
+            const SizedBox(width: 8),
+            _rankButton(2, 'II', 'POWER'),
+            const SizedBox(width: 8),
+            _rankButton(3, 'III', 'ULTIMATE'),
+          ],
         ),
         const SizedBox(height: 12),
 
@@ -431,32 +435,59 @@ class _DynamicSpecialAbilityCardState
     );
   }
 
-  Widget _rankButton(int rank) {
+  Widget _rankButton(int rank, String label, String? subtitle) {
     final isSelected = _selectedRank == rank;
-    final label = rank == 0 ? 'BASE' : 'RANK $rank';
+    final isUltimate = rank == 3;
 
-    return InkWell(
-      onTap: () => setState(() => _selectedRank = rank),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? widget.theme.primary.withOpacity(0.3)
-              : Colors.black26,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: isSelected
-                ? widget.theme.primary
-                : widget.theme.primary.withOpacity(0.2),
-            width: isSelected ? 2 : 1,
+    // Ultimate tier gets special styling
+    final borderColor = isSelected
+        ? (isUltimate ? Colors.amber : widget.theme.primary)
+        : widget.theme.primary.withOpacity(0.2);
+    final bgColor = isSelected
+        ? (isUltimate
+              ? Colors.amber.withOpacity(0.2)
+              : widget.theme.primary.withOpacity(0.3))
+        : Colors.black26;
+
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedRank = rank),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: borderColor, width: isSelected ? 2 : 1),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? widget.theme.text : widget.theme.textMuted,
-            fontSize: 10,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+          child: Column(
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected
+                      ? (isUltimate ? Colors.amber : widget.theme.text)
+                      : widget.theme.textMuted,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: isSelected
+                        ? (isUltimate
+                              ? Colors.amber.withOpacity(0.8)
+                              : widget.theme.secondary)
+                        : widget.theme.textMuted.withOpacity(0.6),
+                    fontSize: 7,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -470,20 +501,27 @@ class _DynamicSpecialAbilityCardState
       _selectedRank,
     );
 
+    final isUltimate = _selectedRank == 3;
+    final tierLabel = _getTierLabel(_selectedRank);
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            widget.theme.primary.withOpacity(0.15),
-            widget.theme.secondary.withOpacity(0.1),
-          ],
+          colors: isUltimate
+              ? [Colors.amber.withOpacity(0.15), Colors.orange.withOpacity(0.1)]
+              : [
+                  widget.theme.primary.withOpacity(0.15),
+                  widget.theme.secondary.withOpacity(0.1),
+                ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: widget.theme.primary.withOpacity(0.3),
+          color: isUltimate
+              ? Colors.amber.withOpacity(0.5)
+              : widget.theme.primary.withOpacity(0.3),
           width: 1.5,
         ),
       ),
@@ -491,18 +529,33 @@ class _DynamicSpecialAbilityCardState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
-              color: widget.theme.primary.withOpacity(0.2),
+              color: isUltimate
+                  ? Colors.amber.withOpacity(0.2)
+                  : widget.theme.primary.withOpacity(0.2),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Text(
-              'R$_selectedRank',
-              style: TextStyle(
-                color: widget.theme.primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-              ),
+            child: Column(
+              children: [
+                Text(
+                  _getRomanNumeral(_selectedRank),
+                  style: TextStyle(
+                    color: isUltimate ? Colors.amber : widget.theme.primary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  tierLabel,
+                  style: TextStyle(
+                    color: (isUltimate ? Colors.amber : widget.theme.primary)
+                        .withOpacity(0.7),
+                    fontSize: 6,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 10),
@@ -520,6 +573,32 @@ class _DynamicSpecialAbilityCardState
         ],
       ),
     );
+  }
+
+  String _getRomanNumeral(int rank) {
+    switch (rank) {
+      case 1:
+        return 'I';
+      case 2:
+        return 'II';
+      case 3:
+        return 'III';
+      default:
+        return '';
+    }
+  }
+
+  String _getTierLabel(int rank) {
+    switch (rank) {
+      case 1:
+        return 'UNLOCK';
+      case 2:
+        return 'POWER';
+      case 3:
+        return 'ULTIMATE';
+      default:
+        return '';
+    }
   }
 
   String _getFamilyAbilityName(String family) {

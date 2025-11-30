@@ -38,8 +38,8 @@ class HornNovaMechanic {
     final baseKnockback = 200.0 + rank * 30;
 
     final isCataclysmic = rank >= 3;
-    final radius = isCataclysmic ? baseRadius * 2 : baseRadius;
-    final damage = isCataclysmic ? (baseDmg * 1.5).toInt() : baseDmg;
+    final radius = isCataclysmic ? baseRadius * 1.2 : baseRadius;
+    final damage = isCataclysmic ? (baseDmg * 1.1).toInt() : baseDmg;
 
     // Slightly stronger knockback for cataclysmic
     double knockback = isCataclysmic ? baseKnockback * 1.7 : baseKnockback;
@@ -529,7 +529,10 @@ class HornNovaMechanic {
   //  EARTH / MUD / CRYSTAL
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Earth Nova - Extra tough shield and AoE
+  /// Earth Nova - Grants shields and creates taunt zone
+  /// Rank 1: Shields self and nearby allies
+  /// Rank 2: Larger shields, small damage reflect
+  /// Rank 3: FORTRESS - Massive shields + gravity taunt that pulls enemies toward Horn
   static void _earthNova(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -537,29 +540,149 @@ class HornNovaMechanic {
     Vector2 center,
     double radius,
   ) {
-    // Extra shield
-    final extraShield = (attacker.unit.maxHp * (0.1 + 0.03 * rank)).toInt();
+    final isDivine = rank >= 3;
+
+    // Shield all allies
+    final extraShield = (attacker.unit.maxHp * (0.12 + 0.04 * rank))
+        .toInt()
+        .clamp(25, 500);
     attacker.unit.shieldHp = (attacker.unit.shieldHp ?? 0) + extraShield;
 
-    // Shield nearby guardians
     final allies = game.getGuardiansInRange(center: center, range: radius);
     for (final g in allies) {
-      g.unit.shieldHp = (g.unit.shieldHp ?? 0) + (extraShield * 0.4).toInt();
+      if (g != attacker) {
+        g.unit.shieldHp = (g.unit.shieldHp ?? 0) + (extraShield * 0.5).toInt();
+      }
     }
 
-    // Tier 3: Taunt effect (visual for now) (was rank >= 5)
-    if (rank >= 3) {
-      final tauntRing = CircleComponent(
-        radius: 50,
+    ImpactVisuals.play(game, attacker.position, 'Earth', scale: 1.0);
+
+    // Rank 3: Create persistent taunt zone that pulls enemies
+    if (isDivine) {
+      final tauntRadius = 180.0;
+      final tauntDuration = 4.0;
+      final pullStrength = 30.0;
+
+      // Visual: Glowing taunt ring
+      final tauntZone = CircleComponent(
+        radius: tauntRadius,
         position: attacker.position.clone(),
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.brown.withOpacity(0.5)
+          ..color = Colors.brown.shade400.withOpacity(0.3)
+          ..style = PaintingStyle.fill,
+      );
+
+      // Inner fortress ring
+      final fortressRing = CircleComponent(
+        radius: tauntRadius * 0.6,
+        position: Vector2(tauntRadius, tauntRadius),
+        anchor: Anchor.center,
+        paint: Paint()
+          ..color = Colors.orange.shade700.withOpacity(0.5)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 4,
       );
-      tauntRing.add(RemoveEffect(delay: 3.0));
-      game.world.add(tauntRing);
+      tauntZone.add(fortressRing);
+
+      // Pulsing effect to show "come at me"
+      fortressRing.add(
+        SequenceEffect([
+          ScaleEffect.to(
+            Vector2.all(1.2),
+            EffectController(duration: 0.5, curve: Curves.easeOut),
+          ),
+          ScaleEffect.to(
+            Vector2.all(1.0),
+            EffectController(duration: 0.5, curve: Curves.easeIn),
+          ),
+        ], infinite: true),
+      );
+
+      // Store attacker reference for position tracking
+      final attackerRef = attacker;
+
+      // Main taunt tick - pulls enemies toward Horn
+      tauntZone.add(
+        TimerComponent(
+          period: 0.2,
+          repeat: true,
+          onTick: () {
+            // Update zone position to follow attacker
+            tauntZone.position = attackerRef.position.clone();
+
+            final victims = game.getEnemiesInRange(
+              attackerRef.position,
+              tauntRadius,
+            );
+            for (final v in victims) {
+              // Pull toward Horn
+              final toHorn = attackerRef.position - v.position;
+              final distance = toHorn.length;
+
+              if (distance > 30) {
+                final pullDir = toHorn.normalized();
+                // Stronger pull further away
+                final pullMult = (distance / tauntRadius).clamp(0.3, 1.0);
+                v.position += pullDir * pullStrength * pullMult * 0.2;
+              }
+
+              // Small damage for being taunted
+              v.takeDamage(5);
+            }
+          },
+        ),
+      );
+
+      // Periodic taunt visual
+      tauntZone.add(
+        TimerComponent(
+          period: 0.8,
+          repeat: true,
+          onTick: () {
+            ImpactVisuals.play(game, attackerRef.position, 'Earth', scale: 0.6);
+          },
+        ),
+      );
+
+      // Fade and remove
+      tauntZone.add(
+        SequenceEffect([
+          OpacityEffect.to(
+            1.0,
+            EffectController(duration: tauntDuration * 0.75),
+          ),
+          OpacityEffect.fadeOut(
+            EffectController(duration: tauntDuration * 0.25),
+          ),
+          RemoveEffect(),
+        ]),
+      );
+
+      game.world.add(tauntZone);
+    } else {
+      // Rank 1-2: Just show brief taunt indicator (no persistent pull)
+      if (rank >= 2) {
+        final tauntRing = CircleComponent(
+          radius: 50,
+          position: attacker.position.clone(),
+          anchor: Anchor.center,
+          paint: Paint()
+            ..color = Colors.brown.withOpacity(0.5)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4,
+        );
+
+        tauntRing.add(
+          SequenceEffect([
+            ScaleEffect.to(Vector2.all(1.5), EffectController(duration: 0.3)),
+            OpacityEffect.fadeOut(EffectController(duration: 0.5)),
+            RemoveEffect(),
+          ]),
+        );
+
+        game.world.add(tauntRing);
+      }
     }
   }
 

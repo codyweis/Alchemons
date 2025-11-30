@@ -311,6 +311,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _checkFieldTutorial() async {
     final db = context.read<AlchemonsDatabase>();
+    final spawnService = context.read<WildernessSpawnService>();
 
     // 🔹 First: if tutorial is already completed in DB, make sure local state matches
     final completed = await db.settingsDao.hasCompletedFieldTutorial();
@@ -329,15 +330,10 @@ class _HomeScreenState extends State<HomeScreen>
       }
 
       return; // nothing else to do
-    }
-
-    // 🔽 From here on, tutorial is NOT completed yet – existing logic continues
-    // 🔑 STEP 1: Check if extraction tutorial is still pending
+    } // Check if extraction tutorial is still pending
     final extractionPending =
         await db.settingsDao.getSetting('tutorial_extraction_pending') == '1';
     if (extractionPending) {
-      // User needs to extract first - don't start field tutorial
-      // Navigate them to breed screen to complete extraction
       debugPrint(
         '🎓 Tutorial: Extraction pending, redirecting to breed screen',
       );
@@ -390,6 +386,17 @@ class _HomeScreenState extends State<HomeScreen>
       // User has creatures - proceed with field tutorial
       debugPrint('🎓 Tutorial: Starting field tutorial');
       await db.settingsDao.setNavLocked(true);
+
+      if (!spawnService.hasAnyActiveSpawns) {
+        debugPrint(
+          '🎓 Tutorial: No spawns found, scheduling immediate spawn for tutorial',
+        );
+        await spawnService.clearSceneSpawns('valley');
+        await spawnService.scheduleNextSpawnTime(
+          'valley',
+          windowMax: const Duration(seconds: 3),
+        );
+      }
 
       setState(() {
         _isFieldTutorialActive = true;
@@ -445,8 +452,18 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Load featured hero
       final featuredInstance = await _loadFeaturedInstanceOrAuto();
+      debugPrint('🎯 Featured instance: ${featuredInstance?.instanceId}');
+      debugPrint('🎯 Featured instance: ${featuredInstance?.instanceId}');
+      debugPrint('🎯 Featured baseId: ${featuredInstance?.baseId}');
+
       if (featuredInstance != null) {
         final repo = context.read<CreatureCatalog>();
+        final base = repo.getCreatureById(featuredInstance.baseId);
+
+        debugPrint('🎯 Base creature: ${base?.name}');
+        debugPrint('🎯 SpriteData: ${base?.spriteData}');
+        debugPrint('🎯 SpriteData path: ${base?.spriteData?.spriteSheetPath}');
+
         _featuredInstanceId = featuredInstance.instanceId;
         _featuredData = _presentationFromInstance(featuredInstance, repo);
       } else {

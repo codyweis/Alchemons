@@ -47,6 +47,7 @@ class _BreedingTabState extends State<BreedingTab>
     with TickerProviderStateMixin {
   CreatureInstance? selectedParent1;
   CreatureInstance? selectedParent2;
+  bool _isBreeding = false;
 
   late AnimationController _slot1Controller;
   late AnimationController _slot2Controller;
@@ -801,7 +802,8 @@ class _BreedingTabState extends State<BreedingTab>
 
   // ================== BREED BUTTON ==================
   Widget _buildBreedButton(FactionTheme theme) {
-    final canBreed = selectedParent1 != null && selectedParent2 != null;
+    final canBreed =
+        selectedParent1 != null && selectedParent2 != null && !_isBreeding;
 
     return AnimatedBuilder(
       animation: _breedButtonController,
@@ -868,6 +870,7 @@ class _BreedingTabState extends State<BreedingTab>
   // we first run the dissolve fade, then call _performBreeding()
   Future<void> _onBreedTap() async {
     if (selectedParent1 == null || selectedParent2 == null) return;
+    if (_isBreeding) return;
 
     // --- Cross-species check runs BEFORE any cinematic / fade ---
     final repo = context.read<CreatureCatalog>();
@@ -889,6 +892,7 @@ class _BreedingTabState extends State<BreedingTab>
 
     if (!sameFamily && !hasCrossSpecies) {
       await _showCrossSpeciesLockedDialog(context, famA, famB);
+      setState(() => _isBreeding = false);
       // Do NOT start fade / cinematic; we just bail out cleanly.
       return;
     }
@@ -902,6 +906,8 @@ class _BreedingTabState extends State<BreedingTab>
 
     // now jump to cinematic + actual breeding
     await _performBreeding();
+
+    if (mounted) setState(() => _isBreeding = false);
 
     // reset fade for next time
     _preCinematicFadeController.reset();

@@ -352,7 +352,10 @@ class KinBlessingMechanic {
     game.world.add(iceZone);
   }
 
-  /// Steam Blessing - Speed boost and evasion for allies
+  /// Steam Blessing - Creates healing steam field with damage
+  /// Rank 1: Steam field that damages enemies and heals allies
+  /// Rank 2: Stronger effects with brief evasion
+  /// Rank 3: THERMAL SANCTUARY - Large steam zone with powerful regen
   static void _steamBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -361,32 +364,144 @@ class KinBlessingMechanic {
     double radius,
     List<HoardGuardian> allies,
   ) {
-    // Damage nearby enemies with steam burst
-    final steamDmg = (attacker.unit.statIntelligence * (1.2 + 0.25 * rank))
+    final isDivine = rank >= 3;
+
+    // Steam field parameters
+    final steamRadius = isDivine ? radius * 0.7 : radius * 0.5;
+    final steamDuration = 5.0 + rank * 0.8; // 5.8s, 6.6s, 7.4s
+    final damagePerTick = (attacker.unit.statIntelligence * (0.8 + 0.2 * rank))
         .toInt()
-        .clamp(3, 80);
-    final victims = game.getEnemiesInRange(center, radius);
+        .clamp(3, 70);
+    final healPerTick = (attacker.unit.statIntelligence * (0.6 + 0.15 * rank))
+        .toInt()
+        .clamp(2, 50);
 
-    for (final v in victims) {
-      v.takeDamage(steamDmg);
-      ImpactVisuals.play(game, v.position, 'Steam', scale: 0.5);
-    }
-
-    // Steam cloud visual
-    final cloud = CircleComponent(
-      radius: radius * 0.6,
-      position: center,
+    // Visual: Steam cloud
+    final steamCloud = CircleComponent(
+      radius: steamRadius,
+      position: game.orb.position.clone(),
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.blueGrey.shade300.withOpacity(0.25),
+      paint: Paint()
+        ..color = Colors.blueGrey.shade200.withOpacity(0.35)
+        ..style = PaintingStyle.fill,
     );
-    cloud.add(
+
+    // Inner steam wisps
+    final steamWisp = CircleComponent(
+      radius: steamRadius * 0.5,
+      position: Vector2(steamRadius, steamRadius),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.white.withOpacity(0.3)
+        ..style = PaintingStyle.fill,
+    );
+    steamCloud.add(steamWisp);
+
+    // Wisp floats upward effect (scale/opacity pulse)
+    steamWisp.add(
       SequenceEffect([
-        ScaleEffect.to(Vector2.all(1.3), EffectController(duration: 0.5)),
-        OpacityEffect.fadeOut(EffectController(duration: 0.5)),
+        ScaleEffect.to(
+          Vector2.all(1.3),
+          EffectController(duration: 0.8, curve: Curves.easeOut),
+        ),
+        ScaleEffect.to(
+          Vector2.all(0.8),
+          EffectController(duration: 0.8, curve: Curves.easeIn),
+        ),
+      ], infinite: true),
+    );
+
+    // Main steam tick - damages enemies, heals allies
+    steamCloud.add(
+      TimerComponent(
+        period: 0.4,
+        repeat: true,
+        onTick: () {
+          // Damage enemies
+          final victims = game.getEnemiesInRange(
+            game.orb.position,
+            steamRadius,
+          );
+          for (final v in victims) {
+            v.takeDamage(damagePerTick);
+
+            // Rank 2+: Confusion effect
+            if (rank >= 2) {
+              final rng = Random();
+              final jitter = Vector2(
+                (rng.nextDouble() - 0.5) * 10,
+                (rng.nextDouble() - 0.5) * 10,
+              );
+              v.position += jitter;
+            }
+          }
+
+          // Heal allies in steam
+          final steamAllies = game.getGuardiansInRange(
+            center: game.orb.position,
+            range: steamRadius,
+          );
+          for (final g in steamAllies) {
+            g.unit.heal(healPerTick);
+          }
+
+          // Heal orb
+          game.orb.heal((healPerTick * 0.3).toInt());
+
+          // Rank 3: Also cleanse one debuff per tick
+          if (isDivine) {
+            for (final g in steamAllies) {
+              if (g.unit.statusEffects.isNotEmpty) {
+                // Remove the first status effect by key
+                final firstKey = g.unit.statusEffects.keys.first;
+                g.unit.statusEffects.remove(firstKey);
+              }
+            }
+          }
+        },
+      ),
+    );
+
+    // Steam puff visual
+    steamCloud.add(
+      TimerComponent(
+        period: 0.5,
+        repeat: true,
+        onTick: () {
+          ImpactVisuals.play(game, game.orb.position, 'Steam', scale: 0.5);
+        },
+      ),
+    );
+
+    // Expanding/fading effect
+    steamCloud.add(
+      SequenceEffect([
+        ScaleEffect.to(
+          Vector2.all(1.1),
+          EffectController(duration: steamDuration * 0.7),
+        ),
+        OpacityEffect.fadeOut(EffectController(duration: steamDuration * 0.3)),
         RemoveEffect(),
       ]),
     );
-    game.world.add(cloud);
+
+    game.world.add(steamCloud);
+
+    // Initial burst damage
+    final victims = game.getEnemiesInRange(center, radius);
+    for (final v in victims) {
+      final burstDmg = (attacker.unit.statIntelligence * (1.2 + 0.25 * rank))
+          .toInt()
+          .clamp(3, 80);
+      v.takeDamage(burstDmg);
+      ImpactVisuals.play(game, v.position, 'Steam', scale: 0.5);
+    }
+
+    // Initial ally heal
+    for (final g in allies) {
+      g.unit.heal((healPerTick * 2).toInt());
+      ImpactVisuals.playHeal(game, g.position, scale: 0.5);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -594,7 +709,10 @@ class KinBlessingMechanic {
   //  AIR / DUST / LIGHTNING
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Air Blessing - Knockback wave that pushes all enemies away from orb
+  /// Air Blessing - Creates protective wind barrier around orb
+  /// Rank 1: Wind barrier that pushes enemies away from orb
+  /// Rank 2: Stronger push with damage
+  /// Rank 3: HURRICANE WARD - Massive barrier that shreds and repels enemies
   static void _airBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -602,22 +720,147 @@ class KinBlessingMechanic {
     Vector2 center,
     double radius,
   ) {
-    final victims = game.getEnemiesInRange(game.orb.position, radius);
+    final isDivine = rank >= 3;
 
+    // Wind barrier parameters
+    final barrierRadius = isDivine ? 180.0 + 25.0 * rank : 140.0 + 20.0 * rank;
+    final barrierDuration = 5.0 + rank * 1.0; // 6s, 7s, 8s
+    final pushStrength = 35.0 + rank * 12.0;
+    final damagePerTick = rank >= 2
+        ? (attacker.unit.statIntelligence * (0.5 + 0.15 * rank)).toInt().clamp(
+            3,
+            60,
+          )
+        : 0;
+
+    // Visual: Swirling wind barrier around orb
+    final barrier = CircleComponent(
+      radius: barrierRadius,
+      position: game.orb.position.clone(),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.cyan.withOpacity(0.2)
+        ..style = PaintingStyle.fill,
+    );
+
+    // Inner wind ring
+    final windRing = CircleComponent(
+      radius: barrierRadius * 0.7,
+      position: Vector2(barrierRadius, barrierRadius),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.white.withOpacity(0.3)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+    barrier.add(windRing);
+
+    // Outer wind ring
+    final outerRing = CircleComponent(
+      radius: barrierRadius * 0.9,
+      position: Vector2(barrierRadius, barrierRadius),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.cyan.withOpacity(0.25)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    barrier.add(outerRing);
+
+    // Rotate rings for wind effect
+    windRing.add(
+      RotateEffect.by(6.28, EffectController(duration: 1.5, infinite: true)),
+    );
+    outerRing.add(
+      RotateEffect.by(-6.28, EffectController(duration: 2.0, infinite: true)),
+    );
+
+    // Main wind push tick
+    barrier.add(
+      TimerComponent(
+        period: 0.2,
+        repeat: true,
+        onTick: () {
+          final victims = game.getEnemiesInRange(
+            game.orb.position,
+            barrierRadius,
+          );
+
+          for (final v in victims) {
+            // Push away from orb
+            final fromOrb = v.position - game.orb.position;
+            final distance = fromOrb.length;
+
+            if (distance > 10) {
+              final pushDir = fromOrb.normalized();
+              // Stronger push closer to orb (to keep them out)
+              final pushMult =
+                  1.0 - (distance / barrierRadius).clamp(0.0, 1.0) * 0.5;
+              v.position += pushDir * pushStrength * pushMult * 0.2;
+            }
+
+            // Damage (rank 2+)
+            if (damagePerTick > 0) {
+              v.takeDamage(damagePerTick);
+            }
+
+            // Rank 3: Also apply brief stagger
+            if (isDivine && Random().nextDouble() < 0.1) {
+              v.add(
+                MoveEffect.by(Vector2.zero(), EffectController(duration: 0.15)),
+              );
+            }
+          }
+        },
+      ),
+    );
+
+    // Periodic whoosh visual
+    barrier.add(
+      TimerComponent(
+        period: 0.6,
+        repeat: true,
+        onTick: () {
+          ImpactVisuals.play(game, game.orb.position, 'Air', scale: 0.6);
+        },
+      ),
+    );
+
+    // Fade and remove
+    barrier.add(
+      SequenceEffect([
+        OpacityEffect.to(
+          1.0,
+          EffectController(duration: barrierDuration * 0.8),
+        ),
+        OpacityEffect.fadeOut(
+          EffectController(duration: barrierDuration * 0.2),
+        ),
+        RemoveEffect(),
+      ]),
+    );
+
+    game.world.add(barrier);
+
+    // Initial burst knockback
+    final victims = game.getEnemiesInRange(game.orb.position, radius);
     for (final v in victims) {
       final dir = (v.position - game.orb.position).normalized();
       v.add(
         MoveEffect.by(
-          dir * (80.0 + 20.0 * rank),
+          dir * (60.0 + 15.0 * rank),
           EffectController(duration: 0.25, curve: Curves.easeOut),
         ),
       );
     }
 
-    SurvivalAttackManager.triggerScreenShake(game, 4.0 + rank);
+    SurvivalAttackManager.triggerScreenShake(game, 3.0 + rank);
   }
 
-  /// Dust Blessing - Blinds all enemies in range
+  /// Dust Blessing - Creates persistent blinding dust cloud
+  /// Rank 1: Dust cloud that confuses enemies
+  /// Rank 2: Larger cloud with damage
+  /// Rank 3: SANDSTORM WARD - Massive disorienting storm around orb
   static void _dustBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -626,8 +869,120 @@ class KinBlessingMechanic {
     double radius,
   ) {
     final rng = Random();
-    final victims = game.getEnemiesInRange(center, radius);
+    final isDivine = rank >= 3;
 
+    // Dust cloud parameters
+    final cloudRadius = isDivine ? radius * 0.8 : radius * 0.6;
+    final cloudDuration = 5.0 + rank * 0.8; // 5.8s, 6.6s, 7.4s
+    final jitterStrength = 20.0 + rank * 8.0;
+    final damagePerTick = rank >= 2
+        ? (attacker.unit.statIntelligence * (0.4 + 0.1 * rank)).toInt().clamp(
+            2,
+            50,
+          )
+        : 0;
+
+    // Visual: Dust cloud around orb
+    final dustCloud = CircleComponent(
+      radius: cloudRadius,
+      position: game.orb.position.clone(),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.amber.shade300.withOpacity(0.35)
+        ..style = PaintingStyle.fill,
+    );
+
+    // Swirling dust ring
+    final dustRing = CircleComponent(
+      radius: cloudRadius * 0.7,
+      position: Vector2(cloudRadius, cloudRadius),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.amber.shade600.withOpacity(0.3)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4,
+    );
+    dustCloud.add(dustRing);
+
+    dustRing.add(
+      RotateEffect.by(6.28, EffectController(duration: 2.5, infinite: true)),
+    );
+
+    // Pulsing effect
+    dustCloud.add(
+      SequenceEffect([
+        ScaleEffect.to(
+          Vector2.all(1.1),
+          EffectController(duration: 1.0, curve: Curves.easeInOut),
+        ),
+        ScaleEffect.to(
+          Vector2.all(1.0),
+          EffectController(duration: 1.0, curve: Curves.easeInOut),
+        ),
+      ], infinite: true),
+    );
+
+    // Main confusion tick
+    dustCloud.add(
+      TimerComponent(
+        period: 0.3,
+        repeat: true,
+        onTick: () {
+          final victims = game.getEnemiesInRange(
+            game.orb.position,
+            cloudRadius,
+          );
+
+          for (final v in victims) {
+            // Confusion jitter
+            final jitter = Vector2(
+              (rng.nextDouble() - 0.5) * jitterStrength,
+              (rng.nextDouble() - 0.5) * jitterStrength,
+            );
+            v.position += jitter;
+
+            // Damage (rank 2+)
+            if (damagePerTick > 0) {
+              v.takeDamage(damagePerTick);
+            }
+
+            // Rank 3: Occasional heavy disorientation
+            if (isDivine && rng.nextDouble() < 0.12) {
+              final bigJitter = Vector2(
+                (rng.nextDouble() - 0.5) * jitterStrength * 2.5,
+                (rng.nextDouble() - 0.5) * jitterStrength * 2.5,
+              );
+              v.position += bigJitter;
+            }
+          }
+        },
+      ),
+    );
+
+    // Periodic dust puff
+    dustCloud.add(
+      TimerComponent(
+        period: 0.5,
+        repeat: true,
+        onTick: () {
+          ImpactVisuals.play(game, game.orb.position, 'Dust', scale: 0.5);
+        },
+      ),
+    );
+
+    // Fade and remove
+    dustCloud.add(
+      SequenceEffect([
+        OpacityEffect.to(1.0, EffectController(duration: cloudDuration * 0.75)),
+        OpacityEffect.fadeOut(EffectController(duration: cloudDuration * 0.25)),
+        RemoveEffect(),
+      ]),
+    );
+
+    game.world.add(dustCloud);
+
+    // Initial burst confusion
+    final victims = game.getEnemiesInRange(center, radius);
     for (final v in victims) {
       final jitter = Vector2(
         (rng.nextDouble() - 0.5) * (40 + 10 * rank),
@@ -715,7 +1070,10 @@ class KinBlessingMechanic {
     game.orb.heal((totalDrained * 0.2).toInt());
   }
 
-  /// Dark Blessing - Execute weak enemies and empower allies
+  /// Dark Blessing - Creates death zone that executes and empowers
+  /// Rank 1: Death zone that executes low HP enemies
+  /// Rank 2: Higher execute threshold, allies gain lifesteal
+  /// Rank 3: REAPER'S DOMAIN - Large death zone with team-wide vampirism
   static void _darkBlessing(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -723,15 +1081,148 @@ class KinBlessingMechanic {
     Vector2 center,
     double radius,
   ) {
-    final executeThreshold = 0.15 + 0.04 * rank;
+    final isDivine = rank >= 3;
 
+    // Death zone parameters
+    final zoneRadius = isDivine ? radius * 0.7 : radius * 0.5;
+    final zoneDuration = 5.0 + rank * 1.0; // 6s, 7s, 8s
+    final executeThreshold = 0.15 + 0.04 * rank; // 19%, 23%, 27%
+    final damagePerTick = (attacker.unit.statIntelligence * (0.6 + 0.15 * rank))
+        .toInt()
+        .clamp(3, 80);
+    final lifestealPercent = rank >= 2 ? 0.2 + 0.1 * rank : 0; // 0%, 30%, 40%
+
+    // Visual: Dark death zone around orb
+    final deathZone = CircleComponent(
+      radius: zoneRadius,
+      position: game.orb.position.clone(),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.deepPurple.shade900.withOpacity(0.4)
+        ..style = PaintingStyle.fill,
+    );
+
+    // Inner void core
+    final voidCore = CircleComponent(
+      radius: zoneRadius * 0.3,
+      position: Vector2(zoneRadius, zoneRadius),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.black.withOpacity(0.6)
+        ..style = PaintingStyle.fill,
+    );
+    deathZone.add(voidCore);
+
+    // Pulsing core
+    voidCore.add(
+      SequenceEffect([
+        ScaleEffect.to(
+          Vector2.all(1.4),
+          EffectController(duration: 0.6, curve: Curves.easeInOut),
+        ),
+        ScaleEffect.to(
+          Vector2.all(1.0),
+          EffectController(duration: 0.6, curve: Curves.easeInOut),
+        ),
+      ], infinite: true),
+    );
+
+    // Outer death ring
+    final deathRing = CircleComponent(
+      radius: zoneRadius * 0.85,
+      position: Vector2(zoneRadius, zoneRadius),
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.purple.withOpacity(0.4)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    deathZone.add(deathRing);
+
+    deathRing.add(
+      RotateEffect.by(-6.28, EffectController(duration: 3.0, infinite: true)),
+    );
+
+    // Track total damage dealt for lifesteal
+    int damageDealtThisTick = 0;
+
+    // Main death zone tick
+    deathZone.add(
+      TimerComponent(
+        period: 0.3,
+        repeat: true,
+        onTick: () {
+          damageDealtThisTick = 0;
+          final victims = game.getEnemiesInRange(game.orb.position, zoneRadius);
+
+          for (final v in victims) {
+            // Execute check
+            if (!v.isBoss && v.unit.hpPercent < executeThreshold) {
+              v.takeDamage(99999);
+              ImpactVisuals.play(game, v.position, 'Dark', scale: 1.3);
+
+              // Heal attacker per execute
+              attacker.unit.heal(40 + 15 * rank);
+
+              // Rank 3: Executed enemies explode
+              if (isDivine) {
+                final nearby = game
+                    .getEnemiesInRange(v.position, 70)
+                    .where((e) => e != v);
+                for (final n in nearby) {
+                  n.takeDamage((damagePerTick * 2).toInt());
+                }
+              }
+            } else {
+              // Regular damage
+              v.takeDamage(damagePerTick);
+              damageDealtThisTick += damagePerTick;
+            }
+          }
+
+          // Lifesteal for allies (rank 2+)
+          if (lifestealPercent > 0 && damageDealtThisTick > 0) {
+            final healAmount = (damageDealtThisTick * lifestealPercent).toInt();
+            final allies = game.getGuardiansInRange(
+              center: game.orb.position,
+              range: zoneRadius * 1.5,
+            );
+            for (final g in allies) {
+              g.unit.heal((healAmount / max(1, allies.length)).toInt());
+            }
+          }
+        },
+      ),
+    );
+
+    // Periodic dark pulse visual
+    deathZone.add(
+      TimerComponent(
+        period: 0.7,
+        repeat: true,
+        onTick: () {
+          ImpactVisuals.play(game, game.orb.position, 'Dark', scale: 0.5);
+        },
+      ),
+    );
+
+    // Fade and remove
+    deathZone.add(
+      SequenceEffect([
+        OpacityEffect.to(1.0, EffectController(duration: zoneDuration * 0.8)),
+        OpacityEffect.fadeOut(EffectController(duration: zoneDuration * 0.2)),
+        RemoveEffect(),
+      ]),
+    );
+
+    game.world.add(deathZone);
+
+    // Initial execute sweep
     final victims = game.getEnemiesInRange(center, radius);
     for (final v in victims) {
       if (!v.isBoss && v.unit.hpPercent < executeThreshold) {
         v.takeDamage(99999);
         ImpactVisuals.play(game, v.position, 'Dark', scale: 1.2);
-
-        // Heal attacker per execute
         attacker.unit.heal(50);
       }
     }

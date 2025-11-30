@@ -378,29 +378,33 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     final currentFocalPoint = info.eventPosition.global;
 
-    // Handle panning (when scale is ~1.0, it's just a drag)
+    // --- PANNING (unchanged) ---
     if (_lastFocalPoint != null) {
       final delta = currentFocalPoint - _lastFocalPoint!;
       final newPosition =
           camera.viewfinder.position - (delta / camera.viewfinder.zoom);
 
-      // Clamp camera position to reasonable bounds
       camera.viewfinder.position = Vector2(
         newPosition.x.clamp(-1200.0, 1200.0),
         newPosition.y.clamp(-1000.0, 800.0),
       );
     }
-
     _lastFocalPoint = currentFocalPoint;
 
-    // Handle zooming (pinch gesture)
-    // info.scale.global gives us the cumulative scale since gesture start
-    if (info.scale.global.x != 1.0) {
-      final newScale = (_baseScaleForGesture * info.scale.global.x).clamp(
+    // --- ZOOMING (fixed) ---
+    final scale = info.scale.global;
+    final sx = scale.x;
+    final sy = scale.y;
+
+    // Pick whichever axis is changing more away from 1.0
+    final dominantScale = (sx - 1.0).abs() > (sy - 1.0).abs() ? sx : sy;
+
+    // Optional: small dead zone so tiny jitter doesn't zoom
+    if ((dominantScale - 1.0).abs() > 0.01) {
+      final newScale = (_baseScaleForGesture * dominantScale).clamp(
         _minScale,
         _maxScale,
       );
-
       camera.viewfinder.zoom = newScale;
     }
   }

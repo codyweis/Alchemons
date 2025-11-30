@@ -55,11 +55,24 @@ class ImprovedSurvivalSpawner extends Component
 
     // Boss / miniboss waves: slightly slower spawn rate so boss stands out
     final bool isAnyBossWave = wave % 5 == 0;
+
+    // Original pacing: later waves spawn faster up to a cap
     final waveFactor = (1.0 - (wave - 1) * 0.012).clamp(0.4, 1.0);
     final baseSpawnRate = 1.8 * waveFactor;
-    final currentSpawnRate = isAnyBossWave
-        ? baseSpawnRate * 1.6
-        : baseSpawnRate;
+
+    // NEW: density scale kicks in after wave 5
+    final densityScale = _waveDensityScale(wave);
+
+    // Boss / mini-boss waves still calmer than full trash waves
+    // but benefit from some extra density too.
+    final spawnRateBase = isAnyBossWave ? baseSpawnRate * 1.6 : baseSpawnRate;
+
+    // If densityScale = 2.0, we effectively spawn ~2x as often.
+    final densityForSpawnRate = isAnyBossWave
+        ? (1.0 + (densityScale - 1.0) * 0.5) // boss waves get ~half the extra
+        : densityScale;
+
+    final currentSpawnRate = spawnRateBase / densityForSpawnRate;
 
     _timer += dt;
 
@@ -86,6 +99,8 @@ class ImprovedSurvivalSpawner extends Component
     final style = _waveStyleFor(wave);
     final bool isBossWave = wave % 5 == 0;
 
+    final densityScale = _waveDensityScale(wave);
+
     int baseCount;
     switch (style) {
       case WaveStyle.tactical:
@@ -105,8 +120,11 @@ class ImprovedSurvivalSpawner extends Component
         baseCount = 6 + _rng.nextInt(4);
     }
 
+    // NEW: multiply by density so waves 6+ bring more bodies
+    int count = (baseCount * densityScale).round();
+
     // Boss waves: fewer trash mobs so arena stays readable
-    final count = isBossWave ? max(3, (baseCount * 0.55).round()) : baseCount;
+    count = isBossWave ? max(3, (count * 0.55).round()) : count;
 
     final angle = _rng.nextDouble() * pi * 2;
     final dist =
@@ -611,6 +629,16 @@ class ImprovedSurvivalSpawner extends Component
     gameRef.addHoardEnemy(enemy);
 
     _spawnBossMinionWaves(pos, wave, tier);
+  }
+
+  /// After wave 5, ramp up how "dense" waves feel:
+  /// - 1.0 for waves <= 5
+  /// - quickly rises toward ~2.0 by mid/late game
+  double _waveDensityScale(int wave) {
+    if (wave <= 5) return 1.0;
+
+    final extra = (wave - 5) * 0.08; // +8% density per wave after 5
+    return (1.0 + extra).clamp(1.0, 2.0);
   }
 
   void _spawnBossMinionWaves(Vector2 bossPos, int wave, int tier) {
