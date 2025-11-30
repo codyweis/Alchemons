@@ -30,12 +30,19 @@ class GuardianSlotIndicator extends PositionComponent
   void render(Canvas canvas) {
     // Calculate pulse (goes between 0.9 and 1.1)
     final double scale = 1.0 + (math.sin(_timer) * 0.15);
-    final double alphaPulse =
-        0.5 + (math.sin(_timer) * 0.2); // 0.3 to 0.7 opacity
+    final double alphaPulse = 0.5 + (math.sin(_timer) * 0.2);
 
-    // Draw coordinate system relative to center (0,0) due to Anchor.center
-    final double drawRadius =
-        (size.x / 2) * 0.6; // Visual radius is 60% of hit box
+    // Find the center of the component's size
+    final double centerX = size.x / 2;
+    final double centerY = size.y / 2;
+
+    // 🛑 CRITICAL FIX: Translate the canvas origin to the center of the hitbox.
+    canvas.translate(centerX, centerY);
+
+    // Draw coordinate system is now relative to the center (0,0)
+    final double drawRadius = (size.x / 2) * 0.6;
+
+    // --- Drawing Logic Starts Here (Uses Offset.zero for Center) ---
 
     // 1. Outer Glow Ring (Pulsing)
     final paintGlow = Paint()

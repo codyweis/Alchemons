@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_orb.dart';
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
+import 'package:alchemons/games/survival/components/guardian_inspect_hud.dart';
 import 'package:alchemons/games/survival/components/guardian_slot_indicator.dart';
 import 'package:alchemons/games/survival/components/survival_hud.dart';
 import 'package:alchemons/games/survival/scaling_system.dart';
@@ -107,6 +108,24 @@ class SurvivalHoardGame extends FlameGame
   final Map<String, Map<AlchemyUpgradeKind, int>> _unitUpgradeCounts = {};
   final Map<String, Map<String, int>> _specialAbilityUpgradeRanks = {};
 
+  final ValueNotifier<HoardGuardian?> selectedGuardianNotifier =
+      ValueNotifier<HoardGuardian?>(null);
+
+  // Convenience helpers:
+  void selectGuardian(HoardGuardian? guardian) {
+    selectedGuardianNotifier.value = guardian;
+  }
+
+  // Expose upgrade ranks for HUD:
+  int getTransmuteRank(String unitId) {
+    return _unitUpgradeCounts[unitId]?[AlchemyUpgradeKind.maxHp] ?? 0;
+  }
+
+  int getSpecialRankForUnit(SurvivalUnit unit) {
+    final element = unit.types.firstOrNull ?? 'Normal';
+    return getSpecialAbilityRank(unit.id, element);
+  }
+
   int kills = 0;
   int score = 0;
   double timeElapsed = 0;
@@ -137,8 +156,16 @@ class SurvivalHoardGame extends FlameGame
   }
 
   void incrementSpecialAbilityRank(String unitId, String element) {
+    const int maxTier = 3; // 0–3: locked + 3 power ups
+
     _specialAbilityUpgradeRanks.putIfAbsent(unitId, () => {});
     final current = _specialAbilityUpgradeRanks[unitId]![element] ?? 0;
+
+    if (current >= maxTier) {
+      // Already maxed, do nothing.
+      return;
+    }
+
     _specialAbilityUpgradeRanks[unitId]![element] = current + 1;
   }
 
@@ -167,6 +194,8 @@ class SurvivalHoardGame extends FlameGame
     _setupFormation();
     _initBenchFromParty();
     cameraComponent.viewport.add(SurvivalHud());
+
+    cameraComponent.viewport.add(GuardianInspectHud());
   }
 
   @override
@@ -204,19 +233,19 @@ class SurvivalHoardGame extends FlameGame
 
     // RING 1 (Inner Defense) - Radius 260 (previously 220)
     // Indices 0-7. Kept at 8 slots so your _setupFormation() logic works perfectly.
-    addRing(260.0, 8, angleOffset: -math.pi / 2);
+    addRing(400.0, 8, angleOffset: -math.pi / 2);
 
     // RING 2 (Mid Field) - Radius 460 (previously 380)
     // 12 Slots. Good for general crowd control units.
-    addRing(460.0, 12, angleOffset: 0);
+    addRing(750.0, 12, angleOffset: 0);
 
     // RING 3 (Long Range) - Radius 700 (previously 580)
     // 16 Slots. Great for snipers (Wing/Pip).
-    addRing(700.0, 16, angleOffset: math.pi / 8);
+    addRing(950.0, 16, angleOffset: math.pi / 8);
 
     // RING 4 (Outposts) - Radius 980 (previously 820)
     // 20 Slots. Way out there. Good for intercepting bosses early.
-    addRing(980.0, 20, angleOffset: 0);
+    addRing(1200.0, 20, angleOffset: 0);
   }
 
   void _initBenchFromParty() {
@@ -420,7 +449,9 @@ class SurvivalHoardGame extends FlameGame
 
     final List<AlchemyChoiceOption> candidates = [];
     final rng = math.Random();
-    const int maxRank = 5;
+
+    const int maxAbilityTier = 3; // 3 power ups for elemental special
+    const int maxTransmuteRank = 5; // keep 5 steps for Transmute if you like
 
     // 1. Generate "Deploy from Bench" Candidates
     // Only show these if there is actually room on the field (limit 8 active for balance, or use _slots.length)
@@ -450,28 +481,38 @@ class SurvivalHoardGame extends FlameGame
       final element = unit.types.firstOrNull ?? 'Normal';
 
       // --- OPTION A: EMPOWER (Special Ability) ---
-      final specialRank = getSpecialAbilityRank(unit.id, element);
-      final nextRank = specialRank + 1;
+      final specialTier = getSpecialAbilityRank(unit.id, element); // 0–3 now
+      final nextTier = specialTier + 1;
 
-      if (specialRank < maxRank) {
+      if (specialTier < maxAbilityTier) {
         final label = 'Empower ${unit.name}';
         String effectText;
 
-        // Rank 1: Explain the Sustain/Utility unlock
-        if (nextRank == 1) {
+        // Tier 1: use the nice config text (unlock)
+        if (nextTier == 1) {
           effectText = describeSpecialRank1(unit);
+        } else if (nextTier == 2) {
+          // Strengthened – pull from config if you want more flavor
+          effectText = AbilitySystemConfig.getAbilityDescription(
+            unit.family,
+            element,
+            2,
+          );
         } else {
-          // Generic message for higher ranks
-          effectText =
-              'Empowers ${unit.types.firstOrNull ?? unit.family} special '
-              '(more damage, bigger area & stronger effects).';
+          // Tier 3: massive update
+          effectText = AbilitySystemConfig.getAbilityDescription(
+            unit.family,
+            element,
+            3,
+          );
         }
 
         candidates.add(
           AlchemyChoiceOption(
             kind: AlchemyUpgradeKind.specialAbility,
             label: label,
-            description: '$effectText\n(${element} Special • Rank $nextRank)',
+            description:
+                '$effectText\n(${element} Special • Tier $nextTier of $maxAbilityTier)',
             targetUnit: unit,
           ),
         );
@@ -483,14 +524,14 @@ class SurvivalHoardGame extends FlameGame
         AlchemyUpgradeKind.maxHp,
       );
 
-      if (transmuteRank < maxRank) {
+      if (transmuteRank < maxTransmuteRank) {
         final nextRank = transmuteRank + 1;
         candidates.add(
           AlchemyChoiceOption(
             kind: AlchemyUpgradeKind.maxHp,
             label: 'Transmute ${g.unit.name}',
             description:
-                '+7.5% HP & +10% core stats\n(Rank $nextRank of $maxRank)',
+                '+7.5% HP & +10% core stats\n(Rank $nextRank of $maxTransmuteRank)',
             targetUnit: g.unit,
           ),
         );
@@ -786,16 +827,16 @@ class SurvivalHoardGame extends FlameGame
       switch (member.position) {
         // Mapping the 4 initial spots to the 8 generated slots
         case FormationPosition.frontLeft:
-          slotIndex = 6; // Around 3/4 way around the circle
+          slotIndex = 6; //top left
           break;
         case FormationPosition.frontRight:
-          slotIndex = 2; // Around 1/4 way around the circle
+          slotIndex = 2; // top right
           break;
         case FormationPosition.backLeft:
-          slotIndex = 7; // Just before the top center
+          slotIndex = 0; // bottom left
           break;
         case FormationPosition.backRight:
-          slotIndex = 1; // Just after the top center
+          slotIndex = 4; // bottom right
           break;
       }
 
@@ -902,9 +943,9 @@ class AlchemyRuneBackground extends PositionComponent {
   @override
   void render(Canvas canvas) {
     final paint = Paint()
-      ..color = const Color.fromARGB(255, 64, 21, 72).withOpacity(0.5)
+      ..color = const Color.fromARGB(255, 64, 21, 72).withOpacity(0.7)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
+      ..strokeWidth = 5
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
 
     final centerOffset = Offset(_center, _center);

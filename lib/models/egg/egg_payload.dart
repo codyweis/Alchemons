@@ -312,8 +312,25 @@ class EggPayloadFactory {
     final actualSeed = seed ?? DateTime.now().millisecondsSinceEpoch;
     final rng = Random(actualSeed);
 
-    final elementType = _factionKey(faction);
+    final factionType = _factionKey(faction);
 
+    String elementType;
+    switch (factionType) {
+      case 'volcanic':
+        elementType = 'Fire';
+        break;
+      case 'oceanic':
+        elementType = 'Water';
+        break;
+      case 'earthen':
+        elementType = 'Earth';
+        break;
+      case 'verdant':
+        elementType = 'Air';
+        break;
+      default:
+        elementType = 'Neutral';
+    }
     return EggPayload(
       baseId: baseId,
       rarity: 'Common',

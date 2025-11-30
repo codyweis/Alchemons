@@ -12,10 +12,13 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
-/// LET FAMILY - METEOR MECHANIC
+/// LET FAMILY - METEOR MECHANIC (3-RANK VERSION)
 /// Launches a devastating meteor that crashes down on enemies
-/// Rank 1+: Elemental augment based on type
-/// Rank 5 (MAX): Apocalyptic meteor with massive AoE and effects
+///
+/// Rank 0: no special
+/// Rank 1: basic meteor unlocked
+/// Rank 2: stronger meteor (bigger radius / damage)
+/// Rank 3+: Apocalyptic meteor (ultimate size & damage + apex riders)
 class LetMeteorMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -23,17 +26,26 @@ class LetMeteorMechanic {
     HoardEnemy target,
     String element,
   ) {
-    final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
+    final rawRank = game.getSpecialAbilityRank(attacker.unit.id, element);
+
+    // No upgrade yet → no meteor
+    if (rawRank <= 0) {
+      return;
+    }
+
+    // Clamp to 1–3; 3+ all behave as "apocalyptic"
+    final rank = rawRank.clamp(1, 3);
     final color = SurvivalAttackManager.getElementColor(element);
 
     // Base meteor parameters scale with rank
-    final baseRadius = 100.0 + rank * 15;
-    final baseDmg = (calcDmg(attacker, target) * (1.5 + 0.25 * rank)).toInt();
+    final baseRadius = 100.0 + rank * 20; // 120, 140, 160
+    final baseDmg = (calcDmg(attacker, target) * (1.5 + 0.3 * rank))
+        .toInt(); // ramps a bit
 
-    // Rank 5: Apocalyptic Meteor
-    final isApocalyptic = rank >= 5;
-    final radius = isApocalyptic ? baseRadius * 1.8 : baseRadius;
-    final damage = isApocalyptic ? (baseDmg * 1.5).toInt() : baseDmg;
+    // Rank 3: Apocalyptic Meteor
+    final isApocalyptic = rank >= 3;
+    final radius = isApocalyptic ? baseRadius * 1.7 : baseRadius;
+    final damage = isApocalyptic ? (baseDmg * 1.4).toInt() : baseDmg;
 
     // Visual: Meteor falling from sky
     final impactPos = target.position.clone();
@@ -43,9 +55,7 @@ class LetMeteorMechanic {
       radius: isApocalyptic ? 35 : 25,
       position: startPos,
       anchor: Anchor.center,
-      paint: Paint()
-        ..color = color
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      paint: Paint()..color = color,
     );
 
     // Trail effect
@@ -98,18 +108,16 @@ class LetMeteorMechanic {
           // Explosion visual
           ImpactVisuals.playExplosion(game, impactPos, element, radius);
 
-          // Apply elemental effect
-          if (rank >= 1) {
-            _applyElementalMeteor(
-              game: game,
-              attacker: attacker,
-              element: element,
-              rank: rank,
-              center: impactPos,
-              radius: radius,
-              enemiesHit: victims,
-            );
-          }
+          // Apply elemental effect (Rank 1+)
+          _applyElementalMeteor(
+            game: game,
+            attacker: attacker,
+            element: element,
+            rank: rank,
+            center: impactPos,
+            radius: radius,
+            enemiesHit: victims,
+          );
         },
       ),
     );
@@ -243,8 +251,8 @@ class LetMeteorMechanic {
     fireZone.add(RemoveEffect(delay: duration));
     game.world.add(fireZone);
 
-    // Rank 5: Heal from burning enemies
-    if (rank >= 5) {
+    // Rank 3: Heal from burning enemies
+    if (rank >= 3) {
       final heal = (dps * 0.3).toInt();
       attacker.unit.heal(heal);
     }
@@ -328,8 +336,8 @@ class LetMeteorMechanic {
 
     ImpactVisuals.playHeal(game, attacker.position);
 
-    // Rank 5: Also heal nearby guardians
-    if (rank >= 5) {
+    // Rank 3: Also heal nearby guardians
+    if (rank >= 3) {
       final nearbyGuardians = game.getGuardiansInRange(
         center: center,
         range: 200,
@@ -423,8 +431,8 @@ class LetMeteorMechanic {
     iceField.add(RemoveEffect(delay: duration));
     game.world.add(iceField);
 
-    // Rank 5: Freeze enemies in place briefly (stun)
-    if (rank >= 5) {
+    // Rank 3: Freeze enemies in place briefly (stun)
+    if (rank >= 3) {
       for (final v in victims) {
         v.add(MoveEffect.by(Vector2.zero(), EffectController(duration: 1.5)));
       }
@@ -528,8 +536,8 @@ class LetMeteorMechanic {
     garden.add(RemoveEffect(delay: duration));
     game.world.add(garden);
 
-    // Rank 5: Garden also heals guardians inside
-    if (rank >= 5) {
+    // Rank 3: Garden also heals guardians inside
+    if (rank >= 3) {
       garden.add(
         TimerComponent(
           period: 1.0,
@@ -640,8 +648,8 @@ class LetMeteorMechanic {
         .clamp(20, 400);
     attacker.unit.shieldHp = (attacker.unit.shieldHp ?? 0) + shieldAmount;
 
-    // Rank 5: Also grant shield to nearby guardians
-    if (rank >= 5) {
+    // Rank 3: Also grant shield to nearby guardians
+    if (rank >= 3) {
       final allies = game.getGuardiansInRange(
         center: attacker.position,
         range: 200,
@@ -760,8 +768,8 @@ class LetMeteorMechanic {
 
     SurvivalAttackManager.triggerScreenShake(game, 4.0 + rank);
 
-    // Rank 5: Second shockwave
-    if (rank >= 5) {
+    // Rank 3: Second shockwave
+    if (rank >= 3) {
       Future.delayed(const Duration(milliseconds: 300), () {
         final secondWaveVictims = game.getEnemiesInRange(center, radius * 1.3);
         for (final v in secondWaveVictims) {
@@ -942,8 +950,8 @@ class LetMeteorMechanic {
       }
     }
 
-    // Rank 5: Lifesteal from executes
-    if (rank >= 5) {
+    // Rank 3: Lifesteal from executes
+    if (rank >= 3) {
       final executed = victims.where((v) => v.isDead).length;
       attacker.unit.heal(executed * 50);
     }
@@ -981,8 +989,8 @@ class LetMeteorMechanic {
     // Heal orb
     game.orb.heal((healAmount * 0.5).toInt());
 
-    // Rank 5: Purify debuffs (clear negative status effects)
-    if (rank >= 5) {
+    // Rank 3: Purify debuffs (clear negative status effects)
+    if (rank >= 3) {
       for (final g in game.guardians) {
         g.unit.statusEffects.clear();
       }

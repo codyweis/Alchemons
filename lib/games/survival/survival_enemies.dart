@@ -11,7 +11,7 @@ import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 
-enum EnemyRole { charger, shooter }
+enum EnemyRole { charger, shooter, bomber, leecher }
 
 enum BossArchetype {
   juggernaut, // currently all bosses share the same simple AI, archetype kept for future flavor
@@ -53,7 +53,7 @@ enum EnemyTier {
   // Tier 1 - fodder / swarm
   swarm(1, 'Swarm', 0.6, 0.6),
 
-  // Tier 2 - “brute” units: fewer, tougher than swarm
+  // Tier 2 - "brute" units: fewer, tougher than swarm
   grunt(2, 'Brute', 0.7, 0.7),
 
   // Tier 3 - elites: small packs, noticeable threat
@@ -137,9 +137,9 @@ class SurvivalEnemyCatalog {
     return templates;
   }
 
-  /// Map tiers to visual “families”.
+  /// Map tiers to visual "families".
   ///  - swarm  = fodder blobs (lots of them)
-  ///  - grunt  = “brute” blobs (tougher frontliners)
+  ///  - grunt  = "brute" blobs (tougher frontliners)
   ///  - elite  = rare elite packs
   ///  - champion/titan = mini-boss / boss visuals
   static List<CreatureFamily> _getFamiliesForTier(EnemyTier tier) {
@@ -267,6 +267,17 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   double _timeAlive = 0;
   double _timeSinceLastDamage = 0;
 
+  // Shooter "ship" state - flies in, then orbits and shoots
+  bool _shooterInPosition = false;
+
+  // Leecher state - attaches to target and drains
+  bool _isAttached = false;
+  dynamic _attachedTarget;
+  double _leechTickTimer = 0;
+  final double _leechTickInterval = 0.5;
+  int _leechDamagePerTick = 0;
+  int _leechHealPerTick = 0;
+
   // Boss state (simplified)
   bool get isAnyBoss => isBoss || isMiniBoss || isMegaBoss;
   bool _isInvulnerable = false;
@@ -323,24 +334,41 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       _maxSpeed = baseSpeed * (1.0 + unit.statStrength * 0.15);
       _contactDamage = (unit.physAtk * 0.7).round();
       _shotDamage = (unit.elemAtk * 0.2).round();
-    } else {
-      _maxSpeed = baseSpeed * (0.85 + unit.statSpeed * 0.18);
+    } else if (role == EnemyRole.shooter) {
+      // Shooters fly in faster initially
+      _maxSpeed = baseSpeed * (1.2 + unit.statSpeed * 0.2);
       _contactDamage = (unit.physAtk * 0.2).round();
       _shotDamage = (unit.elemAtk * 0.45).round();
+    } else if (role == EnemyRole.bomber) {
+      // Bombers are fast kamikazes
+      _maxSpeed = baseSpeed * (1.8 + unit.statSpeed * 0.25);
+      _contactDamage = (unit.physAtk * 2.5).round(); // Big explosion damage
+      _shotDamage = 0;
+    } else if (role == EnemyRole.leecher) {
+      // Leechers are medium speed, attach and drain
+      _maxSpeed = baseSpeed * (1.1 + unit.statSpeed * 0.15);
+      _contactDamage = (unit.physAtk * 0.1).round(); // Low initial hit
+      _leechDamagePerTick = (unit.elemAtk * 0.3).round();
+      _leechHealPerTick = (_leechDamagePerTick * 0.5).round();
+      _shotDamage = 0;
     }
 
     // Strong, simple boss multipliers
     if (isAnyBoss) {
-      final bossMult = isMegaBoss
+      double bossMult = isMegaBoss
           ? 2.5
           : (isBoss ? 2.0 : 1.6); // mini < boss < mega
+
+      if (role == EnemyRole.shooter) {
+        bossMult *= 0.7; // <- key nerf for boss shooters
+      }
 
       _contactDamage = max(10, (_contactDamage * bossMult).round());
       _shotDamage = max(8, (_shotDamage * bossMult).round());
 
-      _baseAttackCooldown =
-          (role == EnemyRole.charger ? 2.0 : 1.8) /
-          max(0.5, unit.cooldownReduction);
+      // Boss shooters fire slower than before
+      final baseCd = role == EnemyRole.charger ? 2.0 : 2.4;
+      _baseAttackCooldown = baseCd / max(0.5, unit.cooldownReduction);
     } else {
       _baseAttackCooldown = role == EnemyRole.charger
           ? 2.5 / unit.cooldownReduction
@@ -360,7 +388,11 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       AlchemicalTrail(
         color: baseColor,
         radius: radius * 0.6,
-        maxParticles: isAnyBoss ? 20 : 8,
+        maxParticles: isAnyBoss
+            ? 20
+            : (role == EnemyRole.shooter
+                  ? 12
+                  : (role == EnemyRole.bomber ? 15 : 8)),
       ),
     );
 
@@ -592,10 +624,47 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   // ═══════════════════════════════════════════════════════════════════════════
 
   void _updateSimpleBossAI(double dt) {
-    // Bosses stay in a ring around the orb
-    final desiredRadius = isMegaBoss ? 420.0 : 320.0;
-    final minRadius = isMegaBoss ? 280.0 : 240.0; // never inside this
-    final maxRadius = desiredRadius + 80.0; // don't wander too far out
+    // Archetype-based ring behavior
+    double desiredRadius;
+    double minRadius;
+    double maxRadius;
+    double orbitWeight = 0.9;
+    double speedFactor = isMegaBoss ? 0.85 : 0.65;
+
+    switch (bossArchetype) {
+      case BossArchetype.juggernaut:
+        // Closer, more aggressive
+        desiredRadius = isMegaBoss ? 420.0 : 260.0;
+        minRadius = desiredRadius - 80.0;
+        maxRadius = desiredRadius + 80.0;
+        speedFactor *= 1.05;
+        orbitWeight = 0.6;
+        break;
+
+      case BossArchetype.summoner:
+        // Medium-far, slow drifting
+        desiredRadius = isMegaBoss ? 520.0 : 340.0;
+        minRadius = desiredRadius - 90.0;
+        maxRadius = desiredRadius + 100.0;
+        speedFactor *= 0.9;
+        orbitWeight = 0.8;
+        break;
+
+      case BossArchetype.artillery:
+        // Furthest, keeps distance
+        desiredRadius = isMegaBoss ? 580.0 : 380.0;
+        minRadius = desiredRadius - 80.0;
+        maxRadius = desiredRadius + 80.0;
+        speedFactor *= 0.85;
+        orbitWeight = 1.0;
+        break;
+
+      default:
+        // Old generic behavior
+        desiredRadius = isMegaBoss ? 500.0 : 320.0;
+        minRadius = isMegaBoss ? 500.0 : 240.0;
+        maxRadius = desiredRadius + 80.0;
+    }
 
     final center = targetOrb.position;
     final toCenter = center - position;
@@ -620,12 +689,11 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
         if (dist > desiredRadius + 20) moveDir += radialIn * 0.7;
         if (dist < desiredRadius - 20) moveDir += radialOut * 0.7;
 
-        // Tangential orbit motion so they “flow” around the orb
+        // Tangential orbit motion so they "flow" around the orb
         final tangent = Vector2(-radialIn.y, radialIn.x);
-        moveDir += tangent * 0.9;
+        moveDir += tangent * orbitWeight;
 
-        // Very small separation so they don't jitter like crazy
-        // Comment this out entirely if you want bosses to ignore other enemies.
+        // Light separation (comment out if you want bosses to ignore adds)
         moveDir += _computeSeparation(radius: size.x * 1.0) * 0.2;
       }
     }
@@ -634,7 +702,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       moveDir.normalize();
     }
 
-    final bossSpeed = _maxSpeed * (isMegaBoss ? 0.85 : 0.65);
+    final bossSpeed = _maxSpeed * speedFactor;
     final desiredVel = moveDir * bossSpeed;
 
     _velocity.lerp(desiredVel, dt * 4.0);
@@ -654,19 +722,64 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
   void _performBossAttack() {
     final rng = Random().nextDouble();
+    final archetype = bossArchetype;
 
-    if (rng < 0.5) {
-      // Main pattern: radial shots
-      _fireRadialVolley(projectiles: isMegaBoss ? 18 : 12);
-      _bossAttackCooldown = isMegaBoss ? 3.0 : 3.5;
-    } else {
-      // Secondary pattern: summon minions
-      if (!isMegaBoss) {
-        _summonMinions(isBoss ? 5 : 3);
+    // Fallback: old generic behavior
+    if (archetype == null) {
+      if (rng < 0.5) {
+        _fireRadialVolley(projectiles: isMegaBoss ? 16 : 10);
+        _bossAttackCooldown = isMegaBoss ? 3.2 : 3.6;
       } else {
-        _summonMinions(6);
+        if (!isMegaBoss) {
+          _summonMinions(isBoss ? 5 : 3);
+        } else {
+          _summonMinions(6);
+        }
+        _bossAttackCooldown = isMegaBoss ? 3.4 : 3.0;
       }
-      _bossAttackCooldown = isMegaBoss ? 3.2 : 2.8;
+      return;
+    }
+
+    switch (archetype) {
+      case BossArchetype.juggernaut:
+        // Mostly short-range pressure, occasional minion call
+        if (rng < 0.65) {
+          // Fewer projectiles, slightly higher dmgScale
+          _fireRadialVolley(projectiles: isMegaBoss ? 10 : 7, damageScale: 0.9);
+          _bossAttackCooldown = isMegaBoss ? 3.4 : 3.8;
+        } else {
+          _summonMinions(isMegaBoss ? 6 : 4);
+          _bossAttackCooldown = isMegaBoss ? 3.6 : 3.2;
+        }
+        break;
+
+      case BossArchetype.summoner:
+        // Mostly summons, rare volleys
+        if (rng < 0.75) {
+          _summonMinions(isMegaBoss ? 8 : 5);
+          _bossAttackCooldown = isMegaBoss ? 3.3 : 2.9;
+        } else {
+          _fireRadialVolley(
+            projectiles: isMegaBoss ? 10 : 8,
+            damageScale: 0.75,
+          );
+          _bossAttackCooldown = isMegaBoss ? 3.8 : 3.6;
+        }
+        break;
+
+      case BossArchetype.artillery:
+        // Mostly shooting, but each shot is toned down (see damageScale)
+        if (rng < 0.7) {
+          _fireRadialVolley(
+            projectiles: isMegaBoss ? 14 : 10,
+            damageScale: 0.7, // <- IMPORTANT: nerf artillery damage
+          );
+          _bossAttackCooldown = isMegaBoss ? 3.7 : 3.9;
+        } else {
+          _summonMinions(isMegaBoss ? 4 : 3);
+          _bossAttackCooldown = isMegaBoss ? 4.0 : 3.8;
+        }
+        break;
     }
   }
 
@@ -675,6 +788,12 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   // ═══════════════════════════════════════════════════════════════════════════
 
   void _updateMovementAndAI(double dt) {
+    // Handle attached leecher separately
+    if (role == EnemyRole.leecher && _isAttached) {
+      _updateLeecherAttached(dt);
+      return;
+    }
+
     final targetGuardian = gameRef.getRandomGuardianInRange(
       center: position,
       range: 800,
@@ -685,7 +804,14 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
     if (role == EnemyRole.shooter) {
       steeringForce = _getShooterSteering(targetGuardian, dt);
-      _tryShoot(targetGuardian);
+      // Only shoot once in position
+      if (_shooterInPosition) {
+        _tryShoot(targetGuardian);
+      }
+    } else if (role == EnemyRole.bomber) {
+      steeringForce = _getBomberSteering(targetGuardian, dt);
+    } else if (role == EnemyRole.leecher) {
+      steeringForce = _getLeecherSteering(targetGuardian, dt);
     } else {
       steeringForce = _getChargerSteering(
         targetGuardian,
@@ -751,7 +877,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     if (guardian != null) {
       final gDist = position.distanceTo(guardian.position);
       final oDist = position.distanceTo(targetOrb.position);
-      if (gDist < oDist * 0.75) {
+      if (gDist < oDist * 0.9) {
         dest = guardian.position;
         huntingGuardian = true;
       }
@@ -770,19 +896,232 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     return (dest - position).normalized();
   }
 
+  /// Shooter steering: flies in like a ship, then orbits at ideal range
   Vector2 _getShooterSteering(HoardGuardian? guardian, double dt) {
     final targetPos = guardian?.position ?? targetOrb.position;
     final toTarget = targetPos - position;
     final dist = toTarget.length;
     final dir = toTarget.normalized();
 
-    if (dist > _idealRange + 60) {
-      return dir;
+    // Phase 1: Fly in directly until reaching ideal range
+    if (!_shooterInPosition) {
+      if (dist <= _idealRange + 30) {
+        // Reached position - transition to orbit mode
+        _shooterInPosition = true;
+        _orbitAngle = atan2(-dir.y, -dir.x); // Start orbit from current angle
+      } else {
+        // Fly straight in like a ship
+        return dir;
+      }
+    }
+
+    // Phase 2: Orbit at ideal range while shooting
+    // Slow orbit drift
+    _orbitAngle += dt * 0.3;
+
+    // Calculate desired orbit position
+    final orbitPos =
+        targetPos + Vector2(cos(_orbitAngle), sin(_orbitAngle)) * _idealRange;
+    final toOrbit = orbitPos - position;
+
+    // If too far from orbit, correct
+    if (dist > _idealRange + 80) {
+      return dir * 0.8 + toOrbit.normalized() * 0.2;
     } else if (dist < _idealRange - 60) {
       return -dir;
-    } else {
-      return Vector2(-dir.y, dir.x) * 0.5;
     }
+
+    // Smooth orbit following
+    return toOrbit.normalized();
+  }
+
+  /// Bomber steering: flies fast and straight, explodes on contact
+  Vector2 _getBomberSteering(HoardGuardian? guardian, double dt) {
+    // Prioritize guardian if close, otherwise beeline for orb
+    Vector2 dest = targetOrb.position;
+    bool huntingGuardian = false;
+
+    if (guardian != null) {
+      final gDist = position.distanceTo(guardian.position);
+      final oDist = position.distanceTo(targetOrb.position);
+      if (gDist < oDist * 1.2) {
+        dest = guardian.position;
+        huntingGuardian = true;
+      }
+    }
+
+    final distToTarget = position.distanceTo(dest);
+
+    // Explode on contact
+    if (distToTarget < 45) {
+      _explode(huntingGuardian ? guardian : targetOrb, huntingGuardian);
+      return Vector2.zero();
+    }
+
+    // Fly straight and fast
+    return (dest - position).normalized();
+  }
+
+  /// Leecher steering: chases target to attach
+  Vector2 _getLeecherSteering(HoardGuardian? guardian, double dt) {
+    Vector2 dest = targetOrb.position;
+    bool huntingGuardian = false;
+
+    if (guardian != null) {
+      final gDist = position.distanceTo(guardian.position);
+      final oDist = position.distanceTo(targetOrb.position);
+      if (gDist < oDist * 0.8) {
+        dest = guardian.position;
+        huntingGuardian = true;
+      }
+    }
+
+    final distToTarget = position.distanceTo(dest);
+
+    // Attach when close enough
+    if (distToTarget < 35) {
+      _attachToTarget(huntingGuardian ? guardian : targetOrb, huntingGuardian);
+      return Vector2.zero();
+    }
+
+    return (dest - position).normalized();
+  }
+
+  /// Leecher attached behavior: stick to target, drain HP
+  void _updateLeecherAttached(double dt) {
+    if (_attachedTarget == null) {
+      _isAttached = false;
+      return;
+    }
+
+    // Check if target is dead
+    bool targetDead = false;
+    if (_attachedTarget is HoardGuardian) {
+      targetDead = (_attachedTarget as HoardGuardian).isDead;
+    } else if (_attachedTarget is AlchemyOrb) {
+      targetDead = (_attachedTarget as AlchemyOrb).currentHp <= 0;
+    }
+
+    if (targetDead) {
+      _detachFromTarget();
+      return;
+    }
+
+    // Stick to target with slight orbit
+    _orbitAngle += dt * 2.0;
+    final offset = Vector2(cos(_orbitAngle), sin(_orbitAngle)) * 25;
+    position = _attachedTarget.position + offset;
+
+    // Drain tick
+    _leechTickTimer += dt;
+    if (_leechTickTimer >= _leechTickInterval) {
+      _leechTickTimer = 0;
+      _attachedTarget.takeDamage(_leechDamagePerTick);
+      unit.heal(_leechHealPerTick);
+
+      // Visual pulse when draining
+      _body.add(
+        ScaleEffect.by(
+          Vector2.all(1.2),
+          EffectController(duration: 0.1, reverseDuration: 0.1),
+        ),
+      );
+
+      // Drain particle effect
+      _spawnDrainParticle();
+    }
+  }
+
+  void _attachToTarget(dynamic target, bool isGuardian) {
+    _isAttached = true;
+    _attachedTarget = target;
+    _leechTickTimer = 0;
+    _orbitAngle = Random().nextDouble() * pi * 2;
+
+    // Initial attach damage
+    target.takeDamage(_contactDamage);
+
+    // Visual feedback - turn slightly transparent
+    _body.paint.color = _body.paint.color.withOpacity(0.7);
+  }
+
+  void _detachFromTarget() {
+    _isAttached = false;
+    _attachedTarget = null;
+    _body.paint.color = _body.paint.color.withOpacity(0.85);
+  }
+
+  void _spawnDrainParticle() {
+    if (_attachedTarget == null) return;
+
+    final drainColor = const Color(0xFFB71C1C); // Blood red
+    gameRef.world.add(
+      CircleComponent(
+        radius: 4,
+        position: _attachedTarget.position.clone(),
+        anchor: Anchor.center,
+        paint: Paint()..color = drainColor,
+      )..add(
+        SequenceEffect([
+          MoveEffect.to(
+            position.clone(),
+            EffectController(duration: 0.3, curve: Curves.easeIn),
+          ),
+          RemoveEffect(),
+        ]),
+      ),
+    );
+  }
+
+  void _explode(dynamic target, bool isGuardian) {
+    if (isDead) return;
+
+    final explosionRadius = 80.0;
+    final explosionColor = _elementColor(template.element);
+
+    // Damage primary target
+    target.takeDamage(_contactDamage);
+
+    // AoE damage to nearby guardians
+    final nearbyGuardians = gameRef.getGuardiansInRange(
+      center: position,
+      range: explosionRadius,
+    );
+    for (final g in nearbyGuardians) {
+      if (g != target) {
+        g.takeDamage((_contactDamage * 0.5).round());
+      }
+    }
+
+    // Check orb in blast radius
+    if (position.distanceTo(targetOrb.position) < explosionRadius &&
+        target != targetOrb) {
+      targetOrb.takeDamage((_contactDamage * 0.5).round());
+    }
+
+    // Explosion visual
+    gameRef.world.add(
+      CircleComponent(
+        radius: 20,
+        position: position.clone(),
+        anchor: Anchor.center,
+        paint: Paint()..color = explosionColor,
+      )..add(
+        SequenceEffect([
+          ScaleEffect.to(
+            Vector2.all(explosionRadius / 20),
+            EffectController(duration: 0.2, curve: Curves.easeOut),
+          ),
+          OpacityEffect.fadeOut(EffectController(duration: 0.15)),
+          RemoveEffect(),
+        ]),
+      ),
+    );
+
+    // Screen shake
+    _triggerScreenShake(6.0);
+
+    _die();
   }
 
   void _tryShoot(HoardGuardian? guardian) {
@@ -918,9 +1257,12 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     );
   }
 
-  void _fireRadialVolley({int projectiles = 10}) {
+  void _fireRadialVolley({int projectiles = 10, double damageScale = 1.0}) {
     final col = _elementColor(template.element);
-    final damage = (_shotDamage * (isMegaBoss ? 1.0 : 0.7)).round();
+
+    // Base scale: mega bosses hit harder than regular bosses
+    final baseScale = isMegaBoss ? 1.0 : 0.7;
+    final damage = (_shotDamage * baseScale * damageScale).round();
 
     for (int i = 0; i < projectiles; i++) {
       final theta = (i / projectiles) * 2 * pi + _timeAlive * 0.25;
@@ -1063,9 +1405,7 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
       ..style = PaintingStyle.stroke
       ..strokeWidth = isBoss ? 3.0 : 1.5;
 
-    _glowPaint = Paint()
-      ..color = color
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, isBoss ? 30 : 20);
+    _glowPaint = Paint()..color = color;
 
     _eyePaint = Paint()..color = Colors.white;
     _eyePupilPaint = Paint()..color = Colors.black;
@@ -1095,8 +1435,7 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
     final innerRimPaint = Paint()
       ..color = Colors.white.withOpacity(0.3)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      ..strokeWidth = 2.0;
 
     canvas.drawPath(_createBlobPath(center, radius * 0.65), innerRimPaint);
     canvas.drawPath(path, _borderPaint);
@@ -1172,6 +1511,7 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
     final eyeSize = radius * 0.15;
 
     if (role == EnemyRole.shooter) {
+      // Shooter has a single "scope" eye - more ship-like
       canvas.drawCircle(
         Offset(center.x, center.y - radius * 0.1),
         eyeSize * 1.5,
@@ -1181,6 +1521,107 @@ class AlchemicalBlobBody extends PositionComponent with HasPaint {
         Offset(center.x, center.y - radius * 0.1),
         eyeSize * 0.5,
         _eyePupilPaint,
+      );
+    } else if (role == EnemyRole.bomber) {
+      // Bomber has angry slanted eyes and a fuse/spark on top
+      final angerSlant = radius * 0.08;
+
+      // Left angry eye
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(
+            center.x - eyeOffsetX,
+            center.y + eyeOffsetY - angerSlant,
+          ),
+          width: eyeSize * 2.2,
+          height: eyeSize * 1.4,
+        ),
+        _eyePaint,
+      );
+      canvas.drawCircle(
+        Offset(center.x - eyeOffsetX + 2, center.y + eyeOffsetY - angerSlant),
+        eyeSize / 2.5,
+        _eyePupilPaint,
+      );
+
+      // Right angry eye
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(
+            center.x + eyeOffsetX,
+            center.y + eyeOffsetY - angerSlant,
+          ),
+          width: eyeSize * 2.2,
+          height: eyeSize * 1.4,
+        ),
+        _eyePaint,
+      );
+      canvas.drawCircle(
+        Offset(center.x + eyeOffsetX - 2, center.y + eyeOffsetY - angerSlant),
+        eyeSize / 2.5,
+        _eyePupilPaint,
+      );
+
+      // Fuse spark indicator on top
+      final sparkPaint = Paint()..color = Colors.orangeAccent;
+      canvas.drawCircle(
+        Offset(center.x, center.y - radius * 0.7),
+        eyeSize * 0.6,
+        sparkPaint,
+      );
+    } else if (role == EnemyRole.leecher) {
+      // Leecher has hungry/vampiric look - narrow eyes and fangs
+      final narrowHeight = eyeSize * 0.6;
+
+      // Narrow predatory eyes
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(center.x - eyeOffsetX, center.y + eyeOffsetY),
+          width: eyeSize * 2.0,
+          height: narrowHeight,
+        ),
+        _eyePaint,
+      );
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(center.x + eyeOffsetX, center.y + eyeOffsetY),
+          width: eyeSize * 2.0,
+          height: narrowHeight,
+        ),
+        _eyePaint,
+      );
+
+      // Red pupils
+      final redPupil = Paint()..color = const Color(0xFFB71C1C);
+      canvas.drawCircle(
+        Offset(center.x - eyeOffsetX, center.y + eyeOffsetY),
+        eyeSize / 3,
+        redPupil,
+      );
+      canvas.drawCircle(
+        Offset(center.x + eyeOffsetX, center.y + eyeOffsetY),
+        eyeSize / 3,
+        redPupil,
+      );
+
+      // Small fangs below
+      final fangPaint = Paint()..color = Colors.white;
+      final fangY = center.y + radius * 0.25;
+      canvas.drawPath(
+        Path()
+          ..moveTo(center.x - eyeSize * 0.8, fangY)
+          ..lineTo(center.x - eyeSize * 0.5, fangY + eyeSize * 0.8)
+          ..lineTo(center.x - eyeSize * 0.2, fangY)
+          ..close(),
+        fangPaint,
+      );
+      canvas.drawPath(
+        Path()
+          ..moveTo(center.x + eyeSize * 0.2, fangY)
+          ..lineTo(center.x + eyeSize * 0.5, fangY + eyeSize * 0.8)
+          ..lineTo(center.x + eyeSize * 0.8, fangY)
+          ..close(),
+        fangPaint,
       );
     } else {
       canvas.drawCircle(
@@ -1263,9 +1704,7 @@ class AlchemicalTrail extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
-    final paint = Paint()
-      ..color = color
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    final paint = Paint()..color = color;
 
     for (final particle in _particles) {
       paint.color = color.withOpacity(0.4 * particle.life);

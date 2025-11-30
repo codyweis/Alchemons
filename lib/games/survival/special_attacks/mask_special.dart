@@ -12,10 +12,12 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
-/// MASK FAMILY - TRAP FIELD MECHANIC
-/// Deploy strategic elemental traps that trigger on enemy contact
-/// Rank 1+: Elemental trap effects
-/// Rank 5 (MAX): Interconnected trap grid with devastating effects
+/// MASK FAMILY - TRAP FIELD MECHANIC (3-RANK VERSION)
+///
+/// Rank 0: no special
+/// Rank 1: basic traps in a spread
+/// Rank 2: stronger traps (more / bigger / longer)
+/// Rank 3+: “GRID” ultimate – dense field of traps
 class MaskTrapMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -23,23 +25,40 @@ class MaskTrapMechanic {
     HoardEnemy? target,
     String element,
   ) {
-    final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
+    final rawRank = game.getSpecialAbilityRank(attacker.unit.id, element);
+
+    // No upgrades yet → no special
+    if (rawRank <= 0) {
+      return;
+    }
+
+    // Clamp to our new 3-rank system (3+ all behave as max)
+    final rank = rawRank.clamp(1, 3);
     final color = SurvivalAttackManager.getElementColor(element);
 
-    // Base trap parameters
-    final baseTrapCount = 2 + rank;
-    final trapRadius = 60.0 + rank * 8;
-    final trapDuration = 8.0 + rank * 1.5;
+    // Base trap parameters scale modestly with rank
+    final baseTrapCount = 1 + rank; // 2, 3, 4
+    final baseTrapRadius = 55.0 + rank * 10; // grows with rank
+    final baseTrapDuration = 6.0 + rank * 1.5;
 
-    // Rank 5: Grid formation
-    final isGrid = rank >= 5;
+    // Rank 3 → GRID “massive update”
+    final isGrid = rank >= 3;
     final trapCount = isGrid ? baseTrapCount * 2 : baseTrapCount;
+    final trapRadius = isGrid ? baseTrapRadius * 1.2 : baseTrapRadius;
+    final trapDuration = isGrid ? baseTrapDuration * 1.25 : baseTrapDuration;
 
-    // Deploy traps in strategic positions
-    final deployPos = target?.position ?? (attacker.position + Vector2(150, 0));
+    // Pick deployment center:
+    //  - Prefer current target
+    //  - Otherwise drop a bit in front of the caster
+    final Vector2 deployPos;
+    if (target != null && !target.isDead) {
+      deployPos = target.position.clone();
+    } else {
+      deployPos = attacker.position + Vector2(180, 0);
+    }
 
     if (isGrid) {
-      // Grid formation for rank 5
+      // Rank 3+: grid of traps (ultimate)
       _deployTrapGrid(
         game: game,
         attacker: attacker,
@@ -52,7 +71,7 @@ class MaskTrapMechanic {
         color: color,
       );
     } else {
-      // Spread formation
+      // Rank 1–2: ring/spread of traps
       _deployTrapSpread(
         game: game,
         attacker: attacker,
@@ -78,9 +97,11 @@ class MaskTrapMechanic {
     required double duration,
     required Color color,
   }) {
+    final double spreadDistance = 120 + rank * 20;
+
     for (int i = 0; i < count; i++) {
       final angle = (2 * pi * i) / count;
-      final offset = Vector2(cos(angle), sin(angle)) * (120 + rank * 20);
+      final offset = Vector2(cos(angle), sin(angle)) * spreadDistance;
       final trapPos = center + offset;
 
       _createTrap(
@@ -213,8 +234,8 @@ class MaskTrapMechanic {
     required double radius,
     required List<HoardEnemy> victims,
   }) {
-    // Base damage
-    final baseDmg = (calcDmg(attacker, null) * (1.4 + 0.25 * rank)).toInt();
+    // Base damage scales with rank (1–3)
+    final baseDmg = (calcDmg(attacker, null) * (1 + 0.25 * rank)).toInt();
 
     for (final v in victims) {
       v.takeDamage(baseDmg);
@@ -320,9 +341,9 @@ class MaskTrapMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
   //  FIRE / LAVA / BLOOD
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
 
   /// Fire Trap - Ignites and leaves burning zone
   static void _fireTrap(
@@ -451,11 +472,11 @@ class MaskTrapMechanic {
     game.orb.heal((totalDrain * 0.2).toInt());
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
   //  WATER / ICE / STEAM
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
 
-  /// Water Trap - Launches enemies upward then heals allies
+  /// Water Trap - Launches enemies then heals allies
   static void _waterTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -571,9 +592,9 @@ class MaskTrapMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
   //  PLANT / POISON
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
 
   /// Plant Trap - Roots enemies and creates thorn zone
   static void _plantTrap(
@@ -651,7 +672,7 @@ class MaskTrapMechanic {
     }
 
     // Spreading poison cloud
-    if (rank >= 3) {
+    if (rank >= 2) {
       for (final v in victims) {
         final nearby = game
             .getEnemiesInRange(v.position, 100)
@@ -670,9 +691,9 @@ class MaskTrapMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
   //  EARTH / MUD / CRYSTAL
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
 
   /// Earth Trap - Creates spike pillars and barriers
   static void _earthTrap(
@@ -780,11 +801,11 @@ class MaskTrapMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
   //  AIR / DUST / LIGHTNING
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
 
-  /// Air Trap - Creates tornado that pulls then launches
+  /// Air Trap - Creates tornado that pushes enemies
   static void _airTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -866,11 +887,11 @@ class MaskTrapMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
   //  SPIRIT / DARK / LIGHT
-  // ═══════════════════════════════════════════════════════════════════════
+  // ────────────────────────────────────────────────────────────────────────
 
-  /// Spirit Trap - Spawns attacking spirits
+  /// Spirit Trap - Drains enemies and heals attacker
   static void _spiritTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,

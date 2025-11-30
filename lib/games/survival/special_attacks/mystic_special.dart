@@ -12,8 +12,11 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
-/// Rank 1+: Elemental orbital behavior based on element
-/// Rank 5 (MAX): SWARM (spawns many more orbitals)
+/// MYSTIC FAMILY - ORBITAL SWARM MECHANIC
+/// Tier 0: Locked
+/// Tier 1: Summon a few orbitals that seek enemies
+/// Tier 2: More orbitals, stronger hits
+/// Tier 3+: SWARM – many orbitals, big damage
 class MysticOrbitalMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -21,21 +24,57 @@ class MysticOrbitalMechanic {
     HoardEnemy? target,
     String element,
   ) {
-    final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
+    final rawRank = game.getSpecialAbilityRank(attacker.unit.id, element);
+    final int tier = rawRank.clamp(0, 3);
 
-    int baseCount = 2 + (rank / 2).floor();
-    int count = (rank >= 5) ? baseCount * 3 : baseCount;
+    // Tier 0 → locked
+    if (tier <= 0) return;
 
+    final bool isSwarm = tier >= 3;
+
+    // Orbital count per tier:
+    // T1: 2, T2: 3, T3+: 4 (then doubled for swarm)
+    final int baseCount;
+    switch (tier) {
+      case 1:
+        baseCount = 2;
+        break;
+      case 2:
+        baseCount = 3;
+        break;
+      default: // tier 3+
+        baseCount = 4;
+        break;
+    }
+
+    final int count = isSwarm ? baseCount * 2 : baseCount;
+
+    // Spawn them around attacker in a ring
     for (int i = 0; i < count; i++) {
       final angle = (i / count) * 2 * pi;
       final offset = Vector2(cos(angle), sin(angle)) * 60;
-      final delayMs = i * (rank >= 5 ? 50 : 200);
+
+      // Faster stagger on higher tiers
+      final int delayStep;
+      switch (tier) {
+        case 1:
+          delayStep = 200;
+          break;
+        case 2:
+          delayStep = 120;
+          break;
+        default: // tier 3+
+          delayStep = 60;
+          break;
+      }
+
+      final delayMs = i * delayStep;
 
       _spawnOrbital(
         game: game,
         attacker: attacker,
         element: element,
-        rank: rank,
+        tier: tier,
         offset: offset,
         delayMs: delayMs,
       );
@@ -46,7 +85,7 @@ class MysticOrbitalMechanic {
     required SurvivalHoardGame game,
     required HoardGuardian attacker,
     required String element,
-    required int rank,
+    required int tier,
     required Vector2 offset,
     required int delayMs,
   }) {
@@ -71,10 +110,21 @@ class MysticOrbitalMechanic {
         return;
       }
 
-      final dmg = (calcDmg(attacker, t) * (1.2 + 0.15 * rank)).toInt().clamp(
-        5,
-        400,
-      );
+      // Damage scales with tier
+      final double dmgMult;
+      switch (tier) {
+        case 1:
+          dmgMult = 1.2;
+          break;
+        case 2:
+          dmgMult = 1.5;
+          break;
+        default: // tier 3+
+          dmgMult = 1.9;
+          break;
+      }
+
+      final dmg = (calcDmg(attacker, t) * dmgMult).toInt().clamp(5, 400);
 
       orb.add(
         MoveEffect.to(
@@ -93,7 +143,7 @@ class MysticOrbitalMechanic {
               game: game,
               attacker: attacker,
               element: element,
-              rank: rank,
+              tier: tier,
               target: t,
               baseDamage: dmg,
             );
@@ -113,76 +163,76 @@ class MysticOrbitalMechanic {
     required SurvivalHoardGame game,
     required HoardGuardian attacker,
     required String element,
-    required int rank,
+    required int tier,
     required HoardEnemy target,
     required int baseDamage,
   }) {
     switch (element) {
       // 🔥 FIRE / LAVA / BLOOD
       case 'Fire':
-        _fireOrb(game, attacker, rank, target, baseDamage);
+        _fireOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Lava':
-        _lavaOrb(game, attacker, rank, target, baseDamage);
+        _lavaOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Blood':
-        _bloodOrb(game, attacker, rank, target, baseDamage);
+        _bloodOrb(game, attacker, tier, target, baseDamage);
         break;
 
       // 💧 WATER / ICE / STEAM
       case 'Water':
-        _waterOrb(game, attacker, rank, target, baseDamage);
+        _waterOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Ice':
-        _iceOrb(game, attacker, rank, target, baseDamage);
+        _iceOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Steam':
-        _steamOrb(game, attacker, rank, target, baseDamage);
+        _steamOrb(game, attacker, tier, target, baseDamage);
         break;
 
       // 🌿 PLANT / POISON
       case 'Plant':
-        _plantOrb(game, attacker, rank, target, baseDamage);
+        _plantOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Poison':
-        _poisonOrb(game, attacker, rank, target, baseDamage);
+        _poisonOrb(game, attacker, tier, target, baseDamage);
         break;
 
       // 🌍 EARTH / MUD / CRYSTAL
       case 'Earth':
-        _earthOrb(game, attacker, rank, target, baseDamage);
+        _earthOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Mud':
-        _mudOrb(game, attacker, rank, target, baseDamage);
+        _mudOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Crystal':
-        _crystalOrb(game, attacker, rank, target, baseDamage);
+        _crystalOrb(game, attacker, tier, target, baseDamage);
         break;
 
       // 🌬️ AIR / DUST / LIGHTNING
       case 'Air':
-        _airOrb(game, attacker, rank, target, baseDamage);
+        _airOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Dust':
-        _dustOrb(game, attacker, rank, target, baseDamage);
+        _dustOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Lightning':
-        _lightningOrb(game, attacker, rank, target, baseDamage);
+        _lightningOrb(game, attacker, tier, target, baseDamage);
         break;
 
       // 🌗 SPIRIT / DARK / LIGHT
       case 'Spirit':
-        _spiritOrb(game, attacker, rank, target, baseDamage);
+        _spiritOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Dark':
-        _darkOrb(game, attacker, rank, target, baseDamage);
+        _darkOrb(game, attacker, tier, target, baseDamage);
         break;
       case 'Light':
-        _lightOrb(game, attacker, rank, target, baseDamage);
+        _lightOrb(game, attacker, tier, target, baseDamage);
         break;
 
       default:
-        _genericOrb(game, attacker, rank, target, baseDamage);
+        _genericOrb(game, attacker, tier, target, baseDamage);
         break;
     }
   }
@@ -195,12 +245,12 @@ class MysticOrbitalMechanic {
   static void _fireOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final radius = 80.0 + 8.0 * rank;
-    final burn = (attacker.unit.statIntelligence * (1.4 + 0.2 * rank))
+    final radius = 80.0 + 8.0 * tier;
+    final burn = (attacker.unit.statIntelligence * (1.4 + 0.3 * tier))
         .toInt()
         .clamp(4, 180);
     final enemies = game.getEnemiesInRange(target.position, radius);
@@ -214,17 +264,17 @@ class MysticOrbitalMechanic {
   static void _lavaOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final radius = 100.0 + 10.0 * rank;
-    final dmg = (baseDamage * (1.3 + 0.1 * rank)).toInt();
+    final radius = 100.0 + 10.0 * tier;
+    final dmg = (baseDamage * (1.2 + 0.15 * tier)).toInt();
     final enemies = game.getEnemiesInRange(target.position, radius);
     for (final e in enemies) {
       e.takeDamage(dmg);
       final dir = (e.position - target.position).normalized();
-      e.position += dir * (50.0 + 10.0 * rank);
+      e.position += dir * (50.0 + 10.0 * tier);
     }
     ImpactVisuals.playExplosion(game, target.position, 'Lava', radius);
   }
@@ -233,11 +283,11 @@ class MysticOrbitalMechanic {
   static void _bloodOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final heal = (baseDamage * (0.35 + 0.05 * rank)).toInt();
+    final heal = (baseDamage * (0.35 + 0.07 * tier)).toInt();
     attacker.unit.heal(heal);
     ImpactVisuals.play(game, attacker.position, 'Blood', scale: 0.9);
   }
@@ -250,11 +300,11 @@ class MysticOrbitalMechanic {
   static void _waterOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final heal = (attacker.unit.statIntelligence * (3.0 + 0.6 * rank))
+    final heal = (attacker.unit.statIntelligence * (2.8 + 0.6 * tier))
         .toInt()
         .clamp(5, 160);
     for (final g in game.guardians) {
@@ -270,11 +320,11 @@ class MysticOrbitalMechanic {
   static void _iceOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final radius = 90.0 + 8.0 * rank;
+    final radius = 90.0 + 8.0 * tier;
     final enemies = game.getEnemiesInRange(target.position, radius);
     for (final e in enemies) {
       final pushBack = (e.targetOrb.position - e.position).normalized() * -12.0;
@@ -287,12 +337,12 @@ class MysticOrbitalMechanic {
   static void _steamOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final radius = 80.0 + 6.0 * rank;
-    final dmg = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
+    final radius = 80.0 + 6.0 * tier;
+    final dmg = (attacker.unit.statIntelligence * (1.0 + 0.25 * tier))
         .toInt()
         .clamp(3, 120);
     final enemies = game.getEnemiesInRange(target.position, radius);
@@ -300,7 +350,7 @@ class MysticOrbitalMechanic {
       e.takeDamage(dmg);
     }
     if (enemies.isNotEmpty) {
-      game.orb.heal(3 + rank);
+      game.orb.heal(3 + tier); // small sustain
     }
   }
 
@@ -312,15 +362,15 @@ class MysticOrbitalMechanic {
   static void _plantOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final radius = 70.0 + 6.0 * rank;
-    final dps = (attacker.unit.statIntelligence * (1.5 + 0.2 * rank))
+    final radius = 70.0 + 6.0 * tier;
+    final dps = (attacker.unit.statIntelligence * (1.3 + 0.25 * tier))
         .toInt()
         .clamp(3, 160);
-    final duration = 3.5 + 0.3 * (rank - 1);
+    final duration = 3.5 + 0.5 * (tier - 1);
 
     final zone = CircleComponent(
       radius: radius,
@@ -354,7 +404,7 @@ class MysticOrbitalMechanic {
   static void _poisonOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
@@ -362,13 +412,13 @@ class MysticOrbitalMechanic {
       SurvivalStatusEffect(
         type: 'Poison',
         damagePerTick:
-            (attacker.unit.statIntelligence * (1.0 + 0.2 * rank)).toInt() + 4,
-        ticksRemaining: 8 + rank,
+            (attacker.unit.statIntelligence * (1.0 + 0.25 * tier)).toInt() + 4,
+        ticksRemaining: 6 + tier,
         tickInterval: 0.5,
       ),
     );
 
-    final radius = 80.0 + 5.0 * rank;
+    final radius = 80.0 + 5.0 * tier;
     final enemies = game.getEnemiesInRange(target.position, radius);
     for (final e in enemies) {
       if (e == target) continue;
@@ -376,8 +426,9 @@ class MysticOrbitalMechanic {
         SurvivalStatusEffect(
           type: 'Poison',
           damagePerTick:
-              (attacker.unit.statIntelligence * (0.7 + 0.1 * rank)).toInt() + 2,
-          ticksRemaining: 5 + rank,
+              (attacker.unit.statIntelligence * (0.7 + 0.15 * tier)).toInt() +
+              2,
+          ticksRemaining: 4 + tier,
           tickInterval: 0.5,
         ),
       );
@@ -392,12 +443,12 @@ class MysticOrbitalMechanic {
   static void _earthOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final radius = 80.0 + 6.0 * rank;
-    final dmg = (attacker.unit.statIntelligence * (1.4 + 0.2 * rank))
+    final radius = 80.0 + 6.0 * tier;
+    final dmg = (attacker.unit.statIntelligence * (1.3 + 0.25 * tier))
         .toInt()
         .clamp(4, 180);
     final enemies = game.getEnemiesInRange(target.position, radius);
@@ -405,7 +456,7 @@ class MysticOrbitalMechanic {
       e.takeDamage(dmg);
     }
 
-    final shield = (attacker.unit.maxHp * (0.06 + 0.02 * (rank - 1)))
+    final shield = (attacker.unit.maxHp * (0.05 + 0.03 * (tier - 1)))
         .toInt()
         .clamp(10, 260);
     attacker.unit.heal(shield);
@@ -416,12 +467,12 @@ class MysticOrbitalMechanic {
   static void _mudOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final radius = 80.0 + 8.0 * rank;
-    final duration = 3.0 + 0.3 * (rank - 1);
+    final radius = 80.0 + 8.0 * tier;
+    final duration = 3.0 + 0.5 * (tier - 1);
 
     final zone = CircleComponent(
       radius: radius,
@@ -455,7 +506,7 @@ class MysticOrbitalMechanic {
   static void _crystalOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
@@ -467,10 +518,10 @@ class MysticOrbitalMechanic {
     if (list.isEmpty) return;
 
     final rng = Random();
-    final chains = min(2 + rank, list.length);
+    final chains = min(2 + tier, list.length);
     for (int i = 0; i < chains; i++) {
       final t2 = list[rng.nextInt(list.length)];
-      final dmg = (baseDamage * (0.7 + 0.1 * rank)).toInt().clamp(4, 160);
+      final dmg = (baseDamage * (0.7 + 0.1 * tier)).toInt().clamp(4, 160);
 
       game.spawnAlchemyProjectile(
         start: target.position,
@@ -496,17 +547,17 @@ class MysticOrbitalMechanic {
   static void _airOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final radius = 90.0 + 8.0 * rank;
+    final radius = 90.0 + 8.0 * tier;
     final enemies = game.getEnemiesInRange(target.position, radius);
     for (final e in enemies) {
       final dir = (e.position - target.position).normalized();
       e.add(
         MoveEffect.by(
-          dir * (120.0 + 20.0 * rank),
+          dir * (100.0 + 25.0 * tier),
           EffectController(duration: 0.25, curve: Curves.easeOut),
         ),
       );
@@ -517,17 +568,17 @@ class MysticOrbitalMechanic {
   static void _dustOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
     final rng = Random();
-    final radius = 80.0 + 6.0 * rank;
+    final radius = 80.0 + 6.0 * tier;
     final enemies = game.getEnemiesInRange(target.position, radius);
     for (final e in enemies) {
       final offset = Vector2(
-        (rng.nextDouble() - 0.5) * (24 + 4 * rank),
-        (rng.nextDouble() - 0.5) * (24 + 4 * rank),
+        (rng.nextDouble() - 0.5) * (24 + 4 * tier),
+        (rng.nextDouble() - 0.5) * (24 + 4 * tier),
       );
       e.position += offset;
     }
@@ -537,7 +588,7 @@ class MysticOrbitalMechanic {
   static void _lightningOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
@@ -548,10 +599,10 @@ class MysticOrbitalMechanic {
     if (list.isEmpty) return;
 
     final rng = Random();
-    final chains = min(2 + rank, list.length);
+    final chains = min(2 + tier, list.length);
     for (int i = 0; i < chains; i++) {
       final t2 = list[rng.nextInt(list.length)];
-      final dmg = (baseDamage * (0.7 + 0.1 * rank)).toInt().clamp(4, 180);
+      final dmg = (baseDamage * (0.7 + 0.1 * tier)).toInt().clamp(4, 180);
 
       game.spawnAlchemyProjectile(
         start: target.position,
@@ -577,12 +628,12 @@ class MysticOrbitalMechanic {
   static void _spiritOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final radius = 90.0 + 8.0 * rank;
-    final dmg = (baseDamage * (0.9 + 0.1 * rank)).toInt().clamp(4, 200);
+    final radius = 90.0 + 8.0 * tier;
+    final dmg = (baseDamage * (0.8 + 0.1 * tier)).toInt().clamp(4, 200);
     final enemies = game.getEnemiesInRange(target.position, radius);
     for (final e in enemies) {
       e.takeDamage(dmg);
@@ -597,11 +648,11 @@ class MysticOrbitalMechanic {
   static void _darkOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final drain = (baseDamage * (0.4 + 0.08 * rank)).toInt();
+    final drain = (baseDamage * (0.4 + 0.1 * tier)).toInt();
     target.takeDamage(drain);
     attacker.unit.heal((drain * 0.8).toInt());
     ImpactVisuals.play(game, target.position, 'Dark', scale: 0.9);
@@ -611,12 +662,12 @@ class MysticOrbitalMechanic {
   static void _lightOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    final radius = 100.0 + 8.0 * rank;
-    final heal = (attacker.unit.statIntelligence * (3.5 + 0.6 * rank))
+    final radius = 100.0 + 8.0 * tier;
+    final heal = (attacker.unit.statIntelligence * (3.2 + 0.6 * tier))
         .toInt()
         .clamp(5, 200);
     final enemies = game.getEnemiesInRange(target.position, radius);
@@ -629,7 +680,7 @@ class MysticOrbitalMechanic {
       }
     }
 
-    final burn = (attacker.unit.statIntelligence * (1.4 + 0.2 * rank))
+    final burn = (attacker.unit.statIntelligence * (1.3 + 0.25 * tier))
         .toInt()
         .clamp(4, 180);
     for (final e in enemies) {
@@ -641,11 +692,10 @@ class MysticOrbitalMechanic {
   static void _genericOrb(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int baseDamage,
   ) {
-    // Mild extra AoE damage
     final radius = 80.0;
     final enemies = game.getEnemiesInRange(target.position, radius);
     for (final e in enemies) {

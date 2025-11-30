@@ -299,6 +299,11 @@ class SceneGame extends FlameGame with ScaleDetector {
     if (wildVisualResolver != null) {
       hydrated = await wildVisualResolver!(speciesId, rarity);
     }
+    if (hydrated == null) {
+      debugPrint(
+        '⚠️ wildVisualResolver returned null for $speciesId at $spawnId',
+      );
+    }
 
     // 🔍 base logical size from the spawn point
     final baseSize = sp.size;

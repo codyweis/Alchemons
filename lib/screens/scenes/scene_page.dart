@@ -5,6 +5,8 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
+import 'package:alchemons/navigation/world_transition.dart';
+import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
@@ -28,11 +30,14 @@ class ScenePage extends StatefulWidget {
   final SceneDefinition scene;
   final List<PartyMember> party;
   final String sceneId;
+  final bool isTutorial; // 🆕 Add this parameter
+
   const ScenePage({
     super.key,
     required this.scene,
     this.party = const [],
     required this.sceneId,
+    this.isTutorial = false, // 🆕 Default to false
   });
 
   @override
@@ -43,6 +48,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   late SceneGame _game;
   late EncounterService _encounters;
   bool _resolverHooked = false;
+  bool _tutorialDialogShown = false; // 🆕 Track if dialog was shown
 
   // Saved references
   late WildernessSpawnService _spawnService;
@@ -102,6 +108,17 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
               enteredAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
             ),
           );
+
+      // 🆕 Show tutorial dialog after scene loads
+      if (widget.isTutorial && !_tutorialDialogShown && mounted) {
+        _tutorialDialogShown = true;
+        await Future.delayed(
+          const Duration(milliseconds: 500),
+        ); // Small delay for scene to render
+        if (mounted) {
+          await _showWelcomeDialog();
+        }
+      }
     });
 
     // Initial sync of persisted spawns -> local encounter service
@@ -109,6 +126,21 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
     // Listen for spawn changes while this page is alive
     _spawnService.addListener(_onSpawnServiceChanged);
+  }
+
+  // 🆕 Tutorial welcome dialog
+  Future<void> _showWelcomeDialog() async {
+    await LandscapeDialog.show(
+      context,
+      title: 'Alchemy is Power',
+      message:
+          'Alchemons are stronger here. Fusing with them should provide formidable results.',
+      typewriter: true,
+      kind: LandscapeDialogKind.info,
+      icon: Icons.explore_rounded,
+      primaryLabel: 'Begin',
+      barrierDismissible: false,
+    );
   }
 
   @override
@@ -266,7 +298,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     onClosedWithResult: (success) async {
                       final id = _usedSpawnPointId;
 
-                      // exit encounter first (don’t clear anything yet)
+                      // exit encounter first (don't clear anything yet)
                       _exitEncounter();
 
                       if (success && id != null) {
@@ -296,7 +328,22 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                           await _db.delete(_db.activeSceneEntry).go();
                           await _spawnService.clearSceneSpawns(widget.sceneId);
 
-                          if (mounted) Navigator.pop(context);
+                          if (!mounted) return;
+
+                          if (widget.isTutorial) {
+                            final settingsDao = _db.settingsDao;
+
+                            // ✅ Mark tutorial finished + unlock nav
+                            await settingsDao.setFieldTutorialCompleted();
+                            await settingsDao.setNavLocked(false);
+
+                            // ✅ Pop everything above the root (Home/MainShell)
+                            Navigator.of(
+                              context,
+                            ).popUntil((route) => route.isFirst);
+                          } else {
+                            VoidPortal.pop(context);
+                          }
                         },
                       ),
                     ),

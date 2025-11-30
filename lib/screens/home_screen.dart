@@ -223,14 +223,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   @override
-  void didUpdateWidget(covariant HomeScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.isActive != widget.isActive) {
-      _updateAnimationState();
-    }
-  }
-
-  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     routeObserver.subscribe(this, ModalRoute.of(context)!);
@@ -242,9 +234,61 @@ class _HomeScreenState extends State<HomeScreen>
     _updateAnimationState(); // route no longer current → disables TickerMode
   }
 
+  Future<void> _maybeStartFieldTutorial() async {
+    if (_isFieldTutorialActive) return;
+
+    final db = context.read<AlchemonsDatabase>();
+
+    final completed = await db.settingsDao.hasCompletedFieldTutorial();
+    if (completed) return;
+
+    final extractionPending =
+        await db.settingsDao.getSetting('tutorial_extraction_pending') == '1';
+    if (extractionPending) return;
+
+    final firstDone =
+        await db.settingsDao.getSetting('first_extraction_done') == '1';
+    if (!firstDone) return;
+
+    final instances = await db.creatureDao.listAllInstances();
+    if (instances.isEmpty) return;
+
+    debugPrint('🎓 Tutorial: Starting field tutorial');
+    await db.settingsDao.setNavLocked(true);
+
+    if (!mounted) return;
+
+    setState(() {
+      _isFieldTutorialActive = true;
+      _activeNotifications.clear();
+    });
+
+    _updateAnimationState();
+  }
+
+  // MODIFY didUpdateWidget to call it:
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      _updateAnimationState();
+
+      if (widget.isActive) {
+        // 🔄 Always sync from DB when Home becomes active
+        _checkFieldTutorial();
+      }
+    }
+  }
+
   @override
   void didPopNext() {
     _updateAnimationState();
+
+    if (widget.isActive) {
+      // 🔄 When returning to Home, sync from DB
+      _checkFieldTutorial();
+    }
   }
 
   @override
@@ -267,9 +311,84 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _checkFieldTutorial() async {
     final db = context.read<AlchemonsDatabase>();
+
+    // 🔹 First: if tutorial is already completed in DB, make sure local state matches
     final completed = await db.settingsDao.hasCompletedFieldTutorial();
 
+    if (completed) {
+      // unlock nav just in case
+      await db.settingsDao.setNavLocked(false);
+
+      if (_isFieldTutorialActive) {
+        if (!mounted) return;
+        setState(() {
+          _isFieldTutorialActive = false;
+          _activeNotifications.clear();
+        });
+        _updateAnimationState();
+      }
+
+      return; // nothing else to do
+    }
+
+    // 🔽 From here on, tutorial is NOT completed yet – existing logic continues
+    // 🔑 STEP 1: Check if extraction tutorial is still pending
+    final extractionPending =
+        await db.settingsDao.getSetting('tutorial_extraction_pending') == '1';
+    if (extractionPending) {
+      // User needs to extract first - don't start field tutorial
+      // Navigate them to breed screen to complete extraction
+      debugPrint(
+        '🎓 Tutorial: Extraction pending, redirecting to breed screen',
+      );
+      await db.settingsDao.setNavLocked(true);
+      widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
+      return;
+    }
+
     if (!completed) {
+      // 🔑 STEP 3: Verify user actually has creatures before starting field tutorial
+      final instances = await db.creatureDao.listAllInstances();
+
+      if (instances.isEmpty) {
+        debugPrint('🎓 Tutorial: No creatures found, checking for eggs...');
+
+        // No creatures yet - check if there's an egg they need to extract
+        final slots = await db.incubatorDao.watchSlots().first;
+        final hasEgg = slots.any((s) => s.unlocked && s.eggId != null);
+
+        if (hasEgg) {
+          // Has egg but no creatures - send to extraction
+          debugPrint('🎓 Tutorial: Found egg, redirecting to extraction');
+          await db.settingsDao.setNavLocked(true);
+          // Mark extraction as pending since they clearly need to do it
+          await db.settingsDao.setSetting('tutorial_extraction_pending', '1');
+          widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
+        } else {
+          // No egg and no creatures - check if starter was ever granted
+          final starterGranted =
+              await db.settingsDao.getSetting('starter_granted_v1') == '1';
+
+          if (!starterGranted) {
+            // Let normal starter flow handle it in _grantStarterIfNeeded
+            debugPrint(
+              '🎓 Tutorial: No starter granted yet, waiting for grant flow',
+            );
+          } else {
+            // Edge case: starter was granted but egg is gone and no creatures
+            // This shouldn't happen, but if it does, skip tutorial
+            debugPrint(
+              '🎓 Tutorial: Edge case - starter granted but no egg/creatures, skipping field tutorial',
+            );
+            await db.settingsDao.setFieldTutorialCompleted();
+            await db.settingsDao.setNavLocked(false);
+          }
+        }
+        return;
+      }
+
+      // User has creatures - proceed with field tutorial
+      debugPrint('🎓 Tutorial: Starting field tutorial');
       await db.settingsDao.setNavLocked(true);
 
       setState(() {
@@ -277,7 +396,7 @@ class _HomeScreenState extends State<HomeScreen>
         _activeNotifications.clear();
       });
 
-      _updateAnimationState(); // 🔹 ensure animations disable for tutorial
+      _updateAnimationState();
     }
   }
 
@@ -286,22 +405,16 @@ class _HomeScreenState extends State<HomeScreen>
 
     HapticFeedback.mediumImpact();
 
-    final tutorialCompleted = await Navigator.push<bool>(
+    // We don't care about the bool now, Scene/Map writes to DB
+    await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => const MapScreen(isTutorial: true)),
     );
 
-    if (tutorialCompleted == true && mounted) {
-      final db = context.read<AlchemonsDatabase>();
-      await db.settingsDao.setFieldTutorialCompleted();
-      await db.settingsDao.setNavLocked(false);
+    if (!mounted) return;
 
-      setState(() {
-        _isFieldTutorialActive = false;
-      });
-
-      _updateAnimationState(); // 🔹 re-enable after tutorial
-    }
+    // 🔄 After returning, always sync with DB flag
+    await _checkFieldTutorial();
   }
 
   Future<void> _initializeApp() async {
@@ -1168,7 +1281,7 @@ class _HomeScreenState extends State<HomeScreen>
     WildernessSpawnService spawnService,
   ) async {
     final db = context.read<AlchemonsDatabase>();
-    final starterService = context.read<StarterGrantService>(); // Add this
+    final starterService = context.read<StarterGrantService>();
 
     // Ensure at least one slot is unlocked
     final slots = await db.incubatorDao.watchSlots().first;
@@ -1183,12 +1296,19 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     if (granted) {
+      // 🔑 Set extraction pending IMMEDIATELY after grant (before any UI)
+      // This ensures restart will know to redirect to extraction
+      await db.settingsDao.setSetting('tutorial_extraction_pending', '1');
+      await db.settingsDao.setNavLocked(true);
+
       await spawnService.clearSceneSpawns('valley');
       await spawnService.scheduleNextSpawnTime(
         'valley',
         windowMax: Duration(seconds: 10),
       );
+
       if (!mounted) return;
+
       await SystemDialog.show(
         context,
         title: 'VIAL SECURED',
@@ -1197,10 +1317,6 @@ class _HomeScreenState extends State<HomeScreen>
         kind: SystemDialogKind.success,
         typewriter: true,
         onPrimary: () async {
-          // Mark that we're in extraction tutorial phase
-          final db = context.read<AlchemonsDatabase>();
-          await db.settingsDao.setSetting('tutorial_extraction_pending', '1');
-          await db.settingsDao.setNavLocked(true);
           if (!mounted) return;
           widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
         },

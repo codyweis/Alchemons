@@ -1,6 +1,7 @@
 // lib/screens/constellation_screen.dart
 import 'package:alchemons/games/constellations/constellation_game.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
+import 'package:alchemons/navigation/world_transition.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -211,7 +212,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => VoidPortal.pop(context),
             icon: Icon(Icons.arrow_back, color: Colors.white),
           ),
 

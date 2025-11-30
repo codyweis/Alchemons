@@ -57,7 +57,7 @@ class BreedConstants {
   }
 
   // Type icons
-  static IconData getTypeIcon(String type) {
+  static IconData? getTypeIcon(String type) {
     switch (type) {
       case 'Fire':
         return Icons.local_fire_department_rounded;
@@ -96,7 +96,7 @@ class BreedConstants {
       case 'Blood':
         return Icons.bloodtype_rounded;
       default:
-        return Icons.pets_rounded;
+        return null;
     }
   }
 

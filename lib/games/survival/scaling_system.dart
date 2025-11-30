@@ -10,7 +10,7 @@ import 'package:alchemons/games/survival/survival_enemies.dart';
 class ImprovedScalingSystem {
   static const double _baseEnemyHpScale = 0.6;
   static const double _baseEnemyDmgScale = 1.0;
-  static const double _baseShooterDmgScale = 0.5;
+  static const double _baseShooterDmgScale = 0.4;
   static const double _baseGuardianHpScale = 1.0;
   static const double _baseGuardianDmgScale = 1.0;
 

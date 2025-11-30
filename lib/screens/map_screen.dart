@@ -332,9 +332,7 @@ class _MapScreenState extends State<MapScreen>
             child: Column(
               children: [
                 _HeaderBar(
-                  onBack: widget.isTutorial
-                      ? () => _showTutorialBlockedDialog()
-                      : () => Navigator.pop(context),
+                  onBack: () => Navigator.pop(context),
                   theme: theme,
                   onInfo: () {
                     showDialog(
@@ -609,8 +607,8 @@ class _MapScreenState extends State<MapScreen>
     }
 
     // During tutorial, skip access checks
-    if (widget.isTutorial) {
-      // check access / refresh if earth faction perk
+    if (!widget.isTutorial) {
+      // <-- Changed: only check access when NOT in tutorial
       var ok = await access.canEnter(biomeId);
 
       if (!ok) {
@@ -642,20 +640,22 @@ class _MapScreenState extends State<MapScreen>
     selectedParty = (result as List).cast<PartyMember>();
 
     // consume entry (skip during tutorial)
-
-    await access.markEntered(biomeId);
+    if (!widget.isTutorial) {
+      await access.markEntered(biomeId);
+    }
 
     // go to biome scene
     if (!context.mounted) return;
-    await pushWorld(
-      context,
-      page: ScenePage(scene: scene, sceneId: biomeId, party: selectedParty),
-    );
 
-    // After successful scene completion, if in tutorial mode, return success
-    if (widget.isTutorial && mounted) {
-      Navigator.pop(context, true);
-    }
+    await VoidPortal.pushLandscape<bool>(
+      context,
+      page: ScenePage(
+        scene: scene,
+        sceneId: biomeId,
+        party: selectedParty,
+        isTutorial: widget.isTutorial,
+      ),
+    );
   }
 
   Future<bool?> _showRefreshDialog(BuildContext context) {
@@ -740,7 +740,7 @@ class _HeaderBar extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      isTutorial ? 'FIRST EXPEDITION' : 'BREEDING EXPEDITIONS',
+                      isTutorial ? 'FIRST EXPEDITION' : 'FUSING EXPEDITIONS',
                       style: TextStyle(
                         color: theme.text,
                         fontSize: 18,
@@ -752,7 +752,7 @@ class _HeaderBar extends StatelessWidget {
                     Text(
                       isTutorial
                           ? 'Begin your journey into the wilderness'
-                          : 'Discover wild creatures & attempt crossbreeds',
+                          : 'Discover wild Alchemons & attempt fusions',
                       style: TextStyle(
                         color: theme.textMuted,
                         fontSize: 11,
@@ -813,7 +813,7 @@ class _PartyStatusCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Breeding Team',
+                    'Party',
                     style: TextStyle(
                       color: theme.text,
                       fontSize: 13,
@@ -823,7 +823,7 @@ class _PartyStatusCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Choose which party goes into the wild',
+                    'Choose which Alchemons go into the wild',
                     style: TextStyle(
                       color: theme.textMuted,
                       fontSize: 11,
@@ -1187,7 +1187,7 @@ class _InfoDialog extends StatelessWidget {
             Icon(Icons.explore_rounded, color: theme.accent, size: 28),
             const SizedBox(height: 12),
             Text(
-              'Breeding Expeditions',
+              'Fusing Expeditions',
               style: TextStyle(
                 color: theme.text,
                 fontSize: 16,

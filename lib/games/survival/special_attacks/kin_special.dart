@@ -14,8 +14,9 @@ import 'package:flutter/material.dart';
 
 /// KIN FAMILY - BLESSING MECHANIC
 /// Support ability that buffs allies and heals the team
-/// Rank 1+: Elemental effects based on type
-/// Rank 5 (MAX): Divine blessing with powerful team-wide effects
+/// Rank 1: Unlocks the elemental blessing
+/// Rank 2: Stronger numbers & larger radius
+/// Rank 3 (MAX): Divine blessing with powerful team-wide effects
 class KinBlessingMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -23,17 +24,23 @@ class KinBlessingMechanic {
     HoardEnemy? target,
     String element,
   ) {
-    final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
+    final rawRank = game.getSpecialAbilityRank(attacker.unit.id, element);
+
+    // Safety: if they somehow try to cast with no upgrade, do nothing.
+    if (rawRank <= 0) return;
+
+    // Clamp to 1–3 for the new 3-upgrade system (old saves with 4/5 behave as 3).
+    final rank = rawRank.clamp(1, 3);
     final color = SurvivalAttackManager.getElementColor(element);
 
-    // Base blessing parameters
+    // Base blessing parameters (scale modestly with rank)
     final baseRadius = 200.0 + rank * 25;
     final baseHeal = (attacker.unit.statIntelligence * (3.0 + 0.5 * rank))
         .toInt()
         .clamp(10, 200);
 
-    // Rank 5: Divine blessing
-    final isDivine = rank >= 5;
+    // Rank 3: Divine blessing
+    final isDivine = rank >= 3;
     final radius = isDivine ? baseRadius * 1.4 : baseRadius;
     final healAmount = isDivine ? (baseHeal * 1.5).toInt() : baseHeal;
 
@@ -753,8 +760,8 @@ class KinBlessingMechanic {
     game.orb.heal((divineHeal * 0.8).toInt());
     ImpactVisuals.playHeal(game, game.orb.position, scale: 1.2);
 
-    // Rank 5: Cleanse all debuffs
-    if (rank >= 5) {
+    // Rank 3: Cleanse all debuffs (moved down from old rank 5)
+    if (rank >= 3) {
       for (final g in game.guardians) {
         g.unit.statusEffects.clear();
       }

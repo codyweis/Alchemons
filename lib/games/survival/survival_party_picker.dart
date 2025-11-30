@@ -177,7 +177,7 @@ class _SurvivalFormationSelectorScreenState
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Frontline (${_activeSlots.length}/4)',
+                    '(${_activeSlots.length}/4)',
                     style: TextStyle(
                       color: theme.text,
                       fontSize: 14,
@@ -812,7 +812,7 @@ class _SurvivalFormationSelectorScreenState
           label: Text(
             _hasFullActive
                 ? 'Confirm Formation'
-                : 'Select ${4 - _activeSlots.length} More Frontline',
+                : 'Select ${4 - _activeSlots.length} More',
           ),
         ),
       ),

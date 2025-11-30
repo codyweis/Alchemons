@@ -12,6 +12,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
+import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
@@ -360,7 +361,8 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
     if (instanceId == null) return;
 
-    final inst = await db.creatureDao.getInstance(instanceId);
+    final stamina = context.read<StaminaService>();
+    final inst = await stamina.refreshAndGet(instanceId);
     if (inst == null) return;
 
     if (inst.staminaBars == 0) {
@@ -498,15 +500,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     if (inst == null) {
       _showToast(
         'That creature is no longer available.',
-        icon: Icons.error_outline,
-        color: Colors.red.shade400,
-      );
-      return;
-    }
-
-    if (inst.staminaBars == 0) {
-      _showToast(
-        'This creature is too exhausted to work right now.',
         icon: Icons.error_outline,
         color: Colors.red.shade400,
       );

@@ -47,8 +47,6 @@ class WildernessService {
 
   // Spend 1 bar on the chosen instance if possible, return updated row or null if not enough
   Future<CreatureInstance?> trySpendForAttempt(String instanceId) async {
-    final ok = await stamina.canBreed(instanceId);
-    if (!ok) return null;
     return stamina.spendForBreeding(instanceId);
   }
 

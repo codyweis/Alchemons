@@ -45,7 +45,13 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
       }
     }
 
-    final image = gameRef.images.fromCache(sheet.path);
+    Image image;
+    try {
+      image = await gameRef.images.load(sheet.path);
+    } catch (e) {
+      image = await _loadFallbackImage();
+    }
+
     final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
 
     final anim = SpriteAnimation.fromFrameData(
@@ -75,6 +81,12 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
 
     _applyColorFilters();
     add(_anim);
+  }
+
+  Future<Image> _loadFallbackImage() async {
+    // Fallback logic: load a default image or handle the error gracefully
+    // For now, just load a placeholder image
+    return await gameRef.images.load('backgrounds/scenes/swamp/sky.png');
   }
 
   PositionComponent? _buildEffectComponent(String effect) {

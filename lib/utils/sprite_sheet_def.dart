@@ -38,13 +38,13 @@ class SpriteVisuals {
   final String? variantFaction; // 'Pyro', 'Aqua', etc. for elemental aura color
 
   const SpriteVisuals({
-    required this.scale,
-    required this.saturation,
-    required this.brightness,
-    required this.hueShiftDeg,
-    required this.isPrismatic,
-    required this.tint,
-    required this.isAlbino,
+    this.scale = 1.0,
+    this.saturation = 1.0,
+    this.brightness = 1.0,
+    this.hueShiftDeg = 0.0,
+    this.isPrismatic = false,
+    this.tint,
+    this.isAlbino = false,
     this.alchemyEffect,
     this.variantFaction,
   });

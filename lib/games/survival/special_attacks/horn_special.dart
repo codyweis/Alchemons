@@ -13,9 +13,11 @@ import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
 /// HORN FAMILY - NOVA MECHANIC
-/// Point-blank AoE burst with knockback and self-shield
-/// Rank 1+: Elemental effects based on type
-/// Rank 5 (MAX): Cataclysmic nova with massive radius and effects
+/// Rank tiers (from getSpecialAbilityRank):
+///   0 = base non-elemental nova only
+///   1 = unlock elemental rider
+///   2 = stronger rider (via scaling numbers)
+///   3 = cataclysmic / massive nova + big rider upgrades
 class HornNovaMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -23,23 +25,33 @@ class HornNovaMechanic {
     HoardEnemy? target,
     String element,
   ) {
+    // rank is now 0–3
     final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
     final color = SurvivalAttackManager.getElementColor(element);
 
-    // Base nova parameters scale with rank
-    final baseRadius = 120.0 + rank * 20;
-    final baseDmg = (calcDmg(attacker, null) * (1.8 + 0.3 * rank)).toInt();
-    final baseKnockback = 60.0 + rank * 15;
+    // Slightly lower damage (since Horn = tank / CC),
+    // but still scales.
+    final baseRadius = 200.0 + rank * 20;
+    final baseDmg = (calcDmg(attacker, null) * (1.6 + 0.25 * rank)).toInt();
 
-    // Rank 5: Cataclysmic nova
-    final isCataclysmic = rank >= 5;
+    // Much stronger base knockback
+    final baseKnockback = 200.0 + rank * 30;
+
+    final isCataclysmic = rank >= 3;
     final radius = isCataclysmic ? baseRadius * 2 : baseRadius;
     final damage = isCataclysmic ? (baseDmg * 1.5).toInt() : baseDmg;
-    final knockback = isCataclysmic ? baseKnockback * 1.5 : baseKnockback;
 
-    // Visual: Expanding ring
+    // Slightly stronger knockback for cataclysmic
+    double knockback = isCataclysmic ? baseKnockback * 1.7 : baseKnockback;
+
+    // Earthhorn special: extra shove
+    if (element == 'Earth') {
+      knockback *= 1.25;
+    }
+
+    // Visual: Expanding ring, but keep the radius as the gameplay radius
     final ring = CircleComponent(
-      radius: 50,
+      radius: radius,
       position: attacker.position.clone(),
       anchor: Anchor.center,
       paint: Paint()
@@ -48,47 +60,65 @@ class HornNovaMechanic {
         ..strokeWidth = isCataclysmic ? 12 : 8,
     );
 
+    // Just a subtle pulse instead of scaling 2.5x the radius
     ring.add(
       ScaleEffect.to(
-        Vector2.all(radius / 20),
+        Vector2.all(1.15),
         EffectController(duration: 0.25, curve: Curves.easeOut),
       ),
     );
     ring.add(OpacityEffect.fadeOut(EffectController(duration: 0.3)));
     ring.add(RemoveEffect(delay: 0.31));
-
     game.world.add(ring);
 
     // Screen shake
     SurvivalAttackManager.triggerScreenShake(game, isCataclysmic ? 10.0 : 5.0);
 
-    // Deal damage and knockback
     final victims = game.getEnemiesInRange(attacker.position, radius);
+    print('[HORN] victims in radius=$radius -> ${victims.length}');
     for (final v in victims) {
-      final dist = v.position.distanceTo(attacker.position);
-      final falloff = 1.0 - (dist / radius) * 0.3;
+      final dist = v.position
+          .distanceTo(attacker.position)
+          .clamp(0.001, radius);
+      final t = dist / radius; // 0 at center, 1 at edge
 
-      v.takeDamage((damage * falloff).toInt());
+      // Damage falloff (kept soft)
+      final dmgFalloff = 1.0 - t * 0.3;
 
-      // Knockback away from attacker
-      final dir = (v.position - attacker.position).normalized();
+      // ✅ New: clamp knockback falloff so even edge enemies move visibly.
+      //  - Close enemies: huge shove
+      //  - Edge enemies: still at least 30–40% of the base
+      final rawFalloff = (1.0 - t) * (1.0 - t);
+      final knockFalloff = max(rawFalloff, 0.35);
+
+      v.takeDamage((damage * dmgFalloff).toInt());
+
+      var dir = (v.position - attacker.position);
+      if (dir.length2 < 0.0001) {
+        dir = Vector2(1, 0);
+      }
+      dir.normalize();
+
       v.add(
         MoveEffect.by(
-          dir * knockback,
-          EffectController(duration: 0.2, curve: Curves.easeOut),
+          dir * knockback * knockFalloff,
+          EffectController(
+            duration: 0.2, // a bit snappier
+            curve: Curves.easeOut,
+          ),
         ),
       );
 
       ImpactVisuals.play(game, v.position, element, scale: 0.6);
     }
 
-    // Self-shield
-    final shieldAmount = (attacker.unit.maxHp * (0.15 + 0.04 * rank))
+    // Tanky shield (still good, maybe even a hair stronger)
+    final shieldAmount = (attacker.unit.maxHp * (0.18 + 0.05 * rank))
         .toInt()
-        .clamp(30, 500);
+        .clamp(40, 600);
     attacker.unit.shieldHp = (attacker.unit.shieldHp ?? 0) + shieldAmount;
 
-    // Apply elemental effect
+    // Elemental riders from rank 1+
     if (rank >= 1) {
       _applyElementalNova(
         game: game,
@@ -111,7 +141,7 @@ class HornNovaMechanic {
     required SurvivalHoardGame game,
     required HoardGuardian attacker,
     required String element,
-    required int rank,
+    required int rank, // 1–3 when called
     required Vector2 center,
     required double radius,
     required List<HoardEnemy> enemiesHit,
@@ -214,8 +244,8 @@ class HornNovaMechanic {
       );
     }
 
-    // Rank 5: Leave fire ring
-    if (rank >= 5) {
+    // Tier 3: Leave fire ring (was rank >= 5)
+    if (rank >= 3) {
       final fireRing = CircleComponent(
         radius: radius * 0.8,
         position: center,
@@ -294,8 +324,8 @@ class HornNovaMechanic {
     // Heal orb
     game.orb.heal((totalDrained * 0.25).toInt());
 
-    // Rank 5: Also heal nearby guardians
-    if (rank >= 5) {
+    // Tier 3: Also heal nearby guardians (was rank >= 5)
+    if (rank >= 3) {
       final allies = game.getGuardiansInRange(center: center, range: 300);
       for (final g in allies) {
         if (g != attacker) {
@@ -373,8 +403,8 @@ class HornNovaMechanic {
     slowZone.add(RemoveEffect(delay: slowDuration));
     game.world.add(slowZone);
 
-    // Rank 5: Brief freeze on initial hit
-    if (rank >= 5) {
+    // Tier 3: Brief freeze on initial hit (was rank >= 5)
+    if (rank >= 3) {
       for (final v in victims) {
         v.add(MoveEffect.by(Vector2.zero(), EffectController(duration: 1.0)));
       }
@@ -517,9 +547,8 @@ class HornNovaMechanic {
       g.unit.shieldHp = (g.unit.shieldHp ?? 0) + (extraShield * 0.4).toInt();
     }
 
-    // Rank 5: Taunt effect (enemies prioritize attacker)
-    if (rank >= 5) {
-      // Visual taunt indicator
+    // Tier 3: Taunt effect (visual for now) (was rank >= 5)
+    if (rank >= 3) {
       final tauntRing = CircleComponent(
         radius: 50,
         position: attacker.position.clone(),
@@ -634,8 +663,8 @@ class HornNovaMechanic {
       );
     }
 
-    // Rank 5: Second pulse
-    if (rank >= 5) {
+    // Tier 3: Second pulse (was rank >= 5)
+    if (rank >= 3) {
       Future.delayed(const Duration(milliseconds: 400), () {
         final secondVictims = game.getEnemiesInRange(center, radius * 1.3);
         for (final v in secondVictims) {
@@ -803,8 +832,8 @@ class HornNovaMechanic {
     // Heal orb
     game.orb.heal((healAmount * 0.5).toInt());
 
-    // Rank 5: Cleanse debuffs
-    if (rank >= 5) {
+    // Tier 3: Cleanse debuffs (was rank >= 5)
+    if (rank >= 3) {
       for (final g in game.guardians) {
         g.unit.statusEffects.clear();
       }

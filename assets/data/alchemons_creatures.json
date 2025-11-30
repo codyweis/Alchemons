@@ -767,9 +767,9 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 16,
-        "rows": 4,
-        "frameDurationMs": 120
+        "totalFrames": 4,
+        "rows": 1,
+        "frameDurationMs": 100
       }
     },
     {
@@ -787,7 +787,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -823,7 +823,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -841,7 +841,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -859,7 +859,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -877,7 +877,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -895,7 +895,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -913,7 +913,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -931,7 +931,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -946,11 +946,11 @@
       "image": "creatures/uncommon/MAN11_crystalmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 500,
-        "frameHeight": 500,
-        "totalFrames": 5,
-        "rows": 3,
-        "frameDurationMs": 120
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "rows": 1,
+        "frameDurationMs": 100
       }
     },
     {
@@ -968,7 +968,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -986,7 +986,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -1004,7 +1004,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -1014,15 +1014,15 @@
         "Dark"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Its crimson eyes gleam from the shadows, a playful silhouette in the night.",
-      "image": "creatures/uncommon/MAN15_darkmane.png",
+      "image": "creatures/rare/MAN15_darkmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 6,
-        "frameDurationMs": 120
+        "totalFrames": 4,
+        "frameDurationMs": 100
       }
     },
     {
@@ -1032,15 +1032,15 @@
         "Light"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Radiant and pure, it illuminates the paths it wanders with gentle warmth.",
-      "image": "creatures/uncommon/MAN16_lightmane.png",
+      "image": "creatures/rare/MAN16_lightmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -1050,15 +1050,15 @@
         "Blood"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Its form pulses with a crimson rhythm, echoing the primal heartbeat of life itself.",
-      "image": "creatures/uncommon/MAN17_bloodmane.png",
+      "image": "creatures/rare/MAN17_bloodmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {

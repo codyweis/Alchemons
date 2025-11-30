@@ -2,6 +2,16 @@
 import 'dart:math';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 
+class SurvivalRangeProfile {
+  final double basicMult;
+  final double specialMult;
+
+  const SurvivalRangeProfile({
+    required this.basicMult,
+    required this.specialMult,
+  });
+}
+
 /// Minimal stats container for survival mode.
 class SurvivalUnit {
   final String id;
@@ -138,32 +148,15 @@ class SurvivalUnit {
     cooldownReduction = 1.0 + (statSpeed * 0.12);
     critChance = (statIntelligence / 20.0).clamp(0.0, 0.40);
 
-    attackRange = 150.0 + (statIntelligence * 70.0);
+    // --- New, clearer range calculation ---
+    final baseRange = 150.0 + statIntelligence * 70.0;
 
-    specialAbilityRange = attackRange * _getSpecialRangeMultiplier(family);
-  }
+    final profile =
+        kFamilyRangeProfiles[family.toLowerCase()] ??
+        const SurvivalRangeProfile(basicMult: 1.0, specialMult: 1.0);
 
-  double _getSpecialRangeMultiplier(String family) {
-    switch (family.toLowerCase()) {
-      case 'let':
-        return 1.0; // Meteor has longer range
-      case 'wing':
-        return 2.0; // Beam reaches far
-      case 'mask':
-        return 1.0; // Traps are long-range
-      case 'kin':
-        return 2.0; // Blessing has huge range
-      case 'horn':
-        return 0.6; // Nova is melee-range only
-      case 'mane':
-        return 1.5; // Barrage slightly shorter
-      case 'pip':
-        return 1.0; // Same as basic
-      case 'mystic':
-        return 1.0; // Same as basic
-      default:
-        return 1.0;
-    }
+    attackRange = baseRange * profile.basicMult;
+    specialAbilityRange = baseRange * profile.specialMult;
   }
 
   bool get isAlive => currentHp > 0;
@@ -376,3 +369,30 @@ class SurvivalCombat {
     unit.tickStatusAndModifiers();
   }
 }
+
+// Somewhere near the top or in SurvivalCombat as a static const
+const Map<String, SurvivalRangeProfile> kFamilyRangeProfiles = {
+  // melee frontline
+  'horn': SurvivalRangeProfile(basicMult: 0.5, specialMult: 0.8),
+
+  // long-range DPS, special even longer
+  'wing': SurvivalRangeProfile(basicMult: 1.0, specialMult: 2.0),
+
+  // mage-ish, same range
+  'let': SurvivalRangeProfile(basicMult: 1.8, specialMult: 1.2),
+
+  // barrage caster: base = 1.0, special = 1.5 (longer)
+  'mane': SurvivalRangeProfile(basicMult: 1.3, specialMult: 1.9),
+
+  // sniper: same range
+  'pip': SurvivalRangeProfile(basicMult: 1.3, specialMult: 1.3),
+
+  // big support range
+  'kin': SurvivalRangeProfile(basicMult: 1.3, specialMult: 1.3),
+
+  // utility spells: same
+  'mystic': SurvivalRangeProfile(basicMult: 1.3, specialMult: 1.3),
+
+  // traps & ranged harass: same short range
+  'mask': SurvivalRangeProfile(basicMult: 0.8, specialMult: 1.3),
+};

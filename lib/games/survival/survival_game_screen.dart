@@ -127,30 +127,6 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen> {
                   child: Column(
                     children: [
                       // Title
-                      Text(
-                        'Endless Survival',
-                        style: TextStyle(
-                          color: theme.text,
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      Text(
-                        'Survive waves of elemental particles',
-                        style: TextStyle(
-                          color: theme.textMuted,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-
-                      const SizedBox(height: 24),
 
                       // NEW: family/species carousel
                       _buildFamilyCarousel(theme),
@@ -390,7 +366,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen> {
           _buildStrategyTip(
             theme,
             '2',
-            'Breed Powerful Alchemons',
+            'Fuse Powerful Alchemons',
             'Different alchemons have unique strengths and abilities. Genetics play a key role in maximizing potential.',
           ),
         ],

@@ -8,13 +8,22 @@ class AbilitySystemConfig {
   // ============================================================================
 
   static String getAbilityDescription(String family, String element, int rank) {
+    // rank here is now the "power level":
+    // 0 = no element unlock yet
+    // 1 = unlock
+    // 2 = strengthened
+    // 3 = massive upgrade
     if (rank == 0) {
       return _getBaseDescription(family);
     }
 
     final key = '${family}_$element';
-    return _elementalAbilities[key]?.getDescription(rank) ??
-        'Elemental upgrade for $element $family';
+    final ability = _elementalAbilities[key];
+    if (ability == null) {
+      return 'Elemental upgrade for $element $family';
+    }
+
+    return ability.getThreeTierDescription(rank);
   }
 
   static String _getBaseDescription(String family) {
@@ -45,1035 +54,834 @@ class AbilitySystemConfig {
   // ============================================================================
 
   static final Map<String, ElementalAbility> _elementalAbilities = {
-    // LET ABILITIES - Meteor Strike
+    // LET ABILITIES - Meteor
     'Let_Fire': ElementalAbility(
-      name: 'Inferno Meteor',
+      name: 'Flame Meteor',
       ranks: [
-        'Meteor leaves burning crater that damages over time',
-        'Burn duration +50%, Meteor splits on impact',
-        'Burning enemies explode on death',
-        'Meteor becomes fire tornado after impact',
-        'PYROCLASM: Massive AOE burn + periodic fire waves',
+        'Unlocks a flaming meteor that crashes into enemies.',
+        'Meteor radius and impact damage are increased.',
+        'APOCALYPSE: Huge burning crater that scorches enemies over time and restores some HP.',
       ],
     ),
     'Let_Water': ElementalAbility(
       name: 'Tidal Meteor',
       ranks: [
-        'Meteor creates slowing puddle, pushes enemies',
-        'Puddle size +50%, heals allies who pass through',
-        'Meteor bounces once before impact',
-        'Creates healing rain after impact',
-        'TSUNAMI: Giant wave pushes all enemies + massive slow',
+        'Unlocks a water meteor that crashes down and pushes enemies back.',
+        'Stronger knockback and heals nearby allies on impact.',
+        'TSUNAMI: Massive wave that blasts enemies back and heavily heals allies and the orb.',
       ],
     ),
-    'Let_Earth': ElementalAbility(
-      name: 'Seismic Meteor',
+    'Let_Ice': ElementalAbility(
+      name: 'Frost Meteor',
       ranks: [
-        'Meteor shatters into damaging crystals',
-        'Stuns enemies near impact +0.5s',
-        'Creates temporary wall segments',
-        'Crystals orbit impact site, blocking projectiles',
-        'EARTHQUAKE: Map-wide damage + creates barriers',
-      ],
-    ),
-    'Let_Air': ElementalAbility(
-      name: 'Storm Meteor',
-      ranks: [
-        'Meteor falls faster, creates shockwave knockback',
-        'Shockwave range +50%, pulls enemies toward center',
-        'Leaves tornado that moves randomly',
-        'Tornado homes on enemy clusters',
-        'HURRICANE: Multiple meteors + persistent storm',
+        'Unlocks an ice meteor that chills enemies at the impact zone.',
+        'Larger icy field that heavily slows enemies.',
+        'ABSOLUTE ZERO: Wide ice field that greatly slows and briefly freezes impacted enemies.',
       ],
     ),
     'Let_Lightning': ElementalAbility(
       name: 'Thunder Meteor',
       ranks: [
-        'Meteor chains lightning to nearby enemies',
-        'Lightning chains +2 times, each stronger',
-        'Electrified zone stuns enemies',
-        'Creates lightning storm above impact',
-        'JUDGMENT: Screen-wide lightning + paralysis',
+        'Unlocks a lightning meteor that shocks enemies on impact.',
+        'Increased impact radius and shock damage.',
+        'JUDGMENT: Thunderous impact with intense screen-wide chains of lightning around the strike.',
       ],
     ),
-    'Let_Ice': ElementalAbility(
-      name: 'Glacier Meteor',
+    'Let_Earth': ElementalAbility(
+      name: 'Seismic Meteor',
       ranks: [
-        'Meteor freezes ground, slowing enemies 80%',
-        'Frozen enemies take +30% damage',
-        'Chance to fully freeze enemies in zone',
-        'Creates ice spikes that erupt periodically',
-        'ABSOLUTE ZERO: Freezes all enemies briefly',
+        'Unlocks an earth meteor that hits with a powerful quake.',
+        'Shrapnel rocks damage extra enemies around the crater.',
+        'CATACLYSM: Massive quake plus shrapnel and shields granted to the caster and nearby allies.',
       ],
     ),
     'Let_Plant': ElementalAbility(
-      name: 'Spore Meteor',
+      name: 'Thorn Meteor',
       ranks: [
-        'Meteor spawns thorn patch with strong DoT',
-        'Thorns spread to nearby areas',
-        'Spawns 2 vine allies that root enemies',
-        'Vines pull enemies toward center',
-        'OVERGROWTH: Massive thorns + permanent vines',
+        'Unlocks a thorny meteor that seeds a damaging garden.',
+        'Garden radius and thorn damage are increased.',
+        'WILDSURGE: Thorn garden that slows, shreds enemies, and heals guardians standing inside.',
       ],
     ),
     'Let_Poison': ElementalAbility(
       name: 'Toxic Meteor',
       ranks: [
-        'Meteor creates poison cloud with heavy DoT',
-        'Poison spreads enemy-to-enemy on hit',
-        'Poisoned enemies move slower',
-        'Cloud persists and follows enemy clusters',
-        'PLAGUE: All enemies poisoned + damage multiplier',
+        'Unlocks a toxic meteor that applies poison on impact.',
+        'Poison damage and duration are increased.',
+        'PLAGUE STAR: Large toxic blast and lingering clouds that keep poisoning enemies entering the zone.',
+      ],
+    ),
+    'Let_Air': ElementalAbility(
+      name: 'Gale Meteor',
+      ranks: [
+        'Unlocks a wind meteor that creates a shockwave on impact.',
+        'Shockwave knockback distance and radius are increased.',
+        'HURRICANE IMPACT: Double shockwave that repeatedly blasts enemies away from the crater.',
       ],
     ),
     'Let_Blood': ElementalAbility(
-      name: 'Crimson Meteor',
+      name: 'Blood Meteor',
       ranks: [
-        'Meteor drains HP, converts to team heal',
-        'Lifesteal +50%, creates blood pool',
-        'Blood pool damages enemies, heals allies',
-        'Victims bleed, leaving damaging trails',
-        'EXSANGUINATE: Drains all visible enemies',
+        'Unlocks a blood meteor that drains enemies on impact.',
+        'Greatly increased life drain and more healing to the caster and orb.',
+        'TRANSFUSION: Huge drain on all struck enemies that also heals nearby guardians.',
       ],
     ),
     'Let_Spirit': ElementalAbility(
-      name: 'Soul Meteor',
+      name: 'Spirit Meteor',
       ranks: [
-        'Meteor executes low HP enemies (<20%)',
-        'Execute threshold +10%, spawns soul fragments',
-        'Souls seek enemies, dealing spirit damage',
-        'Killing blow releases nova',
-        'REAPER: Executes <40% HP + giant soul explosion',
+        'Unlocks a spirit meteor that marks enemies for delayed damage.',
+        'Marked explosions hit harder and affect a wider area.',
+        'ASCENSION: Multiple spirit explosions ripple from marked enemies, shredding clustered foes.',
       ],
     ),
     'Let_Dark': ElementalAbility(
       name: 'Void Meteor',
       ranks: [
-        'Meteor creates black hole, pulling enemies',
-        'Black hole lasts +2s, stronger pull',
-        'Enemies in black hole take increasing damage',
-        'Creates void rifts that shoot enemies',
-        'SINGULARITY: Massive black hole + time dilation',
+        'Unlocks a void meteor that punishes weakened enemies.',
+        'Higher bonus damage to low-HP enemies around the impact.',
+        'ECLIPSE: Executes very low-HP foes and restores health to the caster from slain targets.',
       ],
     ),
     'Let_Light': ElementalAbility(
       name: 'Holy Meteor',
       ranks: [
-        'Meteor damages enemies, heals allies in area',
-        'Heal amount +50%, applies regen',
-        'Creates light beacon that pulses healing',
-        'Allies gain damage buff in beacon',
-        'DIVINE WRATH: Huge heal + damage to all enemies',
+        'Unlocks a holy meteor that damages enemies and heals allies.',
+        'Larger heal and stronger holy explosion damage.',
+        'DIVINITY: Massive holy blast that heals all guardians, the orb, and cleanses their debuffs.',
       ],
     ),
     'Let_Lava': ElementalAbility(
       name: 'Magma Meteor',
       ranks: [
-        'Meteor creates lava pools, heavy DoT',
-        'Lava spreads outward slowly',
-        'Enemies leave lava trails',
-        'Lava occasionally erupts upward',
-        'VOLCANIC: Entire map becomes lava',
+        'Unlocks a magma meteor that leaves a molten pool on impact.',
+        'Molten pool radius and damage over time are increased.',
+        'VOLCANIC: Enormous lava pool that keeps burning enemies clustered around the crater.',
       ],
     ),
     'Let_Steam': ElementalAbility(
-      name: 'Vapor Meteor',
+      name: 'Steam Meteor',
       ranks: [
-        'Meteor creates steam cloud, blinds enemies',
-        'Steam heals allies, damages enemies',
-        'Steam applies burn + slow',
-        'Pressure builds, creating explosions',
-        'GEYSER: Continuous steam eruptions',
+        'Unlocks a steam meteor that scalds and confuses enemies.',
+        'Greater scald damage and larger steam cloud.',
+        'GEYSER: Wide steam burst that heavily damages, disorients enemies, and blankets the area in mist.',
       ],
     ),
     'Let_Mud': ElementalAbility(
-      name: 'Sludge Meteor',
+      name: 'Mud Meteor',
       ranks: [
-        'Meteor creates mud pit, heavily slows enemies',
-        'Enemies stuck in mud take +damage',
-        'Mud hardens, rooting enemies',
-        'Mud spreads to nearby areas',
-        'QUICKSAND: All enemies slowed + periodic pulls',
+        'Unlocks a mud meteor that creates a slowing pit.',
+        'Mud pool radius and slow strength are increased.',
+        'QUAGMIRE: Huge mud field that severely hampers enemy advance around the impact zone.',
       ],
     ),
     'Let_Dust': ElementalAbility(
-      name: 'Sandstorm Meteor',
+      name: 'Dust Meteor',
       ranks: [
-        'Meteor creates dust cloud, reducing accuracy',
-        'Dust deals chip damage over time',
-        'Dust blinds enemies, reducing their range',
-        'Creates dust devils that chase enemies',
-        'DESERT: Massive sandstorm covers battlefield',
+        'Unlocks a dust meteor that creates a blinding sandstorm.',
+        'Sandstorm damage and confusion are increased.',
+        'SANDSTORM: Expansive storm that repeatedly damages and disorients all enemies inside.',
       ],
     ),
     'Let_Crystal': ElementalAbility(
-      name: 'Prismatic Meteor',
+      name: 'Crystal Meteor',
       ranks: [
-        'Meteor shatters into seeking crystal shards',
-        'Shards +3, deal more damage',
-        'Shards explode on enemy death',
-        'Creates crystal prison around enemies',
-        'CRYSTALLIZE: Petrifies enemies, shatters for AoE',
+        'Unlocks a crystal meteor that shatters into seeking shards.',
+        'More shards and higher shard damage.',
+        'PRISM FALL: Meteor erupts into a barrage of homing crystal shards that chase enemies across a huge area.',
       ],
     ),
 
     // PIP ABILITIES - Ricochet
     'Pip_Fire': ElementalAbility(
-      name: 'Ember Ricochet',
+      name: 'Flame Ricochet',
       ranks: [
-        'Shots leave burning marks on each bounce',
-        'Burns stack, +1 bounce',
-        'Burning enemies spread fire to nearby',
-        'Each bounce creates mini explosion',
-        'WILDFIRE: Bounces infinitely, auto-ignites all',
+        'Unlocks a ricochet shot that bounces between enemies.',
+        'Extra bounces and higher damage per hit, with stronger fire splash on each impact.',
+        'INFERNO RICOCHET: Rapid, long chains of bounces that scorch clustered enemies with heavy splash fire.',
       ],
     ),
     'Pip_Water': ElementalAbility(
-      name: 'Splash Ricochet',
+      name: 'Tidal Ricochet',
       ranks: [
-        'Bounces create healing splashes',
-        'Heals +50%, slows enemies hit',
-        'Creates water trails between bounces',
-        '+2 bounces, seeks lowest HP ally',
-        'FOUNTAIN: Continuous bouncing healing orbs',
+        'Unlocks a ricochet shot that splashes water on impact.',
+        'More bounces and stronger orb healing with each hit.',
+        'TSUNAMI RICOCHET: Long bouncing chains that repeatedly push enemies away from the orb and restore its HP.',
       ],
     ),
     'Pip_Ice': ElementalAbility(
       name: 'Frost Ricochet',
       ranks: [
-        'Each bounce slows enemy +20%',
-        'Fully frozen enemies after 3 hits',
-        'Frozen enemies become bounce targets',
-        'Bounces create ice spikes',
-        'BLIZZARD: Screen-wide freezing ricochets',
+        'Unlocks a ricochet shot that chills enemies near each hit.',
+        'More bounces and heavier slowing around impact points.',
+        'ABSOLUTE RICOCHET: Dense chains that blanket packs in repeated frost bursts, heavily slowing advances.',
       ],
     ),
     'Pip_Lightning': ElementalAbility(
-      name: 'Volt Ricochet',
+      name: 'Thunder Ricochet',
       ranks: [
-        'Bounces chain lightning to +2 targets',
-        'Chain damage increases per jump',
-        '+2 bounces, increased speed',
-        'Creates electric field between bounces',
-        'TESLA: Unlimited bounces, massive chain network',
+        'Unlocks a ricochet shot that arcs lightning through enemies.',
+        'Extra bounces and stronger bonus lightning chains from each hit.',
+        'STORM RICOCHET: Hyper-bouncing bolts that constantly chain lightning through nearby enemies.',
       ],
     ),
     'Pip_Earth': ElementalAbility(
-      name: 'Boulder Ricochet',
+      name: 'Stone Ricochet',
       ranks: [
-        'Heavy shots knock back harder',
-        'Creates stone spike on each bounce',
-        'Bounces stun briefly (0.3s)',
-        'Stone spikes become walls',
-        'AVALANCHE: Massive boulders cascade',
+        'Unlocks a ricochet shot that shakes targets on impact.',
+        'More bounces plus knockback shockwaves around each hit.',
+        'QUAKE RICOCHET: Long chains that shove enemy packs away while mending the shooter’s defenses.',
       ],
     ),
     'Pip_Plant': ElementalAbility(
       name: 'Thorn Ricochet',
       ranks: [
-        'Shots apply bleed DoT',
-        'Bounces leave thorn patches',
-        'Thorns root enemies briefly',
-        '+3 bounces, creates vine network',
-        'ENTANGLE: All enemies rooted + continuous thorns',
+        'Unlocks a ricochet shot that seeds small thorn bursts.',
+        'Extra bounces and stronger thorn patches from early hits.',
+        'WILDPATCH RICOCHET: Ricochets trail thorny zones that chew through groups over time.',
       ],
     ),
     'Pip_Poison': ElementalAbility(
-      name: 'Venom Ricochet',
+      name: 'Toxic Ricochet',
       ranks: [
-        'Poison spreads on each bounce',
-        'Poison lasts +50%, damages over time',
-        'Poisoned enemies become bounce targets',
-        'Poison pools form at bounce points',
-        'PANDEMIC: All enemies auto-poisoned + spreading',
+        'Unlocks a ricochet shot that poisons enemies on hit.',
+        'More bounces and heavier poison damage over time.',
+        'PLAGUE RICOCHET: Chains of shots that leave long-lasting poison on every enemy they touch.',
       ],
     ),
     'Pip_Air': ElementalAbility(
-      name: 'Gust Ricochet',
+      name: 'Gale Ricochet',
       ranks: [
-        'Bounces travel faster, push enemies',
-        '+3 bounces, creates wind currents',
-        'Wind currents buff ally speed',
-        'Bounces create small tornadoes',
-        'CYCLONE: Tornado pulls all enemies to center',
+        'Unlocks a ricochet shot that bursts with wind on impact.',
+        'Extra bounces and greater knockback from each gust.',
+        'HURRICANE RICOCHET: Rapid chains that keep packs pushed back and off the orb.',
       ],
     ),
     'Pip_Blood': ElementalAbility(
-      name: 'Vampiric Ricochet',
+      name: 'Blood Ricochet',
       ranks: [
-        'Each bounce heals based on damage',
-        'Healing +50%, creates blood link',
-        'Blood link shares damage between enemies',
-        'Low HP enemies become prioritized',
-        'TRANSFUSION: Drains all enemies, massive heal',
+        'Unlocks a ricochet shot that drains enemies on hit.',
+        'More bounces and stronger life drain shared with the team.',
+        'TRANSFUSION RICOCHET: Long chains that massively siphon health to guardians and the orb.',
       ],
     ),
     'Pip_Spirit': ElementalAbility(
-      name: 'Phantom Ricochet',
+      name: 'Spirit Ricochet',
       ranks: [
-        'Bounces phase through walls',
-        '+2 bounces, leaves spirit marks',
-        'Spirit marks explode when enemy dies',
-        'Bounces summon ghost copies',
-        'HAUNTING: Spirits bounce infinitely',
+        'Unlocks a ricochet shot that marks enemies for delayed spirit damage.',
+        'Extra bounces and larger delayed spirit bursts.',
+        'ASCENSION RICOCHET: Chains that constantly plant spirit marks, causing repeated ghostly explosions in packs.',
       ],
     ),
     'Pip_Dark': ElementalAbility(
-      name: 'Shadow Ricochet',
+      name: 'Void Ricochet',
       ranks: [
-        'Bounces drain enemy speed',
-        'Each bounce adds entropy debuff',
-        'Dark shots create blind zones',
-        '+4 bounces, prioritizes strongest enemy',
-        'ECLIPSE: All enemies slowed + continuous dark bounces',
+        'Unlocks a ricochet shot that deals bonus dark damage.',
+        'More bounces and stronger on-hit lifesteal to the shooter.',
+        'ECLIPSE RICOCHET: Rapid chains that shred enemies and heavily sustain the attacker.',
       ],
     ),
     'Pip_Light': ElementalAbility(
-      name: 'Radiant Ricochet',
+      name: 'Holy Ricochet',
       ranks: [
-        'Bounces heal allies they pass near',
-        'Heal +50%, applies regen buff',
-        'Light shots reveal stealthed enemies',
-        'Each bounce creates light orb ally',
-        'REVELATION: Massive healing + damage pulses',
+        'Unlocks a ricochet shot that sends out small healing light.',
+        'Extra bounces and more team healing per hit.',
+        'DIVINE RICOCHET: Long chains that shower your whole team with repeated healing flashes.',
       ],
     ),
     'Pip_Lava': ElementalAbility(
-      name: 'Molten Ricochet',
+      name: 'Magma Ricochet',
       ranks: [
-        'Bounces leave lava puddles',
-        'Lava damage +50%, spreads',
-        '+2 bounces, enemies leave lava trails',
-        'Lava occasionally shoots projectiles',
-        'INFERNO: Entire path becomes lava river',
+        'Unlocks a ricochet shot that leaves small lava cracks on impact.',
+        'More bounces and stronger lingering lava damage zones.',
+        'VOLCANIC RICOCHET: Chain of shots that carpets the field with burning magma patches.',
       ],
     ),
     'Pip_Steam': ElementalAbility(
-      name: 'Pressure Ricochet',
+      name: 'Steam Ricochet',
       ranks: [
-        'Bounces create steam puffs',
-        'Steam heals allies, burns enemies',
-        '+2 bounces, steam builds pressure',
-        'Pressure releases in explosions',
-        'BOILER: Continuous pressure explosions',
+        'Unlocks a ricochet shot that steams and soft-slows enemies near each hit.',
+        'Extra bounces and stronger slow, with small orb regen on big hits.',
+        'GEYSER RICOCHET: Dense chains that keep packs hazy, slowed, and trickle-healing the orb.',
       ],
     ),
     'Pip_Mud': ElementalAbility(
-      name: 'Bog Ricochet',
+      name: 'Mud Ricochet',
       ranks: [
-        'Bounces slow enemies significantly',
-        '+2 bounces, creates mud puddles',
-        'Mud roots enemies periodically',
-        'Rooted enemies take +damage',
-        'SWAMP: All movement heavily slowed',
+        'Unlocks a ricochet shot that creates sticky mud at impact.',
+        'More bounces and stronger slowing mud pools.',
+        'QUAGMIRE RICOCHET: Chains that litter the field with sticky zones that bog entire waves down.',
       ],
     ),
     'Pip_Dust': ElementalAbility(
-      name: 'Sandblast Ricochet',
+      name: 'Dust Ricochet',
       ranks: [
-        'Bounces reduce enemy accuracy',
-        '+3 bounces, creates dust clouds',
-        'Dust damages over time',
-        'Clouds blind enemies completely',
-        'SANDSTORM: Screen-wide dust damage',
+        'Unlocks a ricochet shot that scatters blinding dust.',
+        'Extra bounces and stronger confusion jitters on nearby enemies.',
+        'SANDSPARK RICOCHET: Rapid chains that keep packs constantly jittering and mis-stepping.',
       ],
     ),
     'Pip_Crystal': ElementalAbility(
-      name: 'Shard Ricochet',
+      name: 'Crystal Ricochet',
       ranks: [
-        'Bounces split into smaller shards',
-        'Shards +2, deal crit damage',
-        '+3 bounces, shards seek enemies',
-        'Shards explode on contact',
-        'PRISM: Infinite splitting shards',
+        'Unlocks a ricochet shot that can split into crystal shards.',
+        'More bounces and stronger shard splits to nearby enemies.',
+        'PRISM RICOCHET: Hyper-bouncing shots that keep spawning homing shards into surrounding targets.',
       ],
     ),
 
-    // MANE ABILITIES - Barrage (Damage Dealers)
+    // MANE ABILITIES - Barrage (3-tier rapid-fire cone)
     'Mane_Fire': ElementalAbility(
       name: 'Flame Barrage',
       ranks: [
-        'Rapid fire creates burning field forward',
-        '+3 projectiles, burns last longer',
-        'Burning field pulses damage',
-        'Each shot has chance to ignite all nearby',
-        'INFERNO BARRAGE: Massive damage wave + ignition',
+        'Unleash a cone of rapid fire that ignites enemies on hit.',
+        'More projectiles and stronger burn, shredding clustered enemies.',
+        'INFERNO BARRAGE: A massive volley that blankets the cone in intense burning damage.',
       ],
     ),
     'Mane_Ice': ElementalAbility(
       name: 'Frost Barrage',
       ranks: [
-        'Rapid shots slow enemies progressively',
-        '+3 projectiles, freeze on 3rd hit',
-        'Frozen enemies shatter on death',
-        'Creates ice wall after barrage',
-        'GLACIER BARRAGE: Screen freeze + ice walls',
+        'Rapid shots chill enemies, subtly pushing them back from the Orb.',
+        'More projectiles and heavier chill, making enemies feel sluggish and controlled.',
+        'GLACIER BARRAGE: A huge volley that heavily chills and shoves back whole packs of enemies.',
       ],
     ),
     'Mane_Lightning': ElementalAbility(
       name: 'Storm Barrage',
       ranks: [
-        'Shots chain to +1 nearby enemy',
-        '+4 projectiles, chains +2 times',
-        'Lightning marks enemies for focus fire',
-        'Marked enemies take +50% damage',
-        'TEMPEST BARRAGE: Unlimited chains',
+        'Shots arc chain lightning from hit enemies to nearby targets.',
+        'More projectiles and stronger chains, devastating clustered foes.',
+        'TEMPEST BARRAGE: A massive storm of bolts constantly chaining through enemy groups.',
       ],
     ),
     'Mane_Earth': ElementalAbility(
       name: 'Boulder Barrage',
       ranks: [
-        'Heavy shots pierce first enemy',
-        '+3 projectiles, knockback increased',
-        'Pierces all enemies in line',
-        'Creates stone spikes on impact',
-        'AVALANCHE BARRAGE: Giant boulders crush all',
+        'Heavy shots slam enemies, knocking them back on impact.',
+        'More projectiles and greater knockback, creating strong zone control.',
+        'AVALANCHE BARRAGE: A brutal volley that pummels enemies and hurls them away from the front line.',
       ],
     ),
     'Mane_Plant': ElementalAbility(
       name: 'Thorn Barrage',
       ranks: [
-        'Shots apply bleed and slow',
-        '+5 projectiles, bleeds stack',
-        'Creates thorny zone forward',
-        'Thorns root enemies periodically',
-        'BLOOM BARRAGE: Covers field in thorns',
+        'Shots inflict bleeding thorns that deal damage over time.',
+        'More projectiles and stronger bleed, rapidly stacking damage on priority targets.',
+        'BLOOM BARRAGE: A dense hail of thorns that blankets the cone in heavy bleeds.',
       ],
     ),
     'Mane_Poison': ElementalAbility(
       name: 'Toxin Barrage',
       ranks: [
-        'Shots poison in cone area',
-        '+4 projectiles, poison spreads faster',
-        'Poison cloud forms after barrage',
-        'Cloud follows enemy clusters',
-        'PLAGUE BARRAGE: All enemies poisoned instantly',
+        'Shots poison enemies in the cone, dealing damage over time.',
+        'More projectiles and stronger, longer-lasting poison.',
+        'PLAGUE BARRAGE: A huge volley that inflicts powerful poison on anything caught in the cone.',
       ],
     ),
     'Mane_Water': ElementalAbility(
       name: 'Torrent Barrage',
       ranks: [
-        'Shots push enemies backward',
-        '+4 projectiles, creates wave',
-        'Wave slows and damages',
-        'Allies in wave get speed buff',
-        'TSUNAMI BARRAGE: Massive wave clears field',
+        'Water shots push enemies backward away from the Orb.',
+        'More projectiles and stronger knockback, forming a reliable defensive wall.',
+        'TSUNAMI BARRAGE: A massive volley that surges forward and throws enemies far from your defenses.',
       ],
     ),
     'Mane_Air': ElementalAbility(
       name: 'Gale Barrage',
       ranks: [
-        'Rapid wind shots push enemies',
-        '+6 projectiles, creates tornado',
-        'Tornado pulls enemies to center',
-        'Tornado lasts after barrage',
-        'HURRICANE BARRAGE: Multiple tornadoes',
+        'Wind shots shove enemies back, disrupting their advance.',
+        'More projectiles and stronger wind force, constantly peeling enemies away.',
+        'HURRICANE BARRAGE: A roaring cone of shots that violently sweeps enemies out of position.',
       ],
     ),
     'Mane_Blood': ElementalAbility(
       name: 'Hemorrhage Barrage',
       ranks: [
-        'Shots drain HP, heal Orb',
-        '+4 projectiles, lifesteal +50%',
-        'Creates blood fountain that heals allies',
-        'Drained enemies bleed trails',
-        'EXSANGUINATION: All enemies drained',
+        'Shots drain HP from enemies, healing you slightly on hit.',
+        'More projectiles and stronger lifesteal, greatly improving your sustain.',
+        'EXSANGUINATION BARRAGE: A massive volley that drains hordes of enemies to massively heal you and the Orb.',
       ],
     ),
     'Mane_Spirit': ElementalAbility(
       name: 'Spectral Barrage',
       ranks: [
-        'Shots phase through first enemy',
-        '+5 projectiles, hit multiple targets',
-        'Summons ghost that mimics barrage',
-        'Ghost lasts 10s, auto-targets',
-        'HAUNTING: Multiple permanent ghosts',
+        'Ethereal shots pierce through targets, hitting multiple enemies in the cone.',
+        'More projectiles and improved piercing, cutting through dense enemy lines.',
+        'HAUNTING BARRAGE: A spectral storm of shots that tears through entire waves of foes.',
       ],
     ),
     'Mane_Dark': ElementalAbility(
       name: 'Shadow Barrage',
       ranks: [
-        'Shots reduce enemy speed and damage',
-        '+4 projectiles, creates darkness zone',
-        'Zone blinds enemies, buffs allies',
-        'Darkness spreads outward',
-        'ECLIPSE: Screen-wide darkness + debuff',
+        'Shots weaken enemies, dealing extra damage to those already wounded.',
+        'More projectiles and a stronger damage boost against low-HP targets.',
+        'ECLIPSE BARRAGE: A crushing volley that brutally finishes off weakened enemies across the cone.',
       ],
     ),
     'Mane_Light': ElementalAbility(
       name: 'Radiant Barrage',
       ranks: [
-        'Shots damage enemies, heal nearby allies',
-        '+5 projectiles, healing +50%',
-        'Creates light beam that pierces',
-        'Beam applies regen to allies',
-        'DIVINITY: Massive heal + damage beam',
+        'Shots damage enemies and heal you slightly on hit.',
+        'More projectiles and stronger healing, supporting you during sustained fights.',
+        'DIVINITY BARRAGE: A brilliant volley that heavily damages foes while providing strong self-healing.',
       ],
     ),
     'Mane_Lava': ElementalAbility(
       name: 'Magma Barrage',
       ranks: [
-        'Shots create lava puddles',
-        '+4 projectiles, puddles spread',
-        'Enemies in lava burn longer',
-        'Lava occasionally erupts',
-        'VOLCANIC: All ground becomes lava',
+        'Molten shots slam enemies, applying extra knockback on impact.',
+        'More projectiles and stronger impact, sending enemies flying.',
+        'VOLCANIC BARRAGE: A brutal lava hail that pounds enemies and scatters them violently.',
       ],
     ),
     'Mane_Steam': ElementalAbility(
       name: 'Vapor Barrage',
       ranks: [
-        'Shots create steam that obscures',
-        '+5 projectiles, steam heals allies',
-        'Steam builds pressure, explodes',
-        'Continuous steam field',
-        'GEYSER: Massive steam explosions',
+        'Steam shots scorch and slightly disorient enemies, jittering their movement.',
+        'More projectiles and stronger disorientation and damage.',
+        'GEYSER BARRAGE: A dense spray of scalding shots that heavily disrupts and burns enemy groups.',
       ],
     ),
     'Mane_Mud': ElementalAbility(
       name: 'Sludge Barrage',
       ranks: [
-        'Shots slow and cover ground in mud',
-        '+4 projectiles, mud spreads faster',
-        'Enemies stuck take +30% damage',
-        'Mud hardens, rooting enemies',
-        'QUAGMIRE: Entire field becomes mud',
+        'Shots bog enemies down, nudging them backward and slowing their advance.',
+        'More projectiles and stronger slowing pushback, clumping enemies in front of you.',
+        'QUAGMIRE BARRAGE: A relentless muddy hail that severely hampers and pushes back entire waves.',
       ],
     ),
     'Mane_Dust': ElementalAbility(
       name: 'Dust Barrage',
       ranks: [
-        'Shots create blinding dust clouds',
-        '+6 projectiles, clouds last longer',
-        'Dust damages over time',
-        'Creates sandstorm that moves',
-        'DESERT: Entire screen dust storm',
+        'Dusty shots jostle enemy positions, lightly scrambling their movement.',
+        'More projectiles and stronger disruption, throwing off enemy formations.',
+        'DESERT BARRAGE: A churning dust volley that keeps enemies stumbling and mispositioned in the cone.',
       ],
     ),
     'Mane_Crystal': ElementalAbility(
       name: 'Shard Barrage',
       ranks: [
-        'Shots shatter into smaller projectiles',
-        '+4 projectiles, +3 shards each',
-        'Shards crit for double damage',
-        'Creates crystal field that reflects shots',
-        'PRISM: Infinite shard cascade',
+        'Every few shots split into extra crystal shards that strike nearby enemies.',
+        'More projectiles and stronger shard damage, punishing clustered foes.',
+        'PRISM BARRAGE: A massive hail of shots constantly splitting into shards, shredding enemy packs.',
       ],
     ),
 
-    // MASK ABILITIES - Trap Field (Changed from pull to traps)
+    // MASK ABILITIES - Trap Field
     'Mask_Fire': ElementalAbility(
       name: 'Flame Trap',
       ranks: [
-        'Deploy fire trap that ignites on trigger',
-        '+2 traps, burn lasts longer',
-        'Burning enemies trigger nearby traps',
-        'Traps leave permanent fire zones',
-        'INFERNO GRID: All traps interconnected fire',
+        // Rank 1 – unlock
+        'Deploy a fire trap that ignites enemies on trigger.',
+        // Rank 2 – stronger
+        'More traps with larger radius and stronger burning zones.',
+        // Rank 3 – ultimate
+        'INFERNO GRID: Deploy a cluster of flame traps that chain burning zones across the field.',
       ],
     ),
     'Mask_Ice': ElementalAbility(
       name: 'Freeze Trap',
       ranks: [
-        'Deploy ice trap that freezes on trigger',
-        '+2 traps, freeze duration +50%',
-        'Frozen enemies explode, damaging nearby',
-        'Traps create ice walls',
-        'PERMAFROST: Freezes entire areas',
+        'Deploy an ice trap that freezes or heavily slows enemies on trigger.',
+        'More traps and longer freezes; traps leave a lingering chill zone.',
+        'PERMAFROST GRID: A field of freeze traps that keep enemies locked and slowed for a long time.',
       ],
     ),
     'Mask_Lightning': ElementalAbility(
       name: 'Shock Trap',
       ranks: [
-        'Deploy trap that chains lightning',
-        '+3 traps, chains to more targets',
-        'Chained enemies stunned briefly',
-        'Traps create electric fence',
-        'TESLA GRID: Unlimited chain network',
+        'Deploy a trap that zaps enemies and chains lightning on trigger.',
+        'More traps, longer chains, and brief stuns on hit.',
+        'TESLA GRID: Interlinked shock traps that create a large chain-lightning network.',
       ],
     ),
     'Mask_Earth': ElementalAbility(
       name: 'Spike Trap',
       ranks: [
-        'Deploy trap that creates spike pillars',
-        '+2 traps, spikes knock up',
-        'Knocked enemies stunned on landing',
-        'Traps create barrier walls',
-        'FORTRESS: Massive spike maze',
+        'Deploy a trap that erupts stone spikes, damaging enemies.',
+        'More traps and stronger eruptions that briefly stun.',
+        'FORTRESS GRID: A field of spike traps that control space and protect the Orb with stone barriers.',
       ],
     ),
     'Mask_Plant': ElementalAbility(
       name: 'Vine Trap',
       ranks: [
-        'Deploy trap that roots enemies',
-        '+3 traps, root duration +50%',
-        'Rooted enemies take DoT',
-        'Vines spread between traps',
-        'GARDEN: Entire field covered in roots',
+        'Deploy a trap that roots enemies in place.',
+        'More traps, longer roots, and lingering thorn damage in the area.',
+        'GARDEN GRID: A web of vine traps that continuously root and bleed enemies in a large area.',
       ],
     ),
     'Mask_Poison': ElementalAbility(
       name: 'Toxin Trap',
       ranks: [
-        'Deploy trap releasing poison cloud',
-        '+2 traps, poison spreads enemy-to-enemy',
-        'Poisoned enemies slow significantly',
-        'Clouds merge into mega-cloud',
-        'PANDEMIC: Auto-poison all enemies',
+        'Deploy a trap that releases a poison cloud on trigger.',
+        'More traps and stronger clouds that heavily poison and slow enemies.',
+        'PANDEMIC GRID: A carpet of toxin traps that spread poison rapidly through enemy packs.',
       ],
     ),
     'Mask_Water': ElementalAbility(
       name: 'Geyser Trap',
       ranks: [
-        'Deploy trap that launches enemies up',
-        '+2 traps, creates water puddles',
-        'Puddles slow and heal allies',
-        'Geysers erupt periodically',
-        'FOUNTAIN: Continuous eruptions',
+        'Deploy a trap that launches enemies and creates slowing water.',
+        'More traps, stronger knockup, and better ally healing near geysers.',
+        'FOUNTAIN GRID: A field of geyser traps that juggle enemies and pulse healing to allies.',
       ],
     ),
     'Mask_Air': ElementalAbility(
       name: 'Wind Trap',
       ranks: [
-        'Deploy trap that creates tornado',
-        '+2 traps, tornadoes pull harder',
-        'Pulled enemies take damage',
-        'Tornadoes move toward enemies',
-        'HURRICANE: Multiple mega-tornadoes',
+        'Deploy a trap that creates a small tornado on trigger.',
+        'More traps, stronger pull and more damage over time.',
+        'HURRICANE GRID: Multiple large tornado traps that drag enemies into deadly storm zones.',
       ],
     ),
     'Mask_Blood': ElementalAbility(
       name: 'Drain Trap',
       ranks: [
-        'Deploy trap that leeches HP',
-        '+3 traps, lifesteal converts to heal',
-        'Drained enemies leave blood pools',
-        'Pools damage and heal simultaneously',
-        'EXSANGUINATE: All enemies drained',
+        'Deploy a trap that leeches HP from enemies and heals the team.',
+        'More traps and stronger drains; drained enemies leave blood pools that heal allies.',
+        'EXSANGUINATE GRID: A network of drain traps that suck life from huge clusters of enemies.',
       ],
     ),
     'Mask_Spirit': ElementalAbility(
       name: 'Ghost Trap',
       ranks: [
-        'Deploy trap that spawns attacking spirit',
-        '+2 traps, spirits last longer',
-        'Spirits drain enemy damage',
-        'Multiple spirits link attacks',
-        'HAUNTED: Permanent spirit army',
+        'Deploy a trap that summons an attacking spirit when triggered.',
+        'More traps and longer-lasting spirits that weaken enemies.',
+        'HAUNTED GRID: A field of ghost traps that maintain a small spirit army harassing enemies.',
       ],
     ),
     'Mask_Dark': ElementalAbility(
       name: 'Void Trap',
       ranks: [
-        'Deploy trap creating mini black hole',
-        '+2 traps, pull strength +50%',
-        'Pulled enemies take increasing damage',
-        'Black holes merge when close',
-        'SINGULARITY: Mega black hole center',
+        'Deploy a trap that creates a small black hole, pulling enemies inward.',
+        'More traps, stronger pull, and growing damage the longer enemies stay inside.',
+        'SINGULARITY GRID: Many void traps forming a deadly gravity field that shreds clustered enemies.',
       ],
     ),
     'Mask_Light': ElementalAbility(
       name: 'Radiance Trap',
       ranks: [
-        'Deploy trap that blinds and damages',
-        '+3 traps, heals nearby allies',
-        'Blind enemies miss attacks',
-        'Traps create light beacon',
-        'REVELATION: Screen-wide blind + heal',
+        'Deploy a trap that blinds and damages enemies on trigger.',
+        'More traps, stronger blind, and healing pulses for nearby allies.',
+        'REVELATION GRID: A field of radiant traps that blind most enemies and constantly heal your team.',
       ],
     ),
     'Mask_Lava': ElementalAbility(
       name: 'Magma Trap',
       ranks: [
-        'Deploy trap creating lava pool',
-        '+2 traps, pools spread slowly',
-        'Pools erupt occasionally',
-        'Eruptions knock back enemies',
-        'VOLCANIC: All ground becomes lava',
+        'Deploy a trap that creates a damaging lava pool.',
+        'More traps, larger pools, and occasional eruptions that knock enemies back.',
+        'VOLCANIC GRID: A lattice of magma traps that turn huge areas of the map into lava.',
       ],
     ),
     'Mask_Steam': ElementalAbility(
       name: 'Pressure Trap',
       ranks: [
-        'Deploy trap building steam pressure',
-        '+3 traps, explode when full',
-        'Steam heals allies, burns enemies',
-        'Explosions chain to nearby traps',
-        'BOILER: Continuous chain explosions',
+        'Deploy a trap that builds pressure then explodes in steam.',
+        'More traps, bigger blasts, and steam that heals allies while burning enemies.',
+        'BOILER GRID: Chains of pressure traps that cause repeated steam explosions across the area.',
       ],
     ),
     'Mask_Mud': ElementalAbility(
       name: 'Quicksand Trap',
       ranks: [
-        'Deploy trap creating mud pit',
-        '+2 traps, heavily slows enemies',
-        'Slowed enemies take +30% damage',
-        'Mud hardens, rooting completely',
-        'QUAGMIRE: Entire field mud',
+        'Deploy a trap that creates a mud pit, heavily slowing enemies.',
+        'More traps, larger pits, and stronger slow that can briefly root enemies.',
+        'QUAGMIRE GRID: A field of quicksand traps that nearly stop enemy movement around the Orb.',
       ],
     ),
     'Mask_Dust': ElementalAbility(
       name: 'Dust Trap',
       ranks: [
-        'Deploy trap creating dust cloud',
-        '+3 traps, reduces enemy accuracy',
-        'Clouds deal chip damage',
-        'Clouds blind enemies',
-        'SANDSTORM: Screen-wide dust',
+        'Deploy a trap that creates a blinding dust cloud on trigger.',
+        'More traps, bigger clouds, and damage over time inside the dust.',
+        'SANDSTORM GRID: A network of dust traps that cover large areas in debilitating sandstorms.',
       ],
     ),
     'Mask_Crystal': ElementalAbility(
       name: 'Prism Trap',
       ranks: [
-        'Deploy trap shooting crystal shards',
-        '+2 traps, shards pierce enemies',
-        'Shards reflect between traps',
-        'Creates crystal prison',
-        'CRYSTALLIZE: Petrifies all enemies',
+        'Deploy a trap that fires crystal shards at enemies.',
+        'More traps, more shards, and piercing shots that can hit multiple targets.',
+        'CRYSTALLIZE GRID: A fortress of prism traps that barrage enemies with homing crystal shards.',
       ],
     ),
 
-    // HORN ABILITIES - Nova
+    // HORN ABILITIES - Nova (3-tier elemental nova)
     'Horn_Fire': ElementalAbility(
       name: 'Flame Nova',
       ranks: [
-        'Nova ignites all nearby enemies',
-        'Ignited enemies burn longer, +range',
-        'Burning enemies explode on death',
-        'Nova creates fire shield',
-        'SUPERNOVA: Map-wide burn + shield all allies',
+        'Nova ignites all nearby enemies with burning damage over time.',
+        'Burn deals more damage and lasts longer as the nova radius and shield grow stronger.',
+        'Cataclysmic Flame Nova: huge radius and a lingering fire ring that continuously scorches enemies.',
       ],
     ),
     'Horn_Water': ElementalAbility(
       name: 'Tidal Nova',
       ranks: [
-        'Nova pushes enemies and slows',
-        'Push +50%, creates water shield',
-        'Shield heals allies inside',
-        'Wave knocks down enemies',
-        'TSUNAMI: Massive push + team heal',
+        'Nova damages nearby enemies and heals guardians and the Orb within range.',
+        'Healing is increased and affects a larger area as the nova grows in power.',
+        'Tidal Nova: a massive, high-impact nova that heavily heals allies in a huge radius and shoves enemies back.',
       ],
     ),
     'Horn_Ice': ElementalAbility(
       name: 'Frost Nova',
       ranks: [
-        'Nova freezes ground and slows',
-        'Frozen ground lasts longer, full freeze chance',
-        'Creates ice armor (+defense)',
-        'Ice shards shoot outward',
-        'ABSOLUTE ZERO: Full freeze + ice fortress',
+        'Nova creates a chilling zone that slows and pushes enemies away from the Orb.',
+        'The freezing zone lasts longer and exerts stronger pushback on enemies caught inside.',
+        'Absolute Frost Nova: huge radius, plus briefly freezes enemies hit while maintaining a powerful chill field.',
       ],
     ),
     'Horn_Lightning': ElementalAbility(
       name: 'Thunder Nova',
       ranks: [
-        'Nova chains lightning to all nearby',
-        'Chains stun briefly, +damage',
-        'Creates electric barrier',
-        'Barrier shocks attacking enemies',
-        'JUDGMENT: Screen-wide lightning + paralysis',
+        'Nova shocks nearby enemies, sending out lightning that chains between them.',
+        'Chain lightning becomes much stronger, greatly increasing damage to clustered enemies.',
+        'Judgment Nova: a massive blast that unleashes powerful chains of lightning through enemy packs.',
       ],
     ),
     'Horn_Earth': ElementalAbility(
       name: 'Seismic Nova',
       ranks: [
-        'Nova creates stone shield, damages enemies',
-        'Shield lasts longer, reflects projectiles',
-        'Creates spike ring around you',
-        'Spikes stun on contact',
-        'FORTRESS: Massive walls + permanent shield',
+        'Nova grants you a stone shield while damaging nearby enemies.',
+        'Shield value is increased and nearby guardians also gain a portion of the stone shield.',
+        'Fortress Nova: huge radius and a powerful earthen bulwark that heavily fortifies you and your allies.',
       ],
     ),
     'Horn_Plant': ElementalAbility(
       name: 'Thorn Nova',
       ranks: [
-        'Nova shoots thorns, applies bleed',
-        'Thorns +50%, creates thorn barrier',
-        'Barrier damages melee attackers',
-        'Thorns root enemies briefly',
-        'BLOOM: Screen-wide thorns + healing',
+        'Nova sprays thorns that apply a bleeding damage-over-time effect to nearby enemies.',
+        'Thorns deal more damage and a bramble zone forms around you, hindering enemies as they advance.',
+        'Blooming Thorn Nova: a large-radius thorn eruption with a stronger root/bramble field that pushes enemies away from the Orb.',
       ],
     ),
     'Horn_Poison': ElementalAbility(
       name: 'Toxic Nova',
       ranks: [
-        'Nova releases poison cloud',
-        'Cloud lasts longer, spreads',
-        'Creates poison shield',
-        'Shield infects attackers',
-        'PLAGUE: All enemies poisoned + mega cloud',
+        'Nova releases a toxic wave that heavily poisons nearby enemies.',
+        'Poison damage and duration are increased, punishing enemies that stay near you.',
+        'Plague Nova: a huge poisonous blast with extremely potent, long-lasting poison on everything it touches.',
       ],
     ),
     'Horn_Air': ElementalAbility(
       name: 'Gale Nova',
       ranks: [
-        'Nova creates strong wind push',
-        'Wind +50% range, lifts enemies',
-        'Creates wind barrier',
-        'Barrier pushes projectiles back',
-        'HURRICANE: Massive tornado + flight',
+        'Nova creates a strong gust, blasting nearby enemies away from you.',
+        'Wind force and effective radius increase, sending enemies flying even farther.',
+        'Hurricane Nova: a massive blast with a follow-up shockwave that violently repels enemies twice.',
       ],
     ),
     'Horn_Blood': ElementalAbility(
       name: 'Blood Nova',
       ranks: [
-        'Nova drains nearby enemies, heals you',
-        'Lifesteal +50%, creates blood shield',
-        'Shield absorbs damage, converts to healing',
-        'Drained enemies weakened',
-        'TRANSFUSION: Drain all + massive heal',
+        'Nova drains nearby enemies, converting part of the damage into healing for you and the Orb.',
+        'Drain potency is increased, significantly improving your sustain and Orb healing.',
+        'Transfusion Nova: a huge radius blood burst that drains many enemies, massively healing you, the Orb, and nearby allies.',
       ],
     ),
     'Horn_Spirit': ElementalAbility(
       name: 'Spirit Nova',
       ranks: [
-        'Nova damages and creates spirit shield',
-        'Shield +50%, blocks projectiles',
-        'Summons spirit guardians',
-        'Guardians attack nearby enemies',
-        'ASCENSION: Invulnerable + spirit army',
+        'Nova unleashes spirit energy that damages nearby enemies and siphons life to heal you.',
+        'Drain damage and self-healing are increased, enhancing your sustain during large waves.',
+        'Ascendant Spirit Nova: a cataclysmic spirit burst with huge radius and a powerful self-heal from all drained foes.',
       ],
     ),
     'Horn_Dark': ElementalAbility(
       name: 'Void Nova',
       ranks: [
-        'Nova creates darkness, slows enemies',
-        'Darkness +range, enemies deal less damage',
-        'Creates void shield that absorbs damage',
-        'Shield releases damage absorbed',
-        'ECLIPSE: All enemies blinded + massive debuff',
+        'Nova bathes nearby enemies in darkness, executing those on very low health and harming the wounded.',
+        'The execute threshold and bonus damage to already-wounded enemies are increased.',
+        'Eclipse Nova: a huge void shock that executes low-health enemies in a wide radius and heavily punishes the injured.',
       ],
     ),
     'Horn_Light': ElementalAbility(
       name: 'Holy Nova',
       ranks: [
-        'Nova damages enemies, heals allies',
-        'Heal +50%, applies regen',
-        'Creates light shield that reflects',
-        'Shield damages attackers',
-        'DIVINITY: Massive heal + damage + resurrect',
+        'Nova damages nearby enemies while healing your guardians and the Orb.',
+        'Healing is greatly increased and affects more allies as the nova grows.',
+        'Divine Nova: massive heal and damage in a huge radius, plus it cleanses negative effects from your guardians.',
       ],
     ),
     'Horn_Lava': ElementalAbility(
       name: 'Magma Nova',
       ranks: [
-        'Nova creates lava ring around you',
-        'Lava +duration, spreads outward',
-        'Creates molten shield',
-        'Shield burns melee attackers',
-        'VOLCANIC: Lava field + fire armor',
+        'Nova erupts with molten force, heavily damaging and knocking back nearby enemies.',
+        'Both damage and knockback are increased, sending enemies flying farther.',
+        'Volcanic Nova: a massive, high-impact lava blast that slams enemies back with brutal force.',
       ],
     ),
     'Horn_Steam': ElementalAbility(
       name: 'Steam Nova',
       ranks: [
-        'Nova releases steam, obscures and heals',
-        'Steam +size, burns enemies',
-        'Creates pressure shield',
-        'Shield explodes when broken',
-        'GEYSER: Continuous steam + explosions',
+        'Nova releases scalding steam, damaging and disorienting nearby enemies.',
+        'Steam damage and the strength of the disorienting scatter are increased.',
+        'Geyser Nova: a huge steam eruption that deals heavy damage and violently scatters enemies around you.',
       ],
     ),
     'Horn_Mud': ElementalAbility(
       name: 'Mud Nova',
       ranks: [
-        'Nova creates mud field, heavily slows',
-        'Mud +range, enemies stuck',
-        'Creates mud armor (+defense)',
-        'Armor slows attackers',
-        'QUAGMIRE: Entire field mud + root',
+        'Nova creates a mud field around you, heavily slowing enemies and pushing them away from the Orb.',
+        'Mud field lasts longer and exerts stronger slowing/backward pressure on enemies.',
+        'Quagmire Nova: a large-radius mud explosion that severely bogs down and repels advancing enemies.',
       ],
     ),
     'Horn_Dust': ElementalAbility(
       name: 'Dust Nova',
       ranks: [
-        'Nova creates dust cloud, reduces accuracy',
-        'Cloud +size, deals DoT',
-        'Creates dust shield that blinds',
-        'Shield damages over time',
-        'SANDSTORM: Massive cloud + blind all',
+        'Nova creates a dust burst that jostles enemy positions and disrupts their advance.',
+        'Dust cloud lingers, continuously jittering enemies and throwing off their movement.',
+        'Sandstorm Nova: a large dust field that heavily disrupts enemy formations and keeps them stumbling around you.',
       ],
     ),
     'Horn_Crystal': ElementalAbility(
       name: 'Crystal Nova',
       ranks: [
-        'Nova shoots crystal shards outward',
-        'Shards +amount, pierce enemies',
-        'Creates crystal shield that reflects',
-        'Shield shatters for AoE damage',
-        'PRISM: Infinite shards + fortress',
+        'Nova shatters into seeking crystal shards that strike nearby enemies.',
+        'More shards are created and each shard deals increased damage.',
+        'Prismatic Nova: a huge crystal eruption with many homing shards that tear through enemies across a wide area.',
       ],
     ),
 
-    // WING ABILITIES - Beam
+    // WING ABILITIES - Beam (3-rank specials)
     'Wing_Fire': ElementalAbility(
       name: 'Flame Beam',
       ranks: [
-        'Beam leaves burning line',
-        'Burn +duration, beam wider',
-        'Burning enemies take +50% beam damage',
-        'Beam splits into three',
-        'SOLAR FLARE: Screen-wide fire beam',
+        'Beam scorches a line, igniting all enemies it pierces',
+        'Burns last longer and deal increased damage along the beam path',
+        'SOLAR FLARE: Devastating wide fire beam that heavily burns and can trigger fiery chain explosions',
       ],
     ),
     'Wing_Water': ElementalAbility(
       name: 'Hydro Beam',
       ranks: [
-        'Beam pushes enemies backward',
-        'Push +50%, heals allies near path',
-        'Creates water trail that slows',
-        'Beam splits and seeks enemies',
-        'TSUNAMI: Massive wave beam',
+        'Beam pushes enemies backward in a line',
+        'Push strength and self-healing per enemy hit are increased',
+        'TSUNAMI BEAM: Massive water beam that shoves back crowds and greatly heals the caster',
       ],
     ),
     'Wing_Ice': ElementalAbility(
       name: 'Cryo Beam',
       ranks: [
-        'Beam freezes enemies progressively',
-        'Full freeze faster, +width',
-        'Frozen enemies shatter',
-        'Beam creates ice walls on sides',
-        'GLACIER: Massive freeze beam',
+        'Beam chills enemies it pierces, slowing their advance',
+        'Stronger chill and knockback, making enemies slide further',
+        'ABSOLUTE ZERO BEAM: Powerful freeze ray that can briefly lock the first enemy hit in ice',
       ],
     ),
     'Wing_Lightning': ElementalAbility(
       name: 'Thunder Beam',
       ranks: [
-        'Beam chains to nearby enemies',
-        'Chains +2 times, stuns briefly',
-        'Creates electric field along path',
-        'Field damages over time',
-        'JUDGMENT: Screen-wide lightning',
+        'Beam electrifies enemies, sending out small lightning arcs',
+        'Arcs chain farther and hit more nearby enemies for extra damage',
+        'TEMPEST BEAM: Storm-powered beam that chains lightning through large enemy groups',
       ],
     ),
     'Wing_Earth': ElementalAbility(
       name: 'Seismic Beam',
       ranks: [
-        'Beam knocks enemies back heavily',
-        'Knockback +50%, creates stone trail',
-        'Trail blocks enemy movement',
-        'Beam pierces all enemies',
-        'EARTHQUAKE: Map-wide shockwave',
+        'Beam slams through enemies, dealing extra impact damage',
+        'Impact also weakens enemy defenses and grants a small stone shield',
+        'EARTHQUAKE BEAM: Crushing beam that heavily shreds armor and grants a sturdy protective shield',
       ],
     ),
     'Wing_Plant': ElementalAbility(
       name: 'Thorn Beam',
       ranks: [
-        'Beam applies strong bleed',
-        'Bleed +duration, creates thorn path',
-        'Path roots enemies',
-        'Rooted enemies take +damage',
-        'OVERGROWTH: Massive thorn beam',
+        'Beam lances through enemies, applying bleed over time',
+        'Bleeds grow stronger and last longer on pierced targets',
+        'BLOOM BEAM: Brutal thorn ray that inflicts heavy stacking bleed across the whole line',
       ],
     ),
     'Wing_Poison': ElementalAbility(
       name: 'Venom Beam',
       ranks: [
-        'Beam poisons all hit enemies',
-        'Poison spreads to nearby, +damage',
-        'Creates poison trail',
-        'Trail persists and spreads',
-        'PLAGUE: All enemies auto-poisoned',
+        'Beam poisons all enemies it passes through',
+        'Poison damage and duration are increased on pierced enemies',
+        'PLAGUE BEAM: Noxious ray whose poison spreads from victims to nearby enemies',
       ],
     ),
     'Wing_Air': ElementalAbility(
       name: 'Gale Beam',
       ranks: [
-        'Beam pushes enemies strongly',
-        'Creates wind tunnel, buffs allies',
-        'Tunnel damages enemies inside',
-        'Beam curves toward enemies',
-        'HURRICANE: Tornado beam',
+        'Beam unleashes a fierce gust, pushing enemies away',
+        'Wind force increases, heavily disrupting enemy formations',
+        'HURRICANE BEAM: Roaring wind beam that blasts crowds back and shakes the battlefield',
       ],
     ),
     'Wing_Blood': ElementalAbility(
       name: 'Hemorrhage Beam',
       ranks: [
-        'Beam drains HP, converts to healing',
-        'Lifesteal +50%, beam wider',
-        'Creates blood river that heals allies',
-        'River damages enemies',
-        'EXSANGUINATE: Massive drain beam',
+        'Beam drains life from enemies, restoring some HP to the caster',
+        'Lifesteal grows stronger and partially mends the Orb as well',
+        'EXSANGUINATE BEAM: Massive drain that heals you, the Orb, and nearby allies from all pierced foes',
       ],
     ),
     'Wing_Spirit': ElementalAbility(
       name: 'Phantom Beam',
       ranks: [
-        'Beam phases through enemies, hits all',
-        'Summons spirit that mimics beam',
-        'Spirit beam seeks enemies',
-        'Multiple spirits channel together',
-        'HAUNTING: Permanent spirit beams',
+        'Beam inflicts spiritual damage that siphons energy from enemies',
+        'Drain power increases, restoring more health to the caster',
+        'HAUNTING BEAM: Spectral ray that heavily drains spirit from all in its path, greatly healing its wielder',
       ],
     ),
     'Wing_Dark': ElementalAbility(
       name: 'Shadow Beam',
       ranks: [
-        'Beam reduces enemy damage output',
-        'Creates darkness zone, blind enemies',
-        'Zone expands slowly',
-        'Blinded enemies take +damage',
-        'ECLIPSE: Screen-wide darkness',
+        'Beam curses enemies in a line, harming weakened foes more',
+        'Execution threshold and bonus damage vs wounded enemies increase',
+        'ECLIPSE BEAM: Grim ray that can execute low HP enemies and ravage all already-injured targets',
       ],
     ),
     'Wing_Light': ElementalAbility(
       name: 'Holy Beam',
       ranks: [
-        'Beam damages enemies, heals allies',
-        'Heal +50%, applies regen',
-        'Creates light path that buffs allies',
-        'Path reveals hidden enemies',
-        'DIVINITY: Massive heal + damage beam',
+        'Beam damages enemies while gently healing allied guardians',
+        'Healing is stronger and reaches more allies along the beam',
+        'DIVINITY BEAM: Radiant ray that restores the team and even heals the Orb while smiting enemies',
       ],
     ),
     'Wing_Lava': ElementalAbility(
       name: 'Magma Beam',
       ranks: [
-        'Beam creates lava trail',
-        'Trail +duration, spreads wider',
-        'Lava erupts along path',
-        'Eruptions knock back',
-        'VOLCANIC: Entire path lava river',
+        'Beam leaves molten patches along its path, burning grounded foes',
+        'Lava patches last longer and deal heavier damage over time',
+        'VOLCANIC BEAM: Superheated ray that carves a long trail of searing lava through the battlefield',
       ],
     ),
     'Wing_Steam': ElementalAbility(
       name: 'Vapor Beam',
       ranks: [
-        'Beam creates steam, obscures enemies',
-        'Steam heals allies, burns enemies',
-        'Steam builds pressure',
-        'Pressure explodes periodically',
-        'GEYSER: Continuous steam explosions',
+        'Beam scalds enemies and creates small pockets of steam',
+        'Steam eruptions deal extra splash damage around hit targets',
+        'GEYSER BEAM: Overheated ray that fills the line with violent steam bursts and area damage',
       ],
     ),
     'Wing_Mud': ElementalAbility(
       name: 'Sludge Beam',
       ranks: [
-        'Beam creates mud trail, slows heavily',
-        'Trail +width, enemies stuck',
-        'Stuck enemies take +damage',
-        'Mud hardens, roots enemies',
-        'QUAGMIRE: All enemies rooted',
+        'Beam coats the ground in mud, heavily slowing enemies it hits',
+        'Mud slow grows stronger and makes enemies struggle to advance',
+        'QUAGMIRE BEAM: Viscous ray that leaves a line of crippling sludge, nearly rooting enemies in place',
       ],
     ),
     'Wing_Dust': ElementalAbility(
       name: 'Sandblast Beam',
       ranks: [
-        'Beam creates dust, reduces accuracy',
-        'Dust +size, deals DoT',
-        'Creates sandstorm along path',
-        'Storm blinds completely',
-        'DESERT: Massive sandstorm beam',
+        'Beam blasts enemies with dust, jostling and disorienting them',
+        'Dust grows heavier, causing stronger disruption and confusion',
+        'DESERT BEAM: Howling sand ray that wildly scatters enemy positions and ruins their accuracy',
       ],
     ),
     'Wing_Crystal': ElementalAbility(
       name: 'Prism Beam',
       ranks: [
-        'Beam splits into multiple crystal rays',
-        'Rays +3, seek enemies',
-        'Creates crystal field that reflects',
-        'Reflected beams crit',
-        'REFRACTION: Infinite beam network',
+        'Beam shards on impact, sending small crystal projectiles to nearby enemies',
+        'More shards spawn and they deal increased damage',
+        'REFRACTION BEAM: Brilliant ray that showers the battlefield with homing crystal shards',
       ],
     ),
 
@@ -1081,343 +889,328 @@ class AbilitySystemConfig {
     'Kin_Fire': ElementalAbility(
       name: 'Flame Blessing',
       ranks: [
-        'Heals Orb, burns nearby enemies',
-        'Heal +50%, burn +range',
-        'Burning enemies spread fire',
-        'Creates fire aura around Orb',
-        'INFERNO: Massive heal + map burn',
+        // Rank 1 – unlock
+        'Heals the Orb and burns nearby enemies.',
+        // Rank 2 – stronger numbers
+        'Healing and burn power/radius increased.',
+        // Rank 3 – ultimate
+        'INFERNO: Massive heal plus a wide burning aura around the Orb.',
       ],
     ),
     'Kin_Water': ElementalAbility(
       name: 'Tidal Blessing',
       ranks: [
-        'Heals Orb, applies regen to allies',
-        'Regen +50%, creates water aura',
-        'Aura slows nearby enemies',
-        'Aura pulses healing waves',
-        'FOUNTAIN: Continuous massive healing',
+        'Heals the Orb and applies regeneration to nearby allies.',
+        'Stronger regen and larger blessing radius; water aura also slows enemies.',
+        'FOUNTAIN: Continuous pulsing heals around the Orb for a long duration.',
       ],
     ),
     'Kin_Ice': ElementalAbility(
       name: 'Frost Blessing',
       ranks: [
-        'Heals Orb, slows nearby enemies',
-        'Heal +50%, freeze chance',
-        'Creates ice aura that shields',
-        'Shield reflects projectiles',
-        'GLACIER: Massive heal + freeze field',
+        'Heals the Orb and chills nearby enemies.',
+        'Higher healing, chance to freeze, and a protective ice aura.',
+        'GLACIER: Massive heal plus a freezing zone that protects the Orb.',
       ],
     ),
     'Kin_Lightning': ElementalAbility(
       name: 'Storm Blessing',
       ranks: [
-        'Heals Orb, shocks nearby enemies',
-        'Heal +50%, chains to more enemies',
-        'Creates electric aura',
-        'Aura stuns on contact',
-        'TEMPEST: Massive heal + lightning field',
+        'Heals the Orb and shocks nearby enemies.',
+        'More healing and a chaining electric aura that hits multiple enemies.',
+        'TEMPEST: Massive heal plus a persistent lightning field that stuns and zaps enemies.',
       ],
     ),
     'Kin_Earth': ElementalAbility(
       name: 'Stone Blessing',
       ranks: [
-        'Heals Orb, grants temporary shield',
-        'Shield +duration, blocks projectiles',
-        'Creates stone aura that reflects',
-        'Aura creates spike barriers',
-        'FORTRESS: Massive heal + walls',
+        'Heals the Orb and grants a temporary stone shield.',
+        'Shield duration and strength increased; stone aura can block projectiles.',
+        'FORTRESS: Massive heal plus protective stone walls around the Orb.',
       ],
     ),
     'Kin_Plant': ElementalAbility(
       name: 'Growth Blessing',
       ranks: [
-        'Heals Orb, applies regen to all allies',
-        'Regen +100%, creates thorn aura',
-        'Aura damages melee attackers',
-        'Spawns vine allies',
-        'BLOOM: Massive heal + vine army',
+        'Heals the Orb and grants regeneration to all allies.',
+        'Much stronger regen and a thorn aura that damages melee attackers.',
+        'BLOOM: Massive heal plus vines and thorns covering the Orb’s area.',
       ],
     ),
     'Kin_Poison': ElementalAbility(
       name: 'Venom Blessing',
       ranks: [
-        'Heals Orb, poisons nearby enemies',
-        'Heal +50%, poison spreads faster',
-        'Creates toxic aura',
-        'Aura infects attackers',
-        'PLAGUE: Massive heal + all poisoned',
+        'Heals the Orb and poisons nearby enemies.',
+        'More healing and stronger poison that spreads between enemies.',
+        'PLAGUE: Massive heal plus a wide toxic aura that infects all nearby enemies.',
       ],
     ),
     'Kin_Air': ElementalAbility(
       name: 'Wind Blessing',
       ranks: [
-        'Heals Orb, pushes nearby enemies',
-        'Heal +50%, creates wind aura',
-        'Aura buffs ally speed +30%',
-        'Wind pushes projectiles away',
-        'HURRICANE: Massive heal + tornado shield',
+        'Heals the Orb and pushes nearby enemies away.',
+        'More healing plus a wind aura that speeds up allies and deflects some attacks.',
+        'HURRICANE: Massive heal plus a powerful wind barrier around the Orb.',
       ],
     ),
     'Kin_Blood': ElementalAbility(
       name: 'Blood Blessing',
       ranks: [
-        'Drains nearby enemies, heals Orb',
-        'Lifesteal +100%, creates blood aura',
-        'Aura absorbs damage',
-        'Absorbed damage converts to healing',
-        'TRANSFUSION: Drain all + mega heal',
+        'Drains nearby enemies to heal the Orb.',
+        'Much stronger lifesteal with a blood aura that absorbs damage.',
+        'TRANSFUSION: Drain all nearby enemies for a massive team heal.',
       ],
     ),
     'Kin_Spirit': ElementalAbility(
       name: 'Spirit Blessing',
       ranks: [
-        'Heals Orb, damages nearby enemies',
-        'Heal +50%, summons spirit guardians',
-        'Guardians protect Orb',
-        'Guardian count +2',
-        'ASCENSION: Massive heal + spirit army',
+        'Heals the Orb and damages nearby enemies.',
+        'More healing and spirit guardians that protect the Orb.',
+        'ASCENSION: Massive heal plus empowered spirit guardians surrounding the Orb.',
       ],
     ),
     'Kin_Dark': ElementalAbility(
       name: 'Void Blessing',
       ranks: [
-        'Heals Orb, drains nearby enemies',
-        'Heal +50%, creates darkness aura',
-        'Aura reduces enemy damage',
-        'Aura blinds enemies',
-        'ECLIPSE: Massive heal + all blind',
+        'Heals the Orb while draining nearby enemies.',
+        'More healing plus a darkness aura that weakens enemy damage.',
+        'ECLIPSE: Massive heal plus blinding darkness that cripples nearby enemies.',
       ],
     ),
     'Kin_Light': ElementalAbility(
       name: 'Holy Blessing',
       ranks: [
-        'Massive Orb + ally heal',
-        'Heal +100%, applies regen',
-        'Creates light aura that damages enemies',
-        'Aura resurrects dead allies (once)',
-        'DIVINITY: Screen heal + damage + shield',
+        'Heals the Orb and nearby allies.',
+        'Greatly increased healing and regen; radiant aura damages nearby enemies.',
+        'DIVINITY: Huge screen-wide heal, damage burst to enemies, and temporary shields.',
       ],
     ),
     'Kin_Lava': ElementalAbility(
       name: 'Magma Blessing',
       ranks: [
-        'Heals Orb, creates lava ring',
-        'Heal +50%, ring spreads',
-        'Creates molten aura',
-        'Aura burns melee attackers',
-        'VOLCANIC: Massive heal + lava field',
+        'Heals the Orb and creates a lava ring around it.',
+        'More healing and a larger lava ring that burns enemies longer.',
+        'VOLCANIC: Massive heal plus a large lava field surrounding the Orb.',
       ],
     ),
     'Kin_Steam': ElementalAbility(
       name: 'Vapor Blessing',
       ranks: [
-        'Heals Orb, creates steam cloud',
-        'Heal +50%, steam heals allies',
-        'Creates pressure aura',
-        'Aura explodes when attacked',
-        'GEYSER: Continuous healing + explosions',
+        'Heals the Orb and creates a steam cloud around it.',
+        'More healing; steam cloud now also heals allies over time.',
+        'GEYSER: Continuous healing pulses and steam explosions around the Orb.',
       ],
     ),
     'Kin_Mud': ElementalAbility(
       name: 'Earth Blessing',
       ranks: [
-        'Heals Orb, creates mud field',
-        'Heal +50%, heavily slows enemies',
-        'Creates mud aura',
-        'Aura roots attackers',
-        'QUAGMIRE: Massive heal + all rooted',
+        'Heals the Orb and creates a slowing mud field around it.',
+        'More healing and a much heavier slow inside the mud field.',
+        'QUAGMIRE: Massive heal plus mud that heavily slows and can root enemies.',
       ],
     ),
     'Kin_Dust': ElementalAbility(
       name: 'Sand Blessing',
       ranks: [
-        'Heals Orb, creates dust cloud',
-        'Heal +50%, cloud blinds enemies',
-        'Creates dust aura that damages',
-        'Aura reduces accuracy',
-        'SANDSTORM: Massive heal + blind all',
+        'Heals the Orb and creates a dust cloud around it.',
+        'More healing; dust cloud now blinds and disorients enemies.',
+        'SANDSTORM: Massive heal plus a large dust storm that blinds most enemies.',
       ],
     ),
     'Kin_Crystal': ElementalAbility(
       name: 'Prism Blessing',
       ranks: [
-        'Heals Orb, creates crystal shield',
-        'Shield reflects projectiles, +duration',
-        'Creates crystal aura',
-        'Aura shoots shards',
-        'CRYSTALLIZE: Massive heal + fortress',
+        'Heals the Orb and creates a basic crystal shield.',
+        'Stronger, longer-lasting shield that can reflect projectiles.',
+        'CRYSTALLIZE: Massive heal plus a crystal fortress that fires shards at enemies.',
       ],
     ),
 
     // MYSTIC ABILITIES - Orbitals
     'Mystic_Fire': ElementalAbility(
-      name: 'Ember Orbitals',
+      name: 'Flame Orbitals',
       ranks: [
-        'Orbitals leave burn on hit',
-        '+1 orbital, burn spreads',
-        'Burning enemies take +damage from orbitals',
-        'Orbitals explode on contact',
-        'INFERNO: Many orbitals + fire trails',
+        'Summon fire orbitals that seek enemies',
+        'Orbitals gain small burn splash on hit',
+        'More orbitals with stronger burn AoE',
+        'Burn radius and damage greatly increased',
+        'INFERNO SWARM: Many orbitals with huge burn explosions',
       ],
     ),
+
     'Mystic_Water': ElementalAbility(
-      name: 'Aqua Orbitals',
+      name: 'Tidal Orbitals',
       ranks: [
-        'Orbitals heal allies they pass',
-        '+1 orbital, heal +50%',
-        'Creates water trail that slows enemies',
-        'Trail heals continuously',
-        'FOUNTAIN: Many orbitals + healing field',
+        'Summon water orbitals that seek enemies',
+        'Hits heal nearby allies slightly',
+        'Healing in the impact area increased',
+        'Larger heal radius around impact',
+        'TSUNAMI SWARM: Many orbitals with big team heals',
       ],
     ),
+
     'Mystic_Ice': ElementalAbility(
       name: 'Frost Orbitals',
       ranks: [
-        'Orbitals slow enemies hit',
-        '+1 orbital, freeze on 3rd hit',
-        'Frozen enemies shatter spreading damage',
-        'Orbitals create ice trail',
-        'BLIZZARD: Many orbitals + freeze field',
+        'Summon ice orbitals that seek enemies',
+        'Hits slow enemies around impact',
+        'Slow strength and radius increased',
+        'Heavy area slow around each impact',
+        'ABSOLUTE ZERO SWARM: Many orbitals massively slow packs',
       ],
     ),
+
     'Mystic_Lightning': ElementalAbility(
-      name: 'Volt Orbitals',
+      name: 'Storm Orbitals',
       ranks: [
-        'Orbitals chain lightning',
-        '+2 orbitals, chain +2 times',
-        'Chains stun briefly',
-        'Orbitals connect with electric arcs',
-        'TEMPEST: Many orbitals + lightning web',
+        'Summon lightning orbitals that seek enemies',
+        'Hits fire small lightning chains',
+        'More chains per impact, extra damage',
+        'Chain range and power increased',
+        'JUDGMENT SWARM: Many orbitals with brutal chain lightning',
       ],
     ),
+
     'Mystic_Earth': ElementalAbility(
       name: 'Stone Orbitals',
       ranks: [
-        'Orbitals knock back enemies',
-        '+1 orbital, create spike on hit',
-        'Spikes stun enemies',
-        'Orbitals leave stone trails',
-        'FORTRESS: Many orbitals + barriers',
+        'Summon earth orbitals that seek enemies',
+        'Hits deal small AoE damage',
+        'AoE damage and radius increased',
+        'Hits also grant self shielding heal',
+        'FORTRESS SWARM: Many orbitals with big AoE and shielding',
       ],
     ),
+
     'Mystic_Plant': ElementalAbility(
       name: 'Thorn Orbitals',
       ranks: [
-        'Orbitals apply bleed DoT',
-        '+2 orbitals, bleed stacks',
-        'Bleeding enemies rooted briefly',
-        'Orbitals spawn mini vine allies',
-        'BLOOM: Many orbitals + vine army',
+        'Summon plant orbitals that seek enemies',
+        'Impacts seed small thorn zones',
+        'Thorn damage and zone radius increased',
+        'Zones last longer and hurt more',
+        'BLOOM SWARM: Many orbitals carpeting thorns',
       ],
     ),
+
     'Mystic_Poison': ElementalAbility(
       name: 'Toxic Orbitals',
       ranks: [
-        'Orbitals poison on hit',
-        '+1 orbital, poison spreads',
-        'Poisoned enemies slow',
-        'Orbitals create poison cloud',
-        'PLAGUE: Many orbitals + poison field',
+        'Summon poison orbitals that seek enemies',
+        'Hits apply heavy poison to target',
+        'Poison also spreads in a small area',
+        'Stronger, longer poison on all victims',
+        'PLAGUE SWARM: Many orbitals stacking poison everywhere',
       ],
     ),
+
     'Mystic_Air': ElementalAbility(
-      name: 'Wind Orbitals',
+      name: 'Gale Orbitals',
       ranks: [
-        'Orbitals push enemies away',
-        '+2 orbitals, speed +50%',
-        'Create wind current around you',
-        'Current buffs ally speed',
-        'HURRICANE: Many orbitals + tornado',
+        'Summon air orbitals that seek enemies',
+        'Hits push enemies away from impact',
+        'Stronger knockback in a wider area',
+        'Big shockwave knockback each impact',
+        'HURRICANE SWARM: Many orbitals blasting packs apart',
       ],
     ),
+
     'Mystic_Blood': ElementalAbility(
-      name: 'Crimson Orbitals',
+      name: 'Blood Orbitals',
       ranks: [
-        'Orbitals drain HP, heal you',
-        '+1 orbital, lifesteal +50%',
-        'Create blood link between orbitals',
-        'Link damages enemies crossing',
-        'TRANSFUSION: Many orbitals + drain field',
+        'Summon blood orbitals that seek enemies',
+        'Hits grant lifesteal to the caster',
+        'Lifesteal amount increased',
+        'Large heals from every hit',
+        'TRANSFUSION SWARM: Many orbitals with massive lifesteal',
       ],
     ),
+
     'Mystic_Spirit': ElementalAbility(
-      name: 'Phantom Orbitals',
+      name: 'Spirit Orbitals',
       ranks: [
-        'Orbitals phase through enemies',
-        '+2 orbitals, leave spirit mark',
-        'Marked enemies take +damage',
-        'Orbitals spawn ghost copies',
-        'HAUNTING: Infinite ghost orbitals',
+        'Summon spirit orbitals that seek enemies',
+        'Hits deal spectral splash damage',
+        'Splash damage and radius increased',
+        'Hits also heal the caster',
+        'ASCENSION SWARM: Many orbitals with huge spirit blasts and healing',
       ],
     ),
+
     'Mystic_Dark': ElementalAbility(
-      name: 'Shadow Orbitals',
+      name: 'Void Orbitals',
       ranks: [
-        'Orbitals drain enemy speed',
-        '+1 orbital, reduce enemy damage',
-        'Create darkness field',
-        'Field blinds enemies',
-        'ECLIPSE: Many orbitals + void field',
+        'Summon dark orbitals that seek enemies',
+        'Hits drain extra HP from targets',
+        'Drain damage and healing increased',
+        'Big single-target drains per impact',
+        'ECLIPSE SWARM: Many orbitals with massive dark drains',
       ],
     ),
+
     'Mystic_Light': ElementalAbility(
-      name: 'Radiant Orbitals',
+      name: 'Holy Orbitals',
       ranks: [
-        'Orbitals damage and heal',
-        '+2 orbitals, heal +50%',
-        'Create light aura around you',
-        'Aura damages enemies, buffs allies',
-        'DIVINITY: Many orbitals + blessing field',
+        'Summon light orbitals that seek enemies',
+        'Hits heal nearby allies slightly',
+        'Larger heals around each impact',
+        'Hits both heal allies and burn enemies',
+        'DIVINITY SWARM: Many orbitals with huge heals and holy damage',
       ],
     ),
+
     'Mystic_Lava': ElementalAbility(
       name: 'Magma Orbitals',
       ranks: [
-        'Orbitals leave lava puddles',
-        '+1 orbital, puddles spread',
-        'Lava deals heavy DoT',
-        'Orbitals occasionally erupt',
-        'VOLCANIC: Many orbitals + lava field',
+        'Summon lava orbitals that seek enemies',
+        'Hits cause small explosions with knockback',
+        'Explosion radius and damage increased',
+        'Big blasts that shove enemies away',
+        'VOLCANIC SWARM: Many orbitals causing massive lava explosions',
       ],
     ),
+
     'Mystic_Steam': ElementalAbility(
-      name: 'Vapor Orbitals',
+      name: 'Steam Orbitals',
       ranks: [
-        'Orbitals create steam puffs',
-        '+2 orbitals, steam heals allies',
-        'Steam builds pressure',
-        'Pressure explodes periodically',
-        'GEYSER: Many orbitals + steam field',
+        'Summon steam orbitals that seek enemies',
+        'Hits chip enemies and heal the orb slightly',
+        'More chip damage in a small area',
+        'Extra orb healing when packs are hit',
+        'GEYSER SWARM: Many orbitals scalding enemies and feeding the orb',
       ],
     ),
+
     'Mystic_Mud': ElementalAbility(
-      name: 'Sludge Orbitals',
+      name: 'Mud Orbitals',
       ranks: [
-        'Orbitals slow enemies significantly',
-        '+1 orbital, create mud patches',
-        'Mud roots enemies',
-        'Rooted enemies take +damage',
-        'QUAGMIRE: Many orbitals + mud field',
+        'Summon mud orbitals that seek enemies',
+        'Hits create small slow puddles',
+        'Puddles grow larger and slower',
+        'Longer-lasting mud fields on impact',
+        'QUAGMIRE SWARM: Many orbitals spreading heavy mud control',
       ],
     ),
+
     'Mystic_Dust': ElementalAbility(
-      name: 'Sand Orbitals',
+      name: 'Dust Orbitals',
       ranks: [
-        'Orbitals create dust clouds',
-        '+2 orbitals, reduce enemy accuracy',
-        'Clouds deal DoT',
-        'Clouds blind completely',
-        'SANDSTORM: Many orbitals + dust field',
+        'Summon dust orbitals that seek enemies',
+        'Hits briefly confuse nearby enemies',
+        'Confusion radius and intensity increased',
+        'Large packs get heavily scrambled',
+        'SANDSTORM SWARM: Many orbitals constantly displacing enemies',
       ],
     ),
+
     'Mystic_Crystal': ElementalAbility(
-      name: 'Prism Orbitals',
+      name: 'Crystal Orbitals',
       ranks: [
-        'Orbitals split into shards on hit',
-        '+1 orbital, +3 shards each',
-        'Shards seek enemies',
-        'Shards reflect between orbitals',
-        'REFRACTION: Many orbitals + shard storm',
+        'Summon crystal orbitals that seek enemies',
+        'Hits fire mini shard chains',
+        'More shards to more targets',
+        'Shard damage and chain length increased',
+        'PRISM SWARM: Many orbitals with relentless crystal chains',
       ],
     ),
   };
@@ -1479,15 +1272,62 @@ class AbilitySystemConfig {
   }
 }
 
-/// Represents an elemental ability's progression
+/// Represents an elemental ability's progression.
+/// Internally we still allow up to 5 design ranks, but the game uses
+/// 3 power tiers:
+///   1 = unlock
+///   2 = strengthened
+///   3 = massive upgrade / ultimate
 class ElementalAbility {
   final String name;
-  final List<String> ranks; // 5 ranks: 1-5
+  final List<String> ranks; // originally written as 5 ranks
 
   const ElementalAbility({required this.name, required this.ranks});
 
+  /// Old style: if you still call this anywhere with a raw index (1–5),
+  /// it will keep working.
   String getDescription(int rank) {
-    if (rank < 1 || rank > 5) return 'Invalid rank';
-    return ranks[rank - 1];
+    if (ranks.isEmpty) return 'No description';
+    final clamped = rank.clamp(1, ranks.length);
+    return ranks[clamped - 1];
+  }
+
+  /// New: rank here is power tier 1–3.
+  /// We map:
+  ///   1 -> early design rank (index 0)
+  ///   2 -> mid design rank  (index 2 when possible)
+  ///   3 -> late/ultimate    (last entry, usually index 4)
+  String getThreeTierDescription(int powerTier) {
+    if (ranks.isEmpty) return 'No description';
+
+    // Safety clamp: powerTier must be 1–3
+    final tier = powerTier.clamp(1, 3);
+
+    int idx;
+    if (ranks.length >= 5) {
+      switch (tier) {
+        case 1:
+          idx = 0; // first line: unlock
+          break;
+        case 2:
+          idx = 2; // middle power: strengthened
+          break;
+        case 3:
+        default:
+          idx = ranks.length - 1; // last line: massive upgrade
+          break;
+      }
+    } else if (ranks.length >= 3) {
+      // If a definition only has 3 entries, map 1:1.
+      idx = tier - 1;
+    } else if (ranks.length == 2) {
+      // 2 entries: treat second as both strengthened + ultimate.
+      idx = tier == 1 ? 0 : 1;
+    } else {
+      // 1 entry: everything shows the same text.
+      idx = 0;
+    }
+
+    return ranks[idx];
   }
 }

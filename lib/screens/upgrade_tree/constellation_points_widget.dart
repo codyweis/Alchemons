@@ -1,4 +1,5 @@
 // lib/widgets/constellation_points_widget.dart
+import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_screen.dart';
 import 'package:alchemons/widgets/animations/alchemy_orb.dart';
 import 'package:flutter/material.dart';
@@ -23,13 +24,6 @@ class ConstellationPointsWidget extends StatelessWidget {
         final points = snapshot.data ?? 0;
 
         return GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ConstellationScreen()),
-            );
-          },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: Column(
@@ -40,10 +34,10 @@ class ConstellationPointsWidget extends StatelessWidget {
                     // Your icon wrapped as before
                     FloatingAlchemyOrb(
                       onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const ConstellationScreen(),
-                          ),
+                        HapticFeedback.lightImpact();
+                        VoidPortal.push(
+                          context,
+                          page: const ConstellationScreen(),
                         );
                       },
                     ),

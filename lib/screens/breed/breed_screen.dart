@@ -58,15 +58,14 @@ class _BreedScreenState extends State<BreedScreen>
         await SystemDialog.playStory(context, pages);
       }
 
+      // 🔑 Mark extraction as complete and clear pending flag
       await db.settingsDao.setSetting('first_extraction_done', '1');
-      await db.settingsDao.deleteSetting(
-        'tutorial_extraction_pending',
-      ); // Clear the flag
+      await db.settingsDao.deleteSetting('tutorial_extraction_pending');
       await db.settingsDao.setNavLocked(false);
 
       // navigate to creature screen
       _goCreatureScreen();
-    } else {}
+    }
   }
 
   @override

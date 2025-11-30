@@ -28,21 +28,22 @@ class CreatureStats {
   });
 
   factory CreatureStats.generate(Random rng, {String rarity = 'Common'}) {
-    // Generate stats with normal distribution
+    final statParams = _getStatParamsByRarity(rarity);
+
+    // Pick one stat to be the "specialty" (0=speed, 1=int, 2=str, 3=beauty)
+    final specialtyIndex = rng.nextInt(4);
+
+    // Specialty potential bonus scales with rarity
+    final potentialBonus = _getSpecialtyPotentialBonus(rarity);
+
     double generateNormalStat(double mean, double stddev) {
       final u1 = rng.nextDouble();
       final u2 = rng.nextDouble();
-
-      // Box-Muller transform for normal distribution
       final z0 = sqrt(-2.0 * log(u1)) * cos(2.0 * pi * u2);
-      final value = mean + z0 * stddev;
-
-      return value.clamp(0.0, 5.0);
+      return (mean + z0 * stddev).clamp(0.0, 5.0);
     }
 
-    final statParams = _getStatParamsByRarity(rarity);
-
-    // Generate all four base stats
+    // Generate base stats normally
     final stats = [
       generateNormalStat(statParams.baseMean, statParams.baseStddev),
       generateNormalStat(statParams.baseMean, statParams.baseStddev),
@@ -50,13 +51,15 @@ class CreatureStats {
       generateNormalStat(statParams.baseMean, statParams.baseStddev),
     ];
 
-    // Generate potentials - fully independent, no anti-correlation
-    final potentials = [
-      _generatePotential(rng, statParams, stats[0]),
-      _generatePotential(rng, statParams, stats[1]),
-      _generatePotential(rng, statParams, stats[2]),
-      _generatePotential(rng, statParams, stats[3]),
-    ];
+    // Generate potentials with specialty boost on one stat
+    final potentials = <double>[];
+    for (int i = 0; i < 4; i++) {
+      var potential = _generatePotential(rng, statParams, stats[i]);
+      if (i == specialtyIndex) {
+        potential = (potential + potentialBonus).clamp(1.0, 5.0);
+      }
+      potentials.add(potential);
+    }
 
     // Ensure starting stats don't exceed potential
     for (int i = 0; i < 4; i++) {
@@ -73,6 +76,23 @@ class CreatureStats {
       strengthPotential: potentials[2],
       beautyPotential: potentials[3],
     );
+  }
+
+  static double _getSpecialtyPotentialBonus(String rarity) {
+    switch (rarity.toLowerCase()) {
+      case 'mythic':
+        return 1.2;
+      case 'legendary':
+        return 1.0;
+      case 'epic':
+        return 0.8;
+      case 'rare':
+        return 0.6;
+      case 'uncommon':
+        return 0.5;
+      default: // common
+        return 0.4;
+    }
   }
 
   static _StatParams _getStatParamsByRarity(String rarity) {

@@ -402,6 +402,13 @@ class _FontSelectorWidget extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final factionTheme = context.read<FactionTheme>();
 
+    final fontKeys = appFontMap.keys.toList();
+
+    // Ensure current value actually exists in the list
+    String? currentValue = fontKeys.contains(theme.fontName)
+        ? theme.fontName
+        : null;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
       decoration: BoxDecoration(
@@ -420,7 +427,7 @@ class _FontSelectorWidget extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: theme.fontName,
+          value: currentValue, // <-- safe value
           icon: Icon(Icons.arrow_drop_down, color: factionTheme.text),
           dropdownColor: cs.surface.withOpacity(0.95),
           isDense: true,
@@ -429,7 +436,7 @@ class _FontSelectorWidget extends StatelessWidget {
               context.read<ThemeNotifier>().setFont(newValue);
             }
           },
-          items: appFontMap.keys.map<DropdownMenuItem<String>>((String value) {
+          items: fontKeys.map<DropdownMenuItem<String>>((String value) {
             return DropdownMenuItem<String>(
               value: value,
               child: Text(
@@ -444,7 +451,7 @@ class _FontSelectorWidget extends StatelessWidget {
             );
           }).toList(),
           selectedItemBuilder: (context) {
-            return appFontMap.keys.map((String value) {
+            return fontKeys.map((String value) {
               return Center(
                 child: Text(
                   value,

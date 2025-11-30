@@ -12,8 +12,8 @@ class ImprovedSurvivalSpawner extends Component
   double _timer = 0;
   final Random _rng = Random();
 
-  static const double _minSpawnDist = 1500.0;
-  static const double _maxSpawnDist = 2500.0;
+  static const double _minSpawnDist = 2000.0;
+  static const double _maxSpawnDist = 2000.0;
 
   final Set<int> _didPatternForWave = {};
   final Set<int> _didMiniBossForWave = {};
@@ -120,6 +120,66 @@ class ImprovedSurvivalSpawner extends Component
       );
       _spawnEnemy(tier: tier, wave: wave, position: centerPos + offset);
     }
+
+    // Chance to spawn bomber squad (wave 8+)
+    if (wave >= 8 && _rng.nextDouble() < _bomberChance(wave)) {
+      _spawnBomberSquad(wave, centerPos);
+    }
+
+    // Chance to spawn leecher pack (wave 12+)
+    if (wave >= 12 && _rng.nextDouble() < _leecherChance(wave)) {
+      _spawnLeecherPack(wave, centerPos);
+    }
+  }
+
+  double _bomberChance(int wave) {
+    // Starts at 8% wave 8, scales to ~20% by wave 30
+    return (0.08 + (wave - 8) * 0.004).clamp(0.0, 0.20);
+  }
+
+  double _leecherChance(int wave) {
+    // Starts at 6% wave 12, scales to ~15% by wave 35
+    return (0.06 + (wave - 12) * 0.004).clamp(0.0, 0.15);
+  }
+
+  void _spawnBomberSquad(int wave, Vector2 nearPos) {
+    final count = 2 + (wave ~/ 15); // 2-4 bombers
+    final tier = _pickTierForWave(wave);
+
+    if (debugSpawns) print('  >> BOMBER SQUAD x$count');
+
+    for (int i = 0; i < count; i++) {
+      final offset = Vector2(
+        _rng.nextDouble() * 80 - 40,
+        _rng.nextDouble() * 80 - 40,
+      );
+      _spawnEnemy(
+        tier: tier,
+        wave: wave,
+        position: nearPos + offset,
+        forceRole: EnemyRole.bomber,
+      );
+    }
+  }
+
+  void _spawnLeecherPack(int wave, Vector2 nearPos) {
+    final count = 1 + (wave ~/ 20); // 1-3 leechers
+    final tier = _pickTierForWave(wave);
+
+    if (debugSpawns) print('  >> LEECHER PACK x$count');
+
+    for (int i = 0; i < count; i++) {
+      final offset = Vector2(
+        _rng.nextDouble() * 60 - 30,
+        _rng.nextDouble() * 60 - 30,
+      );
+      _spawnEnemy(
+        tier: tier,
+        wave: wave,
+        position: nearPos + offset,
+        forceRole: EnemyRole.leecher,
+      );
+    }
   }
 
   void _spawnFlankingGroup(int wave, int tier) {
@@ -138,6 +198,12 @@ class ImprovedSurvivalSpawner extends Component
         _spawnEnemy(tier: tier, wave: wave, position: centerPos + offset);
       }
     }
+
+    // Flanking attacks sometimes include bombers for pressure
+    if (wave >= 10 && _rng.nextDouble() < 0.3) {
+      final bomberPos = Vector2(cos(angle1), sin(angle1)) * dist;
+      _spawnBomberSquad(wave, bomberPos);
+    }
   }
 
   void _spawnEscortGroup(int wave, int tier) {
@@ -145,7 +211,7 @@ class ImprovedSurvivalSpawner extends Component
     final dist = _minSpawnDist;
     final centerPos = Vector2(cos(angle), sin(angle)) * dist;
 
-    // Slightly bigger “captain” brute, not enormous
+    // Slightly bigger "captain" brute, not enormous
     _spawnEnemy(
       tier: min(2, tier + 1), // keep captain in swarm/brute band
       wave: wave,
@@ -159,6 +225,16 @@ class ImprovedSurvivalSpawner extends Component
       final escortPos =
           centerPos + Vector2(cos(escortAngle), sin(escortAngle)) * 100;
       _spawnEnemy(tier: max(1, tier - 1), wave: wave, position: escortPos);
+    }
+
+    // Escort groups sometimes have a leecher attached
+    if (wave >= 15 && _rng.nextDouble() < 0.25) {
+      _spawnEnemy(
+        tier: tier,
+        wave: wave,
+        position: centerPos + Vector2(50, 50),
+        forceRole: EnemyRole.leecher,
+      );
     }
   }
 
@@ -207,7 +283,7 @@ class ImprovedSurvivalSpawner extends Component
     }
     _lastFormationIndex = idx;
 
-    // Don’t force a pattern every wave; keep them special
+    // Don't force a pattern every wave; keep them special
     if (_rng.nextDouble() < 0.5) {
       formations[idx](wave);
       return true;
@@ -234,6 +310,13 @@ class ImprovedSurvivalSpawner extends Component
         final pos = Vector2(cos(angle), sin(angle)) * dist;
         _spawnEnemy(tier: tier, wave: wave, position: pos);
       }
+    }
+
+    // Pincer can have bombers rushing through the middle
+    if (wave >= 12 && _rng.nextDouble() < 0.4) {
+      final midAngle = _rng.nextDouble() * pi * 2;
+      final midPos = Vector2(cos(midAngle), sin(midAngle)) * _minSpawnDist;
+      _spawnBomberSquad(wave, midPos);
     }
   }
 
@@ -304,6 +387,17 @@ class ImprovedSurvivalSpawner extends Component
         _spawnEnemy(tier: tier, wave: wave, position: pos);
       }
     }
+
+    // Wedge tip can have a bomber leading the charge
+    if (wave >= 10 && _rng.nextDouble() < 0.35) {
+      final tipPos = Vector2(cos(angle), sin(angle)) * (baseDist - 50);
+      _spawnEnemy(
+        tier: tier,
+        wave: wave,
+        position: tipPos,
+        forceRole: EnemyRole.bomber,
+      );
+    }
   }
 
   void _spawnLineFormation(int wave) {
@@ -336,6 +430,13 @@ class ImprovedSurvivalSpawner extends Component
       final dist = _minSpawnDist - distVariance;
       final pos = Vector2(cos(angle), sin(angle)) * dist;
       _spawnEnemy(tier: tier, wave: wave, position: pos);
+    }
+
+    // Crescent center can have leechers lurking
+    if (wave >= 15 && _rng.nextDouble() < 0.3) {
+      final centerPos =
+          Vector2(cos(baseAngle), sin(baseAngle)) * (_minSpawnDist - 160);
+      _spawnLeecherPack(wave, centerPos);
     }
   }
 
@@ -458,6 +559,16 @@ class ImprovedSurvivalSpawner extends Component
           position: escortPos,
         );
       }
+
+      // Mini-boss escort can include a bomber or two
+      if (wave >= 15 && _rng.nextDouble() < 0.4) {
+        _spawnEnemy(
+          tier: 1,
+          wave: wave,
+          position: pos + Vector2(180, 0),
+          forceRole: EnemyRole.bomber,
+        );
+      }
     });
   }
 
@@ -479,7 +590,7 @@ class ImprovedSurvivalSpawner extends Component
     final dist = _minSpawnDist + 450;
     final pos = Vector2(cos(angle), sin(angle)) * dist;
 
-    // BIG, but not “break the game” big
+    // BIG, but not "break the game" big
     final sizeScale = (4.0 + wave * 0.05).clamp(4.0, 6.0);
 
     final enemy = HoardEnemy(
@@ -515,6 +626,21 @@ class ImprovedSurvivalSpawner extends Component
           position: pos,
         );
       }
+
+      // Boss minion wave includes bombers for pressure
+      if (wave >= 20) {
+        for (int i = 0; i < 2; i++) {
+          final bomberAngle = _rng.nextDouble() * pi * 2;
+          final bomberPos =
+              bossPos + Vector2(cos(bomberAngle), sin(bomberAngle)) * 350;
+          _spawnEnemy(
+            tier: 1,
+            wave: wave,
+            position: bomberPos,
+            forceRole: EnemyRole.bomber,
+          );
+        }
+      }
     });
 
     // Wave 2: outer ring, slightly stronger
@@ -531,6 +657,11 @@ class ImprovedSurvivalSpawner extends Component
           wave: wave,
           position: pos,
         );
+      }
+
+      // Later waves add leechers to boss fights
+      if (wave >= 30) {
+        _spawnLeecherPack(wave, bossPos + Vector2(300, 0));
       }
     });
   }
@@ -568,12 +699,10 @@ class ImprovedSurvivalSpawner extends Component
     required int wave,
     required Vector2 position,
     double sizeScale = 1.0,
-    bool forceShooter = false,
+    EnemyRole? forceRole,
   }) {
     final template = SurvivalEnemyCatalog.getRandomTemplateForTier(tier);
-    final role = forceShooter
-        ? EnemyRole.shooter
-        : _determineRole(template, wave);
+    final role = forceRole ?? _determineRole(template, wave);
 
     final unit = SurvivalEnemyCatalog.buildEnemy(
       template: template,
@@ -612,13 +741,26 @@ class ImprovedSurvivalSpawner extends Component
   }
 
   EnemyRole _determineRole(SurvivalEnemyTemplate template, int wave) {
+    // Base chances for special roles
     double shooterBias = 0.06;
+    double bomberBias = wave >= 8 ? 0.04 : 0.0;
+    double leecherBias = wave >= 12 ? 0.03 : 0.0;
 
+    // Element influences
     switch (template.element) {
       case 'Air':
       case 'Lightning':
       case 'Spirit':
         shooterBias += 0.05;
+        break;
+      case 'Fire':
+      case 'Lava':
+        bomberBias += 0.03; // Fire types more likely to be bombers
+        break;
+      case 'Blood':
+      case 'Dark':
+      case 'Poison':
+        leecherBias += 0.04; // Vampiric elements more likely to leech
         break;
       case 'Earth':
       case 'Plant':
@@ -627,9 +769,20 @@ class ImprovedSurvivalSpawner extends Component
         break;
     }
 
-    shooterBias = shooterBias.clamp(0.04, 0.14);
-    return _rng.nextDouble() < shooterBias
-        ? EnemyRole.shooter
-        : EnemyRole.charger;
+    shooterBias = shooterBias.clamp(0.01, 0.15);
+    bomberBias = bomberBias.clamp(0.0, 0.10);
+    leecherBias = leecherBias.clamp(0.0, 0.08);
+
+    final roll = _rng.nextDouble();
+
+    if (roll < bomberBias) {
+      return EnemyRole.bomber;
+    } else if (roll < bomberBias + leecherBias) {
+      return EnemyRole.leecher;
+    } else if (roll < bomberBias + leecherBias + shooterBias) {
+      return EnemyRole.shooter;
+    }
+
+    return EnemyRole.charger;
   }
 }

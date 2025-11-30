@@ -25,6 +25,18 @@ class CreatureFilterUtils {
     'Blood',
   ];
 
+  // species filters
+  static const List<String> speciesFilters = [
+    'All',
+    'Let',
+    'Pip',
+    'Mane',
+    'Mask',
+    'Horn',
+    'Wing',
+    'Kin',
+  ];
+
   static const List<String> rarityFilters = [
     'All Rarities',
     'Common',

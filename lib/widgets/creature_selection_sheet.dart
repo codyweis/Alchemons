@@ -114,11 +114,13 @@ class CreatureSelectionSheet extends StatefulWidget {
 class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
   static String _lastSelectedFilter = 'All';
   static String _lastSelectedSort = 'Name';
+  static String _lastSelectedSpecies = 'All';
   String _searchQuery = '';
   final _searchController = TextEditingController();
 
   late String _selectedFilter;
   late String _selectedSort;
+  late String _selectedSpecies; // NEW
 
   late InstanceDetailMode _detailMode;
 
@@ -129,6 +131,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     _selectedFilter = _lastSelectedFilter;
     _selectedSort = _lastSelectedSort;
     _detailMode = widget.initialDetailMode;
+    _selectedSpecies = _lastSelectedSpecies;
   }
 
   @override
@@ -136,6 +139,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     _searchController.dispose();
     _lastSelectedFilter = _selectedFilter;
     _lastSelectedSort = _selectedSort;
+    _lastSelectedSpecies = _selectedSpecies; // NEW
     super.dispose();
   }
 
@@ -256,7 +260,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
             ],
 
             // Type filter chips (hide in instance mode)
-            if (!widget.isInstanceMode)
+            if (!widget.isInstanceMode) ...[
               _FilterSortRow(
                 selectedFilter: _selectedFilter,
                 onFilterChanged: (val) => setState(() => _selectedFilter = val),
@@ -264,8 +268,17 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
                 availableTypes: _getAvailableTypes(),
                 showOnlyAvailableTypes: widget.showOnlyAvailableTypes,
               ),
+              const SizedBox(height: 8),
 
-            if (!widget.isInstanceMode) const SizedBox(height: 12),
+              // NEW: Species filter row
+              _SpeciesFilterRow(
+                selectedSpecies: _selectedSpecies,
+                onSpeciesChanged: (val) =>
+                    setState(() => _selectedSpecies = val),
+                theme: theme,
+              ),
+              const SizedBox(height: 12),
+            ],
 
             Expanded(
               child: _CreatureGrid(
@@ -395,10 +408,25 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     }
 
     // Filter by type
+    // Filter by type & species
     var filtered = creatures.where((creatureData) {
       final c = creatureData.creature;
-      if (_selectedFilter == 'All') return true;
-      return c.types.contains(_selectedFilter);
+
+      // TYPE filter
+      if (_selectedFilter != 'All' && !c.types.contains(_selectedFilter)) {
+        return false;
+      }
+
+      // SPECIES filter
+      if (_selectedSpecies != 'All') {
+        // ⚠️ Adjust this line to match your model:
+        // e.g. c.species, c.speciesGroup, c.family, etc.
+        if (c.mutationFamily != _selectedSpecies) {
+          return false;
+        }
+      }
+
+      return true;
     }).toList();
 
     // Sort
@@ -628,24 +656,6 @@ class _FilterSortRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 0, 8),
-          child: Row(
-            children: [
-              Icon(Icons.filter_list_rounded, size: 14, color: theme.accent),
-              const SizedBox(width: 6),
-              Text(
-                'TYPE',
-                style: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        ),
         SizedBox(
           height: 38,
           child: ListView.separated(
@@ -851,6 +861,51 @@ class _EmptyState extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SpeciesFilterRow extends StatelessWidget {
+  final String selectedSpecies;
+  final ValueChanged<String> onSpeciesChanged;
+  final FactionTheme theme;
+
+  const _SpeciesFilterRow({
+    required this.selectedSpecies,
+    required this.onSpeciesChanged,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Uses provided utility
+    final speciesOptions = CreatureFilterUtils.speciesFilters;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 38,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: speciesOptions.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final species = speciesOptions[i];
+              final selected = selectedSpecies == species;
+
+              return FilterChipSolid(
+                label: species,
+                color: theme.accent, // or a species-based color if you have one
+                selected: selected,
+                onTap: () => onSpeciesChanged(species),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

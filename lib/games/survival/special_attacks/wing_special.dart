@@ -12,10 +12,12 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
-/// WING FAMILY - PIERCE MECHANIC
+/// WING FAMILY - PIERCE MECHANIC (3-RANK VERSION)
 /// Fires a fast, piercing beam that hits all enemies in a line
-/// Rank 1+: Elemental effects based on type
-/// Rank 5 (MAX): Devastating wide beam with extended effects
+/// Rank 0: Base beam (no elemental rider)
+/// Rank 1: Unlocks elemental rider for this element
+/// Rank 2: Stronger numbers / secondary effects
+/// Rank 3 (MAX): Devastating wide beam + ultimate elemental effect
 class WingPierceMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -23,16 +25,18 @@ class WingPierceMechanic {
     HoardEnemy target,
     String element,
   ) {
-    final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
+    // Clamp to new 3-rank system
+    final int rawRank = game.getSpecialAbilityRank(attacker.unit.id, element);
+    final int rank = rawRank.clamp(0, 3) as int;
 
-    // Base beam parameters scale with rank
+    // Base beam parameters scale with rank (0–3)
     final baseWidth = 50.0 + rank * 6;
     final baseRange = 1000.0 + rank * 200;
     final baseDmg = (calcDmg(attacker, target) * (1.6 + 0.25 * rank)).toInt();
 
-    // Rank 5: Devastating beam
-    final isDevastating = rank >= 5;
-    final width = isDevastating ? baseWidth * 5.0 : baseWidth;
+    // Rank 3: Devastating beam
+    final isDevastating = rank >= 3;
+    final width = isDevastating ? baseWidth * 3.0 : baseWidth;
     final range = isDevastating ? baseRange * 2.0 : baseRange;
     final damage = isDevastating ? (baseDmg * 3.4).toInt() : baseDmg;
 
@@ -57,24 +61,28 @@ class WingPierceMechanic {
       width * 0.7,
     );
 
-    // ✅ ADD THIS: Deal base damage to all enemies in path
+    // Deal base damage to all enemies in path
     for (final victim in pathVictims) {
       victim.takeDamage(damage);
       ImpactVisuals.play(game, victim.position, element, scale: 0.7);
     }
 
-    // Then apply elemental effects
-    _applyElementalPierce(
-      game: game,
-      attacker: attacker,
-      element: element,
-      rank: rank,
-      victims: pathVictims,
-      damage: damage,
-      startPos: attacker.position,
-      endPos: endPos,
-    );
-    //debug dmg
+    // Elemental rider only really matters once we’ve unlocked the element
+    if (rank >= 1) {
+      _applyElementalPierce(
+        game: game,
+        attacker: attacker,
+        element: element,
+        rank: rank,
+        victims: pathVictims,
+        damage: damage,
+        startPos: attacker.position,
+        endPos: endPos,
+      );
+    }
+
+    // Debug
+    // ignore: avoid_print
     print(
       'Wing Pierce: element=$element rank=$rank victims=${pathVictims.length} damage=$damage',
     );
@@ -217,8 +225,8 @@ class WingPierceMechanic {
       ImpactVisuals.play(game, v.position, 'Fire', scale: 0.6);
     }
 
-    // Rank 5: Enemies explode on death
-    if (rank >= 5) {
+    // Rank 3: Enemies that die from the beam cause small explosions
+    if (rank >= 3) {
       for (final v in victims) {
         if (v.isDead) {
           final nearby = game.getEnemiesInRange(v.position, 80);
@@ -301,8 +309,8 @@ class WingPierceMechanic {
     // Heal orb
     game.orb.heal((totalDrained * 0.25).toInt());
 
-    // Rank 5: Also heal nearby allies
-    if (rank >= 5) {
+    // Rank 3: Also heal nearby allies
+    if (rank >= 3) {
       final allies = game.getGuardiansInRange(
         center: attacker.position,
         range: 200,
@@ -361,10 +369,10 @@ class WingPierceMechanic {
       ImpactVisuals.play(game, v.position, 'Ice', scale: 0.5);
     }
 
-    // Rank 5: Freeze first enemy hit
-    if (rank >= 5 && victims.isNotEmpty) {
+    // Rank 3: Briefly freeze the first enemy hit
+    if (rank >= 3 && victims.isNotEmpty) {
       victims.first.add(
-        MoveEffect.by(Vector2.zero(), EffectController(duration: 1.5)),
+        MoveEffect.by(Vector2.zero(), EffectController(duration: 1.0)),
       );
     }
   }
@@ -410,7 +418,7 @@ class WingPierceMechanic {
     for (final v in victims) {
       v.unit.applyStatusEffect(
         SurvivalStatusEffect(
-          type: 'Thorns',
+          type: 'Bleed',
           damagePerTick: thornDmg,
           ticksRemaining: 5 + rank,
           tickInterval: 0.4,
@@ -440,8 +448,8 @@ class WingPierceMechanic {
         ),
       );
 
-      // Spread to nearby
-      if (rank >= 3) {
+      // Spread to nearby (Rank 2+)
+      if (rank >= 2) {
         final nearby = game
             .getEnemiesInRange(v.position, 80)
             .where((e) => !victims.contains(e))
@@ -700,8 +708,8 @@ class WingPierceMechanic {
       ImpactVisuals.play(game, v.position, 'Light', scale: 0.8);
     }
 
-    // Rank 5: Heal orb
-    if (rank >= 5) {
+    // Rank 3: Heal orb too
+    if (rank >= 3) {
       game.orb.heal((healAmount * 0.5).toInt());
     }
   }

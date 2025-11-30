@@ -12,6 +12,11 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
+/// PIP FAMILY - RICOCHET MECHANIC
+/// Tier 0: Locked
+/// Tier 1: Unlocks ricochet
+/// Tier 2: More bounces & damage
+/// Tier 3+: Hyper-ricochet (more bounces, faster, harder)
 class PipRicochetMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -19,13 +24,48 @@ class PipRicochetMechanic {
     HoardEnemy target,
     String element,
   ) {
-    final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
+    final rawRank = game.getSpecialAbilityRank(attacker.unit.id, element);
+    final int tier = rawRank.clamp(0, 3);
 
-    // Max Level Check
-    int bounces = (rank >= 5) ? (6 + rank) : (3 + rank);
-    double speed = (rank >= 5) ? 5.0 : 2.5;
+    // Tier 0 → ability locked
+    if (tier <= 0) {
+      return;
+    }
 
-    double dmgMult = 1.2 + (0.1 * rank);
+    final bool isSuper = tier >= 3;
+
+    // Tier-based tuning
+    //  T1: 3 bounces, normal speed
+    //  T2: 4 bounces, faster
+    //  T3+: 5+ bounces, very fast
+    final int baseBounces = 2 + tier; // 1→3, 2→4, 3→5
+    final int bounces = isSuper ? baseBounces + 2 : baseBounces;
+
+    final double speed;
+    switch (tier) {
+      case 1:
+        speed = 2.5;
+        break;
+      case 2:
+        speed = 3.5;
+        break;
+      default: // tier 3+
+        speed = 5.0;
+        break;
+    }
+
+    final double dmgMult;
+    switch (tier) {
+      case 1:
+        dmgMult = 1.2;
+        break;
+      case 2:
+        dmgMult = 1.4;
+        break;
+      default: // tier 3+
+        dmgMult = 1.7;
+        break;
+    }
 
     _chainRecursive(
       game: game,
@@ -35,7 +75,7 @@ class PipRicochetMechanic {
       bouncesLeft: bounces,
       dmgMult: dmgMult,
       hitHistory: [],
-      rank: rank,
+      tier: tier,
       speed: speed,
       hitIndex: 0,
     );
@@ -49,7 +89,7 @@ class PipRicochetMechanic {
     required int bouncesLeft,
     required double dmgMult,
     required List<HoardEnemy> hitHistory,
-    required int rank,
+    required int tier,
     required double speed,
     required int hitIndex,
   }) {
@@ -75,12 +115,12 @@ class PipRicochetMechanic {
         ImpactVisuals.play(game, currentTarget.position, element, scale: 0.8);
         hitHistory.add(currentTarget);
 
-        // 🔹 NEW: elemental augment on each hit (starts at rank 1)
+        // Elemental augment per hit (tier-aware)
         _applyElementalRicochetAugmentOnHit(
           game: game,
           attacker: source,
           element: element,
-          rank: rank,
+          tier: tier,
           hitTarget: currentTarget,
           hitIndex: hitIndex,
         );
@@ -89,7 +129,7 @@ class PipRicochetMechanic {
         final nextTarget = _findNearestExcluding(
           game,
           currentTarget.position,
-          400, // Range
+          400, // range
           hitHistory,
         );
 
@@ -103,7 +143,7 @@ class PipRicochetMechanic {
               bouncesLeft: bouncesLeft - 1,
               dmgMult: dmgMult * 0.9,
               hitHistory: hitHistory,
-              rank: rank,
+              tier: tier,
               speed: speed,
               hitIndex: hitIndex + 1,
             );
@@ -140,74 +180,74 @@ class PipRicochetMechanic {
     required SurvivalHoardGame game,
     required HoardGuardian attacker,
     required String element,
-    required int rank,
+    required int tier,
     required HoardEnemy hitTarget,
     required int hitIndex,
   }) {
     switch (element) {
       // 🔥 FIRE / LAVA / BLOOD → aggressive, splashy, lifesteal-ish
       case 'Fire':
-        _fireRicochet(game, attacker, rank, hitTarget);
+        _fireRicochet(game, attacker, tier, hitTarget);
         break;
       case 'Lava':
-        _lavaRicochet(game, attacker, rank, hitTarget);
+        _lavaRicochet(game, attacker, tier, hitTarget);
         break;
       case 'Blood':
-        _bloodRicochet(game, attacker, rank, hitTarget);
+        _bloodRicochet(game, attacker, tier, hitTarget);
         break;
 
       // 💧 WATER / ICE / STEAM → sustain & control
       case 'Water':
-        _waterRicochet(game, attacker, rank, hitTarget);
+        _waterRicochet(game, attacker, tier, hitTarget);
         break;
       case 'Ice':
-        _iceRicochet(game, attacker, rank, hitTarget);
+        _iceRicochet(game, attacker, tier, hitTarget);
         break;
       case 'Steam':
-        _steamRicochet(game, attacker, rank, hitTarget);
+        _steamRicochet(game, attacker, tier, hitTarget);
         break;
 
       // 🌿 PLANT / POISON → DoT & hazards
       case 'Plant':
-        _plantRicochet(game, attacker, rank, hitTarget, hitIndex);
+        _plantRicochet(game, attacker, tier, hitTarget, hitIndex);
         break;
       case 'Poison':
-        _poisonRicochet(game, attacker, rank, hitTarget);
+        _poisonRicochet(game, attacker, tier, hitTarget);
         break;
 
       // 🌍 EARTH / MUD / CRYSTAL → knockback & shard splits
       case 'Earth':
-        _earthRicochet(game, attacker, rank, hitTarget);
+        _earthRicochet(game, attacker, tier, hitTarget);
         break;
       case 'Mud':
-        _mudRicochet(game, attacker, rank, hitTarget);
+        _mudRicochet(game, attacker, tier, hitTarget);
         break;
       case 'Crystal':
-        _crystalRicochet(game, attacker, rank, hitTarget);
+        _crystalRicochet(game, attacker, tier, hitTarget);
         break;
 
       // 🌬️ AIR / DUST → disruption, wave shaping
       case 'Air':
-        _airRicochet(game, attacker, rank, hitTarget);
+        _airRicochet(game, attacker, tier, hitTarget);
         break;
       case 'Dust':
-        _dustRicochet(game, attacker, rank, hitTarget);
+        _dustRicochet(game, attacker, tier, hitTarget);
         break;
 
-      // ⚡ LIGHTNING → extra micro-chains
+      // ⚡ LIGHTNING
       case 'Lightning':
-        _lightningRicochet(game, attacker, rank, hitTarget);
+        _lightningRicochet(game, attacker, tier, hitTarget);
         break;
 
-      // 🌗 SPIRIT / DARK / LIGHT → holy/soul twists
+      // 🌗 SPIRIT / DARK / LIGHT
       case 'Spirit':
-        _spiritRicochet(game, attacker, rank, hitTarget);
+        _spiritRicochet(game, attacker, tier, hitTarget);
         break;
       case 'Dark':
-        _darkRicochet(game, attacker, rank, hitTarget);
+        _darkRicochet(game, attacker, tier, hitTarget);
         break;
       case 'Light':
-        _lightRicochet(game, attacker, rank, hitTarget);
+        _lightRicochet(game, attacker, tier, hitTarget);
         break;
       default:
         break;
@@ -222,11 +262,11 @@ class PipRicochetMechanic {
   static void _fireRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final radius = 60.0 + rank * 6;
-    final dmg = (calcDmg(attacker, target) * (0.4 + 0.1 * rank)).toInt().clamp(
+    final radius = 60.0 + tier * 6;
+    final dmg = (calcDmg(attacker, target) * (0.4 + 0.1 * tier)).toInt().clamp(
       3,
       120,
     );
@@ -242,12 +282,12 @@ class PipRicochetMechanic {
   static void _lavaRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final radius = 50.0 + rank * 5;
-    final duration = 2.5 + rank * 0.3;
-    final dps = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
+    final radius = 50.0 + tier * 5;
+    final duration = 2.5 + tier * 0.3;
+    final dps = (attacker.unit.statIntelligence * (1.0 + 0.2 * tier))
         .toInt()
         .clamp(2, 80);
 
@@ -281,10 +321,10 @@ class PipRicochetMechanic {
   static void _bloodRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final stealBase = (calcDmg(attacker, target) * (0.2 + 0.05 * rank))
+    final stealBase = (calcDmg(attacker, target) * (0.2 + 0.05 * tier))
         .toInt()
         .clamp(2, 120);
 
@@ -304,19 +344,19 @@ class PipRicochetMechanic {
   static void _waterRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final heal = (attacker.unit.statIntelligence * (1.5 + 0.2 * rank))
+    final heal = (attacker.unit.statIntelligence * (1.5 + 0.2 * tier))
         .toInt()
         .clamp(3, 80);
     game.orb.heal(heal);
 
-    final radius = 70.0 + rank * 5;
+    final radius = 70.0 + tier * 5;
     final victims = game.getEnemiesInRange(target.position, radius);
     for (final v in victims) {
       final dir = (v.position - game.orb.position).normalized();
-      v.position += dir * (20 + rank * 4);
+      v.position += dir * (20 + tier * 4);
     }
     ImpactVisuals.play(game, target.position, 'Water', scale: 0.7);
   }
@@ -325,16 +365,16 @@ class PipRicochetMechanic {
   static void _iceRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final radius = 70.0 + rank * 5;
+    final radius = 70.0 + tier * 5;
     final victims = game.getEnemiesInRange(target.position, radius);
     for (final v in victims) {
       final pushBack =
           (v.targetOrb.position - v.position).normalized() *
           -6 *
-          (1 + 0.3 * rank);
+          (1 + 0.3 * tier);
       v.position += pushBack;
       ImpactVisuals.play(game, v.position, 'Ice', scale: 0.4);
     }
@@ -344,20 +384,20 @@ class PipRicochetMechanic {
   static void _steamRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final radius = 70.0 + rank * 6;
+    final radius = 70.0 + tier * 6;
     final victims = game.getEnemiesInRange(target.position, radius);
     for (final v in victims) {
       final pushBack =
           (v.targetOrb.position - v.position).normalized() *
           -4 *
-          (1 + 0.2 * rank);
+          (1 + 0.2 * tier);
       v.position += pushBack;
     }
     if (victims.length >= 2) {
-      game.orb.heal(2 + rank); // small sustain
+      game.orb.heal(2 + tier); // small sustain
     }
   }
 
@@ -365,16 +405,16 @@ class PipRicochetMechanic {
   static void _plantRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
     int hitIndex,
   ) {
     // only create a few patches, e.g., first 2–3 hits
     if (hitIndex > 2) return;
 
-    final radius = 55.0 + rank * 5;
-    final duration = 3.0 + rank * 0.4;
-    final dps = (attacker.unit.statIntelligence * (1.2 + 0.2 * rank))
+    final radius = 55.0 + tier * 5;
+    final duration = 3.0 + tier * 0.4;
+    final dps = (attacker.unit.statIntelligence * (1.2 + 0.2 * tier))
         .toInt()
         .clamp(2, 70);
 
@@ -410,14 +450,14 @@ class PipRicochetMechanic {
   static void _poisonRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
     final dot = SurvivalStatusEffect(
       type: 'Poison',
       damagePerTick:
-          (attacker.unit.statIntelligence * (0.7 + 0.1 * rank)).toInt() + 2,
-      ticksRemaining: 6 + rank,
+          (attacker.unit.statIntelligence * (0.7 + 0.1 * tier)).toInt() + 2,
+      ticksRemaining: 6 + tier,
       tickInterval: 0.5,
     );
     target.unit.applyStatusEffect(dot);
@@ -428,17 +468,17 @@ class PipRicochetMechanic {
   static void _earthRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final radius = 65.0 + rank * 5;
+    final radius = 65.0 + tier * 5;
     final victims = game.getEnemiesInRange(target.position, radius);
     for (final v in victims) {
       final dir = (v.position - target.position).normalized();
-      v.position += dir * (25 + rank * 4);
+      v.position += dir * (25 + tier * 4);
     }
 
-    final shield = (attacker.unit.maxHp * (0.02 + 0.01 * rank)).toInt();
+    final shield = (attacker.unit.maxHp * (0.02 + 0.01 * tier)).toInt();
     attacker.unit.heal(shield);
     ImpactVisuals.play(game, attacker.position, 'Earth', scale: 0.7);
   }
@@ -447,11 +487,11 @@ class PipRicochetMechanic {
   static void _mudRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final radius = 60.0 + rank * 5;
-    final duration = 3.5 + rank * 0.4;
+    final radius = 60.0 + tier * 5;
+    final duration = 3.5 + tier * 0.4;
 
     final zone = CircleComponent(
       radius: radius,
@@ -485,7 +525,7 @@ class PipRicochetMechanic {
   static void _crystalRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
     final nearby = game
@@ -495,7 +535,7 @@ class PipRicochetMechanic {
     if (candidates.isEmpty) return;
 
     final other = candidates[Random().nextInt(candidates.length)];
-    final dmg = (calcDmg(attacker, other) * (0.8 + 0.1 * rank)).toInt().clamp(
+    final dmg = (calcDmg(attacker, other) * (0.8 + 0.1 * tier)).toInt().clamp(
       3,
       120,
     );
@@ -519,16 +559,16 @@ class PipRicochetMechanic {
   static void _airRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final radius = 75.0 + rank * 5;
+    final radius = 75.0 + tier * 5;
     final victims = game.getEnemiesInRange(target.position, radius);
     for (final v in victims) {
       final dir = (v.position - game.orb.position).normalized();
       v.add(
         MoveEffect.by(
-          dir * (40 + rank * 6),
+          dir * (40 + tier * 6),
           EffectController(duration: 0.2, curve: Curves.easeOut),
         ),
       );
@@ -540,16 +580,16 @@ class PipRicochetMechanic {
   static void _dustRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final radius = 70.0 + rank * 5;
+    final radius = 70.0 + tier * 5;
     final rng = Random();
     final victims = game.getEnemiesInRange(target.position, radius);
     for (final v in victims) {
       final offset = Vector2(
-        (rng.nextDouble() - 0.5) * (10 + rank * 2),
-        (rng.nextDouble() - 0.5) * (10 + rank * 2),
+        (rng.nextDouble() - 0.5) * (10 + tier * 2),
+        (rng.nextDouble() - 0.5) * (10 + tier * 2),
       );
       v.position += offset;
     }
@@ -559,7 +599,7 @@ class PipRicochetMechanic {
   static void _lightningRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
     final rng = Random();
@@ -569,10 +609,10 @@ class PipRicochetMechanic {
     final candidates = nearby.toList();
     if (candidates.isEmpty) return;
 
-    final chains = min(1 + rank, candidates.length);
+    final chains = min(1 + tier, candidates.length);
     for (int i = 0; i < chains; i++) {
       final next = candidates[rng.nextInt(candidates.length)];
-      final dmg = (calcDmg(attacker, next) * (0.7 + 0.1 * rank)).toInt().clamp(
+      final dmg = (calcDmg(attacker, next) * (0.7 + 0.1 * tier)).toInt().clamp(
         3,
         120,
       );
@@ -597,12 +637,12 @@ class PipRicochetMechanic {
   static void _spiritRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final delayMs = 500 - (rank * 40).clamp(0, 250);
-    final radius = 60.0 + rank * 6;
-    final dmg = (calcDmg(attacker, target) * (0.6 + 0.1 * rank)).toInt().clamp(
+    final delayMs = 500 - (tier * 80).clamp(0, 250);
+    final radius = 60.0 + tier * 6;
+    final dmg = (calcDmg(attacker, target) * (0.6 + 0.1 * tier)).toInt().clamp(
       3,
       100,
     );
@@ -621,14 +661,14 @@ class PipRicochetMechanic {
   static void _darkRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final extra = (calcDmg(attacker, target) * (0.4 + 0.1 * rank))
+    final extra = (calcDmg(attacker, target) * (0.4 + 0.1 * tier))
         .toInt()
         .clamp(3, 120);
     target.takeDamage(extra);
-    final heal = (extra * (0.3 + 0.05 * rank)).toInt();
+    final heal = (extra * (0.3 + 0.05 * tier)).toInt();
     attacker.unit.heal(heal);
     ImpactVisuals.play(game, target.position, 'Dark', scale: 0.7);
   }
@@ -637,10 +677,10 @@ class PipRicochetMechanic {
   static void _lightRicochet(
     SurvivalHoardGame game,
     HoardGuardian attacker,
-    int rank,
+    int tier,
     HoardEnemy target,
   ) {
-    final healEach = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
+    final healEach = (attacker.unit.statIntelligence * (1.0 + 0.2 * tier))
         .toInt()
         .clamp(2, 60);
 

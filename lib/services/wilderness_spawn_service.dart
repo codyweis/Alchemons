@@ -25,6 +25,9 @@ class WildernessSpawnService extends ChangeNotifier {
   // in-memory cache of schedules (sceneId -> dueAt)
   final Map<String, int> _nextDueUtcMs = {};
 
+  // Track which scenes are currently being visited (should not auto-spawn)
+  final Set<String> _activeScenes = {};
+
   int? getNextSpawnTime(String sceneId) {
     return _nextDueUtcMs[sceneId];
   }
@@ -33,6 +36,13 @@ class WildernessSpawnService extends ChangeNotifier {
   Map<String, int> getAllScheduledTimes() {
     return Map.from(_nextDueUtcMs);
   }
+
+  // ------------------------------------------------------------
+  // SCENE ACTIVE STATE
+  // ------------------------------------------------------------
+
+  /// Check if a scene is currently being visited
+  bool isSceneActive(String sceneId) => _activeScenes.contains(sceneId);
 
   // ------------------------------------------------------------
   // GLOBAL CONFIG (for testing and customization)
@@ -117,7 +127,6 @@ class WildernessSpawnService extends ChangeNotifier {
   // INIT
   // ------------------------------------------------------------
   Future<void> initializeActiveSpawns({
-    // 💡 UPDATED SIGNATURE
     required Map<
       String,
       ({
@@ -223,7 +232,6 @@ class WildernessSpawnService extends ChangeNotifier {
   // PROCESS: turn due schedules into a single spawn
   // ------------------------------------------------------------
   Future<void> processDueScenes(
-    // 💡 UPDATED SIGNATURE
     Map<
       String,
       ({
@@ -238,17 +246,20 @@ class WildernessSpawnService extends ChangeNotifier {
 
     for (final entry in scenes.entries) {
       final sceneId = entry.key;
+
+      // Skip scenes that are currently being visited
+      if (isSceneActive(sceneId)) {
+        continue;
+      }
+
       final due = _nextDueUtcMs[sceneId];
 
       // Only start a new spawn event when the scene is empty.
       if (due != null && due <= now && !hasAnySpawnsInScene(sceneId)) {
         final scene = entry.value.scene;
-        // 💡 Get both pools from the map
         final sceneWide = entry.value.sceneWide;
         final perSpawn = entry.value.perSpawn;
 
-        // Spawn a random count across available points
-        // 💡 Pass both pools down
         final spawned = await _spawnBatchAtRandomFreePoints(
           sceneId,
           scene,
@@ -269,10 +280,15 @@ class WildernessSpawnService extends ChangeNotifier {
   Future<bool> _spawnBatchAtRandomFreePoints(
     String sceneId,
     SceneDefinition scene,
-    // 💡 UPDATED SIGNATURE
     EncounterPool sceneWide,
     Map<String, EncounterPool> perSpawn,
   ) async {
+    // Double-check: don't spawn if scene is active
+    if (isSceneActive(sceneId)) {
+      debugPrint('⚠️ Skipping spawn for $sceneId - scene is currently active');
+      return false;
+    }
+
     final freePoints = scene.spawnPoints
         .where((sp) => sp.enabled && !hasSpawnAt(sceneId, sp.id))
         .toList();
@@ -290,21 +306,14 @@ class WildernessSpawnService extends ChangeNotifier {
     freePoints.shuffle(_rng);
     final selected = freePoints.take(spawnCount);
 
-    //for debugging, use all spawn points
-    //final selected = freePoints;
-
     for (final point in selected) {
-      // 💡 THE FIX: Build the merged pool for this *specific* point
-      // (This assumes `poolForSpawn` is available, which it should be
-      // via your 'package:alchemons/models/encounters/encounter_pool.dart' import)
       final finalPool = poolForSpawn(
         spawnId: point.id,
         sceneWide: sceneWide,
         perSpawn: perSpawn,
-        unique: true, // Or false, depending on your desired logic
+        unique: true,
       );
 
-      // 💡 Roll against the final, merged pool
       final encounter = _rollEncounter(finalPool, point.id);
 
       _activeSpawns.putIfAbsent(sceneId, () => {})[point.id] = encounter;
@@ -326,6 +335,7 @@ class WildernessSpawnService extends ChangeNotifier {
 
       debugPrint('✨ Spawned ${encounter.speciesId} at $sceneId/${point.id}');
     }
+
     // After spawning, show notification if this is the first spawn
     if (!hasAnySpawnsInScene(sceneId)) {
       final totalSpawns = _activeSpawns.values.fold<int>(
@@ -347,7 +357,6 @@ class WildernessSpawnService extends ChangeNotifier {
   // ------------------------------------------------------------
   // REMOVE / CLEAR
   // ------------------------------------------------------------
-  // Update removeSpawn to cancel notification if no spawns left:
   Future<void> removeSpawn(String sceneId, String spawnPointId) async {
     final removed = _activeSpawns[sceneId]?.remove(spawnPointId);
     if (removed == null) return;
@@ -374,7 +383,10 @@ class WildernessSpawnService extends ChangeNotifier {
 
     debugPrint('🧹 Cleared spawns from $sceneId');
 
-    await scheduleNextSpawnTime(sceneId);
+    // Only schedule next spawn if scene is NOT currently active
+    if (!isSceneActive(sceneId)) {
+      await scheduleNextSpawnTime(sceneId);
+    }
     notifyListeners();
   }
 
@@ -458,6 +470,7 @@ class WildernessSpawnService extends ChangeNotifier {
     for (final entry in _activeSpawns.entries) {
       sceneInfo[entry.key] = {
         'count': entry.value.length,
+        'active': isSceneActive(entry.key),
         'spawns': entry.value.entries.map((spawn) {
           return {
             'point': spawn.key,
@@ -474,6 +487,7 @@ class WildernessSpawnService extends ChangeNotifier {
         (sum, spawns) => sum + spawns.length,
       ),
       'scenes_with_spawns': _activeSpawns.keys.length,
+      'active_scenes': _activeScenes.toList(),
       'scenes': sceneInfo,
     };
   }
@@ -483,11 +497,15 @@ class WildernessSpawnService extends ChangeNotifier {
     debugPrint('🌲 SPAWN DEBUG INFO:');
     debugPrint('  Total spawns: ${info['total_spawns']}');
     debugPrint('  Scenes with spawns: ${info['scenes_with_spawns']}');
+    debugPrint('  Active scenes: ${info['active_scenes']}');
 
     final scenes = info['scenes'] as Map<String, dynamic>;
     for (final entry in scenes.entries) {
       final sceneInfo = entry.value as Map<String, dynamic>;
-      debugPrint('  📍 ${entry.key}: ${sceneInfo['count']} spawn(s)');
+      final activeMarker = sceneInfo['active'] == true ? ' [ACTIVE]' : '';
+      debugPrint(
+        '  📍 ${entry.key}: ${sceneInfo['count']} spawn(s)$activeMarker',
+      );
 
       final spawns = sceneInfo['spawns'] as List;
       for (final spawn in spawns) {

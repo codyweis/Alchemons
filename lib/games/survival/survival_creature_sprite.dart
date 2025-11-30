@@ -436,6 +436,7 @@
 // lib/games/survival/survival_creature_sprite.dart
 import 'dart:math' as math;
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart'; // REQUIRED IMPORT
+import 'package:alchemons/games/survival/components/guardian_indicator.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_enemies.dart';
@@ -443,10 +444,11 @@ import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
+import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 
 class HoardGuardian extends PositionComponent
-    with HasGameRef<SurvivalHoardGame> {
+    with HasGameRef<SurvivalHoardGame>, TapCallbacks {
   final SurvivalUnit unit;
   bool isDead = false;
 
@@ -461,11 +463,32 @@ class HoardGuardian extends PositionComponent
   HoardGuardian({required this.unit, required Vector2 position})
     : super(position: position, size: Vector2.all(100), anchor: Anchor.center);
 
+  Vector2 _sizeForSpecies(Vector2 baseSize, String family) {
+    // Example: use your own data/model here instead of hardcoding
+    const Map<String, double> speciesScale = {
+      'let': 1.05,
+      'pip': 1.35,
+      'mane': 1.35,
+      'horn': 1.5,
+      'mask': 1.575,
+      'wing': 1.65,
+      'kin': 1.5,
+      'mystic': 1.5,
+    };
+
+    final scale = speciesScale.containsKey(family.toLowerCase())
+        ? speciesScale[family.toLowerCase()]!
+        : 1.0;
+    return baseSize * scale;
+  }
+
   @override
   Future<void> onLoad() async {
     // --- 1. STAT SCALING SETUP ---
     _basicInterval = .9 / unit.cooldownReduction;
     _specialInterval = 5.0 / unit.cooldownReduction;
+
+    size = _sizeForSpecies(Vector2.all(100), unit.family);
 
     // Initialize sprite container
     _spriteContainer = PositionComponent(
@@ -502,6 +525,34 @@ class HoardGuardian extends PositionComponent
       );
     }
     _addNameLabel();
+
+    // When selected, add a range indicator as a child
+    gameRef.selectedGuardianNotifier.addListener(() {
+      final selected = gameRef.selectedGuardianNotifier.value;
+      if (selected == this) {
+        // Add indicator (as child so it follows position)
+        if (children.whereType<GuardianRangeIndicator>().isEmpty) {
+          add(GuardianRangeIndicator(guardian: this));
+        }
+      } else {
+        // Remove if deselected
+        children.whereType<GuardianRangeIndicator>().forEach(
+          (c) => c.removeFromParent(),
+        );
+      }
+    });
+  }
+
+  @override
+  void onTapDown(TapDownEvent event) {
+    super.onTapDown(event);
+
+    // Toggle selection: tap again to deselect
+    if (gameRef.selectedGuardianNotifier.value == this) {
+      gameRef.selectGuardian(null);
+    } else {
+      gameRef.selectGuardian(this);
+    }
   }
 
   @override

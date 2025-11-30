@@ -492,9 +492,7 @@ class PiercingProjectile extends PositionComponent {
       RectangleComponent(
         size: Vector2(60, width),
         anchor: Anchor.center,
-        paint: Paint()
-          ..color = color
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        paint: Paint()..color = color,
       ),
     );
 

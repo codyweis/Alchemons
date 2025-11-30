@@ -6,7 +6,6 @@ import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/creature_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -16,23 +15,11 @@ import 'party_picker_dialogs.dart';
 
 class StageHeader extends StatelessWidget {
   final FactionTheme theme;
-  final String stage;
-  final VoidCallback onBack;
-  final VoidCallback? onOpenAllInstances;
 
-  const StageHeader({
-    super.key,
-    required this.theme,
-    required this.stage,
-    required this.onBack,
-    this.onOpenAllInstances,
-  });
+  const StageHeader({super.key, required this.theme});
 
   @override
   Widget build(BuildContext context) {
-    final canGoBack = stage != 'species';
-    final (title, subtitle) = _getStageText();
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -41,38 +28,22 @@ class StageHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (canGoBack)
-            GestureDetector(
-              onTap: onBack,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.border),
-                ),
-                child: Icon(Icons.arrow_back, color: theme.text, size: 18),
+          GestureDetector(
+            onTap: () => {
+              HapticFeedback.lightImpact(),
+              Navigator.of(context).maybePop(),
+            },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: theme.border),
               ),
+              child: Icon(Icons.arrow_back, color: theme.text, size: 18),
             ),
-          if (canGoBack) const SizedBox(width: 12),
-
-          if (!canGoBack)
-            GestureDetector(
-              onTap: () => {
-                HapticFeedback.lightImpact(),
-                Navigator.of(context).maybePop(),
-              },
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.border),
-                ),
-                child: Icon(Icons.arrow_back, color: theme.text, size: 18),
-              ),
-            ),
-          if (!canGoBack) const SizedBox(width: 12),
+          ),
+          const SizedBox(width: 12),
 
           // Title/subtitle
           Expanded(
@@ -80,58 +51,27 @@ class StageHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  'All Specimens',
                   style: TextStyle(
                     color: theme.text,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                if (subtitle != null)
-                  Text(
-                    subtitle!,
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                Text(
+                  'Select up to 3 for deployment',
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
                   ),
+                ),
               ],
             ),
           ),
-
-          // "All Specimens" button on species stage
-          if (stage == 'species' && onOpenAllInstances != null) ...[
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: onOpenAllInstances,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.border),
-                ),
-                child: const Icon(Icons.grid_view_rounded, size: 18),
-              ),
-            ),
-          ],
         ],
       ),
     );
-  }
-
-  (String, String?) _getStageText() {
-    switch (stage) {
-      case 'species':
-        return ('Team Assembly', 'Select species to view specimens');
-      case 'all_instances':
-        return ('All Specimens', 'Select up to 3 for deployment');
-      case 'instance':
-        return ('Choose Specimens', 'Select up to 3 for deployment');
-      default:
-        return ('', null);
-    }
   }
 }
 
@@ -574,78 +514,6 @@ class _DeployButtonState extends State<DeployButton>
           ),
         );
       },
-    );
-  }
-}
-
-// ---------- Species Row ----------
-
-class SpeciesRow extends StatelessWidget {
-  final FactionTheme theme;
-  final Creature creature;
-  final int count;
-  final VoidCallback onTap;
-
-  const SpeciesRow({
-    super.key,
-    required this.theme,
-    required this.creature,
-    required this.count,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        height: 75,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: theme.border),
-        ),
-        child: Row(
-          children: [
-            CreatureImage(c: creature, discovered: true),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    creature.name,
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  Text(
-                    creature.types.join(', '),
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              '$count',
-              style: TextStyle(
-                color: theme.primary,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

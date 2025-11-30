@@ -45,8 +45,7 @@ class AlchemyProjectile extends PositionComponent {
     _glowPaint = Paint()
       ..color = color.withOpacity(0.6)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6); // Cheap bloom
+      ..strokeWidth = 2;
 
     // Inner Core (The "Elemental" part)
     _corePaint = Paint()
