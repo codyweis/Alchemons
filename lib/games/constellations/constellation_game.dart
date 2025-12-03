@@ -378,7 +378,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     final currentFocalPoint = info.eventPosition.global;
 
-    // --- PANNING (unchanged) ---
+    // --- PAN: always based on focal-point movement ---
     if (_lastFocalPoint != null) {
       final delta = currentFocalPoint - _lastFocalPoint!;
       final newPosition =
@@ -389,29 +389,20 @@ class ConstellationGame extends FlameGame with ScaleDetector {
         newPosition.y.clamp(-1000.0, 800.0),
       );
     }
-    _lastFocalPoint = currentFocalPoint;
+    _lastFocalPoint = currentFocalPoint.clone();
 
-    // --- ZOOMING (fixed) ---
-    final scale = info.scale.global;
-    final sx = scale.x;
-    final sy = scale.y;
+    // --- ZOOM: use rawScale (uniform, stable) ---
+    final rawScale = info.raw.scale; // <- key change
 
-    // Pick whichever axis is changing more away from 1.0
-    final dominantScale = (sx - 1.0).abs() > (sy - 1.0).abs() ? sx : sy;
-
-    // Optional: small dead zone so tiny jitter doesn't zoom
-    if ((dominantScale - 1.0).abs() > 0.01) {
-      final newScale = (_baseScaleForGesture * dominantScale).clamp(
-        _minScale,
-        _maxScale,
-      );
-      camera.viewfinder.zoom = newScale;
-    }
+    final newScale = (_baseScaleForGesture * rawScale).clamp(
+      _minScale,
+      _maxScale,
+    );
+    camera.viewfinder.zoom = newScale;
   }
 
   @override
   void onScaleEnd(ScaleEndInfo info) {
-    // Store the final scale for next time
     _currentScale = camera.viewfinder.zoom;
     _lastFocalPoint = null;
   }

@@ -919,41 +919,32 @@ class SurvivalHoardGame extends FlameGame
     world.add(projectile);
   }
 
+  double _initialZoom = 1.0;
+
   @override
   void onScaleStart(ScaleStartInfo info) {
-    _startZoom = cameraComponent.viewfinder.zoom;
-    _lastFocalPoint = info.eventPosition.global;
+    _initialZoom = cameraComponent.viewfinder.zoom;
+    _lastFocalPoint = info.eventPosition.global.clone();
   }
 
   @override
   void onScaleUpdate(ScaleUpdateInfo info) {
-    final currentFocalPoint = info.eventPosition.global;
+    // --- ZOOM ---
+    // Flame guarantees rawScale is uniform & stable
+    final newZoom = (_initialZoom * info.raw.scale).clamp(
+      0.2,
+      2.0,
+    ); // adjust your min/max
+    cameraComponent.viewfinder.zoom = newZoom;
 
-    // ----- Decide if this is a pinch (zoom) or a pan -----
-    final scale = info.scale.global;
-    final sx = scale.x;
-    final sy = scale.y;
-
-    // Uniform scalar derived from both axes
-    final dominantScale = (sx - 1.0).abs() > (sy - 1.0).abs() ? sx : sy;
-
-    // Small deadzone so tiny jitter doesn't zoom
-    final isPinch = (dominantScale - 1.0).abs() > 0.01;
-
-    if (isPinch) {
-      // ----- ZOOM -----
-      final newZoom = (_startZoom * dominantScale).clamp(0.2, 1.4);
-      cameraComponent.viewfinder.zoom = newZoom;
-    } else {
-      // ----- PAN -----
-      if (_lastFocalPoint != null) {
-        final delta = currentFocalPoint - _lastFocalPoint!;
-        cameraComponent.viewfinder.position -=
-            (delta / cameraComponent.viewfinder.zoom);
-      }
+    // --- PAN ---
+    if (_lastFocalPoint != null) {
+      final delta = info.eventPosition.global - _lastFocalPoint!;
+      cameraComponent.viewfinder.position -=
+          delta / cameraComponent.viewfinder.zoom;
     }
 
-    _lastFocalPoint = currentFocalPoint;
+    _lastFocalPoint = info.eventPosition.global.clone();
   }
 
   @override

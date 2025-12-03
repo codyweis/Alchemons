@@ -393,29 +393,21 @@ class BreedingEngine {
     // generation depth still tracked
     final depth = _computeChildDepth(parentA, parentB);
 
-    // MERGE & INCREMENT — faction
-    final factionLineage = _mergeLineageCounts(
-      a: parentA,
-      b: parentB,
-      childNativeFaction: nativeFaction,
-    );
+    // MERGE & INCREMENT
+    final factionLineage = _mergeLineageCounts(a: parentA, b: parentB);
 
     // MERGE & INCREMENT — elements
     final elementLineage = _mergeCounts(
       aMap: parentA.elementLineage,
       bMap: parentB.elementLineage,
-      incrementKeys: [
-        if (primaryElemA != null) primaryElemA,
-        if (primaryElemB != null) primaryElemB,
-        if (primaryElemChild != null) primaryElemChild,
-      ],
+      incrementKeys: {primaryElemA, primaryElemB}.whereType<String>().toList(),
     );
 
     // MERGE & INCREMENT — families
     final familyLineage = _mergeCounts(
       aMap: parentA.familyLineage,
       bMap: parentB.familyLineage,
-      incrementKeys: [famA, famB, famChild],
+      incrementKeys: {famA, famB}.toList(),
     );
 
     // roll variant faction (existing logic)
@@ -530,7 +522,16 @@ class BreedingEngine {
     final fam1 = _familyOf(p1);
     final fam2 = _familyOf(p2);
 
-    // same-family: mostly stick, tiny mutation chance
+    // Check for explicit recipe FIRST (handles both same-family and cross-family)
+    final key = FamilyRecipeConfig.keyOf(fam1, fam2);
+    final recipe = familyRecipes.recipes[key];
+    if (recipe != null && recipe.isNotEmpty) {
+      return OutcomeDistribution<String>(
+        recipe.map((k, v) => MapEntry(k, v.toDouble())),
+      );
+    }
+
+    // same-family with NO explicit recipe: mostly stick, tiny mutation chance
     if (fam1 == fam2) {
       final mutationPct = tuning.sameFamilyMutationChancePct.toDouble();
       final stickPct = 100.0 - mutationPct;
@@ -553,16 +554,7 @@ class BreedingEngine {
       return OutcomeDistribution<String>(map);
     }
 
-    // cross-family: prefer authored combos first
-    final key = FamilyRecipeConfig.keyOf(fam1, fam2);
-    final recipe = familyRecipes.recipes[key];
-    if (recipe != null && recipe.isNotEmpty) {
-      return OutcomeDistribution<String>(
-        recipe.map((k, v) => MapEntry(k, v.toDouble())),
-      );
-    }
-
-    // default 50/50 lineage tug-of-war
+    // cross-family with no recipe: default 50/50 lineage tug-of-war
     return OutcomeDistribution<String>({fam1: 50.0, fam2: 50.0});
   }
 
@@ -1161,7 +1153,6 @@ class BreedingEngine {
   Map<String, int> _mergeLineageCounts({
     required ParentSnapshot a,
     required ParentSnapshot b,
-    required String childNativeFaction,
   }) {
     final out = <String, int>{};
 
@@ -1178,12 +1169,10 @@ class BreedingEngine {
     absorb(a.factionLineage);
     absorb(b.factionLineage);
 
-    // increment each parent's faction
-    out[a.nativeFaction] = (out[a.nativeFaction] ?? 0) + 1;
-    out[b.nativeFaction] = (out[b.nativeFaction] ?? 0) + 1;
-
-    // increment child's own faction
-    out[childNativeFaction] = (out[childNativeFaction] ?? 0) + 1;
+    // increment each parent's faction (deduped)
+    for (final faction in {a.nativeFaction, b.nativeFaction}) {
+      out[faction] = (out[faction] ?? 0) + 1;
+    }
 
     return out;
   }

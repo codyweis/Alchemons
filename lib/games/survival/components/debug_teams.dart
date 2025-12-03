@@ -772,7 +772,7 @@ class DebugTeams {
             'Dark',
             'Mane',
             idPrefix: 'MAN15',
-            category: 'uncommon',
+            category: 'rare',
           ),
           visuals: const SpriteVisuals(),
         ),
