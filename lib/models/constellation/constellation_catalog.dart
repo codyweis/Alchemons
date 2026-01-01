@@ -566,7 +566,7 @@ class ConstellationCatalog {
 /// Breeding milestones that award constellation points
 class BreedingMilestone {
   final int count; // Number of creatures bred
-  final int pointsAwarded;
+  final int pointsAwarded; // Base points (for common rarity)
   final String displayName;
 
   const BreedingMilestone({
@@ -577,36 +577,58 @@ class BreedingMilestone {
 
   static const List<BreedingMilestone> milestones = [
     BreedingMilestone(
-      count: 10,
+      count: 5,
       pointsAwarded: 1,
       displayName: 'Novice Alchemist',
     ),
     BreedingMilestone(
+      count: 10,
+      pointsAwarded: 1,
+      displayName: 'Skilled Alchemist',
+    ),
+    BreedingMilestone(
       count: 25,
       pointsAwarded: 2,
-      displayName: 'Skilled Alchemist',
+      displayName: 'Expert Alchemist',
     ),
     BreedingMilestone(
       count: 50,
       pointsAwarded: 3,
-      displayName: 'Expert Alchemist',
-    ),
-    BreedingMilestone(
-      count: 100,
-      pointsAwarded: 5,
       displayName: 'Master Alchemist',
     ),
     BreedingMilestone(
-      count: 250,
-      pointsAwarded: 10,
+      count: 75,
+      pointsAwarded: 5,
       displayName: 'Grandmaster Alchemist',
     ),
     BreedingMilestone(
-      count: 500,
-      pointsAwarded: 20,
+      count: 100,
+      pointsAwarded: 10,
       displayName: 'Legendary Alchemist',
     ),
   ];
+
+  /// Calculate points awarded based on rarity
+  /// Rarity multipliers: common=1x, uncommon=2x, rare=3x, epic=5x, legendary=10x
+  int getPointsForRarity(String rarity) {
+    final multiplier = _getRarityMultiplier(rarity);
+    return pointsAwarded * multiplier;
+  }
+
+  static int _getRarityMultiplier(String rarity) {
+    switch (rarity.toLowerCase()) {
+      case 'common':
+        return 1;
+      case 'uncommon':
+        return 2;
+      case 'rare':
+        return 3;
+      case 'legendary':
+        return 4;
+      default:
+        return 1; // Default to common if unknown
+    }
+  }
 
   /// Get the next milestone after a given count
   static BreedingMilestone? nextMilestone(int currentCount) {

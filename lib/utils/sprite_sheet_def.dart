@@ -87,7 +87,8 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
     isPrismatic: isPrismatic,
     tint: tint,
     isAlbino: isAlbino,
-    alchemyEffect: inst?.alchemyEffect, // Pull from instance if available
-    variantFaction: inst?.variantFaction, // Pull from instance if available
+    // ✅ FIX: Read from instance first, then fall back to creature
+    alchemyEffect: inst?.alchemyEffect ?? creature?.alchemyEffect,
+    variantFaction: inst?.variantFaction ?? creature?.variantFaction,
   );
 }

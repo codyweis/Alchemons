@@ -1,8 +1,10 @@
-import 'dart:math';
+import 'dart:math' show pow, max, min, cos, sin, pi, Random, sqrt;
 
+import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/games/survival/components/black_hole_spawner.dart';
 import 'package:flame/components.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
-import 'package:alchemons/games/survival/survival_enemies.dart';
+import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 
 enum WaveStyle { normal, tactical, reinforced, flanking, escort }
 
@@ -22,22 +24,25 @@ class ImprovedSurvivalSpawner extends Component
   int _lastWave = 0;
   int _lastFormationIndex = -1;
 
+  int _spawnedThisWave = 0;
+  int _waveSpawnBudget = 0;
+
   @override
   void update(double dt) {
     if (gameRef.isGameOver || gameRef.isInAlchemyPause) return;
 
     final wave = gameRef.currentWave;
 
-    // Wave change
+    // Wave change - reset budget
     if (wave != _lastWave) {
       if (debugSpawns) print('==== WAVE $wave ====');
       _lastWave = wave;
+      _spawnedThisWave = 0;
+      _waveSpawnBudget = _getBudgetForWave(wave);
 
       final isBossWave = wave > 0 && wave % 10 == 0;
-      final isMiniBossWave =
-          wave > 0 && wave % 5 == 0 && wave % 10 != 0; // 5,15,25,...
+      final isMiniBossWave = wave > 0 && wave % 5 == 0 && wave % 10 != 0;
 
-      // Boss spawning at wave boundaries
       if (isBossWave && !_didMegaBossForWave.contains(wave)) {
         _spawnMegaBoss(wave);
         _didMegaBossForWave.add(wave);
@@ -46,33 +51,29 @@ class ImprovedSurvivalSpawner extends Component
         _didMiniBossForWave.add(wave);
       }
 
-      // Tiny elite pack every 5 waves (5, 15, 25...) – feels special, not spammy
       if (wave >= 5 && isMiniBossWave && !_didElitePackForWave.contains(wave)) {
         _spawnElitePack(wave);
         _didElitePackForWave.add(wave);
       }
     }
 
-    // Boss / miniboss waves: slightly slower spawn rate so boss stands out
+    // Stop spawning if budget exhausted
+    if (_spawnedThisWave >= _waveSpawnBudget) return;
+
+    // Rest of spawn timing logic stays the same...
     final bool isAnyBossWave = wave % 5 == 0;
 
-    // Original pacing: later waves spawn faster up to a cap
-    final waveFactor = (1.0 - (wave - 1) * 0.012).clamp(0.4, 1.0);
-    final baseSpawnRate = 1.8 * waveFactor;
+    const double kBaseSpawnInterval = 0.5;
+    const double kSpawnRampRate = 0.01;
+    const double kMinSpawnInterval = 0.25;
 
-    // NEW: density scale kicks in after wave 5
-    final densityScale = _waveDensityScale(wave);
+    final waveFactor = (kBaseSpawnInterval - (wave - 1) * kSpawnRampRate).clamp(
+      kMinSpawnInterval,
+      kBaseSpawnInterval,
+    );
 
-    // Boss / mini-boss waves still calmer than full trash waves
-    // but benefit from some extra density too.
-    final spawnRateBase = isAnyBossWave ? baseSpawnRate * 1.6 : baseSpawnRate;
-
-    // If densityScale = 2.0, we effectively spawn ~2x as often.
-    final densityForSpawnRate = isAnyBossWave
-        ? (1.0 + (densityScale - 1.0) * 0.5) // boss waves get ~half the extra
-        : densityScale;
-
-    final currentSpawnRate = spawnRateBase / densityForSpawnRate;
+    final spawnRateBase = isAnyBossWave ? waveFactor * 1.6 : waveFactor;
+    final currentSpawnRate = spawnRateBase;
 
     _timer += dt;
 
@@ -80,6 +81,58 @@ class ImprovedSurvivalSpawner extends Component
       _timer = 0;
       _spawnTick(wave);
     }
+  }
+
+  int _getBudgetForWave(int wave) {
+    // Tune these numbers to taste
+    const int baseEnemies = 50;
+    const int perWaveIncrease = 1;
+    const int maxBudget = 200;
+
+    // Boss waves get fewer trash mobs
+    final isBossWave = wave % 5 == 0;
+    final multiplier = isBossWave ? 0.25 : 1.0;
+
+    final budget = ((baseEnemies + (wave - 1) * perWaveIncrease) * multiplier)
+        .round()
+        .clamp(10, maxBudget);
+
+    if (debugSpawns) print('  Wave $wave budget: $budget');
+    return budget;
+  }
+
+  // Then in _spawnEnemy, track the count:
+  void _spawnEnemy({
+    required int tier,
+    required int wave,
+    required Vector2 position,
+    double sizeScale = 1.0,
+    EnemyRole? forceRole,
+  }) {
+    // Budget check (safety)
+    if (_spawnedThisWave >= _waveSpawnBudget) return;
+
+    final template = SurvivalEnemyCatalog.getRandomTemplateForTier(tier);
+    final role = forceRole ?? _determineRole(template, wave);
+
+    final unit = SurvivalEnemyCatalog.buildEnemy(
+      template: template,
+      tier: tier,
+      wave: wave,
+      isShooter: role == EnemyRole.shooter,
+    );
+
+    final enemy = HoardEnemy(
+      position: position,
+      targetOrb: gameRef.orb,
+      unit: unit,
+      template: template,
+      role: role,
+      sizeScale: sizeScale,
+    );
+
+    gameRef.addHoardEnemy(enemy);
+    _spawnedThisWave++;
   }
 
   void _spawnTick(int wave) {
@@ -116,8 +169,10 @@ class ImprovedSurvivalSpawner extends Component
         _spawnEscortGroup(wave, tier);
         return;
       case WaveStyle.normal:
-      default:
-        baseCount = 6 + _rng.nextInt(4);
+        if (_rng.nextBool()) {
+          _spawnTacticalGroupFromBlackHole(wave);
+        }
+        return;
     }
 
     // NEW: multiply by density so waves 6+ bring more bodies
@@ -309,9 +364,9 @@ class ImprovedSurvivalSpawner extends Component
     return false;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   // FORMATIONS (mostly unchanged, but only use swarm / brutes for trash)
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
 
   void _spawnPincerFormation(int wave) {
     final tier = _pickTierForWave(wave);
@@ -504,12 +559,12 @@ class ImprovedSurvivalSpawner extends Component
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   // ELITE PACKS (Tier 3 - rare, small groups every 5 waves)
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
 
   void _spawnElitePack(int wave) {
-    // Tiny, spicy elite group – 2 or 3 enemies.
+    // Tiny, spicy elite group â€“ 2 or 3 enemies.
     final count = wave >= 25 ? 3 : 2;
     final tier = 3; // Elite
     final angle = _rng.nextDouble() * pi * 2;
@@ -529,9 +584,9 @@ class ImprovedSurvivalSpawner extends Component
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   // BOSS SPAWNING - tuned to match simpler boss AI + sizes
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
 
   void _spawnMiniBoss(int wave) {
     if (debugSpawns) print('  >> MINI-BOSS at wave $wave');
@@ -590,23 +645,116 @@ class ImprovedSurvivalSpawner extends Component
     });
   }
 
+  void _spawnTacticalGroupFromBlackHole(int wave) {
+    final int tier = _pickTierForWave(wave);
+    final style = _waveStyleFor(wave);
+    final densityScale = _waveDensityScale(wave);
+
+    int baseCount;
+    switch (style) {
+      case WaveStyle.tactical:
+        baseCount = 8 + _rng.nextInt(5);
+        break;
+      case WaveStyle.reinforced:
+        baseCount = 10 + _rng.nextInt(5);
+        break;
+      default:
+        baseCount = 6 + _rng.nextInt(4);
+    }
+
+    int count = (baseCount * densityScale).round();
+    final bool isBossWave = wave % 5 == 0;
+    count = isBossWave ? max(3, (count * 0.55).round()) : count;
+
+    final angle = _rng.nextDouble() * pi * 2;
+    final dist = _minSpawnDist;
+    final centerPos = Vector2(cos(angle), sin(angle)) * dist;
+
+    // Determine black hole color based on dominant element this wave
+    final element = allElements[_rng.nextInt(allElements.length)];
+    final color = BreedConstants.getTypeColor(element);
+
+    // Spawn the black hole
+    final blackHole = BlackHoleSpawner(
+      position: centerPos,
+      accentColor: color,
+      enemyCount: count,
+      radius: 60.0 + (wave * 0.5).clamp(0, 40), // Grows slightly with wave
+      spawnInterval: 0.25, // Enemies pour out quickly
+      formDuration: 1.0,
+      activeDuration: count * 0.3 + 1.0, // Duration scales with enemy count
+      collapseDuration: 0.6,
+      onSpawnEnemy: (pos) {
+        // Add slight randomness to spawn position
+        final offset = Vector2(
+          _rng.nextDouble() * 60 - 30,
+          _rng.nextDouble() * 60 - 30,
+        );
+        _spawnEnemy(tier: tier, wave: wave, position: pos + offset);
+      },
+    );
+
+    gameRef.world.add(blackHole);
+  }
+
   void _spawnMegaBoss(int wave) {
     if (debugSpawns) print('  >> MEGA-BOSS at wave $wave');
 
     final tier = _getMegaBossTier(wave);
     final template = SurvivalEnemyCatalog.getRandomTemplateForTier(tier);
-    final unit = SurvivalEnemyCatalog.buildMegaBoss(
-      template: template,
-      wave: wave,
-    );
-
-    // Select archetype based on wave (even if AI is simple now, we keep this for flavor/role)
-    final archetype = _getBossArchetype(wave);
 
     // Spawn even further back for mega boss
     final angle = _rng.nextDouble() * pi * 2;
     final dist = _minSpawnDist + 450;
     final pos = Vector2(cos(angle), sin(angle)) * dist;
+
+    // Select archetype based on wave
+    final archetype = _getBossArchetype(wave);
+
+    // ─────────────────────────────────────────────────────────
+    // HYDRA BOSS SPECIAL CASE
+    // ─────────────────────────────────────────────────────────
+    if (archetype == BossArchetype.hydra) {
+      // Build the generation 0 Hydra boss (massive, tanky).
+      final unit = SurvivalEnemyCatalog.buildHydraBoss(
+        template: template,
+        wave: wave,
+        generation: 0,
+      );
+
+      // IMPORTANT: sizeScale here is moderate; the hydra radius helper
+      // multiplies again (3x for gen 0), so don't double-dip too hard.
+      final sizeScale = (3.0 + wave * 0.03).clamp(3.0, 4.5);
+
+      final hydra = HoardEnemy(
+        position: pos,
+        targetOrb: gameRef.orb,
+        unit: unit,
+        template: template,
+        role: EnemyRole.charger, // melee bruiser that slams + volleys
+        sizeScale: sizeScale,
+        bossArchetype: BossArchetype.hydra,
+        isMegaBoss: true,
+        speedMultiplier: 0.35,
+        hydraGeneration: 0,
+      );
+
+      hydra.isBoss = true;
+      gameRef.addHoardEnemy(hydra);
+
+      // Performance: Hydra supplies its own "adds" via splitting.
+      // We *skip* boss minion waves so the arena doesn't get insane.
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // NORMAL MEGA BOSS (juggernaut / summoner / artillery)
+    // ─────────────────────────────────────────────────────────
+
+    final unit = SurvivalEnemyCatalog.buildMegaBoss(
+      template: template,
+      wave: wave,
+    );
 
     // BIG, but not "break the game" big
     final sizeScale = (4.0 + wave * 0.05).clamp(4.0, 6.0);
@@ -628,17 +776,33 @@ class ImprovedSurvivalSpawner extends Component
     enemy.isBoss = true;
     gameRef.addHoardEnemy(enemy);
 
+    // For non-Hydra bosses we still run minion support waves
     _spawnBossMinionWaves(pos, wave, tier);
   }
 
-  /// After wave 5, ramp up how "dense" waves feel:
-  /// - 1.0 for waves <= 5
-  /// - quickly rises toward ~2.0 by mid/late game
-  double _waveDensityScale(int wave) {
-    if (wave <= 5) return 1.0;
+  /// PERFORMANCE-FRIENDLY DENSITY - caps at 2.0x, difficulty comes from bosses
 
-    final extra = (wave - 5) * 0.08; // +8% density per wave after 5
-    return (1.0 + extra).clamp(1.0, 2.0);
+  double _waveDensityScale(int wave) {
+    return 0.9;
+    // Before wave 10 → base value
+    // if (wave < 5) return 0.5;
+    // if (wave < 10) return 0.8;
+    // if (wave < 15) return 1;
+
+    // const startWave = 15;
+    // const endValue = 1.1;
+    // const startValue = 1.0;
+
+    // // Choose the wave where you want to *reach* the cap.
+    // // Example: reach cap by wave 50.
+    // const capWave = 50;
+
+    // // Linear progression from wave 10 to capWave
+    // final t = ((wave - startWave) / (capWave - startWave)).clamp(0.0, 1.0);
+
+    // final value = startValue + (endValue - startValue) * t;
+
+    // return value;
   }
 
   void _spawnBossMinionWaves(Vector2 bossPos, int wave, int tier) {
@@ -709,57 +873,37 @@ class ImprovedSurvivalSpawner extends Component
 
   /// Cycle through archetypes so players face different challenges
   BossArchetype _getBossArchetype(int wave) {
-    // Wave 10: Juggernaut (learn to dodge charges)
-    // Wave 20: Summoner (learn to clear adds)
-    // Wave 30: Artillery (learn to reposition)
-    // Then cycle
-    final bossNumber = wave ~/ 10;
-    final archetypeIndex = (bossNumber - 1) % 3;
-    return BossArchetype.values[archetypeIndex];
+    // return BossArchetype.hydra;
+    final bossNumber = wave ~/ 10; // 1 for wave 10, 2 for 20, etc.
+
+    // Every 4th boss: special Hydra fight
+    if (bossNumber > 0 && bossNumber % 4 == 0) {
+      return BossArchetype.hydra;
+    }
+
+    // Otherwise cycle juggernaut -> summoner -> artillery
+    const cycle = [
+      BossArchetype.juggernaut,
+      BossArchetype.summoner,
+      BossArchetype.artillery,
+    ];
+    final index = (bossNumber - 1).clamp(0, cycle.length - 1) % cycle.length;
+    return cycle[index];
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   // HELPERS
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  void _spawnEnemy({
-    required int tier,
-    required int wave,
-    required Vector2 position,
-    double sizeScale = 1.0,
-    EnemyRole? forceRole,
-  }) {
-    final template = SurvivalEnemyCatalog.getRandomTemplateForTier(tier);
-    final role = forceRole ?? _determineRole(template, wave);
-
-    final unit = SurvivalEnemyCatalog.buildEnemy(
-      template: template,
-      tier: tier,
-      wave: wave,
-      isShooter: role == EnemyRole.shooter,
-    );
-
-    final enemy = HoardEnemy(
-      position: position,
-      targetOrb: gameRef.orb,
-      unit: unit,
-      template: template,
-      role: role,
-      sizeScale: sizeScale,
-    );
-
-    gameRef.addHoardEnemy(enemy);
-  }
+  //
 
   /// Normal trash: only Swarm (tier 1) and Brute (tier 2).
   /// Elites are spawned explicitly via _spawnElitePack so they feel special.
   int _pickTierForWave(int wave) {
-    // Waves 1–9: pure swarm
+    // Waves 1â€“9: pure swarm
     if (wave < 10) {
       return 1;
     }
 
-    // Waves 10–24: mostly swarm, some brutes
+    // Waves 10â€“24: mostly swarm, some brutes
     if (wave < 25) {
       return _rng.nextDouble() < 0.7 ? 1 : 2;
     }

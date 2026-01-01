@@ -1,445 +1,9 @@
-// // lib/games/survival/survival_creature_sprite.dart
-// import 'dart:math' as math;
-// import 'package:alchemons/games/survival/components/alchemy_projectile.dart'; // REQUIRED IMPORT
-// import 'package:alchemons/games/survival/survival_combat.dart';
-// import 'package:alchemons/games/survival/survival_enemies.dart';
-// import 'package:alchemons/games/survival/survival_game.dart';
-// import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
-// import 'package:flame/components.dart';
-// import 'package:flame/effects.dart';
-// import 'package:flutter/material.dart';
-
-// class HoardGuardian extends PositionComponent
-//     with HasGameRef<SurvivalHoardGame> {
-//   final SurvivalUnit unit;
-//   bool isDead = false;
-
-//   double _basicAttackTimer = 0;
-//   double _specialAbilityTimer = 0;
-//   late double _basicInterval;
-//   late double _specialInterval;
-
-//   bool _isFlipped = false;
-//   late PositionComponent _spriteContainer;
-
-//   HoardGuardian({required this.unit, required Vector2 position})
-//     : super(position: position, size: Vector2.all(100), anchor: Anchor.center);
-
-//   @override
-//   Future<void> onLoad() async {
-//     // --- 1. STAT SCALING SETUP ---
-//     _basicInterval = 1.5 / unit.cooldownReduction;
-//     _specialInterval = 8.0 / unit.cooldownReduction;
-
-//     // Initialize sprite container
-//     _spriteContainer = PositionComponent(
-//       size: size,
-//       anchor: Anchor.center,
-//       position: size / 2,
-//     );
-//     add(_spriteContainer);
-
-//     // Visuals
-//     if (unit.sheetDef != null && unit.spriteVisuals != null) {
-//       final visual =
-//           CreatureSpriteComponent<SurvivalHoardGame>(
-//               sheet: unit.sheetDef!,
-//               visuals: unit.spriteVisuals!,
-//               desiredSize: size * 0.8,
-//               alchemyEffect: unit.spriteVisuals!.alchemyEffect,
-//               variantFaction: unit.spriteVisuals!.variantFaction,
-//             )
-//             ..anchor = Anchor.center
-//             ..position = _spriteContainer.size / 2;
-//       _spriteContainer.add(visual);
-//     } else {
-//       _spriteContainer.add(
-//         CircleComponent(
-//           radius: 40,
-//           paint: Paint()
-//             ..color = _getElementColor(
-//               unit.types.firstOrNull ?? 'Normal',
-//             ).withOpacity(0.7),
-//           anchor: Anchor.center,
-//           position: _spriteContainer.size / 2,
-//         ),
-//       );
-//     }
-//     _addNameLabel();
-//   }
-
-//   @override
-//   void update(double dt) {
-//     super.update(dt);
-//     SurvivalCombat.tickRealtimeStatuses(unit, dt);
-
-//     if (isDead || unit.isDead) {
-//       if (!isDead) {
-//         isDead = true;
-//         _playDeathAnimation();
-//       }
-//       return;
-//     }
-
-//     // --- 2. COMBAT LOGIC ---
-
-//     if (_basicAttackTimer > 0) _basicAttackTimer -= dt;
-//     if (_specialAbilityTimer > 0) _specialAbilityTimer -= dt;
-
-//     final target = gameRef.getNearestEnemy(position, unit.attackRange);
-
-//     if (target != null) {
-//       _faceTarget(target.position);
-
-//       // PRIORITY SYSTEM:
-//       if (_specialAbilityTimer <= 0) {
-//         _performSpecialAbility(target);
-//         _specialAbilityTimer = _specialInterval;
-//       } else if (_basicAttackTimer <= 0) {
-//         _performBasicAttack(target);
-//         _basicAttackTimer = _basicInterval;
-//       }
-//     }
-//   }
-
-//   void _performBasicAttack(HoardEnemy target) {
-//     // Basic = Physical Damage, uses Strength
-//     final damage = SurvivalCombat.computeHitDamage(
-//       SurvivalAttackContext(
-//         attacker: unit,
-//         defender: target.unit,
-//         damageKind: SurvivalDamageKind.physical,
-//         isSpecial: false,
-//       ),
-//     );
-
-//     // FIX 1: Reset the angle explicitly to stop unwanted spinning.
-//     _spriteContainer.angle = 0.0;
-
-//     // Subtle animation
-//     _spriteContainer.add(
-//       ScaleEffect.to(
-//         Vector2(1.1, 0.9),
-//         EffectController(duration: 0.1, reverseDuration: 0.1),
-//       ),
-//     );
-
-//     // FIX 2: Use the Elemental Alchemy Projectile logic
-//     final color = _getElementColor(unit.types.firstOrNull ?? 'Normal');
-//     final (shape, speed) = _getBasicAttackProperties(unit.family);
-
-//     gameRef.spawnAlchemyProjectile(
-//       // Corrected call
-//       start: position,
-//       target: target,
-//       damage: damage,
-//       color: color,
-//       shape: shape,
-//       speed: speed,
-//     );
-//   }
-
-//   void _performSpecialAbility(HoardEnemy mainTarget) {
-//     // FIX 1: Reset the angle explicitly to stop unwanted spinning.
-//     _spriteContainer.angle = 0.0;
-
-//     // Big animation "Cast"
-//     _spriteContainer.add(
-//       SequenceEffect([
-//         ScaleEffect.by(Vector2.all(1.3), EffectController(duration: 0.2)),
-//         ScaleEffect.by(Vector2.all(1 / 1.3), EffectController(duration: 0.2)),
-//       ]),
-//     );
-
-//     // Ability logic depends on Family
-//     switch (unit.family) {
-//       case 'Let':
-//         _doAoeAbility(mainTarget);
-//         break;
-//       case 'Horn':
-//         _doShieldAbility();
-//         break;
-//       case 'Wing':
-//         _doMultiShotAbility(mainTarget);
-//         break;
-//       case 'Mystic':
-//         _doHealAbility();
-//         break;
-//       case 'Pip':
-//       case 'Mane':
-//         _doRapidFireAbility(mainTarget);
-//         break;
-//       default:
-//         _doGenericNuke(mainTarget);
-//     }
-//   }
-
-//   // --- ABILITY IMPLEMENTATIONS ---
-
-//   void _doAoeAbility(HoardEnemy target) {
-//     final dmg = _calcSpecialDmg(target.unit);
-//     final color = _getElementColor(unit.types.firstOrNull ?? 'Fire');
-//     final (shape, speed) = _getBasicAttackProperties(
-//       unit.family,
-//     ); // Use special shape
-
-//     gameRef.spawnAlchemyProjectile(
-//       // Corrected call
-//       start: position,
-//       target: target,
-//       damage: dmg,
-//       color: color,
-//       shape: shape,
-//       speed: speed,
-//     );
-
-//     final neighbors = gameRef.getEnemiesInRange(target.position, 150);
-//     for (var n in neighbors) {
-//       if (n != target) n.takeDamage((dmg * 0.6).toInt());
-//     }
-//   }
-
-//   void _doShieldAbility() {
-//     final amount = 20 + (unit.statIntelligence * 5).toInt();
-//     gameRef.orb.heal(amount);
-
-//     add(
-//       CircleComponent(
-//         radius: 60,
-//         paint: Paint()
-//           ..color = Colors.cyan.withOpacity(0.3)
-//           ..style = PaintingStyle.stroke
-//           ..strokeWidth = 4,
-//       )..add(RemoveEffect(delay: 1.0)),
-//     );
-//   }
-
-//   void _doMultiShotAbility(HoardEnemy primary) {
-//     final targets = gameRef.getRandomEnemies(3);
-//     if (!targets.contains(primary)) targets.add(primary);
-
-//     final color = _getElementColor(unit.types.firstOrNull ?? 'Air');
-//     final (shape, speed) = _getBasicAttackProperties(unit.family);
-
-//     for (var t in targets) {
-//       final dmg = _calcSpecialDmg(t.unit);
-//       gameRef.spawnAlchemyProjectile(
-//         // Corrected call
-//         start: position,
-//         target: t,
-//         damage: dmg,
-//         color: color,
-//         shape: shape,
-//         speed: speed,
-//       );
-//     }
-//   }
-
-//   void _doHealAbility() {
-//     final heal = (unit.statIntelligence * 8 + 40).toInt();
-//     gameRef.orb.heal(heal);
-
-//     add(
-//       CircleComponent(
-//           radius: 10,
-//           paint: Paint()
-//             ..color = Colors.white
-//             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15),
-//         )
-//         ..add(
-//           ScaleEffect.to(Vector2.all(15.0), EffectController(duration: 0.4)),
-//         )
-//         ..add(RemoveEffect(delay: 0.4)),
-//     );
-//   }
-
-//   void _doRapidFireAbility(HoardEnemy target) async {
-//     final color = _getElementColor(unit.types.firstOrNull ?? 'Plant');
-//     final (shape, speed) = _getBasicAttackProperties(unit.family);
-
-//     for (int i = 0; i < 5; i++) {
-//       if (target.isDead) break;
-//       final dmg = (_calcSpecialDmg(target.unit) * 0.3).toInt();
-
-//       gameRef.spawnAlchemyProjectile(
-//         // Corrected call
-//         start: position,
-//         target: target,
-//         damage: dmg,
-//         color: color,
-//         shape: shape,
-//         speed: speed,
-//       );
-//       await Future.delayed(const Duration(milliseconds: 150));
-//     }
-//   }
-
-//   void _doGenericNuke(HoardEnemy target) {
-//     final dmg = (_calcSpecialDmg(target.unit) * 1.8).toInt();
-//     final color = _getElementColor(unit.types.firstOrNull ?? 'Normal');
-//     final (shape, speed) = _getBasicAttackProperties(unit.family);
-
-//     gameRef.spawnAlchemyProjectile(
-//       // Corrected call
-//       start: position,
-//       target: target,
-//       damage: dmg,
-//       color: color,
-//       shape: shape,
-//       speed: speed,
-//     );
-//   }
-
-//   // --- NEW PROJECTILE HELPERS (Duplicated from earlier) ---
-
-//   (ProjectileShape shape, double speed) _getBasicAttackProperties(
-//     String family,
-//   ) {
-//     double speedMod = 1.0;
-//     ProjectileShape shape;
-
-//     switch (family) {
-//       case 'Wing':
-//       case 'Pip':
-//         shape = ProjectileShape.blade;
-//         speedMod = 1.3;
-//         break;
-//       case 'Let':
-//         shape = ProjectileShape.shard;
-//         speedMod = 1.0;
-//         break;
-//       case 'Mystic':
-//       case 'Spirit':
-//         shape = ProjectileShape.star;
-//         speedMod = 0.9;
-//         break;
-//       case 'Mane':
-//       case 'Plant':
-//         shape = ProjectileShape.thorn;
-//         speedMod = 1.1;
-//         break;
-//       case 'Horn':
-//       default:
-//         shape = ProjectileShape.orb;
-//         speedMod = 0.8;
-//         break;
-//     }
-//     return (shape, speedMod);
-//   }
-
-//   int _calcSpecialDmg(SurvivalUnit defender) {
-//     return SurvivalCombat.computeHitDamage(
-//       SurvivalAttackContext(
-//         attacker: unit,
-//         defender: defender,
-//         damageKind: SurvivalDamageKind.elemental,
-//         isSpecial: true,
-//       ),
-//     );
-//   }
-
-//   // --- UTILS ---
-
-//   void takeDamage(int amount) {
-//     if (isDead) return;
-//     unit.takeDamage(amount);
-//     _flashDamage();
-//     if (unit.isDead) {
-//       isDead = true;
-//       _playDeathAnimation();
-//     }
-//   }
-
-//   void _flashDamage() {
-//     _spriteContainer.add(
-//       SequenceEffect([
-//         ScaleEffect.to(Vector2(1.1, 0.9), EffectController(duration: 0.06)),
-//         ScaleEffect.to(Vector2.all(1.0), EffectController(duration: 0.08)),
-//       ]),
-//     );
-//   }
-
-//   void _playDeathAnimation() {
-//     add(
-//       SequenceEffect([
-//         ScaleEffect.to(Vector2.zero(), EffectController(duration: 0.4)),
-//         RemoveEffect(),
-//       ]),
-//     );
-
-//     add(MoveEffect.by(Vector2(0, 30), EffectController(duration: 0.4)));
-//   }
-
-//   void _faceTarget(Vector2 targetPos) {
-//     final shouldFlip = targetPos.x < position.x;
-//     if (shouldFlip != _isFlipped) {
-//       _isFlipped = shouldFlip;
-//       _spriteContainer.scale.x = _isFlipped ? -1 : 1;
-//     }
-//   }
-
-//   void _addNameLabel() {
-//     add(
-//       TextComponent(
-//         text: unit.name,
-//         anchor: Anchor.center,
-//         position: Vector2(size.x / 2, size.y + 10),
-//         textRenderer: TextPaint(
-//           style: const TextStyle(
-//             color: Colors.white,
-//             fontSize: 10,
-//             fontWeight: FontWeight.bold,
-//             shadows: [Shadow(blurRadius: 2, color: Colors.black)],
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-
-//   Color _getElementColor(String type) {
-//     switch (type) {
-//       case 'Fire':
-//       case 'Lava':
-//         return Colors.deepOrange;
-//       case 'Water':
-//       case 'Steam':
-//         return Colors.blueAccent;
-//       case 'Ice':
-//         return Colors.cyanAccent;
-//       case 'Earth':
-//       case 'Mud':
-//         return Colors.brown;
-//       case 'Air':
-//       case 'Dust':
-//         return Colors.blueGrey;
-//       case 'Lightning':
-//         return Colors.yellowAccent;
-//       case 'Plant':
-//         return Colors.green;
-//       case 'Poison':
-//         return Colors.purpleAccent;
-//       case 'Crystal':
-//         return Colors.tealAccent;
-//       case 'Spirit':
-//         return Colors.indigoAccent;
-//       case 'Dark':
-//         return Colors.purple.shade900;
-//       case 'Light':
-//         return Colors.amberAccent;
-//       case 'Blood':
-//         return Colors.redAccent;
-//       default:
-//         return Colors.grey;
-//     }
-//   }
-// }
-// lib/games/survival/survival_creature_sprite.dart
 import 'dart:math' as math;
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart'; // REQUIRED IMPORT
 import 'package:alchemons/games/survival/components/guardian_indicator.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
-import 'package:alchemons/games/survival/survival_enemies.dart';
+import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'package:flame/components.dart';
@@ -447,15 +11,38 @@ import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 
+enum TargetPriority { closest, furthest, boss }
+
 class HoardGuardian extends PositionComponent
     with HasGameRef<SurvivalHoardGame>, TapCallbacks {
   final SurvivalUnit unit;
   bool isDead = false;
 
+  TargetPriority targetPriority = TargetPriority.closest;
+
+  void cycleTargetPriority() {
+    final all = TargetPriority.values;
+    final nextIndex = (all.indexOf(targetPriority) + 1) % all.length;
+    targetPriority = all[nextIndex];
+  }
+
+  String get targetPriorityLabel {
+    switch (targetPriority) {
+      case TargetPriority.closest:
+        return 'Closest';
+      case TargetPriority.furthest:
+        return 'Furthest';
+      case TargetPriority.boss:
+        return 'Boss';
+    }
+  }
+
   double _basicAttackTimer = 0;
   double _specialAbilityTimer = 0;
   late double _basicInterval;
   late double _specialInterval;
+
+  late PositionComponent _animContainer;
 
   bool _isFlipped = false;
   late PositionComponent _spriteContainer;
@@ -466,14 +53,14 @@ class HoardGuardian extends PositionComponent
   Vector2 _sizeForSpecies(Vector2 baseSize, String family) {
     // Example: use your own data/model here instead of hardcoding
     const Map<String, double> speciesScale = {
-      'let': 1.05,
-      'pip': 1.35,
-      'mane': 1.35,
+      'let': 0.9,
+      'pip': 1,
+      'mane': 1,
       'horn': 1.5,
       'mask': 1.575,
-      'wing': 1.65,
-      'kin': 1.5,
-      'mystic': 1.5,
+      'wing': 1.8,
+      'kin': 1.6,
+      'mystic': 2,
     };
 
     final scale = speciesScale.containsKey(family.toLowerCase())
@@ -484,13 +71,12 @@ class HoardGuardian extends PositionComponent
 
   @override
   Future<void> onLoad() async {
-    // --- 1. STAT SCALING SETUP ---
     _basicInterval = .9 / unit.cooldownReduction;
     _specialInterval = 5.0 / unit.cooldownReduction;
 
     size = _sizeForSpecies(Vector2.all(100), unit.family);
 
-    // Initialize sprite container
+    // Root sprite container: handles flipping
     _spriteContainer = PositionComponent(
       size: size,
       anchor: Anchor.center,
@@ -498,7 +84,14 @@ class HoardGuardian extends PositionComponent
     );
     add(_spriteContainer);
 
-    // Visuals
+    // Inner container: handles scaling / hit / cast / damage effects
+    _animContainer = PositionComponent(
+      size: size,
+      anchor: Anchor.center,
+      position: _spriteContainer.size / 2,
+    );
+    _spriteContainer.add(_animContainer);
+
     if (unit.sheetDef != null && unit.spriteVisuals != null) {
       final visual =
           CreatureSpriteComponent<SurvivalHoardGame>(
@@ -509,10 +102,10 @@ class HoardGuardian extends PositionComponent
               variantFaction: unit.spriteVisuals!.variantFaction,
             )
             ..anchor = Anchor.center
-            ..position = _spriteContainer.size / 2;
-      _spriteContainer.add(visual);
+            ..position = _animContainer.size / 2;
+      _animContainer.add(visual);
     } else {
-      _spriteContainer.add(
+      _animContainer.add(
         CircleComponent(
           radius: 40,
           paint: Paint()
@@ -520,10 +113,11 @@ class HoardGuardian extends PositionComponent
               unit.types.firstOrNull ?? 'Normal',
             ).withOpacity(0.7),
           anchor: Anchor.center,
-          position: _spriteContainer.size / 2,
+          position: _animContainer.size / 2,
         ),
       );
     }
+
     _addNameLabel();
 
     // When selected, add a range indicator as a child
@@ -573,11 +167,9 @@ class HoardGuardian extends PositionComponent
     if (_basicAttackTimer > 0) _basicAttackTimer -= dt;
     if (_specialAbilityTimer > 0) _specialAbilityTimer -= dt;
 
-    final basicTarget = gameRef.getNearestEnemy(position, unit.attackRange);
-    final specialTarget = gameRef.getNearestEnemy(
-      position,
-      unit.specialAbilityRange,
-    );
+    // Use target priority for both basic & special
+    final specialTarget = _pickTarget(unit.specialAbilityRange);
+    final basicTarget = _pickTarget(unit.attackRange);
 
     if (specialTarget != null && _specialAbilityTimer <= 0) {
       _faceTarget(specialTarget.position);
@@ -590,8 +182,56 @@ class HoardGuardian extends PositionComponent
     }
   }
 
+  /// Picks target based on this guardian's [targetPriority].
+  HoardEnemy? _pickTarget(double range) {
+    switch (targetPriority) {
+      case TargetPriority.closest:
+        return gameRef.getNearestEnemy(position, range);
+
+      case TargetPriority.furthest:
+        return _getFurthestEnemyInRange(range);
+
+      case TargetPriority.boss:
+        return _getBossInRange(range) ??
+            gameRef.getNearestEnemy(position, range);
+    }
+  }
+
+  HoardEnemy? _getFurthestEnemyInRange(double range) {
+    final enemies = gameRef.enemies;
+    HoardEnemy? furthest;
+    double maxDstSq = 0;
+    final rangeSq = range * range;
+
+    for (final e in enemies) {
+      if (e.isDead) continue;
+      final dstSq = position.distanceToSquared(e.position);
+      if (dstSq <= rangeSq && dstSq > maxDstSq) {
+        maxDstSq = dstSq;
+        furthest = e;
+      }
+    }
+    return furthest;
+  }
+
+  HoardEnemy? _getBossInRange(double range) {
+    final enemies = gameRef.enemies;
+    HoardEnemy? best;
+    double minDstSq = range * range;
+
+    for (final e in enemies) {
+      if (e.isDead || !e.isBoss) continue;
+      final dstSq = position.distanceToSquared(e.position);
+      if (dstSq < minDstSq) {
+        minDstSq = dstSq;
+        best = e;
+      }
+    }
+
+    return best;
+  }
+
   void _performBasicAttack(HoardEnemy target) {
-    // Basic = Physical Damage, uses Strength
     final damage = SurvivalCombat.computeHitDamage(
       SurvivalAttackContext(
         attacker: unit,
@@ -601,30 +241,29 @@ class HoardGuardian extends PositionComponent
       ),
     );
 
-    // FIX 1: Reset the angle explicitly to stop unwanted spinning.
-    _spriteContainer.angle = 0.0;
+    // No need to touch angle for spinning; we’re not rotating this container.
+    // _spriteContainer.angle = 0.0;  // <- you can safely drop this
 
-    // Subtle animation
-    _spriteContainer.add(
+    // Clear any existing squash effects to avoid compounding
+    _clearScaleEffects();
+
+    _animContainer.add(
       ScaleEffect.to(
         Vector2(1.1, 0.9),
         EffectController(duration: 0.1, reverseDuration: 0.1),
       ),
     );
 
-    // DELEGATE TO MANAGER
     SurvivalAttackManager.performBasic(
       game: gameRef,
       attacker: this,
       target: target,
     );
 
-    // FIX 2: Use the Elemental Alchemy Projectile logic
     final color = _getElementColor(unit.types.firstOrNull ?? 'Normal');
     final (shape, speed) = _getBasicAttackProperties(unit.family);
 
     gameRef.spawnAlchemyProjectile(
-      // Corrected call
       start: position,
       target: target,
       damage: damage,
@@ -635,11 +274,9 @@ class HoardGuardian extends PositionComponent
   }
 
   void _performSpecialAbility(HoardEnemy mainTarget) {
-    // FIX 1: Reset the angle explicitly to stop unwanted spinning.
-    _spriteContainer.angle = 0.0;
+    _clearScaleEffects();
 
-    // Big animation "Cast"
-    _spriteContainer.add(
+    _animContainer.add(
       SequenceEffect([
         ScaleEffect.by(Vector2.all(1.3), EffectController(duration: 0.2)),
         ScaleEffect.by(Vector2.all(1 / 1.3), EffectController(duration: 0.2)),
@@ -652,7 +289,6 @@ class HoardGuardian extends PositionComponent
       target: mainTarget,
     );
   }
-
   // --- NEW PROJECTILE HELPERS (Duplicated from earlier) ---
 
   (ProjectileShape shape, double speed) _getBasicAttackProperties(
@@ -703,23 +339,140 @@ class HoardGuardian extends PositionComponent
 
   // --- UTILS ---
 
-  void takeDamage(int amount) {
+  void takeDamage(int amount, {String? source, bool isBossAttack = false}) {
     if (isDead) return;
+
+    // DEBUG: Log incoming damage
+    print('═══════════════════════════════════════════════════');
+    print('🛡️ GUARDIAN TAKING DAMAGE: ${unit.name}');
+    print('───────────────────────────────────────────────────');
+    print('   Source: ${source ?? "unknown"}');
+    print('   Incoming Damage: $amount');
+    print('   HP Before: ${unit.currentHp}/${unit.maxHp}');
+    print('   Shield: ${unit.shieldHp ?? 0}');
+
     unit.takeDamage(amount);
+
+    print('   HP After: ${unit.currentHp}/${unit.maxHp}');
+    if (unit.isDead) {
+      print('   💀 GUARDIAN KILLED!');
+    }
+    print('═══════════════════════════════════════════════════');
+
     _flashDamage();
+
+    // Boss attack visual feedback
+    if (isBossAttack) {
+      _playBossHitEffect(amount);
+    }
+
     if (unit.isDead) {
       isDead = true;
       _playDeathAnimation();
     }
   }
 
+  void _playBossHitEffect(int damage) {
+    // 1. Screen shake
+    gameRef.camera.viewfinder.add(
+      MoveEffect.by(
+        Vector2(8, 0),
+        EffectController(duration: 0.03, reverseDuration: 0.03, repeatCount: 3),
+      ),
+    );
+
+    // 2. Guardian knockback/squash
+    _clearScaleEffects();
+
+    _animContainer.add(
+      SequenceEffect([
+        ScaleEffect.to(Vector2(1.3, 0.7), EffectController(duration: 0.08)),
+        ScaleEffect.to(Vector2.all(1.0), EffectController(duration: 0.15)),
+      ]),
+    );
+
+    // 3. Impact ring expansion
+    final impactRing = CircleComponent(
+      radius: 20,
+      position: size / 2,
+      anchor: Anchor.center,
+      paint: Paint()
+        ..color = Colors.redAccent.withOpacity(0.8)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4,
+    );
+    add(impactRing);
+
+    impactRing.add(
+      SequenceEffect([
+        ScaleEffect.to(
+          Vector2.all(3.0),
+          EffectController(duration: 0.25, curve: Curves.easeOut),
+        ),
+        RemoveEffect(),
+      ]),
+    );
+
+    // 4. Red flash overlay
+    final flashOverlay = CircleComponent(
+      radius: size.x / 2,
+      position: size / 2,
+      anchor: Anchor.center,
+      paint: Paint()..color = Colors.red.withOpacity(0.6),
+    );
+    add(flashOverlay);
+
+    flashOverlay.add(
+      SequenceEffect([
+        ScaleEffect.to(Vector2.all(0.8), EffectController(duration: 0.15)),
+        RemoveEffect(),
+      ]),
+    );
+
+    // 5. Damage number popup
+    final damageText = TextComponent(
+      text: '-$damage',
+      position: Vector2(size.x / 2, -10),
+      anchor: Anchor.center,
+      textRenderer: TextPaint(
+        style: TextStyle(
+          color: Colors.red.shade300,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          shadows: const [Shadow(blurRadius: 4, color: Colors.black)],
+        ),
+      ),
+    );
+    add(damageText);
+
+    damageText.add(
+      SequenceEffect([
+        MoveEffect.by(
+          Vector2(0, -30),
+          EffectController(duration: 0.6, curve: Curves.easeOut),
+        ),
+        RemoveEffect(),
+      ]),
+    );
+  }
+
   void _flashDamage() {
-    _spriteContainer.add(
+    _clearScaleEffects();
+
+    _animContainer.add(
       SequenceEffect([
         ScaleEffect.to(Vector2(1.1, 0.9), EffectController(duration: 0.06)),
         ScaleEffect.to(Vector2.all(1.0), EffectController(duration: 0.08)),
       ]),
     );
+  }
+
+  void _clearScaleEffects() {
+    _animContainer.children
+        .whereType<Effect>()
+        .where((e) => e is ScaleEffect || e is SequenceEffect)
+        .toList()
+        .forEach((e) => e.removeFromParent());
   }
 
   void _playDeathAnimation() {
@@ -731,14 +484,20 @@ class HoardGuardian extends PositionComponent
     );
 
     add(MoveEffect.by(Vector2(0, 30), EffectController(duration: 0.4)));
+    gameRef.onGuardianDied(this);
   }
 
   void _faceTarget(Vector2 targetPos) {
-    final shouldFlip = targetPos.x < position.x;
-    if (shouldFlip != _isFlipped) {
-      _isFlipped = shouldFlip;
-      _spriteContainer.scale.x = _isFlipped ? -1 : 1;
-    }
+    final dx = targetPos.x - position.x;
+
+    // Don’t flip if target is almost directly above/below (prevents jitter)
+    if (dx.abs() < 8) return;
+
+    final shouldFlip = dx > 0;
+    if (shouldFlip == _isFlipped) return;
+
+    _isFlipped = shouldFlip;
+    _spriteContainer.scale.x = _isFlipped ? -1 : 1;
   }
 
   void _addNameLabel() {

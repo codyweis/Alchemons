@@ -104,7 +104,7 @@ class SurvivalUnit {
       case 'mane':
         // AoE Caster: Balance of Range (Int) and Power (Beauty).
         statBeauty += 0.4;
-        statIntelligence += 0.3;
+        statIntelligence += 0.6;
         statStrength -= 0.2;
         break;
 
@@ -125,7 +125,7 @@ class SurvivalUnit {
     statBeauty = statBeauty.clamp(0.2, 10.0);
   }
 
-  double _curve(double x) => pow(x / 3.0, 1.8).toDouble();
+  double _curve(double x) => pow(x / 2.5, 2.4).toDouble();
   void calculateCombatStats() {
     final speedScale = _curve(statSpeed);
     final intScale = _curve(statIntelligence);
@@ -139,14 +139,14 @@ class SurvivalUnit {
 
     maxHp = (level * 18 + sStr * 2.0).round();
 
-    physAtk = (sStr * 0.65 + level * 3.5).round();
-    elemAtk = (sBea * 0.65 + level * 3.5).round();
+    physAtk = ((sStr * 0.08 + 2) * (level / 5)).round();
+    elemAtk = ((sBea * 0.30) * (level / 5)).round();
 
     physDef = ((sStr + sInt) * 0.20 + level * 0.8).round();
     elemDef = ((sBea + sInt) * 0.20 + level * 0.8).round();
 
-    cooldownReduction = 1.0 + (statSpeed * 0.12);
-    critChance = (statIntelligence / 20.0).clamp(0.0, 0.40);
+    cooldownReduction = 0.5 + (statSpeed * 0.12);
+    critChance = (sStr / 25.0).clamp(0.0, 0.40);
 
     // --- New, clearer range calculation ---
     final baseRange = 150.0 + statIntelligence * 70.0;
@@ -277,6 +277,15 @@ class SurvivalAttackContext {
 class SurvivalCombat {
   static final Random _rng = Random();
 
+  static const Map<String, double> _statusDamageMultipliers = {
+    'Burn': 1.8, // +80% burn damage
+    'Poison': 2.2, // +120% poison damage
+    // Add more if you create new status types
+  };
+  static double _getStatusDamageMult(SurvivalStatusEffect eff) {
+    return _statusDamageMultipliers[eff.type] ?? 1.0;
+  }
+
   // Type Chart
   static const Map<String, List<String>> _typeChart = {
     'Fire': ['Plant', 'Ice'],
@@ -306,7 +315,7 @@ class SurvivalCombat {
     return 1.0;
   }
 
-  static int computeHitDamage(SurvivalAttackContext ctx) {
+  static int computeHitDamage(SurvivalAttackContext ctx, {bool debug = false}) {
     final atkUnit = ctx.attacker;
     final defUnit = ctx.defender;
 
@@ -322,11 +331,13 @@ class SurvivalCombat {
     // 2. Damage Formula (Standard % Mitigation)
     // Damage = Attack * (100 / (100 + Defense))
     double damage = rawAtk * (100.0 / (100.0 + rawDef));
+    final baseDamage = damage;
 
     // 3. Type Effectiveness
+    double typeMult = 1.0;
     if (atkUnit.types.isNotEmpty) {
-      final mult = _typeMultiplier(atkUnit.types.first, defUnit.types);
-      damage *= mult;
+      typeMult = _typeMultiplier(atkUnit.types.first, defUnit.types);
+      damage *= typeMult;
     }
 
     // 4. Special Ability Bonus
@@ -341,9 +352,45 @@ class SurvivalCombat {
     }
 
     // 6. Variance
-    damage *= (0.95 + _rng.nextDouble() * 0.1);
+    final varianceMult = 0.95 + _rng.nextDouble() * 0.1;
+    damage *= varianceMult;
 
-    return max(damage.round(), 1);
+    final finalDamage = max(damage.round(), 1);
+
+    // DEBUG OUTPUT
+    if (debug) {
+      print('═══════════════════════════════════════════════════');
+      print('⚔️  DAMAGE CALC: ${atkUnit.name} → ${defUnit.name}');
+      print('───────────────────────────────────────────────────');
+      print(
+        '   Attacker: Lv${atkUnit.level} ${atkUnit.family} | Types: ${atkUnit.types}',
+      );
+      print(
+        '   Defender: Lv${defUnit.level} ${defUnit.family} | Types: ${defUnit.types}',
+      );
+      print('   Defender HP: ${defUnit.currentHp}/${defUnit.maxHp}');
+      print('───────────────────────────────────────────────────');
+      print(
+        '   Damage Kind: ${ctx.damageKind.name} | isSpecial: ${ctx.isSpecial}',
+      );
+      print('   Raw Atk: $rawAtk | Raw Def: $rawDef');
+      print(
+        '   Base Damage (after mitigation): ${baseDamage.toStringAsFixed(1)}',
+      );
+      print('   Type Multiplier: ${typeMult}x');
+      print('   Special Bonus: ${ctx.isSpecial ? "1.5x" : "none"}');
+      print(
+        '   Crit: ${isCrit ? "YES 1.5x" : "no"} (${(atkUnit.critChance * 100).toStringAsFixed(1)}% chance)',
+      );
+      print('   Variance: ${varianceMult.toStringAsFixed(2)}x');
+      print('   ▶ FINAL DAMAGE: $finalDamage');
+      if (finalDamage >= defUnit.currentHp) {
+        print('   💀 THIS WILL KILL THE DEFENDER!');
+      }
+      print('═══════════════════════════════════════════════════');
+    }
+
+    return finalDamage;
   }
 
   static void tickRealtimeStatuses(SurvivalUnit unit, double dt) {
@@ -360,12 +407,16 @@ class SurvivalCombat {
     }
 
     for (final eff in toApply) {
-      if (eff.damagePerTick > 0) {
-        unit.takeDamage(eff.damagePerTick);
-      } else if (eff.damagePerTick < 0) {
-        unit.heal(-eff.damagePerTick);
+      final mult = _getStatusDamageMult(eff);
+      final scaled = (eff.damagePerTick * mult).round();
+
+      if (scaled > 0) {
+        unit.takeDamage(scaled);
+      } else if (scaled < 0) {
+        unit.heal(-scaled);
       }
     }
+
     unit.tickStatusAndModifiers();
   }
 }

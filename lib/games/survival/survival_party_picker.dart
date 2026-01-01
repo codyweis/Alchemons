@@ -31,14 +31,17 @@ class _SurvivalFormationSelectorScreenState
   String? _filterVariant;
   String? _filterNature;
 
-  /// 0–3: active (FormationPosition indices)
-  final Map<int, String> _activeSlots = {};
+  /// Selected creature instance IDs for the squad
+  final List<String> _selectedCreatures = [];
 
-  /// 0–3: bench slots (local indices), we’ll encode them differently when we return.
-  final Map<int, String> _benchSlots = {};
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONFIGURABLE LIMITS
+  // ═══════════════════════════════════════════════════════════════════════════
+  static const int minSquadSize = 4; // Minimum needed to start
+  static const int maxSquadSize = 10; // Maximum squad size
 
-  bool get _hasFullActive => _activeSlots.length == 4;
-  int get _totalSelected => _activeSlots.length + _benchSlots.length;
+  bool get _hasMinimumSquad => _selectedCreatures.length >= minSquadSize;
+  int get _totalSelected => _selectedCreatures.length;
 
   @override
   void dispose() {
@@ -113,7 +116,7 @@ class _SurvivalFormationSelectorScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Formation & Bench',
+                  'Assemble Your Squad',
                   style: TextStyle(
                     color: theme.text,
                     fontSize: 20,
@@ -121,7 +124,7 @@ class _SurvivalFormationSelectorScreenState
                   ),
                 ),
                 Text(
-                  'Select 4 active + up to 4 bench',
+                  'Select $minSquadSize-$maxSquadSize creatures for battle',
                   style: TextStyle(
                     color: theme.textMuted,
                     fontSize: 13,
@@ -131,11 +134,10 @@ class _SurvivalFormationSelectorScreenState
               ],
             ),
           ),
-          if (_activeSlots.isNotEmpty || _benchSlots.isNotEmpty)
+          if (_selectedCreatures.isNotEmpty)
             TextButton(
               onPressed: () => setState(() {
-                _activeSlots.clear();
-                _benchSlots.clear();
+                _selectedCreatures.clear();
               }),
               child: Text(
                 'Clear All',
@@ -157,7 +159,7 @@ class _SurvivalFormationSelectorScreenState
         color: theme.surfaceAlt.withOpacity(0.8),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _hasFullActive ? Colors.green : theme.border,
+          color: _hasMinimumSquad ? Colors.green : theme.border,
           width: 2,
         ),
       ),
@@ -167,109 +169,77 @@ class _SurvivalFormationSelectorScreenState
           final allInstances = snapshot.data ?? [];
 
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header
               Row(
                 children: [
                   Icon(
-                    Icons.grid_4x4,
-                    color: _hasFullActive ? Colors.green : theme.textMuted,
+                    Icons.groups_rounded,
+                    color: _hasMinimumSquad ? Colors.green : theme.textMuted,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '(${_activeSlots.length}/4)',
+                    'Your Squad (${_selectedCreatures.length}/$maxSquadSize)',
                     style: TextStyle(
                       color: theme.text,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  const Spacer(),
+                  if (!_hasMinimumSquad)
+                    Text(
+                      'Need ${minSquadSize - _selectedCreatures.length} more',
+                      style: TextStyle(
+                        color: Colors.orange,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
+
+              // Squad slots - 2 rows of 5
               Row(
-                children: [
-                  Expanded(
-                    child: _buildCompactSlot(
-                      theme,
-                      FormationPosition.frontLeft,
-                      'Front L',
-                      allInstances,
-                      repo,
+                children: List.generate(5, (index) {
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: index < 4 ? 8 : 0),
+                      child: _buildSquadSlot(theme, index, allInstances, repo),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildCompactSlot(
-                      theme,
-                      FormationPosition.frontRight,
-                      'Front R',
-                      allInstances,
-                      repo,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildCompactSlot(
-                      theme,
-                      FormationPosition.backLeft,
-                      'Back L',
-                      allInstances,
-                      repo,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildCompactSlot(
-                      theme,
-                      FormationPosition.backRight,
-                      'Back R',
-                      allInstances,
-                      repo,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    Icons.chair_alt_rounded,
-                    color: _benchSlots.isNotEmpty
-                        ? Colors.orangeAccent
-                        : theme.textMuted,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Bench (${_benchSlots.length}/4)',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+                  );
+                }),
               ),
               const SizedBox(height: 8),
               Row(
-                children: [
-                  Expanded(
-                    child: _buildBenchSlot(theme, 0, 'B1', allInstances, repo),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildBenchSlot(theme, 1, 'B2', allInstances, repo),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildBenchSlot(theme, 2, 'B3', allInstances, repo),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildBenchSlot(theme, 3, 'B4', allInstances, repo),
-                  ),
-                ],
+                children: List.generate(5, (index) {
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: index < 4 ? 8 : 0),
+                      child: _buildSquadSlot(
+                        theme,
+                        index + 5,
+                        allInstances,
+                        repo,
+                      ),
+                    ),
+                  );
+                }),
+              ),
+
+              // Hint text
+              const SizedBox(height: 12),
+              Text(
+                'You\'ll choose deployment positions in the next step',
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           );
@@ -278,14 +248,16 @@ class _SurvivalFormationSelectorScreenState
     );
   }
 
-  Widget _buildBenchSlot(
+  Widget _buildSquadSlot(
     FactionTheme theme,
-    int benchIndex,
-    String label,
+    int slotIndex,
     List<CreatureInstance> allInstances,
     CreatureCatalog repo,
   ) {
-    final instanceId = _benchSlots[benchIndex];
+    final instanceId = slotIndex < _selectedCreatures.length
+        ? _selectedCreatures[slotIndex]
+        : null;
+
     final instance = instanceId != null
         ? allInstances.firstWhere(
             (inst) => inst.instanceId == instanceId,
@@ -293,21 +265,32 @@ class _SurvivalFormationSelectorScreenState
           )
         : null;
 
+    // Empty slot
     if (instance == null) {
+      final isRequired = slotIndex < minSquadSize;
       return Container(
         height: 60,
         decoration: BoxDecoration(
           color: theme.surface,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: theme.border, width: 1.5),
+          border: Border.all(
+            color: isRequired ? Colors.orange.withOpacity(0.5) : theme.border,
+            width: 1.5,
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add, color: theme.textMuted, size: 18),
+            Icon(
+              isRequired ? Icons.add_circle_outline : Icons.add,
+              color: isRequired
+                  ? Colors.orange.withOpacity(0.7)
+                  : theme.textMuted,
+              size: 18,
+            ),
             const SizedBox(height: 2),
             Text(
-              label,
+              '${slotIndex + 1}',
               style: TextStyle(
                 color: theme.textMuted,
                 fontSize: 9,
@@ -319,102 +302,16 @@ class _SurvivalFormationSelectorScreenState
       );
     }
 
+    // Filled slot
     final species = repo.getCreatureById(instance.baseId);
 
     return GestureDetector(
-      onTap: () => setState(() => _benchSlots.remove(benchIndex)),
+      onTap: () => setState(() {
+        _selectedCreatures.remove(instanceId);
+      }),
       child: Container(
         height: 60,
         padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.orangeAccent, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.orangeAccent.withOpacity(0.2),
-              blurRadius: 8,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (species != null)
-              Expanded(
-                child: InstanceSprite(
-                  creature: species,
-                  instance: instance,
-                  size: 24,
-                ),
-              )
-            else
-              const Icon(Icons.help_outline, size: 24),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 8,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompactSlot(
-    FactionTheme theme,
-    FormationPosition position,
-    String label,
-    List<CreatureInstance> allInstances,
-    CreatureCatalog repo,
-  ) {
-    final instanceId = _activeSlots[position.index];
-
-    final instance = instanceId != null
-        ? allInstances.firstWhere(
-            (inst) => inst.instanceId == instanceId,
-            orElse: () => allInstances.first,
-          )
-        : null;
-
-    if (instance == null) {
-      return Container(
-        height: 70,
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: theme.border, width: 1.5),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add, color: theme.textMuted, size: 20),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final species = repo.getCreatureById(instance.baseId);
-
-    return GestureDetector(
-      onTap: () => setState(() => _activeSlots.remove(position.index)),
-      child: Container(
-        height: 70,
-        padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: theme.surface,
           borderRadius: BorderRadius.circular(8),
@@ -435,14 +332,13 @@ class _SurvivalFormationSelectorScreenState
                 child: InstanceSprite(
                   creature: species,
                   instance: instance,
-                  size: 32,
+                  size: 28,
                 ),
               )
             else
-              const Icon(Icons.help_outline, size: 32),
-            const SizedBox(height: 2),
+              const Icon(Icons.help_outline, size: 24),
             Text(
-              label,
+              '${slotIndex + 1}',
               style: TextStyle(
                 color: theme.textMuted,
                 fontSize: 8,
@@ -569,7 +465,6 @@ class _SurvivalFormationSelectorScreenState
     List<CreatureInstance> instances,
   ) {
     final repo = context.watch<CreatureCatalog>();
-    final selectedIds = {..._activeSlots.values, ..._benchSlots.values};
 
     return GridView.builder(
       padding: const EdgeInsets.all(16),
@@ -583,7 +478,7 @@ class _SurvivalFormationSelectorScreenState
       itemBuilder: (context, index) {
         final instance = instances[index];
         final species = repo.getCreatureById(instance.baseId);
-        final isSelected = selectedIds.contains(instance.instanceId);
+        final isSelected = _selectedCreatures.contains(instance.instanceId);
 
         return _buildInstanceCard(theme, species, instance, isSelected);
       },
@@ -596,11 +491,7 @@ class _SurvivalFormationSelectorScreenState
     CreatureInstance instance,
     bool isSelected,
   ) {
-    final isInActive = _activeSlots.containsValue(instance.instanceId);
-    final isInBench = _benchSlots.containsValue(instance.instanceId);
-    final canSelectActive = !isSelected && _activeSlots.length < 4;
-    final canSelectBench = !isSelected && _benchSlots.length < 4;
-    final canSelect = !isSelected && (canSelectActive || canSelectBench);
+    final canSelect = !isSelected && _selectedCreatures.length < maxSquadSize;
 
     return GestureDetector(
       onLongPress: () => CreatureDetailsDialog.show(
@@ -612,25 +503,14 @@ class _SurvivalFormationSelectorScreenState
       ),
       onTap: () {
         if (isSelected) {
-          // Remove from whichever slot it's in
+          // Remove from squad
           setState(() {
-            _activeSlots.removeWhere((_, id) => id == instance.instanceId);
-            _benchSlots.removeWhere((_, id) => id == instance.instanceId);
+            _selectedCreatures.remove(instance.instanceId);
           });
         } else if (canSelect) {
+          // Add to squad
           setState(() {
-            // Fill active first, then bench
-            if (_activeSlots.length < 4) {
-              final nextSlot = _getNextAvailableActiveSlot();
-              if (nextSlot != null) {
-                _activeSlots[nextSlot.index] = instance.instanceId;
-              }
-            } else if (_benchSlots.length < 4) {
-              final nextBenchIdx = _getNextAvailableBenchIndex();
-              if (nextBenchIdx != null) {
-                _benchSlots[nextBenchIdx] = instance.instanceId;
-              }
-            }
+            _selectedCreatures.add(instance.instanceId);
           });
         }
       },
@@ -701,7 +581,7 @@ class _SurvivalFormationSelectorScreenState
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    _getSlotLabelForInstance(instance.instanceId),
+                    '#${_selectedCreatures.indexOf(instance.instanceId) + 1}',
                     style: const TextStyle(
                       color: Colors.green,
                       fontSize: 8,
@@ -717,62 +597,6 @@ class _SurvivalFormationSelectorScreenState
     );
   }
 
-  String _getSlotLabelForInstance(String instanceId) {
-    final activePos = _findActiveSlotForInstance(instanceId);
-    if (activePos != null) return _getSlotLabel(activePos);
-
-    final benchIdx = _findBenchSlotForInstance(instanceId);
-    if (benchIdx != null) return 'B${benchIdx + 1}';
-
-    return '';
-  }
-
-  FormationPosition? _findActiveSlotForInstance(String instanceId) {
-    for (final entry in _activeSlots.entries) {
-      if (entry.value == instanceId) {
-        return FormationPosition.values[entry.key];
-      }
-    }
-    return null;
-  }
-
-  int? _findBenchSlotForInstance(String instanceId) {
-    for (final entry in _benchSlots.entries) {
-      if (entry.value == instanceId) return entry.key;
-    }
-    return null;
-  }
-
-  FormationPosition? _getNextAvailableActiveSlot() {
-    for (final position in FormationPosition.values) {
-      if (!_activeSlots.containsKey(position.index)) {
-        return position;
-      }
-    }
-    return null;
-  }
-
-  int? _getNextAvailableBenchIndex() {
-    for (int i = 0; i < 4; i++) {
-      if (!_benchSlots.containsKey(i)) return i;
-    }
-    return null;
-  }
-
-  String _getSlotLabel(FormationPosition? position) {
-    if (position == null) return '';
-    switch (position) {
-      case FormationPosition.frontLeft:
-        return 'FL';
-      case FormationPosition.frontRight:
-        return 'FR';
-      case FormationPosition.backLeft:
-        return 'BL';
-      case FormationPosition.backRight:
-        return 'BR';
-    }
-  }
-
   Widget _buildConfirmButton(FactionTheme theme) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -783,17 +607,15 @@ class _SurvivalFormationSelectorScreenState
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: _hasFullActive
+          onPressed: _hasMinimumSquad
               ? () {
+                  // Return simple list of instance IDs
+                  // The deployment phase will handle positioning
                   final result = <int, String>{};
 
-                  // 0–3: active (same as before)
-                  result.addAll(_activeSlots);
-
-                  // 100–103: bench slots (encoded)
-                  _benchSlots.forEach((benchIdx, id) {
-                    result[100 + benchIdx] = id;
-                  });
+                  for (int i = 0; i < _selectedCreatures.length; i++) {
+                    result[i] = _selectedCreatures[i];
+                  }
 
                   Navigator.of(context).pop(result);
                 }
@@ -808,11 +630,11 @@ class _SurvivalFormationSelectorScreenState
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          icon: const Icon(Icons.check_rounded, size: 24),
+          icon: const Icon(Icons.arrow_forward_rounded, size: 24),
           label: Text(
-            _hasFullActive
-                ? 'Confirm Formation'
-                : 'Select ${4 - _activeSlots.length} More',
+            _hasMinimumSquad
+                ? 'Continue to Deployment (${_selectedCreatures.length} selected)'
+                : 'Select ${minSquadSize - _selectedCreatures.length} More',
           ),
         ),
       ),

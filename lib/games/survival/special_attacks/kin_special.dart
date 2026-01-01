@@ -5,7 +5,7 @@ import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
-import 'package:alchemons/games/survival/survival_enemies.dart';
+import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
@@ -25,9 +25,6 @@ class KinBlessingMechanic {
     String element,
   ) {
     final rawRank = game.getSpecialAbilityRank(attacker.unit.id, element);
-
-    // Safety: if they somehow try to cast with no upgrade, do nothing.
-    if (rawRank <= 0) return;
 
     // Clamp to 1–3 for the new 3-upgrade system (old saves with 4/5 behave as 3).
     final rank = rawRank.clamp(1, 3);
@@ -196,6 +193,7 @@ class KinBlessingMechanic {
         .clamp(3, 100);
     final auraDuration = 5.0 + rank;
     final auraRadius = 60.0 + 10.0 * rank;
+    final isDivine = rank >= 3;
 
     for (final g in allies) {
       // Burning aura around each ally
@@ -214,6 +212,21 @@ class KinBlessingMechanic {
             final victims = game.getEnemiesInRange(g.position, auraRadius);
             for (final v in victims) {
               v.takeDamage(auraDps);
+            }
+
+            // Rank 3: occasional mini explosion around this ally
+            if (isDivine &&
+                victims.isNotEmpty &&
+                Random().nextDouble() < 0.15) {
+              final explosionDmg = (auraDps * 2).toInt();
+              final boomVictims = game.getEnemiesInRange(
+                g.position,
+                auraRadius,
+              );
+              for (final v in boomVictims) {
+                v.takeDamage(explosionDmg);
+              }
+              ImpactVisuals.playExplosion(game, g.position, 'Fire', auraRadius);
             }
           },
         ),
@@ -262,9 +275,10 @@ class KinBlessingMechanic {
   ) {
     final hotAmount = (baseHeal * (0.3 + 0.06 * rank)).toInt();
     final hotDuration = 4.0 + 0.5 * rank;
+    final isDivine = rank >= 3;
 
+    // Heal over time on allies
     for (final g in allies) {
-      // Heal over time
       final hot = TimerComponent(
         period: 0.5,
         repeat: true,
@@ -276,8 +290,62 @@ class KinBlessingMechanic {
       g.add(hot);
     }
 
-    // Extra orb heal
+    // Extra orb heal (same as before)
     game.orb.heal((baseHeal * 0.4).toInt());
+
+    if (!isDivine) return;
+
+    // Rank 3: BLOOD WELL around orb - drains enemies, heals allies
+    final wellRadius = radius * 0.6;
+    final wellDuration = 5.0;
+    final drainPerTick = (attacker.unit.statIntelligence * 0.8).toInt().clamp(
+      4,
+      80,
+    );
+    final healFactor = 0.4;
+
+    final bloodWell = CircleComponent(
+      radius: wellRadius,
+      position: game.orb.position.clone(),
+      anchor: Anchor.center,
+      paint: Paint()..color = Colors.red.withOpacity(0.25),
+    );
+
+    bloodWell.add(
+      TimerComponent(
+        period: 0.5,
+        repeat: true,
+        onTick: () {
+          int totalDrained = 0;
+
+          final victims = game.getEnemiesInRange(game.orb.position, wellRadius);
+          for (final v in victims) {
+            v.takeDamage(drainPerTick);
+            totalDrained += drainPerTick;
+            ImpactVisuals.play(game, v.position, 'Blood', scale: 0.5);
+          }
+
+          if (totalDrained <= 0) return;
+
+          final nearbyAllies = game.getGuardiansInRange(
+            center: game.orb.position,
+            range: wellRadius,
+          );
+          final perAlly =
+              (totalDrained * healFactor / max(1, nearbyAllies.length)).toInt();
+
+          for (final g in nearbyAllies) {
+            g.unit.heal(perAlly);
+          }
+
+          // Small orb heal too
+          game.orb.heal((totalDrained * 0.2).toInt());
+        },
+      ),
+    );
+
+    bloodWell.add(RemoveEffect(delay: wellDuration));
+    game.world.add(bloodWell);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -590,6 +658,44 @@ class KinBlessingMechanic {
       );
       ImpactVisuals.play(game, v.position, 'Poison', scale: 0.6);
     }
+
+    // Rank 3: lingering toxic garden around the orb
+    if (rank < 3) return;
+
+    final gardenRadius = radius * 0.7;
+    final gardenDuration = 7.0;
+    final cloud = CircleComponent(
+      radius: gardenRadius,
+      position: game.orb.position.clone(),
+      anchor: Anchor.center,
+      paint: Paint()..color = Colors.green.withOpacity(0.28),
+    );
+
+    cloud.add(
+      TimerComponent(
+        period: 0.5,
+        repeat: true,
+        onTick: () {
+          final cloudVictims = game.getEnemiesInRange(
+            game.orb.position,
+            gardenRadius,
+          );
+          for (final v in cloudVictims) {
+            v.unit.applyStatusEffect(
+              SurvivalStatusEffect(
+                type: 'Poison',
+                damagePerTick: (poisonDmg * 0.6).toInt(),
+                ticksRemaining: 3,
+                tickInterval: 0.4,
+              ),
+            );
+          }
+        },
+      ),
+    );
+
+    cloud.add(RemoveEffect(delay: gardenDuration));
+    game.world.add(cloud);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -676,7 +782,7 @@ class KinBlessingMechanic {
         period: 0.8,
         repeat: true,
         onTick: () {
-          final target = game.getNearestEnemy(g.position, g.unit.attackRange);
+          final target = game.pickTargetForGuardian(g);
           if (target != null && target.position.distanceTo(g.position) < 300) {
             game.spawnAlchemyProjectile(
               start: g.position,

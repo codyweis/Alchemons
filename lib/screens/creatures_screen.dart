@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/screens/breeding_milestones_screen.dart';
+import 'package:alchemons/screens/progress_overview_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
@@ -597,7 +598,7 @@ class _SolidHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(
           children: [
-            // New button on the left
+            // All instances button on the left
             GestureDetector(
               onTap: onOpenAllInstances,
               child: Container(
@@ -640,6 +641,40 @@ class _SolidHeader extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // ✨ NEW: Constellation progress button on the right
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ConstellationProgressOverviewScreen(),
+                  ),
+                );
+              },
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.primary.withOpacity(0.2),
+                      theme.secondary.withOpacity(0.15),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: theme.primary.withOpacity(0.4),
+                    width: 1.5,
+                  ),
+                ),
+                child: Icon(
+                  Icons.show_chart_rounded, // Graph/chart icon
+                  size: 20,
+                  color: theme.primary,
+                ),
               ),
             ),
           ],

@@ -30,7 +30,9 @@ import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
+import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
 import 'package:alchemons/widgets/starter_granted_dialog.dart';
+import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart'; // 🆕 Import highlight widget
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -56,6 +58,8 @@ class EncounterOverlay extends StatefulWidget {
   final ValueChanged<Creature>? onPartyCreatureSelected;
   final VoidCallback? onPreRollShake;
   final Creature hydratedWildCreature;
+  final bool highlightPartyHUD; // 🆕 Tutorial highlighting
+  final bool isTutorial; // 🆕 Tutorial mode flag
 
   const EncounterOverlay({
     super.key,
@@ -65,6 +69,8 @@ class EncounterOverlay extends StatefulWidget {
     this.onPartyCreatureSelected,
     this.onPreRollShake,
     required this.hydratedWildCreature,
+    this.highlightPartyHUD = false, // 🆕 Default to false
+    this.isTutorial = false, // 🆕 Default to false
   });
 
   @override
@@ -192,7 +198,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           },
         ),
 
-        // Top-right: Party HUD
+        // Top-right: Party HUD with optional tutorial highlighting 🆕
         AnimatedBuilder(
           animation: _slideController,
           builder: (_, __) {
@@ -202,10 +208,16 @@ class _EncounterOverlayState extends State<EncounterOverlay>
               right: 16 - (300 * (1 - slide)),
               child: Opacity(
                 opacity: slide,
-                child: _PartyHUD(
-                  party: widget.party,
-                  chosenInstanceId: _chosenInstanceId,
-                  onSelect: _onSelectPartyCreature,
+                child: TutorialHighlight(
+                  enabled:
+                      widget.highlightPartyHUD &&
+                      _chosenInstanceId == null, // 🆕
+                  label: 'Select an Alchemon to breed', // 🆕
+                  child: _PartyHUD(
+                    party: widget.party,
+                    chosenInstanceId: _chosenInstanceId,
+                    onSelect: _onSelectPartyCreature,
+                  ),
                 ),
               ),
             );
@@ -229,6 +241,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     isPartySelected: _chosenInstanceId != null,
                     status: _status,
                     canAct: !_busy,
+                    isTutorial: widget.isTutorial, // 🆕 Pass tutorial flag
                     onBreed: !_busy
                         ? () => _handleBreed(context, wildCreature)
                         : null,
@@ -421,8 +434,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           );
         }
 
-        _hide(true);
-
+        // 🆕 Show cinematic FIRST, then hide overlay
         await showAlchemyFusionCinematic<void>(
           context: ctx,
           leftSprite: partySprite(),
@@ -437,6 +449,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
         if (!mounted) return;
         setState(() => _status = 'Successfully fused.');
+
+        // 🆕 Hide AFTER cinematic completes
+        _hide(true);
       } else {
         setState(() => _status = 'Failed… try again.');
       }
@@ -445,7 +460,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     }
   }
 
-  Future<void> _handleCapture(BuildContext ctx, dynamic wildCreature) async {
+  Future<void> _handleCapture(BuildContext ctx, Creature wildCreature) async {
     setState(() => _busy = true);
 
     try {
@@ -460,10 +475,59 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         return;
       }
 
-      final catchService = ctx.read<CatchService>();
-      final success = await catchService.attemptCatch(
-        device: selectedDevice,
-        target: wildCreature,
+      // 🎬 Show harvest cinematic with sprite
+      final repo = ctx.read<CreatureCatalog>();
+
+      Widget wildSprite() {
+        final hydrated = repo.getCreatureById(widget.encounter.wildBaseId);
+        if (hydrated?.spriteData != null) {
+          final sheet = sheetFromCreature(hydrated!);
+          final visuals = visualsFromInstance(hydrated, null);
+          return SizedBox(
+            width: 120,
+            height: 120,
+            child: CreatureSprite(
+              spritePath: sheet.path,
+              totalFrames: sheet.totalFrames,
+              rows: sheet.rows,
+              frameSize: sheet.frameSize,
+              stepTime: sheet.stepTime,
+              scale: visuals.scale,
+              saturation: visuals.saturation,
+              brightness: visuals.brightness,
+              hueShift: visuals.hueShiftDeg,
+              isPrismatic: visuals.isPrismatic,
+              tint: visuals.tint,
+            ),
+          );
+        }
+
+        return Icon(Icons.pets, color: Colors.white.withOpacity(.8), size: 64);
+      }
+
+      Color colorOf(Creature? c, Color fallback) =>
+          c != null && c.types.isNotEmpty
+          ? BreedConstants.getTypeColor(c.types.first)
+          : fallback;
+
+      final targetColor = colorOf(wildCreature, Colors.green);
+
+      // Trigger screen shake before cinematic
+      widget.onPreRollShake?.call();
+
+      final success = await showHarvestCinematic(
+        context: ctx,
+        targetSprite: wildSprite(),
+        targetColor: targetColor,
+        deviceLabel: selectedDevice.label,
+        minDuration: const Duration(milliseconds: 1600),
+        task: () async {
+          final catchService = ctx.read<CatchService>();
+          return await catchService.attemptCatch(
+            device: selectedDevice,
+            target: wildCreature,
+          );
+        },
       );
 
       if (!mounted) return;
@@ -472,14 +536,14 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         HapticFeedback.heavyImpact();
         setState(() => _status = 'Captured!');
 
-        await _placeWildEgg(ctx, wildCreature as Creature);
+        await _placeWildEgg(ctx, wildCreature);
 
-        await Future.delayed(const Duration(seconds: 2));
+        await Future.delayed(const Duration(milliseconds: 500));
         if (!mounted) return;
         _hide(true);
       } else {
         HapticFeedback.lightImpact();
-        setState(() => _status = 'Capture failed!');
+        setState(() => _status = 'Harvest failed!');
       }
     } catch (e) {
       if (mounted) {
@@ -935,6 +999,7 @@ class _ActionPanel extends StatelessWidget {
   final VoidCallback onRun;
   final double? breedChance; // 👈 NEW
   final bool isPartySelected;
+  final bool isTutorial; // 🆕 Tutorial mode flag
 
   const _ActionPanel({
     required this.status,
@@ -944,6 +1009,7 @@ class _ActionPanel extends StatelessWidget {
     required this.onRun,
     required this.isPartySelected,
     this.breedChance,
+    this.isTutorial = false, // 🆕 Default to false
   });
 
   @override
@@ -983,13 +1049,15 @@ class _ActionPanel extends StatelessWidget {
               onPressed: canAct ? onBreed : null,
             ),
             const SizedBox(width: 10),
-            _ActionButton(
-              label: 'HARVEST PROTOCOL',
-              icon: Icons.science,
-              color: const Color.fromARGB(255, 46, 3, 3),
-              onPressed: canAct ? onCapture : null,
-            ),
-            const SizedBox(width: 10),
+            // 🆕 Hide harvest button in tutorial
+            if (!isTutorial)
+              _ActionButton(
+                label: 'HARVEST PROTOCOL',
+                icon: Icons.science,
+                color: const Color.fromARGB(255, 46, 3, 3),
+                onPressed: canAct ? onCapture : null,
+              ),
+            if (!isTutorial) const SizedBox(width: 10),
             _ActionButton(
               label: 'MAP',
               icon: Icons.exit_to_app,

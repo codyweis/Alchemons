@@ -12,6 +12,15 @@ class _GeoCache {
   Color? color;
 }
 
+/// Small helper to evaluate an Interval-like curve without allocating
+/// CurvedAnimation objects every frame.
+double _intervalValue(double t, double begin, double end, Curve curve) {
+  if (t <= begin) return 0.0;
+  if (t >= end) return 1.0;
+  final localT = (t - begin) / (end - begin);
+  return curve.transform(localT.clamp(0.0, 1.0));
+}
+
 /// ==============================================
 /// Fullscreen cinematic with timeline phases (v2, optimized):
 /// 0.00–0.40  : Charge-in (fusion glyphs fade-in, slow swirl)
@@ -109,16 +118,17 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     );
 
     // === Timeline keyed ranges (t = 0..1) matching the trimline ===
-    _coreScale = Tween<double>(begin: 0.0, end: 1.4).animate(
-      CurvedAnimation(
-        parent: _timeline,
-        curve: const Interval(0.40, 0.70, curve: Curves.easeOutExpo),
-      ),
-    );
     _coreOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _timeline,
-        curve: const Interval(0.35, 0.70, curve: Curves.easeInOutCubic),
+        curve: const Interval(0.20, 0.70, curve: Curves.easeInOutCubic),
+      ),
+    );
+
+    _coreScale = Tween<double>(begin: 0.0, end: 1.4).animate(
+      CurvedAnimation(
+        parent: _timeline,
+        curve: const Interval(0.25, 0.70, curve: Curves.easeOutExpo),
       ),
     );
 
@@ -266,18 +276,17 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
           builder: (context, _) {
             final t = _timeline.value;
 
-            // Whiteout kept at 0.92–1.00
-            final whiteout = CurvedAnimation(
-              parent: _timeline,
-              curve: const Interval(0.92, 1.0, curve: Curves.easeInOutCubic),
-            ).value;
+            // Whiteout kept at 0.92–1.00 (no per-frame CurvedAnimation allocs)
+            final whiteout = _intervalValue(
+              t,
+              0.92,
+              1.0,
+              Curves.easeInOutCubic,
+            );
 
             // Backdrop vignette intensity (0–0.40), backs off during whiteout
             final vignetteIntensity =
-                CurvedAnimation(
-                  parent: _timeline,
-                  curve: const Interval(0.00, 0.40, curve: Curves.easeOutCubic),
-                ).value *
+                _intervalValue(t, 0.00, 0.40, Curves.easeOutCubic) *
                 (1.0 - whiteout);
 
             // Ease-in factor for the charge-in window 0..0.30
@@ -300,34 +309,31 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
 
             // Geometry visibility: quick fade-in, hold, then fade out after burst
             double geoOpacity;
-
             if (t < 0.35) {
               // 0.15 → 0.35 smooth fade-in
-              final fadeIn = CurvedAnimation(
-                parent: _timeline,
-                curve: const Interval(0.15, 0.35, curve: Curves.easeOutCubic),
-              ).value;
-              geoOpacity = fadeIn;
+              geoOpacity = _intervalValue(t, 0.15, 0.35, Curves.easeOutCubic);
             } else if (t < 0.70) {
               // Hold at full intensity during main build phase
               geoOpacity = 1.0;
             } else {
               // Fade out 0.70 → 0.82
-              final fadeOut = CurvedAnimation(
-                parent: _timeline,
-                curve: const Interval(0.70, 0.82, curve: Curves.easeOutCubic),
-              ).value;
+              final fadeOut = _intervalValue(
+                t,
+                0.70,
+                0.82,
+                Curves.easeOutCubic,
+              );
               geoOpacity = 1.0 - fadeOut;
             }
 
             // Base particle count (with burst bump)
             int baseParticleCount = (t >= 0.70 && t < 0.80) ? 120 : 80;
 
-            // Ramp-in particle count at the start (0.00–0.30)
+            // Ramp-in particle count at the start (0.00–0.30), start from 0
             if (t < 0.30) {
               baseParticleCount = ui
                   .lerpDouble(
-                    10,
+                    0,
                     baseParticleCount.toDouble(),
                     chargeInProgress,
                   )!
@@ -364,18 +370,23 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                   ColoredBox(color: bg.withOpacity(0.98)),
 
                   // Particle system (no global Opacity to avoid saveLayer)
-                  RepaintBoundary(
-                    child: IgnorePointer(
-                      child: AlchemyBrewingParticleSystem(
-                        parentATypeId: widget.parentATypeId,
-                        parentBTypeId: widget.parentBTypeId,
-                        particleCount: baseParticleCount,
-                        speedMultiplier: speed,
-                        fusion: true,
-                        fromCinematic: true,
+                  // Start slightly after timeline begins so we don't
+                  // hammer the first route-transition frames.
+                  if (t > 0.02)
+                    RepaintBoundary(
+                      child: IgnorePointer(
+                        child: AlchemyBrewingParticleSystem(
+                          parentATypeId: widget.parentATypeId,
+                          parentBTypeId: widget.parentBTypeId,
+                          particleCount: baseParticleCount,
+                          speedMultiplier: speed,
+                          fusion: true,
+                          fromCinematic: true,
+                        ),
                       ),
-                    ),
-                  ),
+                    )
+                  else
+                    const SizedBox.expand(),
 
                   // Geometry + Core + Shockwaves + Vignette + Whiteout (all in one painter)
                   RepaintBoundary(
@@ -551,7 +562,17 @@ class _CoreAndGeometryPainter extends CustomPainter {
     }
 
     // ====== Sacred Geometry (cached pictures with proper opacity) ======
-    if (geoOpacity > 0) {
+    if (geoOpacity > 0 && (_flowerPic != null || _cubePic != null)) {
+      // Rough bounds for both shapes – a bit larger than what _buildPictures uses.
+      final geoRadius = size.shortestSide * 0.28;
+      final geoBounds = Rect.fromCircle(center: center, radius: geoRadius);
+
+      // Single offscreen layer just around the geometry
+      final opacityPaint = Paint()
+        ..color = Color.fromRGBO(255, 255, 255, geoOpacity);
+
+      canvas.saveLayer(geoBounds, opacityPaint);
+
       final rot1 =
           2 * pi * Curves.easeOutCubic.transform((t - 0.40).clamp(0.0, .5) * 2);
       final rot2 =
@@ -559,39 +580,25 @@ class _CoreAndGeometryPainter extends CustomPainter {
           pi *
           Curves.easeOutCubic.transform((t - 0.48).clamp(0.0, .5) * 2);
 
-      // Flower (outer) - Apply opacity via saveLayer
       if (_flowerPic != null) {
         canvas.save();
         canvas.translate(center.dx, center.dy);
         canvas.rotate(rot1);
         canvas.translate(-center.dx, -center.dy);
-
-        // Apply geometry opacity properly
-        final opacityPaint = Paint()
-          ..color = Color.fromRGBO(255, 255, 255, geoOpacity);
-        canvas.saveLayer(null, opacityPaint);
         canvas.drawPicture(_flowerPic!);
-        canvas.restore(); // restore saveLayer
-
-        canvas.restore(); // restore transform
+        canvas.restore();
       }
 
-      // Cube - Apply opacity via saveLayer
       if (_cubePic != null) {
         canvas.save();
         canvas.translate(center.dx, center.dy);
         canvas.rotate(rot2);
         canvas.translate(-center.dx, -center.dy);
-
-        // Apply geometry opacity properly
-        final opacityPaint = Paint()
-          ..color = Color.fromRGBO(255, 255, 255, geoOpacity);
-        canvas.saveLayer(null, opacityPaint);
         canvas.drawPicture(_cubePic!);
-        canvas.restore(); // restore saveLayer
-
-        canvas.restore(); // restore transform
+        canvas.restore();
       }
+
+      canvas.restore(); // end geometry layer
     }
 
     // ====== Core Orb (grows and then bursts) ======

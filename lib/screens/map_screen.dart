@@ -4,6 +4,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
+import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/pulsing_hitbox_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,8 +27,10 @@ import '../providers/app_providers.dart'; // for FactionTheme
 
 class MapScreen extends StatefulWidget {
   final bool isTutorial;
+  final void Function(NavSection section, {int? breedInitialTab})?
+  onNavigateSection;
 
-  const MapScreen({super.key, this.isTutorial = false});
+  const MapScreen({super.key, this.isTutorial = false, this.onNavigateSection});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -654,6 +657,7 @@ class _MapScreenState extends State<MapScreen>
         sceneId: biomeId,
         party: selectedParty,
         isTutorial: widget.isTutorial,
+        onNavigateSection: widget.onNavigateSection,
       ),
     );
   }

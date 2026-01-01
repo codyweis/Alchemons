@@ -5,7 +5,7 @@ import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
-import 'package:alchemons/games/survival/survival_enemies.dart';
+import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';

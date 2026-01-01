@@ -156,7 +156,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 90
       }
     },
     {
@@ -174,7 +174,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 110
       }
     },
     {
@@ -192,7 +192,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -203,14 +203,14 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its crest curves like a swift gale, and it moves with sudden bursts of speed.",
+      "description": "Its crest curves like a swift gale, and it moves with sudden bursts of speed, unusual for its large body. An unusual symbol swirls on its chest.",
       "image": "creatures/rare/HOR04_airhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 80
       }
     },
     {
@@ -228,7 +228,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 95
       }
     },
     {
@@ -246,7 +246,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 110
       }
     },
     {
@@ -264,7 +264,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -282,7 +282,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 105
       }
     },
     {
@@ -419,7 +419,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its radiant horn glows softly, guiding allies through the dark.",
+      "description": "Its radiant spikes glow softly, guiding allies through the dark.",
       "image": "creatures/rare/HOR16_lighthorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -1166,7 +1166,7 @@
       "types": [
         "Lava"
       ],
-      "image": "creatures/rare/ .png",
+      "image": "creatures/rare/MSK06_lavamask.png",
       "variant": []
     },
     {
@@ -1365,6 +1365,24 @@
         "Blood"
       ],
       "image": "creatures/rare/MSK17_bloodmask.png",
+      "variant": []
+    },
+     {
+      "id": "MSK18",
+      "name": "Bloodmask",
+      "mutationFamily": "Mask",
+      "rarity": "Legendary",
+      "description": "An alternate version of a Bloodmask, its rigid mask pulsing. Rumors of its existence circulate among collectors, few lucky enough to have seen it.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Blood"
+      ],
+      "image": "creatures/legendary/MSK18_bloodmask.png",
       "variant": []
     },
     {
@@ -1626,9 +1644,9 @@
         "Dark"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Its eyes glow faintly crimson, and shadows coil tightly around its scales.",
-      "image": "creatures/uncommon/PIP15_darkpip.png",
+      "image": "creatures/rare/PIP15_darkpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
         "frameWidth": 512,
@@ -1644,9 +1662,9 @@
         "Light"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Radiant patterns gleam across its body, shining brightest when it plays.",
-      "image": "creatures/uncommon/PIP16_lightpip.png",
+      "image": "creatures/rare/PIP16_lightpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
         "frameWidth": 512,
@@ -1662,9 +1680,9 @@
         "Blood"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Its scales glisten with a crimson sheen, and a primal rhythm beats in its chest.",
-      "image": "creatures/uncommon/PIP17_bloodpip.png",
+      "image": "creatures/rare/PIP17_bloodpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
         "frameWidth": 512,

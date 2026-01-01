@@ -16,7 +16,7 @@ class SurvivalDebugTeamPickerScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.black,
-        title: const Text('Debug Teams'),
+        title: const Text('Prebuilt Teams'),
       ),
       backgroundColor: Colors.black,
       body: SafeArea(

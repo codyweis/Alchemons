@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:alchemons/games/survival/survival_combat.dart';
-import 'package:alchemons/games/survival/survival_enemies.dart';
+import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 
 /// Scaling tuned to guardian stat progression:
 /// Wave 10: 4x Lv10 @ 2.5 stats
@@ -105,23 +105,25 @@ class ImprovedScalingSystem {
     final expectedGuardianDps = _estimateGuardianDps(expectedStats);
     final totalPartyDps = expectedGuardianDps * 4;
 
-    final targetFightDuration = 16.0 + (wave / 25);
+    // Shorter fight, lower toughness
+    final targetFightDuration = 12.0 + (wave / 30); // was 16 + wave/25
     var targetHp = (totalPartyDps * targetFightDuration).round();
 
-    // 🔧 NEW: toughness factor (try 2.0–3.0)
-    const toughnessFactor = 3;
+    const toughnessFactor = 2.0; // was 4.5
     targetHp = (targetHp * toughnessFactor).round();
 
-    unit.maxHp = targetHp.clamp(2000, 80000);
+    unit.maxHp = targetHp.clamp(1500, 50000); // lower floor and ceiling
     unit.currentHp = unit.maxHp;
 
+    // More threatening damage
     final expectedGuardianHp = 180 + expectedStats * 40;
-    final targetBossDps = expectedGuardianHp / 12;
+    final targetBossDps =
+        expectedGuardianHp / 6; // was /12 — kill guardian in 6s not 12
 
-    final bossAttackInterval = 2.0;
+    final bossAttackInterval = 2; // was 2.0 — attacks faster
     final damagePerHit = (targetBossDps * bossAttackInterval).round();
-    unit.physAtk = damagePerHit.clamp(15, 180);
-    unit.elemAtk = (damagePerHit * 0.7).round().clamp(10, 130);
+    unit.physAtk = damagePerHit.clamp(25, 300); // higher floor and ceiling
+    unit.elemAtk = (damagePerHit * 0.8).round().clamp(20, 220);
 
     return unit;
   }
@@ -205,9 +207,10 @@ class ImprovedScalingSystem {
     required int tier,
     required int wave,
   }) {
-    double waveProgress = (wave / 100.0).clamp(0.0, 1.0);
-    double hpScale = 1.0 + (waveProgress * 0.6);
-    double dmgScale = 1.0 + (waveProgress * 0.3);
+    // AGGRESSIVE SCALING - enemies scale faster to match player power
+    double waveProgress = (wave / 40.0).clamp(0.0, 1.5); // waves matter more
+    double hpScale = 1.0 + (waveProgress * 2.5); // much tankier
+    double dmgScale = 1.0 + (waveProgress * 1.8); // much deadlier
 
     final tierBonus = (tier - 1) * 0.04;
     hpScale *= (1.0 + tierBonus);
@@ -233,10 +236,12 @@ class ImprovedScalingSystem {
     required int abilityRank,
   }) {
     final levelMultiplier = 1.0 + (baseLevel * 0.05);
-    final strMultiplier = 1.0 + (strUpgrades * 0.08);
-    final intMultiplier = 1.0 + (intUpgrades * 0.08);
-    final beautyMultiplier = 1.0 + (beautyUpgrades * 0.08);
-    final hpMultiplier = 1.0 + (hpUpgrades * 0.12);
+    final strMultiplier =
+        1.0 + (strUpgrades * 0.18); // Was 0.08, now 18% per upgrade
+    final intMultiplier = 1.0 + (intUpgrades * 0.18);
+    final beautyMultiplier = 1.0 + (beautyUpgrades * 0.18);
+    final hpMultiplier =
+        1.0 + (hpUpgrades * 0.22); // Was 0.12, now 22% per upgrade
     final abilityMultiplier = 1.0 + (abilityRank * 0.15);
 
     return GuardianScaling(
@@ -251,6 +256,10 @@ class ImprovedScalingSystem {
   }
 
   static void applyGuardianScaling(SurvivalUnit unit, GuardianScaling scaling) {
+    final double hpPercent = unit.maxHp > 0
+        ? unit.currentHp.clamp(0, unit.maxHp) / unit.maxHp
+        : 1.0;
+
     unit.maxHp = (unit.maxHp * scaling.levelMultiplier * _baseGuardianHpScale)
         .round();
     unit.physAtk =
@@ -266,6 +275,7 @@ class ImprovedScalingSystem {
     unit.elemAtk = (unit.elemAtk * scaling.elemDamageMultiplier).round();
 
     unit.calculateCombatStats();
+    unit.currentHp = (unit.maxHp * hpPercent).round().clamp(0, unit.maxHp);
   }
 
   static Map<String, int> getSuggestedStatAllocation(

@@ -415,7 +415,12 @@ class _HomeScreenState extends State<HomeScreen>
     // We don't care about the bool now, Scene/Map writes to DB
     await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const MapScreen(isTutorial: true)),
+      MaterialPageRoute(
+        builder: (_) => MapScreen(
+          isTutorial: true,
+          onNavigateSection: widget.onNavigateSection,
+        ),
+      ),
     );
 
     if (!mounted) return;

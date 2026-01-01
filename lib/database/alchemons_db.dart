@@ -239,6 +239,39 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     for (final k in ElementResources.settingsKeys) {
       await _setSetting(k, '0');
     }
+
+    // Seed initial inventory items
+    await _seedInitialInventory();
+  }
+
+  Future<void> _seedInitialInventory() async {
+    // Give 1 constellation point in the proper table
+    await into(constellationPoints).insert(
+      ConstellationPointsCompanion(
+        currentBalance: const Value(1),
+        totalEarned: const Value(1),
+        totalSpent: const Value(0),
+        hasSeenFinale: const Value(false),
+        lastUpdatedUtc: Value(DateTime.now().toUtc()),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+
+    // Give one of each harvester
+    final inventoryItemsToSeed = [
+      ('item.harvest_std_volcanic', 1),
+      ('item.harvest_std_oceanic', 1),
+      ('item.harvest_std_verdant', 1),
+      ('item.harvest_std_earthen', 1),
+      ('item.instant_hatch', 1), // Instant Fusion Extractor
+      ('item.stamina_potion', 1), // Stamina Elixir
+    ];
+
+    for (final (key, qty) in inventoryItemsToSeed) {
+      await into(
+        inventoryItems,
+      ).insert(InventoryItemsCompanion(key: Value(key), qty: Value(qty)));
+    }
   }
 
   Future<void> _seedBiomes() async {

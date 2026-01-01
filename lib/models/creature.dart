@@ -143,6 +143,9 @@ class Creature {
   final OffspringLineageData? lineageData;
   final bool isPure;
 
+  final String? alchemyEffect;
+  final String? variantFaction;
+
   Creature({
     required this.id,
     required this.name,
@@ -163,6 +166,8 @@ class Creature {
     this.stats, // NEW
     this.lineageData,
     this.isPure = false,
+    this.alchemyEffect,
+    this.variantFaction,
   });
 
   /// JSON -> Creature (null-safe)
@@ -337,6 +342,8 @@ extension CreatureCopy on Creature {
     CreatureStats? stats, // NEW
     OffspringLineageData? lineageData, // NEW
     bool? isPure,
+    String? alchemyEffect,
+    String? variantFaction,
   }) {
     return Creature(
       id: id ?? this.id,
@@ -358,6 +365,8 @@ extension CreatureCopy on Creature {
       stats: stats ?? this.stats, // NEW
       lineageData: lineageData ?? this.lineageData, // NEW
       isPure: isPure ?? this.isPure,
+      alchemyEffect: alchemyEffect ?? this.alchemyEffect,
+      variantFaction: variantFaction ?? this.variantFaction,
     );
   }
 }

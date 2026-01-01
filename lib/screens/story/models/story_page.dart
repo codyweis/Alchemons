@@ -190,7 +190,6 @@ class AlchemonsStory {
       type: StoryPageType.loading,
       mainText: 'INITIALIZING LABORATORY SYSTEMS [ v3.7 ]',
       backgroundColor: Colors.black,
-      backgroundImagePath: 'assets/images/ui/trialsicon.png',
     ),
     const StoryPage(
       type: StoryPageType.narrative,
@@ -278,7 +277,6 @@ class AlchemonsStory {
       type: StoryPageType.loading,
       mainText: 'INITIALIZING LABORATORY SYSTEMS',
       backgroundColor: Colors.black,
-      backgroundImagePath: 'assets/images/ui/trialsicon.png',
     ),
   ];
 }

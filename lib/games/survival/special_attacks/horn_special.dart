@@ -5,7 +5,7 @@ import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
-import 'package:alchemons/games/survival/survival_enemies.dart';
+import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
@@ -25,17 +25,22 @@ class HornNovaMechanic {
     HoardEnemy? target,
     String element,
   ) {
-    // rank is now 0–3
+    // rank is now 0â€“3
     final rank = game.getSpecialAbilityRank(attacker.unit.id, element);
     final color = SurvivalAttackManager.getElementColor(element);
 
     // Slightly lower damage (since Horn = tank / CC),
     // but still scales.
     final baseRadius = 200.0 + rank * 20;
-    final baseDmg = (calcDmg(attacker, null) * (1.6 + 0.25 * rank)).toInt();
+    final rawDmg = calcDmg(attacker, null);
+    final beautyMult = getAbilityPowerMultiplier(attacker);
+    final rankMult = (1.6 + 0.25 * rank);
+    final baseDmg = (rawDmg * beautyMult * rankMult).toInt();
 
-    // Much stronger base knockback
-    final baseKnockback = 200.0 + rank * 30;
+    // STRENGTH SCALING - makes STR increase knockback power
+    final strMult =
+        1.0 + attacker.unit.statStrength * 0.20; // +20% knockback per STR
+    final baseKnockback = (200.0 + rank * 30) * strMult;
 
     final isCataclysmic = rank >= 3;
     final radius = isCataclysmic ? baseRadius * 1.2 : baseRadius;
@@ -85,9 +90,9 @@ class HornNovaMechanic {
       // Damage falloff (kept soft)
       final dmgFalloff = 1.0 - t * 0.3;
 
-      // ✅ New: clamp knockback falloff so even edge enemies move visibly.
+      // âœ… New: clamp knockback falloff so even edge enemies move visibly.
       //  - Close enemies: huge shove
-      //  - Edge enemies: still at least 30–40% of the base
+      //  - Edge enemies: still at least 30â€“40% of the base
       final rawFalloff = (1.0 - t) * (1.0 - t);
       final knockFalloff = max(rawFalloff, 0.35);
 
@@ -112,10 +117,11 @@ class HornNovaMechanic {
       ImpactVisuals.play(game, v.position, element, scale: 0.6);
     }
 
-    // Tanky shield (still good, maybe even a hair stronger)
-    final shieldAmount = (attacker.unit.maxHp * (0.18 + 0.05 * rank))
-        .toInt()
-        .clamp(40, 600);
+    // Tanky shield with STRENGTH SCALING
+    final baseShield = attacker.unit.maxHp * (0.18 + 0.05 * rank);
+    final shieldMult =
+        1.0 + attacker.unit.statStrength * 0.18; // +18% shield per STR
+    final shieldAmount = (baseShield * shieldMult).toInt().clamp(40, 800);
     attacker.unit.shieldHp = (attacker.unit.shieldHp ?? 0) + shieldAmount;
 
     // Elemental riders from rank 1+
@@ -133,22 +139,22 @@ class HornNovaMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   //  ELEMENT ROUTER
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
 
   static void _applyElementalNova({
     required SurvivalHoardGame game,
     required HoardGuardian attacker,
     required String element,
-    required int rank, // 1–3 when called
+    required int rank, // 1â€“3 when called
     required Vector2 center,
     required double radius,
     required List<HoardEnemy> enemiesHit,
     required int baseDamage,
   }) {
     switch (element) {
-      // 🔥 FIRE / LAVA / BLOOD
+      // ðŸ”¥ FIRE / LAVA / BLOOD
       case 'Fire':
         _fireNova(game, attacker, rank, center, radius, enemiesHit);
         break;
@@ -159,7 +165,7 @@ class HornNovaMechanic {
         _bloodNova(game, attacker, rank, center, enemiesHit, baseDamage);
         break;
 
-      // 💧 WATER / ICE / STEAM
+      // ðŸ’§ WATER / ICE / STEAM
       case 'Water':
         _waterNova(game, attacker, rank, center, radius);
         break;
@@ -170,7 +176,7 @@ class HornNovaMechanic {
         _steamNova(game, attacker, rank, center, radius, enemiesHit);
         break;
 
-      // 🌿 PLANT / POISON
+      // ðŸŒ¿ PLANT / POISON
       case 'Plant':
         _plantNova(game, attacker, rank, center, radius, enemiesHit);
         break;
@@ -178,7 +184,7 @@ class HornNovaMechanic {
         _poisonNova(game, attacker, rank, center, enemiesHit);
         break;
 
-      // 🌍 EARTH / MUD / CRYSTAL
+      // ðŸŒ EARTH / MUD / CRYSTAL
       case 'Earth':
         _earthNova(game, attacker, rank, center, radius);
         break;
@@ -189,7 +195,7 @@ class HornNovaMechanic {
         _crystalNova(game, attacker, rank, center, enemiesHit);
         break;
 
-      // 🌬️ AIR / DUST / LIGHTNING
+      // ðŸŒ¬ï¸ AIR / DUST / LIGHTNING
       case 'Air':
         _airNova(game, attacker, rank, center, radius, enemiesHit);
         break;
@@ -200,7 +206,7 @@ class HornNovaMechanic {
         _lightningNova(game, attacker, rank, center, enemiesHit);
         break;
 
-      // 🌗 SPIRIT / DARK / LIGHT
+      // ðŸŒ— SPIRIT / DARK / LIGHT
       case 'Spirit':
         _spiritNova(game, attacker, rank, center, enemiesHit, baseDamage);
         break;
@@ -216,9 +222,9 @@ class HornNovaMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   //  FIRE / LAVA / BLOOD
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
 
   /// Fire Nova - Ignites all enemies hit
   static void _fireNova(
@@ -335,9 +341,9 @@ class HornNovaMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   //  WATER / ICE / STEAM
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
 
   /// Water Nova - Tidal burst that heals allies
   static void _waterNova(
@@ -441,9 +447,9 @@ class HornNovaMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   //  PLANT / POISON
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
 
   /// Plant Nova - Thorn burst with root effect
   static void _plantNova(
@@ -525,9 +531,9 @@ class HornNovaMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   //  EARTH / MUD / CRYSTAL
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
 
   /// Earth Nova - Grants shields and creates taunt zone
   /// Rank 1: Shields self and nearby allies
@@ -762,9 +768,9 @@ class HornNovaMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   //  AIR / DUST / LIGHTNING
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
 
   /// Air Nova - Massive knockback with second pulse
   static void _airNova(
@@ -883,9 +889,9 @@ class HornNovaMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
   //  SPIRIT / DARK / LIGHT
-  // ═══════════════════════════════════════════════════════════════════════════
+  //
 
   /// Spirit Nova - Draining burst with lifesteal
   static void _spiritNova(

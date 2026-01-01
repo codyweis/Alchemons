@@ -9,7 +9,7 @@ import 'package:alchemons/games/survival/components/survival_hud.dart';
 import 'package:alchemons/games/survival/scaling_system.dart';
 import 'package:alchemons/games/survival/special_attacks/ability_config.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
-import 'package:alchemons/games/survival/survival_enemies.dart';
+import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_engine.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_spawner_v2.dart';
@@ -19,6 +19,18 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
+
+class WavePhase {
+  final int startWave;
+  final double waveDuration; // seconds per wave
+  final int waveCount; // number of waves in this phase (or -1 for infinite)
+
+  const WavePhase({
+    required this.startWave,
+    required this.waveDuration,
+    required this.waveCount,
+  });
+}
 
 class GuardianSlot {
   final int index;
@@ -101,9 +113,11 @@ class SurvivalHoardGame extends FlameGame
   int get totalChoicesMade => _totalChoicesMade;
 
   List<HoardEnemy> get enemies => _enemies;
+  int get enemyCount => enemies.length;
 
-  // Calculate cost dynamically: Base 100 + (15 per Level)
-  int get _killsRequiredForNextLevel => 100 + (_totalChoicesMade * 15);
+  // Calculate cost dynamically: Base 80 + (50 per Level)
+  // transmutation progression
+  int get _killsRequiredForNextLevel => 40 + (_totalChoicesMade * 20);
 
   int get killsSinceLastChoice => _killsSinceLastChoice;
   int get killsRequiredForNextLevel => _killsRequiredForNextLevel;
@@ -145,15 +159,47 @@ class SurvivalHoardGame extends FlameGame
   final ValueNotifier<AlchemyChoiceState?> alchemyChoiceNotifier =
       ValueNotifier<AlchemyChoiceState?>(null);
 
-  double _startZoom = .4;
-
   SurvivalHoardGame({required this.party, required this.onGameOver});
 
   List<HoardGuardian> get guardians => _guardians;
 
   // Public getters for Spawner
   bool get bossAlive => _enemies.any((e) => e.isBoss && !e.isDead);
-  int get currentWave => (timeElapsed / 20).floor() + 1;
+
+  final List<WavePhase> wavePhases = [
+    WavePhase(startWave: 1, waveDuration: 10.0, waveCount: 20), // waves 1–20
+    WavePhase(startWave: 21, waveDuration: 15.0, waveCount: 10), // waves 21–30
+    WavePhase(startWave: 31, waveDuration: 20.0, waveCount: -1), // waves 31+
+  ];
+
+  int get currentWave {
+    double time = timeElapsed.clamp(0, double.infinity);
+
+    for (final phase in wavePhases) {
+      final bool isInfinite = phase.waveCount == -1;
+      final double phaseDuration = isInfinite
+          ? double.infinity
+          : phase.waveDuration * phase.waveCount;
+
+      if (time < phaseDuration) {
+        final int waveIndex = (time / phase.waveDuration).floor();
+        final int rawWave = phase.startWave + waveIndex;
+
+        // Clamp to the phase's max wave if finite
+        if (!isInfinite) {
+          final int maxWave = phase.startWave + phase.waveCount - 1;
+          return rawWave.clamp(phase.startWave, maxWave);
+        }
+
+        return rawWave; // infinite phase
+      }
+
+      time -= phaseDuration;
+    }
+
+    // Should never happen if wavePhases includes an infinite phase.
+    return wavePhases.last.startWave;
+  }
 
   int getSpecialAbilityRank(String unitId, String element) {
     final byElement = _specialAbilityUpgradeRanks[unitId];
@@ -183,12 +229,10 @@ class SurvivalHoardGame extends FlameGame
     world = World();
     cameraComponent = CameraComponent(world: world)
       ..viewfinder.anchor = Anchor.center
-      ..viewfinder.zoom = .5;
+      ..viewfinder.zoom = .4;
 
     add(world);
     add(cameraComponent);
-
-    world.add(AlchemyRuneBackground());
 
     orb = AlchemyOrb(maxHp: 500);
     world.add(orb);
@@ -377,6 +421,54 @@ class SurvivalHoardGame extends FlameGame
     return liveEnemies.take(count).toList();
   }
 
+  HoardEnemy? getFurthestEnemy(Vector2 position, double range) {
+    HoardEnemy? furthest;
+    double maxDstSq = 0;
+
+    for (final enemy in _enemies) {
+      if (enemy.isDead) continue;
+      final dstSq = position.distanceToSquared(enemy.position);
+      if (dstSq <= range * range && dstSq > maxDstSq) {
+        maxDstSq = dstSq;
+        furthest = enemy;
+      }
+    }
+    return furthest;
+  }
+
+  HoardEnemy? getBossEnemyInRange(Vector2 position, double range) {
+    HoardEnemy? best;
+    double minDstSq = range * range;
+
+    for (final enemy in _enemies) {
+      if (enemy.isDead || !enemy.isBoss) continue;
+      final dstSq = position.distanceToSquared(enemy.position);
+      if (dstSq < minDstSq) {
+        minDstSq = dstSq;
+        best = enemy;
+      }
+    }
+
+    return best;
+  }
+
+  HoardEnemy? pickTargetForGuardian(HoardGuardian guardian) {
+    final pos = guardian.position;
+    final range = guardian.unit.attackRange;
+
+    switch (guardian.targetPriority) {
+      case TargetPriority.closest:
+        return getNearestEnemy(pos, range);
+
+      case TargetPriority.furthest:
+        return getFurthestEnemy(pos, range);
+
+      case TargetPriority.boss:
+        // Prefer boss, but fall back to closest if none in range.
+        return getBossEnemyInRange(pos, range) ?? getNearestEnemy(pos, range);
+    }
+  }
+
   HoardEnemy? getNearestEnemy(Vector2 position, double range) {
     HoardEnemy? nearest;
     double minDstSq = range * range;
@@ -398,15 +490,19 @@ class SurvivalHoardGame extends FlameGame
     if (isGameOver) return;
 
     if (isInAlchemyPause) {
-      // Let Flame process add/remove and events, but don't advance time
       super.update(0);
       return;
     }
 
-    // Normal running state
     super.update(dt);
 
     timeElapsed += dt;
+
+    // 🔮 keep the transmutation ring in sync with kill progress
+    orb.setTransmutationProgress(
+      currentKills: _killsSinceLastChoice,
+      requiredKills: _killsRequiredForNextLevel,
+    );
 
     statsNotifier.value = SurvivalGameStats(
       kills: kills,
@@ -437,10 +533,21 @@ class SurvivalHoardGame extends FlameGame
     _handleKillProgression(killValue);
   }
 
+  void removeEnemyWithoutReward(HoardEnemy enemy) {
+    _enemies.remove(enemy);
+    enemy.removeFromParent();
+  }
+
   void _handleKillProgression(int killValue) {
     if (isGameOver || isInAlchemyPause) return;
 
     _killsSinceLastChoice += killValue;
+
+    // 🔮 update orb fill immediately when kills change
+    orb.setTransmutationProgress(
+      currentKills: _killsSinceLastChoice,
+      requiredKills: _killsRequiredForNextLevel,
+    );
 
     if (_killsSinceLastChoice >= _killsRequiredForNextLevel) {
       _killsSinceLastChoice = 0;
@@ -631,10 +738,11 @@ class SurvivalHoardGame extends FlameGame
     unit.statSpeed += scaleGain(unit.statSpeed);
 
     unit.maxHp = (unit.maxHp * 1.075).round();
-    unit.currentHp = unit.maxHp;
 
     unit.calculateCombatStats();
     _applyScalingToGuardian(unit);
+
+    unit.currentHp = unit.maxHp;
 
     _incrementUpgradeRank(unit.id, AlchemyUpgradeKind.maxHp);
 
@@ -822,31 +930,20 @@ class SurvivalHoardGame extends FlameGame
   }
 
   void _setupFormation() {
-    // Only first 4 party members are on the field at start
+    // The first 4 party members are active - assigned to slots 0-3 (inner ring)
+    // These come in deployment order from the deployment phase
     final int activeCount = party.length.clamp(0, 4);
+
+    // Slot indices for the 4 starting positions
+    // These map to cardinal directions on the inner ring (8 slots total)
+    const List<int> startingSlotIndices = [0, 2, 4, 6]; // N, E, S, W positions
 
     for (int idx = 0; idx < activeCount; idx++) {
       final member = party[idx];
       final c = member.combatant;
 
-      // Map formation to slot index based on _initGuardianSlots (0=Top, 4=Bottom)
-      late int slotIndex;
-      switch (member.position) {
-        // Mapping the 4 initial spots to the 8 generated slots
-        case FormationPosition.frontLeft:
-          slotIndex = 6; //top left
-          break;
-        case FormationPosition.frontRight:
-          slotIndex = 2; // top right
-          break;
-        case FormationPosition.backLeft:
-          slotIndex = 0; // bottom left
-          break;
-        case FormationPosition.backRight:
-          slotIndex = 4; // bottom right
-          break;
-      }
-
+      // Use sequential slot indices for deployed creatures
+      final slotIndex = startingSlotIndices[idx];
       final slot = _slots[slotIndex];
 
       final unit = SurvivalUnit(
@@ -863,7 +960,7 @@ class SurvivalHoardGame extends FlameGame
         spriteVisuals: c.spriteVisuals,
       );
 
-      // Apply scaling for starters too (takes into account any future upgrade counts)
+      // Apply scaling for starters
       _applyScalingToGuardian(unit);
 
       final guardian = HoardGuardian(
@@ -950,47 +1047,6 @@ class SurvivalHoardGame extends FlameGame
   @override
   void onScaleEnd(ScaleEndInfo info) {
     _lastFocalPoint = null;
-  }
-}
-
-class AlchemyRuneBackground extends PositionComponent {
-  static const double _runeSize = 300.0;
-  static const double _center = _runeSize / 2;
-
-  AlchemyRuneBackground()
-    : super(
-        size: Vector2.all(_runeSize),
-        position: Vector2.zero(),
-        anchor: Anchor.center,
-      );
-
-  @override
-  void render(Canvas canvas) {
-    final paint = Paint()
-      ..color = const Color.fromARGB(255, 64, 21, 72).withOpacity(0.7)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-
-    final centerOffset = Offset(_center, _center);
-
-    canvas.drawCircle(centerOffset, 140, paint);
-    canvas.drawCircle(centerOffset, 120, paint);
-
-    final path = Path();
-    path.moveTo(_center, _center - 120);
-    path.lineTo(_center + 104, _center + 60);
-    path.lineTo(_center - 104, _center + 60);
-    path.close();
-    canvas.drawPath(path, paint);
-
-    canvas.drawCircle(
-      centerOffset,
-      30,
-      paint
-        ..style = PaintingStyle.fill
-        ..color = Colors.purple.withOpacity(0.05),
-    );
   }
 }
 

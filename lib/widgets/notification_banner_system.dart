@@ -345,7 +345,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
                 child: Icon(
                   Icons.close_rounded,
                   color: Colors.white.withOpacity(0.7),
-                  size: 16,
+                  size: 25,
                 ),
               ),
             ),

@@ -175,6 +175,8 @@ class _PartySlot extends StatelessWidget {
               // Note: natureId in instance is just a string ID, not the full NatureDef
               // The base creature already has the correct nature definition
               isPrismaticSkin: inst.isPrismaticSkin,
+              alchemyEffect: inst.alchemyEffect,
+              variantFaction: inst.variantFaction,
             ) ??
             Creature(
               // Fallback if base not found (shouldn't happen)

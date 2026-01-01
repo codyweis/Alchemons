@@ -21,6 +21,7 @@ class BreedingMilestoneScreen extends StatelessWidget {
 
     final species = catalog.getCreatureById(speciesId);
     final speciesName = species?.name ?? speciesId;
+    final rarity = species?.rarity ?? 'common';
 
     return Scaffold(
       backgroundColor: theme.surface,
@@ -43,13 +44,40 @@ class BreedingMilestoneScreen extends StatelessWidget {
                 letterSpacing: 0.5,
               ),
             ),
-            Text(
-              speciesName,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+            Row(
+              children: [
+                Text(
+                  speciesName,
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getRarityColor(rarity).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: _getRarityColor(rarity).withOpacity(0.5),
+                    ),
+                  ),
+                  child: Text(
+                    rarity.toUpperCase(),
+                    style: TextStyle(
+                      color: _getRarityColor(rarity),
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -70,9 +98,9 @@ class BreedingMilestoneScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildOverviewCard(theme, progress),
+                _buildOverviewCard(theme, progress, rarity),
                 const SizedBox(height: 16),
-                _buildMilestonesList(theme, progress),
+                _buildMilestonesList(theme, progress, rarity),
               ],
             ),
           );
@@ -81,9 +109,14 @@ class BreedingMilestoneScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOverviewCard(FactionTheme theme, BreedingProgress progress) {
+  Widget _buildOverviewCard(
+    FactionTheme theme,
+    BreedingProgress progress,
+    String rarity,
+  ) {
     final nextMilestone = progress.nextMilestone;
     final isComplete = nextMilestone == null;
+    final pointsForRarity = nextMilestone?.getPointsForRarity(rarity) ?? 0;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -143,41 +176,61 @@ class BreedingMilestoneScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Next: ${nextMilestone.count}',
-                      style: TextStyle(
-                        color: theme.text,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Next: ${nextMilestone!.displayName}',
+                          style: TextStyle(
+                            color: theme.text,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '${nextMilestone.count} specimens',
+                          style: TextStyle(
+                            color: theme.textMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                        horizontal: 10,
+                        vertical: 6,
                       ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            Colors.amber.shade600,
-                            Colors.amber.shade700,
+                            _getRarityColor(rarity),
+                            _getRarityColor(rarity).withOpacity(0.8),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _getRarityColor(rarity).withOpacity(0.4),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Row(
                         children: [
                           Icon(
                             Icons.auto_awesome,
                             color: Colors.white,
-                            size: 12,
+                            size: 14,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '+${nextMilestone.pointsAwarded}',
+                            '+$pointsForRarity',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 11,
+                              fontSize: 13,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -240,7 +293,43 @@ class BreedingMilestoneScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMilestonesList(FactionTheme theme, BreedingProgress progress) {
+  Widget _buildRarityBonusInfo(FactionTheme theme, String rarity) {
+    final multiplier = _getRarityMultiplierText(rarity);
+    final rarityColor = _getRarityColor(rarity);
+
+    // Don't show for common rarity
+    if (rarity.toLowerCase() == 'common') {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            rarityColor.withOpacity(0.15),
+            rarityColor.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: rarityColor.withOpacity(0.4), width: 1.5),
+      ),
+      child: Text(
+        multiplier,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMilestonesList(
+    FactionTheme theme,
+    BreedingProgress progress,
+    String rarity,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -262,6 +351,7 @@ class BreedingMilestoneScreen extends StatelessWidget {
           return _buildMilestoneCard(
             theme,
             milestone,
+            rarity,
             isComplete: isComplete,
             isCurrent: isCurrent,
           );
@@ -272,10 +362,16 @@ class BreedingMilestoneScreen extends StatelessWidget {
 
   Widget _buildMilestoneCard(
     FactionTheme theme,
-    BreedingMilestone milestone, {
+    BreedingMilestone milestone,
+    String rarity, {
     required bool isComplete,
     required bool isCurrent,
   }) {
+    final pointsForRarity = milestone.getPointsForRarity(rarity);
+    final rarityColor = _getRarityColor(rarity);
+    final basePoints = milestone.pointsAwarded;
+    final hasBonus = pointsForRarity > basePoints;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -343,57 +439,116 @@ class BreedingMilestoneScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Breed ${milestone.count} specimens',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      'Breed ${milestone.count} specimens',
+                      style: TextStyle(
+                        color: theme.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (hasBonus && !isComplete) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.workspace_premium,
+                        color: rarityColor,
+                        size: 11,
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
 
           // Points badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              gradient: isComplete
-                  ? LinearGradient(
-                      colors: [Colors.amber.shade600, Colors.amber.shade700],
-                    )
-                  : null,
-              color: isComplete ? null : theme.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isComplete
-                    ? Colors.amber.shade800
-                    : theme.border.withOpacity(.5),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.auto_awesome,
-                  color: isComplete ? Colors.white : theme.textMuted,
-                  size: 14,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  '+${milestone.pointsAwarded}',
-                  style: TextStyle(
-                    color: isComplete ? Colors.white : theme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
+                decoration: BoxDecoration(
+                  gradient: isComplete
+                      ? LinearGradient(
+                          colors: [rarityColor, rarityColor.withOpacity(0.8)],
+                        )
+                      : null,
+                  color: isComplete ? null : theme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isComplete
+                        ? rarityColor.withOpacity(0.8)
+                        : theme.border.withOpacity(.5),
                   ),
+                  boxShadow: isComplete
+                      ? [
+                          BoxShadow(
+                            color: rarityColor.withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
-              ],
-            ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome,
+                      color: isComplete ? Colors.white : theme.textMuted,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '+$pointsForRarity',
+                      style: TextStyle(
+                        color: isComplete ? Colors.white : theme.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Color _getRarityColor(String rarity) {
+    switch (rarity.toLowerCase()) {
+      case 'common':
+        return Colors.grey.shade600;
+      case 'uncommon':
+        return Colors.green.shade600;
+      case 'rare':
+        return Colors.blue.shade600;
+      case 'legendary':
+        return Colors.amber.shade600;
+      default:
+        return Colors.grey.shade600;
+    }
+  }
+
+  String _getRarityMultiplierText(String rarity) {
+    switch (rarity.toLowerCase()) {
+      case 'common':
+        return '1x';
+      case 'uncommon':
+        return '2x';
+      case 'rare':
+        return '3x';
+      case 'legendary':
+        return '4x';
+      default:
+        return '1x';
+    }
   }
 }

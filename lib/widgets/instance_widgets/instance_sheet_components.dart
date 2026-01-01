@@ -204,6 +204,9 @@ class _InfoBlock extends StatelessWidget {
     final hasNick =
         (instance.nickname != null && instance.nickname!.trim().isNotEmpty);
     final nick = hasNick ? instance.nickname!.trim() : creatureName;
+    final variant = instance.variantFaction != null
+        ? '${instance.variantFaction}'
+        : '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,6 +238,27 @@ class _InfoBlock extends StatelessWidget {
             ),
           ],
         ),
+        if (variant.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.star, size: 12),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  variant.trim(),
+                  style: TextStyle(
+                    color: theme.text,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 6),
         StaminaBadge(instanceId: instance.instanceId, showCountdown: true),
         const SizedBox(height: 4),

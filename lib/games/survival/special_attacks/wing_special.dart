@@ -5,7 +5,7 @@ import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
-import 'package:alchemons/games/survival/survival_enemies.dart';
+import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
@@ -17,7 +17,7 @@ import 'package:flutter/material.dart';
 /// Rank 0: Base beam (no elemental rider)
 /// Rank 1: Unlocks elemental rider for this element
 /// Rank 2: Stronger numbers / secondary effects
-/// Rank 3 (MAX): Devastating wide beam + ultimate elemental effect
+/// Rank 3 (MAX): Element-specific ultimate pierce patterns
 class WingPierceMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -25,26 +25,37 @@ class WingPierceMechanic {
     HoardEnemy target,
     String element,
   ) {
-    // Clamp to new 3-rank system
     final int rawRank = game.getSpecialAbilityRank(attacker.unit.id, element);
-    final int rank = rawRank.clamp(0, 3) as int;
+    final int rank = rawRank.clamp(0, 3);
 
-    // Base beam parameters scale with rank (0–3)
+    bool hasUltimate = false;
+    if (rank >= 3) {
+      hasUltimate = _executeRank3Ultimate(
+        game: game,
+        attacker: attacker,
+        target: target,
+        element: element,
+      );
+    }
+
     final baseWidth = 50.0 + rank * 6;
     final baseRange = 1000.0 + rank * 200;
-    final baseDmg = (calcDmg(attacker, target) * (1.6 + 0.25 * rank)).toInt();
+    final int baseDmg = (calcDmg(attacker, target) * (1.6 + 0.25 * rank))
+        .toInt();
 
-    // Rank 3: Devastating beam
-    final isDevastating = rank >= 3;
+    // OPTION A: devastating only for non-special elements
+    final isDevastating = rank >= 3 && !hasUltimate;
+
+    // OPTION B: devastating for *all* rank 3
+    // final isDevastating = rank >= 3;
+
     final width = isDevastating ? baseWidth * 3.0 : baseWidth;
     final range = isDevastating ? baseRange * 2.0 : baseRange;
-    final damage = isDevastating ? (baseDmg * 3.4).toInt() : baseDmg;
+    final int damage = isDevastating ? (baseDmg * 2.0).toInt() : baseDmg;
 
-    // Calculate beam path
     final direction = (target.position - attacker.position).normalized();
     final endPos = attacker.position + direction * range;
 
-    // Visual beam effect
     ImpactVisuals.playBeamTrail(
       game,
       attacker.position,
@@ -53,7 +64,6 @@ class WingPierceMechanic {
       width,
     );
 
-    // Get all enemies in path FIRST
     final pathVictims = _getEnemiesInPath(
       game,
       attacker.position,
@@ -61,13 +71,11 @@ class WingPierceMechanic {
       width * 0.7,
     );
 
-    // Deal base damage to all enemies in path
     for (final victim in pathVictims) {
       victim.takeDamage(damage);
       ImpactVisuals.play(game, victim.position, element, scale: 0.7);
     }
 
-    // Elemental rider only really matters once we’ve unlocked the element
     if (rank >= 1) {
       _applyElementalPierce(
         game: game,
@@ -81,10 +89,8 @@ class WingPierceMechanic {
       );
     }
 
-    // Debug
-    // ignore: avoid_print
     print(
-      'Wing Pierce: element=$element rank=$rank victims=${pathVictims.length} damage=$damage',
+      'Wing Pierce: element=$element rank=$rank victims=${pathVictims.length} damage=$damage ultimate=$hasUltimate',
     );
   }
 
@@ -102,7 +108,6 @@ class WingPierceMechanic {
     for (final enemy in game.enemies) {
       if (enemy.isDead) continue;
 
-      // Project enemy position onto beam line
       final toEnemy = enemy.position - start;
       final alongBeam = toEnemy.dot(direction);
       final perpDist = (toEnemy.dot(perpendicular)).abs();
@@ -116,7 +121,749 @@ class WingPierceMechanic {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  ELEMENT ROUTER
+  //  RANK 3 ULTIMATE ROUTER
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  static bool _executeRank3Ultimate({
+    required SurvivalHoardGame game,
+    required HoardGuardian attacker,
+    required HoardEnemy target,
+    required String element,
+  }) {
+    switch (element) {
+      case 'Fire':
+        _fireSweepingBeam(game, attacker, target, element);
+        return true;
+      case 'Lightning':
+        _lightningChainWeb(game, attacker, target, element);
+        return true;
+      case 'Ice':
+        _iceLanceBurst(game, attacker, target, element);
+        return true;
+      case 'Crystal':
+        _crystalPrismRefraction(game, attacker, target, element);
+        return true;
+      case 'Plant':
+        _plantGrowingVineBeam(game, attacker, target, element);
+        return true;
+      case 'Dark':
+        _darkVoidSlash(game, attacker, target, element);
+        return true;
+      case 'Light':
+        _lightHealingBeam(game, attacker, target, element);
+        return true;
+      case 'Air':
+        _airTornadoDrill(game, attacker, target, element);
+        return true;
+      case 'Blood':
+        _bloodCrimsonLance(game, attacker, target, element);
+        return true;
+      case 'Earth':
+        _earthBoulderBeam(game, attacker, target, element);
+        return true;
+      case 'Steam':
+        _steamPressureBeam(game, attacker, target, element);
+        return true;
+      case 'Poison':
+        _poisonVenomTrail(game, attacker, target, element);
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  RANK 3 SPECIALS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 🔥 FIRE - Sweeping Flamebeam
+  static void _fireSweepingBeam(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int tickDmg = (calcDmg(attacker, target) * 0.22)
+        .toInt(); // 20 * 0.22 ≈ 4.4x
+    final baseDir = (target.position - attacker.position).normalized();
+    const double range = 800.0;
+
+    const int ticks = 20;
+    const int tickMs = 65; // ≈ 1.3s total
+
+    for (int i = 0; i < ticks; i++) {
+      Future.delayed(Duration(milliseconds: i * tickMs), () {
+        if (attacker.isDead) return;
+
+        final t = i / (ticks - 1); // 0..1
+        final angle = (t - 0.5) * (pi / 2); // -45°..+45°
+
+        final rotatedDir = Vector2(
+          baseDir.x * cos(angle) - baseDir.y * sin(angle),
+          baseDir.x * sin(angle) + baseDir.y * cos(angle),
+        );
+
+        final endPos = attacker.position + rotatedDir * range;
+
+        ImpactVisuals.playBeamTrail(
+          game,
+          attacker.position,
+          endPos,
+          element,
+          40.0,
+        );
+
+        final victims = _getEnemiesInPath(
+          game,
+          attacker.position,
+          endPos,
+          40.0,
+        );
+
+        for (final v in victims) {
+          v.takeDamage(tickDmg);
+          ImpactVisuals.play(game, v.position, 'Fire', scale: 0.6);
+        }
+      });
+    }
+  }
+
+  // ⚡ LIGHTNING - Chain Lightning Web
+  static void _lightningChainWeb(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.0).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 900.0;
+    final endPos = attacker.position + dir * range;
+
+    ImpactVisuals.playBeamTrail(game, attacker.position, endPos, element, 45.0);
+
+    final rng = Random();
+
+    // Primary beam hits
+    final primaryVictims = _getEnemiesInPath(
+      game,
+      attacker.position,
+      endPos,
+      45.0,
+    );
+
+    for (final v in primaryVictims) {
+      v.takeDamage(baseDmg);
+      ImpactVisuals.play(game, v.position, 'Lightning', scale: 0.7);
+    }
+
+    // Helper: spawn branching chains from a list of sources
+    void spawnChains(
+      List<HoardEnemy> sources,
+      int damage,
+      int chainsPerSource,
+      double radius,
+    ) {
+      for (final src in sources) {
+        if (src.isDead) continue;
+        final nearby = game
+            .getEnemiesInRange(src.position, radius)
+            .where((e) => e != src && !e.isDead)
+            .toList();
+        if (nearby.isEmpty) continue;
+
+        nearby.shuffle(rng);
+        final count = min(chainsPerSource, nearby.length);
+        for (int i = 0; i < count; i++) {
+          final targetEnemy = nearby[i];
+          game.spawnAlchemyProjectile(
+            start: src.position,
+            target: targetEnemy,
+            damage: damage,
+            color: SurvivalAttackManager.getElementColor(element),
+            shape: ProjectileShape.bolt,
+            speed: 6.0,
+            isEnemy: false,
+            onHit: () {
+              if (!targetEnemy.isDead) {
+                targetEnemy.takeDamage(damage);
+                ImpactVisuals.play(
+                  game,
+                  targetEnemy.position,
+                  'Lightning',
+                  scale: 0.6,
+                );
+              }
+            },
+          );
+        }
+      }
+    }
+
+    // Level 1 chains (≈50–60%)
+    spawnChains(primaryVictims, (baseDmg * 0.5).toInt(), 2, 260);
+
+    // Level 2 chains (weaker)
+    spawnChains(primaryVictims, (baseDmg * 0.35).toInt(), 2, 260);
+  }
+
+  // ❄️ ICE - Frozen Lance Burst (pierce + backward shards)
+  static void _iceLanceBurst(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int beamDmg = (calcDmg(attacker, target) * 1.0).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 900.0;
+    final endPos = attacker.position + dir * range;
+
+    ImpactVisuals.playBeamTrail(game, attacker.position, endPos, element, 40.0);
+
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 35.0);
+
+    for (final v in victims) {
+      v.takeDamage(beamDmg);
+      ImpactVisuals.play(game, v.position, 'Ice', scale: 0.7);
+    }
+
+    // At tip: 8 shards shooting back, homing
+    final int shardDmg = (beamDmg * 0.4).toInt();
+    final rng = Random();
+
+    for (int i = 0; i < 8; i++) {
+      Future.delayed(Duration(milliseconds: i * 70), () {
+        final enemies = game.getEnemiesInRange(endPos, 500);
+        if (enemies.isEmpty) return;
+
+        final targetEnemy = enemies[rng.nextInt(enemies.length)];
+        if (targetEnemy.isDead) return;
+
+        game.spawnAlchemyProjectile(
+          start: endPos,
+          target: targetEnemy,
+          damage: shardDmg,
+          color: SurvivalAttackManager.getElementColor(element),
+          shape: ProjectileShape.blade,
+          speed: 3.0,
+          isEnemy: false,
+          onHit: () {
+            if (!targetEnemy.isDead) {
+              targetEnemy.takeDamage(shardDmg);
+              // Push them slightly away from orb
+              final pushDir = (targetEnemy.position - game.orb.position)
+                  .normalized();
+              targetEnemy.position += pushDir * 30;
+              ImpactVisuals.play(game, targetEnemy.position, 'Ice', scale: 0.6);
+            }
+          },
+        );
+      });
+    }
+  }
+
+  // 💎 CRYSTAL - Prism Refraction
+  static void _crystalPrismRefraction(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.0).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 900.0;
+    final endPos = attacker.position + dir * range;
+
+    ImpactVisuals.playBeamTrail(game, attacker.position, endPos, element, 35.0);
+
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 35.0);
+    if (victims.isEmpty) return;
+
+    // First hit is closest along beam
+    victims.sort((a, b) {
+      final da = a.position.distanceTo(attacker.position);
+      final db = b.position.distanceTo(attacker.position);
+      return da.compareTo(db);
+    });
+
+    final primary = victims.first;
+    primary.takeDamage(baseDmg);
+    ImpactVisuals.play(game, primary.position, 'Crystal', scale: 0.9);
+
+    // Split into 6 rainbow shards
+    final shardDmg = (baseDmg * 0.6).toInt();
+    final basePos = primary.position;
+    final enemiesAround = game.getEnemiesInRange(basePos, 450);
+
+    for (int i = 0; i < 6; i++) {
+      final angle = (i / 6.0) * 2 * pi;
+      final dirOut = Vector2(cos(angle), sin(angle));
+
+      // pick enemy roughly in this direction
+      HoardEnemy? best;
+      double bestDot = 0.85;
+      for (final e in enemiesAround) {
+        if (e == primary || e.isDead) continue;
+        final toE = (e.position - basePos).normalized();
+        final dot = toE.dot(dirOut);
+        if (dot > bestDot) {
+          bestDot = dot;
+          best = e;
+        }
+      }
+
+      if (best == null) continue;
+
+      final color =
+          Colors.primaries[i % Colors.primaries.length]; // disco beams
+
+      game.spawnAlchemyProjectile(
+        start: basePos,
+        target: best,
+        damage: shardDmg,
+        color: color,
+        shape: ProjectileShape.shard,
+        speed: 4.0,
+        isEnemy: false,
+        onHit: () {
+          if (!best!.isDead) {
+            best.takeDamage(shardDmg);
+            ImpactVisuals.play(game, best.position, 'Crystal', scale: 0.7);
+          }
+        },
+      );
+    }
+  }
+
+  // 🌿 PLANT - Growing Vine Beam
+  static void _plantGrowingVineBeam(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.2).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 900.0;
+    final endPos = attacker.position + dir * range;
+
+    // Visual: thickening beam
+    for (int i = 0; i < 5; i++) {
+      final t = i / 4.0; // 0..1
+      final width = 30.0 + t * 90.0; // 30→120
+
+      Future.delayed(Duration(milliseconds: i * 70), () {
+        ImpactVisuals.playBeamTrail(
+          game,
+          attacker.position,
+          endPos,
+          element,
+          width,
+        );
+      });
+    }
+
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 60.0);
+
+    for (final v in victims) {
+      final dist = v.position.distanceTo(attacker.position);
+      final proximity = (1.0 - (dist / range)).clamp(0.3, 1.5); // closer = more
+      final dmg = (baseDmg * proximity).toInt();
+      v.takeDamage(dmg);
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Bleed',
+          damagePerTick: max(2, (dmg * 0.15).toInt()),
+          ticksRemaining: 5,
+          tickInterval: 0.4,
+        ),
+      );
+      ImpactVisuals.play(game, v.position, 'Plant', scale: 0.7);
+    }
+  }
+
+  // 🌑 DARK - Void Slash (instant beam + lingering trail)
+  static void _darkVoidSlash(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.2).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 950.0;
+    final endPos = attacker.position + dir * range;
+
+    // Instant beam
+    ImpactVisuals.playBeamTrail(game, attacker.position, endPos, element, 40.0);
+
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 40.0);
+    for (final v in victims) {
+      v.takeDamage(baseDmg);
+      ImpactVisuals.play(game, v.position, 'Dark', scale: 1.0);
+    }
+
+    // Lingering void line for 2s
+    final double trailDuration = 2.0;
+    final double tickInterval = 0.3;
+    final int ticks = (trailDuration / tickInterval).ceil();
+
+    for (int i = 0; i < ticks; i++) {
+      Future.delayed(
+        Duration(milliseconds: (i * tickInterval * 1000).toInt()),
+        () {
+          final dotVictims = _getEnemiesInPath(
+            game,
+            attacker.position,
+            endPos,
+            30.0,
+          );
+          for (final v in dotVictims) {
+            v.takeDamage(20); // flat trail damage
+          }
+        },
+      );
+    }
+  }
+
+  // ☀️ LIGHT - Healing Beam
+  static void _lightHealingBeam(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.0).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 900.0;
+    final endPos = attacker.position + dir * range;
+
+    ImpactVisuals.playBeamTrail(game, attacker.position, endPos, element, 40.0);
+
+    // Damage enemies
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 40.0);
+    int totalDealt = 0;
+    for (final v in victims) {
+      v.takeDamage(baseDmg);
+      totalDealt += baseDmg;
+      ImpactVisuals.play(game, v.position, 'Light', scale: 0.8);
+    }
+
+    // Heal allies roughly along path
+    double distanceToLine(Vector2 p) {
+      final ab = endPos - attacker.position;
+      final ap = p - attacker.position;
+      final t = (ap.dot(ab) / ab.length2).clamp(0.0, 1.0);
+      final closest = attacker.position + ab * t;
+      return p.distanceTo(closest);
+    }
+
+    final int healPerUnit = (totalDealt * 0.5).toInt();
+    for (final g in game.guardians) {
+      if (g.isDead) continue;
+      if (distanceToLine(g.position) <= 60.0) {
+        final heal = max(10, (healPerUnit * 0.5).toInt());
+        g.unit.heal(heal);
+        ImpactVisuals.playHeal(game, g.position, scale: 0.7);
+        // (Optional: debuff cleanse / shield can be added here
+        // if you have those systems exposed.)
+      }
+    }
+
+    // Tiny orb heal
+    game.orb.heal(max(5, (healPerUnit * 0.25).toInt()));
+  }
+
+  // 🌪️ AIR - Tornado Drill (rotating oscillating beam)
+  static void _airTornadoDrill(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int tickDmg = (calcDmg(attacker, target) * 0.2).toInt();
+    final baseDir = (target.position - attacker.position).normalized();
+    const double range = 850.0;
+
+    const int ticks = 30;
+    const int tickMs = 60; // ≈ 1.8s total
+
+    for (int i = 0; i < ticks; i++) {
+      Future.delayed(Duration(milliseconds: i * tickMs), () {
+        if (attacker.isDead) return;
+
+        final t = i / (ticks - 1); // 0..1
+        final rotations = 3.0;
+        final angle = (t * rotations * 2 * pi); // 0→3 full spins
+
+        final rotatedDir = Vector2(
+          baseDir.x * cos(angle) - baseDir.y * sin(angle),
+          baseDir.x * sin(angle) + baseDir.y * cos(angle),
+        );
+
+        final endPos = attacker.position + rotatedDir * range;
+
+        ImpactVisuals.playBeamTrail(
+          game,
+          attacker.position,
+          endPos,
+          element,
+          35.0,
+        );
+
+        final victims = _getEnemiesInPath(
+          game,
+          attacker.position,
+          endPos,
+          35.0,
+        );
+
+        for (final v in victims) {
+          v.takeDamage(tickDmg);
+          final dirKnock = (v.position - attacker.position).normalized();
+          v.add(
+            MoveEffect.by(
+              dirKnock * 60,
+              EffectController(duration: 0.15, curve: Curves.easeOut),
+            ),
+          );
+          ImpactVisuals.play(game, v.position, 'Air', scale: 0.6);
+        }
+      });
+    }
+  }
+
+  // 🩸 BLOOD - Crimson Lance
+  static void _bloodCrimsonLance(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    double range = 800.0;
+    double dmgMult = 0.8;
+    final dir = (target.position - attacker.position).normalized();
+
+    List<HoardEnemy> allKilled = [];
+
+    for (int step = 0; step < 4; step++) {
+      final int damage = (calcDmg(attacker, target) * dmgMult).toInt();
+      final endPos = attacker.position + dir * range;
+
+      ImpactVisuals.playBeamTrail(
+        game,
+        attacker.position,
+        endPos,
+        element,
+        35.0,
+      );
+
+      final victims = _getEnemiesInPath(game, attacker.position, endPos, 35.0);
+
+      int killsThisStep = 0;
+      for (final v in victims) {
+        if (v.isDead) continue;
+        v.takeDamage(damage);
+        ImpactVisuals.play(game, v.position, 'Blood', scale: 0.7);
+        if (v.isDead) {
+          killsThisStep++;
+          allKilled.add(v);
+        }
+      }
+
+      // Each kill extends lance and buffs damage
+      if (killsThisStep == 0) break;
+      range += 200.0 * killsThisStep;
+      dmgMult += 0.15 * killsThisStep;
+    }
+
+    // Lifesteal on total kills
+    final healSelf = allKilled.length * 40;
+    if (healSelf > 0) {
+      attacker.unit.heal(healSelf);
+      ImpactVisuals.playHeal(game, attacker.position, scale: 0.7);
+    }
+  }
+
+  // 🗿 EARTH - Boulder Beam
+  static void _earthBoulderBeam(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.3).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 800.0;
+    final endPos = attacker.position + dir * range;
+
+    // Wide, heavy beam
+    ImpactVisuals.playBeamTrail(
+      game,
+      attacker.position,
+      endPos,
+      element,
+      120.0,
+    );
+
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 60.0);
+    for (final v in victims) {
+      v.takeDamage(baseDmg);
+      ImpactVisuals.play(game, v.position, 'Earth', scale: 0.8);
+    }
+
+    // Rock debris along path that pushes enemies (pseudo-block)
+    final length = attacker.position.distanceTo(endPos);
+    final segmentCount = (length / 120).floor();
+
+    for (int i = 0; i < segmentCount; i++) {
+      final pos = attacker.position + dir * (i * 120 + 60);
+
+      final rock = CircleComponent(
+        radius: 30,
+        position: pos,
+        anchor: Anchor.center,
+        paint: Paint()..color = Colors.brown.shade700.withOpacity(0.7),
+      );
+
+      rock.add(
+        TimerComponent(
+          period: 0.25,
+          repeat: true,
+          onTick: () {
+            final nearby = game.getEnemiesInRange(pos, 45);
+            for (final e in nearby) {
+              final pushDir = (e.position - pos).normalized();
+              e.position += pushDir * 12;
+            }
+          },
+        ),
+      );
+
+      rock.add(RemoveEffect(delay: 5.0));
+      game.world.add(rock);
+    }
+  }
+
+  // 🌫️ STEAM - Pressure Washer (pulsing beam)
+  static void _steamPressureBeam(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int pulseDmg = (calcDmg(attacker, target) * 0.55).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 850.0;
+    final endPos = attacker.position + dir * range;
+
+    const int pulses = 8;
+    const int pulseMs = 150;
+
+    for (int i = 0; i < pulses; i++) {
+      Future.delayed(Duration(milliseconds: i * pulseMs), () {
+        if (attacker.isDead) return;
+
+        ImpactVisuals.playBeamTrail(
+          game,
+          attacker.position,
+          endPos,
+          element,
+          35.0,
+        );
+
+        final victims = _getEnemiesInPath(
+          game,
+          attacker.position,
+          endPos,
+          35.0,
+        );
+        for (final v in victims) {
+          v.takeDamage(pulseDmg);
+          final pushDir = (v.position - attacker.position).normalized();
+          v.add(
+            MoveEffect.by(
+              pushDir * 100,
+              EffectController(duration: 0.15, curve: Curves.easeOut),
+            ),
+          );
+          ImpactVisuals.play(game, v.position, 'Steam', scale: 0.6);
+        }
+      });
+    }
+  }
+
+  // ☠️ POISON - Venom Trail
+  static void _poisonVenomTrail(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int beamDmg = (calcDmg(attacker, target) * 1.4).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 900.0;
+    final endPos = attacker.position + dir * range;
+
+    ImpactVisuals.playBeamTrail(game, attacker.position, endPos, element, 25.0);
+
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 25.0);
+    for (final v in victims) {
+      v.takeDamage(beamDmg);
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Poison',
+          damagePerTick: max(5, (beamDmg * 0.2).toInt()),
+          ticksRemaining: 6,
+          tickInterval: 0.5,
+        ),
+      );
+      ImpactVisuals.play(game, v.position, 'Poison', scale: 0.7);
+    }
+
+    // Poison cloud trail along path
+    final length = attacker.position.distanceTo(endPos);
+    final segmentCount = (length / 120).floor();
+    final double cloudDuration = 8.0;
+
+    for (int i = 0; i < segmentCount; i++) {
+      final pos = attacker.position + dir * (i * 120 + 60);
+
+      final cloud = CircleComponent(
+        radius: 60,
+        position: pos,
+        anchor: Anchor.center,
+        paint: Paint()..color = Colors.green.withOpacity(0.25),
+      );
+
+      cloud.add(
+        TimerComponent(
+          period: 0.5,
+          repeat: true,
+          onTick: () {
+            final victims = game.getEnemiesInRange(pos, 60);
+            for (final v in victims) {
+              v.unit.applyStatusEffect(
+                SurvivalStatusEffect(
+                  type: 'Poison',
+                  damagePerTick: 15,
+                  ticksRemaining: 2,
+                  tickInterval: 0.5,
+                ),
+              );
+            }
+          },
+        ),
+      );
+
+      cloud.add(RemoveEffect(delay: cloudDuration));
+      game.world.add(cloud);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  EXISTING ELEMENTAL RIDERS (Ranks 1–3, used by base beam)
   // ═══════════════════════════════════════════════════════════════════════════
 
   static void _applyElementalPierce({
@@ -198,20 +945,18 @@ class WingPierceMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  FIRE / LAVA / BLOOD
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ─── FIRE / LAVA / BLOOD RIDERS ────────────────────────────────────────────
 
-  /// Fire Pierce - Ignites all pierced enemies
   static void _firePierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     List<HoardEnemy> victims,
   ) {
-    final burnDmg = (attacker.unit.statIntelligence * (2.0 + 0.35 * rank))
+    final int burnDmg = (attacker.unit.statIntelligence * (2.0 + 0.35 * rank))
         .toInt()
-        .clamp(3, 120);
+        .clamp(3, 120)
+        .toInt();
 
     for (final v in victims) {
       v.unit.applyStatusEffect(
@@ -225,7 +970,6 @@ class WingPierceMechanic {
       ImpactVisuals.play(game, v.position, 'Fire', scale: 0.6);
     }
 
-    // Rank 3: Enemies that die from the beam cause small explosions
     if (rank >= 3) {
       for (final v in victims) {
         if (v.isDead) {
@@ -239,7 +983,6 @@ class WingPierceMechanic {
     }
   }
 
-  /// Lava Pierce - Leaves fire trail along beam path
   static void _lavaPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -248,12 +991,12 @@ class WingPierceMechanic {
     Vector2 startPos,
     Vector2 endPos,
   ) {
-    final trailDps = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
+    final int trailDps = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
         .toInt()
-        .clamp(2, 80);
-    final trailDuration = 2.0 + 0.3 * rank;
+        .clamp(2, 80)
+        .toInt();
+    final double trailDuration = 2.0 + 0.3 * rank;
 
-    // Create fire trail along beam path
     final direction = (endPos - startPos).normalized();
     final length = startPos.distanceTo(endPos);
     final segmentCount = (length / 80).floor();
@@ -286,7 +1029,6 @@ class WingPierceMechanic {
     }
   }
 
-  /// Blood Pierce - Heavy lifesteal from all pierced enemies
   static void _bloodPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -297,19 +1039,16 @@ class WingPierceMechanic {
     int totalDrained = 0;
 
     for (final v in victims) {
-      final drain = (damage * (0.2 + 0.05 * rank)).toInt();
+      final int drain = (damage * (0.2 + 0.05 * rank)).toInt();
       v.takeDamage(drain);
       totalDrained += drain;
     }
 
-    // Heal self
     attacker.unit.heal((totalDrained * 0.5).toInt());
     ImpactVisuals.playHeal(game, attacker.position, scale: 0.8);
 
-    // Heal orb
     game.orb.heal((totalDrained * 0.25).toInt());
 
-    // Rank 3: Also heal nearby allies
     if (rank >= 3) {
       final allies = game.getGuardiansInRange(
         center: attacker.position,
@@ -323,11 +1062,8 @@ class WingPierceMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  WATER / ICE / STEAM
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ─── WATER / ICE / STEAM RIDERS ────────────────────────────────────────────
 
-  /// Water Pierce - Pushes enemies along beam direction
   static void _waterPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -345,31 +1081,29 @@ class WingPierceMechanic {
       );
     }
 
-    // Heal attacker
-    final healAmount = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
+    final int healAmount = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
         .toInt()
-        .clamp(3, 60);
-    attacker.unit.heal(healAmount * victims.length.clamp(1, 5));
+        .clamp(3, 60)
+        .toInt();
+    final int targetCount = victims.length.clamp(1, 5).toInt();
+    attacker.unit.heal(healAmount * targetCount);
   }
 
-  /// Ice Pierce - Freezing ray that slows/freezes
   static void _icePierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     List<HoardEnemy> victims,
   ) {
-    final slowStrength = 15.0 + 3.0 * rank;
+    final double slowStrength = 15.0 + 3.0 * rank;
 
     for (final v in victims) {
-      // Push back (slow effect)
       final pushBack =
           (v.targetOrb.position - v.position).normalized() * -slowStrength;
       v.position += pushBack;
       ImpactVisuals.play(game, v.position, 'Ice', scale: 0.5);
     }
 
-    // Rank 3: Briefly freeze the first enemy hit
     if (rank >= 3 && victims.isNotEmpty) {
       victims.first.add(
         MoveEffect.by(Vector2.zero(), EffectController(duration: 1.0)),
@@ -377,19 +1111,18 @@ class WingPierceMechanic {
     }
   }
 
-  /// Steam Pierce - Scalding beam with splash damage
   static void _steamPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     List<HoardEnemy> victims,
   ) {
-    final splashDmg = (attacker.unit.statIntelligence * (0.8 + 0.15 * rank))
+    final int splashDmg = (attacker.unit.statIntelligence * (0.8 + 0.15 * rank))
         .toInt()
-        .clamp(2, 60);
+        .clamp(2, 60)
+        .toInt();
 
     for (final v in victims) {
-      // Splash to nearby
       final nearby = game
           .getEnemiesInRange(v.position, 60)
           .where((e) => !victims.contains(e));
@@ -400,20 +1133,18 @@ class WingPierceMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  PLANT / POISON
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ─── PLANT / POISON RIDERS ─────────────────────────────────────────────────
 
-  /// Plant Pierce - Thorn lance with DoT
   static void _plantPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     List<HoardEnemy> victims,
   ) {
-    final thornDmg = (attacker.unit.statIntelligence * (0.8 + 0.15 * rank))
+    final int thornDmg = (attacker.unit.statIntelligence * (0.8 + 0.15 * rank))
         .toInt()
-        .clamp(2, 60);
+        .clamp(2, 60)
+        .toInt();
 
     for (final v in victims) {
       v.unit.applyStatusEffect(
@@ -427,16 +1158,16 @@ class WingPierceMechanic {
     }
   }
 
-  /// Poison Pierce - Toxic beam that spreads poison
   static void _poisonPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     List<HoardEnemy> victims,
   ) {
-    final poisonDmg = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
+    final int poisonDmg = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
         .toInt()
-        .clamp(2, 80);
+        .clamp(2, 80)
+        .toInt();
 
     for (final v in victims) {
       v.unit.applyStatusEffect(
@@ -448,7 +1179,6 @@ class WingPierceMechanic {
         ),
       );
 
-      // Spread to nearby (Rank 2+)
       if (rank >= 2) {
         final nearby = game
             .getEnemiesInRange(v.position, 80)
@@ -468,11 +1198,8 @@ class WingPierceMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  EARTH / MUD / CRYSTAL
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ─── EARTH / MUD / CRYSTAL RIDERS ──────────────────────────────────────────
 
-  /// Earth Pierce - Heavy impact with armor shred
   static void _earthPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -480,7 +1207,7 @@ class WingPierceMechanic {
     List<HoardEnemy> victims,
     int damage,
   ) {
-    final bonusDmg = (damage * (0.2 + 0.05 * rank)).toInt();
+    final int bonusDmg = (damage * (0.2 + 0.05 * rank)).toInt();
 
     for (final v in victims) {
       v.takeDamage(bonusDmg);
@@ -493,19 +1220,18 @@ class WingPierceMechanic {
       ImpactVisuals.play(game, v.position, 'Earth', scale: 0.6);
     }
 
-    // Shield self
-    final shieldAmount = (attacker.unit.maxHp * (0.05 + 0.02 * rank)).toInt();
+    final int shieldAmount = (attacker.unit.maxHp * (0.05 + 0.02 * rank))
+        .toInt();
     attacker.unit.shieldHp = (attacker.unit.shieldHp ?? 0) + shieldAmount;
   }
 
-  /// Mud Pierce - Sticky beam that heavily slows
   static void _mudPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     List<HoardEnemy> victims,
   ) {
-    final slowStrength = 25.0 + 5.0 * rank;
+    final double slowStrength = 25.0 + 5.0 * rank;
 
     for (final v in victims) {
       final pushBack =
@@ -514,7 +1240,6 @@ class WingPierceMechanic {
     }
   }
 
-  /// Crystal Pierce - Shatters on each hit, spawning shards
   static void _crystalPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -522,11 +1247,10 @@ class WingPierceMechanic {
     List<HoardEnemy> victims,
     int damage,
   ) {
-    final shardDmg = (damage * (0.3 + 0.06 * rank)).toInt();
+    final int shardDmg = (damage * (0.3 + 0.06 * rank)).toInt();
     final rng = Random();
 
     for (final v in victims) {
-      // Spawn shards to nearby enemies
       final nearby = game
           .getEnemiesInRange(v.position, 200)
           .where((e) => !victims.contains(e))
@@ -554,11 +1278,8 @@ class WingPierceMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  AIR / DUST / LIGHTNING
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ─── AIR / DUST / LIGHTNING RIDERS ─────────────────────────────────────────
 
-  /// Air Pierce - Sonic boom with heavy knockback
   static void _airPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -579,7 +1300,6 @@ class WingPierceMechanic {
     SurvivalAttackManager.triggerScreenShake(game, 3.0 + rank * 0.5);
   }
 
-  /// Dust Pierce - Blinding ray
   static void _dustPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -589,7 +1309,6 @@ class WingPierceMechanic {
     final rng = Random();
 
     for (final v in victims) {
-      // Confusion
       final jitter = Vector2(
         (rng.nextDouble() - 0.5) * (30 + 6 * rank),
         (rng.nextDouble() - 0.5) * (30 + 6 * rank),
@@ -598,7 +1317,6 @@ class WingPierceMechanic {
     }
   }
 
-  /// Lightning Pierce - Chain lightning from each pierced enemy
   static void _lightningPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -606,7 +1324,7 @@ class WingPierceMechanic {
     List<HoardEnemy> victims,
     int damage,
   ) {
-    final chainDmg = (damage * (0.4 + 0.08 * rank)).toInt();
+    final int chainDmg = (damage * (0.4 + 0.08 * rank)).toInt();
     final rng = Random();
 
     for (final v in victims) {
@@ -637,11 +1355,8 @@ class WingPierceMechanic {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  SPIRIT / DARK / LIGHT
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ─── SPIRIT / DARK / LIGHT RIDERS ──────────────────────────────────────────
 
-  /// Spirit Pierce - Draining beam
   static void _spiritPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -652,17 +1367,15 @@ class WingPierceMechanic {
     int totalDrained = 0;
 
     for (final v in victims) {
-      final drain = (damage * (0.25 + 0.05 * rank)).toInt();
+      final int drain = (damage * (0.25 + 0.05 * rank)).toInt();
       v.takeDamage(drain);
       totalDrained += drain;
       ImpactVisuals.play(game, v.position, 'Spirit', scale: 0.6);
     }
 
-    // Heal self
     attacker.unit.heal((totalDrained * 0.4).toInt());
   }
 
-  /// Dark Pierce - Executes low HP enemies along path
   static void _darkPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -670,8 +1383,8 @@ class WingPierceMechanic {
     List<HoardEnemy> victims,
     int damage,
   ) {
-    final executeThreshold = 0.2 + 0.05 * rank;
-    final bonusDmg = (damage * (0.5 + 0.1 * rank)).toInt();
+    final double executeThreshold = 0.2 + 0.05 * rank;
+    final int bonusDmg = (damage * (0.5 + 0.1 * rank)).toInt();
 
     for (final v in victims) {
       if (!v.isBoss && v.unit.hpPercent < executeThreshold) {
@@ -684,18 +1397,17 @@ class WingPierceMechanic {
     }
   }
 
-  /// Light Pierce - Holy ray that heals allies along path
   static void _lightPierce(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     List<HoardEnemy> victims,
   ) {
-    final healAmount = (attacker.unit.statIntelligence * (2.0 + 0.4 * rank))
+    final int healAmount = (attacker.unit.statIntelligence * (2.0 + 0.4 * rank))
         .toInt()
-        .clamp(5, 120);
+        .clamp(5, 120)
+        .toInt();
 
-    // Heal all guardians
     for (final g in game.guardians) {
       if (!g.isDead) {
         g.unit.heal(healAmount);
@@ -703,12 +1415,10 @@ class WingPierceMechanic {
       }
     }
 
-    // Extra damage visual
     for (final v in victims) {
       ImpactVisuals.play(game, v.position, 'Light', scale: 0.8);
     }
 
-    // Rank 3: Heal orb too
     if (rank >= 3) {
       game.orb.heal((healAmount * 0.5).toInt());
     }

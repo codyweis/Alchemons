@@ -8,6 +8,7 @@ import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
+import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
@@ -36,6 +37,9 @@ enum SceneMode { exploration, encounter }
 
 class SceneGame extends FlameGame with ScaleDetector {
   SceneGame({required this.scene});
+
+  bool isTutorialMode = false;
+  void setTutorialMode(bool enabled) => isTutorialMode = enabled;
 
   bool showSpawnDebug = true; // toggle at runtime
   final Map<String, RectangleComponent> _spawnDebugBoxes = {};
@@ -453,7 +457,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     final baseW = scene.worldWidth.toDouble();
     final battlePos = sp.getBattlePos();
     final x = battlePos.dx * baseW;
-    final y = battlePos.dy * _Vh; // ✅ Use _Vh, not worldHeight
+    final y = battlePos.dy * _Vh;
 
     debugPrint('🎮 Spawning party at ($x, $y)');
 
@@ -931,15 +935,12 @@ class WildMonComponent extends PositionComponent
       final sheet = sheetFromCreature(hydrated!);
       final visuals = visualsFromInstance(hydrated!, null);
 
-      // 🔧 PRELOAD THE IMAGE BEFORE CREATING THE COMPONENT
-      final imagePath = sheet.path; // or however you get the path
+      final imagePath = sheet.path;
       try {
         await gameRef.images.load(imagePath);
       } catch (e) {
         debugPrint('Failed to load sprite: $imagePath - $e');
-        // Fall through to fallback blob
         _addFallbackBlob();
-
         _addTapPulse();
         return;
       }
@@ -949,12 +950,27 @@ class WildMonComponent extends PositionComponent
             sheet: sheet,
             visuals: visuals,
             desiredSize: size,
+            variantFaction: visuals.variantFaction,
+            alchemyEffect: visuals.alchemyEffect,
           )
           ..anchor = Anchor.center
           ..position = size / 2,
       );
 
       _addTapPulse();
+
+      // 🆕 ADD THIS BLOCK AFTER _addTapPulse():
+      // Add tutorial highlight if in tutorial mode
+      if (gameRef.isTutorialMode) {
+        final highlight = TutorialCreatureHighlight(
+          radius: size.x * 0.5,
+          glowColor: Colors.amber,
+          position: size / 2,
+        );
+        add(highlight);
+        debugPrint('✨ Added tutorial highlight to wild creature');
+      }
+
       return;
     }
 

@@ -12,16 +12,50 @@ import 'package:alchemons/games/survival/special_attacks/pip_special.dart';
 import 'package:alchemons/games/survival/special_attacks/wing_special.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
-import 'package:alchemons/games/survival/survival_enemies.dart';
+import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+//  STATUS CONFIG – burn = short burst, poison = long linger
+// ════════════════════════════════════════════════════════════════════════════
+
+const double kBurnDurationSeconds = 2.0; // short & punchy
+const double kBurnTickInterval = 0.5; // 4 ticks (2.0 / 0.5)
+
+const double kPoisonDurationSeconds = 7.0; // long & grindy
+const double kPoisonTickInterval = 0.5; // 14 ticks (7.0 / 0.5)
+
+// ════════════════════════════════════════════════════════════════════════════
+//  GLOBAL ABILITY POWER SYSTEM
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Global ability power multiplier based on Beauty stat
+/// Makes high beauty feel GODLIKE for special abilities
+/// 2.0 beauty = 1.0x (base)
+/// 3.0 beauty = 1.5x
+/// 4.0 beauty = 2.5x
+/// 5.0 beauty = 4.5x (MASSIVE)
+double getAbilityPowerMultiplier(HoardGuardian attacker) {
+  final beauty = attacker.unit.statBeauty;
+
+  if (beauty <= 2.0) {
+    return 0.8 + beauty * 0.1; // 1.0x at 2.0
+  } else if (beauty <= 4.0) {
+    // 1.5x at 3.0, 2.5x at 4.0
+    return 1.5 + (beauty - 3.0) * 1.0;
+  } else {
+    // 4.5x at 5.0, keeps scaling beyond
+    return 2.5 + (beauty - 4.0) * 2.0;
+  }
+}
+
+//
 //  GLOBAL DAMAGE CALCULATOR
-// ═══════════════════════════════════════════════════════════════════════════════
+//
 double calcDmg(HoardGuardian att, HoardEnemy? def) {
   final defUnit =
       def?.unit ??
@@ -61,9 +95,9 @@ double calcDmg(HoardGuardian att, HoardEnemy? def) {
   return dmg;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+//
 //  SURVIVAL ATTACK MANAGER
-// ═══════════════════════════════════════════════════════════════════════════════
+//
 
 class SurvivalAttackManager {
   static void triggerScreenShake(SurvivalHoardGame game, double intensity) {
@@ -132,7 +166,7 @@ class SurvivalAttackManager {
   }) {
     final element = attacker.unit.types.firstOrNull ?? 'Normal';
     double speed = 1.0;
-    if (attacker.unit.family == 'Wing' || attacker.unit.family == 'Pip') {
+    if (attacker.unit.family == 'Wing' || attacker.unit.family == 'Mane') {
       speed = 1.4;
     }
     if (attacker.unit.family == 'Horn') speed = 0.8;
@@ -155,39 +189,74 @@ class SurvivalAttackManager {
     SurvivalUnit attacker,
   ) {
     final rng = Random();
+
     switch (element) {
+      // ───────────────────── BURN: short, bursty DOT ─────────────────────
       case 'Fire':
       case 'Lava':
       case 'Blood':
-        target.unit.applyStatusEffect(
-          SurvivalStatusEffect(
-            type: 'Burn',
-            damagePerTick: (attacker.statIntelligence * 2.5).toInt() + 5,
-            ticksRemaining: 3,
-            tickInterval: 0.8,
-          ),
-        );
-        break;
+        {
+          final elemAtk = attacker.getEffectiveElemAtk().toDouble();
+
+          final ticks = (kBurnDurationSeconds / kBurnTickInterval)
+              .round()
+              .clamp(1, 999);
+
+          // ~35% of elemAtk per second before global Burn multiplier
+          final burnDps = elemAtk * 0.35;
+          final dmgPerTick = max(1, (burnDps * kBurnTickInterval).round());
+
+          target.unit.applyStatusEffect(
+            SurvivalStatusEffect(
+              type: 'Burn',
+              damagePerTick: dmgPerTick,
+              ticksRemaining: ticks,
+              tickInterval: kBurnTickInterval,
+            ),
+          );
+          break;
+        }
+
+      // ───────────────────── WATER/ICE/MUD: knockback ─────────────────────
       case 'Ice':
       case 'Water':
       case 'Steam':
       case 'Mud':
-        final pushDir = (target.position - target.targetOrb.position)
-            .normalized();
-        target.position += pushDir * 12;
-        break;
+        {
+          final pushDir = (target.position - target.targetOrb.position)
+              .normalized();
+          target.position += pushDir * 12;
+          break;
+        }
+
+      // ─────────────── POISON/DARK/SPIRIT: long, lingering DOT ───────────
       case 'Poison':
       case 'Dark':
       case 'Spirit':
-        target.unit.applyStatusEffect(
-          SurvivalStatusEffect(
-            type: 'Poison',
-            damagePerTick: (attacker.statIntelligence * 0.8).toInt() + 3,
-            ticksRemaining: 10,
-            tickInterval: 0.4,
-          ),
-        );
-        break;
+        {
+          final elemAtk = attacker.getEffectiveElemAtk().toDouble();
+          final maxHp = target.unit.maxHp.toDouble();
+
+          final ticks = (kPoisonDurationSeconds / kPoisonTickInterval)
+              .round()
+              .clamp(1, 999);
+
+          // Mix of flat scaling + % max HP so this matters on bosses
+          final poisonDps = elemAtk * 0.20 + maxHp * 0.008; // 0.8% max HP / s
+          final dmgPerTick = max(1, (poisonDps * kPoisonTickInterval).round());
+
+          target.unit.applyStatusEffect(
+            SurvivalStatusEffect(
+              type: 'Poison',
+              damagePerTick: dmgPerTick,
+              ticksRemaining: ticks,
+              tickInterval: kPoisonTickInterval,
+            ),
+          );
+          break;
+        }
+
+      // ───────────── LIGHTNING/CRYSTAL/LIGHT: bonus zap / mini-stagger ───
       case 'Lightning':
       case 'Crystal':
       case 'Light':
@@ -201,6 +270,7 @@ class SurvivalAttackManager {
           );
         }
         break;
+
       default:
         break;
     }
@@ -225,7 +295,7 @@ class SurvivalAttackManager {
       ),
     );
 
-    // 💥 BASIC ATTACK DEBUG
+    // 🔥 BASIC ATTACK DEBUG
     print('''
 [BASIC ATTACK]
   Wave: ${game.currentWave}
@@ -321,9 +391,9 @@ class SurvivalAttackManager {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+//
 //  IMPACT VISUALS
-// ═══════════════════════════════════════════════════════════════════════════════
+//
 
 class ImpactVisuals {
   static void playExplosion(
@@ -454,9 +524,9 @@ class ImpactVisuals {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+//
 //  PIERCING PROJECTILE (Used by Wing)
-// ═══════════════════════════════════════════════════════════════════════════════
+//
 
 class PiercingProjectile extends PositionComponent {
   final Vector2 start;
@@ -528,9 +598,9 @@ class PiercingProjectile extends PositionComponent {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+//
 //  ORBIT PARTICLE (Used by Mystic)
-// ═══════════════════════════════════════════════════════════════════════════════
+//
 
 class OrbitParticle extends Particle {
   final Particle child;

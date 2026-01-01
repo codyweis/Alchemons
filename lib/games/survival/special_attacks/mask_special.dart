@@ -5,7 +5,7 @@ import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
-import 'package:alchemons/games/survival/survival_enemies.dart';
+import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
@@ -17,7 +17,7 @@ import 'package:flutter/material.dart';
 /// Rank 0: no special
 /// Rank 1: basic traps in a spread
 /// Rank 2: stronger traps (more / bigger / longer)
-/// Rank 3+: “GRID” ultimate – dense field of traps
+/// Rank 3+: ’ GRID “ultimate – dense field of traps
 class MaskTrapMechanic {
   static void execute(
     SurvivalHoardGame game,
@@ -27,25 +27,26 @@ class MaskTrapMechanic {
   ) {
     final rawRank = game.getSpecialAbilityRank(attacker.unit.id, element);
 
-    // No upgrades yet → no special
-    if (rawRank <= 0) {
-      return;
-    }
-
     // Clamp to our new 3-rank system (3+ all behave as max)
     final rank = rawRank.clamp(1, 3);
     final color = SurvivalAttackManager.getElementColor(element);
 
     // Base trap parameters scale modestly with rank
-    final baseTrapCount = 1 + rank; // 2, 3, 4
-    final baseTrapRadius = 55.0 + rank * 10; // grows with rank
-    final baseTrapDuration = 6.0 + rank * 1.5;
+    final baseTrapCount = rank; // 1, 2, 3
+    final baseTrapRadius = 55.0 + rank * 5; // grows with rank
+    final baseTrapDuration = 2.0 + rank * 2;
 
-    // Rank 3 → GRID “massive update”
+    // INTELLIGENCE SCALING - makes high INT increase radius and duration
+    final intelMult =
+        1.0 + attacker.unit.statIntelligence * 0.15; // +15% radius per INT
+    final durationMult =
+        1.0 + attacker.unit.statIntelligence * 0.12; // +12% duration per INT
+
+    final trapCount = baseTrapCount;
+    final trapRadius = (baseTrapRadius) * intelMult;
+    final trapDuration = (baseTrapDuration) * durationMult;
+
     final isGrid = rank >= 3;
-    final trapCount = isGrid ? baseTrapCount * 2 : baseTrapCount;
-    final trapRadius = isGrid ? baseTrapRadius * 1.2 : baseTrapRadius;
-    final trapDuration = isGrid ? baseTrapDuration * 1.25 : baseTrapDuration;
 
     // Pick deployment center:
     //  - Prefer current target
@@ -71,7 +72,7 @@ class MaskTrapMechanic {
         color: color,
       );
     } else {
-      // Rank 1–2: ring/spread of traps
+      // Rank 1â€“2: ring/spread of traps
       _deployTrapSpread(
         game: game,
         attacker: attacker,
@@ -234,7 +235,7 @@ class MaskTrapMechanic {
     required double radius,
     required List<HoardEnemy> victims,
   }) {
-    // Base damage scales with rank (1–3)
+    // Base damage scales with rank (1â€“3)
     final baseDmg = (calcDmg(attacker, null) * (1 + 0.25 * rank)).toInt();
 
     for (final v in victims) {
@@ -258,9 +259,9 @@ class MaskTrapMechanic {
     ImpactVisuals.playExplosion(game, position, element, radius);
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
+  //
   //  ELEMENT ROUTER
-  // ═══════════════════════════════════════════════════════════════════════
+  //
 
   static void _applyElementalTrap({
     required SurvivalHoardGame game,
@@ -273,7 +274,7 @@ class MaskTrapMechanic {
     required int baseDamage,
   }) {
     switch (element) {
-      // 🔥 FIRE / LAVA / BLOOD
+      // ðŸ”¥ FIRE / LAVA / BLOOD
       case 'Fire':
         _fireTrap(game, attacker, rank, position, radius, victims);
         break;
@@ -284,7 +285,7 @@ class MaskTrapMechanic {
         _bloodTrap(game, attacker, rank, position, victims, baseDamage);
         break;
 
-      // 💧 WATER / ICE / STEAM
+      // ðŸ’§ WATER / ICE / STEAM
       case 'Water':
         _waterTrap(game, attacker, rank, position, radius, victims);
         break;
@@ -295,7 +296,7 @@ class MaskTrapMechanic {
         _steamTrap(game, attacker, rank, position, radius, victims);
         break;
 
-      // 🌿 PLANT / POISON
+      // ðŸŒ¿ PLANT / POISON
       case 'Plant':
         _plantTrap(game, attacker, rank, position, radius, victims);
         break;
@@ -303,7 +304,7 @@ class MaskTrapMechanic {
         _poisonTrap(game, attacker, rank, position, victims);
         break;
 
-      // 🌍 EARTH / MUD / CRYSTAL
+      // ðŸŒ EARTH / MUD / CRYSTAL
       case 'Earth':
         _earthTrap(game, attacker, rank, position, radius, victims);
         break;
@@ -314,7 +315,7 @@ class MaskTrapMechanic {
         _crystalTrap(game, attacker, rank, position, victims, baseDamage);
         break;
 
-      // 🌬️ AIR / DUST / LIGHTNING
+      // ðŸŒ¬ï¸ AIR / DUST / LIGHTNING
       case 'Air':
         _airTrap(game, attacker, rank, position, radius, victims);
         break;
@@ -325,7 +326,7 @@ class MaskTrapMechanic {
         _lightningTrap(game, attacker, rank, position, victims, baseDamage);
         break;
 
-      // 🌗 SPIRIT / DARK / LIGHT
+      // ðŸŒ— SPIRIT / DARK / LIGHT
       case 'Spirit':
         _spiritTrap(
           game,
@@ -349,9 +350,9 @@ class MaskTrapMechanic {
     }
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  //
   //  FIRE / LAVA / BLOOD
-  // ────────────────────────────────────────────────────────────────────────
+  //
 
   /// Fire Trap - Ignites and leaves burning zone
   static void _fireTrap(
@@ -480,9 +481,9 @@ class MaskTrapMechanic {
     game.orb.heal((totalDrain * 0.2).toInt());
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  //
   //  WATER / ICE / STEAM
-  // ────────────────────────────────────────────────────────────────────────
+  //
 
   /// Water Trap - Persistent geyser that periodically erupts
   /// Rank 1: Geyser erupts every few seconds, launching enemies and healing allies
@@ -764,9 +765,9 @@ class MaskTrapMechanic {
     }
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  //
   //  PLANT / POISON
-  // ────────────────────────────────────────────────────────────────────────
+  //
 
   /// Plant Trap - Roots enemies and creates thorn zone
   static void _plantTrap(
@@ -821,6 +822,7 @@ class MaskTrapMechanic {
   }
 
   /// Poison Trap - Releases spreading poison cloud
+  /// Poison Trap - Releases spreading poison cloud
   static void _poisonTrap(
     SurvivalHoardGame game,
     HoardGuardian attacker,
@@ -828,44 +830,80 @@ class MaskTrapMechanic {
     Vector2 position,
     List<HoardEnemy> victims,
   ) {
-    final poisonDmg = (attacker.unit.statIntelligence * (1.2 + 0.25 * rank))
+    // Strong poison that lasts
+    final poisonDmg = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
         .toInt()
-        .clamp(3, 90);
+        .clamp(3, 70);
+
+    final ticks = 10 + rank * 2; // 12, 14, 16 ticks
 
     for (final v in victims) {
       v.unit.applyStatusEffect(
         SurvivalStatusEffect(
           type: 'Poison',
           damagePerTick: poisonDmg,
-          ticksRemaining: 8 + rank,
+          ticksRemaining: ticks,
           tickInterval: 0.4,
         ),
       );
     }
 
-    // Spreading poison cloud
+    // Rank 2+: Spreading cloud - poison jumps to nearby enemies over time
     if (rank >= 2) {
-      for (final v in victims) {
-        final nearby = game
-            .getEnemiesInRange(v.position, 100)
-            .where((e) => !victims.contains(e));
-        for (final n in nearby) {
-          n.unit.applyStatusEffect(
-            SurvivalStatusEffect(
-              type: 'Poison',
-              damagePerTick: (poisonDmg * 0.6).toInt(),
-              ticksRemaining: 5,
-              tickInterval: 0.5,
-            ),
-          );
-        }
-      }
+      final cloudRadius = 120.0 + rank * 20;
+      final cloudDuration = 3.0 + rank * 0.5;
+
+      final cloud = CircleComponent(
+        radius: cloudRadius,
+        position: position,
+        anchor: Anchor.center,
+        paint: Paint()..color = Colors.purple.withOpacity(0.25),
+      );
+
+      cloud.add(
+        TimerComponent(
+          period: 0.8,
+          repeat: true,
+          onTick: () {
+            final cloudVictims = game.getEnemiesInRange(position, cloudRadius);
+            for (final v in cloudVictims) {
+              // Check if already heavily poisoned - if not, add more
+              final existingPoison = v.unit.statusEffects['Poison'];
+              if (existingPoison == null || existingPoison.ticksRemaining < 6) {
+                v.unit.applyStatusEffect(
+                  SurvivalStatusEffect(
+                    type: 'Poison',
+                    damagePerTick: (poisonDmg * 0.6).toInt(),
+                    ticksRemaining: 8,
+                    tickInterval: 0.5,
+                  ),
+                );
+              }
+            }
+          },
+        ),
+      );
+
+      cloud.add(
+        SequenceEffect([
+          OpacityEffect.to(
+            0.3,
+            EffectController(duration: cloudDuration * 0.7),
+          ),
+          OpacityEffect.fadeOut(
+            EffectController(duration: cloudDuration * 0.3),
+          ),
+          RemoveEffect(),
+        ]),
+      );
+
+      game.world.add(cloud);
     }
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  //
   //  EARTH / MUD / CRYSTAL
-  // ────────────────────────────────────────────────────────────────────────
+  //
 
   /// Earth Trap - Creates spike pillars and barriers
   static void _earthTrap(
@@ -973,13 +1011,13 @@ class MaskTrapMechanic {
     }
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  //
   //  AIR / DUST / LIGHTNING
-  // ────────────────────────────────────────────────────────────────────────
+  //
 
-  // ════════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•
   // AIR TRAP - Persistent Tornado
-  // ════════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•
 
   /// Air Trap - Creates a persistent tornado that pushes enemies away
   /// Rank 1: Basic tornado with knockback
@@ -1118,9 +1156,9 @@ class MaskTrapMechanic {
     }
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•
   // DUST TRAP - Persistent Blinding Cloud
-  // ════════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•
 
   /// Dust Trap - Creates a persistent dust cloud that blinds and confuses enemies
   /// Rank 1: Basic dust cloud with confusion
@@ -1296,13 +1334,13 @@ class MaskTrapMechanic {
     }
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  //
   //  SPIRIT / DARK / LIGHT
-  // ────────────────────────────────────────────────────────────────────────
+  //
 
-  // ════════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•
   // SPIRIT TRAP - Summons Attacking Ghost Orbitals
-  // ════════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•
 
   /// Spirit Trap - Summons ghost spirits that attack nearby enemies
   /// Rank 1: Summons 2 spirits that seek and damage enemies
@@ -1544,7 +1582,10 @@ class MaskTrapMechanic {
     final voidRadius = isGrid ? radius * 1.3 : radius;
     final voidDuration = 4.0 + rank * 1.0; // 5s, 6s, 7s
     final pullStrength = 35.0 + rank * 12.0; // How hard it pulls per tick
-    final executeThreshold = 0.18 + 0.04 * rank; // 22%, 26%, 30%
+    final executeThreshold =
+        0.08 +
+        0.02 *
+            rank; // NERFED: 10%, 12%, 14% instead of 22%, 26%, 30% // 22%, 26%, 30%
     final damagePerTick = (attacker.unit.statIntelligence * (0.8 + 0.2 * rank))
         .toInt()
         .clamp(5, 100);
@@ -1631,7 +1672,10 @@ class MaskTrapMechanic {
             v.takeDamage((damagePerTick * centerMult).toInt());
 
             // Execute check for low HP enemies (non-boss)
-            if (!v.isBoss && v.unit.hpPercent < executeThreshold) {
+            if (!v.isBoss &&
+                v.template.tier == EnemyTier.swarm &&
+                v.unit.hpPercent < executeThreshold) {
+              // Execute only works on weak enemies now
               v.takeDamage(99999);
               ImpactVisuals.play(game, v.position, 'Dark', scale: 1.4);
 
