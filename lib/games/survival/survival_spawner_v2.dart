@@ -1,31 +1,322 @@
-import 'dart:math' show pow, max, min, cos, sin, pi, Random, sqrt;
+// lib/games/survival/survival_spawner_v3.dart
+//
+// IMPROVED SPAWNER - Dramatic wave surges, not trickle spawns
+//
+import 'dart:math' show max, min, cos, sin, pi, Random;
 
 import 'package:alchemons/constants/breed_constants.dart';
-import 'package:alchemons/games/survival/components/black_hole_spawner.dart';
 import 'package:flame/components.dart';
+import 'package:flutter/material.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 
-enum WaveStyle { normal, tactical, reinforced, flanking, escort }
+// ════════════════════════════════════════════════════════════════════════════
+// WAVE TELEGRAPH - Visual warning before surge arrives
+// ════════════════════════════════════════════════════════════════════════════
+
+class WaveTelegraph extends PositionComponent {
+  final Vector2 direction;
+  final Color color;
+  final double duration;
+
+  double _time = 0;
+
+  WaveTelegraph({
+    required Vector2 position,
+    required this.direction,
+    required this.color,
+    this.duration = 1.5,
+  }) : super(position: position, anchor: Anchor.center);
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt;
+    if (_time >= duration) removeFromParent();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final progress = (_time / duration).clamp(0.0, 1.0);
+    final alpha = sin(progress * pi);
+    final pulse = 1.0 + sin(_time * 8) * 0.1;
+
+    canvas.save();
+    canvas.rotate(direction.angleTo(Vector2(1, 0)) + pi);
+    canvas.scale(pulse);
+
+    // Arrow shape
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(-120, -45)
+      ..lineTo(-85, 0)
+      ..lineTo(-120, 45)
+      ..close();
+
+    canvas.drawPath(path, Paint()..color = color.withOpacity(alpha * 0.6));
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white.withOpacity(alpha * 0.8)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+
+    // Warning rings
+    for (int i = 0; i < 3; i++) {
+      final ringProgress = (progress + i * 0.2) % 1.0;
+      canvas.drawCircle(
+        const Offset(-70, 0),
+        20 + ringProgress * 40,
+        Paint()
+          ..color = color.withOpacity((1.0 - ringProgress) * alpha * 0.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+    }
+
+    canvas.restore();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// RIFT SPAWNER - Dramatic tear enemies pour through
+// ════════════════════════════════════════════════════════════════════════════
+
+class RiftSpawner extends PositionComponent {
+  final Color color;
+  final double width;
+  final double height;
+  final int enemyCount;
+  final double spawnDuration;
+  final void Function(Vector2 position) onSpawnEnemy;
+
+  double _time = 0;
+  int _phase = 0; // 0=forming, 1=active, 2=closing
+  int _spawned = 0;
+  double _spawnTimer = 0;
+  double _riftOpenness = 0;
+
+  final Random _rng = Random();
+  final List<_RiftParticle> _particles = [];
+
+  static const double formDuration = 0.8;
+  static const double closeDuration = 0.5;
+
+  RiftSpawner({
+    required Vector2 position,
+    required this.color,
+    required this.onSpawnEnemy,
+    this.width = 200,
+    this.height = 80,
+    this.enemyCount = 10,
+    this.spawnDuration = 2.0,
+  }) : super(
+         position: position,
+         size: Vector2(width * 1.5, height * 2),
+         anchor: Anchor.center,
+       );
+
+  double get _spawnInterval => spawnDuration / enemyCount;
+
+  @override
+  Future<void> onLoad() async {
+    for (int i = 0; i < 20; i++) _addParticle();
+  }
+
+  void _addParticle() {
+    _particles.add(
+      _RiftParticle(
+        position: Vector2(
+          (_rng.nextDouble() - 0.5) * width * 0.5,
+          (_rng.nextDouble() - 0.5) * height * 0.3,
+        ),
+        velocity: Vector2(
+          (_rng.nextDouble() - 0.5) * 100,
+          -50 - _rng.nextDouble() * 100,
+        ),
+        size: 3 + _rng.nextDouble() * 5,
+        life: 0.5 + _rng.nextDouble() * 0.5,
+      ),
+    );
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt;
+
+    if (_phase == 0) {
+      _riftOpenness = (_time / formDuration).clamp(0.0, 1.0);
+      if (_time >= formDuration) {
+        _phase = 1;
+        _time = 0;
+      }
+    } else if (_phase == 1) {
+      _riftOpenness = 1.0;
+      _spawnTimer += dt;
+      if (_spawnTimer >= _spawnInterval && _spawned < enemyCount) {
+        _spawnTimer = 0;
+        _spawned++;
+        onSpawnEnemy(
+          position +
+              Vector2(
+                (_rng.nextDouble() - 0.5) * width * 0.6,
+                (_rng.nextDouble() - 0.5) * height * 0.3,
+              ),
+        );
+        for (int i = 0; i < 5; i++) _addParticle();
+      }
+      if (_spawned >= enemyCount) {
+        _phase = 2;
+        _time = 0;
+      }
+    } else {
+      _riftOpenness = 1.0 - (_time / closeDuration).clamp(0.0, 1.0);
+      if (_time >= closeDuration) {
+        removeFromParent();
+        return;
+      }
+    }
+
+    for (int i = _particles.length - 1; i >= 0; i--) {
+      final p = _particles[i];
+      p.life -= dt;
+      p.position += p.velocity * dt;
+      if (p.life <= 0) _particles.removeAt(i);
+    }
+
+    if (_phase == 1 && _particles.length < 30) _addParticle();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final center = (size / 2).toOffset();
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+
+    // Glow
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: width * 1.3 * _riftOpenness,
+        height: height * 1.5 * _riftOpenness,
+      ),
+      Paint()
+        ..color = color.withOpacity(0.3 * _riftOpenness)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15),
+    );
+
+    // Rift shape
+    final path = _buildRiftPath();
+    canvas.drawPath(
+      path,
+      Paint()..color = Colors.black.withOpacity(0.9 * _riftOpenness),
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color.withOpacity(0.8 * _riftOpenness)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4,
+    );
+
+    // Particles
+    for (final p in _particles) {
+      final alpha = (p.life * 2).clamp(0.0, 1.0) * _riftOpenness;
+      canvas.drawCircle(
+        p.position.toOffset(),
+        p.size * alpha,
+        Paint()..color = color.withOpacity(alpha * 0.8),
+      );
+    }
+
+    canvas.restore();
+  }
+
+  Path _buildRiftPath() {
+    final path = Path();
+    final w = width * _riftOpenness;
+    final h = height * _riftOpenness;
+
+    path.moveTo(-w / 2, 0);
+    for (int i = 1; i < 6; i++) {
+      final t = i / 6;
+      path.lineTo(-w / 2 + w * t, -h / 2 + sin(_time * 5 + i * 2) * h * 0.15);
+    }
+    path.lineTo(w / 2, 0);
+    for (int i = 5; i > 0; i--) {
+      final t = i / 6;
+      path.lineTo(
+        -w / 2 + w * t,
+        h / 2 + sin(_time * 5 + i * 2 + pi) * h * 0.15,
+      );
+    }
+    path.close();
+    return path;
+  }
+}
+
+class _RiftParticle {
+  Vector2 position;
+  Vector2 velocity;
+  double size;
+  double life;
+  _RiftParticle({
+    required this.position,
+    required this.velocity,
+    required this.size,
+    required this.life,
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SURGE TYPES
+// ════════════════════════════════════════════════════════════════════════════
+
+enum WaveSurgeType { flood, pincer, encircle, artillery, swarm, elite, boss }
+
+class WaveSurgeConfig {
+  final WaveSurgeType type;
+  final int enemyCount;
+  final double spawnDuration;
+  final double predelay;
+
+  const WaveSurgeConfig({
+    required this.type,
+    required this.enemyCount,
+    this.spawnDuration = 3.0,
+    this.predelay = 1.5,
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// MAIN SPAWNER
+// ════════════════════════════════════════════════════════════════════════════
 
 class ImprovedSurvivalSpawner extends Component
     with HasGameRef<SurvivalHoardGame> {
   static const bool debugSpawns = false;
-  double _timer = 0;
+  static const double _spawnDistance = 2000.0;
+
   final Random _rng = Random();
 
-  static const double _minSpawnDist = 2000.0;
-  static const double _maxSpawnDist = 2000.0;
+  int _lastWave = 0;
+  int _spawnedThisWave = 0;
+  int _waveSpawnBudget = 0;
 
-  final Set<int> _didPatternForWave = {};
+  bool _surgeActive = false;
+  WaveSurgeConfig? _currentSurge;
+  double _surgeTimer = 0;
+  int _surgeSpawnCounter = 0;
+  List<Vector2> _surgeDirections = [];
+
+  double _timeSinceLastSurge = 0;
+  double _nextSurgeDelay = 0;
+
   final Set<int> _didMiniBossForWave = {};
   final Set<int> _didMegaBossForWave = {};
   final Set<int> _didElitePackForWave = {};
-  int _lastWave = 0;
-  int _lastFormationIndex = -1;
-
-  int _spawnedThisWave = 0;
-  int _waveSpawnBudget = 0;
 
   @override
   void update(double dt) {
@@ -33,75 +324,329 @@ class ImprovedSurvivalSpawner extends Component
 
     final wave = gameRef.currentWave;
 
-    // Wave change - reset budget
-    if (wave != _lastWave) {
-      if (debugSpawns) print('==== WAVE $wave ====');
-      _lastWave = wave;
-      _spawnedThisWave = 0;
-      _waveSpawnBudget = _getBudgetForWave(wave);
+    if (wave != _lastWave) _onWaveChange(wave);
 
-      final isBossWave = wave > 0 && wave % 10 == 0;
-      final isMiniBossWave = wave > 0 && wave % 5 == 0 && wave % 10 != 0;
+    _timeSinceLastSurge += dt;
 
-      if (isBossWave && !_didMegaBossForWave.contains(wave)) {
-        _spawnMegaBoss(wave);
-        _didMegaBossForWave.add(wave);
-      } else if (isMiniBossWave && !_didMiniBossForWave.contains(wave)) {
-        _spawnMiniBoss(wave);
-        _didMiniBossForWave.add(wave);
-      }
+    if (_surgeActive) {
+      _updateSurge(dt, wave);
+    } else if (_spawnedThisWave < _waveSpawnBudget &&
+        _timeSinceLastSurge >= _nextSurgeDelay) {
+      _startNewSurge(wave);
+    }
+  }
 
-      if (wave >= 5 && isMiniBossWave && !_didElitePackForWave.contains(wave)) {
-        _spawnElitePack(wave);
-        _didElitePackForWave.add(wave);
-      }
+  void _onWaveChange(int wave) {
+    if (debugSpawns) print('==== WAVE $wave ====');
+
+    _lastWave = wave;
+    _spawnedThisWave = 0;
+    _surgeActive = false;
+    _timeSinceLastSurge = 0;
+    _nextSurgeDelay = 0.5;
+    _waveSpawnBudget = _getBudgetForWave(wave);
+
+    final isBossWave = wave > 0 && wave % 10 == 0;
+    final isMiniBossWave = wave > 0 && wave % 5 == 0 && wave % 10 != 0;
+
+    if (isBossWave && !_didMegaBossForWave.contains(wave)) {
+      _spawnMegaBoss(wave);
+      _didMegaBossForWave.add(wave);
+    } else if (isMiniBossWave && !_didMiniBossForWave.contains(wave)) {
+      _spawnMiniBoss(wave);
+      _didMiniBossForWave.add(wave);
     }
 
-    // Stop spawning if budget exhausted
-    if (_spawnedThisWave >= _waveSpawnBudget) return;
-
-    // Rest of spawn timing logic stays the same...
-    final bool isAnyBossWave = wave % 5 == 0;
-
-    const double kBaseSpawnInterval = 0.5;
-    const double kSpawnRampRate = 0.01;
-    const double kMinSpawnInterval = 0.25;
-
-    final waveFactor = (kBaseSpawnInterval - (wave - 1) * kSpawnRampRate).clamp(
-      kMinSpawnInterval,
-      kBaseSpawnInterval,
-    );
-
-    final spawnRateBase = isAnyBossWave ? waveFactor * 1.6 : waveFactor;
-    final currentSpawnRate = spawnRateBase;
-
-    _timer += dt;
-
-    if (_timer >= currentSpawnRate) {
-      _timer = 0;
-      _spawnTick(wave);
+    if (wave >= 5 && isMiniBossWave && !_didElitePackForWave.contains(wave)) {
+      Future.delayed(
+        const Duration(milliseconds: 3000),
+        () => _spawnElitePack(wave),
+      );
+      _didElitePackForWave.add(wave);
     }
   }
 
   int _getBudgetForWave(int wave) {
-    // Tune these numbers to taste
-    const int baseEnemies = 50;
-    const int perWaveIncrease = 1;
-    const int maxBudget = 200;
-
-    // Boss waves get fewer trash mobs
-    final isBossWave = wave % 5 == 0;
-    final multiplier = isBossWave ? 0.25 : 1.0;
-
-    final budget = ((baseEnemies + (wave - 1) * perWaveIncrease) * multiplier)
-        .round()
-        .clamp(10, maxBudget);
-
-    if (debugSpawns) print('  Wave $wave budget: $budget');
-    return budget;
+    const base = 40, perWave = 3, maxBudget = 180;
+    final mult = wave % 5 == 0 ? 0.3 : 1.0;
+    return ((base + (wave - 1) * perWave) * mult).round().clamp(15, maxBudget);
   }
 
-  // Then in _spawnEnemy, track the count:
+  void _startNewSurge(int wave) {
+    if (_spawnedThisWave >= _waveSpawnBudget) return;
+
+    final remaining = _waveSpawnBudget - _spawnedThisWave;
+    final surgeType = _pickSurgeType(wave);
+    final surgeSize = _calculateSurgeSize(wave, surgeType, remaining);
+
+    _currentSurge = WaveSurgeConfig(
+      type: surgeType,
+      enemyCount: surgeSize,
+      spawnDuration: _getSurgeDuration(surgeType, surgeSize),
+      predelay: _getSurgePredelay(surgeType),
+    );
+
+    _surgeActive = true;
+    _surgeTimer = 0;
+    _surgeSpawnCounter = 0;
+    _surgeDirections = _getSurgeDirections(surgeType);
+
+    if (debugSpawns) print('  >> SURGE: ${surgeType.name} x$surgeSize');
+
+    _showTelegraphs(wave);
+  }
+
+  WaveSurgeType _pickSurgeType(int wave) {
+    if (wave % 5 == 0) return WaveSurgeType.boss;
+
+    final weights = <WaveSurgeType, double>{
+      WaveSurgeType.flood: 30,
+      WaveSurgeType.swarm: wave < 10 ? 40 : 25,
+      WaveSurgeType.pincer: wave >= 5 ? 20 : 5,
+      WaveSurgeType.encircle: wave >= 8 ? 15 : 0,
+      WaveSurgeType.artillery: wave >= 10 ? 10 : 0,
+    };
+
+    var roll = _rng.nextDouble() * weights.values.reduce((a, b) => a + b);
+    for (final e in weights.entries) {
+      roll -= e.value;
+      if (roll <= 0) return e.key;
+    }
+    return WaveSurgeType.flood;
+  }
+
+  int _calculateSurgeSize(int wave, WaveSurgeType type, int maxBudget) {
+    int base = switch (type) {
+      WaveSurgeType.swarm => 20 + wave,
+      WaveSurgeType.flood => 15 + wave ~/ 2,
+      WaveSurgeType.pincer => 12 + wave ~/ 2,
+      WaveSurgeType.encircle => 16 + wave ~/ 2,
+      WaveSurgeType.artillery => 10 + wave ~/ 3,
+      WaveSurgeType.elite => 3 + wave ~/ 10,
+      WaveSurgeType.boss => 8,
+    };
+    return ((base * (0.8 + _rng.nextDouble() * 0.4)).round()).clamp(
+      5,
+      maxBudget,
+    );
+  }
+
+  double _getSurgeDuration(WaveSurgeType type, int count) => switch (type) {
+    WaveSurgeType.swarm => 1.5 + count * 0.05,
+    WaveSurgeType.flood => 2.0 + count * 0.08,
+    WaveSurgeType.pincer => 2.5 + count * 0.1,
+    WaveSurgeType.encircle => 3.0 + count * 0.1,
+    WaveSurgeType.artillery => 2.0 + count * 0.12,
+    WaveSurgeType.elite => 2.0,
+    WaveSurgeType.boss => 4.0,
+  };
+
+  double _getSurgePredelay(WaveSurgeType type) => switch (type) {
+    WaveSurgeType.swarm => 0.8,
+    WaveSurgeType.flood => 1.2,
+    WaveSurgeType.pincer => 1.5,
+    WaveSurgeType.encircle => 2.0,
+    WaveSurgeType.artillery => 1.5,
+    WaveSurgeType.elite => 2.5,
+    WaveSurgeType.boss => 0,
+  };
+
+  List<Vector2> _getSurgeDirections(WaveSurgeType type) {
+    final angle = _rng.nextDouble() * 2 * pi;
+    return switch (type) {
+      WaveSurgeType.flood ||
+      WaveSurgeType.swarm ||
+      WaveSurgeType.artillery => [Vector2(cos(angle), sin(angle))],
+      WaveSurgeType.pincer => [
+        Vector2(cos(angle), sin(angle)),
+        Vector2(cos(angle + pi), sin(angle + pi)),
+      ],
+      WaveSurgeType.encircle => List.generate(
+        6,
+        (i) => Vector2(cos(i / 6 * 2 * pi), sin(i / 6 * 2 * pi)),
+      ),
+      _ => [],
+    };
+  }
+
+  void _showTelegraphs(int wave) {
+    for (final dir in _surgeDirections) {
+      final element = allElements[_rng.nextInt(allElements.length)];
+      gameRef.world.add(
+        WaveTelegraph(
+          position: dir * (_spawnDistance - 300),
+          direction: dir,
+          color: BreedConstants.getTypeColor(element),
+          duration: _currentSurge?.predelay ?? 1.5,
+        ),
+      );
+    }
+  }
+
+  void _updateSurge(double dt, int wave) {
+    if (_currentSurge == null) {
+      _surgeActive = false;
+      return;
+    }
+
+    _surgeTimer += dt;
+    if (_surgeTimer < _currentSurge!.predelay) return;
+
+    final activeTime = _surgeTimer - _currentSurge!.predelay;
+    final targetSpawned =
+        (_currentSurge!.enemyCount *
+                (activeTime / _currentSurge!.spawnDuration))
+            .round();
+    final toSpawn = targetSpawned - _surgeSpawnCounter;
+
+    if (toSpawn > 0) _executeSurgeSpawn(wave, toSpawn);
+
+    if (activeTime >= _currentSurge!.spawnDuration) _completeSurge();
+  }
+
+  void _executeSurgeSpawn(int wave, int count) {
+    final type = _currentSurge?.type ?? WaveSurgeType.flood;
+    final tier = _pickTierForWave(wave);
+
+    switch (type) {
+      case WaveSurgeType.flood:
+      case WaveSurgeType.swarm:
+        _spawnFlood(wave, tier, count);
+      case WaveSurgeType.pincer:
+        _spawnPincer(wave, tier, count);
+      case WaveSurgeType.encircle:
+        _spawnEncircle(wave, tier, count);
+      case WaveSurgeType.artillery:
+        _spawnArtillery(wave, tier, count);
+      default:
+        _spawnFlood(wave, tier, count);
+    }
+
+    _surgeSpawnCounter += count;
+  }
+
+  void _spawnFlood(int wave, int tier, int count) {
+    if (_surgeDirections.isEmpty) return;
+    final dir = _surgeDirections.first;
+    final basePos = dir * _spawnDistance;
+
+    if (_surgeSpawnCounter == 0 && count >= 5) {
+      final element = allElements[_rng.nextInt(allElements.length)];
+      gameRef.world.add(
+        RiftSpawner(
+          position: basePos,
+          color: BreedConstants.getTypeColor(element),
+          enemyCount: count,
+          width: 250 + count * 5.0,
+          spawnDuration: count * 0.15,
+          onSpawnEnemy: (pos) =>
+              _spawnEnemy(tier: tier, wave: wave, position: pos),
+        ),
+      );
+    } else {
+      for (int i = 0; i < count; i++) {
+        final perpAngle = dir.angleTo(Vector2(1, 0)) + pi / 2;
+        final offset =
+            Vector2(cos(perpAngle), sin(perpAngle)) * ((i - count / 2) * 40);
+        final jitter = Vector2(
+          (_rng.nextDouble() - 0.5) * 60,
+          (_rng.nextDouble() - 0.5) * 60,
+        );
+        _spawnEnemy(
+          tier: tier,
+          wave: wave,
+          position: basePos + offset + jitter,
+        );
+      }
+    }
+  }
+
+  void _spawnPincer(int wave, int tier, int count) {
+    final perSide = count ~/ 2;
+    for (int side = 0; side < min(2, _surgeDirections.length); side++) {
+      final basePos = _surgeDirections[side] * _spawnDistance;
+      for (int i = 0; i < perSide; i++) {
+        _spawnEnemy(
+          tier: tier,
+          wave: wave,
+          position:
+              basePos +
+              Vector2(
+                (_rng.nextDouble() - 0.5) * 150,
+                (_rng.nextDouble() - 0.5) * 150,
+              ),
+        );
+      }
+    }
+  }
+
+  void _spawnEncircle(int wave, int tier, int count) {
+    final perDir = max(1, count ~/ _surgeDirections.length);
+    for (final dir in _surgeDirections) {
+      final basePos = dir * _spawnDistance;
+      for (int i = 0; i < perDir; i++) {
+        _spawnEnemy(
+          tier: tier,
+          wave: wave,
+          position:
+              basePos +
+              Vector2(
+                (_rng.nextDouble() - 0.5) * 100,
+                (_rng.nextDouble() - 0.5) * 100,
+              ),
+        );
+      }
+    }
+  }
+
+  void _spawnArtillery(int wave, int tier, int count) {
+    if (_surgeDirections.isEmpty) return;
+    final dir = _surgeDirections.first;
+    final basePos = dir * _spawnDistance;
+
+    final chargers = (count * 0.6).round();
+    for (int i = 0; i < chargers; i++) {
+      _spawnEnemy(
+        tier: tier,
+        wave: wave,
+        position:
+            basePos +
+            Vector2(
+              (_rng.nextDouble() - 0.5) * 200,
+              (_rng.nextDouble() - 0.5) * 100,
+            ),
+        forceRole: EnemyRole.charger,
+      );
+    }
+
+    final backPos = basePos + dir * 200;
+    for (int i = 0; i < count - chargers; i++) {
+      _spawnEnemy(
+        tier: tier,
+        wave: wave,
+        position:
+            backPos +
+            Vector2(
+              (_rng.nextDouble() - 0.5) * 200,
+              (_rng.nextDouble() - 0.5) * 80,
+            ),
+        forceRole: EnemyRole.shooter,
+      );
+    }
+  }
+
+  void _completeSurge() {
+    _surgeActive = false;
+    _currentSurge = null;
+    _surgeSpawnCounter = 0;
+    _timeSinceLastSurge = 0;
+    _nextSurgeDelay = 2.0 + _rng.nextDouble() * 2.0;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ENEMY SPAWNING
+  // ══════════════════════════════════════════════════════════════════════════
+
   void _spawnEnemy({
     required int tier,
     required int wave,
@@ -109,7 +654,6 @@ class ImprovedSurvivalSpawner extends Component
     double sizeScale = 1.0,
     EnemyRole? forceRole,
   }) {
-    // Budget check (safety)
     if (_spawnedThisWave >= _waveSpawnBudget) return;
 
     final template = SurvivalEnemyCatalog.getRandomTemplateForTier(tier);
@@ -122,489 +666,85 @@ class ImprovedSurvivalSpawner extends Component
       isShooter: role == EnemyRole.shooter,
     );
 
-    final enemy = HoardEnemy(
-      position: position,
-      targetOrb: gameRef.orb,
-      unit: unit,
-      template: template,
-      role: role,
-      sizeScale: sizeScale,
+    gameRef.addHoardEnemy(
+      HoardEnemy(
+        position: position,
+        targetOrb: gameRef.orb,
+        unit: unit,
+        template: template,
+        role: role,
+        sizeScale: sizeScale,
+      ),
     );
 
-    gameRef.addHoardEnemy(enemy);
     _spawnedThisWave++;
   }
 
-  void _spawnTick(int wave) {
-    // One "special" formation pattern per wave max
-    if (!_didPatternForWave.contains(wave) && wave >= 2) {
-      if (_trySpawnFormation(wave)) {
-        _didPatternForWave.add(wave);
-        return;
-      }
-    }
-
-    _spawnTacticalGroup(wave);
+  int _pickTierForWave(int wave) {
+    if (wave < 10) return 1;
+    if (wave < 25) return _rng.nextDouble() < 0.7 ? 1 : 2;
+    return _rng.nextDouble() < 0.3 ? 1 : 2;
   }
 
-  void _spawnTacticalGroup(int wave) {
-    final int tier = _pickTierForWave(wave); // swarm / brute only
-    final style = _waveStyleFor(wave);
-    final bool isBossWave = wave % 5 == 0;
+  EnemyRole _determineRole(SurvivalEnemyTemplate template, int wave) {
+    double shooter = 0.06,
+        bomber = wave >= 8 ? 0.04 : 0.0,
+        leecher = wave >= 12 ? 0.03 : 0.0;
 
-    final densityScale = _waveDensityScale(wave);
-
-    int baseCount;
-    switch (style) {
-      case WaveStyle.tactical:
-        baseCount = 8 + _rng.nextInt(5);
-        break;
-      case WaveStyle.reinforced:
-        baseCount = 10 + _rng.nextInt(5);
-        break;
-      case WaveStyle.flanking:
-        _spawnFlankingGroup(wave, tier);
-        return;
-      case WaveStyle.escort:
-        _spawnEscortGroup(wave, tier);
-        return;
-      case WaveStyle.normal:
-        if (_rng.nextBool()) {
-          _spawnTacticalGroupFromBlackHole(wave);
-        }
-        return;
+    switch (template.element) {
+      case 'Air':
+      case 'Lightning':
+      case 'Spirit':
+        shooter += 0.05;
+      case 'Fire':
+      case 'Lava':
+        bomber += 0.03;
+      case 'Blood':
+      case 'Dark':
+      case 'Poison':
+        leecher += 0.04;
     }
 
-    // NEW: multiply by density so waves 6+ bring more bodies
-    int count = (baseCount * densityScale).round();
-
-    // Boss waves: fewer trash mobs so arena stays readable
-    count = isBossWave ? max(3, (count * 0.55).round()) : count;
-
-    final angle = _rng.nextDouble() * pi * 2;
-    final dist =
-        _minSpawnDist + _rng.nextDouble() * (_maxSpawnDist - _minSpawnDist);
-    final centerPos = Vector2(cos(angle), sin(angle)) * dist;
-
-    for (int i = 0; i < count; i++) {
-      final offset = Vector2(
-        _rng.nextDouble() * 120 - 60,
-        _rng.nextDouble() * 120 - 60,
-      );
-      _spawnEnemy(tier: tier, wave: wave, position: centerPos + offset);
-    }
-
-    // Chance to spawn bomber squad (wave 8+)
-    if (wave >= 8 && _rng.nextDouble() < _bomberChance(wave)) {
-      _spawnBomberSquad(wave, centerPos);
-    }
-
-    // Chance to spawn leecher pack (wave 12+)
-    if (wave >= 12 && _rng.nextDouble() < _leecherChance(wave)) {
-      _spawnLeecherPack(wave, centerPos);
-    }
+    final roll = _rng.nextDouble();
+    if (roll < bomber) return EnemyRole.bomber;
+    if (roll < bomber + leecher) return EnemyRole.leecher;
+    if (roll < bomber + leecher + shooter) return EnemyRole.shooter;
+    return EnemyRole.charger;
   }
 
-  double _bomberChance(int wave) {
-    // Starts at 8% wave 8, scales to ~20% by wave 30
-    return (0.08 + (wave - 8) * 0.004).clamp(0.0, 0.20);
-  }
-
-  double _leecherChance(int wave) {
-    // Starts at 6% wave 12, scales to ~15% by wave 35
-    return (0.06 + (wave - 12) * 0.004).clamp(0.0, 0.15);
-  }
-
-  void _spawnBomberSquad(int wave, Vector2 nearPos) {
-    final count = 2 + (wave ~/ 15); // 2-4 bombers
-    final tier = _pickTierForWave(wave);
-
-    if (debugSpawns) print('  >> BOMBER SQUAD x$count');
-
-    for (int i = 0; i < count; i++) {
-      final offset = Vector2(
-        _rng.nextDouble() * 80 - 40,
-        _rng.nextDouble() * 80 - 40,
-      );
-      _spawnEnemy(
-        tier: tier,
-        wave: wave,
-        position: nearPos + offset,
-        forceRole: EnemyRole.bomber,
-      );
-    }
-  }
-
-  void _spawnLeecherPack(int wave, Vector2 nearPos) {
-    final count = 1 + (wave ~/ 20); // 1-3 leechers
-    final tier = _pickTierForWave(wave);
-
-    if (debugSpawns) print('  >> LEECHER PACK x$count');
-
-    for (int i = 0; i < count; i++) {
-      final offset = Vector2(
-        _rng.nextDouble() * 60 - 30,
-        _rng.nextDouble() * 60 - 30,
-      );
-      _spawnEnemy(
-        tier: tier,
-        wave: wave,
-        position: nearPos + offset,
-        forceRole: EnemyRole.leecher,
-      );
-    }
-  }
-
-  void _spawnFlankingGroup(int wave, int tier) {
-    final angle1 = _rng.nextDouble() * pi * 2;
-    final angle2 = angle1 + pi + (_rng.nextDouble() - 0.5) * 0.5;
-    final dist = _minSpawnDist;
-    final countPerSide = 6 + _rng.nextInt(3);
-
-    for (final angle in [angle1, angle2]) {
-      final centerPos = Vector2(cos(angle), sin(angle)) * dist;
-      for (int i = 0; i < countPerSide; i++) {
-        final offset = Vector2(
-          _rng.nextDouble() * 100 - 50,
-          _rng.nextDouble() * 100 - 50,
-        );
-        _spawnEnemy(tier: tier, wave: wave, position: centerPos + offset);
-      }
-    }
-
-    // Flanking attacks sometimes include bombers for pressure
-    if (wave >= 10 && _rng.nextDouble() < 0.3) {
-      final bomberPos = Vector2(cos(angle1), sin(angle1)) * dist;
-      _spawnBomberSquad(wave, bomberPos);
-    }
-  }
-
-  void _spawnEscortGroup(int wave, int tier) {
-    final angle = _rng.nextDouble() * pi * 2;
-    final dist = _minSpawnDist;
-    final centerPos = Vector2(cos(angle), sin(angle)) * dist;
-
-    // Slightly bigger "captain" brute, not enormous
-    _spawnEnemy(
-      tier: min(2, tier + 1), // keep captain in swarm/brute band
-      wave: wave,
-      position: centerPos,
-      sizeScale: 2.0,
-    );
-
-    final escortCount = 6 + _rng.nextInt(4);
-    for (int i = 0; i < escortCount; i++) {
-      final escortAngle = (i / escortCount) * pi * 2;
-      final escortPos =
-          centerPos + Vector2(cos(escortAngle), sin(escortAngle)) * 100;
-      _spawnEnemy(tier: max(1, tier - 1), wave: wave, position: escortPos);
-    }
-
-    // Escort groups sometimes have a leecher attached
-    if (wave >= 15 && _rng.nextDouble() < 0.25) {
-      _spawnEnemy(
-        tier: tier,
-        wave: wave,
-        position: centerPos + Vector2(50, 50),
-        forceRole: EnemyRole.leecher,
-      );
-    }
-  }
-
-  WaveStyle _waveStyleFor(int wave) {
-    // Boss / miniboss waves focus on the boss, use simpler patterns
-    if (wave % 10 == 0 || wave % 5 == 0) return WaveStyle.normal;
-
-    final styleIndex = wave % 8;
-    switch (styleIndex) {
-      case 1:
-        return WaveStyle.tactical;
-      case 2:
-        return WaveStyle.normal;
-      case 3:
-        return WaveStyle.flanking;
-      case 4:
-        return WaveStyle.reinforced;
-      case 5:
-        return WaveStyle.tactical;
-      case 6:
-        return WaveStyle.escort;
-      case 7:
-        return WaveStyle.flanking;
-      default:
-        return WaveStyle.normal;
-    }
-  }
-
-  bool _trySpawnFormation(int wave) {
-    if (wave < 2) return false;
-
-    final formations = [
-      _spawnPincerFormation,
-      _spawnArcFormation,
-      _spawnDiamondFormation,
-      _spawnWedgeFormation,
-      _spawnLineFormation,
-      _spawnCrescentFormation,
-      _spawnTriangleFormation,
-      _spawnDoubleLineFormation,
-    ];
-
-    int idx = (wave ~/ 2) % formations.length;
-    if (idx == _lastFormationIndex) {
-      idx = (idx + 1) % formations.length;
-    }
-    _lastFormationIndex = idx;
-
-    // Don't force a pattern every wave; keep them special
-    if (_rng.nextDouble() < 0.5) {
-      formations[idx](wave);
-      return true;
-    }
-    return false;
-  }
-
-  //
-  // FORMATIONS (mostly unchanged, but only use swarm / brutes for trash)
-  //
-
-  void _spawnPincerFormation(int wave) {
-    final tier = _pickTierForWave(wave);
-    final perArm = 6 + (wave ~/ 6);
-
-    for (int arm = 0; arm < 2; arm++) {
-      final baseAngle = arm * pi;
-      final arcWidth = pi * 0.5;
-
-      for (int i = 0; i < perArm; i++) {
-        final t = perArm == 1 ? 0.5 : i / (perArm - 1);
-        final angle = baseAngle - arcWidth / 2 + arcWidth * t;
-        final dist = _minSpawnDist + _rng.nextDouble() * 100;
-        final pos = Vector2(cos(angle), sin(angle)) * dist;
-        _spawnEnemy(tier: tier, wave: wave, position: pos);
-      }
-    }
-
-    // Pincer can have bombers rushing through the middle
-    if (wave >= 12 && _rng.nextDouble() < 0.4) {
-      final midAngle = _rng.nextDouble() * pi * 2;
-      final midPos = Vector2(cos(midAngle), sin(midAngle)) * _minSpawnDist;
-      _spawnBomberSquad(wave, midPos);
-    }
-  }
-
-  void _spawnArcFormation(int wave) {
-    final tier = _pickTierForWave(wave);
-    final count = 12 + (wave ~/ 5);
-    final baseAngle = _rng.nextDouble() * pi * 2;
-    final arcWidth = pi * 0.8;
-    final dist = _minSpawnDist;
-
-    for (int i = 0; i < count; i++) {
-      final t = count == 1 ? 0.5 : i / (count - 1);
-      final angle = baseAngle - arcWidth / 2 + arcWidth * t;
-      final pos = Vector2(cos(angle), sin(angle)) * dist;
-      _spawnEnemy(tier: tier, wave: wave, position: pos);
-    }
-  }
-
-  void _spawnDiamondFormation(int wave) {
-    final tier = _pickTierForWave(wave);
-    final sideCount = 5 + (wave ~/ 8);
-    final baseAngle = _rng.nextDouble() * pi * 2;
-    final dist = _minSpawnDist;
-
-    final corners = [
-      Vector2(0, -1),
-      Vector2(1, 0),
-      Vector2(0, 1),
-      Vector2(-1, 0),
-    ];
-
-    for (int side = 0; side < 4; side++) {
-      final start = corners[side] * dist;
-      final end = corners[(side + 1) % 4] * dist;
-
-      for (int i = 0; i < sideCount; i++) {
-        final t = i / (sideCount - 1);
-        var pos = start + (end - start) * t;
-        final rotated = Vector2(
-          pos.x * cos(baseAngle) - pos.y * sin(baseAngle),
-          pos.x * sin(baseAngle) + pos.y * cos(baseAngle),
-        );
-        _spawnEnemy(tier: tier, wave: wave, position: rotated);
-      }
-    }
-  }
-
-  void _spawnWedgeFormation(int wave) {
-    final tier = _pickTierForWave(wave);
-    final rows = 4 + (wave ~/ 10);
-    final angle = _rng.nextDouble() * pi * 2;
-    final baseDist = _minSpawnDist;
-
-    for (int row = 0; row < rows; row++) {
-      final enemiesInRow = row + 1;
-      final rowDist = baseDist + row * 70;
-      final spread = row * 60;
-
-      for (int i = 0; i < enemiesInRow; i++) {
-        final lateralOffset =
-            (i - (enemiesInRow - 1) / 2) *
-            (spread / max(1, enemiesInRow - 1) * 2);
-        final perpAngle = angle + pi / 2;
-
-        final pos =
-            Vector2(cos(angle), sin(angle)) * rowDist +
-            Vector2(cos(perpAngle), sin(perpAngle)) * lateralOffset;
-        _spawnEnemy(tier: tier, wave: wave, position: pos);
-      }
-    }
-
-    // Wedge tip can have a bomber leading the charge
-    if (wave >= 10 && _rng.nextDouble() < 0.35) {
-      final tipPos = Vector2(cos(angle), sin(angle)) * (baseDist - 50);
-      _spawnEnemy(
-        tier: tier,
-        wave: wave,
-        position: tipPos,
-        forceRole: EnemyRole.bomber,
-      );
-    }
-  }
-
-  void _spawnLineFormation(int wave) {
-    final tier = _pickTierForWave(wave);
-    final count = 10 + (wave ~/ 6);
-    final angle = _rng.nextDouble() * pi * 2;
-    final perpAngle = angle + pi / 2;
-    final dist = _minSpawnDist;
-    final lineWidth = count * 50.0;
-
-    final centerPos = Vector2(cos(angle), sin(angle)) * dist;
-
-    for (int i = 0; i < count; i++) {
-      final offset = (i - (count - 1) / 2) * (lineWidth / (count - 1));
-      final pos = centerPos + Vector2(cos(perpAngle), sin(perpAngle)) * offset;
-      _spawnEnemy(tier: tier, wave: wave, position: pos);
-    }
-  }
-
-  void _spawnCrescentFormation(int wave) {
-    final tier = _pickTierForWave(wave);
-    final count = 14 + (wave ~/ 6);
-    final baseAngle = _rng.nextDouble() * pi * 2;
-    final arcWidth = pi * 1.0;
-
-    for (int i = 0; i < count; i++) {
-      final t = count == 1 ? 0.5 : i / (count - 1);
-      final angle = baseAngle - arcWidth / 2 + arcWidth * t;
-      final distVariance = sin(t * pi) * 160;
-      final dist = _minSpawnDist - distVariance;
-      final pos = Vector2(cos(angle), sin(angle)) * dist;
-      _spawnEnemy(tier: tier, wave: wave, position: pos);
-    }
-
-    // Crescent center can have leechers lurking
-    if (wave >= 15 && _rng.nextDouble() < 0.3) {
-      final centerPos =
-          Vector2(cos(baseAngle), sin(baseAngle)) * (_minSpawnDist - 160);
-      _spawnLeecherPack(wave, centerPos);
-    }
-  }
-
-  void _spawnTriangleFormation(int wave) {
-    final tier = _pickTierForWave(wave);
-    final perSide = 6 + (wave ~/ 8);
-    final baseAngle = _rng.nextDouble() * pi * 2;
-    final size = 320.0;
-
-    final corners = <Vector2>[];
-    for (int c = 0; c < 3; c++) {
-      final cornerAngle = baseAngle + c * (pi * 2 / 3);
-      corners.add(Vector2(cos(cornerAngle), sin(cornerAngle)) * size);
-    }
-
-    final offset = Vector2(cos(baseAngle), sin(baseAngle)) * _minSpawnDist;
-
-    for (int side = 0; side < 3; side++) {
-      final start = corners[side];
-      final end = corners[(side + 1) % 3];
-
-      for (int i = 0; i < perSide; i++) {
-        final t = i / (perSide - 1);
-        final pos = start + (end - start) * t + offset;
-        _spawnEnemy(tier: tier, wave: wave, position: pos);
-      }
-    }
-  }
-
-  void _spawnDoubleLineFormation(int wave) {
-    final tier = _pickTierForWave(wave);
-    final perLine = 8 + (wave ~/ 7);
-    final angle = _rng.nextDouble() * pi * 2;
-    final perpAngle = angle + pi / 2;
-    final lineWidth = perLine * 50.0;
-
-    for (int line = 0; line < 2; line++) {
-      final dist = _minSpawnDist + line * 140;
-      final centerPos = Vector2(cos(angle), sin(angle)) * dist;
-
-      for (int i = 0; i < perLine; i++) {
-        final offset = (i - (perLine - 1) / 2) * (lineWidth / (perLine - 1));
-        final pos =
-            centerPos + Vector2(cos(perpAngle), sin(perpAngle)) * offset;
-        _spawnEnemy(tier: tier, wave: wave, position: pos);
-      }
-    }
-  }
-
-  //
-  // ELITE PACKS (Tier 3 - rare, small groups every 5 waves)
-  //
+  // ══════════════════════════════════════════════════════════════════════════
+  // BOSS/ELITE SPAWNING
+  // ══════════════════════════════════════════════════════════════════════════
 
   void _spawnElitePack(int wave) {
-    // Tiny, spicy elite group â€“ 2 or 3 enemies.
     final count = wave >= 25 ? 3 : 2;
-    final tier = 3; // Elite
-    final angle = _rng.nextDouble() * pi * 2;
-    final dist =
-        _minSpawnDist + _rng.nextDouble() * (_maxSpawnDist - _minSpawnDist);
-    final centerPos = Vector2(cos(angle), sin(angle)) * dist;
-
-    if (debugSpawns) {
-      print('  >> ELITE PACK (tier 3) at wave $wave, count=$count');
-    }
+    final angle = _rng.nextDouble() * 2 * pi;
+    final pos = Vector2(cos(angle), sin(angle)) * _spawnDistance;
 
     for (int i = 0; i < count; i++) {
-      final offsetAngle = angle + (i - (count - 1) / 2) * 0.3;
-      final pos =
-          centerPos + Vector2(cos(offsetAngle), sin(offsetAngle)) * 80.0;
-      _spawnEnemy(tier: tier, wave: wave, position: pos);
+      _spawnEnemy(
+        tier: 3,
+        wave: wave,
+        position:
+            pos +
+            Vector2(
+              (_rng.nextDouble() - 0.5) * 100,
+              (_rng.nextDouble() - 0.5) * 100,
+            ),
+      );
     }
   }
 
-  //
-  // BOSS SPAWNING - tuned to match simpler boss AI + sizes
-  //
-
   void _spawnMiniBoss(int wave) {
-    if (debugSpawns) print('  >> MINI-BOSS at wave $wave');
-
-    final tier = _getMiniBossTier(wave);
+    final tier = wave < 10 ? 2 : (wave < 20 ? 3 : (wave < 35 ? 4 : 5));
     final template = SurvivalEnemyCatalog.getRandomTemplateForTier(tier);
     final unit = SurvivalEnemyCatalog.buildMiniBoss(
       template: template,
       wave: wave,
     );
 
-    // Spawn far away for dramatic entrance
-    final angle = _rng.nextDouble() * pi * 2;
-    final dist = _minSpawnDist + 250;
-    final pos = Vector2(cos(angle), sin(angle)) * dist;
-
-    // Reasonable size; scales slowly with wave
-    final sizeScale = (2.8 + wave * 0.04).clamp(2.8, 4.2);
+    final angle = _rng.nextDouble() * 2 * pi;
+    final pos = Vector2(cos(angle), sin(angle)) * (_spawnDistance + 250);
 
     final enemy = HoardEnemy(
       position: pos,
@@ -612,349 +752,107 @@ class ImprovedSurvivalSpawner extends Component
       unit: unit,
       template: template,
       role: EnemyRole.charger,
-      sizeScale: sizeScale,
+      sizeScale: (2.8 + wave * 0.04).clamp(2.8, 4.2),
       speedMultiplier: 0.6,
     );
-
     enemy.isMiniBoss = true;
     gameRef.addHoardEnemy(enemy);
 
-    // Light escort ring after entrance, not a full army
+    // Escort wave
     Future.delayed(const Duration(milliseconds: 2200), () {
-      final escortCount = 4 + (wave ~/ 12);
-      for (int i = 0; i < escortCount; i++) {
-        final escortAngle = (i / escortCount) * pi * 2;
-        final escortPos =
-            pos + Vector2(cos(escortAngle), sin(escortAngle)) * 220;
+      for (int i = 0; i < 4 + wave ~/ 12; i++) {
+        final escortAngle = (i / (4 + wave ~/ 12)) * 2 * pi;
         _spawnEnemy(
-          tier: max(1, min(2, tier - 1)), // escorts are swarm / brutes
+          tier: max(1, tier - 1),
           wave: wave,
-          position: escortPos,
-        );
-      }
-
-      // Mini-boss escort can include a bomber or two
-      if (wave >= 15 && _rng.nextDouble() < 0.4) {
-        _spawnEnemy(
-          tier: 1,
-          wave: wave,
-          position: pos + Vector2(180, 0),
-          forceRole: EnemyRole.bomber,
+          position: pos + Vector2(cos(escortAngle), sin(escortAngle)) * 220,
         );
       }
     });
   }
 
-  void _spawnTacticalGroupFromBlackHole(int wave) {
-    final int tier = _pickTierForWave(wave);
-    final style = _waveStyleFor(wave);
-    final densityScale = _waveDensityScale(wave);
-
-    int baseCount;
-    switch (style) {
-      case WaveStyle.tactical:
-        baseCount = 8 + _rng.nextInt(5);
-        break;
-      case WaveStyle.reinforced:
-        baseCount = 10 + _rng.nextInt(5);
-        break;
-      default:
-        baseCount = 6 + _rng.nextInt(4);
-    }
-
-    int count = (baseCount * densityScale).round();
-    final bool isBossWave = wave % 5 == 0;
-    count = isBossWave ? max(3, (count * 0.55).round()) : count;
-
-    final angle = _rng.nextDouble() * pi * 2;
-    final dist = _minSpawnDist;
-    final centerPos = Vector2(cos(angle), sin(angle)) * dist;
-
-    // Determine black hole color based on dominant element this wave
-    final element = allElements[_rng.nextInt(allElements.length)];
-    final color = BreedConstants.getTypeColor(element);
-
-    // Spawn the black hole
-    final blackHole = BlackHoleSpawner(
-      position: centerPos,
-      accentColor: color,
-      enemyCount: count,
-      radius: 60.0 + (wave * 0.5).clamp(0, 40), // Grows slightly with wave
-      spawnInterval: 0.25, // Enemies pour out quickly
-      formDuration: 1.0,
-      activeDuration: count * 0.3 + 1.0, // Duration scales with enemy count
-      collapseDuration: 0.6,
-      onSpawnEnemy: (pos) {
-        // Add slight randomness to spawn position
-        final offset = Vector2(
-          _rng.nextDouble() * 60 - 30,
-          _rng.nextDouble() * 60 - 30,
-        );
-        _spawnEnemy(tier: tier, wave: wave, position: pos + offset);
-      },
-    );
-
-    gameRef.world.add(blackHole);
-  }
-
   void _spawnMegaBoss(int wave) {
-    if (debugSpawns) print('  >> MEGA-BOSS at wave $wave');
-
-    final tier = _getMegaBossTier(wave);
+    final tier = wave < 15 ? 3 : (wave < 25 ? 4 : 5);
     final template = SurvivalEnemyCatalog.getRandomTemplateForTier(tier);
 
-    // Spawn even further back for mega boss
-    final angle = _rng.nextDouble() * pi * 2;
-    final dist = _minSpawnDist + 450;
-    final pos = Vector2(cos(angle), sin(angle)) * dist;
+    final bossNum = wave ~/ 10;
+    final archetype = bossNum > 0 && bossNum % 4 == 0
+        ? BossArchetype.hydra
+        : [
+            BossArchetype.juggernaut,
+            BossArchetype.summoner,
+            BossArchetype.artillery,
+          ][(bossNum - 1) % 3];
 
-    // Select archetype based on wave
-    final archetype = _getBossArchetype(wave);
+    final angle = _rng.nextDouble() * 2 * pi;
+    final pos = Vector2(cos(angle), sin(angle)) * (_spawnDistance + 450);
 
-    // ─────────────────────────────────────────────────────────
-    // HYDRA BOSS SPECIAL CASE
-    // ─────────────────────────────────────────────────────────
     if (archetype == BossArchetype.hydra) {
-      // Build the generation 0 Hydra boss (massive, tanky).
       final unit = SurvivalEnemyCatalog.buildHydraBoss(
         template: template,
         wave: wave,
         generation: 0,
       );
-
-      // IMPORTANT: sizeScale here is moderate; the hydra radius helper
-      // multiplies again (3x for gen 0), so don't double-dip too hard.
-      final sizeScale = (3.0 + wave * 0.03).clamp(3.0, 4.5);
-
-      final hydra = HoardEnemy(
+      final enemy = HoardEnemy(
         position: pos,
         targetOrb: gameRef.orb,
         unit: unit,
         template: template,
-        role: EnemyRole.charger, // melee bruiser that slams + volleys
-        sizeScale: sizeScale,
+        role: EnemyRole.charger,
+        sizeScale: (3.0 + wave * 0.03).clamp(3.0, 4.5),
         bossArchetype: BossArchetype.hydra,
         isMegaBoss: true,
         speedMultiplier: 0.35,
         hydraGeneration: 0,
       );
+      enemy.isBoss = true;
+      gameRef.addHoardEnemy(enemy);
+    } else {
+      final unit = SurvivalEnemyCatalog.buildMegaBoss(
+        template: template,
+        wave: wave,
+      );
+      final enemy = HoardEnemy(
+        position: pos,
+        targetOrb: gameRef.orb,
+        unit: unit,
+        template: template,
+        role: archetype == BossArchetype.artillery
+            ? EnemyRole.shooter
+            : EnemyRole.charger,
+        sizeScale: (4.0 + wave * 0.05).clamp(4.0, 6.0),
+        bossArchetype: archetype,
+        isMegaBoss: true,
+        speedMultiplier: 0.4,
+      );
+      enemy.isBoss = true;
+      gameRef.addHoardEnemy(enemy);
 
-      hydra.isBoss = true;
-      gameRef.addHoardEnemy(hydra);
-
-      // Performance: Hydra supplies its own "adds" via splitting.
-      // We *skip* boss minion waves so the arena doesn't get insane.
-      return;
+      _spawnBossMinionWaves(pos, wave, tier);
     }
-
-    // ─────────────────────────────────────────────────────────
-    // NORMAL MEGA BOSS (juggernaut / summoner / artillery)
-    // ─────────────────────────────────────────────────────────
-
-    final unit = SurvivalEnemyCatalog.buildMegaBoss(
-      template: template,
-      wave: wave,
-    );
-
-    // BIG, but not "break the game" big
-    final sizeScale = (4.0 + wave * 0.05).clamp(4.0, 6.0);
-
-    final enemy = HoardEnemy(
-      position: pos,
-      targetOrb: gameRef.orb,
-      unit: unit,
-      template: template,
-      role: archetype == BossArchetype.artillery
-          ? EnemyRole.shooter
-          : EnemyRole.charger,
-      sizeScale: sizeScale,
-      bossArchetype: archetype,
-      isMegaBoss: true,
-      speedMultiplier: 0.4,
-    );
-
-    enemy.isBoss = true;
-    gameRef.addHoardEnemy(enemy);
-
-    // For non-Hydra bosses we still run minion support waves
-    _spawnBossMinionWaves(pos, wave, tier);
-  }
-
-  /// PERFORMANCE-FRIENDLY DENSITY - caps at 2.0x, difficulty comes from bosses
-
-  double _waveDensityScale(int wave) {
-    return 0.9;
-    // Before wave 10 → base value
-    // if (wave < 5) return 0.5;
-    // if (wave < 10) return 0.8;
-    // if (wave < 15) return 1;
-
-    // const startWave = 15;
-    // const endValue = 1.1;
-    // const startValue = 1.0;
-
-    // // Choose the wave where you want to *reach* the cap.
-    // // Example: reach cap by wave 50.
-    // const capWave = 50;
-
-    // // Linear progression from wave 10 to capWave
-    // final t = ((wave - startWave) / (capWave - startWave)).clamp(0.0, 1.0);
-
-    // final value = startValue + (endValue - startValue) * t;
-
-    // return value;
   }
 
   void _spawnBossMinionWaves(Vector2 bossPos, int wave, int tier) {
-    // Wave 1: modest immediate minions
     Future.delayed(const Duration(milliseconds: 3200), () {
-      final count = 5 + (wave ~/ 10);
-      for (int i = 0; i < count; i++) {
-        final angle = (i / count) * pi * 2;
-        final pos = bossPos + Vector2(cos(angle), sin(angle)) * 320;
+      for (int i = 0; i < 5 + wave ~/ 10; i++) {
+        final angle = (i / (5 + wave ~/ 10)) * 2 * pi;
         _spawnEnemy(
-          tier: max(1, min(3, tier - 2)), // mostly swarm/brutes, maybe elite
+          tier: max(1, min(3, tier - 2)),
           wave: wave,
-          position: pos,
+          position: bossPos + Vector2(cos(angle), sin(angle)) * 320,
         );
-      }
-
-      // Boss minion wave includes bombers for pressure
-      if (wave >= 20) {
-        for (int i = 0; i < 2; i++) {
-          final bomberAngle = _rng.nextDouble() * pi * 2;
-          final bomberPos =
-              bossPos + Vector2(cos(bomberAngle), sin(bomberAngle)) * 350;
-          _spawnEnemy(
-            tier: 1,
-            wave: wave,
-            position: bomberPos,
-            forceRole: EnemyRole.bomber,
-          );
-        }
       }
     });
 
-    // Wave 2: outer ring, slightly stronger
     Future.delayed(const Duration(milliseconds: 6200), () {
-      final count = 6 + (wave ~/ 10);
-      for (int i = 0; i < count; i++) {
-        final angle = (i / count) * pi * 2 + pi / count;
-        final pos = bossPos + Vector2(cos(angle), sin(angle)) * 420;
+      for (int i = 0; i < 6 + wave ~/ 10; i++) {
+        final angle = (i / (6 + wave ~/ 10)) * 2 * pi + pi / (6 + wave ~/ 10);
         _spawnEnemy(
-          tier: max(
-            1,
-            min(3, tier - 1),
-          ), // can dip into elites here later waves
+          tier: max(1, min(3, tier - 1)),
           wave: wave,
-          position: pos,
+          position: bossPos + Vector2(cos(angle), sin(angle)) * 420,
         );
       }
-
-      // Later waves add leechers to boss fights
-      if (wave >= 30) {
-        _spawnLeecherPack(wave, bossPos + Vector2(300, 0));
-      }
     });
-  }
-
-  int _getMiniBossTier(int wave) {
-    if (wave < 10) return 2; // early mini-boss = tough brute
-    if (wave < 20) return 3; // midgame = elite blob
-    if (wave < 35) return 4; // late midgame
-    return 5; // deep run mini-bosses scale up
-  }
-
-  int _getMegaBossTier(int wave) {
-    if (wave < 15) return 3;
-    if (wave < 25) return 4;
-    return 5;
-  }
-
-  /// Cycle through archetypes so players face different challenges
-  BossArchetype _getBossArchetype(int wave) {
-    // return BossArchetype.hydra;
-    final bossNumber = wave ~/ 10; // 1 for wave 10, 2 for 20, etc.
-
-    // Every 4th boss: special Hydra fight
-    if (bossNumber > 0 && bossNumber % 4 == 0) {
-      return BossArchetype.hydra;
-    }
-
-    // Otherwise cycle juggernaut -> summoner -> artillery
-    const cycle = [
-      BossArchetype.juggernaut,
-      BossArchetype.summoner,
-      BossArchetype.artillery,
-    ];
-    final index = (bossNumber - 1).clamp(0, cycle.length - 1) % cycle.length;
-    return cycle[index];
-  }
-
-  //
-  // HELPERS
-  //
-
-  /// Normal trash: only Swarm (tier 1) and Brute (tier 2).
-  /// Elites are spawned explicitly via _spawnElitePack so they feel special.
-  int _pickTierForWave(int wave) {
-    // Waves 1â€“9: pure swarm
-    if (wave < 10) {
-      return 1;
-    }
-
-    // Waves 10â€“24: mostly swarm, some brutes
-    if (wave < 25) {
-      return _rng.nextDouble() < 0.7 ? 1 : 2;
-    }
-
-    // Waves 25+: mostly brutes, some swarm
-    return _rng.nextDouble() < 0.3 ? 1 : 2;
-  }
-
-  EnemyRole _determineRole(SurvivalEnemyTemplate template, int wave) {
-    // Base chances for special roles
-    double shooterBias = 0.06;
-    double bomberBias = wave >= 8 ? 0.04 : 0.0;
-    double leecherBias = wave >= 12 ? 0.03 : 0.0;
-
-    // Element influences
-    switch (template.element) {
-      case 'Air':
-      case 'Lightning':
-      case 'Spirit':
-        shooterBias += 0.05;
-        break;
-      case 'Fire':
-      case 'Lava':
-        bomberBias += 0.03; // Fire types more likely to be bombers
-        break;
-      case 'Blood':
-      case 'Dark':
-      case 'Poison':
-        leecherBias += 0.04; // Vampiric elements more likely to leech
-        break;
-      case 'Earth':
-      case 'Plant':
-      case 'Mud':
-        shooterBias -= 0.02;
-        break;
-    }
-
-    shooterBias = shooterBias.clamp(0.01, 0.15);
-    bomberBias = bomberBias.clamp(0.0, 0.10);
-    leecherBias = leecherBias.clamp(0.0, 0.08);
-
-    final roll = _rng.nextDouble();
-
-    if (roll < bomberBias) {
-      return EnemyRole.bomber;
-    } else if (roll < bomberBias + leecherBias) {
-      return EnemyRole.leecher;
-    } else if (roll < bomberBias + leecherBias + shooterBias) {
-      return EnemyRole.shooter;
-    }
-
-    return EnemyRole.charger;
   }
 }

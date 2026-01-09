@@ -243,7 +243,7 @@ class DebugTeams {
             'Poison',
             'Let',
             idPrefix: 'LET13',
-            category: 'uncommon',
+            category: 'common',
           ),
           visuals: const SpriteVisuals(),
         ),

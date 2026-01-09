@@ -107,6 +107,9 @@ class SurvivalHoardGame extends FlameGame
   final List<GuardianSlot> _slots = [];
   SurvivalUnit? _pendingDeployUnit; // waiting for player to pick a slot
 
+  // ADDED: Death cascade manager for chain kill effects
+  DeathCascadeManager? deathCascade;
+
   int _totalChoicesMade = 0; // Track how many times we've leveled up
   int _killsSinceLastChoice = 0;
 
@@ -239,7 +242,12 @@ class SurvivalHoardGame extends FlameGame
 
     _initGuardianSlots();
 
+    // Add the spawner (v3 has wave surges)
     add(ImprovedSurvivalSpawner());
+
+    // ADDED: Initialize death cascade manager for chain kill effects
+    deathCascade = DeathCascadeManager();
+    add(deathCascade!);
 
     _setupFormation();
     _initBenchFromParty();
@@ -521,13 +529,13 @@ class SurvivalHoardGame extends FlameGame
     _enemies.remove(enemy);
     world.remove(enemy);
 
-    // How much this enemy is “worth” for the power-up bar
+    // How much this enemy is "worth" for the power-up bar
     final int killValue = enemy.isBoss
         ? 20
         : 1; // tweak 8 → 5 or whatever feels right
 
     kills +=
-        killValue; // or keep a separate visible counter if you want UI to stay “true”
+        killValue; // or keep a separate visible counter if you want UI to stay "true"
     score += enemy.template.tier.tier * 10 * killValue;
 
     _handleKillProgression(killValue);
