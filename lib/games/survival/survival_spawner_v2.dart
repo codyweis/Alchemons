@@ -202,9 +202,7 @@ class RiftSpawner extends PositionComponent {
         width: width * 1.3 * _riftOpenness,
         height: height * 1.5 * _riftOpenness,
       ),
-      Paint()
-        ..color = color.withOpacity(0.3 * _riftOpenness)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15),
+      Paint()..color = color.withOpacity(0.3 * _riftOpenness),
     );
 
     // Rift shape
@@ -274,7 +272,16 @@ class _RiftParticle {
 // SURGE TYPES
 // ════════════════════════════════════════════════════════════════════════════
 
-enum WaveSurgeType { flood, pincer, encircle, artillery, swarm, elite, boss }
+enum WaveSurgeType {
+  flood,
+  pincer,
+  encircle,
+  artillery,
+  swarm,
+  elite,
+  boss,
+  ring,
+}
 
 class WaveSurgeConfig {
   final WaveSurgeType type;
@@ -343,7 +350,8 @@ class ImprovedSurvivalSpawner extends Component
     _spawnedThisWave = 0;
     _surgeActive = false;
     _timeSinceLastSurge = 0;
-    _nextSurgeDelay = 0.5;
+    // Longer opening pause on early waves so players can breathe
+    _nextSurgeDelay = wave <= 5 ? 3.0 : (wave <= 10 ? 2.0 : 0.5);
     _waveSpawnBudget = _getBudgetForWave(wave);
 
     final isBossWave = wave > 0 && wave % 10 == 0;
@@ -367,9 +375,30 @@ class ImprovedSurvivalSpawner extends Component
   }
 
   int _getBudgetForWave(int wave) {
-    const base = 40, perWave = 3, maxBudget = 180;
-    final mult = wave % 5 == 0 ? 0.3 : 1.0;
-    return ((base + (wave - 1) * perWave) * mult).round().clamp(15, maxBudget);
+    const maxBudget = 200;
+    // Waves 1-5: gentle introduction — small rings to establish the pattern
+    if (wave <= 5) {
+      final base = 28 + (wave - 1) * 8; // 28, 36, 44, 52, 60
+      final mult = wave % 5 == 0 ? 0.45 : 1.0; // wave 5 is mini-boss wave
+      return (base * mult).round().clamp(15, 80);
+    }
+    // Waves 6-10: ramp up, but still measured
+    if (wave <= 10) {
+      final base = 45 + (wave - 6) * 8; // 45, 53, 61, 69, 77
+      final mult = wave % 5 == 0 ? 0.35 : 1.0;
+      return (base * mult).round().clamp(20, maxBudget);
+    }
+    final bool earlyPressure = wave <= 20;
+    final int base = earlyPressure ? 58 : 40;
+    final int perWave = earlyPressure ? 5 : 3;
+
+    double mult = wave % 5 == 0 ? 0.3 : 1.0;
+    if (earlyPressure && wave % 5 == 0) mult = 0.45;
+
+    return ((base + (wave - 1) * perWave) * mult).round().clamp(
+      earlyPressure ? 28 : 15,
+      maxBudget,
+    );
   }
 
   void _startNewSurge(int wave) {
@@ -400,8 +429,21 @@ class ImprovedSurvivalSpawner extends Component
     if (wave % 5 == 0) return WaveSurgeType.boss;
 
     final weights = <WaveSurgeType, double>{
-      WaveSurgeType.flood: 30,
-      WaveSurgeType.swarm: wave < 10 ? 40 : 25,
+      // Waves 1-7:  ring is the dominant surge type — surrounded feel
+      // Waves 8-12: ring fades out as variety takes over
+      // Waves 15-25: ring returns occasionally as a scary callback
+      // Waves 26-35: rare ring for dramatic late-game moments
+      WaveSurgeType.ring: wave <= 7
+          ? 60
+          : wave <= 12
+          ? 18
+          : wave <= 25
+          ? 12
+          : wave <= 35
+          ? 6
+          : 0,
+      WaveSurgeType.flood: wave <= 7 ? 12 : 30,
+      WaveSurgeType.swarm: wave <= 7 ? 18 : (wave < 10 ? 40 : 25),
       WaveSurgeType.pincer: wave >= 5 ? 20 : 5,
       WaveSurgeType.encircle: wave >= 8 ? 15 : 0,
       WaveSurgeType.artillery: wave >= 10 ? 10 : 0,
@@ -417,6 +459,8 @@ class ImprovedSurvivalSpawner extends Component
 
   int _calculateSurgeSize(int wave, WaveSurgeType type, int maxBudget) {
     int base = switch (type) {
+      // Ring scales gently early, then bigger as a rare late-game threat
+      WaveSurgeType.ring => wave <= 10 ? 14 + wave * 2 : 20 + wave * 2,
       WaveSurgeType.swarm => 20 + wave,
       WaveSurgeType.flood => 15 + wave ~/ 2,
       WaveSurgeType.pincer => 12 + wave ~/ 2,
@@ -425,13 +469,22 @@ class ImprovedSurvivalSpawner extends Component
       WaveSurgeType.elite => 3 + wave ~/ 10,
       WaveSurgeType.boss => 8,
     };
-    return ((base * (0.8 + _rng.nextDouble() * 0.4)).round()).clamp(
-      5,
-      maxBudget,
-    );
+    double pressureMult = 1.0;
+    if (wave <= 20) {
+      pressureMult = 1.2;
+      if (type == WaveSurgeType.swarm ||
+          type == WaveSurgeType.flood ||
+          type == WaveSurgeType.pincer) {
+        pressureMult += 0.1;
+      }
+    }
+
+    return ((base * pressureMult * (0.8 + _rng.nextDouble() * 0.4)).round())
+        .clamp(5, maxBudget);
   }
 
   double _getSurgeDuration(WaveSurgeType type, int count) => switch (type) {
+    WaveSurgeType.ring => 2.5 + count * 0.06,
     WaveSurgeType.swarm => 1.5 + count * 0.05,
     WaveSurgeType.flood => 2.0 + count * 0.08,
     WaveSurgeType.pincer => 2.5 + count * 0.1,
@@ -442,6 +495,7 @@ class ImprovedSurvivalSpawner extends Component
   };
 
   double _getSurgePredelay(WaveSurgeType type) => switch (type) {
+    WaveSurgeType.ring => 1.0,
     WaveSurgeType.swarm => 0.8,
     WaveSurgeType.flood => 1.2,
     WaveSurgeType.pincer => 1.5,
@@ -464,6 +518,12 @@ class ImprovedSurvivalSpawner extends Component
       WaveSurgeType.encircle => List.generate(
         6,
         (i) => Vector2(cos(i / 6 * 2 * pi), sin(i / 6 * 2 * pi)),
+      ),
+      // Full 360° ring — 12 evenly-spaced spawn points
+      WaveSurgeType.ring => List.generate(
+        12,
+        (i) =>
+            Vector2(cos(angle + i / 12 * 2 * pi), sin(angle + i / 12 * 2 * pi)),
       ),
       _ => [],
     };
@@ -518,6 +578,8 @@ class ImprovedSurvivalSpawner extends Component
         _spawnEncircle(wave, tier, count);
       case WaveSurgeType.artillery:
         _spawnArtillery(wave, tier, count);
+      case WaveSurgeType.ring:
+        _spawnRing(wave, tier, count);
       default:
         _spawnFlood(wave, tier, count);
     }
@@ -635,12 +697,42 @@ class ImprovedSurvivalSpawner extends Component
     }
   }
 
+  /// Spawns enemies evenly distributed around a full 360° ring, producing
+  /// the classic "surrounded from all sides" early-wave feel.
+  void _spawnRing(int wave, int tier, int count) {
+    if (_surgeDirections.isEmpty) return;
+    final perDir = max(1, count ~/ _surgeDirections.length);
+    // Use a slightly larger radius so the ring feels wide and dramatic
+    final ringRadius = _spawnDistance * 1.1;
+    for (final dir in _surgeDirections) {
+      final basePos = dir * ringRadius;
+      for (int i = 0; i < perDir; i++) {
+        final jitter = Vector2(
+          (_rng.nextDouble() - 0.5) * 180,
+          (_rng.nextDouble() - 0.5) * 180,
+        );
+        _spawnEnemy(tier: tier, wave: wave, position: basePos + jitter);
+      }
+    }
+  }
+
   void _completeSurge() {
     _surgeActive = false;
     _currentSurge = null;
     _surgeSpawnCounter = 0;
     _timeSinceLastSurge = 0;
-    _nextSurgeDelay = 2.0 + _rng.nextDouble() * 2.0;
+    final wave = gameRef.currentWave;
+    if (wave <= 5) {
+      // Very early: long gap so waves feel like distinct events
+      _nextSurgeDelay = 4.0 + _rng.nextDouble() * 2.0;
+    } else if (wave <= 10) {
+      // Still measured, 3-5s breathing room
+      _nextSurgeDelay = 3.0 + _rng.nextDouble() * 2.0;
+    } else if (wave <= 20) {
+      _nextSurgeDelay = 1.5 + _rng.nextDouble() * 1.5;
+    } else {
+      _nextSurgeDelay = 2.0 + _rng.nextDouble() * 2.0;
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -681,28 +773,51 @@ class ImprovedSurvivalSpawner extends Component
   }
 
   int _pickTierForWave(int wave) {
-    if (wave < 10) return 1;
-    if (wave < 25) return _rng.nextDouble() < 0.7 ? 1 : 2;
-    return _rng.nextDouble() < 0.3 ? 1 : 2;
+    // Tier 2 enemies appear much earlier for variety
+    if (wave < 5) return 1;
+    if (wave < 10) return _rng.nextDouble() < 0.85 ? 1 : 2;
+    if (wave < 18) return _rng.nextDouble() < 0.6 ? 1 : 2;
+    if (wave < 25) return _rng.nextDouble() < 0.4 ? 1 : 2;
+    // Late game: mix of tier 1-3
+    final roll = _rng.nextDouble();
+    if (roll < 0.15) return 1;
+    if (roll < 0.70) return 2;
+    return 3;
   }
 
   EnemyRole _determineRole(SurvivalEnemyTemplate template, int wave) {
-    double shooter = 0.06,
-        bomber = wave >= 8 ? 0.04 : 0.0,
-        leecher = wave >= 12 ? 0.03 : 0.0;
+    // Roles appear earlier & scale more aggressively for strategic variety
+    // Wave 1-2: chargers only (tutorial feel)
+    // Wave 3+: shooters trickle in
+    // Wave 5+: bombers appear
+    // Wave 8+: leechers join
+    double shooter = wave >= 3 ? 0.10 + (wave * 0.005).clamp(0, 0.12) : 0.0;
+    double bomber = wave >= 5 ? 0.06 + (wave * 0.003).clamp(0, 0.08) : 0.0;
+    double leecher = wave >= 8 ? 0.04 + (wave * 0.002).clamp(0, 0.06) : 0.0;
 
+    // Element affinity bonuses (additive)
     switch (template.element) {
       case 'Air':
       case 'Lightning':
       case 'Spirit':
-        shooter += 0.05;
+        shooter += 0.06;
       case 'Fire':
       case 'Lava':
-        bomber += 0.03;
+        bomber += 0.05;
       case 'Blood':
       case 'Dark':
       case 'Poison':
-        leecher += 0.04;
+        leecher += 0.05;
+      case 'Ice':
+      case 'Crystal':
+        // Tanky element: more chargers (reduce others slightly)
+        shooter *= 0.7;
+        bomber *= 0.7;
+      case 'Water':
+      case 'Steam':
+        // Flexible: slight boost to all special roles
+        shooter += 0.02;
+        leecher += 0.02;
     }
 
     final roll = _rng.nextDouble();

@@ -1,21 +1,57 @@
+// lib/widgets/instance_widgets/intance_filter_panel.dart
+//
+// REDESIGNED INSTANCE FILTERS PANEL
+// Aesthetic: Scorched Forge — dark metal chips, amber accents, monospace
+// All logic, props, and public API preserved exactly.
+//
+
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:flutter/material.dart';
-
-import 'package:alchemons/constants/breed_constants.dart';
+import 'package:provider/provider.dart';
 import 'package:alchemons/utils/faction_util.dart';
+
+// ──────────────────────────────────────────────────────────────────────────────
+// DESIGN TOKENS
+// ──────────────────────────────────────────────────────────────────────────────
+
+TextStyle _chipLabel({
+  required bool active,
+  Color? activeColor,
+  required ForgeTokens t,
+}) => TextStyle(
+  fontFamily: 'monospace',
+  color: active ? (activeColor ?? t.amberBright) : t.textSecondary,
+  fontSize: 10,
+  fontWeight: FontWeight.w800,
+  letterSpacing: 1.2,
+);
+
+BoxDecoration _chipBox({
+  required bool active,
+  Color? activeColor,
+  required ForgeTokens t,
+}) => BoxDecoration(
+  color: active ? (activeColor ?? t.amber).withOpacity(0.12) : t.bg2,
+  borderRadius: BorderRadius.circular(3),
+  border: Border.all(
+    color: active ? (activeColor ?? t.amber).withOpacity(0.55) : t.borderDim,
+    width: active ? 1.2 : 1.0,
+  ),
+);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PANEL
+// ──────────────────────────────────────────────────────────────────────────────
 
 class InstanceFiltersPanel extends StatelessWidget {
   final FactionTheme theme;
   final SortBy sortBy;
   final ValueChanged<SortBy> onSortChanged;
-
-  /// If true, use the reduced filter set (no tint/variant labels except size).
   final bool harvestMode;
 
   final bool filterPrismatic;
   final VoidCallback onTogglePrismatic;
 
-  // cyclers (text already resolved for display)
   final String? sizeValueText;
   final VoidCallback onCycleSize;
   final String? tintValueText;
@@ -23,7 +59,6 @@ class InstanceFiltersPanel extends StatelessWidget {
   final String? variantValueText;
   final VoidCallback onCycleVariant;
 
-  // nature
   final String? filterNature;
   final ValueChanged<String?> onPickNature;
   final Map<String, String> natureOptions;
@@ -50,56 +85,49 @@ class InstanceFiltersPanel extends StatelessWidget {
     required this.onClearAll,
   });
 
-  bool get _hasActiveFilters {
-    return filterPrismatic ||
-        filterNature != null ||
-        sizeValueText != null ||
-        tintValueText != null ||
-        variantValueText != null;
-  }
+  bool get _hasActiveFilters =>
+      filterPrismatic ||
+      filterNature != null ||
+      sizeValueText != null ||
+      tintValueText != null ||
+      variantValueText != null;
 
   @override
   Widget build(BuildContext context) {
-    // Build the list of filter chips once
-    final List<Widget> filterChips = [
-      if (_hasActiveFilters) _ClearChip(theme: theme, onTap: onClearAll),
+    final filterChips = <Widget>[
+      if (_hasActiveFilters) _ClearChip(onTap: onClearAll),
 
       if (!harvestMode) ...[
         _CycleChip(
-          theme: theme,
           icon: Icons.science_rounded,
-          labelWhenAny: 'Variant: Any',
-          valueText: variantValueText,
+          labelWhenAny: 'VARIANT',
+          valueText: variantValueText?.toUpperCase(),
           onTap: onCycleVariant,
         ),
         _CycleChip(
-          theme: theme,
           icon: Icons.straighten_rounded,
-          labelWhenAny: 'Size: Any',
-          valueText: sizeValueText,
+          labelWhenAny: 'SIZE',
+          valueText: sizeValueText?.toUpperCase(),
           onTap: onCycleSize,
         ),
         _CycleChip(
-          theme: theme,
           icon: Icons.palette_outlined,
-          labelWhenAny: 'Tint: Any',
-          valueText: tintValueText,
+          labelWhenAny: 'TINT',
+          valueText: tintValueText?.toUpperCase(),
           onTap: onCycleTint,
         ),
       ] else ...[
         _CycleChip(
-          theme: theme,
           icon: Icons.straighten_rounded,
-          labelWhenAny: 'Size: Any',
-          valueText: sizeValueText,
+          labelWhenAny: 'SIZE',
+          valueText: sizeValueText?.toUpperCase(),
           onTap: onCycleSize,
         ),
       ],
 
-      _FilterValueChip(
-        theme: theme,
+      _PickerChip(
         icon: Icons.psychology_rounded,
-        label: 'Nature',
+        label: 'NATURE',
         value: filterNature != null
             ? (natureOptions[filterNature] ?? filterNature!)
             : null,
@@ -119,82 +147,77 @@ class InstanceFiltersPanel extends StatelessWidget {
         },
       ),
 
-      _FilterToggleChip(
-        theme: theme,
+      _ToggleChip(
         icon: Icons.auto_awesome_rounded,
-        label: 'Prismatic',
+        label: 'PRISMATIC',
         active: filterPrismatic,
+        activeColor: const Color(0xFFE879F9), // purple for prismatic
         onTap: onTogglePrismatic,
       ),
     ];
 
     return Column(
       children: [
-        // Sort bar
+        // ── Sort row ────────────────────────────────────────────────────────
         SizedBox(
-          height: 34,
+          height: 32,
           child: ListView(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 12),
             children: [
               _SortChip(
-                theme: theme,
-                label: 'Newest',
+                label: 'NEWEST',
                 selected: sortBy == SortBy.newest,
                 onTap: () => onSortChanged(SortBy.newest),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _SortChip(
-                theme: theme,
-                label: 'Oldest',
+                label: 'OLDEST',
                 selected: sortBy == SortBy.oldest,
                 onTap: () => onSortChanged(SortBy.oldest),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _SortChip(
-                theme: theme,
-                label: 'Level ↑',
+                label: 'LV ↑',
                 selected: sortBy == SortBy.levelHigh,
                 onTap: () => onSortChanged(SortBy.levelHigh),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _SortChip(
-                theme: theme,
-                label: 'Level ↓',
+                label: 'LV ↓',
                 selected: sortBy == SortBy.levelLow,
                 onTap: () => onSortChanged(SortBy.levelLow),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _StatCycleChip(
-                theme: theme,
                 currentStat: sortBy,
                 onTap: () {
-                  final nextStat = switch (sortBy) {
+                  final next = switch (sortBy) {
                     SortBy.statSpeed => SortBy.statIntelligence,
                     SortBy.statIntelligence => SortBy.statStrength,
                     SortBy.statStrength => SortBy.statBeauty,
                     SortBy.statBeauty => SortBy.statSpeed,
                     _ => SortBy.statSpeed,
                   };
-                  onSortChanged(nextStat);
+                  onSortChanged(next);
                 },
               ),
             ],
           ),
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
 
-        // Filters as a horizontal scroller
+        // ── Filter chips ────────────────────────────────────────────────────
         SizedBox(
-          height: 36,
+          height: 32,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 12),
             itemCount: filterChips.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, __) => const SizedBox(width: 6),
             itemBuilder: (_, i) => filterChips[i],
           ),
         ),
@@ -203,15 +226,15 @@ class InstanceFiltersPanel extends StatelessWidget {
   }
 }
 
-// SORT CHIP
+// ──────────────────────────────────────────────────────────────────────────────
+// SORT CHIPS
+// ──────────────────────────────────────────────────────────────────────────────
+
 class _SortChip extends StatelessWidget {
-  final FactionTheme theme;
   final String label;
   final bool selected;
   final VoidCallback onTap;
-
   const _SortChip({
-    required this.theme,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -219,112 +242,85 @@ class _SortChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? theme.primary.withOpacity(.18) : theme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: selected ? theme.primary.withOpacity(.5) : theme.border,
-            width: 1,
-          ),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? theme.primary : theme.text,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-            ),
-          ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: _chipBox(active: selected, t: t),
+        child: Text(
+          label,
+          style: _chipLabel(active: selected, t: t),
         ),
       ),
     );
   }
 }
 
-// STAT SORT CHIP (cycles stats)
 class _StatCycleChip extends StatelessWidget {
-  final FactionTheme theme;
   final SortBy currentStat;
   final VoidCallback onTap;
+  const _StatCycleChip({required this.currentStat, required this.onTap});
 
-  const _StatCycleChip({
-    required this.theme,
-    required this.currentStat,
-    required this.onTap,
-  });
+  (IconData, String, Color) _info() {
+    final isStat = currentStat.name.startsWith('stat');
+    if (!isStat)
+      return (Icons.bar_chart_rounded, 'STAT', const Color(0xFF8A7B6A));
+    return switch (currentStat) {
+      SortBy.statSpeed => (Icons.speed, 'SPD ↓', const Color(0xFFFDE047)),
+      SortBy.statIntelligence => (
+        Icons.psychology,
+        'INT ↓',
+        const Color(0xFFC084FC),
+      ),
+      SortBy.statStrength => (
+        Icons.fitness_center,
+        'STR ↓',
+        const Color(0xFFF87171),
+      ),
+      SortBy.statBeauty => (Icons.favorite, 'BEA ↓', const Color(0xFFF9A8D4)),
+      _ => (Icons.bar_chart_rounded, 'STAT', const Color(0xFF8A7B6A)),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bool isStatSort = currentStat.name.startsWith('stat');
-    final (icon, label, color) = _getStatInfo(currentStat, isStatSort);
-
+    final t = ForgeTokens(context.read<FactionTheme>());
+    final (icon, label, color) = _info();
+    final isStat = currentStat.name.startsWith('stat');
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isStatSort ? theme.primary.withOpacity(.18) : theme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isStatSort ? theme.primary.withOpacity(.5) : theme.border,
-            width: 1,
-          ),
-        ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: _chipBox(active: isStat, activeColor: color, t: t),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: isStatSort ? color : theme.text),
-            const SizedBox(width: 6),
+            Icon(icon, size: 12, color: isStat ? color : t.textSecondary),
+            const SizedBox(width: 5),
             Text(
               label,
-              style: TextStyle(
-                color: isStatSort ? theme.primary : theme.text,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-              ),
+              style: _chipLabel(active: isStat, activeColor: color, t: t),
             ),
           ],
         ),
       ),
     );
   }
-
-  (IconData, String, Color) _getStatInfo(SortBy stat, bool isActive) {
-    if (!isActive) {
-      return (Icons.bar_chart_rounded, 'Stat', Colors.blueGrey);
-    }
-    switch (stat) {
-      case SortBy.statSpeed:
-        return (Icons.speed, 'Speed ↓', Colors.yellow.shade400);
-      case SortBy.statIntelligence:
-        return (Icons.psychology, 'Intelligence ↓', Colors.purple.shade300);
-      case SortBy.statStrength:
-        return (Icons.fitness_center, 'Strength ↓', Colors.red.shade400);
-      case SortBy.statBeauty:
-        return (Icons.favorite, 'Beauty ↓', Colors.pink.shade300);
-      default:
-        return (Icons.bar_chart_rounded, 'Stat', Colors.blueGrey);
-    }
-  }
 }
 
-// Cycle chip (size/tint/variant)
+// ──────────────────────────────────────────────────────────────────────────────
+// FILTER CHIPS
+// ──────────────────────────────────────────────────────────────────────────────
+
 class _CycleChip extends StatelessWidget {
-  final FactionTheme theme;
   final IconData icon;
   final String labelWhenAny;
   final String? valueText;
   final VoidCallback onTap;
-
   const _CycleChip({
-    required this.theme,
     required this.icon,
     required this.labelWhenAny,
     required this.valueText,
@@ -333,33 +329,26 @@ class _CycleChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool active = valueText != null;
-
+    final t = ForgeTokens(context.read<FactionTheme>());
+    final active = valueText != null;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? theme.primary.withOpacity(.18) : theme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: active ? theme.primary.withOpacity(.5) : theme.border,
-            width: 1,
-          ),
-        ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: _chipBox(active: active, t: t),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: active ? theme.primary : theme.text),
-            const SizedBox(width: 6),
+            Icon(
+              icon,
+              size: 12,
+              color: active ? t.amberBright : t.textSecondary,
+            ),
+            const SizedBox(width: 5),
             Text(
               valueText ?? labelWhenAny,
-              style: TextStyle(
-                color: active ? theme.primary : theme.text,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-              ),
+              style: _chipLabel(active: active, t: t),
             ),
           ],
         ),
@@ -368,49 +357,38 @@ class _CycleChip extends StatelessWidget {
   }
 }
 
-// Toggle chip (e.g. prismatic)
-class _FilterToggleChip extends StatelessWidget {
-  final FactionTheme theme;
+class _ToggleChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool active;
+  final Color? activeColor;
   final VoidCallback onTap;
-
-  const _FilterToggleChip({
-    required this.theme,
+  const _ToggleChip({
     required this.icon,
     required this.label,
     required this.active,
     required this.onTap,
+    this.activeColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    final color = activeColor ?? t.amberBright;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? theme.primary.withOpacity(.18) : theme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: active ? theme.primary.withOpacity(.5) : theme.border,
-            width: 1,
-          ),
-        ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: _chipBox(active: active, activeColor: color, t: t),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: active ? theme.primary : theme.text),
-            const SizedBox(width: 6),
+            Icon(icon, size: 12, color: active ? color : t.textSecondary),
+            const SizedBox(width: 5),
             Text(
               label,
-              style: TextStyle(
-                color: active ? theme.primary : theme.text,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-              ),
+              style: _chipLabel(active: active, activeColor: color, t: t),
             ),
           ],
         ),
@@ -419,16 +397,12 @@ class _FilterToggleChip extends StatelessWidget {
   }
 }
 
-// Value chip (with bottom sheet picker)
-class _FilterValueChip extends StatelessWidget {
-  final FactionTheme theme;
+class _PickerChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final String? value;
   final VoidCallback onTap;
-
-  const _FilterValueChip({
-    required this.theme,
+  const _PickerChip({
     required this.icon,
     required this.label,
     required this.value,
@@ -437,38 +411,32 @@ class _FilterValueChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool active = value != null;
-
+    final t = ForgeTokens(context.read<FactionTheme>());
+    final active = value != null;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? theme.primary.withOpacity(.18) : theme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: active ? theme.primary.withOpacity(.5) : theme.border,
-            width: 1,
-          ),
-        ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: _chipBox(active: active, t: t),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: active ? theme.primary : theme.text),
-            const SizedBox(width: 6),
-            Text(
-              value ?? '$label: Any',
-              style: TextStyle(
-                color: active ? theme.primary : theme.text,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-              ),
+            Icon(
+              icon,
+              size: 12,
+              color: active ? t.amberBright : t.textSecondary,
             ),
+            const SizedBox(width: 5),
+            Text(
+              value?.toUpperCase() ?? '$label: ANY',
+              style: _chipLabel(active: active, t: t),
+            ),
+            const SizedBox(width: 3),
             Icon(
               Icons.keyboard_arrow_down_rounded,
-              size: 16,
-              color: active ? theme.primary.withOpacity(.6) : theme.text,
+              size: 12,
+              color: active ? t.amberBright.withOpacity(0.7) : t.textMuted,
             ),
           ],
         ),
@@ -478,37 +446,51 @@ class _FilterValueChip extends StatelessWidget {
 }
 
 class _ClearChip extends StatelessWidget {
-  final FactionTheme theme;
   final VoidCallback onTap;
-
-  const _ClearChip({required this.theme, required this.onTap});
+  const _ClearChip({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.red.withOpacity(.15),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.red.withOpacity(.4), width: 1.5),
+          color: const Color(0xFF7F1D1D).withOpacity(0.25),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: t.danger.withOpacity(0.45)),
         ),
-        child: Text(
-          'Clear',
-          style: TextStyle(
-            color: Colors.red.shade300,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.3,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.close_rounded,
+              size: 11,
+              color: t.danger.withOpacity(0.8),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'CLEAR',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: t.danger.withOpacity(0.8),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// Shared picker for nature / other lists
+// ──────────────────────────────────────────────────────────────────────────────
+// NATURE PICKER BOTTOM SHEET  (public — called from parent)
+// ──────────────────────────────────────────────────────────────────────────────
+
 Future<String?> pickFromList(
   BuildContext context,
   FactionTheme theme, {
@@ -516,147 +498,162 @@ Future<String?> pickFromList(
   required Map<String, String> optionsMap,
   required String? current,
 }) async {
+  final t = ForgeTokens(theme);
   return showModalBottomSheet<String>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (ctx) {
-      return DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.8,
-        expand: false,
-        builder: (ctx, scroll) {
-          return Container(
-            decoration: BoxDecoration(
-              color: theme.surface,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
+    builder: (ctx) => DraggableScrollableSheet(
+      initialChildSize: 0.5,
+      minChildSize: 0.3,
+      maxChildSize: 0.8,
+      expand: false,
+      builder: (ctx, scroll) => Container(
+        decoration: BoxDecoration(
+          color: t.bg1,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+          border: Border.all(color: t.borderAccent),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 14),
+              width: 36,
+              height: 3,
+              decoration: BoxDecoration(
+                color: t.borderAccent,
+                borderRadius: BorderRadius.circular(2),
               ),
-              border: Border.all(color: theme.border, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.accent.withOpacity(.4),
-                  blurRadius: 20,
-                  spreadRadius: 4,
-                ),
-              ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
                 children: [
+                  Container(
+                    width: 3,
+                    height: 14,
+                    color: t.amber,
+                    margin: const EdgeInsets.only(right: 8),
+                  ),
                   Text(
                     title.toUpperCase(),
                     style: TextStyle(
-                      color: theme.text,
-                      fontSize: 18,
+                      fontFamily: 'monospace',
+                      color: t.textPrimary,
+                      fontSize: 13,
                       fontWeight: FontWeight.w800,
+                      letterSpacing: 2.0,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: ListView.builder(
-                      controller: scroll,
-                      itemCount: optionsMap.length,
-                      itemBuilder: (_, i) {
-                        final entry = optionsMap.entries.toList()[i];
-                        final id = entry.key;
-                        final display = entry.value;
-                        final isSelected = id == current;
-
-                        return GestureDetector(
-                          onTap: () => Navigator.pop(ctx, id),
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? theme.primary.withOpacity(.15)
-                                  : theme.surfaceAlt,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: isSelected
-                                    ? theme.primary.withOpacity(.4)
-                                    : theme.border,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    display,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? theme.primary
-                                          : theme.text,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                if (isSelected)
-                                  Icon(
-                                    Icons.check_rounded,
-                                    color: theme.primary,
-                                    size: 18,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  if (current != null) ...[
-                    const SizedBox(height: 4),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(ctx, '_clear_'),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Colors.red.withOpacity(.4),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.clear_rounded,
-                              color: Colors.red.shade300,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Clear Filter',
-                              style: TextStyle(
-                                color: Colors.red.shade300,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
-          );
-        },
-      );
-    },
+            const SizedBox(height: 12),
+            // List
+            Expanded(
+              child: ListView.builder(
+                controller: scroll,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                itemCount: optionsMap.length + (current != null ? 1 : 0),
+                itemBuilder: (_, i) {
+                  // Clear button pinned at bottom
+                  if (current != null && i == optionsMap.length) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(ctx, '_clear_'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 11,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF7F1D1D).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(
+                              color: t.danger.withOpacity(0.4),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.close_rounded,
+                                color: t.danger.withOpacity(0.8),
+                                size: 14,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'CLEAR FILTER',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: t.danger.withOpacity(0.8),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  final entry = optionsMap.entries.toList()[i];
+                  final isSelected = entry.key == current;
+
+                  return GestureDetector(
+                    onTap: () => Navigator.pop(ctx, entry.key),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 11,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected ? t.amber.withOpacity(0.12) : t.bg2,
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(
+                          color: isSelected ? t.borderAccent : t.borderDim,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              entry.value.toUpperCase(),
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: isSelected
+                                    ? t.amberBright
+                                    : t.textPrimary,
+                                fontSize: 12,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(
+                              Icons.check_rounded,
+                              color: t.amberBright,
+                              size: 16,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
   );
 }

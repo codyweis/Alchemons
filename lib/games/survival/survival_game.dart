@@ -103,9 +103,11 @@ class SurvivalHoardGame extends FlameGame
 
   final List<HoardGuardian> _guardians = [];
   final List<HoardEnemy> _enemies = [];
+  final Map<int, List<HoardEnemy>> _enemySpatialGrid = {};
   final List<SurvivalUnit> _benchUnits = [];
   final List<GuardianSlot> _slots = [];
   SurvivalUnit? _pendingDeployUnit; // waiting for player to pick a slot
+  static const double _enemyGridCellSize = 220.0;
 
   // ADDED: Death cascade manager for chain kill effects
   DeathCascadeManager? deathCascade;
@@ -133,6 +135,7 @@ class SurvivalHoardGame extends FlameGame
       ValueNotifier<HoardGuardian?>(null);
 
   Vector2? _lastFocalPoint;
+  final math.Random _rng = math.Random();
 
   // Convenience helpers:
   void selectGuardian(HoardGuardian? guardian) {
@@ -154,6 +157,12 @@ class SurvivalHoardGame extends FlameGame
   double timeElapsed = 0;
   bool isGameOver = false;
   bool isInAlchemyPause = false;
+  double _simulationSpeed = 1.0;
+
+  double get simulationSpeed => _simulationSpeed;
+  void setSimulationSpeed(double value) {
+    _simulationSpeed = value.clamp(0.5, 4.0);
+  }
 
   final ValueNotifier<SurvivalGameStats> statsNotifier = ValueNotifier(
     SurvivalGameStats(kills: 0, score: 0, timeElapsed: 0, wave: 1),
@@ -289,21 +298,25 @@ class SurvivalHoardGame extends FlameGame
       }
     }
 
-    // RING 1 (Inner Defense) - Radius 260 (previously 220)
-    // Indices 0-7. Kept at 8 slots so your _setupFormation() logic works perfectly.
-    addRing(400.0, 8, angleOffset: -math.pi / 2);
+    // RING 1 (Inner Defense) - Close to orb, for tanks (Horn, Mask)
+    // 8 slots, tightly packed for frontline defense
+    addRing(350.0, 8, angleOffset: -math.pi / 2);
 
-    // RING 2 (Mid Field) - Radius 460 (previously 380)
-    // 12 Slots. Good for general crowd control units.
-    addRing(750.0, 12, angleOffset: 0);
+    // RING 2 (Mid Inner) - NEW! Fills the old gap between 400→750
+    // 10 slots for mid-range attackers (Mane, Kin, Mystic)
+    addRing(550.0, 10, angleOffset: math.pi / 10);
 
-    // RING 3 (Long Range) - Radius 700 (previously 580)
-    // 16 Slots. Great for snipers (Wing/Pip).
-    addRing(950.0, 16, angleOffset: math.pi / 8);
+    // RING 3 (Mid Outer) - Standard ranged positions
+    // 12 slots for general crowd control
+    addRing(780.0, 12, angleOffset: 0);
 
-    // RING 4 (Outposts) - Radius 980 (previously 820)
-    // 20 Slots. Way out there. Good for intercepting bosses early.
-    addRing(1200.0, 20, angleOffset: 0);
+    // RING 4 (Long Range) - Sniper positions (Wing, Pip, Let)
+    // 14 slots for long-range damage dealers
+    addRing(1000.0, 14, angleOffset: math.pi / 7);
+
+    // RING 5 (Outpost) - Far interception
+    // 16 slots for early interception of incoming waves
+    addRing(1250.0, 16, angleOffset: 0);
   }
 
   void _initBenchFromParty() {
@@ -336,16 +349,56 @@ class SurvivalHoardGame extends FlameGame
   }
   // --- HELPERS ---
 
+  int _cellKey(int cellX, int cellY) {
+    return (cellX * 73856093) ^ (cellY * 19349663);
+  }
+
+  void _rebuildEnemySpatialGrid() {
+    _enemySpatialGrid.clear();
+    for (final enemy in _enemies) {
+      if (enemy.isDead) continue;
+      final cellX = (enemy.position.x / _enemyGridCellSize).floor();
+      final cellY = (enemy.position.y / _enemyGridCellSize).floor();
+      final key = _cellKey(cellX, cellY);
+      (_enemySpatialGrid[key] ??= <HoardEnemy>[]).add(enemy);
+    }
+  }
+
+  List<HoardEnemy> _getEnemyCandidatesInRange(Vector2 center, double range) {
+    if (_enemySpatialGrid.isEmpty && _enemies.isNotEmpty) {
+      _rebuildEnemySpatialGrid();
+    }
+
+    final minX = ((center.x - range) / _enemyGridCellSize).floor();
+    final maxX = ((center.x + range) / _enemyGridCellSize).floor();
+    final minY = ((center.y - range) / _enemyGridCellSize).floor();
+    final maxY = ((center.y + range) / _enemyGridCellSize).floor();
+
+    final result = <HoardEnemy>[];
+    for (int cellX = minX; cellX <= maxX; cellX++) {
+      for (int cellY = minY; cellY <= maxY; cellY++) {
+        final bucket = _enemySpatialGrid[_cellKey(cellX, cellY)];
+        if (bucket != null) result.addAll(bucket);
+      }
+    }
+    return result;
+  }
+
   void addHoardEnemy(HoardEnemy enemy) {
     _enemies.add(enemy);
     world.add(enemy);
   }
 
   List<HoardEnemy> getEnemiesInRange(Vector2 center, double range) {
-    return _enemies.where((e) {
-      if (e.isDead) return false;
-      return e.position.distanceTo(center) <= range;
-    }).toList();
+    final result = <HoardEnemy>[];
+    final rangeSq = range * range;
+    for (final enemy in _getEnemyCandidatesInRange(center, range)) {
+      if (enemy.isDead) continue;
+      if (center.distanceToSquared(enemy.position) <= rangeSq) {
+        result.add(enemy);
+      }
+    }
+    return result;
   }
 
   void confirmDeployAtSlot(int slotIndex) {
@@ -382,6 +435,15 @@ class SurvivalHoardGame extends FlameGame
     _guardians.add(guardian);
     world.add(guardian);
 
+    // Mystics arrive with orbitals already active (rank 1).
+    // They're unique altar-summoned creatures — no need to unlock first.
+    if (unit.family == 'Mystic') {
+      final elem = unit.types.firstOrNull ?? 'Normal';
+      if (getSpecialAbilityRank(unit.id, elem) <= 0) {
+        incrementSpecialAbilityRank(unit.id, elem);
+      }
+    }
+
     // Cleanup
     _pendingDeployUnit = null;
 
@@ -398,11 +460,21 @@ class SurvivalHoardGame extends FlameGame
     required Vector2 center,
     required double range,
   }) {
-    final candidates = _guardians
-        .where((g) => !g.isDead && g.position.distanceTo(center) <= range)
-        .toList();
-    if (candidates.isEmpty) return null;
-    return candidates[math.Random().nextInt(candidates.length)];
+    final rangeSq = range * range;
+    HoardGuardian? selected;
+    int seen = 0;
+
+    for (final guardian in _guardians) {
+      if (guardian.isDead) continue;
+      if (center.distanceToSquared(guardian.position) > rangeSq) continue;
+
+      seen++;
+      if (_rng.nextInt(seen) == 0) {
+        selected = guardian;
+      }
+    }
+
+    return selected;
   }
 
   List<HoardGuardian> getGuardiansInRange({
@@ -432,11 +504,12 @@ class SurvivalHoardGame extends FlameGame
   HoardEnemy? getFurthestEnemy(Vector2 position, double range) {
     HoardEnemy? furthest;
     double maxDstSq = 0;
+    final rangeSq = range * range;
 
-    for (final enemy in _enemies) {
+    for (final enemy in _getEnemyCandidatesInRange(position, range)) {
       if (enemy.isDead) continue;
       final dstSq = position.distanceToSquared(enemy.position);
-      if (dstSq <= range * range && dstSq > maxDstSq) {
+      if (dstSq <= rangeSq && dstSq > maxDstSq) {
         maxDstSq = dstSq;
         furthest = enemy;
       }
@@ -448,7 +521,7 @@ class SurvivalHoardGame extends FlameGame
     HoardEnemy? best;
     double minDstSq = range * range;
 
-    for (final enemy in _enemies) {
+    for (final enemy in _getEnemyCandidatesInRange(position, range)) {
       if (enemy.isDead || !enemy.isBoss) continue;
       final dstSq = position.distanceToSquared(enemy.position);
       if (dstSq < minDstSq) {
@@ -481,7 +554,7 @@ class SurvivalHoardGame extends FlameGame
     HoardEnemy? nearest;
     double minDstSq = range * range;
 
-    for (final enemy in _enemies) {
+    for (final enemy in _getEnemyCandidatesInRange(position, range)) {
       if (enemy.isDead) continue;
       final dstSq = position.distanceToSquared(enemy.position);
       if (dstSq < minDstSq) {
@@ -502,9 +575,14 @@ class SurvivalHoardGame extends FlameGame
       return;
     }
 
-    super.update(dt);
+    final scaledDt = dt * _simulationSpeed;
+    _rebuildEnemySpatialGrid();
+    super.update(scaledDt);
 
-    timeElapsed += dt;
+    timeElapsed += scaledDt;
+
+    // Update LOD system with current enemy count for performance scaling
+    ImprovedBlobBody.globalEnemyCount = _enemies.length;
 
     // 🔮 keep the transmutation ring in sync with kill progress
     orb.setTransmutationProgress(
@@ -570,25 +648,32 @@ class SurvivalHoardGame extends FlameGame
     isInAlchemyPause = true;
 
     final List<AlchemyChoiceOption> candidates = [];
-    final rng = math.Random();
 
     const int maxAbilityTier = 3; // 3 power ups for elemental special
     const int maxTransmuteRank = 5; // keep 5 steps for Transmute if you like
 
     // 1. Generate "Deploy from Bench" Candidates
     // Only show these if there is actually room on the field (limit 8 active for balance, or use _slots.length)
-    final activeCount = _guardians.where((g) => !g.isDead).length;
-
     // Check if we have empty slots available
     final hasSpace = _slots.any((s) => s.isEmpty);
 
+    // Only one Mystic is allowed on the field at a time.
+    final hasMysticDeployed = _guardians.any(
+      (g) => !g.isDead && g.unit.family == 'Mystic',
+    );
+
     if (hasSpace) {
       for (final benchUnit in _benchUnits) {
+        // Enforce 1-Mystic limit: hide the option when one is already active.
+        if (benchUnit.family == 'Mystic' && hasMysticDeployed) continue;
+
         candidates.add(
           AlchemyChoiceOption(
             kind: AlchemyUpgradeKind.deployBench,
             label: 'Deploy ${benchUnit.name}',
-            description: 'Summon ${benchUnit.name} to join the defense.',
+            description: benchUnit.family == 'Mystic'
+                ? 'Summon ${benchUnit.name} — the singular Mystic guardian.'
+                : 'Summon ${benchUnit.name} to join the defense.',
             targetUnit: benchUnit,
           ),
         );
@@ -759,6 +844,21 @@ class SurvivalHoardGame extends FlameGame
   }
 
   void _startDeployFromBench(SurvivalUnit unit) {
+    // Hard enforce: only one Mystic may be active at a time.
+    if (unit.family == 'Mystic') {
+      final alreadyHasMystic = _guardians.any(
+        (g) => !g.isDead && g.unit.family == 'Mystic',
+      );
+      if (alreadyHasMystic) {
+        // Put the unit back on the bench and resume.
+        _benchUnits.add(unit);
+        _pendingDeployUnit = null;
+        alchemyChoiceNotifier.value = null;
+        isInAlchemyPause = false;
+        return;
+      }
+    }
+
     _pendingDeployUnit = unit;
 
     // Only slots that are currently empty AND either unbound or already this unit's seat.
@@ -782,7 +882,16 @@ class SurvivalHoardGame extends FlameGame
     // Hide the choice UI now
     alchemyChoiceNotifier.value = null;
 
-    // Spawn glowing slot indicators
+    // Sort slots by preference: family-appropriate rings first
+    // This makes the "best" slots appear first/highlighted for the player
+    final preferredRadius = _getPreferredRadius(unit.family);
+    availableSlots.sort((a, b) {
+      final aDist = (a.offset.length - preferredRadius).abs();
+      final bDist = (b.offset.length - preferredRadius).abs();
+      return aDist.compareTo(bDist);
+    });
+
+    // Spawn glowing slot indicators (preferred slots shown first)
     for (final slot in availableSlots) {
       world.add(
         GuardianSlotIndicator(
@@ -793,6 +902,26 @@ class SurvivalHoardGame extends FlameGame
     }
 
     // Game remains paused until a slot is tapped.
+  }
+
+  /// Returns the ideal ring radius for a given guardian family
+  double _getPreferredRadius(String family) {
+    switch (family.toLowerCase()) {
+      case 'horn':
+      case 'mask':
+        return 350.0; // Ring 1: close-range tank
+      case 'kin':
+      case 'mystic':
+      case 'mane':
+        return 550.0; // Ring 2: mid-range support
+      case 'wing':
+      case 'pip':
+        return 1000.0; // Ring 4: long-range sniper
+      case 'let':
+        return 780.0; // Ring 3: mid-range mage
+      default:
+        return 550.0;
+    }
   }
   // --- PROJECTILES & COMBAT ---
 
@@ -872,7 +1001,7 @@ class SurvivalHoardGame extends FlameGame
       // Make split kids scamper faster
       unit.statSpeed *= speedMultiplier;
 
-      final angle = math.Random().nextDouble() * math.pi * 2;
+      final angle = _rng.nextDouble() * math.pi * 2;
       final offset = Vector2(math.cos(angle), math.sin(angle)) * 40;
 
       final child = HoardEnemy(
@@ -938,19 +1067,18 @@ class SurvivalHoardGame extends FlameGame
   }
 
   void _setupFormation() {
-    // The first 4 party members are active - assigned to slots 0-3 (inner ring)
-    // These come in deployment order from the deployment phase
+    // The first 4 party members are active — positions chosen by the player
+    // during the deployment phase (TOP, RIGHT, BOTTOM, LEFT).
+    // They map to cardinal directions on the inner ring (8 slots total).
     final int activeCount = party.length.clamp(0, 4);
 
-    // Slot indices for the 4 starting positions
-    // These map to cardinal directions on the inner ring (8 slots total)
-    const List<int> startingSlotIndices = [0, 2, 4, 6]; // N, E, S, W positions
+    // Slot indices for the 4 starting positions: N, E, S, W
+    const List<int> startingSlotIndices = [0, 2, 4, 6];
 
     for (int idx = 0; idx < activeCount; idx++) {
       final member = party[idx];
       final c = member.combatant;
 
-      // Use sequential slot indices for deployed creatures
       final slotIndex = startingSlotIndices[idx];
       final slot = _slots[slotIndex];
 
@@ -981,6 +1109,14 @@ class SurvivalHoardGame extends FlameGame
 
       _guardians.add(guardian);
       world.add(guardian);
+
+      // Mystics arrive with orbitals already active (rank 1).
+      if (unit.family == 'Mystic') {
+        final elem = unit.types.firstOrNull ?? 'Normal';
+        if (getSpecialAbilityRank(unit.id, elem) <= 0) {
+          incrementSpecialAbilityRank(unit.id, elem);
+        }
+      }
     }
   }
 

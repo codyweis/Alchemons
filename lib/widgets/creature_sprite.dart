@@ -1,4 +1,5 @@
 // lib/widgets/creature_sprite.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -10,6 +11,8 @@ import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame/flame.dart' show Flame;
@@ -65,7 +68,7 @@ class CreatureSprite extends StatefulWidget {
 }
 
 class _CreatureSpriteState extends State<CreatureSprite>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   // Helper to detect albino based on brightness value
   bool get _isAlbino => widget.brightness == 1.45;
 
@@ -74,6 +77,9 @@ class _CreatureSpriteState extends State<CreatureSprite>
   SpriteAnimationTicker? _spriteTicker;
 
   String? _loadError;
+  Timer? _retryTimer;
+  int _retryCount = 0;
+  static const int _maxLoadRetries = 2;
 
   @override
   void initState() {
@@ -118,6 +124,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     _hueController?.dispose();
     _spriteTicker = null;
     super.dispose();
@@ -231,6 +238,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
             _spriteAnimation = anim;
             _spriteTicker = anim.createTicker();
             _loadError = null;
+            _retryCount = 0;
           });
         }
         return;
@@ -252,15 +260,30 @@ class _CreatureSpriteState extends State<CreatureSprite>
         ),
       );
 
+      if (!mounted) return;
       setState(() {
         _spriteAnimation = anim;
         _spriteTicker = anim.createTicker();
         _loadError = null;
+        _retryCount = 0;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _loadError = e.toString();
       });
+
+      if (_retryCount < _maxLoadRetries) {
+        _retryCount += 1;
+        _retryTimer?.cancel();
+        _retryTimer = Timer(Duration(milliseconds: 180 * _retryCount), () {
+          if (!mounted) return;
+          setState(() {
+            _loadError = null;
+          });
+          _loadAnimation();
+        });
+      }
     }
   }
 }
@@ -283,12 +306,14 @@ class InstanceSprite extends StatelessWidget {
   final Creature creature;
   final CreatureInstance instance;
   final double size;
+  final bool flipX;
 
   const InstanceSprite({
     super.key,
     required this.creature,
     required this.instance,
     required this.size,
+    this.flipX = false,
   });
 
   @override
@@ -335,15 +360,19 @@ class InstanceSprite extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      // 💡 Use OverflowBox to allow the effect (child) to be visually larger
-      // than the size defined by this SizedBox.
       child: OverflowBox(
         minWidth: 0.0,
         maxWidth: double.infinity,
         minHeight: 0.0,
         maxHeight: double.infinity,
         alignment: Alignment.center,
-        child: sprite, // 'sprite' here contains the Stack with the effect
+        child: flipX
+            ? Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.diagonal3Values(-1, 1, 1),
+                child: sprite,
+              )
+            : sprite,
       ),
     );
   }
@@ -356,6 +385,10 @@ class InstanceSprite extends StatelessWidget {
         return ElementalAura(size: size, element: instance.variantFaction);
       case 'volcanic_aura':
         return VolcanicAura(size: size);
+      case 'void_rift':
+        return VoidRift(size: size * 0.8);
+      case 'prismatic_cascade':
+        return PrismaticCascade(size: size * 0.6);
       default:
         return const SizedBox.shrink();
     }

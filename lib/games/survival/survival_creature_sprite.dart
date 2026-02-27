@@ -13,6 +13,8 @@ import 'package:flutter/material.dart';
 
 enum TargetPriority { closest, furthest, boss }
 
+const bool _debugGuardianDamageLogs = false;
+
 class HoardGuardian extends PositionComponent
     with HasGameRef<SurvivalHoardGame>, TapCallbacks {
   final SurvivalUnit unit;
@@ -53,26 +55,29 @@ class HoardGuardian extends PositionComponent
   Vector2 _sizeForSpecies(Vector2 baseSize, String family) {
     // Example: use your own data/model here instead of hardcoding
     const Map<String, double> speciesScale = {
-      'let': 0.9,
+      'let': 1,
       'pip': 1,
-      'mane': 1,
-      'horn': 1.5,
-      'mask': 1.575,
-      'wing': 1.8,
-      'kin': 1.6,
-      'mystic': 2,
+      'mane': 1.2,
+      'horn': 1.7,
+      'mask': 1.5,
+      'wing': 2.0,
+      'kin': 2.0,
+      'mystic': 2.4,
     };
 
     final scale = speciesScale.containsKey(family.toLowerCase())
         ? speciesScale[family.toLowerCase()]!
         : 1.0;
-    return baseSize * scale;
+    // Make all guardians 15% bigger
+    return baseSize * scale * 1.15;
   }
 
   @override
   Future<void> onLoad() async {
     _basicInterval = .9 / unit.cooldownReduction;
-    _specialInterval = 5.0 / unit.cooldownReduction;
+    // Mystics have a longer special cooldown — their orbitals are very powerful
+    _specialInterval =
+        (unit.family == 'Mystic' ? 14.0 : 5.0) / unit.cooldownReduction;
 
     size = _sizeForSpecies(Vector2.all(100), unit.family);
 
@@ -342,22 +347,25 @@ class HoardGuardian extends PositionComponent
   void takeDamage(int amount, {String? source, bool isBossAttack = false}) {
     if (isDead) return;
 
-    // DEBUG: Log incoming damage
-    print('═══════════════════════════════════════════════════');
-    print('🛡️ GUARDIAN TAKING DAMAGE: ${unit.name}');
-    print('───────────────────────────────────────────────────');
-    print('   Source: ${source ?? "unknown"}');
-    print('   Incoming Damage: $amount');
-    print('   HP Before: ${unit.currentHp}/${unit.maxHp}');
-    print('   Shield: ${unit.shieldHp ?? 0}');
+    if (_debugGuardianDamageLogs) {
+      print('═══════════════════════════════════════════════════');
+      print('🛡️ GUARDIAN TAKING DAMAGE: ${unit.name}');
+      print('───────────────────────────────────────────────────');
+      print('   Source: ${source ?? "unknown"}');
+      print('   Incoming Damage: $amount');
+      print('   HP Before: ${unit.currentHp}/${unit.maxHp}');
+      print('   Shield: ${unit.shieldHp ?? 0}');
+    }
 
     unit.takeDamage(amount);
 
-    print('   HP After: ${unit.currentHp}/${unit.maxHp}');
-    if (unit.isDead) {
-      print('   💀 GUARDIAN KILLED!');
+    if (_debugGuardianDamageLogs) {
+      print('   HP After: ${unit.currentHp}/${unit.maxHp}');
+      if (unit.isDead) {
+        print('   💀 GUARDIAN KILLED!');
+      }
+      print('═══════════════════════════════════════════════════');
     }
-    print('═══════════════════════════════════════════════════');
 
     _flashDamage();
 
@@ -473,6 +481,12 @@ class HoardGuardian extends PositionComponent
         .where((e) => e is ScaleEffect || e is SequenceEffect)
         .toList()
         .forEach((e) => e.removeFromParent());
+
+    // If an effect was interrupted mid-frame, force a clean baseline scale.
+    _animContainer.scale = Vector2.all(1.0);
+
+    // Keep facing direction but reset any accidental Y distortion.
+    _spriteContainer.scale = Vector2(_isFlipped ? -1.0 : 1.0, 1.0);
   }
 
   void _playDeathAnimation() {

@@ -1,4 +1,9 @@
 // lib/games/survival/survival_formation_selector_screen.dart
+//
+// REDESIGNED FORMATION SELECTOR
+// Aesthetic: Scorched Forge — matches survival_game_screen + boss_battle_screen
+//
+
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/games/survival/survival_engine.dart';
@@ -12,9 +17,171 @@ import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+// ──────────────────────────────────────────────────────────────────────────────
+// DESIGN TOKENS
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _C {
+  static const bg0 = Color(0xFF080A0E);
+  static const bg1 = Color(0xFF0E1117);
+  static const bg2 = Color(0xFF141820);
+  static const bg3 = Color(0xFF1C2230);
+
+  static const amber = Color(0xFFD97706);
+  static const amberBright = Color(0xFFF59E0B);
+  static const amberDim = Color(0xFF92400E);
+
+  static const success = Color(0xFF16A34A);
+  static const successDim = Color(0xFF14532D);
+  static const successGlow = Color(0xFF22C55E);
+
+  static const warn = Color(0xFFF97316);
+
+  static const textPrimary = Color(0xFFE8DCC8);
+  static const textSecondary = Color(0xFF8A7B6A);
+  static const textMuted = Color(0xFF4A3F35);
+
+  static const borderDim = Color(0xFF252D3A);
+  static const borderMid = Color(0xFF3A3020);
+  static const borderAccent = Color(0xFF6B4C20);
+}
+
+class _T {
+  static const heading = TextStyle(
+    fontFamily: 'monospace',
+    color: _C.textPrimary,
+    fontSize: 13,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 2.0,
+  );
+
+  static const label = TextStyle(
+    fontFamily: 'monospace',
+    color: _C.textSecondary,
+    fontSize: 10,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 1.6,
+  );
+
+  static const body = TextStyle(
+    color: _C.textSecondary,
+    fontSize: 12,
+    height: 1.5,
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SHARED SMALL WIDGETS
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _EtchedDivider extends StatelessWidget {
+  final String? label;
+  const _EtchedDivider({this.label});
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(child: Container(height: 1, color: _C.borderMid)),
+      if (label != null) ...[
+        const SizedBox(width: 10),
+        Text(label!, style: _T.label),
+        const SizedBox(width: 10),
+      ],
+      Expanded(child: Container(height: 1, color: _C.borderMid)),
+    ],
+  );
+}
+
+class _ForgeButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool secondary;
+  final Color? color;
+
+  const _ForgeButton({
+    required this.label,
+    required this.icon,
+    this.onTap,
+    this.secondary = false,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDisabled = onTap == null;
+    final c = color ?? _C.amber;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        height: secondary ? 42 : 52,
+        decoration: BoxDecoration(
+          color: secondary ? Colors.transparent : (isDisabled ? _C.bg3 : c),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: secondary
+                ? _C.borderAccent.withOpacity(0.6)
+                : (isDisabled ? _C.borderDim : c),
+          ),
+          boxShadow: (!secondary && !isDisabled)
+              ? [
+                  BoxShadow(
+                    color: c.withOpacity(0.28),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: secondary ? 15 : 17,
+              color: secondary
+                  ? _C.textSecondary
+                  : (isDisabled ? _C.textMuted : _C.bg0),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: secondary ? 11 : 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.8,
+                color: secondary
+                    ? _C.textSecondary
+                    : (isDisabled ? _C.textMuted : _C.bg0),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScanlinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = Colors.black.withOpacity(0.07);
+    for (double y = 0; y < size.height; y += 3) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_) => false;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SCREEN
+// ──────────────────────────────────────────────────────────────────────────────
+
 class SurvivalFormationSelectorScreen extends StatefulWidget {
   const SurvivalFormationSelectorScreen({super.key});
-
   @override
   State<SurvivalFormationSelectorScreen> createState() =>
       _SurvivalFormationSelectorScreenState();
@@ -31,17 +198,13 @@ class _SurvivalFormationSelectorScreenState
   String? _filterVariant;
   String? _filterNature;
 
-  /// Selected creature instance IDs for the squad
   final List<String> _selectedCreatures = [];
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CONFIGURABLE LIMITS
-  // ═══════════════════════════════════════════════════════════════════════════
-  static const int minSquadSize = 4; // Minimum needed to start
-  static const int maxSquadSize = 10; // Maximum squad size
+  static const int minSquadSize = 4;
+  static const int maxSquadSize = 10;
 
   bool get _hasMinimumSquad => _selectedCreatures.length >= minSquadSize;
-  int get _totalSelected => _selectedCreatures.length;
+  int get _remaining => minSquadSize - _selectedCreatures.length;
 
   @override
   void dispose() {
@@ -49,99 +212,278 @@ class _SurvivalFormationSelectorScreenState
     super.dispose();
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // BUILD
+  // ──────────────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
     final db = context.watch<AlchemonsDatabase>();
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(0, -0.4),
-            radius: 1.2,
-            colors: [theme.surfaceAlt, theme.surface, Colors.black],
-            stops: const [0.0, 0.4, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(theme),
-              _buildFormationBar(theme, db),
-              const SizedBox(height: 8),
-              _buildFiltersPanel(theme),
-              const SizedBox(height: 8),
-              _buildSearchBar(theme),
-              const SizedBox(height: 8),
-              Expanded(
-                child: StreamBuilder<List<CreatureInstance>>(
-                  stream: db.creatureDao.watchAllInstances(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+      backgroundColor: _C.bg0,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: CustomScrollView(
+                slivers: [
+                  // ── Squad panel ──
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                      child: _buildSquadPanel(db),
+                    ),
+                  ),
+                  // ── Filters + search ──
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const _EtchedDivider(label: 'CREATURE ROSTER'),
+                          const SizedBox(height: 12),
+                          _buildFiltersPanel(),
+                          const SizedBox(height: 10),
+                          _buildSearchBar(),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // ── Creature grid ──
+                  StreamBuilder<List<CreatureInstance>>(
+                    stream: db.creatureDao.watchAllInstances(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const SliverFillRemaining(
+                          child: Center(
+                            child: CircularProgressIndicator(color: _C.amber),
+                          ),
+                        );
+                      }
+                      final allInstances = snapshot.data!;
+                      final instances = _applyFiltersAndSort(allInstances);
+                      if (instances.isEmpty) {
+                        return SliverFillRemaining(child: _buildEmptyState());
+                      }
+                      return SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                        sliver: SliverGrid(
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final instance = instances[index];
+                            final repo = context.read<CreatureCatalog>();
+                            final species = repo.getCreatureById(
+                              instance.baseId,
+                            );
+                            final isSelected = _selectedCreatures.contains(
+                              instance.instanceId,
+                            );
 
-                    final instances = _applyFiltersAndSort(snapshot.data!);
+                            // Block duplicate species (same baseId already in squad)
+                            final hasSameSpecies =
+                                !isSelected &&
+                                _selectedCreatures.any((id) {
+                                  final sel = allInstances.firstWhereOrNull(
+                                    (i) => i.instanceId == id,
+                                  );
+                                  return sel?.baseId == instance.baseId;
+                                });
 
-                    if (instances.isEmpty) {
-                      return _buildEmptyState(theme);
-                    }
+                            // Block a second Mystic
+                            final isMystic =
+                                species?.mutationFamily == 'Mystic';
+                            final hasMysticAlready =
+                                !isSelected &&
+                                isMystic &&
+                                _selectedCreatures.any((id) {
+                                  final sel = allInstances.firstWhereOrNull(
+                                    (i) => i.instanceId == id,
+                                  );
+                                  final selSp = sel != null
+                                      ? repo.getCreatureById(sel.baseId)
+                                      : null;
+                                  return selSp?.mutationFamily == 'Mystic';
+                                });
 
-                    return _buildInstanceGrid(theme, instances);
-                  },
-                ),
+                            final canSelect =
+                                !isSelected &&
+                                _selectedCreatures.length < maxSquadSize &&
+                                !hasSameSpecies &&
+                                !hasMysticAlready;
+
+                            return _CreatureGridCard(
+                              instance: instance,
+                              species: species,
+                              isSelected: isSelected,
+                              squadPosition: isSelected
+                                  ? _selectedCreatures.indexOf(
+                                          instance.instanceId,
+                                        ) +
+                                        1
+                                  : null,
+                              canSelect: canSelect,
+                              onTap: () {
+                                if (isSelected) {
+                                  setState(
+                                    () => _selectedCreatures.remove(
+                                      instance.instanceId,
+                                    ),
+                                  );
+                                } else if (_selectedCreatures.length >=
+                                    maxSquadSize) {
+                                  // Squad full — silent
+                                } else if (hasSameSpecies) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '${species?.name ?? 'This species'} is already in your squad.',
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                      backgroundColor: _C.warn,
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                } else if (hasMysticAlready) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Only one Mystic is allowed per squad.',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                      backgroundColor: _C.warn,
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                } else {
+                                  setState(
+                                    () => _selectedCreatures.add(
+                                      instance.instanceId,
+                                    ),
+                                  );
+                                }
+                              },
+                              onLongPress: species != null
+                                  ? () => CreatureDetailsDialog.show(
+                                      context,
+                                      species,
+                                      true,
+                                      instanceId: instance.instanceId,
+                                      openBattleTab: true,
+                                    )
+                                  : null,
+                            );
+                          }, childCount: instances.length),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                                childAspectRatio: 0.72,
+                              ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
-              _buildConfirmButton(theme),
-            ],
-          ),
+            ),
+            _buildFooter(),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader(FactionTheme theme) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
+  // ──────────────────────────────────────────────────────────────────────────
+  // HEADER
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _C.borderDim)),
+      ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            color: Colors.white,
-            onPressed: () => Navigator.of(context).pop(),
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _C.bg2,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: _C.borderDim),
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: _C.textSecondary,
+                size: 18,
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Assemble Your Squad',
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      margin: const EdgeInsets.only(right: 8, bottom: 1),
+                      decoration: const BoxDecoration(
+                        color: _C.success,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const Text('ASSEMBLE SQUAD', style: _T.heading),
+                  ],
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  'Select $minSquadSize-$maxSquadSize creatures for battle',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  'SELECT $minSquadSize–$maxSquadSize CREATURES',
+                  style: _T.label.copyWith(color: _C.textMuted),
                 ),
               ],
             ),
           ),
           if (_selectedCreatures.isNotEmpty)
-            TextButton(
-              onPressed: () => setState(() {
-                _selectedCreatures.clear();
-              }),
-              child: Text(
-                'Clear All',
-                style: TextStyle(color: theme.accent, fontSize: 13),
+            GestureDetector(
+              onTap: () => setState(() => _selectedCreatures.clear()),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _C.bg2,
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: _C.borderDim),
+                ),
+                child: const Text(
+                  'CLEAR',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: _C.textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
               ),
             ),
         ],
@@ -149,211 +491,249 @@ class _SurvivalFormationSelectorScreenState
     );
   }
 
-  Widget _buildFormationBar(FactionTheme theme, AlchemonsDatabase db) {
+  // ──────────────────────────────────────────────────────────────────────────
+  // SQUAD PANEL
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Widget _buildSquadPanel(AlchemonsDatabase db) {
     final repo = context.watch<CreatureCatalog>();
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(12),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: theme.surfaceAlt.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(12),
+        color: _C.bg2,
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: _hasMinimumSquad ? Colors.green : theme.border,
-          width: 2,
+          color: _hasMinimumSquad ? _C.success.withOpacity(0.55) : _C.borderDim,
+          width: _hasMinimumSquad ? 1.5 : 1,
+        ),
+        boxShadow: _hasMinimumSquad
+            ? [BoxShadow(color: _C.success.withOpacity(0.10), blurRadius: 16)]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: Stack(
+          children: [
+            Positioned.fill(child: CustomPaint(painter: _ScanlinePainter())),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: FutureBuilder<List<CreatureInstance>>(
+                future: db.creatureDao.getAllInstances(),
+                builder: (context, snapshot) {
+                  final allInstances = snapshot.data ?? [];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Row header
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.groups_rounded,
+                            color: _hasMinimumSquad
+                                ? _C.success
+                                : _C.textSecondary,
+                            size: 13,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'SQUAD  ${_selectedCreatures.length} / $maxSquadSize',
+                            style: _T.label.copyWith(
+                              color: _hasMinimumSquad
+                                  ? _C.success
+                                  : _C.textSecondary,
+                            ),
+                          ),
+                          const Spacer(),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: _hasMinimumSquad
+                                ? Row(
+                                    key: const ValueKey('ready'),
+                                    children: [
+                                      const Icon(
+                                        Icons.check_rounded,
+                                        color: _C.success,
+                                        size: 12,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'READY',
+                                        style: _T.label.copyWith(
+                                          color: _C.success,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    key: const ValueKey('need'),
+                                    'NEED $_remaining MORE',
+                                    style: _T.label.copyWith(color: _C.warn),
+                                  ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      // Slot rows — 5 + 5
+                      _buildSlotRow(allInstances, repo, 0, 5),
+                      const SizedBox(height: 6),
+                      _buildSlotRow(allInstances, repo, 5, 10),
+                      const SizedBox(height: 10),
+                      // Hint
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 10,
+                            color: _C.textMuted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'DEPLOYMENT POSITIONS CHOSEN NEXT STEP',
+                            style: _T.label.copyWith(
+                              color: _C.textMuted,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
-      child: FutureBuilder<List<CreatureInstance>>(
-        future: db.creatureDao.getAllInstances(),
-        builder: (context, snapshot) {
-          final allInstances = snapshot.data ?? [];
+    );
+  }
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Icon(
-                    Icons.groups_rounded,
-                    color: _hasMinimumSquad ? Colors.green : theme.textMuted,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Your Squad (${_selectedCreatures.length}/$maxSquadSize)',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (!_hasMinimumSquad)
-                    Text(
-                      'Need ${minSquadSize - _selectedCreatures.length} more',
-                      style: TextStyle(
-                        color: Colors.orange,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Squad slots - 2 rows of 5
-              Row(
-                children: List.generate(5, (index) {
-                  return Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(right: index < 4 ? 8 : 0),
-                      child: _buildSquadSlot(theme, index, allInstances, repo),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: List.generate(5, (index) {
-                  return Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(right: index < 4 ? 8 : 0),
-                      child: _buildSquadSlot(
-                        theme,
-                        index + 5,
-                        allInstances,
-                        repo,
-                      ),
-                    ),
-                  );
-                }),
-              ),
-
-              // Hint text
-              const SizedBox(height: 12),
-              Text(
-                'You\'ll choose deployment positions in the next step',
-                style: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 11,
-                  fontStyle: FontStyle.italic,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          );
-        },
-      ),
+  Widget _buildSlotRow(
+    List<CreatureInstance> allInstances,
+    CreatureCatalog repo,
+    int from,
+    int to,
+  ) {
+    return Row(
+      children: List.generate(to - from, (i) {
+        final slotIndex = from + i;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: i < (to - from - 1) ? 5 : 0),
+            child: _buildSquadSlot(allInstances, repo, slotIndex),
+          ),
+        );
+      }),
     );
   }
 
   Widget _buildSquadSlot(
-    FactionTheme theme,
-    int slotIndex,
     List<CreatureInstance> allInstances,
     CreatureCatalog repo,
+    int slotIndex,
   ) {
     final instanceId = slotIndex < _selectedCreatures.length
         ? _selectedCreatures[slotIndex]
         : null;
-
     final instance = instanceId != null
-        ? allInstances.firstWhere(
-            (inst) => inst.instanceId == instanceId,
-            orElse: () => allInstances.first,
-          )
+        ? allInstances.where((i) => i.instanceId == instanceId).firstOrNull
         : null;
-
-    // Empty slot
-    if (instance == null) {
-      final isRequired = slotIndex < minSquadSize;
-      return Container(
-        height: 60,
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isRequired ? Colors.orange.withOpacity(0.5) : theme.border,
-            width: 1.5,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isRequired ? Icons.add_circle_outline : Icons.add,
-              color: isRequired
-                  ? Colors.orange.withOpacity(0.7)
-                  : theme.textMuted,
-              size: 18,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${slotIndex + 1}',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Filled slot
-    final species = repo.getCreatureById(instance.baseId);
+    final isRequired = slotIndex < minSquadSize;
+    final isFilled = instance != null;
+    final species = isFilled ? repo.getCreatureById(instance.baseId) : null;
 
     return GestureDetector(
-      onTap: () => setState(() {
-        _selectedCreatures.remove(instanceId);
-      }),
-      child: Container(
-        height: 60,
-        padding: const EdgeInsets.all(4),
+      onTap: isFilled
+          ? () => setState(() => _selectedCreatures.remove(instanceId))
+          : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 58,
         decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.green, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.green.withOpacity(0.2),
-              blurRadius: 8,
-              spreadRadius: 1,
-            ),
-          ],
+          color: isFilled ? _C.success.withOpacity(0.10) : _C.bg1,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: isFilled
+                ? _C.success.withOpacity(0.55)
+                : isRequired
+                ? _C.warn.withOpacity(0.35)
+                : _C.borderDim,
+            width: isFilled ? 1.5 : 1,
+          ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (species != null)
-              Expanded(
-                child: InstanceSprite(
-                  creature: species,
-                  instance: instance,
-                  size: 28,
-                ),
+        child: isFilled
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (species != null)
+                    Expanded(
+                      child: Center(
+                        child: InstanceSprite(
+                          creature: species,
+                          instance: instance,
+                          size: 28,
+                        ),
+                      ),
+                    )
+                  else
+                    const Icon(
+                      Icons.help_outline,
+                      size: 20,
+                      color: _C.textMuted,
+                    ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    child: Text(
+                      '${slotIndex + 1}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: _C.success,
+                        fontSize: 7,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
               )
-            else
-              const Icon(Icons.help_outline, size: 24),
-            Text(
-              '${slotIndex + 1}',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 8,
-                fontWeight: FontWeight.w600,
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isRequired
+                        ? Icons.add_circle_outline_rounded
+                        : Icons.add_rounded,
+                    size: 16,
+                    color: isRequired ? _C.warn.withOpacity(0.5) : _C.textMuted,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${slotIndex + 1}',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: isRequired
+                          ? _C.warn.withOpacity(0.5)
+                          : _C.textMuted,
+                      fontSize: 7,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
-  Widget _buildFiltersPanel(FactionTheme theme) {
+  // ──────────────────────────────────────────────────────────────────────────
+  // FILTERS + SEARCH
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Widget _buildFiltersPanel() {
     return InstanceFiltersPanel(
-      theme: theme,
+      theme: context.read<FactionTheme>(),
       sortBy: _sortBy,
       onSortChanged: (sort) => setState(() => _sortBy = sort),
       harvestMode: false,
@@ -368,7 +748,6 @@ class _SurvivalFormationSelectorScreenState
           'S' => 'M',
           'M' => 'L',
           'L' => 'XL',
-          'XL' => null,
           _ => null,
         };
       }),
@@ -382,7 +761,6 @@ class _SurvivalFormationSelectorScreenState
           'Green' => 'Blue',
           'Blue' => 'Purple',
           'Purple' => 'Pink',
-          'Pink' => null,
           _ => null,
         };
       }),
@@ -394,7 +772,6 @@ class _SurvivalFormationSelectorScreenState
           null => 'Alpha',
           'Alpha' => 'Beta',
           'Beta' => 'Gamma',
-          'Gamma' => null,
           _ => null,
         };
       }),
@@ -417,261 +794,122 @@ class _SurvivalFormationSelectorScreenState
     );
   }
 
-  Widget _buildSearchBar(FactionTheme theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (value) => setState(() => _searchQuery = value),
-        style: TextStyle(color: theme.text, fontSize: 14),
-        decoration: InputDecoration(
-          hintText: 'Search creatures...',
-          hintStyle: TextStyle(color: theme.textMuted),
-          prefixIcon: Icon(Icons.search, color: theme.textMuted),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.clear, color: theme.textMuted),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _searchQuery = '');
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: theme.surfaceAlt,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: theme.border),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: theme.border),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: theme.accent),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInstanceGrid(
-    FactionTheme theme,
-    List<CreatureInstance> instances,
-  ) {
-    final repo = context.watch<CreatureCatalog>();
-
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.75,
-      ),
-      itemCount: instances.length,
-      itemBuilder: (context, index) {
-        final instance = instances[index];
-        final species = repo.getCreatureById(instance.baseId);
-        final isSelected = _selectedCreatures.contains(instance.instanceId);
-
-        return _buildInstanceCard(theme, species, instance, isSelected);
-      },
-    );
-  }
-
-  Widget _buildInstanceCard(
-    FactionTheme theme,
-    Creature? species,
-    CreatureInstance instance,
-    bool isSelected,
-  ) {
-    final canSelect = !isSelected && _selectedCreatures.length < maxSquadSize;
-
-    return GestureDetector(
-      onLongPress: () => CreatureDetailsDialog.show(
-        context,
-        species!,
-        true,
-        instanceId: instance.instanceId,
-        openBattleTab: true,
-      ),
-      onTap: () {
-        if (isSelected) {
-          // Remove from squad
-          setState(() {
-            _selectedCreatures.remove(instance.instanceId);
-          });
-        } else if (canSelect) {
-          // Add to squad
-          setState(() {
-            _selectedCreatures.add(instance.instanceId);
-          });
-        }
-      },
-      child: Opacity(
-        opacity: (!canSelect && !isSelected) ? 0.4 : 1.0,
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: theme.surfaceAlt,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? Colors.green : theme.border,
-              width: isSelected ? 2.5 : 1.5,
-            ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.green.withOpacity(0.3),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : null,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (species != null)
-                Expanded(
-                  child: InstanceSprite(
-                    creature: species,
-                    instance: instance,
-                    size: 56,
-                  ),
-                )
-              else
-                const Icon(Icons.help_outline, size: 56),
-              const SizedBox(height: 6),
-              Text(
-                species?.name ?? 'Unknown',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Lv ${instance.level}',
-                style: const TextStyle(
-                  color: Colors.amber,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (isSelected) ...[
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    '#${_selectedCreatures.indexOf(instance.instanceId) + 1}',
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontSize: 8,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildConfirmButton(FactionTheme theme) {
+  Widget _buildSearchBar() {
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.surface,
-        border: Border(top: BorderSide(color: theme.border)),
+        color: _C.bg2,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: _C.borderDim),
       ),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: _hasMinimumSquad
-              ? () {
-                  // Return simple list of instance IDs
-                  // The deployment phase will handle positioning
-                  final result = <int, String>{};
-
-                  for (int i = 0; i < _selectedCreatures.length; i++) {
-                    result[i] = _selectedCreatures[i];
-                  }
-
-                  Navigator.of(context).pop(result);
-                }
-              : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: theme.surfaceAlt,
-            disabledForegroundColor: theme.textMuted,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          icon: const Icon(Icons.arrow_forward_rounded, size: 24),
-          label: Text(
-            _hasMinimumSquad
-                ? 'Continue to Deployment (${_selectedCreatures.length} selected)'
-                : 'Select ${minSquadSize - _selectedCreatures.length} More',
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(FactionTheme theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          Icon(
-            Icons.pets_outlined,
-            size: 64,
-            color: theme.textMuted.withOpacity(0.3),
+          const Padding(
+            padding: EdgeInsets.only(left: 12),
+            child: Icon(Icons.search_rounded, color: _C.textMuted, size: 18),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'No creatures found',
-            style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _searchQuery = value),
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: _C.textPrimary,
+                fontSize: 13,
+                letterSpacing: 0.5,
+              ),
+              decoration: InputDecoration(
+                hintText: 'SEARCH CREATURES...',
+                hintStyle: _T.label.copyWith(letterSpacing: 1.0),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 12,
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Try adjusting your filters',
-            style: TextStyle(
-              color: theme.textMuted.withOpacity(0.7),
-              fontSize: 12,
+          if (_searchQuery.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                setState(() => _searchQuery = '');
+              },
+              child: const Padding(
+                padding: EdgeInsets.only(right: 12),
+                child: Icon(Icons.close_rounded, color: _C.textMuted, size: 16),
+              ),
             ),
-          ),
         ],
       ),
     );
   }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // FOOTER
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+      decoration: const BoxDecoration(
+        color: _C.bg1,
+        border: Border(top: BorderSide(color: _C.borderDim)),
+      ),
+      child: _ForgeButton(
+        label: _hasMinimumSquad
+            ? 'Continue to Deployment  ·  ${_selectedCreatures.length} Selected'
+            : 'Select ${_remaining} More to Continue',
+        icon: _hasMinimumSquad
+            ? Icons.arrow_forward_rounded
+            : Icons.hourglass_empty_rounded,
+        color: _hasMinimumSquad ? _C.success : null,
+        onTap: _hasMinimumSquad
+            ? () {
+                final result = <int, String>{};
+                for (int i = 0; i < _selectedCreatures.length; i++) {
+                  result[i] = _selectedCreatures[i];
+                }
+                Navigator.of(context).pop(result);
+              }
+            : null,
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // EMPTY STATE
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: _C.bg2,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: _C.borderDim),
+            ),
+            child: const Icon(
+              Icons.search_off_rounded,
+              color: _C.textMuted,
+              size: 32,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text('NO CREATURES FOUND', style: _T.heading),
+          const SizedBox(height: 4),
+          const Text('Adjust filters or clear your search', style: _T.body),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // FILTER / SORT LOGIC (unchanged)
+  // ──────────────────────────────────────────────────────────────────────────
 
   List<CreatureInstance> _applyFiltersAndSort(
     List<CreatureInstance> instances,
@@ -684,34 +922,28 @@ class _SurvivalFormationSelectorScreenState
       filtered = filtered.where((instance) {
         final species = repo.getCreatureById(instance.baseId);
         if (species == null) return false;
-
         return species.name.toLowerCase().contains(query) ||
             species.types.any((type) => type.toLowerCase().contains(query)) ||
             (instance.nickname?.toLowerCase().contains(query) ?? false);
       }).toList();
     }
 
-    if (_filterPrismatic) {
+    if (_filterPrismatic)
       filtered = filtered.where((i) => i.isPrismaticSkin).toList();
-    }
-    if (_filterSize != null) {
+    if (_filterSize != null)
       filtered = filtered
           .where((i) => decodeGenetics(i.geneticsJson)?.size == _filterSize)
           .toList();
-    }
-    if (_filterTint != null) {
+    if (_filterTint != null)
       filtered = filtered
           .where((i) => decodeGenetics(i.geneticsJson)?.tinting == _filterTint)
           .toList();
-    }
-    if (_filterVariant != null) {
+    if (_filterVariant != null)
       filtered = filtered
           .where((i) => i.variantFaction == _filterVariant)
           .toList();
-    }
-    if (_filterNature != null) {
+    if (_filterNature != null)
       filtered = filtered.where((i) => i.natureId == _filterNature).toList();
-    }
 
     filtered.sort((a, b) {
       switch (_sortBy) {
@@ -735,5 +967,232 @@ class _SurvivalFormationSelectorScreenState
     });
 
     return filtered;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CREATURE GRID CARD — extracted stateless widget for performance
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _CreatureGridCard extends StatefulWidget {
+  final CreatureInstance instance;
+  final Creature? species;
+  final bool isSelected;
+  final int? squadPosition;
+  final bool canSelect;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  const _CreatureGridCard({
+    required this.instance,
+    required this.species,
+    required this.isSelected,
+    required this.squadPosition,
+    required this.canSelect,
+    required this.onTap,
+    this.onLongPress,
+  });
+
+  @override
+  State<_CreatureGridCard> createState() => _CreatureGridCardState();
+}
+
+class _CreatureGridCardState extends State<_CreatureGridCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _selectCtrl;
+  late final Animation<double> _selectScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      value: widget.isSelected ? 1.0 : 0.0,
+    );
+    _selectScale = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(parent: _selectCtrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void didUpdateWidget(_CreatureGridCard old) {
+    super.didUpdateWidget(old);
+    if (widget.isSelected != old.isSelected) {
+      if (widget.isSelected) {
+        _selectCtrl.forward().then((_) => _selectCtrl.reverse());
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _selectCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dimmed = !widget.canSelect && !widget.isSelected;
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
+      child: AnimatedBuilder(
+        animation: _selectScale,
+        builder: (context, child) =>
+            Transform.scale(scale: _selectScale.value, child: child),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 150),
+          opacity: dimmed ? 0.35 : 1.0,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            decoration: BoxDecoration(
+              color: widget.isSelected ? _C.success.withOpacity(0.10) : _C.bg2,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: widget.isSelected
+                    ? _C.success.withOpacity(0.6)
+                    : _C.borderDim,
+                width: widget.isSelected ? 1.5 : 1,
+              ),
+              boxShadow: widget.isSelected
+                  ? [
+                      BoxShadow(
+                        color: _C.success.withOpacity(0.14),
+                        blurRadius: 10,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Stack(
+              children: [
+                // Scanlines
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: CustomPaint(painter: _ScanlinePainter()),
+                  ),
+                ),
+                // Content
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Sprite
+                      Expanded(
+                        child: Center(
+                          child: widget.species != null
+                              ? InstanceSprite(
+                                  creature: widget.species!,
+                                  instance: widget.instance,
+                                  size: 54,
+                                )
+                              : const Icon(
+                                  Icons.help_outline,
+                                  size: 40,
+                                  color: _C.textMuted,
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // Name
+                      Text(
+                        (widget.instance.nickname ??
+                                widget.species?.name ??
+                                'UNKNOWN')
+                            .toUpperCase(),
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          color: _C.textPrimary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 3),
+                      // Level badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _C.amberDim.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(2),
+                          border: Border.all(
+                            color: _C.borderAccent,
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          'LV ${widget.instance.level}',
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: _C.amberBright,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Squad position badge — top left
+                if (widget.isSelected && widget.squadPosition != null)
+                  Positioned(
+                    top: 5,
+                    left: 5,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: _C.success,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${widget.squadPosition}',
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: _C.bg0,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Checkmark overlay on selected
+                if (widget.isSelected)
+                  Positioned(
+                    top: 5,
+                    right: 5,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: _C.success.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        color: _C.bg0,
+                        size: 11,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

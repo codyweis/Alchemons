@@ -7850,6 +7850,747 @@ class BreedingStatisticsCompanion extends UpdateCompanion<BreedingStatistic> {
   }
 }
 
+class $AltarPlacementsTable extends AltarPlacements
+    with TableInfo<$AltarPlacementsTable, AltarPlacement> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AltarPlacementsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bossIdMeta = const VerificationMeta('bossId');
+  @override
+  late final GeneratedColumn<String> bossId = GeneratedColumn<String>(
+    'boss_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _speciesIdMeta = const VerificationMeta(
+    'speciesId',
+  );
+  @override
+  late final GeneratedColumn<String> speciesId = GeneratedColumn<String>(
+    'species_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _instanceIdMeta = const VerificationMeta(
+    'instanceId',
+  );
+  @override
+  late final GeneratedColumn<String> instanceId = GeneratedColumn<String>(
+    'instance_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _placedAtUtcMsMeta = const VerificationMeta(
+    'placedAtUtcMs',
+  );
+  @override
+  late final GeneratedColumn<int> placedAtUtcMs = GeneratedColumn<int>(
+    'placed_at_utc_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _snapshotJsonMeta = const VerificationMeta(
+    'snapshotJson',
+  );
+  @override
+  late final GeneratedColumn<String> snapshotJson = GeneratedColumn<String>(
+    'snapshot_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    bossId,
+    speciesId,
+    instanceId,
+    placedAtUtcMs,
+    snapshotJson,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'altar_placements';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AltarPlacement> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('boss_id')) {
+      context.handle(
+        _bossIdMeta,
+        bossId.isAcceptableOrUnknown(data['boss_id']!, _bossIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bossIdMeta);
+    }
+    if (data.containsKey('species_id')) {
+      context.handle(
+        _speciesIdMeta,
+        speciesId.isAcceptableOrUnknown(data['species_id']!, _speciesIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_speciesIdMeta);
+    }
+    if (data.containsKey('instance_id')) {
+      context.handle(
+        _instanceIdMeta,
+        instanceId.isAcceptableOrUnknown(data['instance_id']!, _instanceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_instanceIdMeta);
+    }
+    if (data.containsKey('placed_at_utc_ms')) {
+      context.handle(
+        _placedAtUtcMsMeta,
+        placedAtUtcMs.isAcceptableOrUnknown(
+          data['placed_at_utc_ms']!,
+          _placedAtUtcMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_placedAtUtcMsMeta);
+    }
+    if (data.containsKey('snapshot_json')) {
+      context.handle(
+        _snapshotJsonMeta,
+        snapshotJson.isAcceptableOrUnknown(
+          data['snapshot_json']!,
+          _snapshotJsonMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AltarPlacement map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AltarPlacement(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      bossId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}boss_id'],
+      )!,
+      speciesId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}species_id'],
+      )!,
+      instanceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}instance_id'],
+      )!,
+      placedAtUtcMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}placed_at_utc_ms'],
+      )!,
+      snapshotJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snapshot_json'],
+      ),
+    );
+  }
+
+  @override
+  $AltarPlacementsTable createAlias(String alias) {
+    return $AltarPlacementsTable(attachedDatabase, alias);
+  }
+}
+
+class AltarPlacement extends DataClass implements Insertable<AltarPlacement> {
+  /// Composite key: "{bossId}|{speciesId}"
+  final String id;
+
+  /// e.g. "boss_001"
+  final String bossId;
+
+  /// Creature catalog baseId e.g. "LET01_fire"
+  final String speciesId;
+
+  /// The specific creature instance consumed for this slot
+  final String instanceId;
+
+  /// UTC ms when placement was made
+  final int placedAtUtcMs;
+
+  /// JSON snapshot of the sacrificed creature's key attributes at commit time:
+  /// { "natureId": "N001", "speed": 4.2, "intelligence": 3.8,
+  ///   "strength": 5.0, "beauty": 4.5 }
+  /// Nullable so old placements (before schema v32) still load fine.
+  final String? snapshotJson;
+  const AltarPlacement({
+    required this.id,
+    required this.bossId,
+    required this.speciesId,
+    required this.instanceId,
+    required this.placedAtUtcMs,
+    this.snapshotJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['boss_id'] = Variable<String>(bossId);
+    map['species_id'] = Variable<String>(speciesId);
+    map['instance_id'] = Variable<String>(instanceId);
+    map['placed_at_utc_ms'] = Variable<int>(placedAtUtcMs);
+    if (!nullToAbsent || snapshotJson != null) {
+      map['snapshot_json'] = Variable<String>(snapshotJson);
+    }
+    return map;
+  }
+
+  AltarPlacementsCompanion toCompanion(bool nullToAbsent) {
+    return AltarPlacementsCompanion(
+      id: Value(id),
+      bossId: Value(bossId),
+      speciesId: Value(speciesId),
+      instanceId: Value(instanceId),
+      placedAtUtcMs: Value(placedAtUtcMs),
+      snapshotJson: snapshotJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(snapshotJson),
+    );
+  }
+
+  factory AltarPlacement.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AltarPlacement(
+      id: serializer.fromJson<String>(json['id']),
+      bossId: serializer.fromJson<String>(json['bossId']),
+      speciesId: serializer.fromJson<String>(json['speciesId']),
+      instanceId: serializer.fromJson<String>(json['instanceId']),
+      placedAtUtcMs: serializer.fromJson<int>(json['placedAtUtcMs']),
+      snapshotJson: serializer.fromJson<String?>(json['snapshotJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'bossId': serializer.toJson<String>(bossId),
+      'speciesId': serializer.toJson<String>(speciesId),
+      'instanceId': serializer.toJson<String>(instanceId),
+      'placedAtUtcMs': serializer.toJson<int>(placedAtUtcMs),
+      'snapshotJson': serializer.toJson<String?>(snapshotJson),
+    };
+  }
+
+  AltarPlacement copyWith({
+    String? id,
+    String? bossId,
+    String? speciesId,
+    String? instanceId,
+    int? placedAtUtcMs,
+    Value<String?> snapshotJson = const Value.absent(),
+  }) => AltarPlacement(
+    id: id ?? this.id,
+    bossId: bossId ?? this.bossId,
+    speciesId: speciesId ?? this.speciesId,
+    instanceId: instanceId ?? this.instanceId,
+    placedAtUtcMs: placedAtUtcMs ?? this.placedAtUtcMs,
+    snapshotJson: snapshotJson.present ? snapshotJson.value : this.snapshotJson,
+  );
+  AltarPlacement copyWithCompanion(AltarPlacementsCompanion data) {
+    return AltarPlacement(
+      id: data.id.present ? data.id.value : this.id,
+      bossId: data.bossId.present ? data.bossId.value : this.bossId,
+      speciesId: data.speciesId.present ? data.speciesId.value : this.speciesId,
+      instanceId: data.instanceId.present
+          ? data.instanceId.value
+          : this.instanceId,
+      placedAtUtcMs: data.placedAtUtcMs.present
+          ? data.placedAtUtcMs.value
+          : this.placedAtUtcMs,
+      snapshotJson: data.snapshotJson.present
+          ? data.snapshotJson.value
+          : this.snapshotJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AltarPlacement(')
+          ..write('id: $id, ')
+          ..write('bossId: $bossId, ')
+          ..write('speciesId: $speciesId, ')
+          ..write('instanceId: $instanceId, ')
+          ..write('placedAtUtcMs: $placedAtUtcMs, ')
+          ..write('snapshotJson: $snapshotJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    bossId,
+    speciesId,
+    instanceId,
+    placedAtUtcMs,
+    snapshotJson,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AltarPlacement &&
+          other.id == this.id &&
+          other.bossId == this.bossId &&
+          other.speciesId == this.speciesId &&
+          other.instanceId == this.instanceId &&
+          other.placedAtUtcMs == this.placedAtUtcMs &&
+          other.snapshotJson == this.snapshotJson);
+}
+
+class AltarPlacementsCompanion extends UpdateCompanion<AltarPlacement> {
+  final Value<String> id;
+  final Value<String> bossId;
+  final Value<String> speciesId;
+  final Value<String> instanceId;
+  final Value<int> placedAtUtcMs;
+  final Value<String?> snapshotJson;
+  final Value<int> rowid;
+  const AltarPlacementsCompanion({
+    this.id = const Value.absent(),
+    this.bossId = const Value.absent(),
+    this.speciesId = const Value.absent(),
+    this.instanceId = const Value.absent(),
+    this.placedAtUtcMs = const Value.absent(),
+    this.snapshotJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AltarPlacementsCompanion.insert({
+    required String id,
+    required String bossId,
+    required String speciesId,
+    required String instanceId,
+    required int placedAtUtcMs,
+    this.snapshotJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       bossId = Value(bossId),
+       speciesId = Value(speciesId),
+       instanceId = Value(instanceId),
+       placedAtUtcMs = Value(placedAtUtcMs);
+  static Insertable<AltarPlacement> custom({
+    Expression<String>? id,
+    Expression<String>? bossId,
+    Expression<String>? speciesId,
+    Expression<String>? instanceId,
+    Expression<int>? placedAtUtcMs,
+    Expression<String>? snapshotJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bossId != null) 'boss_id': bossId,
+      if (speciesId != null) 'species_id': speciesId,
+      if (instanceId != null) 'instance_id': instanceId,
+      if (placedAtUtcMs != null) 'placed_at_utc_ms': placedAtUtcMs,
+      if (snapshotJson != null) 'snapshot_json': snapshotJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AltarPlacementsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? bossId,
+    Value<String>? speciesId,
+    Value<String>? instanceId,
+    Value<int>? placedAtUtcMs,
+    Value<String?>? snapshotJson,
+    Value<int>? rowid,
+  }) {
+    return AltarPlacementsCompanion(
+      id: id ?? this.id,
+      bossId: bossId ?? this.bossId,
+      speciesId: speciesId ?? this.speciesId,
+      instanceId: instanceId ?? this.instanceId,
+      placedAtUtcMs: placedAtUtcMs ?? this.placedAtUtcMs,
+      snapshotJson: snapshotJson ?? this.snapshotJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (bossId.present) {
+      map['boss_id'] = Variable<String>(bossId.value);
+    }
+    if (speciesId.present) {
+      map['species_id'] = Variable<String>(speciesId.value);
+    }
+    if (instanceId.present) {
+      map['instance_id'] = Variable<String>(instanceId.value);
+    }
+    if (placedAtUtcMs.present) {
+      map['placed_at_utc_ms'] = Variable<int>(placedAtUtcMs.value);
+    }
+    if (snapshotJson.present) {
+      map['snapshot_json'] = Variable<String>(snapshotJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AltarPlacementsCompanion(')
+          ..write('id: $id, ')
+          ..write('bossId: $bossId, ')
+          ..write('speciesId: $speciesId, ')
+          ..write('instanceId: $instanceId, ')
+          ..write('placedAtUtcMs: $placedAtUtcMs, ')
+          ..write('snapshotJson: $snapshotJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SurvivalHighScoreTable extends SurvivalHighScore
+    with TableInfo<$SurvivalHighScoreTable, SurvivalHighScoreData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SurvivalHighScoreTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bestWaveMeta = const VerificationMeta(
+    'bestWave',
+  );
+  @override
+  late final GeneratedColumn<int> bestWave = GeneratedColumn<int>(
+    'best_wave',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _bestScoreMeta = const VerificationMeta(
+    'bestScore',
+  );
+  @override
+  late final GeneratedColumn<int> bestScore = GeneratedColumn<int>(
+    'best_score',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _bestTimeMsMeta = const VerificationMeta(
+    'bestTimeMs',
+  );
+  @override
+  late final GeneratedColumn<int> bestTimeMs = GeneratedColumn<int>(
+    'best_time_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, bestWave, bestScore, bestTimeMs];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'survival_high_score';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SurvivalHighScoreData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('best_wave')) {
+      context.handle(
+        _bestWaveMeta,
+        bestWave.isAcceptableOrUnknown(data['best_wave']!, _bestWaveMeta),
+      );
+    }
+    if (data.containsKey('best_score')) {
+      context.handle(
+        _bestScoreMeta,
+        bestScore.isAcceptableOrUnknown(data['best_score']!, _bestScoreMeta),
+      );
+    }
+    if (data.containsKey('best_time_ms')) {
+      context.handle(
+        _bestTimeMsMeta,
+        bestTimeMs.isAcceptableOrUnknown(
+          data['best_time_ms']!,
+          _bestTimeMsMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SurvivalHighScoreData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SurvivalHighScoreData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      bestWave: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}best_wave'],
+      )!,
+      bestScore: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}best_score'],
+      )!,
+      bestTimeMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}best_time_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $SurvivalHighScoreTable createAlias(String alias) {
+    return $SurvivalHighScoreTable(attachedDatabase, alias);
+  }
+}
+
+class SurvivalHighScoreData extends DataClass
+    implements Insertable<SurvivalHighScoreData> {
+  final int id;
+  final int bestWave;
+  final int bestScore;
+
+  /// Elapsed time stored as integer milliseconds.
+  final int bestTimeMs;
+  const SurvivalHighScoreData({
+    required this.id,
+    required this.bestWave,
+    required this.bestScore,
+    required this.bestTimeMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['best_wave'] = Variable<int>(bestWave);
+    map['best_score'] = Variable<int>(bestScore);
+    map['best_time_ms'] = Variable<int>(bestTimeMs);
+    return map;
+  }
+
+  SurvivalHighScoreCompanion toCompanion(bool nullToAbsent) {
+    return SurvivalHighScoreCompanion(
+      id: Value(id),
+      bestWave: Value(bestWave),
+      bestScore: Value(bestScore),
+      bestTimeMs: Value(bestTimeMs),
+    );
+  }
+
+  factory SurvivalHighScoreData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SurvivalHighScoreData(
+      id: serializer.fromJson<int>(json['id']),
+      bestWave: serializer.fromJson<int>(json['bestWave']),
+      bestScore: serializer.fromJson<int>(json['bestScore']),
+      bestTimeMs: serializer.fromJson<int>(json['bestTimeMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'bestWave': serializer.toJson<int>(bestWave),
+      'bestScore': serializer.toJson<int>(bestScore),
+      'bestTimeMs': serializer.toJson<int>(bestTimeMs),
+    };
+  }
+
+  SurvivalHighScoreData copyWith({
+    int? id,
+    int? bestWave,
+    int? bestScore,
+    int? bestTimeMs,
+  }) => SurvivalHighScoreData(
+    id: id ?? this.id,
+    bestWave: bestWave ?? this.bestWave,
+    bestScore: bestScore ?? this.bestScore,
+    bestTimeMs: bestTimeMs ?? this.bestTimeMs,
+  );
+  SurvivalHighScoreData copyWithCompanion(SurvivalHighScoreCompanion data) {
+    return SurvivalHighScoreData(
+      id: data.id.present ? data.id.value : this.id,
+      bestWave: data.bestWave.present ? data.bestWave.value : this.bestWave,
+      bestScore: data.bestScore.present ? data.bestScore.value : this.bestScore,
+      bestTimeMs: data.bestTimeMs.present
+          ? data.bestTimeMs.value
+          : this.bestTimeMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SurvivalHighScoreData(')
+          ..write('id: $id, ')
+          ..write('bestWave: $bestWave, ')
+          ..write('bestScore: $bestScore, ')
+          ..write('bestTimeMs: $bestTimeMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, bestWave, bestScore, bestTimeMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SurvivalHighScoreData &&
+          other.id == this.id &&
+          other.bestWave == this.bestWave &&
+          other.bestScore == this.bestScore &&
+          other.bestTimeMs == this.bestTimeMs);
+}
+
+class SurvivalHighScoreCompanion
+    extends UpdateCompanion<SurvivalHighScoreData> {
+  final Value<int> id;
+  final Value<int> bestWave;
+  final Value<int> bestScore;
+  final Value<int> bestTimeMs;
+  const SurvivalHighScoreCompanion({
+    this.id = const Value.absent(),
+    this.bestWave = const Value.absent(),
+    this.bestScore = const Value.absent(),
+    this.bestTimeMs = const Value.absent(),
+  });
+  SurvivalHighScoreCompanion.insert({
+    this.id = const Value.absent(),
+    this.bestWave = const Value.absent(),
+    this.bestScore = const Value.absent(),
+    this.bestTimeMs = const Value.absent(),
+  });
+  static Insertable<SurvivalHighScoreData> custom({
+    Expression<int>? id,
+    Expression<int>? bestWave,
+    Expression<int>? bestScore,
+    Expression<int>? bestTimeMs,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bestWave != null) 'best_wave': bestWave,
+      if (bestScore != null) 'best_score': bestScore,
+      if (bestTimeMs != null) 'best_time_ms': bestTimeMs,
+    });
+  }
+
+  SurvivalHighScoreCompanion copyWith({
+    Value<int>? id,
+    Value<int>? bestWave,
+    Value<int>? bestScore,
+    Value<int>? bestTimeMs,
+  }) {
+    return SurvivalHighScoreCompanion(
+      id: id ?? this.id,
+      bestWave: bestWave ?? this.bestWave,
+      bestScore: bestScore ?? this.bestScore,
+      bestTimeMs: bestTimeMs ?? this.bestTimeMs,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (bestWave.present) {
+      map['best_wave'] = Variable<int>(bestWave.value);
+    }
+    if (bestScore.present) {
+      map['best_score'] = Variable<int>(bestScore.value);
+    }
+    if (bestTimeMs.present) {
+      map['best_time_ms'] = Variable<int>(bestTimeMs.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SurvivalHighScoreCompanion(')
+          ..write('id: $id, ')
+          ..write('bestWave: $bestWave, ')
+          ..write('bestScore: $bestScore, ')
+          ..write('bestTimeMs: $bestTimeMs')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   _$AlchemonsDatabase(QueryExecutor e) : super(e);
   $AlchemonsDatabaseManager get managers => $AlchemonsDatabaseManager(this);
@@ -7883,6 +8624,11 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
       $ConstellationUnlocksTable(this);
   late final $BreedingStatisticsTable breedingStatistics =
       $BreedingStatisticsTable(this);
+  late final $AltarPlacementsTable altarPlacements = $AltarPlacementsTable(
+    this,
+  );
+  late final $SurvivalHighScoreTable survivalHighScore =
+      $SurvivalHighScoreTable(this);
   late final SettingsDao settingsDao = SettingsDao(this as AlchemonsDatabase);
   late final CurrencyDao currencyDao = CurrencyDao(this as AlchemonsDatabase);
   late final CreatureDao creatureDao = CreatureDao(this as AlchemonsDatabase);
@@ -7897,6 +8643,7 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
   late final ConstellationDao constellationDao = ConstellationDao(
     this as AlchemonsDatabase,
   );
+  late final AltarDao altarDao = AltarDao(this as AlchemonsDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7921,6 +8668,8 @@ abstract class _$AlchemonsDatabase extends GeneratedDatabase {
     constellationTransactions,
     constellationUnlocks,
     breedingStatistics,
+    altarPlacements,
+    survivalHighScore,
   ];
 }
 
@@ -12209,6 +12958,431 @@ typedef $$BreedingStatisticsTableProcessedTableManager =
       BreedingStatistic,
       PrefetchHooks Function()
     >;
+typedef $$AltarPlacementsTableCreateCompanionBuilder =
+    AltarPlacementsCompanion Function({
+      required String id,
+      required String bossId,
+      required String speciesId,
+      required String instanceId,
+      required int placedAtUtcMs,
+      Value<String?> snapshotJson,
+      Value<int> rowid,
+    });
+typedef $$AltarPlacementsTableUpdateCompanionBuilder =
+    AltarPlacementsCompanion Function({
+      Value<String> id,
+      Value<String> bossId,
+      Value<String> speciesId,
+      Value<String> instanceId,
+      Value<int> placedAtUtcMs,
+      Value<String?> snapshotJson,
+      Value<int> rowid,
+    });
+
+class $$AltarPlacementsTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $AltarPlacementsTable> {
+  $$AltarPlacementsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bossId => $composableBuilder(
+    column: $table.bossId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speciesId => $composableBuilder(
+    column: $table.speciesId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get instanceId => $composableBuilder(
+    column: $table.instanceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get placedAtUtcMs => $composableBuilder(
+    column: $table.placedAtUtcMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snapshotJson => $composableBuilder(
+    column: $table.snapshotJson,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AltarPlacementsTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $AltarPlacementsTable> {
+  $$AltarPlacementsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bossId => $composableBuilder(
+    column: $table.bossId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get speciesId => $composableBuilder(
+    column: $table.speciesId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get instanceId => $composableBuilder(
+    column: $table.instanceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get placedAtUtcMs => $composableBuilder(
+    column: $table.placedAtUtcMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snapshotJson => $composableBuilder(
+    column: $table.snapshotJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AltarPlacementsTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $AltarPlacementsTable> {
+  $$AltarPlacementsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bossId =>
+      $composableBuilder(column: $table.bossId, builder: (column) => column);
+
+  GeneratedColumn<String> get speciesId =>
+      $composableBuilder(column: $table.speciesId, builder: (column) => column);
+
+  GeneratedColumn<String> get instanceId => $composableBuilder(
+    column: $table.instanceId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get placedAtUtcMs => $composableBuilder(
+    column: $table.placedAtUtcMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get snapshotJson => $composableBuilder(
+    column: $table.snapshotJson,
+    builder: (column) => column,
+  );
+}
+
+class $$AltarPlacementsTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $AltarPlacementsTable,
+          AltarPlacement,
+          $$AltarPlacementsTableFilterComposer,
+          $$AltarPlacementsTableOrderingComposer,
+          $$AltarPlacementsTableAnnotationComposer,
+          $$AltarPlacementsTableCreateCompanionBuilder,
+          $$AltarPlacementsTableUpdateCompanionBuilder,
+          (
+            AltarPlacement,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $AltarPlacementsTable,
+              AltarPlacement
+            >,
+          ),
+          AltarPlacement,
+          PrefetchHooks Function()
+        > {
+  $$AltarPlacementsTableTableManager(
+    _$AlchemonsDatabase db,
+    $AltarPlacementsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AltarPlacementsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AltarPlacementsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AltarPlacementsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> bossId = const Value.absent(),
+                Value<String> speciesId = const Value.absent(),
+                Value<String> instanceId = const Value.absent(),
+                Value<int> placedAtUtcMs = const Value.absent(),
+                Value<String?> snapshotJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AltarPlacementsCompanion(
+                id: id,
+                bossId: bossId,
+                speciesId: speciesId,
+                instanceId: instanceId,
+                placedAtUtcMs: placedAtUtcMs,
+                snapshotJson: snapshotJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String bossId,
+                required String speciesId,
+                required String instanceId,
+                required int placedAtUtcMs,
+                Value<String?> snapshotJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AltarPlacementsCompanion.insert(
+                id: id,
+                bossId: bossId,
+                speciesId: speciesId,
+                instanceId: instanceId,
+                placedAtUtcMs: placedAtUtcMs,
+                snapshotJson: snapshotJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AltarPlacementsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $AltarPlacementsTable,
+      AltarPlacement,
+      $$AltarPlacementsTableFilterComposer,
+      $$AltarPlacementsTableOrderingComposer,
+      $$AltarPlacementsTableAnnotationComposer,
+      $$AltarPlacementsTableCreateCompanionBuilder,
+      $$AltarPlacementsTableUpdateCompanionBuilder,
+      (
+        AltarPlacement,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $AltarPlacementsTable,
+          AltarPlacement
+        >,
+      ),
+      AltarPlacement,
+      PrefetchHooks Function()
+    >;
+typedef $$SurvivalHighScoreTableCreateCompanionBuilder =
+    SurvivalHighScoreCompanion Function({
+      Value<int> id,
+      Value<int> bestWave,
+      Value<int> bestScore,
+      Value<int> bestTimeMs,
+    });
+typedef $$SurvivalHighScoreTableUpdateCompanionBuilder =
+    SurvivalHighScoreCompanion Function({
+      Value<int> id,
+      Value<int> bestWave,
+      Value<int> bestScore,
+      Value<int> bestTimeMs,
+    });
+
+class $$SurvivalHighScoreTableFilterComposer
+    extends Composer<_$AlchemonsDatabase, $SurvivalHighScoreTable> {
+  $$SurvivalHighScoreTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bestWave => $composableBuilder(
+    column: $table.bestWave,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bestScore => $composableBuilder(
+    column: $table.bestScore,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bestTimeMs => $composableBuilder(
+    column: $table.bestTimeMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SurvivalHighScoreTableOrderingComposer
+    extends Composer<_$AlchemonsDatabase, $SurvivalHighScoreTable> {
+  $$SurvivalHighScoreTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bestWave => $composableBuilder(
+    column: $table.bestWave,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bestScore => $composableBuilder(
+    column: $table.bestScore,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bestTimeMs => $composableBuilder(
+    column: $table.bestTimeMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SurvivalHighScoreTableAnnotationComposer
+    extends Composer<_$AlchemonsDatabase, $SurvivalHighScoreTable> {
+  $$SurvivalHighScoreTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get bestWave =>
+      $composableBuilder(column: $table.bestWave, builder: (column) => column);
+
+  GeneratedColumn<int> get bestScore =>
+      $composableBuilder(column: $table.bestScore, builder: (column) => column);
+
+  GeneratedColumn<int> get bestTimeMs => $composableBuilder(
+    column: $table.bestTimeMs,
+    builder: (column) => column,
+  );
+}
+
+class $$SurvivalHighScoreTableTableManager
+    extends
+        RootTableManager<
+          _$AlchemonsDatabase,
+          $SurvivalHighScoreTable,
+          SurvivalHighScoreData,
+          $$SurvivalHighScoreTableFilterComposer,
+          $$SurvivalHighScoreTableOrderingComposer,
+          $$SurvivalHighScoreTableAnnotationComposer,
+          $$SurvivalHighScoreTableCreateCompanionBuilder,
+          $$SurvivalHighScoreTableUpdateCompanionBuilder,
+          (
+            SurvivalHighScoreData,
+            BaseReferences<
+              _$AlchemonsDatabase,
+              $SurvivalHighScoreTable,
+              SurvivalHighScoreData
+            >,
+          ),
+          SurvivalHighScoreData,
+          PrefetchHooks Function()
+        > {
+  $$SurvivalHighScoreTableTableManager(
+    _$AlchemonsDatabase db,
+    $SurvivalHighScoreTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SurvivalHighScoreTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SurvivalHighScoreTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SurvivalHighScoreTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> bestWave = const Value.absent(),
+                Value<int> bestScore = const Value.absent(),
+                Value<int> bestTimeMs = const Value.absent(),
+              }) => SurvivalHighScoreCompanion(
+                id: id,
+                bestWave: bestWave,
+                bestScore: bestScore,
+                bestTimeMs: bestTimeMs,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> bestWave = const Value.absent(),
+                Value<int> bestScore = const Value.absent(),
+                Value<int> bestTimeMs = const Value.absent(),
+              }) => SurvivalHighScoreCompanion.insert(
+                id: id,
+                bestWave: bestWave,
+                bestScore: bestScore,
+                bestTimeMs: bestTimeMs,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SurvivalHighScoreTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AlchemonsDatabase,
+      $SurvivalHighScoreTable,
+      SurvivalHighScoreData,
+      $$SurvivalHighScoreTableFilterComposer,
+      $$SurvivalHighScoreTableOrderingComposer,
+      $$SurvivalHighScoreTableAnnotationComposer,
+      $$SurvivalHighScoreTableCreateCompanionBuilder,
+      $$SurvivalHighScoreTableUpdateCompanionBuilder,
+      (
+        SurvivalHighScoreData,
+        BaseReferences<
+          _$AlchemonsDatabase,
+          $SurvivalHighScoreTable,
+          SurvivalHighScoreData
+        >,
+      ),
+      SurvivalHighScoreData,
+      PrefetchHooks Function()
+    >;
 
 class $AlchemonsDatabaseManager {
   final _$AlchemonsDatabase _db;
@@ -12256,4 +13430,8 @@ class $AlchemonsDatabaseManager {
       $$ConstellationUnlocksTableTableManager(_db, _db.constellationUnlocks);
   $$BreedingStatisticsTableTableManager get breedingStatistics =>
       $$BreedingStatisticsTableTableManager(_db, _db.breedingStatistics);
+  $$AltarPlacementsTableTableManager get altarPlacements =>
+      $$AltarPlacementsTableTableManager(_db, _db.altarPlacements);
+  $$SurvivalHighScoreTableTableManager get survivalHighScore =>
+      $$SurvivalHighScoreTableTableManager(_db, _db.survivalHighScore);
 }

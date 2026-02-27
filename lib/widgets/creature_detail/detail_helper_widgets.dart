@@ -1,15 +1,17 @@
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class StaminaInlineRow extends StatelessWidget {
-  final FactionTheme theme;
+  // ignore: unused_field
+  final FactionTheme? theme;
   final String label;
   final String instanceId;
   const StaminaInlineRow({
-    required this.theme,
+    this.theme,
     required this.label,
     required this.instanceId,
   });
@@ -23,14 +25,7 @@ class StaminaInlineRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: theme.text.withOpacity(0.7),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            child: Text(label.toUpperCase(), style: FT.label),
           ),
           Expanded(
             child: StaminaBadge(instanceId: instanceId, showCountdown: true),
@@ -42,21 +37,20 @@ class StaminaInlineRow extends StatelessWidget {
 }
 
 class StatBarRow extends StatelessWidget {
-  final FactionTheme theme;
+  // ignore: unused_field
+  final FactionTheme? theme;
   final String label;
   final double value;
 
-  const StatBarRow({
-    required this.theme,
-    required this.label,
-    required this.value,
-  });
+  const StatBarRow({this.theme, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     final descriptor = getStatDescriptor(value, label.toLowerCase());
     final fill = (value / 5.0).clamp(0.0, 1.0);
     final isMaxed = value == 5.0;
+    const barColor = FC.amber;
+    final dimColor = FC.amberDim;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -67,24 +61,18 @@ class StatBarRow extends StatelessWidget {
             children: [
               SizedBox(
                 width: 100,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: theme.text.withOpacity(0.7),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                child: Text(label.toUpperCase(), style: FT.label),
               ),
               Expanded(
                 child: Row(
                   children: [
                     Expanded(
                       child: Container(
-                        height: 8,
+                        height: 6,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.07),
-                          borderRadius: BorderRadius.circular(4),
+                          color: FC.bg3,
+                          borderRadius: BorderRadius.circular(2),
+                          border: Border.all(color: FC.borderDim),
                         ),
                         child: FractionallySizedBox(
                           alignment: Alignment.centerLeft,
@@ -93,13 +81,10 @@ class StatBarRow extends StatelessWidget {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: isMaxed
-                                    ? [Colors.amber, Colors.amber.shade600]
-                                    : [
-                                        theme.primary,
-                                        theme.secondary.withOpacity(.7),
-                                      ],
+                                    ? [FC.amberGlow, FC.amber]
+                                    : [barColor, dimColor],
                               ),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(2),
                             ),
                           ),
                         ),
@@ -112,21 +97,20 @@ class StatBarRow extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: isMaxed
-                            ? Colors.amber.withOpacity(.2)
-                            : theme.primary.withOpacity(.15),
-                        borderRadius: BorderRadius.circular(4),
+                        color: isMaxed ? FC.amber.withOpacity(.18) : FC.bg3,
+                        borderRadius: BorderRadius.circular(2),
                         border: Border.all(
                           color: isMaxed
-                              ? Colors.amber.withOpacity(.4)
-                              : theme.primary.withOpacity(.3),
+                              ? FC.amber.withOpacity(.5)
+                              : FC.borderDim,
                         ),
                       ),
                       child: Text(
                         value.toStringAsFixed(1),
                         style: TextStyle(
-                          color: isMaxed ? Colors.amber : theme.primary,
-                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          color: isMaxed ? FC.amberGlow : FC.textPrimary,
+                          fontSize: 10,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -142,12 +126,12 @@ class StatBarRow extends StatelessWidget {
             child: Text(
               descriptor,
               style: TextStyle(
-                color: isMaxed
-                    ? Colors.amber.withOpacity(.9)
-                    : const Color(0xFF9AA6B2),
-                fontSize: 10,
+                fontFamily: 'monospace',
+                color: isMaxed ? FC.amberBright : FC.textMuted,
+                fontSize: 9,
                 fontStyle: FontStyle.italic,
                 fontWeight: isMaxed ? FontWeight.w600 : FontWeight.normal,
+                letterSpacing: 0.5,
               ),
             ),
           ),
@@ -187,7 +171,6 @@ class LabeledInlineValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final vc = valueColor ?? const Color(0xFFE8EAED);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -195,17 +178,16 @@ class LabeledInlineValue extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: vc,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            child: Text(label.toUpperCase(), style: FT.label),
           ),
           Expanded(
-            child: Text(valueText, style: TextStyle(color: vc, fontSize: 11)),
+            child: Text(
+              valueText,
+              style: FT.body.copyWith(
+                color: valueColor ?? FC.textPrimary,
+                fontSize: 11,
+              ),
+            ),
           ),
         ],
       ),

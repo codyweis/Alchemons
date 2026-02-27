@@ -12,7 +12,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 
 /// Condensed inventory overlay for in-game use - items only, no vials
@@ -26,7 +25,7 @@ class GameInventoryOverlay extends StatefulWidget {
 class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
+    final t = ForgeTokens(context.read<FactionTheme>());
     final db = context.read<AlchemonsDatabase>();
     final registry = buildInventoryRegistry(db);
 
@@ -34,71 +33,91 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
       stream: db.inventoryDao.watchItemInventory(),
       builder: (context, snapshot) {
         final allItems = snapshot.data ?? [];
-
-        // Filter out vials - only show regular items
         final items = allItems
             .where((item) => !item.key.startsWith('vial.'))
             .toList();
 
         if (items.isEmpty) {
-          return _buildEmptyState(theme);
+          return _buildEmptyState(t);
         }
 
         return Column(
           children: [
-            // Minimal header with close button
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            // Header
+            Container(
+              color: t.bg2,
+              padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
               child: Row(
                 children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: t.amber,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
                   Text(
                     'ITEMS',
                     style: TextStyle(
-                      color: theme.text,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
+                      fontFamily: 'monospace',
+                      color: t.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2.0,
                     ),
                   ),
                   const Spacer(),
-                  Text(
-                    '${items.length}',
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: t.bg3,
+                      borderRadius: BorderRadius.circular(2),
+                      border: Border.all(color: t.borderDim),
+                    ),
+                    child: Text(
+                      '${items.length}',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: t.textMuted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () {
+                  GestureDetector(
+                    onTap: () {
                       HapticFeedback.lightImpact();
                       Navigator.of(context).pop();
                     },
-                    icon: const Icon(Icons.close_rounded),
-                    color: theme.text.withOpacity(0.7),
-                    iconSize: 18,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 24,
-                      minHeight: 24,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: t.bg3,
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: t.borderDim),
+                      ),
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: t.textSecondary,
+                        size: 16,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-
-            // Thin divider
-            Divider(
-              color: theme.accent.withOpacity(0.15),
-              height: 1,
-              thickness: 0.5,
-            ),
-
-            // Ultra-compact grid
+            Container(height: 1, color: t.borderAccent.withOpacity(0.4)),
+            // Grid
             Expanded(
               child: GridView.builder(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 5,
                   crossAxisSpacing: 6,
@@ -109,14 +128,12 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                 itemBuilder: (context, index) {
                   final item = items[index];
                   final def = registry[item.key];
-
                   if (def == null) return const SizedBox.shrink();
-
                   return _CompactItemCard(
                     item: item,
                     def: def,
-                    theme: theme,
-                    onTap: () => _showItemQuickActions(item, def, theme),
+                    t: t,
+                    onTap: () => _showItemQuickActions(item, def, t),
                   );
                 },
               ),
@@ -127,43 +144,58 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
     );
   }
 
-  Widget _buildEmptyState(FactionTheme theme) {
+  Widget _buildEmptyState(ForgeTokens t) {
     return Column(
       children: [
-        // Header even when empty
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        Container(
+          color: t.bg2,
+          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
           child: Row(
             children: [
+              Container(
+                width: 6,
+                height: 6,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: t.amber,
+                  shape: BoxShape.circle,
+                ),
+              ),
               Text(
                 'ITEMS',
                 style: TextStyle(
-                  color: theme.text,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
+                  fontFamily: 'monospace',
+                  color: t.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2.0,
                 ),
               ),
               const Spacer(),
-              IconButton(
-                onPressed: () {
+              GestureDetector(
+                onTap: () {
                   HapticFeedback.lightImpact();
                   Navigator.of(context).pop();
                 },
-                icon: const Icon(Icons.close_rounded),
-                color: theme.text.withOpacity(0.7),
-                iconSize: 18,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: t.bg3,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: t.borderDim),
+                  ),
+                  child: Icon(
+                    Icons.close_rounded,
+                    color: t.textSecondary,
+                    size: 16,
+                  ),
+                ),
               ),
             ],
           ),
         ),
-        Divider(
-          color: theme.accent.withOpacity(0.15),
-          height: 1,
-          thickness: 0.5,
-        ),
+        Container(height: 1, color: t.borderAccent.withOpacity(0.4)),
         Expanded(
           child: Center(
             child: Column(
@@ -171,25 +203,28 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
               children: [
                 Icon(
                   Icons.inventory_2_outlined,
-                  size: 48,
-                  color: theme.textMuted.withOpacity(0.2),
+                  size: 36,
+                  color: t.borderAccent,
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'No Items',
+                  'NO ITEMS',
                   style: TextStyle(
-                    color: theme.text,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontFamily: 'monospace',
+                    color: t.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 2.0,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Visit the shop',
                   style: TextStyle(
-                    color: theme.textMuted.withOpacity(0.6),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace',
+                    color: t.textMuted,
+                    fontSize: 9,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
@@ -203,137 +238,162 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
   void _showItemQuickActions(
     InventoryItem item,
     InventoryItemDef def,
-    FactionTheme theme,
+    ForgeTokens t,
   ) {
     HapticFeedback.lightImpact();
-
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 320),
-          decoration: BoxDecoration(
-            color: theme.surface.withOpacity(0.95),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.accent.withOpacity(0.4), width: 2),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header with close button
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.accent.withOpacity(0.15),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(14),
+      builder: (ctx) {
+        final t2 = ForgeTokens(ctx.read<FactionTheme>());
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 300),
+            decoration: BoxDecoration(
+              color: t2.bg1,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: t2.borderAccent, width: 1),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+                  decoration: BoxDecoration(
+                    color: t2.bg2,
+                    border: Border(bottom: BorderSide(color: t2.borderDim)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(3),
+                    ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        def.name,
-                        style: TextStyle(
-                          color: theme.text,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          color: t2.amber,
+                          shape: BoxShape.circle,
                         ),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.pop(ctx);
-                      },
-                      icon: const Icon(Icons.close_rounded),
-                      color: theme.text.withOpacity(0.7),
-                      iconSize: 18,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 24,
-                        minHeight: 24,
+                      Expanded(
+                        child: Text(
+                          def.name.toUpperCase(),
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t2.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
                       ),
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.pop(ctx);
+                        },
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: t2.bg3,
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(color: t2.borderDim),
+                          ),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: t2.textSecondary,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Icon + qty row
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: t2.bg2,
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(
+                            color: t2.borderAccent.withOpacity(0.6),
+                          ),
+                        ),
+                        child: Center(
+                          child: InventoryImageHelper.getVisualWidget(
+                            key: item.key,
+                            assetName: InventoryImageHelper.getImage(item.key),
+                            icon: def.icon,
+                            size: 36,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: t2.bg3,
+                              borderRadius: BorderRadius.circular(2),
+                              border: Border.all(color: t2.borderMid),
+                            ),
+                            child: Text(
+                              'QTY  ${item.qty}',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t2.amberBright,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // Description
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                  child: Text(
+                    def.description,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: t2.textSecondary,
+                      fontSize: 10,
+                      height: 1.6,
+                      letterSpacing: 0.3,
                     ),
-                  ],
-                ),
-              ),
-
-              // Item icon/image
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: theme.accent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.accent.withOpacity(0.3)),
-                  ),
-                  child: Center(
-                    child: InventoryImageHelper.getVisualWidget(
-                      key: item.key,
-                      assetName: InventoryImageHelper.getImage(item.key),
-                      icon: def.icon,
-                      size: 48,
-                    ),
                   ),
                 ),
-              ),
-
-              // Quantity
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.accent.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.accent.withOpacity(0.3)),
-                ),
-                child: Text(
-                  'Quantity: x${item.qty}',
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Description
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  def.description,
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-
-              const SizedBox(height: 20),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
+  // ignore: unused_element
   Future<void> _useItem(InventoryItem item, InventoryItemDef def) async {
-    final db = context.read<AlchemonsDatabase>();
-
     // Check if it's an alchemy effect
     if (item.key.startsWith('alchemy.')) {
       await _showCreatureSelectorForEffect(item, def);
@@ -586,6 +646,8 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
       InvKeys.alchemyGlow => 'alchemy_glow',
       InvKeys.alchemyElementalAura => 'elemental_aura',
       InvKeys.alchemyVolcanicAura => 'volcanic_aura',
+      InvKeys.alchemyVoidRift => 'void_rift',
+      InvKeys.alchemyPrismaticCascade => 'prismatic_cascade',
       _ => null,
     };
 
@@ -605,6 +667,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
     );
   }
 
+  // ignore: unused_element
   Future<void> _deleteItem(InventoryItem item, InventoryItemDef def) async {
     final theme = context.read<FactionTheme>();
     final confirmed = await showDialog<String>(
@@ -701,13 +764,13 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 class _CompactItemCard extends StatelessWidget {
   final InventoryItem item;
   final InventoryItemDef def;
-  final FactionTheme theme;
+  final ForgeTokens t;
   final VoidCallback onTap;
 
   const _CompactItemCard({
     required this.item,
     required this.def,
-    required this.theme,
+    required this.t,
     required this.onTap,
   });
 
@@ -717,41 +780,36 @@ class _CompactItemCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: theme.accent.withOpacity(0.25), width: 1),
+          color: t.bg2,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: t.borderMid, width: 1),
         ),
         child: Stack(
           children: [
-            // Item icon/image
             Center(
               child: InventoryImageHelper.getVisualWidget(
                 key: item.key,
                 assetName: InventoryImageHelper.getImage(item.key),
                 icon: def.icon,
-                size: 32,
+                size: 28,
               ),
             ),
-
-            // Quantity badge
             Positioned(
               bottom: 2,
               right: 2,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
-                  color: theme.accent.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: theme.text.withOpacity(0.2),
-                    width: 0.5,
-                  ),
+                  color: t.bg3,
+                  borderRadius: BorderRadius.circular(2),
+                  border: Border.all(color: t.borderAccent.withOpacity(0.6)),
                 ),
                 child: Text(
                   '${item.qty}',
                   style: TextStyle(
-                    color: theme.text,
-                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    color: t.amberBright,
+                    fontSize: 8,
                     fontWeight: FontWeight.w900,
                   ),
                 ),

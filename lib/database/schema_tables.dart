@@ -264,3 +264,46 @@ class ConstellationTransactions extends Table {
   TextColumn get description => text()(); // Human-readable description
   DateTimeColumn get createdAtUtc => dateTime()();
 }
+
+/// Tracks alchemon instances placed on a Mystic Altar for boss summoning.
+/// Each row = one creature instance committed to one (bossId + speciesId) slot.
+/// Placements are permanent — placed alchemons are removed from regular storage.
+class AltarPlacements extends Table {
+  /// Composite key: "{bossId}|{speciesId}"
+  TextColumn get id => text()();
+
+  /// e.g. "boss_001"
+  TextColumn get bossId => text()();
+
+  /// Creature catalog baseId e.g. "LET01_fire"
+  TextColumn get speciesId => text()();
+
+  /// The specific creature instance consumed for this slot
+  TextColumn get instanceId => text()();
+
+  /// UTC ms when placement was made
+  IntColumn get placedAtUtcMs => integer()();
+
+  /// JSON snapshot of the sacrificed creature's key attributes at commit time:
+  /// { "natureId": "N001", "speed": 4.2, "intelligence": 3.8,
+  ///   "strength": 5.0, "beauty": 4.5 }
+  /// Nullable so old placements (before schema v32) still load fine.
+  TextColumn get snapshotJson => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Single-row table storing the player's all-time best survival run.
+/// The row is always upserted with id = 1.
+class SurvivalHighScore extends Table {
+  IntColumn get id => integer()();
+  IntColumn get bestWave => integer().withDefault(const Constant(0))();
+  IntColumn get bestScore => integer().withDefault(const Constant(0))();
+
+  /// Elapsed time stored as integer milliseconds.
+  IntColumn get bestTimeMs => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

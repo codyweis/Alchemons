@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'dart:math' as math;
+import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/wild_spawn.dart';
@@ -56,6 +57,10 @@ class SceneGame extends FlameGame with ScaleDetector {
   void Function(String spawnId, String speciesId, Creature? hydrated)?
   onStartEncounter;
 
+  // Rift portal
+  void Function(RiftFaction faction)? onRiftTapped;
+  RiftPortalComponent? _riftPortalComp;
+
   // Internal state
   bool _initialized = false;
   final Random _rng = Random();
@@ -83,6 +88,10 @@ class SceneGame extends FlameGame with ScaleDetector {
   double _cameraY = 0;
   double _maxCamX = 0;
   double _maxCamY = 0;
+
+  /// Public read-only access to the camera top-left world position.
+  double get cameraX => _cameraX;
+  double get cameraY => _cameraY;
 
   // NEW: Hard limit for camera movement in Exploration Mode (based on worldWidth)
   double get _maxCamXExploration =>
@@ -335,6 +344,45 @@ class SceneGame extends FlameGame with ScaleDetector {
     _wildBySpawnId.remove(spawnId)?.removeFromParent();
   }
 
+  // ── Rift portal ────────────────────────────────────────────────────────────
+
+  /// Call once after initial setup. 10% chance to spawn a faction rift portal.
+  void spawnRiftIfChance() {
+    // Evict any lingering stale rift from previous sessions.
+    if (_riftPortalComp != null && !_riftPortalComp!.isMounted) {
+      _riftPortalComp = null;
+    }
+    if (_riftPortalComp != null) return; // already active
+    if (_rng.nextDouble() > 0.10) return; // 10% chance
+
+    final faction = RiftFactionExt.random(_rng);
+
+    // Normalised screen fractions where the portal should appear.
+    final normX = 0.55 + _rng.nextDouble() * 0.20;
+    final normY = 0.18 + _rng.nextDouble() * 0.12;
+
+    _riftPortalComp = RiftPortalComponent(
+      position: Vector2(
+        _cameraX + normX * size.x / cam.viewfinder.zoom,
+        _cameraY + normY * size.y / cam.viewfinder.zoom,
+      ),
+      faction: faction,
+      radius: 30,
+      onTap: () => onRiftTapped?.call(faction),
+    );
+
+    // Priority 999: renders above all background layers and creature/spawn
+    // components so the portal is always in the foreground.
+    _riftPortalComp!.priority = 999;
+    layersRoot.add(_riftPortalComp!);
+    debugPrint('✨ Rift portal spawned: ${faction.displayName}');
+  }
+
+  void clearRift() {
+    _riftPortalComp?.removeFromParent();
+    _riftPortalComp = null;
+  }
+
   void _addSpawnPoints() {
     for (final p in scene.spawnPoints) {
       if (!p.enabled) continue;
@@ -461,6 +509,10 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     debugPrint('🎮 Spawning party at ($x, $y)');
 
+    // Face toward the wild creature: flip right if party is to the left.
+    final wildX = _spawnPointComps[_currentEncounterSpawnId]?.position.x ?? x;
+    final faceRight = x < wildX;
+
     final anchor = PositionComponent(
       position: Vector2(x, y),
       size: Vector2.all(1),
@@ -477,6 +529,7 @@ class SceneGame extends FlameGame with ScaleDetector {
             speciesId: creature.id,
             rarityLabel: '',
             desiredSize: _sizeForSpecies(sp.size, creature),
+            flipX: faceRight,
             onTap: () {},
             resolver: speciesSpriteResolver,
           )
@@ -909,6 +962,7 @@ class WildMonComponent extends PositionComponent
   final String rarityLabel;
   final VoidCallback onTap;
   final Vector2 desiredSize;
+  final bool flipX;
 
   final Creature? hydrated;
   final SpeciesSpriteResolver? resolver;
@@ -920,6 +974,7 @@ class WildMonComponent extends PositionComponent
     required this.desiredSize,
     this.hydrated,
     this.resolver,
+    this.flipX = false,
     Vector2? position,
   }) : super(
          position: position ?? Vector2.zero(),
@@ -954,7 +1009,8 @@ class WildMonComponent extends PositionComponent
             alchemyEffect: visuals.alchemyEffect,
           )
           ..anchor = Anchor.center
-          ..position = size / 2,
+          ..position = size / 2
+          ..scale = flipX ? Vector2(-1, 1) : Vector2.all(1),
       );
 
       _addTapPulse();

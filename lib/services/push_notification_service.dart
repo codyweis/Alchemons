@@ -392,13 +392,13 @@ class PushNotificationService {
   }) async {
     if (!_initialized) await initialize();
 
+    final localReadyTime = readyTime.isUtc ? readyTime.toLocal() : readyTime;
     final now = DateTime.now();
-    if (readyTime.isBefore(now)) {
+    if (localReadyTime.isBefore(now)) {
       debugPrint('⏭️  Harvest for $biomeId already ready, skipping schedule');
       return;
     }
-
-    final scheduledDate = tz.TZDateTime.from(readyTime, tz.local);
+    final scheduledDate = tz.TZDateTime.from(localReadyTime, tz.local);
 
     // Use a stable ID based on biome type (0-99 range)
     final biomeNames = ['valley', 'sky', 'volcano', 'swamp'];

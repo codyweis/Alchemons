@@ -167,6 +167,21 @@ class WingPierceMechanic {
       case 'Poison':
         _poisonVenomTrail(game, attacker, target, element);
         return true;
+      case 'Water':
+        _waterTidalBeam(game, attacker, target, element);
+        return true;
+      case 'Lava':
+        _lavaEruptionTrench(game, attacker, target, element);
+        return true;
+      case 'Mud':
+        _mudQuicksandTrail(game, attacker, target, element);
+        return true;
+      case 'Dust':
+        _dustSandstormBeam(game, attacker, target, element);
+        return true;
+      case 'Spirit':
+        _spiritReaperBeam(game, attacker, target, element);
+        return true;
       default:
         return false;
     }
@@ -473,7 +488,7 @@ class WingPierceMechanic {
       v.takeDamage(dmg);
       v.unit.applyStatusEffect(
         SurvivalStatusEffect(
-          type: 'Bleed',
+          type: 'Thorns',
           damagePerTick: max(2, (dmg * 0.15).toInt()),
           ticksRemaining: 5,
           tickInterval: 0.4,
@@ -863,6 +878,315 @@ class WingPierceMechanic {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  //  RANK 3 ULTIMATE BEAMS — ADDITIONAL ELEMENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 💧 WATER - Tidal Beam (sideways-scattering pressure wave + attacker heal per hit)
+  static void _waterTidalBeam(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.8).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 950.0;
+    final endPos = attacker.position + dir * range;
+
+    // Wide slow-pulsing beam (3 sweeps)
+    for (int i = 0; i < 3; i++) {
+      Future.delayed(Duration(milliseconds: i * 120), () {
+        ImpactVisuals.playBeamTrail(
+          game,
+          attacker.position,
+          endPos,
+          element,
+          55.0 - i * 8,
+        );
+      });
+    }
+
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 65.0);
+    int healTotal = 0;
+    for (final v in victims) {
+      final dist = v.position.distanceTo(attacker.position);
+      final falloff = (1.0 - dist / range).clamp(0.3, 1.2);
+      final dmg = (baseDmg * falloff).toInt();
+      v.takeDamage(dmg);
+      healTotal += dmg;
+
+      // Push enemies perpendicular to beam (scatter sideways like a water jet)
+      final perpDir = Vector2(-dir.y, dir.x);
+      final side = (v.position - attacker.position).dot(perpDir) >= 0
+          ? 1.0
+          : -1.0;
+      v.add(
+        MoveEffect.by(
+          perpDir * side * 110,
+          EffectController(duration: 0.3, curve: Curves.easeOut),
+        ),
+      );
+      ImpactVisuals.play(game, v.position, element, scale: 0.7);
+    }
+
+    // Heal attacker based on total damage dealt
+    if (healTotal > 0) {
+      attacker.unit.heal((healTotal * 0.3).toInt().clamp(5, 300));
+      ImpactVisuals.playHeal(game, attacker.position);
+    }
+
+    SurvivalAttackManager.triggerScreenShake(game, 5.0);
+  }
+
+  // 🌋 LAVA - Eruption Trench (beam burns a persistent lava path, heavy DoT zones)
+  static void _lavaEruptionTrench(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.5).toInt();
+    final color = SurvivalAttackManager.getElementColor('Lava');
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 900.0;
+    final endPos = attacker.position + dir * range;
+
+    ImpactVisuals.playBeamTrail(game, attacker.position, endPos, element, 45.0);
+
+    // Immediate damage
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 50.0);
+    for (final v in victims) {
+      v.takeDamage(baseDmg);
+      v.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'Burn',
+          damagePerTick: (baseDmg * 0.15).toInt().clamp(3, 60),
+          ticksRemaining: 6,
+          tickInterval: 0.5,
+        ),
+      );
+      ImpactVisuals.play(game, v.position, element, scale: 0.8);
+    }
+
+    // Leave 6 lava crack zones along the beam path
+    for (int i = 0; i < 6; i++) {
+      final t = (i + 0.5) / 6.0;
+      final crackPos = attacker.position + dir * (range * t);
+      final crack = CircleComponent(
+        radius: 55,
+        position: crackPos,
+        anchor: Anchor.center,
+        paint: Paint()..color = color.withOpacity(0.35),
+      );
+      crack.add(
+        TimerComponent(
+          period: 0.45,
+          repeat: true,
+          onTick: () {
+            for (final v in game.getEnemiesInRange(crackPos, 55)) {
+              v.takeDamage(max(2, baseDmg ~/ 8));
+              v.unit.applyStatusEffect(
+                SurvivalStatusEffect(
+                  type: 'Burn',
+                  damagePerTick: max(1, baseDmg ~/ 15),
+                  ticksRemaining: 2,
+                  tickInterval: 0.5,
+                ),
+              );
+            }
+          },
+        ),
+      );
+      crack.add(RemoveEffect(delay: 5.5));
+      game.world.add(crack);
+    }
+
+    SurvivalAttackManager.triggerScreenShake(game, 8.0);
+  }
+
+  // 🟤 MUD - Quicksand Trail (beam leaves sticky mud strip, pulling enemies back)
+  static void _mudQuicksandTrail(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.6).toInt();
+    final color = SurvivalAttackManager.getElementColor('Mud');
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 880.0;
+    final endPos = attacker.position + dir * range;
+
+    ImpactVisuals.playBeamTrail(game, attacker.position, endPos, element, 50.0);
+
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 55.0);
+    for (final v in victims) {
+      v.takeDamage(baseDmg);
+      ImpactVisuals.play(game, v.position, element, scale: 0.7);
+    }
+
+    // 5 quicksand patches along the beam — each continuously pulls enemies in
+    for (int i = 0; i < 5; i++) {
+      final t = (i + 0.5) / 5.0;
+      final patchPos = attacker.position + dir * (range * t);
+      final patch = CircleComponent(
+        radius: 60,
+        position: patchPos,
+        anchor: Anchor.center,
+        paint: Paint()..color = color.withOpacity(0.3),
+      );
+      patch.add(
+        TimerComponent(
+          period: 0.35,
+          repeat: true,
+          onTick: () {
+            for (final v in game.getEnemiesInRange(patchPos, 60)) {
+              // Pull enemies toward patch center
+              final pullDir = (patchPos - v.position).normalized();
+              v.add(
+                MoveEffect.by(pullDir * 22, EffectController(duration: 0.2)),
+              );
+              v.unit.applyStatusEffect(
+                SurvivalStatusEffect(
+                  type: 'Slow',
+                  damagePerTick: 0,
+                  ticksRemaining: 2,
+                  tickInterval: 0.35,
+                ),
+              );
+            }
+          },
+        ),
+      );
+      patch.add(RemoveEffect(delay: 5.0));
+      game.world.add(patch);
+    }
+
+    SurvivalAttackManager.triggerScreenShake(game, 6.0);
+  }
+
+  // 🌪️ DUST - Sandstorm Beam (wide-arc confusion field along beam path for 3s)
+  static void _dustSandstormBeam(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.7).toInt();
+    final color = SurvivalAttackManager.getElementColor('Dust');
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 920.0;
+    final endPos = attacker.position + dir * range;
+
+    // Wide visual sweep
+    for (int i = 0; i < 4; i++) {
+      Future.delayed(Duration(milliseconds: i * 80), () {
+        ImpactVisuals.playBeamTrail(
+          game,
+          attacker.position,
+          endPos,
+          element,
+          60.0 - i * 8,
+        );
+      });
+    }
+
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 65.0);
+    for (final v in victims) {
+      v.takeDamage(baseDmg);
+      ImpactVisuals.play(game, v.position, element, scale: 0.7);
+    }
+
+    // Sandstorm cloud segments along the beam
+    const int segments = 5;
+    final rng = Random();
+    for (int i = 0; i < segments; i++) {
+      final t = (i + 0.5) / segments;
+      final segPos = attacker.position + dir * (range * t);
+      final storm = CircleComponent(
+        radius: 70,
+        position: segPos,
+        anchor: Anchor.center,
+        paint: Paint()..color = color.withOpacity(0.2),
+      );
+      storm.add(
+        TimerComponent(
+          period: 0.18,
+          repeat: true,
+          onTick: () {
+            for (final v in game.getEnemiesInRange(segPos, 70)) {
+              final jitter = Vector2(
+                rng.nextDouble() * 70 - 35,
+                rng.nextDouble() * 70 - 35,
+              );
+              v.add(MoveEffect.by(jitter, EffectController(duration: 0.12)));
+            }
+          },
+        ),
+      );
+      storm.add(RemoveEffect(delay: 3.0));
+      game.world.add(storm);
+    }
+
+    SurvivalAttackManager.triggerScreenShake(game, 7.0);
+  }
+
+  // 👻 SPIRIT - Reaper Beam (spectral harvest, drains HP and heals all guardians)
+  static void _spiritReaperBeam(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+    String element,
+  ) {
+    final int baseDmg = (calcDmg(attacker, target) * 1.6).toInt();
+    final dir = (target.position - attacker.position).normalized();
+    const double range = 1000.0;
+    final endPos = attacker.position + dir * range;
+
+    // Ghostly fading beam
+    for (int i = 0; i < 3; i++) {
+      Future.delayed(Duration(milliseconds: i * 100), () {
+        ImpactVisuals.playBeamTrail(
+          game,
+          attacker.position,
+          endPos,
+          element,
+          50.0 - i * 10,
+        );
+      });
+    }
+
+    final victims = _getEnemiesInPath(game, attacker.position, endPos, 55.0);
+    int totalDrained = 0;
+    for (final v in victims) {
+      final dist = v.position.distanceTo(attacker.position);
+      final falloff = (1.0 - dist / range).clamp(0.3, 1.2);
+      final dmg = (baseDmg * falloff).toInt();
+      v.takeDamage(dmg);
+      totalDrained += dmg;
+      ImpactVisuals.play(game, v.position, element, scale: 0.8);
+    }
+
+    // Distribute drained life to all living guardians and orb
+    if (totalDrained > 0) {
+      final guardianCount = max(1, game.guardians.length);
+      final healPerGuardian = max(
+        1,
+        (totalDrained * 0.35).toInt() ~/ guardianCount,
+      );
+      for (final g in game.guardians) {
+        if (!g.isDead) {
+          g.unit.heal(healPerGuardian);
+          ImpactVisuals.playHeal(game, g.position, scale: 0.6);
+        }
+      }
+      game.orb.heal(max(1, (totalDrained * 0.15).toInt()));
+    }
+
+    SurvivalAttackManager.triggerScreenShake(game, 6.0);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   //  EXISTING ELEMENTAL RIDERS (Ranks 1–3, used by base beam)
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1071,21 +1395,28 @@ class WingPierceMechanic {
     List<HoardEnemy> victims,
     Vector2 startPos,
   ) {
-    for (final v in victims) {
-      final pushDir = (v.position - startPos).normalized();
-      v.add(
-        MoveEffect.by(
-          pushDir * (40.0 + 10.0 * rank),
-          EffectController(duration: 0.2, curve: Curves.easeOut),
-        ),
-      );
+    // Water pressure scatters enemies PERPENDICULAR to the beam (sideways spray),
+    // contrasting with Air's straight-forward shockwave.
+    if (victims.isNotEmpty) {
+      final beamDir = (victims.first.position - startPos).normalized();
+      final perpDir = Vector2(-beamDir.y, beamDir.x);
+
+      for (int i = 0; i < victims.length; i++) {
+        final v = victims[i];
+        final side = (i % 2 == 0) ? 1.0 : -1.0;
+        v.add(
+          MoveEffect.by(
+            perpDir * side * (45.0 + 11.0 * rank),
+            EffectController(duration: 0.2, curve: Curves.easeOut),
+          ),
+        );
+      }
     }
 
     final int healAmount = (attacker.unit.statIntelligence * (1.0 + 0.2 * rank))
         .toInt()
-        .clamp(3, 60)
-        .toInt();
-    final int targetCount = victims.length.clamp(1, 5).toInt();
+        .clamp(3, 60);
+    final int targetCount = victims.length.clamp(1, 5);
     attacker.unit.heal(healAmount * targetCount);
   }
 
@@ -1149,7 +1480,7 @@ class WingPierceMechanic {
     for (final v in victims) {
       v.unit.applyStatusEffect(
         SurvivalStatusEffect(
-          type: 'Bleed',
+          type: 'Thorns',
           damagePerTick: thornDmg,
           ticksRemaining: 5 + rank,
           tickInterval: 0.4,

@@ -200,6 +200,7 @@ class BreedingEngine {
     Creature p2, {
     required ParentSnapshot parentA,
     required ParentSnapshot parentB,
+    bool forcePrismatic = false,
   }) {
     final fam1 = _familyOf(p1);
     final fam2 = _familyOf(p2);
@@ -223,6 +224,7 @@ class BreedingEngine {
           p2,
           parentA: parentA,
           parentB: parentB,
+          forcePrismatic: forcePrismatic,
         );
         _log('[Breeding] RESULT (mutated): ${mutatedFinal.id}');
         _log('[Breeding] === BREED END ===');
@@ -242,6 +244,7 @@ class BreedingEngine {
         p2,
         parentA: parentA,
         parentB: parentB,
+        forcePrismatic: forcePrismatic,
       );
       _log('[Breeding] RESULT (pure): ${pure.id}');
       _log('[Breeding] === BREED END ===');
@@ -304,6 +307,7 @@ class BreedingEngine {
         p2,
         parentA: parentA,
         parentB: parentB,
+        forcePrismatic: forcePrismatic,
       );
 
       _log(
@@ -325,6 +329,7 @@ class BreedingEngine {
       p2,
       parentA: parentA,
       parentB: parentB,
+      forcePrismatic: forcePrismatic,
     );
 
     _log(
@@ -343,6 +348,7 @@ class BreedingEngine {
     Creature p2, {
     required ParentSnapshot parentA,
     required ParentSnapshot parentB,
+    bool forcePrismatic = false,
   }) {
     var child = base;
 
@@ -355,9 +361,11 @@ class BreedingEngine {
       child = child.copyWith(nature: n);
     }
 
-    // Prismatic cosmetic roll
-    if (_random.nextDouble() < tuning.prismaticSkinChance) {
-      _log('[Breeding] prismatic skin applied');
+    // Prismatic cosmetic roll (or guaranteed when forcePrismatic is set)
+    if (forcePrismatic || _random.nextDouble() < tuning.prismaticSkinChance) {
+      _log(
+        '[Breeding] prismatic skin applied${forcePrismatic ? " (void-forced)" : ""}',
+      );
       child = child.copyWith(isPrismaticSkin: true);
     }
 
@@ -1658,8 +1666,9 @@ extension WildBreed on BreedingEngine {
   /// Breed a player-owned instance with a wild (catalog) creature.
   BreedingResult breedInstanceWithCreature(
     db.CreatureInstance a,
-    Creature wild,
-  ) {
+    Creature wild, {
+    bool forcePrismatic = false,
+  }) {
     final baseA = repository.getCreatureById(a.baseId);
     if (baseA == null) return BreedingResult.failure();
 
@@ -1676,7 +1685,13 @@ extension WildBreed on BreedingEngine {
     final snapA = ParentSnapshotFactory.fromDbInstance(a, repository);
     final snapB = ParentSnapshot.fromCreatureWithStats(wild, null);
 
-    return _breedCore(parentA, wild, parentA: snapA, parentB: snapB);
+    return _breedCore(
+      parentA,
+      wild,
+      parentA: snapA,
+      parentB: snapB,
+      forcePrismatic: forcePrismatic,
+    );
   }
 }
 

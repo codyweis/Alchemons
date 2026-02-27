@@ -1,43 +1,26 @@
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 
+/// Forge-style section block.
+/// [theme] is accepted for API compatibility but visual style uses Forge tokens.
 class SectionBlock extends StatelessWidget {
-  final FactionTheme theme;
+  // ignore: unused_field
+  final FactionTheme? theme;
   final String title;
   final Widget child;
+  final Color? accentColor;
 
   const SectionBlock({
-    required this.theme,
+    super.key,
+    this.theme,
     required this.title,
     required this.child,
+    this.accentColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            color: theme.primary,
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            letterSpacing: .8,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.surfaceAlt,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: theme.border),
-          ),
-          child: child,
-        ),
-      ],
-    );
+    return ForgeSection(title: title, accentColor: accentColor, child: child);
   }
 }

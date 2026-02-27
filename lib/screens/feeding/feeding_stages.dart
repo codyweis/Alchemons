@@ -7,6 +7,7 @@ import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 
 import 'feeding_widgets.dart';
@@ -40,7 +41,6 @@ class FeedingStageBuilders {
     required this.selectedFodder,
   });
 
-  // Helper to build species summary list
   List<Map<String, dynamic>> buildSpeciesListData({
     required List<CreatureInstance> instances,
     required CreatureCatalog repo,
@@ -80,6 +80,7 @@ class FeedingStageBuilders {
     List<CreatureInstance> instances,
     CreatureCatalog repo,
   ) {
+    final t = ForgeTokens(theme);
     final speciesData = buildSpeciesListData(instances: instances, repo: repo);
 
     if (speciesData.isEmpty) {
@@ -102,35 +103,35 @@ class FeedingStageBuilders {
           padding: const EdgeInsets.fromLTRB(5, 0, 5, 5),
           child: Container(
             decoration: BoxDecoration(
-              color: theme.surfaceAlt,
+              color: t.bg1,
               borderRadius: BorderRadius.circular(5),
-              border: Border.all(color: theme.border.withOpacity(.5), width: 1),
+              border: Border.all(color: t.borderDim, width: 1),
             ),
             child: TextField(
               controller: searchController,
               onChanged: onSearchQueryChanged,
               style: TextStyle(
-                color: theme.text,
+                color: t.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
                 hintText: 'Search species...',
                 hintStyle: TextStyle(
-                  color: theme.textMuted.withOpacity(.5),
+                  color: t.textSecondary.withOpacity(.7),
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
-                  color: theme.textMuted,
+                  color: t.textSecondary,
                   size: 20,
                 ),
                 suffixIcon: searchQuery.isNotEmpty
                     ? IconButton(
                         icon: Icon(
                           Icons.clear_rounded,
-                          color: theme.textMuted,
+                          color: t.textSecondary,
                           size: 20,
                         ),
                         onPressed: () {
@@ -156,7 +157,7 @@ class FeedingStageBuilders {
                 Text(
                   '${filteredSpeciesData.length} result${filteredSpeciesData.length == 1 ? '' : 's'}',
                   style: TextStyle(
-                    color: theme.textMuted,
+                    color: t.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -193,10 +194,14 @@ class FeedingStageBuilders {
   }
 
   Widget buildInstanceStage(FactionTheme theme, CreatureCatalog repo) {
+    final t = ForgeTokens(theme);
     final species = repo.getCreatureById(targetSpeciesId!);
     if (species == null) {
       return Center(
-        child: Text('Species missing', style: TextStyle(color: theme.text)),
+        child: Text(
+          'Species missing',
+          style: TextStyle(color: t.textSecondary),
+        ),
       );
     }
 
@@ -214,6 +219,7 @@ class FeedingStageBuilders {
     List<CreatureInstance> instances,
     CreatureCatalog repo,
   ) {
+    final t = ForgeTokens(theme);
     final candidates =
         instances
             .where(
@@ -247,7 +253,7 @@ class FeedingStageBuilders {
             'No available fodder specimens.\nThey might be locked or already selected.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: theme.textMuted,
+              color: t.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -257,12 +263,12 @@ class FeedingStageBuilders {
     }
 
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 180),
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 180),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
-        crossAxisSpacing: 4,
-        mainAxisSpacing: 4,
-        childAspectRatio: .75,
+        crossAxisSpacing: 2,
+        mainAxisSpacing: 2,
+        childAspectRatio: 0.72,
       ),
       itemCount: candidates.length,
       itemBuilder: (context, i) {
@@ -292,80 +298,111 @@ class FeedingStageBuilders {
                     instance: inst,
                   );
                 },
-          child: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Colors.green.withOpacity(0.15)
-                  : theme.surface,
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(
-                color: isSelected ? Colors.green : theme.border,
-                width: isSelected ? 2 : 1,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isSelected ? FC.amberDim.withOpacity(0.2) : t.bg1,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: isSelected ? FC.amberGlow : t.borderDim,
+                    width: isSelected ? 2.0 : 1.0,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: FC.amber.withOpacity(0.35),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : [],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (baseCreature != null)
+                      InstanceSprite(
+                        creature: baseCreature,
+                        instance: inst,
+                        size: 44,
+                      )
+                    else
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: t.bg2,
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(4),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 3),
+                    if (inst.nickname != null || baseCreature != null)
+                      Text(
+                        inst.nickname ?? baseCreature!.name,
+                        style: TextStyle(
+                          color: isSelected ? FC.amberBright : t.textPrimary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Lv ${inst.level}',
+                      style: TextStyle(
+                        color: isSelected ? FC.amber : t.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? FC.amberDim.withOpacity(0.25)
+                            : t.bg2,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Text(
+                        '${highestEntry.key} ${highestEntry.value.toStringAsFixed(1)}',
+                        style: TextStyle(
+                          color: isSelected ? FC.amberBright : FC.amber,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (baseCreature != null)
-                  InstanceSprite(
-                    creature: baseCreature,
-                    instance: inst,
-                    size: 36,
-                  )
-                else
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: theme.surfaceAlt,
-                      borderRadius: BorderRadius.circular(6),
+              if (isSelected)
+                Positioned(
+                  top: -5,
+                  right: -5,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: const BoxDecoration(
+                      color: FC.amberGlow,
+                      shape: BoxShape.circle,
                     ),
-                  ),
-                const SizedBox(height: 3),
-                if (inst.nickname != null || baseCreature != null)
-                  Text(
-                    inst.nickname ?? baseCreature!.name,
-                    style: TextStyle(
-                      color: isSelected ? Colors.green : theme.text,
-                      fontSize: 8,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                  ),
-                Text(
-                  'Lv ${inst.level}',
-                  style: TextStyle(
-                    color: isSelected ? Colors.green.shade300 : theme.textMuted,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
+                    child: const Icon(Icons.check, size: 10, color: FC.bg0),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? Colors.green.withOpacity(0.2)
-                        : theme.surfaceAlt,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text(
-                    '${highestEntry.key} ${highestEntry.value.toStringAsFixed(1)}',
-                    style: TextStyle(
-                      color: isSelected ? Colors.green : theme.primary,
-                      fontSize: 8,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
         );
       },

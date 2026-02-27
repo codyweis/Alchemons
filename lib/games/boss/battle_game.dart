@@ -3,9 +3,8 @@ import 'dart:async';
 import 'dart:math';
 import 'package:alchemons/games/boss/attack_animations.dart';
 import 'package:alchemons/games/boss/sprite_battle_adapter.dart';
+import 'package:alchemons/models/boss/boss_model.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
-import 'package:alchemons/utils/sprite_sheet_def.dart';
-import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
@@ -43,6 +42,7 @@ class BattleGame extends FlameGame with TapCallbacks {
 
   BattleState state = BattleState.playerTurn;
   int currentPlayerIndex = 0;
+  int _bossTurnCount = 0;
 
   // Command queue to safely handle mutations from Flutter UI
   final _pending = <void Function()>[];
@@ -52,6 +52,9 @@ class BattleGame extends FlameGame with TapCallbacks {
     required this.playerTeam,
     required this.onGameEvent,
   });
+
+  @override
+  Color backgroundColor() => const Color(0x00000000);
 
   /// Queue a command to run on the game thread during the next update
   void post(void Function() action) => _pending.add(action);
@@ -77,13 +80,15 @@ class BattleGame extends FlameGame with TapCallbacks {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    await add(BattleBackground());
-
     // Preload all needed textures once
     final paths = <String>[];
     for (final bc in playerTeam) {
       final sheet = bc.sheetDef;
       if (sheet != null) paths.add(sheet.path);
+    }
+    final bossSheet = boss.sheetDef;
+    if (bossSheet != null) {
+      paths.add(bossSheet.path);
     }
     try {
       await images.loadAll(paths);
@@ -130,7 +135,7 @@ class BattleGame extends FlameGame with TapCallbacks {
     // Boss - perfectly centered
     bossSprite = BossSprite(
       combatant: boss,
-      position: Vector2(size.x / 2, size.y * 0.3),
+      position: Vector2(size.x / 2, size.y * 0.38),
     );
     await add(bossSprite);
 
@@ -183,6 +188,17 @@ class BattleGame extends FlameGame with TapCallbacks {
     state = BattleState.animating;
     final attackerSprite = playerSprites[currentPlayerIndex];
 
+    final blocked = BattleEngine.resolveTurnBlock(attacker, move);
+    if (blocked != null) {
+      await attackerSprite.playSkipTurnAnimation();
+      onGameEvent(AttackExecutedEvent(blocked));
+
+      // Boss still gets a turn when player action is skipped
+      await Future.delayed(Duration(milliseconds: 350));
+      await executeBossAttack();
+      return;
+    }
+
     // Play attack animation
     await attackerSprite.playAttackAnimation(move, bossSprite);
 
@@ -193,19 +209,24 @@ class BattleGame extends FlameGame with TapCallbacks {
     // Shake camera on hit
     shakeCamera(intensity: result.damage / 5.0);
 
-    // Show damage numbers
-    bossSprite.showDamage(result.damage, result.typeMultiplier);
+    // Show damage numbers + hit feedback
+    bossSprite.showDamage(
+      result.damage,
+      result.typeMultiplier,
+      isCritical: result.isCritical,
+    );
+    bossSprite.playHitFlash(isCrit: result.isCritical);
+    _showTypeEffectivenessText(bossSprite.position, result.typeMultiplier);
+    bossSprite.updateHpBar();
+    bossSprite.updateStatusIcons();
 
     // Send result to UI
     onGameEvent(AttackExecutedEvent(result));
 
-    // Wait then update icons
-    await Future.delayed(Duration(milliseconds: 200));
-    bossSprite.updateStatusIcons();
-
     // Check if boss defeated
     if (boss.isDead) {
-      await Future.delayed(Duration(seconds: 1));
+      await bossSprite.playDeathAnimation();
+      await Future.delayed(Duration(milliseconds: 400));
       onGameEvent(VictoryEvent());
       return;
     }
@@ -244,34 +265,101 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     final targetSprite = playerSprites[targetIndex];
 
+    final moveSelection = _selectBossMove();
+    final bossMove = moveSelection.move;
+    final selectedType = moveSelection.sourceMove?.type;
+
+    final blocked = BattleEngine.resolveTurnBlock(boss, bossMove);
+    if (blocked != null) {
+      await bossSprite.playSkipTurnAnimation();
+      onGameEvent(BossAttackExecutedEvent(blocked, targetIndex));
+
+      // Process end-of-turn effects and continue flow
+      await processEndOfTurn();
+      state = BattleState.playerTurn;
+      return;
+    }
+
     // Play boss attack animation
-    await bossSprite.playAttackAnimation(
-      BattleMove(
-        name: 'Boss Attack',
-        type: MoveType.physical,
-        scalingStat: 'statStrength',
-      ),
-      targetSprite,
-    );
+    await bossSprite.playAttackAnimation(bossMove, targetSprite);
+
+    // Typed boss moveset actions
+    if (selectedType == BossMoveType.aoe) {
+      await _executeBossAoeAttack(bossMove);
+      if (playerTeam.every((c) => c.isDead)) {
+        return;
+      }
+      _bossTurnCount++;
+      await processEndOfTurn();
+      state = BattleState.playerTurn;
+      return;
+    }
+
+    if (selectedType == BossMoveType.buff) {
+      final result = _executeBossBuffMove(bossMove);
+      _bossTurnCount++;
+      onGameEvent(BossAttackExecutedEvent(result, targetIndex));
+
+      await Future.delayed(Duration(milliseconds: 200));
+      bossSprite.updateStatusIcons();
+      for (final sprite in playerSprites) {
+        sprite.updateStatusIcons();
+      }
+
+      await processEndOfTurn();
+      state = BattleState.playerTurn;
+      return;
+    }
+
+    if (selectedType == BossMoveType.debuff) {
+      final result = _executeBossDebuffMove(bossMove, target);
+      _bossTurnCount++;
+      onGameEvent(BossAttackExecutedEvent(result, targetIndex));
+
+      await Future.delayed(Duration(milliseconds: 200));
+      bossSprite.updateStatusIcons();
+      for (final sprite in playerSprites) {
+        sprite.updateStatusIcons();
+      }
+
+      await processEndOfTurn();
+      state = BattleState.playerTurn;
+      return;
+    }
+
+    if (selectedType == BossMoveType.heal) {
+      final result = _executeBossHealMove(bossMove);
+      _bossTurnCount++;
+      onGameEvent(BossAttackExecutedEvent(result, targetIndex));
+
+      await Future.delayed(Duration(milliseconds: 200));
+      bossSprite.updateStatusIcons();
+      bossSprite.updateHpBar();
+
+      await processEndOfTurn();
+      state = BattleState.playerTurn;
+      return;
+    }
 
     // Calculate damage
-    final action = BattleAction(
-      actor: boss,
-      move: BattleMove(
-        name: 'Attack',
-        type: MoveType.physical,
-        scalingStat: 'statStrength',
-      ),
-      target: target,
-    );
+    final action = BattleAction(actor: boss, move: bossMove, target: target);
     final result = BattleEngine.executeAction(action);
+    _bossTurnCount++;
 
     // Shake camera
-    shakeCamera(intensity: result.damage / 5.0);
+    if (result.damage > 0) {
+      shakeCamera(intensity: result.damage / 5.0);
+    }
 
-    // Show damage (with safety check)
-    if (!target.isDead) {
-      targetSprite.showDamage(result.damage, result.typeMultiplier);
+    // Show damage + hit feedback (with safety check)
+    if (result.damage > 0 && !target.isDead) {
+      targetSprite.showDamage(
+        result.damage,
+        result.typeMultiplier,
+        isCritical: result.isCritical,
+      );
+      targetSprite.playHitFlash(isCrit: result.isCritical);
+      _showTypeEffectivenessText(targetSprite.position, result.typeMultiplier);
     }
 
     // Send result
@@ -305,12 +393,249 @@ class BattleGame extends FlameGame with TapCallbacks {
     state = BattleState.playerTurn;
   }
 
+  _BossMoveSelection _selectBossMove() {
+    final family = boss.family == 'Boss' ? 'Mystic' : boss.family;
+    final basicMove = BattleMove.getBasicMove(family);
+    final bossMoveset = boss.bossMoveset;
+
+    if (bossMoveset.isNotEmpty) {
+      final options = <_WeightedBossMove>[];
+      final aliveCount = playerTeam.where((c) => c.isAlive).length;
+
+      for (final move in bossMoveset) {
+        final weight = _weightForMoveType(move.type, aliveCount: aliveCount);
+        if (weight <= 0) continue;
+        options.add(_WeightedBossMove(move: move, weight: weight));
+      }
+
+      if (options.isNotEmpty) {
+        final selected = _rollWeightedMove(options);
+        final translated = _battleMoveFromBossMove(selected, family, basicMove);
+        return _BossMoveSelection(move: translated, sourceMove: selected);
+      }
+    }
+
+    final canUseSpecial = boss.level >= 5 && !boss.needsRecharge;
+    final shouldUseSpecial =
+        canUseSpecial &&
+        (_bossTurnCount % 3 == 2 || Random().nextDouble() < 0.25);
+
+    if (shouldUseSpecial) {
+      return _BossMoveSelection(move: BattleMove.getSpecialMove(family));
+    }
+
+    return _BossMoveSelection(move: basicMove);
+  }
+
+  double _weightForMoveType(BossMoveType type, {required int aliveCount}) {
+    switch (type) {
+      case BossMoveType.singleTarget:
+        return 3.6;
+      case BossMoveType.aoe:
+        return aliveCount >= 3 ? 2.4 : 1.2;
+      case BossMoveType.buff:
+        return boss.statModifiers.isEmpty ? 1.5 : 0.7;
+      case BossMoveType.debuff:
+        return 1.5;
+      case BossMoveType.heal:
+        if (boss.hpPercent <= 0.35) return 2.8;
+        if (boss.hpPercent <= 0.6) return 1.4;
+        if (boss.hpPercent <= 0.85) return 0.4;
+        return 0.0;
+      case BossMoveType.special:
+        if (boss.level < 5 || boss.needsRecharge) return 0.0;
+        return 2.2;
+    }
+  }
+
+  BossMove _rollWeightedMove(List<_WeightedBossMove> options) {
+    final total = options.fold<double>(0, (sum, e) => sum + e.weight);
+    var ticket = Random().nextDouble() * total;
+    for (final option in options) {
+      ticket -= option.weight;
+      if (ticket <= 0) return option.move;
+    }
+    return options.last.move;
+  }
+
+  BattleMove _battleMoveFromBossMove(
+    BossMove source,
+    String family,
+    BattleMove basicMove,
+  ) {
+    if (source.type == BossMoveType.special) {
+      final special = BattleMove.getSpecialMove(family);
+      return BattleMove(
+        name: source.name,
+        type: special.type,
+        scalingStat: special.scalingStat,
+        isSpecial: true,
+        family: special.family,
+      );
+    }
+
+    return BattleMove(
+      name: source.name,
+      type: basicMove.type,
+      scalingStat: basicMove.scalingStat,
+      isSpecial: false,
+      family: basicMove.family,
+    );
+  }
+
+  BattleResult _executeBossBuffMove(BattleMove move) {
+    boss.applyStatModifier(StatModifier(type: 'attack_up', duration: 2));
+    boss.applyStatModifier(StatModifier(type: 'defense_up', duration: 2));
+
+    return BattleResult(
+      damage: 0,
+      isCritical: false,
+      typeMultiplier: 1.0,
+      messages: [
+        '${boss.name} used ${move.name}!',
+        '${boss.name} raised its attack and defense!',
+      ],
+      targetDefeated: false,
+    );
+  }
+
+  BattleResult _executeBossDebuffMove(BattleMove move, BattleCombatant target) {
+    target.applyStatModifier(StatModifier(type: 'defense_down', duration: 2));
+    target.applyStatModifier(StatModifier(type: 'speed_down', duration: 2));
+
+    return BattleResult(
+      damage: 0,
+      isCritical: false,
+      typeMultiplier: 1.0,
+      messages: [
+        '${boss.name} used ${move.name} on ${target.name}!',
+        '${target.name} had defense and speed reduced!',
+      ],
+      targetDefeated: false,
+    );
+  }
+
+  BattleResult _executeBossHealMove(BattleMove move) {
+    final before = boss.currentHp;
+    final healAmount = max(1, (boss.maxHp * 0.18).round());
+    boss.heal(healAmount);
+    final recovered = boss.currentHp - before;
+
+    return BattleResult(
+      damage: 0,
+      isCritical: false,
+      typeMultiplier: 1.0,
+      messages: [
+        '${boss.name} used ${move.name}!',
+        '${boss.name} restored $recovered HP!',
+      ],
+      targetDefeated: false,
+    );
+  }
+
+  Future<void> _executeBossAoeAttack(BattleMove move) async {
+    final aliveTargets = playerTeam
+        .asMap()
+        .entries
+        .where((entry) => entry.value.isAlive)
+        .toList();
+
+    if (aliveTargets.isEmpty) return;
+
+    var maxDamage = 0;
+    final defeatedIndexes = <int>[];
+
+    for (final entry in aliveTargets) {
+      final targetIndex = entry.key;
+      final target = entry.value;
+      final sprite = playerSprites[targetIndex];
+
+      final result = BattleEngine.executeAction(
+        BattleAction(actor: boss, move: move, target: target),
+      );
+
+      maxDamage = max(maxDamage, result.damage);
+      if (result.damage > 0 && !target.isDead) {
+        sprite.showDamage(result.damage, result.typeMultiplier);
+        sprite.playHitFlash();
+      }
+
+      if (target.isDead) {
+        defeatedIndexes.add(targetIndex);
+      }
+
+      onGameEvent(BossAttackExecutedEvent(result, targetIndex));
+      await Future.delayed(Duration(milliseconds: 90));
+    }
+
+    if (maxDamage > 0) {
+      shakeCamera(intensity: maxDamage / 5.0);
+    }
+
+    await Future.delayed(Duration(milliseconds: 200));
+    for (final sprite in playerSprites) {
+      sprite.updateStatusIcons();
+    }
+
+    for (final targetIndex in defeatedIndexes) {
+      if (targetIndex < playerSprites.length) {
+        playerSprites[targetIndex].playDeathAnimation();
+      }
+    }
+
+    if (defeatedIndexes.isNotEmpty) {
+      await Future.delayed(Duration(milliseconds: 750));
+    }
+
+    if (playerTeam.every((c) => c.isDead)) {
+      await Future.delayed(Duration(seconds: 1));
+      onGameEvent(DefeatEvent());
+    }
+  }
+
+  void _showTypeEffectivenessText(Vector2 pos, double multiplier) {
+    if (multiplier >= 0.8 && multiplier <= 1.4) return; // neutral range, skip
+
+    final isSuperEffective = multiplier > 1.4;
+    final text = isSuperEffective
+        ? 'SUPER EFFECTIVE!'
+        : 'Not very effective...';
+    final color = isSuperEffective ? Colors.orangeAccent : Colors.grey.shade400;
+    final fontSize = isSuperEffective ? 15.0 : 12.0;
+
+    final label = TextComponent(
+      text: text,
+      position: pos + Vector2(0, -95),
+      anchor: Anchor.center,
+      textRenderer: TextPaint(
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: isSuperEffective ? FontWeight.w900 : FontWeight.normal,
+          letterSpacing: isSuperEffective ? 0.5 : 0.0,
+          shadows: [Shadow(blurRadius: 6, color: Colors.black)],
+        ),
+      ),
+    );
+
+    add(label);
+    label.add(
+      MoveEffect.by(
+        Vector2(0, -30),
+        EffectController(duration: 0.9, curve: Curves.easeOut),
+      ),
+    );
+    label.add(RemoveEffect(delay: 0.9));
+  }
+
   Future<void> processEndOfTurn() async {
     // Process DoT, regen, etc for all combatants
     for (final combatant in [...playerTeam, boss]) {
       final messages = BattleEngine.processEndOfTurnEffects(combatant);
       if (messages.isNotEmpty) {
-        onGameEvent(StatusEffectEvent(messages));
+        onGameEvent(
+          StatusEffectEvent(messages, isBossSource: identical(combatant, boss)),
+        );
         await Future.delayed(Duration(milliseconds: 800));
       }
     }
@@ -355,90 +680,65 @@ class BattleBackground extends PositionComponent with HasGameRef<BattleGame> {
 /// Boss sprite component with text-based status indicators
 class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
   final BattleCombatant combatant;
-  late TextComponent nameLabel;
-  late TextComponent hpText;
-  late RectangleComponent hpBarFill;
   late PositionComponent statusIconContainer;
-  late CircleComponent bossVisual;
+  CircleComponent? bossVisual;
+  CreatureSpriteComponentBattle? creatureVisual;
+  late final Color _auraColor;
 
   BossSprite({required this.combatant, required Vector2 position})
-    : super(position: position, size: Vector2(150, 150));
+    : super(position: position, size: Vector2(150, 150), anchor: Anchor.center);
 
   @override
   Future<void> onLoad() async {
-    // Boss visual placeholder (large circle) - start invisible
-    bossVisual = CircleComponent(
-      radius: 60,
-      paint: Paint()..color = Colors.red.withOpacity(0.0),
-      anchor: Anchor.center,
-    );
-    add(bossVisual);
+    // Keep boss fully hidden until playSpawnAnimation() runs.
+    scale = Vector2.all(0.0);
 
-    // Boss name - start invisible
-    nameLabel = TextComponent(
-      text: combatant.name,
-      position: Vector2(0, -size.y * 0.7),
-      anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.0),
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          shadows: [Shadow(blurRadius: 4, color: Colors.black)],
-        ),
-      ),
-    );
-    add(nameLabel);
+    _auraColor = _getAuraColor();
+    final center = size / 2;
 
-    // HP text - start invisible
-    hpText = TextComponent(
-      text: '${combatant.currentHp}/${combatant.maxHp}',
-      position: Vector2(0, -size.y * 0.55),
-      anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.0),
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-    add(hpText);
+    final sheet = combatant.sheetDef;
+    final visuals = combatant.spriteVisuals;
 
-    // HP bar background - start invisible
-    add(
-      RectangleComponent(
-        size: Vector2(140, 12),
-        position: Vector2(0, -size.y * 0.45),
-        paint: Paint()..color = Colors.black.withOpacity(0.0),
+    if (sheet != null && visuals != null) {
+      creatureVisual =
+          CreatureSpriteComponentBattle(
+              sheet: sheet,
+              visuals: visuals,
+              desiredSize: Vector2(150, 150),
+            )
+            ..position = center
+            ..anchor = Anchor.center
+            ..priority = 1;
+      add(creatureVisual!);
+    } else {
+      // Fallback placeholder only if sprite data is unavailable
+      bossVisual = CircleComponent(
+        radius: 60,
+        paint: Paint()
+          ..color = _auraColor.withOpacity(0.0)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0,
         anchor: Anchor.center,
-      ),
-    );
+        position: center,
+      )..priority = -1;
+      add(bossVisual!);
+    }
 
-    // HP bar fill - start invisible
-    hpBarFill = RectangleComponent(
-      size: Vector2(136 * combatant.hpPercent, 8),
-      position: Vector2(-68, -size.y * 0.45),
-      paint: Paint()..color = _getHpColor(combatant.hpPercent).withOpacity(0.0),
-      anchor: Anchor.centerLeft,
-    );
-    add(hpBarFill..priority = 1);
-
-    // Status icon container - above the boss name
+    // Status icon container - anchored near the boss sprite (right/top)
     statusIconContainer = PositionComponent(
-      position: Vector2(0, -size.y * 0.85),
+      anchor: Anchor.center,
+      position: center + Vector2(size.x * 0.62, -size.y * 0.22),
     );
     add(statusIconContainer);
   }
 
   /// Boss spawn animation - fade in with scale effect
   void playSpawnAnimation() {
-    // Scale up the boss visual
-    bossVisual.add(
+    add(
       SequenceEffect([
         ScaleEffect.to(Vector2.all(0.1), EffectController(duration: 0.0)),
         ScaleEffect.to(
-          Vector2.all(1.2),
+          Vector2.all(1.15),
           EffectController(duration: 0.4, curve: Curves.easeOut),
         ),
         ScaleEffect.to(
@@ -450,58 +750,121 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
 
     // Fade in boss visual by changing paint color
     Future.delayed(Duration(milliseconds: 0), () {
-      bossVisual.paint.color = Colors.red.withOpacity(0.6);
-    });
-
-    // Fade in name by changing text color
-    Future.delayed(Duration(milliseconds: 300), () {
-      nameLabel.textRenderer = TextPaint(
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          shadows: [Shadow(blurRadius: 4, color: Colors.black)],
-        ),
-      );
-    });
-
-    // Fade in HP text
-    Future.delayed(Duration(milliseconds: 400), () {
-      hpText.textRenderer = TextPaint(
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-    });
-
-    // Fade in HP bar
-    Future.delayed(Duration(milliseconds: 500), () {
-      hpBarFill.paint.color = _getHpColor(combatant.hpPercent);
+      if (bossVisual != null) {
+        bossVisual!.paint.color = _auraColor.withOpacity(0.35);
+      }
     });
   }
 
-  Color _getHpColor(double percent) {
-    if (percent > 0.5) return Colors.green;
-    if (percent > 0.25) return Colors.yellow;
-    return Colors.red;
+  Future<void> playDeathAnimation() async {
+    final completer = Completer<void>();
+
+    // Remove status badges immediately
+    statusIconContainer.removeFromParent();
+
+    // Rapid white flash bursts
+    for (int f = 0; f < 4; f++) {
+      Future.delayed(Duration(milliseconds: f * 90), () {
+        final flash = RectangleComponent(
+          size: size * 1.2,
+          paint: Paint()..color = Colors.white.withOpacity(0.65),
+          anchor: Anchor.center,
+          position: size / 2,
+          priority: 30,
+        );
+        add(flash);
+        flash.add(OpacityEffect.fadeOut(EffectController(duration: 0.10)));
+        flash.add(RemoveEffect(delay: 0.12));
+      });
+    }
+
+    await Future.delayed(const Duration(milliseconds: 430));
+
+    // Explosion: briefly scale up then collapse to zero
+    add(
+      SequenceEffect([
+        ScaleEffect.to(
+          Vector2.all(1.5),
+          EffectController(duration: 0.12, curve: Curves.easeOut),
+        ),
+        ScaleEffect.to(
+          Vector2.all(0.0),
+          EffectController(duration: 0.35, curve: Curves.easeIn),
+        ),
+      ], onComplete: () => completer.complete()),
+    );
+
+    // Scatter 18 particles outward from the boss position
+    for (int i = 0; i < 18; i++) {
+      final angle = (i / 18.0) * pi * 2;
+      final dist = 70.0 + Random().nextDouble() * 110;
+      final colors = [_auraColor, Colors.white, Colors.orangeAccent];
+      final particle = CircleComponent(
+        radius: 3 + Random().nextDouble() * 8,
+        paint: Paint()..color = colors[i % colors.length],
+        anchor: Anchor.center,
+        position: position.clone(),
+        priority: 50,
+      );
+      gameRef.add(particle);
+      particle.add(
+        MoveEffect.by(
+          Vector2(cos(angle) * dist, sin(angle) * dist),
+          EffectController(duration: 0.65, curve: Curves.easeOut),
+        ),
+      );
+      particle.add(OpacityEffect.fadeOut(EffectController(duration: 0.65)));
+      particle.add(RemoveEffect(delay: 0.7));
+    }
+
+    await completer.future;
+    removeFromParent();
+  }
+
+  Color _getAuraColor() {
+    if (combatant.types.isEmpty) return Colors.deepPurple;
+    switch (combatant.types.first.toLowerCase()) {
+      case 'fire':
+        return Colors.deepOrange;
+      case 'water':
+        return Colors.blue;
+      case 'earth':
+        return Colors.brown;
+      case 'air':
+        return Colors.cyan;
+      case 'plant':
+        return Colors.green;
+      case 'ice':
+        return Colors.lightBlue;
+      case 'lightning':
+        return Colors.yellow;
+      case 'poison':
+        return Colors.purple;
+      case 'steam':
+        return Colors.teal;
+      case 'lava':
+        return Colors.deepOrangeAccent;
+      case 'mud':
+        return Colors.brown.shade700;
+      case 'dust':
+        return Colors.orange.shade300;
+      case 'crystal':
+        return Colors.pinkAccent;
+      case 'spirit':
+        return Colors.indigo.shade200;
+      case 'dark':
+        return Colors.deepPurple.shade700;
+      case 'light':
+        return Colors.amber;
+      case 'blood':
+        return Colors.red.shade900;
+      default:
+        return Colors.deepPurple;
+    }
   }
 
   void updateHpBar() {
-    hpText.text = '${combatant.currentHp}/${combatant.maxHp}';
-
-    // Animate HP bar size change
-    final targetSize = Vector2(136 * combatant.hpPercent, 8);
-    hpBarFill.add(
-      SizeEffect.to(
-        targetSize,
-        EffectController(duration: 0.3, curve: Curves.easeOut),
-      ),
-    );
-
-    // Update color
-    hpBarFill.paint.color = _getHpColor(combatant.hpPercent);
+    // Boss HP UI is handled by Flutter header HUD.
   }
 
   void updateStatusIcons() {
@@ -740,12 +1103,77 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
     await completer.future;
   }
 
-  void showDamage(int damage, double typeMultiplier) {
-    final color = typeMultiplier > 1.0
+  Future<void> playSkipTurnAnimation() async {
+    // Small shake + slight squash/stretch to indicate a skipped turn.
+    shake(intensity: 7, repeats: 3, segment: 0.05);
+
+    add(
+      SequenceEffect([
+        ScaleEffect.to(
+          Vector2(1.06, 0.94),
+          EffectController(duration: 0.08, curve: Curves.easeOut),
+        ),
+        ScaleEffect.to(
+          Vector2.all(1.0),
+          EffectController(duration: 0.10, curve: Curves.easeIn),
+        ),
+      ]),
+    );
+
+    await Future.delayed(Duration(milliseconds: 220));
+  }
+
+  void playHitFlash({bool isCrit = false}) {
+    final flashColor = isCrit ? Colors.yellow : Colors.white;
+    final flash = CircleComponent(
+      radius: 88,
+      position: size / 2,
+      anchor: Anchor.center,
+      paint: Paint()..color = flashColor.withOpacity(0.50),
+      priority: 20,
+    );
+    flash.add(RemoveEffect(delay: 0.15));
+    add(flash);
+  }
+
+  void showDamage(
+    int damage,
+    double typeMultiplier, {
+    bool isCritical = false,
+  }) {
+    final color = isCritical
+        ? Colors.yellow
+        : typeMultiplier > 1.0
         ? Colors.orange
         : typeMultiplier < 1.0
         ? Colors.grey
         : Colors.white;
+
+    final fontSize = isCritical ? 46.0 : 36.0;
+
+    if (isCritical) {
+      final critLabel = TextComponent(
+        text: 'CRIT!',
+        position: position + Vector2(0, -70),
+        anchor: Anchor.center,
+        textRenderer: TextPaint(
+          style: TextStyle(
+            color: Colors.yellow,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.0,
+            shadows: [Shadow(blurRadius: 6, color: Colors.black)],
+          ),
+        ),
+      );
+      gameRef.post(() {
+        gameRef.add(critLabel);
+        critLabel.add(
+          MoveEffect.by(Vector2(0, -25), EffectController(duration: 0.6)),
+        );
+        critLabel.add(RemoveEffect(delay: 0.6));
+      });
+    }
 
     final damageText = TextComponent(
       text: '-$damage',
@@ -754,7 +1182,7 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
       textRenderer: TextPaint(
         style: TextStyle(
           color: color,
-          fontSize: 36,
+          fontSize: fontSize,
           fontWeight: FontWeight.bold,
           shadows: [
             Shadow(blurRadius: 8, color: Colors.black),
@@ -801,9 +1229,24 @@ class BossAttackExecutedEvent extends BattleGameEvent {
 
 class StatusEffectEvent extends BattleGameEvent {
   final List<String> messages;
-  StatusEffectEvent(this.messages);
+  final bool isBossSource;
+  StatusEffectEvent(this.messages, {required this.isBossSource});
 }
 
 class VictoryEvent extends BattleGameEvent {}
 
 class DefeatEvent extends BattleGameEvent {}
+
+class _BossMoveSelection {
+  final BattleMove move;
+  final BossMove? sourceMove;
+
+  const _BossMoveSelection({required this.move, this.sourceMove});
+}
+
+class _WeightedBossMove {
+  final BossMove move;
+  final double weight;
+
+  const _WeightedBossMove({required this.move, required this.weight});
+}

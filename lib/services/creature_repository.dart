@@ -35,6 +35,14 @@ class CreatureCatalog {
 
   List<String> allElements() =>
       _all!.expand((c) => c.types).toSet().toList()..sort();
+
+  /// Returns the Mystic species for a given primary element, if present.
+  /// Example: element='Fire' => MYS01 Firemystic.
+  Creature? mysticByElement(String element) => _all!.firstWhereOrNull(
+    (c) =>
+        c.mutationFamily == 'Mystic' &&
+        c.types.any((t) => t.toLowerCase() == element.toLowerCase()),
+  );
 }
 
 /// Tiny helpers you may reuse project-wide.

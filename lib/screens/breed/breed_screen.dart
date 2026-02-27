@@ -91,15 +91,87 @@ class _BreedScreenState extends State<BreedScreen>
                 body: Scaffold(
                   backgroundColor: Colors.transparent,
                   appBar: AppBar(
+                    elevation: 0,
+                    scrolledUnderElevation: 0,
+                    backgroundColor: Colors.transparent,
+                    surfaceTintColor: Colors.transparent,
+                    bottom: PreferredSize(
+                      preferredSize: const Size.fromHeight(1),
+                      child: Container(
+                        height: 1,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              theme.border.withOpacity(.7),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                     title: IgnorePointer(
                       ignoring: isLocked,
                       child: TabBar(
-                        labelColor: theme.text,
+                        labelColor: theme.accent,
                         unselectedLabelColor: theme.textMuted,
                         controller: _tabController,
-                        tabs: const [
-                          Tab(text: 'Cultivations'),
-                          Tab(text: 'Fusion'),
+                        indicatorColor: theme.accent,
+                        indicatorWeight: 2.5,
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        labelStyle: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
+                        ),
+                        unselectedLabelStyle: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.0,
+                        ),
+                        tabs: [
+                          Tab(
+                            child: Builder(
+                              builder: (ctx) {
+                                final color =
+                                    DefaultTextStyle.of(ctx).style.color ??
+                                    theme.textMuted;
+                                return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.science_rounded,
+                                      size: 14,
+                                      color: color,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text('CULTIVATIONS'),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                          Tab(
+                            child: Builder(
+                              builder: (ctx) {
+                                final color =
+                                    DefaultTextStyle.of(ctx).style.color ??
+                                    theme.textMuted;
+                                return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.merge_type_rounded,
+                                      size: 14,
+                                      color: color,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text('FUSION'),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
                         ],
                       ),
                     ),

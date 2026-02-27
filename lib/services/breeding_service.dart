@@ -130,6 +130,7 @@ class BreedingServiceV2 {
     int? wildSeed,
     // kept for compat; ignored
     String? likelihoodAnalysisJson,
+    bool forcePrismatic = false,
   }) async {
     // ---- Cross-species gate (owned vs wild) ----
     final allowed = await _canCrossBreed(ownedParent.baseId, wildCreature.id);
@@ -150,6 +151,7 @@ class BreedingServiceV2 {
     final result = engine.breedInstanceWithCreature(
       ownedParent,
       randomizedWild,
+      forcePrismatic: forcePrismatic,
     );
 
     if (!result.success || result.creature == null) {

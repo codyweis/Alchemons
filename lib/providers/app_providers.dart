@@ -149,8 +149,11 @@ class AppProviders extends StatelessWidget {
           create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
         ),
         ChangeNotifierProvider(
-          create: (context) =>
-              WildernessSpawnService(context.read<AlchemonsDatabase>()),
+          create: (context) => WildernessSpawnService(
+            context.read<AlchemonsDatabase>(),
+            defaultWindowMin: const Duration(minutes: 1),
+            defaultWindowMax: const Duration(hours: 4),
+          ),
         ),
 
         Provider(

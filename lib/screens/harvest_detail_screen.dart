@@ -112,7 +112,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     // Clear harvest notification when screen is opened
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final pushNotifications = PushNotificationService();
-      pushNotifications.cancelHarvestNotification();
+      pushNotifications.cancelHarvestNotification(biomeId: widget.biome.id);
     });
 
     _refreshCreatureCache(); // prime cache

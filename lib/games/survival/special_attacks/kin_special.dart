@@ -731,9 +731,15 @@ class KinBlessingMechanic {
     Vector2 center,
     double radius,
   ) {
+    // Mud TRAPS enemies: pulls them toward the orb centre + deals crushing DoT.
+    // This contrasts with Ice which repels/pushes enemies outward (pure control).
+    // Mud = magnetic trap zone that clumps enemies and grinds them down.
     final mudRadius = 140.0 + 20.0 * rank;
     final mudDuration = 6.0 + 0.6 * rank;
-    final slowStrength = 25.0 + 5.0 * rank;
+    final pullStrength = 18.0 + 4.0 * rank;
+    final dotDmg = (attacker.unit.statIntelligence * (0.6 + 0.12 * rank))
+        .toInt()
+        .clamp(2, 40);
 
     final mudField = CircleComponent(
       radius: mudRadius,
@@ -744,15 +750,16 @@ class KinBlessingMechanic {
 
     mudField.add(
       TimerComponent(
-        period: 0.2,
+        period: 0.3,
         repeat: true,
         onTick: () {
           final victims = game.getEnemiesInRange(game.orb.position, mudRadius);
           for (final v in victims) {
-            final pushBack =
-                (v.targetOrb.position - v.position).normalized() *
-                -slowStrength;
-            v.position += pushBack;
+            // Pull inward — mud is sticky, enemies can't escape
+            final pullDir = (game.orb.position - v.position).normalized();
+            v.position += pullDir * pullStrength;
+            // Crushing DoT — suffocating in the mire
+            v.takeDamage(dotDmg);
           }
         },
       ),

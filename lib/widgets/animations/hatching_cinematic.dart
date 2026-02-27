@@ -21,13 +21,17 @@ double _intervalValue(double t, double begin, double end, Curve curve) {
   return curve.transform(localT.clamp(0.0, 1.0));
 }
 
+/// Enum for special hatch types that get visual hints
+enum HatchHintType { normal, variant, prismatic }
+
 /// ==============================================
-/// Fullscreen cinematic with timeline phases (v2, optimized):
-/// 0.00–0.40  : Charge-in (fusion glyphs fade-in, slow swirl)
-/// 0.40–0.70  : Sacred geometry & CORE grow (ancient geometry to core shows & expands)
-/// 0.70–0.80  : Peak → BURST (flash + shockwave ring, extra sparks)
-/// 0.80–0.92  : Explosion aftermath (particles scatter, multiple shockwaves)
-/// 0.92–1.00  : Silhouette reveal with explosive scale-in
+/// Fullscreen cinematic with timeline phases (v3, optimized & faster):
+/// 0.00–0.30  : Charge-in (fusion glyphs fade-in, slow swirl)
+/// 0.30–0.55  : Sacred geometry & CORE grow
+/// 0.55–0.65  : Peak → BURST (flash + shockwave ring)
+/// 0.65–0.80  : Explosion aftermath + HINT JOLTS
+/// 0.80–0.92  : Silhouette reveal with explosive scale-in
+/// 0.92–1.00  : Settle & exit
 /// ==============================================
 Future<void> playHatchingCinematicAlchemy({
   required BuildContext context,
@@ -35,20 +39,24 @@ Future<void> playHatchingCinematicAlchemy({
   String? parentBTypeId,
   required Color paletteMain,
   ImageProvider? creatureSilhouette,
-  Duration totalDuration = const Duration(milliseconds: 6000),
+  Duration totalDuration = const Duration(milliseconds: 4200), // Faster!
+  HatchHintType hintType = HatchHintType.normal,
+  Color? variantColor, // For variant hints
 }) async {
   await Navigator.of(context).push(
     PageRouteBuilder(
       opaque: false,
       barrierColor: Colors.black,
-      transitionDuration: const Duration(milliseconds: 300),
-      reverseTransitionDuration: const Duration(milliseconds: 250),
+      transitionDuration: const Duration(milliseconds: 250),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (_, __, ___) => _HatchingCinematicPage(
         parentATypeId: parentATypeId,
         parentBTypeId: parentBTypeId,
         paletteMain: paletteMain,
         creatureSilhouette: creatureSilhouette,
         totalDuration: totalDuration,
+        hintType: hintType,
+        variantColor: variantColor,
       ),
     ),
   );
@@ -60,13 +68,17 @@ class _HatchingCinematicPage extends StatefulWidget {
   final Color paletteMain;
   final ImageProvider? creatureSilhouette;
   final Duration totalDuration;
+  final HatchHintType hintType;
+  final Color? variantColor;
 
   const _HatchingCinematicPage({
     required this.parentATypeId,
     required this.paletteMain,
     this.parentBTypeId,
     this.creatureSilhouette,
-    this.totalDuration = const Duration(milliseconds: 3800),
+    this.totalDuration = const Duration(milliseconds: 4200),
+    this.hintType = HatchHintType.normal,
+    this.variantColor,
   });
 
   @override
@@ -75,24 +87,27 @@ class _HatchingCinematicPage extends StatefulWidget {
 
 class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     with TickerProviderStateMixin {
-  late AnimationController _timeline; // 0..1 master timeline
-  late AnimationController _flashCtrl; // quick white flash on burst
-  late AnimationController _explosionCtrl; // secondary explosion effects
+  late AnimationController _timeline;
+  late AnimationController _flashCtrl;
+  late AnimationController _explosionCtrl;
+  late AnimationController _hintJoltCtrl; // For special hint effects
   late Animation<double> _flashAnim;
   late Animation<double> _explosionAnim;
+  late Animation<double> _hintJoltAnim;
 
-  // Small focus ring that grows with the core
-  late Animation<double> _coreScale; // 0..1.4 scale
-  late Animation<double> _coreOpacity; // fade in/out
-  late Animation<double> _shockwave; // 0..1 ring radius/opacity
-  late Animation<double> _secondaryShockwave; // second wave
-  late Animation<double> _tertiaryShockwave; // third wave
+  late Animation<double> _coreScale;
+  late Animation<double> _coreOpacity;
+  late Animation<double> _shockwave;
+  late Animation<double> _secondaryShockwave;
 
-  // Optional creature silhouette reveal (delayed until very end)
   late Animation<double> _reveal;
-  late Animation<double> _revealScale; // explosive scale-in
+  late Animation<double> _revealScale;
 
   late final _geoCache = _GeoCache();
+
+  // Track hint jolt triggers
+  int _hintJoltCount = 0;
+  static const int _maxHintJolts = 3;
 
   @override
   void initState() {
@@ -104,11 +119,15 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     );
     _flashCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 240),
+      duration: const Duration(milliseconds: 180),
     );
     _explosionCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 450),
+    );
+    _hintJoltCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
     );
 
     _flashAnim = CurvedAnimation(parent: _flashCtrl, curve: Curves.easeOutQuad);
@@ -116,53 +135,51 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
       parent: _explosionCtrl,
       curve: Curves.easeOutCubic,
     );
+    _hintJoltAnim = CurvedAnimation(
+      parent: _hintJoltCtrl,
+      curve: Curves.easeOutBack,
+    );
 
-    // === Timeline keyed ranges (t = 0..1) matching the trimline ===
+    // === Timeline keyed ranges (compressed for snappier feel) ===
     _coreOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _timeline,
-        curve: const Interval(0.20, 0.70, curve: Curves.easeInOutCubic),
+        curve: const Interval(0.15, 0.55, curve: Curves.easeInOutCubic),
       ),
     );
 
     _coreScale = Tween<double>(begin: 0.0, end: 1.4).animate(
       CurvedAnimation(
         parent: _timeline,
-        curve: const Interval(0.25, 0.70, curve: Curves.easeOutExpo),
+        curve: const Interval(0.20, 0.55, curve: Curves.easeOutExpo),
       ),
     );
 
-    // Aftermath 0.80–0.96 (slightly extended to smooth out)
+    // Faster shockwaves
     _shockwave = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _timeline,
-        curve: const Interval(0.80, 0.92, curve: Curves.easeOutCubic),
+        curve: const Interval(0.65, 0.82, curve: Curves.easeOutCubic),
       ),
     );
     _secondaryShockwave = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _timeline,
-        curve: const Interval(0.82, 0.94, curve: Curves.easeOutQuad),
-      ),
-    );
-    _tertiaryShockwave = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _timeline,
-        curve: const Interval(0.84, 0.96, curve: Curves.easeOutQuad),
+        curve: const Interval(0.68, 0.85, curve: Curves.easeOutQuad),
       ),
     );
 
-    // Silhouette reveal 0.92–1.00 with explosive scale-in
+    // Earlier silhouette reveal
     _reveal = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _timeline,
-        curve: const Interval(0.92, 1.00, curve: Curves.easeOut),
+        curve: const Interval(0.80, 0.92, curve: Curves.easeOut),
       ),
     );
-    _revealScale = Tween<double>(begin: 1.5, end: 1.0).animate(
+    _revealScale = Tween<double>(begin: 1.6, end: 1.0).animate(
       CurvedAnimation(
         parent: _timeline,
-        curve: const Interval(0.92, 1.00, curve: Curves.easeOutBack),
+        curve: const Interval(0.80, 0.92, curve: Curves.easeOutBack),
       ),
     );
 
@@ -172,64 +189,74 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
       }
     });
 
-    // Trigger flash + explosion at the BURST window start (≥ 0.70)
+    // Trigger flash + explosion at BURST (0.55)
     _timeline.addListener(() {
       final t = _timeline.value;
-      if (t >= 0.70 && !_flashCtrl.isAnimating && _flashCtrl.value == 0) {
+      if (t >= 0.55 && !_flashCtrl.isAnimating && _flashCtrl.value == 0) {
         _flashCtrl.forward(from: 0);
         _explosionCtrl.forward(from: 0);
+      }
+
+      // Trigger hint jolts during aftermath phase (0.65-0.80)
+      if (widget.hintType != HatchHintType.normal) {
+        _maybeFireHintJolt(t);
       }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final size = MediaQuery.of(context).size;
       _buildPictures(size, widget.paletteMain, _geoCache);
-
-      // Ensure geometry is ready BEFORE the cinematic actually starts
       setState(() {});
-
-      // Now start the timeline at exactly 0 with a clean first frame
       _timeline.forward(from: 0.0);
     });
+  }
+
+  void _maybeFireHintJolt(double t) {
+    if (_hintJoltCount >= _maxHintJolts) return;
+
+    // Fire jolts at specific points during aftermath
+    final joltTimes = [0.68, 0.73, 0.78];
+    if (_hintJoltCount < joltTimes.length && t >= joltTimes[_hintJoltCount]) {
+      _hintJoltCount++;
+      _hintJoltCtrl.forward(from: 0);
+    }
   }
 
   void _buildPictures(Size size, Color base, _GeoCache cache) {
     if (cache.size == size && cache.color == base) return;
 
     final center = Offset(size.width / 2, size.height / 2);
-    final outer = size.shortestSide * 0.22;
-    final innerR = size.shortestSide * 0.12;
+    final outer = size.shortestSide * 0.20; // Slightly smaller
+    final innerR = size.shortestSide * 0.11;
 
-    // Flower - NOTE: Paint colors are now at FULL opacity
-    // We'll apply the geometry opacity separately when drawing
+    // Flower
     {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec);
       final p = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color =
-            base // Full opacity here
+        ..color = base
         ..isAntiAlias = true;
       c.save();
       c.translate(center.dx, center.dy);
       for (int i = 0; i < 6; i++) {
         final a = i * pi / 3;
         final off = Offset(cos(a) * outer * 0.5, sin(a) * outer * 0.5);
-        c.drawCircle(off, outer * 0.46, p);
+        c.drawCircle(off, outer * 0.44, p);
       }
       c.restore();
       cache.flower = rec.endRecording();
     }
 
-    // Cube-ish - Same here, full opacity
+    // Cube
     {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec);
       final p = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8
-        ..color = base; // Full opacity
+        ..color = base;
       c.save();
       c.translate(center.dx, center.dy);
       final pts = <Offset>[];
@@ -245,7 +272,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
       final inner = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..color = base; // Full opacity
+        ..color = base;
       c.drawCircle(Offset.zero, innerR * 0.55, inner);
       c.restore();
       cache.cube = rec.endRecording();
@@ -260,7 +287,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     _timeline.dispose();
     _flashCtrl.dispose();
     _explosionCtrl.dispose();
-
+    _hintJoltCtrl.dispose();
     super.dispose();
   }
 
@@ -276,61 +303,51 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
           builder: (context, _) {
             final t = _timeline.value;
 
-            // Whiteout kept at 0.92–1.00 (no per-frame CurvedAnimation allocs)
+            // Whiteout at reveal
             final whiteout = _intervalValue(
               t,
-              0.92,
-              1.0,
+              0.80,
+              0.88,
               Curves.easeInOutCubic,
             );
 
-            // Backdrop vignette intensity (0–0.40), backs off during whiteout
+            // Vignette
             final vignetteIntensity =
-                _intervalValue(t, 0.00, 0.40, Curves.easeOutCubic) *
+                _intervalValue(t, 0.00, 0.30, Curves.easeOutCubic) *
                 (1.0 - whiteout);
 
-            // Ease-in factor for the charge-in window 0..0.30
-            final chargeInProgress = t < 0.30
-                ? Curves.easeOutCubic.transform(t / 0.30)
+            // Charge-in progress
+            final chargeInProgress = t < 0.25
+                ? Curves.easeOutCubic.transform(t / 0.25)
                 : 1.0;
 
-            // Particle speed profile per phase – now modulated by chargeInProgress at start
-            final baseSpeed = t < 0.40
-                ? 0.9 // Charge-in
-                : (t < 0.70
-                      ? 0.55 // Build
-                      : (t < 0.80
-                            ? 2.5 // Peak/Burst
-                            : 1.2)); // Aftermath + Reveal
-
-            final speed = t < 0.40
+            // Particle speed profile
+            final baseSpeed = t < 0.30
+                ? 0.9
+                : (t < 0.55 ? 0.6 : (t < 0.65 ? 2.8 : 1.0));
+            final speed = t < 0.30
                 ? ui.lerpDouble(0.2, baseSpeed, chargeInProgress)!
                 : baseSpeed;
 
-            // Geometry visibility: quick fade-in, hold, then fade out after burst
+            // Geometry opacity
             double geoOpacity;
-            if (t < 0.35) {
-              // 0.15 → 0.35 smooth fade-in
-              geoOpacity = _intervalValue(t, 0.15, 0.35, Curves.easeOutCubic);
-            } else if (t < 0.70) {
-              // Hold at full intensity during main build phase
+            if (t < 0.28) {
+              geoOpacity = _intervalValue(t, 0.12, 0.28, Curves.easeOutCubic);
+            } else if (t < 0.55) {
               geoOpacity = 1.0;
             } else {
-              // Fade out 0.70 → 0.82
               final fadeOut = _intervalValue(
                 t,
+                0.55,
                 0.70,
-                0.82,
                 Curves.easeOutCubic,
               );
               geoOpacity = 1.0 - fadeOut;
             }
 
-            // Base particle count (with burst bump)
-            int baseParticleCount = (t >= 0.70 && t < 0.80) ? 120 : 80;
-
-            // Ramp-in particle count at the start (0.00–0.30), start from 0
-            if (t < 0.30) {
+            // Particle count
+            int baseParticleCount = (t >= 0.55 && t < 0.65) ? 100 : 70;
+            if (t < 0.25) {
               baseParticleCount = ui
                   .lerpDouble(
                     0,
@@ -339,26 +356,19 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                   )!
                   .round();
             }
-
-            // Fade-out particle count at the end (0.92–1.00)
-            if (t > 0.92) {
-              final fadeT = ((t - 0.92) / 0.08).clamp(0.0, 1.0);
-              final factor = 1.0 - fadeT;
-              baseParticleCount = (baseParticleCount * factor).round().clamp(
-                0,
-                9999,
-              );
+            if (t > 0.88) {
+              final fadeT = ((t - 0.88) / 0.12).clamp(0.0, 1.0);
+              baseParticleCount = (baseParticleCount * (1.0 - fadeT)).round();
             }
 
-            // Global soft fade-in/out to hide any remaining startup/end jank
+            // Global fade
             double globalFade = 1.0;
-            // Keep only the outro fade; let the route handle intro.
             if (t > 0.92) {
               globalFade =
                   1.0 -
                   Curves.easeInCubic.transform(
                     ((t - 0.92) / 0.08).clamp(0.0, 1.0),
-                  ); // 1 → 0
+                  );
             }
 
             return Opacity(
@@ -366,12 +376,9 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Backdrop
                   ColoredBox(color: bg.withOpacity(0.98)),
 
-                  // Particle system (no global Opacity to avoid saveLayer)
-                  // Start slightly after timeline begins so we don't
-                  // hammer the first route-transition frames.
+                  // Particles
                   if (t > 0.02)
                     RepaintBoundary(
                       child: IgnorePointer(
@@ -388,7 +395,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                   else
                     const SizedBox.expand(),
 
-                  // Geometry + Core + Shockwaves + Vignette + Whiteout (all in one painter)
+                  // Core + Geometry + Effects
                   RepaintBoundary(
                     child: IgnorePointer(
                       child: AnimatedBuilder(
@@ -396,6 +403,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                           _timeline,
                           _flashCtrl,
                           _explosionCtrl,
+                          _hintJoltCtrl,
                         ]),
                         builder: (context, child) {
                           return CustomPaint(
@@ -407,12 +415,16 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                               coreScale: _coreScale.value,
                               shockwaveT: _shockwave.value,
                               secondaryShockwaveT: _secondaryShockwave.value,
-                              tertiaryShockwaveT: _tertiaryShockwave.value,
+                              tertiaryShockwaveT: 0, // Removed for speed
                               explosionT: _explosionAnim.value,
                               vignette: vignetteIntensity,
                               whiteout: whiteout,
                               flowerPic: _geoCache.flower,
                               cubePic: _geoCache.cube,
+                              // Hint system
+                              hintType: widget.hintType,
+                              hintJoltT: _hintJoltAnim.value,
+                              variantColor: widget.variantColor,
                             ),
                           );
                         },
@@ -420,7 +432,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                     ),
                   ),
 
-                  // Silhouette (cheaper during motion: no heavy boxShadow until settled)
+                  // Silhouette reveal
                   if (widget.creatureSilhouette != null && _reveal.value > 0)
                     IgnorePointer(
                       child: Opacity(
@@ -431,20 +443,22 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                             child: _SilhouetteReveal(
                               image: widget.creatureSilhouette!,
                               glowColor: widget.paletteMain,
+                              hintType: widget.hintType,
+                              variantColor: widget.variantColor,
                             ),
                           ),
                         ),
                       ),
                     ),
 
-                  // Tap to skip
+                  // Skip button
                   Positioned(
                     bottom: 24,
                     right: 24,
                     child: GestureDetector(
                       onTap: () => _timeline.animateTo(
                         1.0,
-                        duration: const Duration(milliseconds: 200),
+                        duration: const Duration(milliseconds: 150),
                       ),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -452,15 +466,11 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0x14FFFFFF), // .withOpacity(0.08)
+                          color: const Color(0x14FFFFFF),
                           borderRadius: const BorderRadius.all(
                             Radius.circular(12),
                           ),
-                          border: Border.all(
-                            color: const Color(
-                              0x2EFFFFFF,
-                            ), // .withOpacity(0.18)
-                          ),
+                          border: Border.all(color: const Color(0x2EFFFFFF)),
                         ),
                         child: const Text(
                           'SKIP',
@@ -483,46 +493,105 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
   }
 }
 
-/// Separate widget so we can switch image filterQuality / effects based on settle state
 class _SilhouetteReveal extends StatelessWidget {
   final ImageProvider image;
   final Color glowColor;
-  const _SilhouetteReveal({required this.image, required this.glowColor});
+  final HatchHintType hintType;
+  final Color? variantColor;
+
+  const _SilhouetteReveal({
+    required this.image,
+    required this.glowColor,
+    this.hintType = HatchHintType.normal,
+    this.variantColor,
+  });
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size.shortestSide * 0.45;
 
-    // Keep it light while scaling; add glow only when settled
-    final child = Image(
+    // Determine silhouette color based on hint type
+    Color silhouetteColor;
+    switch (hintType) {
+      case HatchHintType.prismatic:
+        silhouetteColor = Colors.white;
+        break;
+      case HatchHintType.variant:
+        silhouetteColor = variantColor ?? Colors.white.withOpacity(0.95);
+        break;
+      case HatchHintType.normal:
+        silhouetteColor = Colors.white.withOpacity(0.95);
+        break;
+    }
+
+    Widget child = Image(
       image: image,
       width: size,
-      color: Colors.white.withOpacity(0.95),
+      color: silhouetteColor,
       colorBlendMode: BlendMode.srcATop,
       filterQuality: FilterQuality.low,
       isAntiAlias: true,
     );
 
+    // Add special effects for prismatic
+    if (hintType == HatchHintType.prismatic) {
+      child = ShaderMask(
+        shaderCallback: (bounds) => const LinearGradient(
+          colors: [
+            Color(0xFFFF6B6B),
+            Color(0xFFFFE66D),
+            Color(0xFF4ECDC4),
+            Color(0xFF6B5BFF),
+            Color(0xFFFF6B6B),
+          ],
+          stops: [0.0, 0.25, 0.5, 0.75, 1.0],
+        ).createShader(bounds),
+        blendMode: BlendMode.srcATop,
+        child: Image(
+          image: image,
+          width: size,
+          color: Colors.white,
+          colorBlendMode: BlendMode.srcATop,
+          filterQuality: FilterQuality.low,
+          isAntiAlias: true,
+        ),
+      );
+    }
+
     return child;
   }
 }
 
-/// Painter: draws vignette + sacred geometry (cached) + core + shockwaves + explosion + whiteout.
 class _CoreAndGeometryPainter extends CustomPainter {
-  final double t; // 0..1 timeline
+  final double t;
   final Color palette;
-  final double geoOpacity; // 0..1
-  final double coreOpacity; // 0..1
-  final double coreScale; // ~0..1.4
-  final double shockwaveT; // 0..1
-  final double secondaryShockwaveT; // 0..1
-  final double tertiaryShockwaveT; // 0..1
-  final double explosionT; // 0..1
-  final double vignette; // 0..1
-  final double whiteout; // 0..1
-
+  final double geoOpacity;
+  final double coreOpacity;
+  final double coreScale;
+  final double shockwaveT;
+  final double secondaryShockwaveT;
+  final double tertiaryShockwaveT;
+  final double explosionT;
+  final double vignette;
+  final double whiteout;
   final ui.Picture? _flowerPic;
   final ui.Picture? _cubePic;
+
+  // Hint system
+  final HatchHintType hintType;
+  final double hintJoltT;
+  final Color? variantColor;
+
+  // Rainbow colors for prismatic
+  static const _rainbowColors = [
+    Color(0xFFFF6B6B), // Red
+    Color(0xFFFF9F43), // Orange
+    Color(0xFFFFE66D), // Yellow
+    Color(0xFF4ECDC4), // Cyan
+    Color(0xFF6B5BFF), // Purple
+    Color(0xFFFF6B9D), // Pink
+  ];
+
   _CoreAndGeometryPainter({
     required this.t,
     required this.palette,
@@ -537,6 +606,9 @@ class _CoreAndGeometryPainter extends CustomPainter {
     required this.whiteout,
     required ui.Picture? flowerPic,
     required ui.Picture? cubePic,
+    this.hintType = HatchHintType.normal,
+    this.hintJoltT = 0,
+    this.variantColor,
   }) : _flowerPic = flowerPic,
        _cubePic = cubePic;
 
@@ -545,7 +617,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final base = palette;
 
-    // ====== Vignette (no overlay widgets) ======
+    // Vignette
     if (vignette > 0) {
       final vignettePaint = Paint()
         ..shader =
@@ -561,24 +633,21 @@ class _CoreAndGeometryPainter extends CustomPainter {
       canvas.drawRect(Offset.zero & size, vignettePaint);
     }
 
-    // ====== Sacred Geometry (cached pictures with proper opacity) ======
+    // Sacred Geometry
     if (geoOpacity > 0 && (_flowerPic != null || _cubePic != null)) {
-      // Rough bounds for both shapes – a bit larger than what _buildPictures uses.
-      final geoRadius = size.shortestSide * 0.28;
+      final geoRadius = size.shortestSide * 0.26;
       final geoBounds = Rect.fromCircle(center: center, radius: geoRadius);
-
-      // Single offscreen layer just around the geometry
       final opacityPaint = Paint()
         ..color = Color.fromRGBO(255, 255, 255, geoOpacity);
 
       canvas.saveLayer(geoBounds, opacityPaint);
 
       final rot1 =
-          2 * pi * Curves.easeOutCubic.transform((t - 0.40).clamp(0.0, .5) * 2);
+          2 * pi * Curves.easeOutCubic.transform((t - 0.30).clamp(0.0, .5) * 2);
       final rot2 =
           -2 *
           pi *
-          Curves.easeOutCubic.transform((t - 0.48).clamp(0.0, .5) * 2);
+          Curves.easeOutCubic.transform((t - 0.38).clamp(0.0, .5) * 2);
 
       if (_flowerPic != null) {
         canvas.save();
@@ -598,66 +667,54 @@ class _CoreAndGeometryPainter extends CustomPainter {
         canvas.restore();
       }
 
-      canvas.restore(); // end geometry layer
+      canvas.restore();
     }
 
-    // ====== Core Orb (grows and then bursts) ======
+    // Core Orb
     if (coreOpacity > 0 || coreScale > 0) {
       final radiusBase = size.shortestSide * 0.08;
       final r = radiusBase * (0.6 + coreScale);
 
-      // Explosion extra glow
+      // Explosion glow
       if (explosionT > 0) {
         final explosionGlow = Paint()
           ..shader = RadialGradient(
             colors: [
-              base.withOpacity(0.35 * (1 - explosionT)),
+              base.withOpacity(0.4 * (1 - explosionT)),
               base.withOpacity(0.0),
             ],
             stops: const [0.1, 1.0],
-          ).createShader(Rect.fromCircle(center: center, radius: r * 4.5));
-        canvas.drawCircle(center, r * 4.5, explosionGlow);
-
-        // Extra glow
-        final glow = Paint()
-          ..shader = RadialGradient(
-            colors: [
-              base.withOpacity(0.16 * coreOpacity),
-              base.withOpacity(0.0),
-            ],
-            stops: const [0.2, 1.0],
-          ).createShader(Rect.fromCircle(center: center, radius: r * 2.6));
-        canvas.drawCircle(center, r * 2.6, glow);
+          ).createShader(Rect.fromCircle(center: center, radius: r * 4));
+        canvas.drawCircle(center, r * 4, explosionGlow);
       }
 
-      // Outer glow (cheaper gradient)
+      // Outer glow
       final glow = Paint()
         ..shader = RadialGradient(
-          colors: [base.withOpacity(0.16 * coreOpacity), Colors.transparent],
+          colors: [base.withOpacity(0.18 * coreOpacity), Colors.transparent],
           stops: const [0.0, 1.0],
-        ).createShader(Rect.fromCircle(center: center, radius: r * 2.6));
-
+        ).createShader(Rect.fromCircle(center: center, radius: r * 2.4));
       canvas.drawCircle(center, r * 2.2, glow);
 
       // Orb
       final orb = Paint()
         ..shader = RadialGradient(
-          colors: [base.withOpacity(0.52 * coreOpacity), base.withOpacity(0.0)],
+          colors: [base.withOpacity(0.55 * coreOpacity), base.withOpacity(0.0)],
           stops: const [0.5, 1.0],
         ).createShader(Rect.fromCircle(center: center, radius: r));
       canvas.drawCircle(center, r, orb);
 
-      // Rays (near peak)
+      // Rays near peak
       if (coreScale > 1.0) {
         final rays = Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1
-          ..color = base.withOpacity(0.17 * coreOpacity);
+          ..strokeWidth = 1.2
+          ..color = base.withOpacity(0.2 * coreOpacity);
         final k = (coreScale - 1.0).clamp(0.0, 0.4) / 0.4;
-        for (int i = 0; i < 10; i++) {
-          final a = (i * 2 * pi / 10) + (t * 1.3);
+        for (int i = 0; i < 8; i++) {
+          final a = (i * 2 * pi / 8) + (t * 1.5);
           final r1 = r * (0.4 + 0.2 * sin(i));
-          final r2 = r * (1.0 + 0.6 * k);
+          final r2 = r * (1.0 + 0.7 * k);
           canvas.drawLine(
             center + Offset(cos(a) * r1, sin(a) * r1),
             center + Offset(cos(a) * r2, sin(a) * r2),
@@ -667,56 +724,37 @@ class _CoreAndGeometryPainter extends CustomPainter {
       }
     }
 
-    // ====== Shockwaves ======
-    _drawShockwave(
-      canvas,
-      size,
-      center,
-      palette,
-      shockwaveT,
-      0.65,
-      10,
-      1,
-      6,
-      0.45,
-    );
+    // === HINT JOLTS ===
+    if (hintJoltT > 0 && hintType != HatchHintType.normal) {
+      _drawHintJolt(canvas, size, center);
+    }
+
+    // Shockwaves
+    _drawShockwave(canvas, size, center, palette, shockwaveT, 0.60, 8, 1, 0.5);
     _drawShockwave(
       canvas,
       size,
       center,
       palette,
       secondaryShockwaveT,
-      0.75,
-      6,
+      0.70,
+      5,
       0.5,
-      4,
       0.35,
     );
-    _drawShockwave(
-      canvas,
-      size,
-      center,
-      palette,
-      tertiaryShockwaveT,
-      0.85,
-      4,
-      0.5,
-      3,
-      0.25,
-    );
 
-    // ====== Explosion particles ======
-    if (explosionT > 0 && explosionT < 0.8) {
+    // Explosion particles
+    if (explosionT > 0 && explosionT < 0.75) {
       final particlePaint = Paint()
         ..style = PaintingStyle.fill
         ..isAntiAlias = true;
 
-      for (int i = 0; i < 20; i++) {
-        final angle = (i * 2 * pi / 20) + (t * 0.5);
-        final distance = size.shortestSide * 0.15 * explosionT;
+      for (int i = 0; i < 16; i++) {
+        final angle = (i * 2 * pi / 16) + (t * 0.5);
+        final distance = size.shortestSide * 0.12 * explosionT;
         final particlePos =
             center + Offset(cos(angle) * distance, sin(angle) * distance);
-        final particleAlpha = (1.0 - explosionT) * 0.8;
+        final particleAlpha = (1.0 - explosionT) * 0.75;
         final particleSize = ui.lerpDouble(3, 1, explosionT)!;
 
         particlePaint.color = palette.withOpacity(particleAlpha);
@@ -724,10 +762,96 @@ class _CoreAndGeometryPainter extends CustomPainter {
       }
     }
 
-    // ====== Whiteout (no widget opacity) ======
+    // Whiteout
     if (whiteout > 0) {
-      final paint = Paint()..color = Colors.white.withOpacity(whiteout);
+      final paint = Paint()..color = Colors.white.withOpacity(whiteout * 0.9);
       canvas.drawRect(Offset.zero & size, paint);
+    }
+  }
+
+  void _drawHintJolt(Canvas canvas, Size size, Offset center) {
+    final maxRadius = size.shortestSide * 0.55;
+    final joltRadius = maxRadius * hintJoltT;
+    final joltAlpha = (1.0 - hintJoltT).clamp(0.0, 1.0);
+
+    if (hintType == HatchHintType.prismatic) {
+      // Rainbow gradient ring for prismatic
+      final ringPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = ui.lerpDouble(20, 4, hintJoltT)!
+        ..shader = SweepGradient(
+          colors: _rainbowColors,
+          startAngle: t * pi * 2,
+          endAngle: t * pi * 2 + pi * 2,
+        ).createShader(Rect.fromCircle(center: center, radius: joltRadius))
+        ..isAntiAlias = true;
+
+      // Apply alpha via saveLayer
+      canvas.saveLayer(
+        Rect.fromCircle(center: center, radius: joltRadius + 20),
+        Paint()..color = Color.fromRGBO(255, 255, 255, joltAlpha * 0.8),
+      );
+      canvas.drawCircle(center, joltRadius, ringPaint);
+      canvas.restore();
+
+      // Inner glow with shifting rainbow
+      final colorIndex = ((t * 6) % 6).floor();
+      final glowColor = _rainbowColors[colorIndex];
+      final innerGlow = Paint()
+        ..shader =
+            RadialGradient(
+              colors: [
+                glowColor.withOpacity(0.3 * joltAlpha),
+                glowColor.withOpacity(0.0),
+              ],
+            ).createShader(
+              Rect.fromCircle(center: center, radius: joltRadius * 0.5),
+            );
+      canvas.drawCircle(center, joltRadius * 0.5, innerGlow);
+
+      // Sparkle particles in rainbow colors
+      for (int i = 0; i < 12; i++) {
+        final angle = (i * 2 * pi / 12) + (t * 3);
+        final dist = joltRadius * 0.7;
+        final pos = center + Offset(cos(angle) * dist, sin(angle) * dist);
+        final sparkleColor = _rainbowColors[i % _rainbowColors.length];
+        final sparklePaint = Paint()
+          ..color = sparkleColor.withOpacity(joltAlpha * 0.9)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(pos, 3 * (1 - hintJoltT) + 1, sparklePaint);
+      }
+    } else if (hintType == HatchHintType.variant && variantColor != null) {
+      // Variant color ring
+      final ringPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = ui.lerpDouble(16, 3, hintJoltT)!
+        ..color = variantColor!.withOpacity(joltAlpha * 0.85)
+        ..isAntiAlias = true;
+      canvas.drawCircle(center, joltRadius, ringPaint);
+
+      // Variant inner glow
+      final innerGlow = Paint()
+        ..shader =
+            RadialGradient(
+              colors: [
+                variantColor!.withOpacity(0.35 * joltAlpha),
+                variantColor!.withOpacity(0.0),
+              ],
+            ).createShader(
+              Rect.fromCircle(center: center, radius: joltRadius * 0.6),
+            );
+      canvas.drawCircle(center, joltRadius * 0.6, innerGlow);
+
+      // Variant sparkles
+      for (int i = 0; i < 8; i++) {
+        final angle = (i * 2 * pi / 8) + (t * 2.5);
+        final dist = joltRadius * 0.65;
+        final pos = center + Offset(cos(angle) * dist, sin(angle) * dist);
+        final sparklePaint = Paint()
+          ..color = variantColor!.withOpacity(joltAlpha * 0.85)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(pos, 4 * (1 - hintJoltT) + 1.5, sparklePaint);
+      }
     }
   }
 
@@ -740,7 +864,6 @@ class _CoreAndGeometryPainter extends CustomPainter {
     double maxRatio,
     double startStroke,
     double endStroke,
-    double blurSigma,
     double maxOpacity,
   ) {
     if (t <= 0) return;
@@ -757,7 +880,6 @@ class _CoreAndGeometryPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CoreAndGeometryPainter old) {
-    // We repaint often (timeline), but the heavy geometry is cached.
     return t != old.t ||
         palette != old.palette ||
         geoOpacity != old.geoOpacity ||
@@ -765,9 +887,11 @@ class _CoreAndGeometryPainter extends CustomPainter {
         coreScale != old.coreScale ||
         shockwaveT != old.shockwaveT ||
         secondaryShockwaveT != old.secondaryShockwaveT ||
-        tertiaryShockwaveT != old.tertiaryShockwaveT ||
         explosionT != old.explosionT ||
         vignette != old.vignette ||
-        whiteout != old.whiteout;
+        whiteout != old.whiteout ||
+        hintType != old.hintType ||
+        hintJoltT != old.hintJoltT ||
+        variantColor != old.variantColor;
   }
 }

@@ -1,3 +1,11 @@
+// lib/widgets/instance_widgets/instances_sheet.dart
+//
+// REDESIGNED INSTANCES SHEET
+// Aesthetic: Scorched Forge — matches survival / boss / formation / dialog
+// Only the chrome (search bar, filters pill, detail mode toggle) is restyled.
+// All grid/card child widgets, logic, filtering, sorting, and state preserved.
+//
+
 import 'dart:async' as async;
 import 'dart:convert';
 
@@ -7,9 +15,6 @@ import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dar
 import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flame/components.dart';
-
-import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
@@ -22,21 +27,37 @@ import 'package:alchemons/utils/harvest_rate.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 
+// ──────────────────────────────────────────────────────────────────────────────
+// DESIGN TOKENS  (inline — no import needed, keeps file self-contained)
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _C {
+  static const textSecondary = Color(0xFF8A7B6A);
+}
+
+class _T {
+  static const label = TextStyle(
+    fontFamily: 'monospace',
+    color: _C.textSecondary,
+    fontSize: 10,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 1.6,
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// WIDGET
+// ──────────────────────────────────────────────────────────────────────────────
+
 class InstancesSheet extends StatefulWidget {
   final Creature species;
   final FactionTheme theme;
   final List<String> selectedInstanceIds;
   final void Function(CreatureInstance inst) onTap;
   final bool selectionMode;
-
-  /// feeding screen can force this to InstanceDetailMode.stats
   final InstanceDetailMode initialDetailMode;
-
-  /// HARVEST MODE: if provided, show harvest stats instead of genetics/stats modes
   final Duration? harvestDuration;
-  final List<String>? busyInstanceIds; // instances currently on jobs
-
-  /// if true, checks stamina before allowing selection (for harvest/jobs)
+  final List<String>? busyInstanceIds;
   final bool requireStamina;
 
   const InstancesSheet({
@@ -57,27 +78,23 @@ class InstancesSheet extends StatefulWidget {
 }
 
 class _InstancesSheetState extends State<InstancesSheet> {
+  ForgeTokens get t => ForgeTokens(widget.theme);
+
   SortBy _sortBy = SortBy.newest;
 
   late TextEditingController _searchController;
 
-  // search / filter state
   bool _filtersOpen = false;
   String _searchText = '';
-  String? _filterSize; // null = Any
-  String? _filterTint; // null = Any
-  String? _filterNature; // null = Any
+  String? _filterSize;
+  String? _filterTint;
+  String? _filterNature;
   bool _filterPrismatic = false;
-
-  // Variant cycle uses display names + special sentinels
-  // null = Any; '__NON__' = Non-variant; others = 'Volcanic' | 'Oceanic' | 'Earthen' | 'Verdant' | 'Arcane'
   String? _filterVariant;
 
-  // ordered cycles
   late final List<String> _sizeCycle = sizeLabels.keys.toList(growable: false);
   late final List<String> _tintCycle = tintLabels.keys.toList(growable: false);
 
-  // ElementalGroup display names:
   static const List<String> _variantGroups = [
     'Volcanic',
     'Oceanic',
@@ -85,16 +102,13 @@ class _InstancesSheetState extends State<InstancesSheet> {
     'Verdant',
     'Arcane',
   ];
-
-  // cycle order: Any → groups → Any
   late final List<String?> _variantCycle = <String?>[null, ..._variantGroups];
 
-  // helpers
   String? _cycleNextOrAny(String? current, List<String> ordered) {
     if (ordered.isEmpty) return null;
-    if (current == null) return ordered.first; // Any → first
+    if (current == null) return ordered.first;
     final i = ordered.indexOf(current);
-    if (i < 0 || i == ordered.length - 1) return null; // last → Any
+    if (i < 0 || i == ordered.length - 1) return null;
     return ordered[i + 1];
   }
 
@@ -106,10 +120,8 @@ class _InstancesSheetState extends State<InstancesSheet> {
 
   late SettingsDao _settings;
   async.Timer? _saveTimer;
-
   String get _prefsKey => 'instances_filters';
 
-  // persist the minimal UI state
   Map<String, dynamic> _toPrefs() => {
     'sortBy': _sortBy.name,
     'filtersOpen': _filtersOpen,
@@ -118,8 +130,8 @@ class _InstancesSheetState extends State<InstancesSheet> {
     'filterTint': _filterTint,
     'filterNature': _filterNature,
     'filterPrismatic': _filterPrismatic,
-    'filterVariant': _filterVariant, // null | group name
-    'detailMode': _detailMode.name, // info | stats | genetics
+    'filterVariant': _filterVariant,
+    'detailMode': _detailMode.name,
   };
 
   void _fromPrefs(Map<String, dynamic> p) {
@@ -140,7 +152,6 @@ class _InstancesSheetState extends State<InstancesSheet> {
     );
   }
 
-  // debounce saves so we’re not hammering the DB
   void _queueSave() {
     _saveTimer?.cancel();
     _saveTimer = async.Timer(const Duration(milliseconds: 300), () async {
@@ -148,15 +159,12 @@ class _InstancesSheetState extends State<InstancesSheet> {
     });
   }
 
-  // convenience so every mutation auto-saves
   void _mutate(VoidCallback fn) {
     setState(fn);
     _queueSave();
   }
 
-  // STATS vs GENETICS
   late InstanceDetailMode _detailMode;
-
   bool get _isHarvestMode => widget.harvestDuration != null;
 
   @override
@@ -169,18 +177,13 @@ class _InstancesSheetState extends State<InstancesSheet> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // safe to read providers here
     _settings = context.read<AlchemonsDatabase>().settingsDao;
-
     () async {
       final raw = await _settings.getSetting(_prefsKey);
       if (!mounted || raw == null || raw.isEmpty) return;
       final map = jsonDecode(raw) as Map<String, dynamic>;
-      setState(() => _fromPrefs(map)); // no save on restore
-      if (mounted) {
-        // Must be done after setState runs and restores _searchText
-        _searchController.text = _searchText;
-      }
+      setState(() => _fromPrefs(map));
+      if (mounted) _searchController.text = _searchText;
     }();
   }
 
@@ -194,20 +197,19 @@ class _InstancesSheetState extends State<InstancesSheet> {
   Map<String, String> _buildNatureOptions() {
     final Map<String, String> out = {};
     for (final def in NatureCatalog.all) {
-      final String id = def.id;
-      final String display = id.toUpperCase();
-      out[id] = display;
+      out[def.id] = def.id.toUpperCase();
     }
     final sorted = out.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
     return Map<String, String>.fromEntries(sorted);
   }
 
+  // ── BUILD ────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
     final stamina = context.read<StaminaService>();
-
     final scrollController = SheetBodyWrapper.maybeOf(context);
 
     return Scaffold(
@@ -218,10 +220,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
         initialData: const [],
         child: Consumer<List<CreatureInstance>>(
           builder: (_, instances, __) {
-            // 1. species instances
+            // ── Filtering + sorting (unchanged logic) ─────────────────────
             var visible = [...instances];
 
-            // Filter out busy instances if in harvest mode
             if (_isHarvestMode && widget.busyInstanceIds != null) {
               visible = visible
                   .where(
@@ -231,100 +232,72 @@ class _InstancesSheetState extends State<InstancesSheet> {
                   .toList();
             }
 
-            // 2. text search
             if (_searchText.trim().isNotEmpty) {
               final query = _searchText.trim().toLowerCase();
               visible = visible.where((inst) {
                 final g = decodeGenetics(inst.geneticsJson);
-                final sizeVar = g?.get('size') ?? '';
-                final tintVar = g?.get('tinting') ?? '';
-                final nat = inst.natureId ?? '';
-
                 final tokens = <String>[
-                  sizeLabels[sizeVar] ?? sizeVar,
-                  tintLabels[tintVar] ?? tintVar,
-                  nat,
+                  sizeLabels[g?.get('size') ?? ''] ?? '',
+                  tintLabels[g?.get('tinting') ?? ''] ?? '',
+                  inst.natureId ?? '',
                   'LV ${inst.level}',
                   inst.instanceId,
                   inst.nickname ?? inst.baseId,
                 ].join(' ').toLowerCase();
-
                 return tokens.contains(query);
               }).toList();
             }
 
-            // 3. advanced filters
             visible = visible.where((inst) {
-              if (_filterPrismatic && inst.isPrismaticSkin != true) {
+              if (_filterPrismatic && inst.isPrismaticSkin != true)
                 return false;
-              }
-
-              // VARIANT: match against display name (case-insensitive)
-              final hasVariant =
-                  (inst.variantFaction != null &&
-                  inst.variantFaction!.isNotEmpty);
+              final hasVariant = inst.variantFaction?.isNotEmpty == true;
               if (_filterVariant == '__NON__') {
-                if (hasVariant) return false; // only non-variant
+                if (hasVariant) return false;
               } else if (_filterVariant != null) {
                 if (!hasVariant) return false;
-                final vf = inst.variantFaction!.trim().toLowerCase();
-                if (vf != _filterVariant!.toLowerCase()) {
-                  return false; // exact group
-                }
+                if (inst.variantFaction!.trim().toLowerCase() !=
+                    _filterVariant!.toLowerCase())
+                  return false;
               }
-
               final g = decodeGenetics(inst.geneticsJson);
-              final sizeGene = g?.get('size');
-              final tintGene = g?.get('tinting');
-
-              if (_filterSize != null && sizeGene != _filterSize) return false;
-              if (_filterTint != null && tintGene != _filterTint) return false;
-              if (_filterNature != null && inst.natureId != _filterNature) {
+              if (_filterSize != null && g?.get('size') != _filterSize)
                 return false;
-              }
-
+              if (_filterTint != null && g?.get('tinting') != _filterTint)
+                return false;
+              if (_filterNature != null && inst.natureId != _filterNature)
+                return false;
               return true;
             }).toList();
 
-            // 4. sort (client-side for this sheet)
             switch (_sortBy) {
               case SortBy.newest:
                 visible.sort(
                   (a, b) => b.createdAtUtcMs.compareTo(a.createdAtUtcMs),
                 );
-                break;
               case SortBy.oldest:
                 visible.sort(
                   (a, b) => a.createdAtUtcMs.compareTo(b.createdAtUtcMs),
                 );
-                break;
               case SortBy.levelHigh:
                 visible.sort((a, b) => b.level.compareTo(a.level));
-                break;
               case SortBy.levelLow:
                 visible.sort((a, b) => a.level.compareTo(b.level));
-                break;
               case SortBy.statBeauty:
                 visible.sort((a, b) => b.statBeauty.compareTo(a.statBeauty));
-                break;
               case SortBy.statSpeed:
                 visible.sort((a, b) => b.statSpeed.compareTo(a.statSpeed));
-                break;
               case SortBy.statStrength:
                 visible.sort(
                   (a, b) => b.statStrength.compareTo(a.statStrength),
                 );
-                break;
               case SortBy.statIntelligence:
                 visible.sort(
                   (a, b) => b.statIntelligence.compareTo(a.statIntelligence),
                 );
-                break;
             }
 
-            // is "Filters" pill active?
             final hasFiltersActive = _isHarvestMode
-                // In harvest mode, we only care about size & nature (+ search/sort)
                 ? _filterSize != null ||
                       _filterNature != null ||
                       _searchText.trim().isNotEmpty ||
@@ -340,224 +313,65 @@ class _InstancesSheetState extends State<InstancesSheet> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ===== SEARCH + TOP BAR =====
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    children: [
-                      // search box
-                      Expanded(
-                        child: Container(
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: widget.theme.surfaceAlt,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: widget.theme.text.withOpacity(.35),
-                              width: 1,
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.search_rounded,
-                                size: 14,
-                                color: widget.theme.textMuted,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: TextField(
-                                  controller: _searchController,
-                                  style: TextStyle(
-                                    color: widget.theme.text,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  decoration: InputDecoration(
-                                    isCollapsed: true,
-                                    border: InputBorder.none,
-                                    hintText: 'Search traits / nature / LV',
-                                    hintStyle: TextStyle(
-                                      color: widget.theme.textMuted.withOpacity(
-                                        .6,
-                                      ),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  onChanged: (val) => _mutate(() {
-                                    _searchText = val;
-                                  }),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                // ── TOP CHROME ───────────────────────────────────────────
+                _buildTopBar(hasFiltersActive),
 
-                      const SizedBox(width: 8),
-
-                      // Only show STATS/GENETICS toggle if NOT in harvest mode
-                      if (!_isHarvestMode)
-                        GestureDetector(
-                          onTap: () => _mutate(() {
-                            _detailMode = switch (_detailMode) {
-                              InstanceDetailMode.info =>
-                                InstanceDetailMode.stats,
-                              InstanceDetailMode.stats =>
-                                InstanceDetailMode.genetics,
-                              InstanceDetailMode.genetics =>
-                                InstanceDetailMode.info,
-                            };
-                          }),
-                          child: Container(
-                            height: 34,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            decoration: BoxDecoration(
-                              color: widget.theme.primary.withOpacity(.18),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: widget.theme.primary.withOpacity(.5),
-                                width: 1,
-                              ),
-                            ),
-                            child: Center(
-                              child: Text(
-                                _detailMode == InstanceDetailMode.info
-                                    ? 'INFO'
-                                    : _detailMode == InstanceDetailMode.stats
-                                    ? 'STATS'
-                                    : 'GENETICS',
-                                style: TextStyle(
-                                  color: widget.theme.text,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: .5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (!_isHarvestMode) const SizedBox(width: 8),
-
-                      // Filters pill
-                      GestureDetector(
-                        onTap: () => _mutate(() {
-                          _filtersOpen = !_filtersOpen;
-                        }),
-                        child: Container(
-                          height: 34,
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            color: hasFiltersActive
-                                ? widget.theme.primary.withOpacity(.18)
-                                : widget.theme.surfaceAlt,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: hasFiltersActive
-                                  ? widget.theme.primary.withOpacity(.5)
-                                  : widget.theme.text.withOpacity(.35),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.filter_list_rounded,
-                                size: 14,
-                                color: hasFiltersActive
-                                    ? widget.theme.primary
-                                    : widget.theme.text,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Filters',
-                                style: TextStyle(
-                                  color: hasFiltersActive
-                                      ? widget.theme.primary
-                                      : widget.theme.text,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                _filtersOpen
-                                    ? Icons.keyboard_arrow_up_rounded
-                                    : Icons.keyboard_arrow_down_rounded,
-                                size: 16,
-                                color: hasFiltersActive
-                                    ? widget.theme.primary
-                                    : widget.theme.text,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // ===== FILTER PANEL =====
+                // ── FILTER PANEL ─────────────────────────────────────────
                 if (_filtersOpen) ...[
-                  const SizedBox(height: 10),
-                  InstanceFiltersPanel(
-                    theme: widget.theme,
-                    sortBy: _sortBy,
-                    onSortChanged: (s) => _mutate(() => _sortBy = s),
-                    harvestMode: _isHarvestMode,
-
-                    filterPrismatic: _filterPrismatic,
-                    onTogglePrismatic: () =>
-                        _mutate(() => _filterPrismatic = !_filterPrismatic),
-
-                    sizeValueText: _filterSize == null
-                        ? null
-                        : (sizeLabels[_filterSize] ?? _filterSize!),
-                    onCycleSize: () => _mutate(
-                      () => _filterSize = _cycleNextOrAny(
-                        _filterSize,
-                        _sizeCycle,
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: InstanceFiltersPanel(
+                      theme: widget.theme,
+                      sortBy: _sortBy,
+                      onSortChanged: (s) => _mutate(() => _sortBy = s),
+                      harvestMode: _isHarvestMode,
+                      filterPrismatic: _filterPrismatic,
+                      onTogglePrismatic: () =>
+                          _mutate(() => _filterPrismatic = !_filterPrismatic),
+                      sizeValueText: _filterSize == null
+                          ? null
+                          : (sizeLabels[_filterSize] ?? _filterSize!),
+                      onCycleSize: () => _mutate(
+                        () => _filterSize = _cycleNextOrAny(
+                          _filterSize,
+                          _sizeCycle,
+                        ),
                       ),
-                    ),
-
-                    tintValueText: _filterTint == null
-                        ? null
-                        : (tintLabels[_filterTint] ?? _filterTint!),
-                    onCycleTint: () => _mutate(
-                      () => _filterTint = _cycleNextOrAny(
-                        _filterTint,
-                        _tintCycle,
+                      tintValueText: _filterTint == null
+                          ? null
+                          : (tintLabels[_filterTint] ?? _filterTint!),
+                      onCycleTint: () => _mutate(
+                        () => _filterTint = _cycleNextOrAny(
+                          _filterTint,
+                          _tintCycle,
+                        ),
                       ),
+                      variantValueText: _filterVariant,
+                      onCycleVariant: () => _mutate(
+                        () =>
+                            _filterVariant = _cycleNextVariant(_filterVariant),
+                      ),
+                      filterNature: _filterNature,
+                      onPickNature: (val) => _mutate(() => _filterNature = val),
+                      natureOptions: _buildNatureOptions(),
+                      onClearAll: () => _mutate(() {
+                        _filterPrismatic = false;
+                        _filterVariant = null;
+                        _filterSize = null;
+                        _filterTint = null;
+                        _filterNature = null;
+                        _searchText = '';
+                        _searchController.clear();
+                        _sortBy = SortBy.newest;
+                      }),
                     ),
-
-                    variantValueText: _filterVariant,
-                    onCycleVariant: () => _mutate(
-                      () => _filterVariant = _cycleNextVariant(_filterVariant),
-                    ),
-
-                    filterNature: _filterNature,
-                    onPickNature: (val) => _mutate(() => _filterNature = val),
-                    natureOptions: _buildNatureOptions(),
-
-                    onClearAll: () => _mutate(() {
-                      _filterPrismatic = false;
-                      _filterVariant = null;
-                      _filterSize = null;
-                      _filterTint = null;
-                      _filterNature = null;
-                      _searchText = '';
-                      _searchController.clear();
-                      _sortBy = SortBy.newest;
-                    }),
                   ),
                 ],
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
 
-                // ===== GRID LIST =====
+                // ── GRID ─────────────────────────────────────────────────
                 Expanded(
                   child: visible.isEmpty
                       ? InstancesEmptyState(
@@ -567,29 +381,26 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       : GridView.builder(
                           controller: scrollController,
                           physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 16),
                           itemCount: visible.length,
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 2,
                                 childAspectRatio: 1,
-                                crossAxisSpacing: 8,
-                                mainAxisSpacing: 8,
+                                crossAxisSpacing: 6,
+                                mainAxisSpacing: 6,
                               ),
                           itemBuilder: (_, i) {
                             final inst = visible[i];
-
-                            // Check if selected
                             final isSelected = widget.selectedInstanceIds
                                 .contains(inst.instanceId);
-
-                            // Find selection number (only for first 3)
-                            int? selectionNumber;
-                            final index = widget.selectedInstanceIds.indexOf(
+                            final selIndex = widget.selectedInstanceIds.indexOf(
                               inst.instanceId,
                             );
-                            if (index >= 0 && index < 3) {
-                              selectionNumber = index + 1;
-                            }
+                            final selectionNumber =
+                                (selIndex >= 0 && selIndex < 3)
+                                ? selIndex + 1
+                                : null;
 
                             return InstanceCard(
                               key: ValueKey(inst.instanceId),
@@ -603,76 +414,38 @@ class _InstancesSheetState extends State<InstancesSheet> {
                               calculateHarvestRate: _isHarvestMode
                                   ? (inst) => computeHarvestRatePerMinute(
                                       inst,
-                                      hasMatchingElement:
-                                          true, // already biome-filtered
+                                      hasMatchingElement: true,
                                     )
                                   : null,
                               onTap: () async {
-                                // Only check stamina if required
                                 if (widget.requireStamina) {
-                                  // Get the current DB row
                                   final row = await db.creatureDao.getInstance(
                                     inst.instanceId,
                                   );
                                   if (row == null) return;
-
-                                  // Use computeState instead of refreshAndGet to match UI calculation
                                   final state = stamina.computeState(row);
-                                  final canUse = state.bars >= 1;
-
-                                  if (!canUse) {
+                                  if (state.bars < 1) {
                                     final now = DateTime.now().toUtc();
                                     final next = state.nextTickUtc ?? now;
-                                    final diff = next.difference(now);
-                                    final mins = diff.inMinutes.clamp(0, 999);
-
+                                    final mins = next
+                                        .difference(now)
+                                        .inMinutes
+                                        .clamp(0, 999);
                                     if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.hourglass_bottom_rounded,
-                                              color: Colors.white,
-                                              size: 18,
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Text(
-                                                'Specimen is resting — next stamina in ~${mins}m',
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        backgroundColor: Colors.orange,
-                                        behavior: SnackBarBehavior.floating,
-                                        duration: const Duration(seconds: 2),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                        margin: const EdgeInsets.all(16),
-                                      ),
-                                    );
+                                    ScaffoldMessenger.of(
+                                      context,
+                                    ).showSnackBar(_staminaSnackBar(mins));
                                     return;
                                   }
                                 }
-
                                 widget.onTap(inst);
                               },
-                              onLongPress: () {
-                                CreatureDetailsDialog.show(
-                                  context,
-                                  widget.species,
-                                  true,
-                                  instanceId: inst.instanceId,
-                                );
-                              },
+                              onLongPress: () => CreatureDetailsDialog.show(
+                                context,
+                                widget.species,
+                                true,
+                                instanceId: inst.instanceId,
+                              ),
                             );
                           },
                         ),
@@ -684,4 +457,227 @@ class _InstancesSheetState extends State<InstancesSheet> {
       ),
     );
   }
+
+  // ── TOP CHROME ─────────────────────────────────────────────────────────────
+
+  Widget _buildTopBar(bool hasFiltersActive) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          // Search field
+          Expanded(child: _buildSearchField()),
+          const SizedBox(width: 6),
+          // Detail mode toggle (non-harvest only)
+          if (!_isHarvestMode) ...[
+            _buildDetailModeToggle(),
+            const SizedBox(width: 6),
+          ],
+          // Filters toggle
+          _buildFiltersToggle(hasFiltersActive),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return Container(
+      height: 36,
+      decoration: BoxDecoration(
+        color: t.bg2,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: t.borderDim),
+      ),
+      child: Row(
+        children: [
+          Padding(
+            padding: EdgeInsets.only(left: 10),
+            child: Icon(Icons.search_rounded, size: 14, color: t.textMuted),
+          ),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: t.textPrimary,
+                fontSize: 12,
+                letterSpacing: 0.4,
+              ),
+              decoration: InputDecoration(
+                isCollapsed: true,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 10,
+                ),
+                hintText: 'SEARCH TRAITS / NATURE / LV',
+                hintStyle: _T.label.copyWith(fontSize: 9, letterSpacing: 0.8),
+              ),
+              onChanged: (val) => _mutate(() => _searchText = val),
+            ),
+          ),
+          if (_searchText.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                _mutate(() => _searchText = '');
+              },
+              child: Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: Icon(Icons.close_rounded, size: 13, color: t.textMuted),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailModeToggle() {
+    final label = switch (_detailMode) {
+      InstanceDetailMode.info => 'INFO',
+      InstanceDetailMode.stats => 'STATS',
+      InstanceDetailMode.genetics => 'GENES',
+    };
+    // Each mode gets a distinct accent so it's not just a text change
+    final color = switch (_detailMode) {
+      InstanceDetailMode.info => t.textSecondary,
+      InstanceDetailMode.stats => t.amberBright,
+      InstanceDetailMode.genetics => const Color(0xFF34D399), // teal-green
+    };
+
+    return GestureDetector(
+      onTap: () => _mutate(() {
+        _detailMode = switch (_detailMode) {
+          InstanceDetailMode.info => InstanceDetailMode.stats,
+          InstanceDetailMode.stats => InstanceDetailMode.genetics,
+          InstanceDetailMode.genetics => InstanceDetailMode.info,
+        };
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: t.bg3,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: _detailMode == InstanceDetailMode.info
+                ? t.borderDim
+                : color.withOpacity(0.5),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFiltersToggle(bool hasFiltersActive) {
+    return GestureDetector(
+      onTap: () => _mutate(() => _filtersOpen = !_filtersOpen),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: hasFiltersActive ? t.amber.withOpacity(0.12) : t.bg2,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: hasFiltersActive ? t.borderAccent : t.borderDim,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.filter_list_rounded,
+              size: 14,
+              color: hasFiltersActive ? t.amberBright : t.textSecondary,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'FILTER',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.4,
+                color: hasFiltersActive ? t.amberBright : t.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              _filtersOpen
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded,
+              size: 14,
+              color: hasFiltersActive ? t.amberBright : t.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── STAMINA SNACK BAR ──────────────────────────────────────────────────────
+
+  SnackBar _staminaSnackBar(int mins) => SnackBar(
+    content: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: t.bg1,
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: Icon(
+            Icons.hourglass_bottom_rounded,
+            color: t.amberBright,
+            size: 14,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'SPECIMEN RESTING  ·  NEXT STAMINA ~${mins}M',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: t.textPrimary,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+      ],
+    ),
+    backgroundColor: t.amber,
+    behavior: SnackBarBehavior.floating,
+    duration: const Duration(seconds: 2),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+    margin: const EdgeInsets.all(14),
+  );
 }

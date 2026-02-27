@@ -48,8 +48,7 @@ class GuardianSlotIndicator extends PositionComponent
     final paintGlow = Paint()
       ..color = Colors.cyanAccent.withOpacity(alphaPulse)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      ..strokeWidth = 3;
 
     canvas.drawCircle(Offset.zero, drawRadius * scale, paintGlow);
 

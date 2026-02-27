@@ -1,7 +1,23 @@
 // lib/screens/boss_battle_screen.dart
+//
+// REDESIGNED BOSS BATTLE SCREEN
+// Aesthetic: Scorched Forge — matches survival_game_screen redesign
+// Dark metal, amber/gold reagent accents, monospace tactical typography
+//
+// NOTE (IMPORTANT):
+// BossProgressNotifier stores progress using synthetic IDs:
+//   boss_001 ... boss_017
+// This screen uses that same key format when checking defeats / saving wins.
+//
+// SEQUENTIAL UNLOCK RULE:
+// - Boss 1 is always unlocked
+// - Boss N unlocks only after Boss (N-1) is defeated
+//
+
 import 'package:alchemons/data/boss_data.dart';
 import 'package:alchemons/models/boss/boss_model.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/providers/selected_party.dart';
@@ -11,450 +27,427 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/show_quick_instance_dialog.dart';
+import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/animations/loot_open_popup.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'dart:math';
+
+// ──────────────────────────────────────────────────────────────────────────────
+// DESIGN TOKENS  (shared aesthetic with survival_game_screen)
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _C {
+  static const bg0 = Color(0xFF080A0E);
+  static const bg1 = Color(0xFF0E1117);
+  static const bg2 = Color(0xFF141820);
+  static const bg3 = Color(0xFF1C2230);
+
+  static const amber = Color(0xFFD97706);
+  static const amberBright = Color(0xFFF59E0B);
+  static const amberGlow = Color(0xFFFFB020);
+  static const amberDim = Color(0xFF92400E);
+
+  static const teal = Color(0xFF0EA5E9);
+  static const tealDim = Color(0xFF0C4A6E);
+
+  static const textPrimary = Color(0xFFE8DCC8);
+  static const textSecondary = Color(0xFF8A7B6A);
+  static const textMuted = Color(0xFF4A3F35);
+
+  static const danger = Color(0xFFC0392B);
+  static const dangerDim = Color(0xFF7B241C);
+  static const success = Color(0xFF16A34A);
+
+  static const borderDim = Color(0xFF252D3A);
+  static const borderMid = Color(0xFF3A3020);
+  static const borderAccent = Color(0xFF6B4C20);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// TYPOGRAPHY
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _T {
+  static const heading = TextStyle(
+    fontFamily: 'monospace',
+    color: _C.textPrimary,
+    fontSize: 13,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 2.0,
+  );
+
+  static const label = TextStyle(
+    fontFamily: 'monospace',
+    color: _C.textSecondary,
+    fontSize: 10,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 1.6,
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SHARED SMALL WIDGETS
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _EtchedDivider extends StatelessWidget {
+  final String? label;
+  const _EtchedDivider({this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Container(height: 1, color: _C.borderMid)),
+        if (label != null) ...[
+          const SizedBox(width: 10),
+          Text(label!, style: _T.label),
+          const SizedBox(width: 10),
+        ],
+        Expanded(child: Container(height: 1, color: _C.borderMid)),
+      ],
+    );
+  }
+}
+
+/// Corner-notch plate box
+class _PlateBox extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final Color? accentColor;
+  final bool highlight;
+
+  const _PlateBox({
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+    this.accentColor,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = accentColor ?? _C.amber;
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: _C.bg2,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: highlight ? accent.withOpacity(0.55) : _C.borderDim,
+          width: highlight ? 1.5 : 1,
+        ),
+        boxShadow: highlight
+            ? [BoxShadow(color: accent.withOpacity(0.10), blurRadius: 16)]
+            : null,
+      ),
+      child: Stack(
+        children: [
+          child,
+          Positioned(
+            top: 0,
+            left: 0,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: accent.withOpacity(0.5), width: 1.5),
+                  left: BorderSide(color: accent.withOpacity(0.5), width: 1.5),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: accent.withOpacity(0.5),
+                    width: 1.5,
+                  ),
+                  right: BorderSide(color: accent.withOpacity(0.5), width: 1.5),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Primary / secondary forge button
+class _ForgeButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+  final bool loading;
+  final bool secondary;
+  final Color? color;
+
+  const _ForgeButton({
+    required this.label,
+    this.icon,
+    this.onTap,
+    this.loading = false,
+    this.secondary = false,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDisabled = onTap == null || loading;
+    final c = color ?? _C.amber;
+    return GestureDetector(
+      onTap: isDisabled ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        height: secondary ? 42 : 52,
+        decoration: BoxDecoration(
+          color: secondary ? Colors.transparent : (isDisabled ? _C.bg3 : c),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: secondary
+                ? _C.borderAccent.withOpacity(0.6)
+                : (isDisabled ? _C.borderDim : c),
+            width: 1,
+          ),
+          boxShadow: (!secondary && !isDisabled)
+              ? [
+                  BoxShadow(
+                    color: c.withOpacity(0.3),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (loading)
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: secondary ? _C.textSecondary : _C.bg0,
+                ),
+              )
+            else
+              Icon(
+                icon,
+                size: secondary ? 15 : 17,
+                color: secondary
+                    ? _C.textSecondary
+                    : (isDisabled ? _C.textMuted : _C.bg0),
+              ),
+            const SizedBox(width: 8),
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: secondary ? 11 : 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.8,
+                color: secondary
+                    ? _C.textSecondary
+                    : (isDisabled ? _C.textMuted : _C.bg0),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Inline stat cell used in boss details and history
+class _FlatStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+  const _FlatStat({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Row(
+        children: [
+          Icon(icon, size: 11, color: color.withOpacity(0.75)),
+          const SizedBox(width: 5),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: _T.label.copyWith(fontSize: 8, letterSpacing: 0.8),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: color,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScanlinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = Colors.black.withOpacity(0.07);
+    for (double y = 0; y < size.height; y += 3) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_) => false;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────────────────────────────────────────
+
+String _bossProgressIdForOrder(int order) =>
+    'boss_${order.toString().padLeft(3, '0')}';
+
+String _dailyRematchKeyForBoss(int order) =>
+    'boss_daily_rematch_date_utc_$order';
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MAIN SCREEN
+// ──────────────────────────────────────────────────────────────────────────────
 
 class BossBattleScreen extends StatefulWidget {
   const BossBattleScreen({super.key});
-
   @override
   State<BossBattleScreen> createState() => _BossBattleScreenState();
 }
 
-// Removed SingleTickerProviderStateMixin as pulsing animation is gone
-class _BossBattleScreenState extends State<BossBattleScreen> {
-  // Removed AnimationController and Animation
+class _BossBattleScreenState extends State<BossBattleScreen>
+    with TickerProviderStateMixin {
+  late final PageController _bossPageController;
+  double _bossPage = 0;
+  bool _didInitialSync = false;
 
-  // Removed initState and dispose methods
+  // Tracks which boss orders were rematched this session (so the cooldown
+  // shows instantly without waiting for the FutureBuilder to re-query DB).
+  final Set<int> _rematchedOrders = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _bossPageController = PageController(viewportFraction: 0.88);
+    _bossPageController.addListener(() {
+      setState(() => _bossPage = _bossPageController.page ?? 0);
+    });
+  }
+
+  @override
+  void dispose() {
+    _bossPageController.dispose();
+    super.dispose();
+  }
+
+  bool _isUnlocked(BossProgressNotifier progress, int order) {
+    if (order <= 1) return true;
+    return progress.isBossDefeated(_bossProgressIdForOrder(order - 1));
+  }
+
+  int _highestUnlockedOrder(BossProgressNotifier progress) {
+    for (int order = 2; order <= 17; order++) {
+      if (!_isUnlocked(progress, order)) return order - 1;
+    }
+    return 17;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
     final progress = context.watch<BossProgressNotifier>();
     final party = context.watch<SelectedPartyNotifier>();
 
     if (!progress.isLoaded) {
-      return ParticleBackgroundScaffold(
-        whiteBackground: theme.brightness == Brightness.light,
-        body: Center(child: CircularProgressIndicator(color: theme.primary)),
+      return const Scaffold(
+        backgroundColor: _C.bg0,
+        body: Center(child: CircularProgressIndicator(color: _C.amber)),
       );
     }
 
-    final currentBoss = BossRepository.getBossByOrder(
-      progress.currentBossOrder,
-    );
-
+    // Derive currentBoss from the carousel's visual page, not progress.currentBossOrder.
+    // progress.currentBossOrder auto-advances on win, which would mismatch the
+    // carousel position until the animation completes.
+    final bosses = BossRepository.allBosses;
+    final pageIndex = _bossPage.round().clamp(0, bosses.length - 1);
+    final currentBoss = bosses.isNotEmpty ? bosses[pageIndex] : null;
     if (currentBoss == null) {
-      return ParticleBackgroundScaffold(
-        whiteBackground: theme.brightness == Brightness.light,
+      return const Scaffold(
+        backgroundColor: _C.bg0,
         body: Center(
-          child: Text('Boss not found', style: TextStyle(color: theme.text)),
+          child: Text(
+            'Boss not found',
+            style: TextStyle(color: _C.textSecondary),
+          ),
         ),
       );
     }
 
-    return ParticleBackgroundScaffold(
-      whiteBackground: theme.brightness == Brightness.light,
-      body: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(theme, progress),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 12),
-                      _buildProgressBar(theme, progress),
-                      const SizedBox(height: 20),
-                      _buildBossCard(theme, currentBoss, progress),
-                      const SizedBox(height: 20),
-                      _buildPartySection(theme, party),
-                      const SizedBox(height: 20),
-                      _buildActionButtons(theme, currentBoss, party, progress),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_didInitialSync) return;
+      _didInitialSync = true;
+      final targetOrder = _highestUnlockedOrder(progress);
+      if (targetOrder != progress.currentBossOrder) {
+        progress.setCurrentBoss(targetOrder);
+      }
+      if (_bossPageController.hasClients) {
+        _bossPageController.jumpToPage(targetOrder - 1);
+      }
+    });
 
-  Widget _buildHeader(FactionTheme theme, BossProgressNotifier progress) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: theme.surface,
-        border: Border(bottom: BorderSide(color: theme.border, width: 1)),
-      ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.of(context).pop();
-            },
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.border, width: 1),
-              ),
-              child: Icon(Icons.arrow_back, color: theme.text, size: 18),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'BOSS GAUNTLET',
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                Text(
-                  'Boss ${progress.currentBossOrder} of 17',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: () => _showBossHistory(theme, progress),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.border, width: 1),
-              ),
-              child: Icon(Icons.history, color: theme.text, size: 18),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressBar(FactionTheme theme, BossProgressNotifier progress) {
-    final defeated = progress.totalBossesDefeated;
-    final progressPercent = defeated / 17;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.border, width: 1),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    'CAMPAIGN PROGRESS',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                '$defeated / 17',
-                style: TextStyle(
-                  color: Colors.amber.shade700,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: Container(
-              height: 10,
-              decoration: BoxDecoration(
-                color: theme.surfaceAlt,
-                border: Border.all(
-                  color: theme.border.withOpacity(0.5),
-                  width: 1,
-                ),
-              ),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: FractionallySizedBox(
-                  widthFactor: progressPercent,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.amber.shade800, Colors.amber.shade600],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBossCard(
-    FactionTheme theme,
-    Boss boss,
-    BossProgressNotifier progress,
-  ) {
-    final defeatCount = progress.getDefeatCount(boss.id);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: theme.border.withOpacity(0.4), width: 1),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    return Scaffold(
+      backgroundColor: _C.bg0,
+      body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // HEADER ----------------------------------------------------------------------
-            Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                if (defeatCount > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade700,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.check_circle,
-                          color: Colors.white,
-                          size: 11,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          'Defeated x$defeatCount',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            // ART ----------------------------------------------------------------------
-            Container(
-              height: 180, // shorter so screen fits
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [
-                    boss.elementColor.withOpacity(0.2),
-                    Colors.transparent,
-                  ],
-                  radius: 0.8,
-                ),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: theme.border, width: 1),
-              ),
-              child: Center(
-                child: Icon(
-                  boss.elementIcon,
-                  size: 64,
-                  color: boss.elementColor,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // NAME + TAGS ----------------------------------------------------------------------
-            Column(
-              children: [
-                Text(
-                  boss.name,
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 6),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+            _buildHeader(progress),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Element tag
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: boss.elementColor,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(boss.elementIcon, color: Colors.white, size: 10),
-                          const SizedBox(width: 4),
-                          Text(
-                            boss.element,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(width: 6),
-
-                    // Level
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade700,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'Lv. ${boss.recommendedLevel}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: 12),
+                    _buildBossCarousel(progress),
+                    const SizedBox(height: 20),
+                    _buildBossDetails(currentBoss, progress),
+                    const SizedBox(height: 16),
+                    _buildPartySection(party),
+                    const SizedBox(height: 16),
+                    _buildActionButtons(currentBoss, party, progress),
+                    const SizedBox(height: 28),
                   ],
                 ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            // STATS (4) ----------------------------------------------------------------------
-            Row(
-              children: [
-                Expanded(
-                  child: _BossStat(
-                    icon: Icons.favorite,
-                    label: 'HP',
-                    value: boss.hp.toString(),
-                    color: Colors.red.shade300,
-                    theme: theme,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _BossStat(
-                    icon: Icons.flash_on,
-                    label: 'ATK',
-                    value: boss.atk.toString(),
-                    color: Colors.orange.shade300,
-                    theme: theme,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _BossStat(
-                    icon: Icons.shield,
-                    label: 'DEF',
-                    value: boss.def.toString(),
-                    color: Colors.blue.shade300,
-                    theme: theme,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _BossStat(
-                    icon: Icons.speed,
-                    label: 'SPD',
-                    value: boss.spd.toString(),
-                    color: Colors.cyan.shade300,
-                    theme: theme,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // MOVESET (tight list) ----------------------------------------------------------------------
-            Text(
-              'MOVESET',
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-
-            const SizedBox(height: 6),
-
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  ...boss.moveset.map(
-                    (move) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _BossMoveCard(
-                        move: move,
-                        theme: theme,
-                        elementColor: boss.elementColor,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ],
@@ -463,217 +456,772 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
     );
   }
 
-  Widget _buildPartySection(FactionTheme theme, SelectedPartyNotifier party) {
-    final db = context.watch<AlchemonsDatabase>();
-    final repo = context.watch<CreatureCatalog>();
+  // ── HEADER ─────────────────────────────────────────────────────────────────
 
-    return StreamBuilder<List<CreatureInstance>>(
-      stream: db.creatureDao.watchAllInstances(),
-      builder: (context, snapshot) {
-        final allInstances = snapshot.data ?? [];
-        final selectedInstances = party.members
-            .map(
-              (m) => allInstances
-                  .where((inst) => inst.instanceId == m.instanceId)
-                  .cast<CreatureInstance?>()
-                  .firstOrNull,
-            )
-            .whereType<CreatureInstance>()
-            .toList();
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: theme.surface,
-            borderRadius: BorderRadius.circular(4),
-            // Replaced bright green border with subtle theme border
-            border: Border.all(color: theme.border, width: 1),
+  Widget _buildHeader(BossProgressNotifier progress) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _C.borderDim)),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _C.bg2,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: _C.borderDim),
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: _C.textSecondary,
+                size: 18,
+              ),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.groups_rounded,
-                    color: Colors.green.shade600,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'YOUR TEAM',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      // Darker, less "cheesy" green
-                      color: Colors.green.shade700,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '${selectedInstances.length} / 3',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      margin: const EdgeInsets.only(right: 8, bottom: 1),
+                      decoration: const BoxDecoration(
+                        color: _C.danger,
+                        shape: BoxShape.circle,
                       ),
+                    ),
+                    const Text('BOSS GAUNTLET', style: _T.heading),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                const Text('ELEMENTAL CHAMPIONS', style: _T.label),
+              ],
+            ),
+          ),
+          // Progress counter
+          GestureDetector(
+            onTap: () => _showBossHistory(progress),
+            child: _PlateBox(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              accentColor: _C.amberBright,
+              highlight: true,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.emoji_events_rounded,
+                    color: _C.amberBright,
+                    size: 14,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${progress.totalBossesDefeated} / 17',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: _C.amberBright,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              if (selectedInstances.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Text(
-                      'No team selected',
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                )
-              else
-                Row(
-                  children: List.generate(3, (i) {
-                    final inst = i < selectedInstances.length
-                        ? selectedInstances[i]
-                        : null;
-                    final creature = inst != null
-                        ? repo.getCreatureById(inst.baseId)
-                        : null;
-
-                    return Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(left: i == 0 ? 0 : 8),
-                        child: inst == null || creature == null
-                            ? _EmptyPartySlot(theme: theme)
-                            : _PartyMemberCard(
-                                instance: inst,
-                                creature: creature,
-                                theme: theme,
-                              ),
-                      ),
-                    );
-                  }),
-                ),
-            ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
-  Widget _buildActionButtons(
-    FactionTheme theme,
-    Boss boss,
-    SelectedPartyNotifier party,
-    BossProgressNotifier progress,
-  ) {
-    final hasTeam = party.members.isNotEmpty;
+  // ── BOSS CAROUSEL ───────────────────────────────────────────────────────────
 
+  Widget _buildBossCarousel(BossProgressNotifier progress) {
+    final bosses = BossRepository.allBosses;
     return Column(
       children: [
-        // Select Team Button
+        const _EtchedDivider(label: 'SELECT TARGET'),
+        const SizedBox(height: 14),
         SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () async {
-              final result = await Navigator.push<List<PartyMember>>(
-                context,
-                MaterialPageRoute(builder: (_) => const PartyPickerScreen()),
+          height: 192,
+          child: PageView.builder(
+            controller: _bossPageController,
+            itemCount: bosses.length,
+            onPageChanged: (index) {
+              final boss = bosses[index];
+              final unlocked = _isUnlocked(progress, boss.order);
+              if (!unlocked) {
+                final targetOrder = _highestUnlockedOrder(progress);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_bossPageController.hasClients) {
+                    _bossPageController.animateToPage(
+                      (targetOrder - 1).clamp(0, bosses.length - 1),
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                });
+                _showToast(
+                  'Defeat the previous boss to unlock.',
+                  icon: Icons.lock_rounded,
+                  color: _C.danger,
+                );
+                return;
+              }
+              progress.setCurrentBoss(boss.order);
+            },
+            itemBuilder: (context, index) {
+              final boss = bosses[index];
+              final distance = (index - _bossPage).abs().clamp(0.0, 1.0);
+              final scale = 1.0 - (0.07 * distance);
+              final opacity = 1.0 - (0.5 * distance);
+              final bossKey = _bossProgressIdForOrder(boss.order);
+              return Transform.scale(
+                scale: scale,
+                child: Opacity(
+                  opacity: opacity,
+                  child: _BossCarouselCard(
+                    boss: boss,
+                    isDefeated: progress.isBossDefeated(bossKey),
+                    isUnlocked: _isUnlocked(progress, boss.order),
+                    isCurrent: boss.order == progress.currentBossOrder,
+                  ),
+                ),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.surfaceAlt,
-              foregroundColor: theme.text,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                // Use theme.primary instead of hard-coded blue
-                side: BorderSide(color: theme.primary, width: 2),
-              ),
-              elevation: 0,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.group_add, size: 20, color: theme.primary),
-                const SizedBox(width: 8),
-                Text(
-                  hasTeam ? 'Change Team' : 'Select Team',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                    color: theme.primary,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
-        const SizedBox(height: 12),
-
-        // Battle Button
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: hasTeam
-                ? () => _startBattle(theme, boss, party, progress)
-                : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: hasTeam ? boss.elementColor : theme.border,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+        const SizedBox(height: 10),
+        // Pip bar
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(bosses.length, (i) {
+            final active = (i - _bossPage).abs() < 0.5;
+            final boss = bosses[i];
+            final defeated = progress.isBossDefeated(
+              _bossProgressIdForOrder(boss.order),
+            );
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              height: 3,
+              width: active ? 16 : 5,
+              decoration: BoxDecoration(
+                color: active
+                    ? boss.elementColor
+                    : (defeated
+                          ? _C.success.withOpacity(0.5)
+                          : _C.borderAccent),
+                borderRadius: BorderRadius.circular(2),
               ),
-              // Add a "mystical" glow shadow using the boss color
-              shadowColor: hasTeam ? boss.elementColor : Colors.transparent,
-              elevation: hasTeam ? 8 : 0,
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  // ── BOSS DETAILS ────────────────────────────────────────────────────────────
+
+  Widget _buildBossDetails(Boss boss, BossProgressNotifier progress) {
+    final bossKey = _bossProgressIdForOrder(boss.order);
+    final isEnraged = progress.isBossDefeated(bossKey);
+    final dispHp = isEnraged
+        ? (boss.hp * 1.7).round() + (boss.order * 40)
+        : boss.hp;
+    final dispAtk = isEnraged
+        ? (boss.atk * 1.45).round() + (boss.order * 2)
+        : boss.atk;
+    final dispDef = isEnraged
+        ? (boss.def * 1.45).round() + (boss.order * 2)
+        : boss.def;
+    final dispSpd = isEnraged ? (boss.spd * 1.25).round() + 1 : boss.spd;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Inline section label with element accent
+        Row(
+          children: [
+            Container(
+              width: 2,
+              height: 12,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: boss.elementColor,
+                borderRadius: BorderRadius.circular(1),
+              ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.scatter_plot_rounded,
-                  size: 24,
-                  color: hasTeam ? Colors.white : theme.textMuted,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'ENTER BATTLE',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                    color: hasTeam ? Colors.white : theme.textMuted,
+            Text('THREAT ANALYSIS', style: _T.label),
+            if (isEnraged) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDC2626).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(2),
+                  border: Border.all(
+                    color: const Color(0xFFDC2626).withOpacity(0.5),
+                    width: 0.8,
                   ),
                 ),
-              ],
+                child: const Text(
+                  '⚡ ENRAGED',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: Color(0xFFFF4444),
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Flat stat row — no boxes
+        Row(
+          children: [
+            _FlatStat(
+              label: 'HP',
+              value: '$dispHp',
+              color: _C.danger,
+              icon: Icons.favorite_rounded,
             ),
+            _FlatStat(
+              label: 'ATK',
+              value: '$dispAtk',
+              color: _C.amberBright,
+              icon: Icons.flash_on_rounded,
+            ),
+            _FlatStat(
+              label: 'DEF',
+              value: '$dispDef',
+              color: _C.teal,
+              icon: Icons.shield_rounded,
+            ),
+            _FlatStat(
+              label: 'SPD',
+              value: '$dispSpd',
+              color: const Color(0xFF34D399),
+              icon: Icons.speed_rounded,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Abilities label
+        Row(
+          children: [
+            Icon(
+              boss.elementIcon,
+              color: boss.elementColor.withOpacity(0.7),
+              size: 11,
+            ),
+            const SizedBox(width: 6),
+            Text('ABILITIES', style: _T.label),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: boss.moveset.map((move) {
+              final c = _moveColor(move.type);
+              return Tooltip(
+                message: move.description,
+                triggerMode: TooltipTriggerMode.tap,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _C.bg0.withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: _C.borderAccent),
+                ),
+                textStyle: const TextStyle(
+                  color: _C.textPrimary,
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                ),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: c.withOpacity(0.28)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_moveIcon(move.type), size: 11, color: c),
+                      const SizedBox(width: 6),
+                      Text(
+                        move.name.toUpperCase(),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: c,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ),
       ],
     );
   }
 
+  Color _moveColor(BossMoveType type) {
+    switch (type) {
+      case BossMoveType.singleTarget:
+        return const Color(0xFFF97316);
+      case BossMoveType.aoe:
+        return _C.danger;
+      case BossMoveType.buff:
+        return _C.teal;
+      case BossMoveType.debuff:
+        return const Color(0xFFA855F7);
+      case BossMoveType.heal:
+        return _C.success;
+      case BossMoveType.special:
+        return _C.amberBright;
+    }
+  }
+
+  IconData _moveIcon(BossMoveType type) {
+    switch (type) {
+      case BossMoveType.singleTarget:
+        return Icons.person_rounded;
+      case BossMoveType.aoe:
+        return Icons.groups_rounded;
+      case BossMoveType.buff:
+        return Icons.arrow_upward_rounded;
+      case BossMoveType.debuff:
+        return Icons.arrow_downward_rounded;
+      case BossMoveType.heal:
+        return Icons.favorite_rounded;
+      case BossMoveType.special:
+        return Icons.auto_awesome_rounded;
+    }
+  }
+
+  // ── PARTY SECTION ───────────────────────────────────────────────────────────
+
+  Widget _buildPartySection(SelectedPartyNotifier party) {
+    final db = context.watch<AlchemonsDatabase>();
+    final repo = context.watch<CreatureCatalog>();
+    const maxPartySize = SelectedPartyNotifier.maxSize;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Inline section label
+        Row(
+          children: [
+            Container(
+              width: 2,
+              height: 12,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: _C.amber,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+            const Text('ASSIGNED SQUAD', style: _T.label),
+          ],
+        ),
+        const SizedBox(height: 12),
+        StreamBuilder<List<CreatureInstance>>(
+          stream: db.creatureDao.watchAllInstances(),
+          builder: (context, snapshot) {
+            final allInstances = snapshot.data ?? [];
+            final selectedInstances = party.members
+                .map(
+                  (m) => allInstances
+                      .where((inst) => inst.instanceId == m.instanceId)
+                      .cast<CreatureInstance?>()
+                      .firstOrNull,
+                )
+                .whereType<CreatureInstance>()
+                .toList();
+
+            // Count badge inline
+            final isFull = selectedInstances.length == maxPartySize;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.groups_rounded, color: _C.amber, size: 13),
+                    const SizedBox(width: 6),
+                    const Text('FIELD TEAM', style: _T.label),
+                    const Spacer(),
+                    Text(
+                      '${selectedInstances.length} / $maxPartySize',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: isFull ? _C.success : _C.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (selectedInstances.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: Row(
+                      children: const [
+                        Icon(
+                          Icons.group_add_rounded,
+                          color: _C.textMuted,
+                          size: 22,
+                        ),
+                        SizedBox(width: 10),
+                        Text('NO SQUAD ASSIGNED', style: _T.label),
+                      ],
+                    ),
+                  )
+                else
+                  Row(
+                    children: List.generate(maxPartySize, (i) {
+                      final inst = i < selectedInstances.length
+                          ? selectedInstances[i]
+                          : null;
+                      final creature = inst != null
+                          ? repo.getCreatureById(inst.baseId)
+                          : null;
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
+                          child: inst == null || creature == null
+                              ? _buildEmptySlot()
+                              : _buildPartyMemberCard(inst, creature),
+                        ),
+                      );
+                    }),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptySlot() {
+    return Container(
+      height: 90,
+      decoration: BoxDecoration(
+        color: _C.bg1,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: _C.borderDim),
+      ),
+      child: const Center(
+        child: Icon(Icons.add_rounded, color: _C.textMuted, size: 22),
+      ),
+    );
+  }
+
+  Widget _buildPartyMemberCard(CreatureInstance instance, Creature creature) {
+    final bars = instance.staminaBars.clamp(0, instance.staminaMax);
+    final maxBars = instance.staminaMax;
+    final isEmpty = bars == 0;
+    final isLow = bars == 1 && maxBars > 1;
+    final staminaColor = isEmpty
+        ? _C.danger
+        : isLow
+        ? const Color(0xFFF97316) // orange
+        : _C.success;
+
+    return GestureDetector(
+      onLongPress: () {
+        final theme = context.read<FactionTheme>();
+        showQuickInstanceDialog(
+          context: context,
+          theme: theme,
+          creature: creature,
+          instance: instance,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: _C.bg1,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: isEmpty
+                ? _C.danger.withOpacity(0.5)
+                : _C.borderAccent.withOpacity(0.5),
+          ),
+        ),
+        child: Column(
+          children: [
+            SizedBox(
+              width: 42,
+              height: 42,
+              child: InstanceSprite(
+                creature: creature,
+                instance: instance,
+                size: 42,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              (instance.nickname ?? creature.name).toUpperCase(),
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: _C.textPrimary,
+                fontSize: 8,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: _C.amberDim.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(2),
+                border: Border.all(color: _C.borderAccent),
+              ),
+              child: Text(
+                'LV ${instance.level}',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: _C.amberBright,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Stamina pips
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(maxBars, (i) {
+                final filled = i < bars;
+                return Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: filled
+                        ? staminaColor
+                        : staminaColor.withOpacity(0.15),
+                    border: Border.all(
+                      color: staminaColor.withOpacity(filled ? 0.9 : 0.3),
+                      width: 0.8,
+                    ),
+                  ),
+                );
+              }),
+            ),
+            if (isEmpty) ...[
+              const SizedBox(height: 3),
+              Text(
+                'NO STAMINA',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: _C.danger,
+                  fontSize: 6,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── ACTION BUTTONS ──────────────────────────────────────────────────────────
+
+  Widget _buildActionButtons(
+    Boss boss,
+    SelectedPartyNotifier party,
+    BossProgressNotifier progress,
+  ) {
+    final hasTeam = party.members.isNotEmpty;
+    final isUnlocked = _isUnlocked(progress, boss.order);
+    final bossKey = _bossProgressIdForOrder(boss.order);
+    final isDefeated = progress.isBossDefeated(bossKey);
+
+    return FutureBuilder<(String?, int, int)>(
+      future: () async {
+        final db = context.read<AlchemonsDatabase>();
+        final dateStr = await db.settingsDao.getSetting(
+          _dailyRematchKeyForBoss(boss.order),
+        );
+        final refreshQty = await db.inventoryDao.getItemQty(
+          InvKeys.bossRefresh,
+        );
+        final summonQty = await db.inventoryDao.getItemQty(InvKeys.bossSummon);
+        return (dateStr, refreshQty, summonQty);
+      }(),
+      builder: (context, snapshot) {
+        final todayUtc = DateTime.now()
+            .toUtc()
+            .toIso8601String()
+            .split('T')
+            .first;
+        final dateStr = snapshot.data?.$1;
+        final refreshQty = snapshot.data?.$2 ?? 0;
+        final summonQty = snapshot.data?.$3 ?? 0;
+        // Use local session flag for instant cooldown display after a win
+        final rematchUsedToday =
+            isDefeated &&
+            (_rematchedOrders.contains(boss.order) || dateStr == todayUtc);
+        final canBattle = hasTeam && isUnlocked && !rematchUsedToday;
+        final countdownLabel = rematchUsedToday
+            ? _formatUtcResetCountdown()
+            : null;
+
+        return Column(
+          children: [
+            _ForgeButton(
+              label: hasTeam ? 'Change Squad' : 'Assign Squad',
+              icon: hasTeam
+                  ? Icons.swap_horiz_rounded
+                  : Icons.group_add_rounded,
+              secondary: true,
+              onTap: () async {
+                await Navigator.push<List<PartyMember>>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const PartyPickerScreen(showDeployConfirm: false),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            _ForgeButton(
+              label: !isUnlocked
+                  ? 'Locked'
+                  : rematchUsedToday
+                  ? 'Reset in $countdownLabel'
+                  : isDefeated
+                  ? 'Rematch for Loot'
+                  : 'Engage Boss',
+              icon: !isUnlocked
+                  ? Icons.lock_rounded
+                  : isDefeated
+                  ? null
+                  : null,
+              color: canBattle ? boss.elementColor : null,
+              onTap: canBattle
+                  ? () => _startBattle(boss, party, progress)
+                  : null,
+            ),
+            // Use Recall Token button (shown only when rematch used & token available)
+            // Boss Summon — fight again even when cooldown is active
+            if (rematchUsedToday && summonQty > 0) ...[
+              const SizedBox(height: 10),
+              _ForgeButton(
+                label: 'Use Boss Summon (×$summonQty)',
+                icon: Icons.whatshot_rounded,
+                color: const Color(0xFF7C3AED),
+                onTap: () async {
+                  final db = context.read<AlchemonsDatabase>();
+                  await db.inventoryDao.addItemQty(InvKeys.bossSummon, -1);
+                  // Clear the daily lock so the normal flow runs
+                  await db.settingsDao.setSetting(
+                    _dailyRematchKeyForBoss(boss.order),
+                    '',
+                  );
+                  _rematchedOrders.remove(boss.order);
+                  if (mounted) setState(() {});
+                  // Give the FutureBuilder a frame to settle, then start battle
+                  await Future.microtask(() {});
+                  if (mounted) _startBattle(boss, party, progress);
+                },
+              ),
+            ],
+            if (rematchUsedToday && refreshQty > 0) ...[
+              const SizedBox(height: 10),
+              _ForgeButton(
+                label: 'Use Boss Summon Token (×$refreshQty)',
+                icon: Icons.local_drink_rounded,
+                color: const Color(0xFF1A237E),
+                onTap: () async {
+                  final db = context.read<AlchemonsDatabase>();
+                  await db.inventoryDao.addItemQty(InvKeys.bossRefresh, -1);
+                  await db.settingsDao.setSetting(
+                    _dailyRematchKeyForBoss(boss.order),
+                    '',
+                  );
+                  if (mounted) setState(() {});
+                },
+              ),
+            ],
+            // Locked / countdown sub-label
+            if (!isUnlocked || rematchUsedToday) ...[
+              const SizedBox(height: 8),
+              Text(
+                !isUnlocked
+                    ? 'DEFEAT BOSS ${boss.order - 1} TO UNLOCK'
+                    : 'DAILY REMATCH EXPENDED — RESETS 00:00 UTC',
+                style: _T.label.copyWith(color: _C.textMuted),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatUtcResetCountdown() {
+    final nowUtc = DateTime.now().toUtc();
+    final resetUtc = DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day + 1);
+    final remaining = resetUtc.difference(nowUtc);
+    return '${remaining.inHours}h ${remaining.inMinutes.remainder(60)}m';
+  }
+
+  // ── BATTLE LOGIC (unchanged from original) ──────────────────────────────────
+
+  Boss _toLateGameBoss(Boss base) {
+    return Boss(
+      id: base.id,
+      name: base.name,
+      element: base.element,
+      recommendedLevel: base.recommendedLevel < 10 ? 10 : base.recommendedLevel,
+      hp: (base.hp * 1.7).round() + (base.order * 40),
+      atk: (base.atk * 1.45).round() + (base.order * 2),
+      def: (base.def * 1.45).round() + (base.order * 2),
+      spd: (base.spd * 1.25).round() + 1,
+      moveset: base.moveset,
+      tier: base.tier,
+      order: base.order,
+    );
+  }
+
   void _startBattle(
-    FactionTheme theme,
     Boss boss,
     SelectedPartyNotifier party,
     BossProgressNotifier progress,
@@ -695,60 +1243,53 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
 
     if (selectedInstances.isEmpty) {
       _showToast(
-        'No team selected!',
-        icon: Icons.warning,
-        color: Colors.orange,
+        'No squad assigned.',
+        icon: Icons.warning_rounded,
+        color: _C.amberBright,
       );
       return;
     }
 
-    // Refresh stamina for all party members and check if they have enough
     final refreshedInstances = <CreatureInstance>[];
     for (final inst in selectedInstances) {
       final refreshed = await staminaService.refreshAndGet(inst.instanceId);
       if (refreshed == null) {
         _showToast(
-          'Error checking stamina',
-          icon: Icons.error,
-          color: Colors.red,
+          'Error checking stamina.',
+          icon: Icons.error_rounded,
+          color: _C.danger,
         );
         return;
       }
       refreshedInstances.add(refreshed);
     }
 
-    // Check if any party member lacks stamina
-    final lowStaminaCreatures = refreshedInstances
+    final lowStamina = refreshedInstances
         .where((inst) => inst.staminaBars < 1)
         .toList();
-
-    if (lowStaminaCreatures.isNotEmpty) {
-      final names = lowStaminaCreatures
+    if (lowStamina.isNotEmpty) {
+      final names = lowStamina
           .map((inst) {
-            final creature = repo.getCreatureById(inst.baseId);
-            return creature?.name ?? 'Unknown';
+            final c = repo.getCreatureById(inst.baseId);
+            return c?.name ?? 'Unknown';
           })
           .take(2)
           .join(', ');
-
       _showToast(
-        lowStaminaCreatures.length == 1
-            ? '$names needs rest! (0 stamina)'
-            : '${lowStaminaCreatures.length} creatures need rest!',
-        icon: Icons.battery_0_bar,
-        color: Colors.red,
+        lowStamina.length == 1
+            ? '$names needs rest.'
+            : '${lowStamina.length} creatures need rest.',
+        icon: Icons.battery_0_bar_rounded,
+        color: _C.danger,
       );
       return;
     }
 
-    // Deduct 1 stamina bar from each party member
     for (final inst in refreshedInstances) {
-      final nowUtc = DateTime.now().toUtc();
-      final nowMs = nowUtc.millisecondsSinceEpoch;
       await db.creatureDao.updateStamina(
         instanceId: inst.instanceId,
         staminaBars: inst.staminaBars - 1,
-        staminaLastUtcMs: nowMs,
+        staminaLastUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
       );
     }
 
@@ -764,7 +1305,35 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
         .whereType<BattleCombatant>()
         .toList();
 
-    final bossCombatant = BattleCombatant.fromBoss(boss);
+    final bossKey = _bossProgressIdForOrder(boss.order);
+    final wasAlreadyDefeated = progress.isBossDefeated(bossKey);
+
+    if (wasAlreadyDefeated) {
+      final todayUtc = DateTime.now()
+          .toUtc()
+          .toIso8601String()
+          .split('T')
+          .first;
+      final lastRematch = await db.settingsDao.getSetting(
+        _dailyRematchKeyForBoss(boss.order),
+      );
+      if (lastRematch == todayUtc) {
+        _showToast(
+          'Daily rematch used. Try again tomorrow.',
+          icon: Icons.schedule_rounded,
+          color: _C.amberBright,
+        );
+        return;
+      }
+    }
+
+    final bossForBattle = wasAlreadyDefeated ? _toLateGameBoss(boss) : boss;
+    final bossMystic = repo.mysticByElement(bossForBattle.element);
+    final bossCombatant = BattleCombatant.fromBoss(
+      bossForBattle,
+      mysticSpecies: bossMystic,
+    );
+    final theme = context.read<FactionTheme>();
 
     final victory = await Navigator.push<bool>(
       context,
@@ -772,18 +1341,107 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
         builder: (_) => BattleScreenFlame(
           boss: bossCombatant,
           playerTeam: playerTeam,
+          bossDisplayName: bossMystic?.name ?? boss.name,
           themeColor: theme.accent,
         ),
       ),
     );
 
     if (victory == true && mounted) {
-      await progress.defeatBoss(boss.id, boss.order);
+      await progress.defeatBoss(bossKey, boss.order);
+
+      // Advance the carousel to the newly unlocked boss when it's a first defeat.
+      if (!wasAlreadyDefeated && _bossPageController.hasClients) {
+        final nextPage = boss.order; // page index = order - 1 + 1 = order
+        final bosses = BossRepository.allBosses;
+        if (nextPage < bosses.length) {
+          _bossPageController.animateToPage(
+            nextPage,
+            duration: const Duration(milliseconds: 450),
+            curve: Curves.easeInOut,
+          );
+        }
+      }
+
+      final registry = buildInventoryRegistry(db);
+
+      if (!wasAlreadyDefeated) {
+        final traitKey = BossLootKeys.traitKeyForElement(boss.element);
+        final traitDef = registry[traitKey];
+        if (traitDef != null) {
+          final existing = await db.inventoryDao.getItemQty(traitKey);
+          if (existing <= 0) {
+            await db.inventoryDao.addItemQty(traitKey, 1);
+            final meta =
+                BossLootKeys.elementRewards[boss.element.toLowerCase()];
+            if (mounted) {
+              await showKeyItemUnlockDialog(
+                context: context,
+                itemName: traitDef.name,
+                itemDescription: traitDef.description,
+                itemIcon: meta?.traitIcon ?? Icons.vpn_key_rounded,
+                elementColor: boss.elementColor,
+              );
+            }
+          }
+        }
+      } else {
+        final lootBoxKey = BossLootKeys.lootBoxKeyForElement(boss.element);
+        final openedRewards = LootBoxConfig.rollBossLootBoxDropsForQuantity(
+          lootBoxKey,
+          1,
+          Random(),
+        );
+        for (final reward in openedRewards) {
+          await db.inventoryDao.addItemQty(reward.key, reward.value);
+        }
+        await db.settingsDao.setSetting(
+          _dailyRematchKeyForBoss(boss.order),
+          DateTime.now().toUtc().toIso8601String().split('T').first,
+        );
+        _rematchedOrders.add(boss.order);
+
+        final currencyRewards = LootBoxConfig.rollBossRematchBonusCurrency(
+          boss.order,
+          Random(),
+        );
+        final silver = currencyRewards['silver'] ?? 0;
+        final gold = currencyRewards['gold'] ?? 0;
+        if (silver > 0) await db.currencyDao.addSilver(silver);
+        if (gold > 0) await db.currencyDao.addGold(gold);
+
+        final popupEntries = <LootOpeningEntry>[
+          ...openedRewards.map((e) {
+            final def = registry[e.key];
+            return LootOpeningEntry(
+              icon: def?.icon ?? Icons.inventory_2_rounded,
+              name: def?.name ?? e.key,
+              label: 'x${e.value}',
+              color: _C.amber,
+            );
+          }),
+          if (silver > 0)
+            LootOpeningEntry(
+              icon: Icons.monetization_on_rounded,
+              label: '+$silver',
+              color: const Color(0xFFB0BEC5),
+            ),
+          if (gold > 0)
+            LootOpeningEntry(
+              icon: Icons.stars_rounded,
+              label: '+$gold',
+              color: _C.amberBright,
+            ),
+        ];
+        await showLootOpeningDialog(context: context, entries: popupEntries);
+      }
+
       _showToast(
-        'Victory! ${boss.name} defeated!',
-        icon: Icons.check_circle,
-        color: Colors.green,
+        'VICTORY — ${boss.name.toUpperCase()} DEFEATED',
+        icon: Icons.emoji_events_rounded,
+        color: _C.success,
       );
+      if (mounted) setState(() {});
     }
   }
 
@@ -797,435 +1455,600 @@ class _BossBattleScreenState extends State<BossBattleScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(icon, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
+            Icon(icon, color: _C.bg0, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message.toUpperCase(),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: _C.bg0,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
           ],
         ),
-        backgroundColor: color ?? Colors.indigo.shade400,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        backgroundColor: color ?? _C.amber,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
+        margin: const EdgeInsets.all(14),
         dismissDirection: DismissDirection.horizontal,
-        showCloseIcon: true,
       ),
     );
   }
 
-  void _showBossHistory(FactionTheme theme, BossProgressNotifier progress) {
+  void _showBossHistory(BossProgressNotifier progress) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => _BossHistorySheet(theme: theme, progress: progress),
+      builder: (ctx) => _BossHistorySheet(
+        progress: progress,
+        onSelectBoss: (order) {
+          progress.setCurrentBoss(order);
+          _bossPageController.animateToPage(
+            order - 1,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+          Navigator.pop(ctx);
+        },
+      ),
     );
   }
 }
 
-// ===== SUPPORTING WIDGETS =====
+// ──────────────────────────────────────────────────────────────────────────────
+// BOSS CAROUSEL CARD — extracted widget
+// ──────────────────────────────────────────────────────────────────────────────
 
-class _BossStat extends StatelessWidget {
+class _BossCarouselCard extends StatelessWidget {
+  final Boss boss;
+  final bool isDefeated;
+  final bool isUnlocked;
+  final bool isCurrent;
+
+  const _BossCarouselCard({
+    required this.boss,
+    required this.isDefeated,
+    required this.isUnlocked,
+    required this.isCurrent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.read<CreatureCatalog>();
+    final mystic = repo.mysticByElement(boss.element);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 5),
+      decoration: BoxDecoration(
+        color: _C.bg2,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: isCurrent ? boss.elementColor.withOpacity(0.6) : _C.borderDim,
+          width: isCurrent ? 1.5 : 1,
+        ),
+        boxShadow: isCurrent
+            ? [
+                BoxShadow(
+                  color: boss.elementColor.withOpacity(0.12),
+                  blurRadius: 20,
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: Opacity(
+          opacity: isUnlocked ? 1.0 : 0.3,
+          child: Stack(
+            children: [
+              // Scanlines
+              Positioned.fill(child: CustomPaint(painter: _ScanlinePainter())),
+              // Content
+              Row(
+                children: [
+                  // Left — sprite zone
+                  SizedBox(
+                    width: 140,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Elemental glow
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              colors: [
+                                boss.elementColor.withOpacity(0.2),
+                                Colors.transparent,
+                              ],
+                              radius: 0.75,
+                            ),
+                          ),
+                        ),
+                        // Sprite or icon
+                        Builder(
+                          builder: (_) {
+                            final hasMysticSprite =
+                                mystic != null && mystic.spriteData != null;
+                            if (hasMysticSprite) {
+                              final sheet = sheetFromCreature(mystic);
+                              final visuals = visualsFromInstance(mystic, null);
+                              return SizedBox(
+                                width: 105,
+                                height: 105,
+                                child: CreatureSprite(
+                                  spritePath: sheet.path,
+                                  totalFrames: sheet.totalFrames,
+                                  rows: sheet.rows,
+                                  frameSize: sheet.frameSize,
+                                  stepTime: sheet.stepTime,
+                                  scale: visuals.scale,
+                                  saturation: visuals.saturation,
+                                  brightness: visuals.brightness,
+                                  hueShift: visuals.hueShiftDeg,
+                                  isPrismatic: visuals.isPrismatic,
+                                  tint: visuals.tint,
+                                ),
+                              );
+                            }
+                            return Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: boss.elementColor.withOpacity(0.12),
+                                border: Border.all(
+                                  color: boss.elementColor.withOpacity(0.4),
+                                ),
+                              ),
+                              child: Icon(
+                                boss.elementIcon,
+                                color: boss.elementColor,
+                                size: 30,
+                              ),
+                            );
+                          },
+                        ),
+                        // Element badge — bottom
+                        Positioned(
+                          bottom: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: boss.elementColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(2),
+                              border: Border.all(
+                                color: boss.elementColor.withOpacity(0.5),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              boss.element.toUpperCase(),
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: boss.elementColor,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Separator
+                  Container(
+                    width: 1,
+                    margin: const EdgeInsets.symmetric(vertical: 14),
+                    color: _C.borderDim,
+                  ),
+                  // Right — text
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Enraged label (shown after first defeat)
+                          if (isDefeated) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFDC2626,
+                                ).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(2),
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFFDC2626,
+                                  ).withOpacity(0.5),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: const Text(
+                                '⚡ ENRAGED',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: Color(0xFFFF4444),
+                                  fontSize: 7,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                          // Name
+                          Text(
+                            (mystic?.name ?? boss.name).toUpperCase(),
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              color: _C.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 2.0,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          // Level tag
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _C.amberDim.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(2),
+                              border: Border.all(color: _C.borderAccent),
+                            ),
+                            child: Text(
+                              'REC. LV ${boss.recommendedLevel}',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                color: _C.amberBright,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Mini stats
+                          Builder(
+                            builder: (_) {
+                              final dispHp = isDefeated
+                                  ? (boss.hp * 1.7).round() + (boss.order * 40)
+                                  : boss.hp;
+                              final dispAtk = isDefeated
+                                  ? (boss.atk * 1.45).round() + (boss.order * 2)
+                                  : boss.atk;
+                              final dispDef = isDefeated
+                                  ? (boss.def * 1.45).round() + (boss.order * 2)
+                                  : boss.def;
+                              return Row(
+                                children: [
+                                  _MiniStatBadge(
+                                    icon: Icons.favorite,
+                                    value: '$dispHp',
+                                    color: _C.danger,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _MiniStatBadge(
+                                    icon: Icons.flash_on,
+                                    value: '$dispAtk',
+                                    color: _C.amberBright,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _MiniStatBadge(
+                                    icon: Icons.shield,
+                                    value: '$dispDef',
+                                    color: _C.teal,
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                          // Status badges
+                          if (isDefeated) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                _StatusBadge(
+                                  label: 'DEFEATED',
+                                  color: _C.success,
+                                ),
+                                const SizedBox(width: 6),
+                                _StatusBadge(label: 'REMATCH', color: _C.amber),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              // Order badge — top right
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: _C.bg0.withOpacity(0.8),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _C.borderAccent),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${boss.order}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: _C.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Lock overlay
+              if (!isUnlocked)
+                Positioned.fill(
+                  child: Container(
+                    color: _C.bg0.withOpacity(0.55),
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.lock_rounded,
+                            color: _C.textSecondary,
+                            size: 22,
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'LOCKED',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: _C.textSecondary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniStatBadge extends StatelessWidget {
   final IconData icon;
-  final String label;
   final String value;
   final Color color;
-  final FactionTheme theme; // Added theme
-
-  const _BossStat({
+  const _MiniStatBadge({
     required this.icon,
-    required this.label,
     required this.value,
     required this.color,
-    required this.theme, // Added theme
   });
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 10, color: color.withOpacity(0.85)),
+        const SizedBox(width: 3),
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _StatusBadge({required this.label, required this.color});
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        // Use theme color for a cleaner, strategic look
-        color: theme.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        // Use theme border
-        border: Border.all(color: theme.border, width: 1),
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: color.withOpacity(0.5), width: 0.8),
       ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              // Use theme text color
-              color: theme.textMuted,
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              // Use theme text color
-              color: theme.text,
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BossMoveCard extends StatelessWidget {
-  final BossMove move;
-  final FactionTheme theme;
-  final Color elementColor;
-
-  const _BossMoveCard({
-    required this.move,
-    required this.theme,
-    required this.elementColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      // Use 'right' margin for spacing in a Row
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.border, width: 1),
-      ),
-      child: Tooltip(
-        message: move.description,
-        triggerMode: TooltipTriggerMode.tap,
-        padding: const EdgeInsets.all(10),
-        margin: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.85),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        textStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-        child: Row(
-          children: [
-            // Display the move name directly in the Row
-            Text(
-              move.name,
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _getMoveTypeColor() {
-    switch (move.type) {
-      case BossMoveType.singleTarget:
-        return Colors.orange.shade800;
-      case BossMoveType.aoe:
-        return Colors.red.shade800;
-      case BossMoveType.buff:
-        return Colors.blue.shade700;
-      case BossMoveType.debuff:
-        return Colors.purple.shade700;
-      case BossMoveType.heal:
-        return Colors.green.shade700;
-      case BossMoveType.special:
-        return Colors.indigo.shade600;
-    }
-  }
-
-  IconData _getMoveTypeIcon() {
-    switch (move.type) {
-      case BossMoveType.singleTarget:
-        return Icons.person;
-      case BossMoveType.aoe:
-        return Icons.groups;
-      case BossMoveType.buff:
-        return Icons.arrow_upward;
-      case BossMoveType.debuff:
-        return Icons.arrow_downward;
-      case BossMoveType.heal:
-        return Icons.favorite;
-      case BossMoveType.special:
-        return Icons.auto_awesome;
-    }
-  }
-}
-
-class _EmptyPartySlot extends StatelessWidget {
-  final FactionTheme theme;
-
-  const _EmptyPartySlot({required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 90,
-      decoration: BoxDecoration(
-        color: theme.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: theme.border,
-          // Thinner border
-          width: 1.5,
-          style: BorderStyle.solid,
-        ),
-      ),
-      child: Center(
-        // Simpler 'add' icon
-        child: Icon(Icons.add, color: theme.textMuted, size: 28),
-      ),
-    );
-  }
-}
-
-class _PartyMemberCard extends StatelessWidget {
-  final CreatureInstance instance;
-  final Creature creature;
-  final FactionTheme theme;
-
-  const _PartyMemberCard({
-    required this.instance,
-    required this.creature,
-    required this.theme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: theme.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        // Thinner border
-        border: Border.all(color: theme.border, width: 1),
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            width: 40,
-            height: 40,
-            child: InstanceSprite(
-              creature: creature,
-              instance: instance,
-              size: 40,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            creature.name,
-            style: TextStyle(
-              color: theme.text,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              // Darker, less "cheesy" amber
-              color: Colors.amber.shade700,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              'Lv ${instance.level}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BattleResultDialog extends StatelessWidget {
-  final FactionTheme theme;
-  final Boss boss;
-  final bool victory;
-  final VoidCallback onContinue;
-
-  const _BattleResultDialog({
-    required this.theme,
-    required this.boss,
-    required this.victory,
-    required this.onContinue,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: victory ? Colors.green.shade600 : Colors.red.shade600,
-            width: 2,
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              victory ? Icons.emoji_events : Icons.close,
-              color: victory ? Colors.amber.shade600 : Colors.red.shade600,
-              size: 64,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              victory ? 'VICTORY!' : 'DEFEATED',
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              victory
-                  ? 'You have defeated ${boss.name}!'
-                  : '${boss.name} has defeated you!',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: onContinue,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: victory
-                      ? Colors.green.shade700
-                      : Colors.red.shade700,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: Text(
-                  victory ? 'CONTINUE' : 'RETRY',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ),
-          ],
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: color,
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.0,
         ),
       ),
     );
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// BOSS HISTORY BOTTOM SHEET
+// ──────────────────────────────────────────────────────────────────────────────
 
 class _BossHistorySheet extends StatelessWidget {
-  final FactionTheme theme;
   final BossProgressNotifier progress;
+  final void Function(int order) onSelectBoss;
 
-  const _BossHistorySheet({required this.theme, required this.progress});
+  const _BossHistorySheet({required this.progress, required this.onSelectBoss});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
-      decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(4),
-          topRight: Radius.circular(4),
-        ),
-        border: Border(
-          top: BorderSide(color: theme.border, width: 1),
-          left: BorderSide(color: theme.border, width: 1),
-          right: BorderSide(color: theme.border, width: 1),
-        ),
+      height: MediaQuery.of(context).size.height * 0.78,
+      decoration: const BoxDecoration(
+        color: _C.bg1,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
+        border: Border(top: BorderSide(color: _C.borderAccent, width: 1.5)),
       ),
       child: Column(
         children: [
-          // Handle bar
+          // Handle
           Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
+            margin: const EdgeInsets.only(top: 10),
+            width: 32,
+            height: 3,
             decoration: BoxDecoration(
-              color: theme.border,
+              color: _C.borderAccent,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-
           // Header
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
             child: Row(
               children: [
-                Icon(Icons.history, color: theme.text, size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  'BOSS HISTORY',
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _C.amberDim.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: _C.borderAccent),
+                  ),
+                  child: const Icon(
+                    Icons.emoji_events_rounded,
+                    color: _C.amberBright,
+                    size: 16,
                   ),
                 ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: Icon(Icons.close, color: theme.text),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('GAUNTLET RECORD', style: _T.heading),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${progress.totalBossesDefeated} OF 17 CHAMPIONS FALLEN',
+                        style: _T.label.copyWith(color: _C.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: _C.bg2,
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(color: _C.borderDim),
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: _C.textSecondary,
+                      size: 16,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-
-          // Boss list
+          // Progress bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('COMPLETION', style: _T.label),
+                const SizedBox(height: 6),
+                Stack(
+                  children: [
+                    Container(
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: _C.bg3,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    FractionallySizedBox(
+                      widthFactor: progress.totalBossesDefeated / 17,
+                      child: Container(
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: _C.amberBright,
+                          borderRadius: BorderRadius.circular(2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _C.amberBright.withOpacity(0.4),
+                              blurRadius: 6,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(height: 1, color: _C.borderDim),
+          // List
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 20),
               itemCount: BossRepository.allBosses.length,
               itemBuilder: (context, index) {
                 final boss = BossRepository.allBosses[index];
-                final defeated = progress.isBossDefeated(boss.id);
-                final defeatCount = progress.getDefeatCount(boss.id);
+                final bossKey = _bossProgressIdForOrder(boss.order);
+                final defeated = progress.isBossDefeated(bossKey);
+                final defeatCount = progress.getDefeatCount(bossKey);
                 final isCurrent = boss.order == progress.currentBossOrder;
+                final isUnlocked =
+                    boss.order == 1 ||
+                    progress.isBossDefeated(
+                      _bossProgressIdForOrder(boss.order - 1),
+                    );
 
-                return _BossHistoryCard(
-                  theme: theme,
+                return _BossHistoryRow(
                   boss: boss,
                   defeated: defeated,
                   defeatCount: defeatCount,
                   isCurrent: isCurrent,
-                  onTap: () {
-                    progress.setCurrentBoss(boss.order);
-                    Navigator.pop(context);
-                  },
+                  isUnlocked: isUnlocked,
+                  onTap: isUnlocked ? () => onSelectBoss(boss.order) : null,
                 );
               },
             ),
@@ -1236,98 +2059,123 @@ class _BossHistorySheet extends StatelessWidget {
   }
 }
 
-class _BossHistoryCard extends StatelessWidget {
-  final FactionTheme theme;
+class _BossHistoryRow extends StatelessWidget {
   final Boss boss;
   final bool defeated;
   final int defeatCount;
   final bool isCurrent;
-  final VoidCallback onTap;
+  final bool isUnlocked;
+  final VoidCallback? onTap;
 
-  const _BossHistoryCard({
-    required this.theme,
+  const _BossHistoryRow({
     required this.boss,
     required this.defeated,
     required this.defeatCount,
     required this.isCurrent,
-    required this.onTap,
+    required this.isUnlocked,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final repo = context.read<CreatureCatalog>();
+    final mystic = repo.mysticByElement(boss.element);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isCurrent
-              ? boss.elementColor.withOpacity(0.1)
-              : theme.surfaceAlt,
-          borderRadius: BorderRadius.circular(10),
+          color: isCurrent ? boss.elementColor.withOpacity(0.08) : _C.bg2,
+          borderRadius: BorderRadius.circular(3),
           border: Border.all(
-            color: isCurrent ? boss.elementColor : theme.border,
-            // Make current border slightly thicker, others thinner
-            width: isCurrent ? 2 : 1,
+            color: isCurrent
+                ? boss.elementColor.withOpacity(0.45)
+                : _C.borderDim,
+            width: isCurrent ? 1.5 : 1,
           ),
         ),
         child: Row(
           children: [
-            // Boss number
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                // Use darker green
-                color: defeated ? Colors.green.shade700 : theme.surface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: defeated ? Colors.green.shade700 : theme.border,
-                  width: 1,
+            // Order number
+            SizedBox(
+              width: 24,
+              child: Text(
+                '${boss.order}',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: _C.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
                 ),
-              ),
-              child: Center(
-                child: defeated
-                    ? const Icon(Icons.check, color: Colors.white, size: 20)
-                    : Text(
-                        '${boss.order}',
-                        style: TextStyle(
-                          color: theme.text,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+                textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(width: 12),
-
-            // Boss info
+            Container(
+              width: 1,
+              height: 28,
+              color: _C.borderDim,
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            // Status icon
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: defeated
+                    ? _C.success.withOpacity(0.15)
+                    : boss.elementColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(2),
+                border: Border.all(
+                  color: defeated
+                      ? _C.success.withOpacity(0.5)
+                      : boss.elementColor.withOpacity(0.3),
+                  width: 0.8,
+                ),
+              ),
+              child: Icon(
+                defeated ? Icons.check_rounded : boss.elementIcon,
+                color: defeated ? _C.success : boss.elementColor,
+                size: 15,
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Name + element
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    boss.name,
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 14,
+                    (mystic?.name ?? boss.name).toUpperCase(),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: _C.textPrimary,
+                      fontSize: 11,
                       fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
                     ),
                   ),
+                  const SizedBox(height: 1),
                   Row(
                     children: [
-                      Icon(
-                        boss.elementIcon,
-                        color: boss.elementColor,
-                        size: 12,
-                      ),
-                      const SizedBox(width: 4),
                       Text(
-                        '${boss.element} • Lv. ${boss.recommendedLevel}',
+                        boss.element.toUpperCase(),
                         style: TextStyle(
-                          color: theme.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                          fontFamily: 'monospace',
+                          color: boss.elementColor,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      Text(
+                        '  LV ${boss.recommendedLevel}',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          color: _C.textMuted,
+                          fontSize: 9,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ],
@@ -1335,40 +2183,48 @@ class _BossHistoryCard extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Status
-            if (isCurrent)
+            // Right badge
+            if (!isUnlocked)
+              const Icon(Icons.lock_rounded, color: _C.textMuted, size: 14)
+            else if (isCurrent)
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
-                  color: boss.elementColor,
-                  borderRadius: BorderRadius.circular(6),
+                  color: boss.elementColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(2),
+                  border: Border.all(
+                    color: boss.elementColor.withOpacity(0.5),
+                    width: 0.8,
+                  ),
                 ),
-                child: const Text(
-                  'CURRENT',
+                child: Text(
+                  'ACTIVE',
                   style: TextStyle(
-                    color: Colors.white,
+                    fontFamily: 'monospace',
+                    color: boss.elementColor,
                     fontSize: 9,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.0,
                   ),
                 ),
               )
-            else if (defeated && defeatCount > 0)
+            else if (defeatCount > 0)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
-                  // Darker green
-                  color: Colors.green.shade700,
-                  borderRadius: BorderRadius.circular(6),
+                  color: _C.success.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(2),
+                  border: Border.all(
+                    color: _C.success.withOpacity(0.4),
+                    width: 0.8,
+                  ),
                 ),
                 child: Text(
-                  'x$defeatCount',
+                  '×$defeatCount',
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    color: _C.success,
+                    fontSize: 10,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

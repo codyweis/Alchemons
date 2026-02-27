@@ -3,23 +3,23 @@ import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 
 class SurvivalSpecsWidget extends StatelessWidget {
-  final FactionTheme theme;
+  // ignore: unused_field
+  final FactionTheme? theme;
   final Creature creature;
   final CreatureInstance instance;
 
   const SurvivalSpecsWidget({
     super.key,
-    required this.theme,
+    this.theme,
     required this.creature,
     required this.instance,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 1. Instantiate the Logic Class to get derived stats
-    // This ensures the UI numbers match the Game Engine numbers exactly.
     final unit = SurvivalUnit(
       id: 'preview',
       name: creature.name,
@@ -32,114 +32,112 @@ class SurvivalSpecsWidget extends StatelessWidget {
       statBeauty: instance.statBeauty,
     );
 
-    // 2. Determine Role Label based on Range logic in SurvivalUnit
     final isRanged = unit.attackRange >= 300;
-    final roleLabel = isRanged ? "Ranged Blaster" : "Melee Brawler";
+    final roleLabel = isRanged ? 'RANGED BLASTER' : 'MELEE BRAWLER';
     final roleIcon = isRanged ? Icons.gps_fixed : Icons.sports_mma;
+    final roleColor = isRanged ? FC.teal : FC.amber;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // --- Header / Role ---
+        // --- Role header ---
         Row(
           children: [
-            Icon(roleIcon, color: theme.primary, size: 16),
-            const SizedBox(width: 8),
+            Icon(roleIcon, color: roleColor, size: 14),
+            const SizedBox(width: 6),
             Text(
-              roleLabel.toUpperCase(),
+              roleLabel,
               style: TextStyle(
-                color: theme.primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.8,
+                fontFamily: 'monospace',
+                color: roleColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
               ),
             ),
             const Spacer(),
             Text(
-              "SURVIVAL STATS",
+              'SURVIVAL METRICS',
               style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 10,
+                fontFamily: 'monospace',
+                color: FC.textMuted,
+                fontSize: 9,
                 fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
-        // --- Primary Stats (HP / Def) ---
+        // --- HP / Defence boxes ---
         Row(
           children: [
             Expanded(
-              child: _StatBox(
-                theme: theme,
-                label: "MAX HP",
+              child: _ForgeStatBox(
+                label: 'MAX HP',
                 value: unit.maxHp.toString(),
-                subLabel: "Base + Str",
+                subLabel: 'Base + Str',
                 icon: Icons.favorite,
+                accentColor: FC.danger,
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _StatBox(
-                theme: theme,
-                label: "DEFENSES",
-                value: "${unit.physDef} / ${unit.elemDef}",
-                subLabel: "Phys / Elem",
+              child: _ForgeStatBox(
+                label: 'DEFENSES',
+                value: '${unit.physDef} / ${unit.elemDef}',
+                subLabel: 'Phys / Elem',
                 icon: Icons.shield,
+                accentColor: FC.blue,
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
 
-        // --- Offensive Stats ---
+        // --- Offensive stats block ---
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: theme.surfaceAlt.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: theme.border.withOpacity(0.3)),
+            color: FC.bg3,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: FC.borderDim),
           ),
           child: Column(
             children: [
-              _CompactRow(
-                theme: theme,
-                label: "Phys Atk",
+              _ForgeCompactRow(
+                label: 'Phys Atk',
                 value: unit.physAtk.toString(),
-                sourceStat: "Strength",
+                sourceStat: 'Strength',
                 isPrimary: unit.physAtk > unit.elemAtk,
               ),
               const SizedBox(height: 6),
-              _CompactRow(
-                theme: theme,
-                label: "Elem Atk",
+              _ForgeCompactRow(
+                label: 'Elem Atk',
                 value: unit.elemAtk.toString(),
-                sourceStat: "Intelligence",
+                sourceStat: 'Intelligence',
                 isPrimary: unit.elemAtk >= unit.physAtk,
               ),
-              const Divider(height: 12, color: Colors.white10),
-              _CompactRow(
-                theme: theme,
-                label: "Crit Chance",
-                value: "${(unit.critChance * 100).toInt()}%",
-                sourceStat: "Beauty",
+              const Divider(height: 12, color: FC.borderDim),
+              _ForgeCompactRow(
+                label: 'Crit Chance',
+                value: '${(unit.critChance * 100).toInt()}%',
+                sourceStat: 'Beauty',
                 highlight: true,
               ),
               const SizedBox(height: 6),
-              _CompactRow(
-                theme: theme,
-                label: "Cooldowns",
-                value: "-${((unit.cooldownReduction - 1.0) * 100).toInt()}%",
-                sourceStat: "Speed",
+              _ForgeCompactRow(
+                label: 'Cooldowns',
+                value: '-${((unit.cooldownReduction - 1.0) * 100).toInt()}%',
+                sourceStat: 'Speed',
                 highlight: true,
               ),
               const SizedBox(height: 6),
-              _CompactRow(
-                theme: theme,
-                label: "Range",
+              _ForgeCompactRow(
+                label: 'Range',
                 value: unit.attackRange.toInt().toString(),
-                sourceStat: isRanged ? "Int + Beauty" : "Str + Beauty",
+                sourceStat: isRanged ? 'Int + Beauty' : 'Str + Beauty',
               ),
             ],
           ),
@@ -149,19 +147,19 @@ class SurvivalSpecsWidget extends StatelessWidget {
   }
 }
 
-class _StatBox extends StatelessWidget {
-  final FactionTheme theme;
+class _ForgeStatBox extends StatelessWidget {
   final String label;
   final String value;
   final String subLabel;
   final IconData icon;
+  final Color accentColor;
 
-  const _StatBox({
-    required this.theme,
+  const _ForgeStatBox({
     required this.label,
     required this.value,
     required this.subLabel,
     required this.icon,
+    required this.accentColor,
   });
 
   @override
@@ -169,23 +167,25 @@ class _StatBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: theme.border),
+        color: FC.bg3,
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: accentColor.withOpacity(0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 12, color: theme.textMuted),
+              Icon(icon, size: 11, color: accentColor),
               const SizedBox(width: 4),
               Text(
                 label,
                 style: TextStyle(
-                  color: theme.textMuted,
+                  fontFamily: 'monospace',
+                  color: FC.textMuted,
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
                 ),
               ),
             ],
@@ -193,8 +193,9 @@ class _StatBox extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(
-              color: theme.text,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: FC.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
@@ -202,7 +203,8 @@ class _StatBox extends StatelessWidget {
           Text(
             subLabel,
             style: TextStyle(
-              color: theme.primary.withOpacity(0.7),
+              fontFamily: 'monospace',
+              color: accentColor.withOpacity(0.7),
               fontSize: 9,
             ),
           ),
@@ -212,16 +214,14 @@ class _StatBox extends StatelessWidget {
   }
 }
 
-class _CompactRow extends StatelessWidget {
-  final FactionTheme theme;
+class _ForgeCompactRow extends StatelessWidget {
   final String label;
   final String value;
   final String sourceStat;
   final bool isPrimary;
   final bool highlight;
 
-  const _CompactRow({
-    required this.theme,
+  const _ForgeCompactRow({
     required this.label,
     required this.value,
     required this.sourceStat,
@@ -231,14 +231,16 @@ class _CompactRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = highlight ? FC.amberBright : FC.textPrimary;
     return Row(
       children: [
         SizedBox(
-          width: 80,
+          width: 84,
           child: Text(
             label,
             style: TextStyle(
-              color: highlight ? theme.secondary : theme.text,
+              fontFamily: 'monospace',
+              color: highlight ? FC.amberBright : FC.textSecondary,
               fontSize: 11,
               fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
             ),
@@ -247,20 +249,22 @@ class _CompactRow extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            color: highlight ? theme.secondary : theme.text,
+            fontFamily: 'monospace',
+            color: textColor,
             fontSize: 11,
             fontWeight: FontWeight.w800,
           ),
         ),
         if (isPrimary) ...[
-          const SizedBox(width: 6),
-          Icon(Icons.star, size: 10, color: theme.primary),
+          const SizedBox(width: 5),
+          const Icon(Icons.star, size: 9, color: FC.amber),
         ],
         const Spacer(),
         Text(
           sourceStat,
-          style: TextStyle(
-            color: theme.textMuted,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            color: FC.textMuted,
             fontSize: 10,
             fontStyle: FontStyle.italic,
           ),

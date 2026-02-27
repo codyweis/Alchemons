@@ -122,6 +122,12 @@ class ImprovedBlobBody extends PositionComponent {
   double hpPercent = 1.0;
   double _displayedHp = 1.0;
 
+  /// LOD level: 0 = full detail, 1 = reduced, 2 = minimal (circles only)
+  int _lodLevel = 0;
+
+  /// Set by the game based on total enemy count for performance scaling
+  static int globalEnemyCount = 0;
+
   late final Paint _corePaint;
   late final Paint _shellPaint;
   late final Paint _outlinePaint;
@@ -179,9 +185,7 @@ class ImprovedBlobBody extends PositionComponent {
       ..strokeWidth = isBoss ? 3.5 : 2.0
       ..strokeCap = StrokeCap.round;
 
-    _glowPaint = Paint()
-      ..color = color.withOpacity(0.3)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    _glowPaint = Paint()..color = color.withOpacity(0.3);
   }
 
   @override
@@ -189,9 +193,28 @@ class ImprovedBlobBody extends PositionComponent {
     super.update(dt);
     _time += dt;
 
-    // Update wobble phases
-    for (int i = 0; i < _wobblePhases.length; i++) {
-      _wobblePhases[i] += dt * _wobbleSpeeds[i];
+    // LOD based on total enemy count:
+    // < 30 enemies: full detail (LOD 0)
+    // 30-60 enemies: reduced detail for swarm tier (LOD 1)
+    // 60+ enemies: minimal for swarm, reduced for others (LOD 2)
+    if (globalEnemyCount > 60) {
+      _lodLevel = template.tier == EnemyTier.swarm ? 2 : 1;
+    } else if (globalEnemyCount > 30) {
+      _lodLevel = template.tier == EnemyTier.swarm ? 1 : 0;
+    } else {
+      _lodLevel = 0;
+    }
+
+    // Skip wobble updates for LOD 2 (minimal detail)
+    if (_lodLevel < 2) {
+      double wobbleScale = 1.0;
+      // For large enemies (boss/titan), slow down wobble for stability
+      if (isBoss || template.tier == EnemyTier.titan) {
+        wobbleScale = 0.35;
+      }
+      for (int i = 0; i < _wobblePhases.length; i++) {
+        _wobblePhases[i] += dt * _wobbleSpeeds[i] * wobbleScale;
+      }
     }
 
     if (isBoss) {
@@ -237,31 +260,47 @@ class ImprovedBlobBody extends PositionComponent {
   }
 
   void _renderMinion(Canvas canvas) {
-    // Outer glow for visibility
-    canvas.drawCircle(Offset.zero, radius * 1.15, _glowPaint);
+    // LOD 2: Ultra-simple - just colored circle + role color ring
+    if (_lodLevel >= 2) {
+      canvas.drawCircle(Offset.zero, radius * 0.85, _corePaint);
+      _renderRoleIndicator(canvas);
+      return;
+    }
+
+    // LOD 1: Skip outer glow, simplified shapes
+    if (_lodLevel < 1) {
+      // Outer glow for visibility (LOD 0 only)
+      canvas.drawCircle(Offset.zero, radius * 1.15, _glowPaint);
+    }
 
     // Render shape based on family
     switch (_shape) {
       case FamilyShape.blob:
-        _renderBlobShape(canvas);
+        _lodLevel >= 1 ? _renderSimpleBlob(canvas) : _renderBlobShape(canvas);
         break;
       case FamilyShape.insectoid:
-        _renderInsectoidShape(canvas);
+        _lodLevel >= 1
+            ? _renderSimpleInsectoid(canvas)
+            : _renderInsectoidShape(canvas);
         break;
       case FamilyShape.ethereal:
         _renderEtherealShape(canvas);
         break;
       case FamilyShape.spiky:
-        _renderSpikyShape(canvas);
+        _lodLevel >= 1 ? _renderSimpleSpiky(canvas) : _renderSpikyShape(canvas);
         break;
       case FamilyShape.serpentine:
-        _renderSerpentineShape(canvas);
+        _lodLevel >= 1
+            ? _renderSimpleSerpentine(canvas)
+            : _renderSerpentineShape(canvas);
         break;
       case FamilyShape.crystalline:
         _renderCrystallineShape(canvas);
         break;
       case FamilyShape.amorphous:
-        _renderAmorphousShape(canvas);
+        _lodLevel >= 1
+            ? _renderSimpleAmorphous(canvas)
+            : _renderAmorphousShape(canvas);
         break;
       case FamilyShape.titanic:
         _renderTitanicShape(canvas);
@@ -270,6 +309,102 @@ class ImprovedBlobBody extends PositionComponent {
 
     // Role indicator overlay
     _renderRoleIndicator(canvas);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // LOD 1 SIMPLIFIED SHAPES - Faster rendering, still recognizable
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// Simplified blob - single wobbly circle without bezier curves
+  void _renderSimpleBlob(Canvas canvas) {
+    final wobble = sin(_time * 2.5) * radius * 0.08;
+    canvas.drawCircle(Offset.zero, radius * 0.82 + wobble, _shellPaint);
+    canvas.drawCircle(Offset.zero, radius * 0.82 + wobble, _outlinePaint);
+    canvas.drawCircle(Offset.zero, radius * 0.35, _corePaint);
+  }
+
+  /// Simplified insectoid - oval + 2 dots for eyes
+  void _renderSimpleInsectoid(Canvas canvas) {
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: radius * 1.4,
+        height: radius * 1.0,
+      ),
+      _shellPaint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: radius * 1.4,
+        height: radius * 1.0,
+      ),
+      _outlinePaint,
+    );
+    canvas.drawCircle(
+      Offset(-radius * 0.2, -radius * 0.15),
+      radius * 0.1,
+      _corePaint,
+    );
+    canvas.drawCircle(
+      Offset(radius * 0.2, -radius * 0.15),
+      radius * 0.1,
+      _corePaint,
+    );
+  }
+
+  /// Simplified spiky - 4-point star instead of 8
+  void _renderSimpleSpiky(Canvas canvas) {
+    final path = Path();
+    for (int i = 0; i < 4; i++) {
+      final angle = (i / 4) * 2 * pi;
+      final midAngle = angle + pi / 4;
+      final tipR = radius * 0.9;
+      final valR = radius * 0.5;
+      if (i == 0) {
+        path.moveTo(cos(angle) * tipR, sin(angle) * tipR);
+      } else {
+        path.lineTo(cos(angle) * tipR, sin(angle) * tipR);
+      }
+      path.lineTo(cos(midAngle) * valR, sin(midAngle) * valR);
+    }
+    path.close();
+    canvas.drawPath(path, _shellPaint);
+    canvas.drawPath(path, _outlinePaint);
+    canvas.drawCircle(Offset.zero, radius * 0.3, _corePaint);
+  }
+
+  /// Simplified serpentine - oval with slight rotation
+  void _renderSimpleSerpentine(Canvas canvas) {
+    canvas.save();
+    canvas.rotate(_time * _rotationSpeed * 0.2);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: radius * 1.6,
+        height: radius * 0.8,
+      ),
+      _shellPaint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: radius * 1.6,
+        height: radius * 0.8,
+      ),
+      _outlinePaint,
+    );
+    canvas.restore();
+    canvas.drawCircle(Offset(radius * 0.3, 0), radius * 0.2, _corePaint);
+  }
+
+  /// Simplified amorphous - 2 overlapping circles + core
+  void _renderSimpleAmorphous(Canvas canvas) {
+    final dx = sin(_time * 2) * radius * 0.15;
+    final dy = cos(_time * 1.7) * radius * 0.15;
+    canvas.drawCircle(Offset(dx, dy), radius * 0.55, _shellPaint);
+    canvas.drawCircle(Offset(-dx, -dy), radius * 0.45, _shellPaint);
+    canvas.drawCircle(Offset.zero, radius * 0.25, _corePaint);
   }
 
   /// Blob shape - organic, wobbly circle
@@ -676,8 +811,39 @@ class ImprovedBlobBody extends PositionComponent {
         break;
 
       case EnemyRole.charger:
-        // Subtle momentum lines when moving fast would go here
-        // For now, just a slight forward emphasis
+        // Forward momentum glow + trailing speed lines
+        final chargePulse = (sin(_time * 6) + 1) / 2;
+        final chargeGlow = Paint()
+          ..color = color.withOpacity(
+            (0.2 + chargePulse * 0.25) * _currentOpacity,
+          );
+
+        // Forward emphasis wedge (points in movement direction)
+        final chargePath = Path()
+          ..moveTo(0, -radius * 1.15)
+          ..lineTo(-radius * 0.5, radius * 0.3)
+          ..lineTo(radius * 0.5, radius * 0.3)
+          ..close();
+        canvas.drawPath(chargePath, chargeGlow);
+
+        // Speed lines trailing behind
+        final linesPaint = Paint()
+          ..color = Colors.white.withOpacity(
+            0.3 * chargePulse * _currentOpacity,
+          )
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..strokeCap = StrokeCap.round;
+
+        for (int i = 0; i < 3; i++) {
+          final lineX = -radius * 0.3 + i * radius * 0.3;
+          final wobble = sin(_time * 8 + i * 1.2) * 2;
+          canvas.drawLine(
+            Offset(lineX + wobble, radius * 0.6),
+            Offset(lineX + wobble, radius * 1.1 + chargePulse * radius * 0.2),
+            linesPaint,
+          );
+        }
         break;
     }
   }
@@ -709,8 +875,7 @@ class ImprovedBlobBody extends PositionComponent {
         Offset.zero,
         radius * (1.3 + glow * 0.2),
         Paint()
-          ..color = color.withOpacity((0.15 - glow * 0.04) * _currentOpacity)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+          ..color = color.withOpacity((0.15 - glow * 0.04) * _currentOpacity),
       );
     }
 
@@ -1018,8 +1183,7 @@ class ImprovedBlobBody extends PositionComponent {
       Paint()
         ..color = hpColor.withOpacity(0.3)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = ringThickness + 4
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        ..strokeWidth = ringThickness + 4,
     );
 
     // Tick marks

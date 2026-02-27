@@ -367,11 +367,11 @@ class _AppGateState extends State<AppGate> {
           ),
         };
 
-    // (Optional) For dev: make first spawn "sooner"
-    // spawnService.setGlobalSpawnWindow(Duration.zero, const Duration(seconds: 2));
-
     // Initialize from DB (loads active spawns & schedules; creates schedules if missing)
     await spawnService.initializeActiveSpawns(scenes: scenes);
+
+    // Reset any existing long-wait timers to use the new window
+    await spawnService.rescheduleAllScenes();
 
     // (Optional) Fire once so any overdue scenes materialize immediately
     await spawnService.processDueScenes(scenes);

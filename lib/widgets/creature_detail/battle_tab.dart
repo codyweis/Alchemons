@@ -1,20 +1,21 @@
 import 'package:alchemons/games/survival/special_attacks/ability_config.dart';
+import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:alchemons/widgets/survival_specs_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
-import 'package:alchemons/widgets/creature_detail/section_block.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 
 class ImprovedBattleScrollArea extends StatelessWidget {
-  final FactionTheme theme;
+  final FactionTheme? theme;
   final Creature creature;
   final CreatureInstance instance;
 
   const ImprovedBattleScrollArea({
     super.key,
-    required this.theme,
+    this.theme,
     required this.creature,
     required this.instance,
   });
@@ -33,49 +34,283 @@ class ImprovedBattleScrollArea extends StatelessWidget {
       statBeauty: instance.statBeauty,
     );
 
+    final moveStyle = BattleMove.styleForFamily(unit.family);
+    final battleSpecialMove = BattleMove.getSpecialMove(unit.family);
+    final battleBasicMove = BattleMove.getBasicMove(unit.family);
+    final bossProfile = BattleCombatant(
+      id: 'view_boss',
+      name: creature.name,
+      types: creature.types,
+      family: unit.family,
+      statSpeed: instance.statSpeed,
+      statIntelligence: instance.statIntelligence,
+      statStrength: instance.statStrength,
+      statBeauty: instance.statBeauty,
+      level: instance.level,
+    );
+
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            decoration: BoxDecoration(
+              color: FC.bg3,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: FC.borderDim),
+            ),
+            child: TabBar(
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: FC.amberBright,
+              unselectedLabelColor: FC.textSecondary,
+              labelStyle: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.5,
+              ),
+              indicator: BoxDecoration(
+                color: FC.amber.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(2),
+                border: Border.all(color: FC.borderAccent),
+              ),
+              tabs: const [
+                Tab(text: 'SURVIVAL'),
+                Tab(text: 'BOSS'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildSurvivalTab(unit),
+                _buildBossTab(
+                  moveStyle,
+                  bossProfile,
+                  battleBasicMove,
+                  battleSpecialMove,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSurvivalTab(SurvivalUnit unit) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Stat Block
-          SectionBlock(
-            theme: theme,
+          _BattleSection(
             title: 'Survival Metrics',
-            child: SurvivalSpecsWidget(
-              theme: theme,
-              creature: creature,
-              instance: instance,
-            ),
+            color: FC.amber,
+            child: SurvivalSpecsWidget(creature: creature, instance: instance),
           ),
-          const SizedBox(height: 16),
-
-          // 2. Basic Attack Section
-          SectionBlock(
-            theme: theme,
+          const SizedBox(height: 20),
+          _BattleSection(
             title: 'Basic Attack',
-            child: _DynamicBasicAttackCard(theme: theme, unit: unit),
+            color: FC.amber,
+            child: _DynamicBasicAttackCard(unit: unit),
           ),
-          const SizedBox(height: 16),
-
-          // 3. Special Ability Section (Dynamic)
-          SectionBlock(
-            theme: theme,
+          const SizedBox(height: 20),
+          _BattleSection(
             title: 'Special Ability',
-            child: _DynamicSpecialAbilityCard(theme: theme, unit: unit),
+            color: FC.amber,
+            child: _DynamicSpecialAbilityCard(unit: unit),
           ),
-
-          const SizedBox(height: 16),
-
-          // 4. Stat Explanations
-          SectionBlock(
-            theme: theme,
+          const SizedBox(height: 20),
+          _BattleSection(
             title: 'Stat Effects',
-            child: _StatEffectsCard(theme: theme),
+            color: FC.amber,
+            child: const _StatEffectsCard(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBossTab(
+    FamilyMoveStyle moveStyle,
+    BattleCombatant bossProfile,
+    BattleMove battleBasicMove,
+    BattleMove battleSpecialMove,
+  ) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _BattleSection(
+            title: 'Boss Combat Profile',
+            color: FC.orange,
+            child: _BossCombatProfileCard(
+              profile: bossProfile,
+              basicMoveName: battleBasicMove.name,
+              specialMoveName: battleSpecialMove.name,
+              specialMoveSummary: moveStyle.summary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Flat section header for the battle tab — no box, just accent bar + rule
+class _BattleSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final Color color;
+
+  const _BattleSection({
+    required this.title,
+    required this.child,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(width: 3, height: 10, color: color),
+            const SizedBox(width: 7),
+            Text(
+              title.toUpperCase(),
+              style: FT.sectionTitle.copyWith(color: color),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Container(height: 1, color: FC.borderDim),
+        const SizedBox(height: 10),
+        child,
+      ],
+    );
+  }
+}
+
+class _BossCombatProfileCard extends StatelessWidget {
+  final BattleCombatant profile;
+  final String basicMoveName;
+  final String specialMoveName;
+  final String specialMoveSummary;
+
+  const _BossCombatProfileCard({
+    required this.profile,
+    required this.basicMoveName,
+    required this.specialMoveName,
+    required this.specialMoveSummary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _bossStatChip('HP', profile.maxHp.toString())),
+            const SizedBox(width: 8),
+            Expanded(child: _bossStatChip('ATK', profile.physAtk.toString())),
+            const SizedBox(width: 8),
+            Expanded(child: _bossStatChip('DEF', profile.physDef.toString())),
+            const SizedBox(width: 8),
+            Expanded(child: _bossStatChip('SPD', profile.speed.toString())),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _moveLine('Basic Move', basicMoveName),
+        const SizedBox(height: 6),
+        _moveLine('Special Move', specialMoveName),
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.only(left: 90),
+          child: Text(
+            specialMoveSummary,
+            style: const TextStyle(
+              color: FC.textSecondary,
+              fontSize: 11,
+              height: 1.3,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _bossStatChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: FC.bg2,
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: FC.borderDim),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: FC.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: FC.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _moveLine(String label, String value) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: FC.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: FC.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -84,10 +319,9 @@ class ImprovedBattleScrollArea extends StatelessWidget {
 // DYNAMIC BASIC ATTACK CARD
 // ===============================================
 class _DynamicBasicAttackCard extends StatelessWidget {
-  final FactionTheme theme;
   final SurvivalUnit unit;
 
-  const _DynamicBasicAttackCard({required this.theme, required this.unit});
+  const _DynamicBasicAttackCard({required this.unit});
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +330,7 @@ class _DynamicBasicAttackCard extends StatelessWidget {
     final passiveEffect = AbilitySystemConfig.getPassiveEffectDescription(
       element,
     );
+    final elemColor = _getElementColor(element);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,31 +340,37 @@ class _DynamicBasicAttackCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: theme.primary.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.primary.withOpacity(0.5)),
+                color: FC.amber.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: FC.borderAccent),
               ),
-              child: Icon(Icons.star_border, color: theme.primary, size: 20),
+              child: const Icon(
+                Icons.star_border,
+                color: FC.amberBright,
+                size: 18,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    "ELEMENTAL PROJECTILE",
+                  const Text(
+                    'ELEMENTAL PROJECTILE',
                     style: TextStyle(
-                      color: theme.text,
+                      fontFamily: 'monospace',
+                      color: FC.textPrimary,
                       fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                      letterSpacing: 0.5,
+                      fontSize: 12,
+                      letterSpacing: 0.8,
                     ),
                   ),
                   Text(
-                    "Cooldown: ${cooldown}s • Scales with Speed",
-                    style: TextStyle(
-                      color: theme.secondary,
-                      fontSize: 10,
+                    'Cooldown: ${cooldown}s • Scales with Speed',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: FC.textSecondary,
+                      fontSize: 9,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -139,13 +380,9 @@ class _DynamicBasicAttackCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        Text(
-          "Fires elemental projectiles at enemies. Basic damage scales with Strength, elemental damage with Beauty, attack speed with Speed, and range with Intelligence.",
-          style: TextStyle(
-            color: theme.text.withOpacity(0.9),
-            fontSize: 12,
-            height: 1.4,
-          ),
+        const Text(
+          'Fires elemental projectiles at enemies. Basic damage scales with Strength, elemental damage with Beauty, attack speed with Speed, and range with Intelligence.',
+          style: TextStyle(color: FC.textSecondary, fontSize: 11, height: 1.4),
         ),
         const SizedBox(height: 12),
 
@@ -153,26 +390,19 @@ class _DynamicBasicAttackCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black26,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: _getElementColor(element).withOpacity(0.3),
-              width: 1,
-            ),
+            color: FC.bg3,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: elemColor.withOpacity(0.4)),
           ),
           child: Row(
             children: [
-              Icon(
-                _getPassiveIcon(element),
-                size: 14,
-                color: _getElementColor(element),
-              ),
+              Icon(_getPassiveIcon(element), size: 12, color: elemColor),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   passiveEffect,
-                  style: TextStyle(
-                    color: theme.text,
+                  style: const TextStyle(
+                    color: FC.textPrimary,
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
@@ -183,9 +413,7 @@ class _DynamicBasicAttackCard extends StatelessWidget {
         ),
 
         const SizedBox(height: 8),
-
-        // Damage Preview
-        _DamagePreview(theme: theme, unit: unit),
+        _DamagePreview(unit: unit),
       ],
     );
   }
@@ -246,19 +474,21 @@ class _DynamicBasicAttackCard extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DAMAGE PREVIEW
+// ─────────────────────────────────────────────────────────────────────────────
 class _DamagePreview extends StatelessWidget {
-  final FactionTheme theme;
   final SurvivalUnit unit;
-
-  const _DamagePreview({required this.theme, required this.unit});
+  const _DamagePreview({required this.unit});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: theme.primary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
+        color: FC.amberDim.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: FC.borderAccent),
       ),
       child: Row(
         children: [
@@ -281,28 +511,31 @@ class _DamagePreview extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.black26,
-          borderRadius: BorderRadius.circular(4),
+          color: FC.bg3,
+          borderRadius: BorderRadius.circular(2),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 12, color: theme.secondary),
+            Icon(icon, size: 11, color: FC.amberDim),
             const SizedBox(width: 4),
             Text(
               label,
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 9,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: FC.textMuted,
+                fontSize: 8,
                 fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
               ),
             ),
             const Spacer(),
             Text(
               value,
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 11,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: FC.textPrimary,
+                fontSize: 10,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -313,15 +546,12 @@ class _DamagePreview extends StatelessWidget {
   }
 }
 
-// ===============================================
+// ─────────────────────────────────────────────────────────────────────────────
 // DYNAMIC SPECIAL ABILITY CARD (3-TIER SYSTEM)
-// ===============================================
+// ─────────────────────────────────────────────────────────────────────────────
 class _DynamicSpecialAbilityCard extends StatefulWidget {
-  final FactionTheme theme;
   final SurvivalUnit unit;
-
-  const _DynamicSpecialAbilityCard({required this.theme, required this.unit});
-
+  const _DynamicSpecialAbilityCard({required this.unit});
   @override
   State<_DynamicSpecialAbilityCard> createState() =>
       _DynamicSpecialAbilityCardState();
@@ -329,13 +559,12 @@ class _DynamicSpecialAbilityCard extends StatefulWidget {
 
 class _DynamicSpecialAbilityCardState
     extends State<_DynamicSpecialAbilityCard> {
-  int _selectedRank = 0; // 0 = base, 1 = unlock, 2 = strengthened, 3 = ultimate
+  int _selectedRank = 0;
 
   @override
   Widget build(BuildContext context) {
     final family = widget.unit.family;
     final element = widget.unit.types.firstOrNull ?? 'Normal';
-
     final baseDescription = AbilitySystemConfig.getAbilityDescription(
       family,
       element,
@@ -345,22 +574,19 @@ class _DynamicSpecialAbilityCardState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Ability Header
         Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: widget.theme.primary.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: widget.theme.primary.withOpacity(0.5),
-                ),
+                color: FC.amber.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: FC.borderAccent),
               ),
               child: Icon(
                 _getFamilyIcon(family),
-                color: widget.theme.primary,
-                size: 20,
+                color: FC.amberBright,
+                size: 18,
               ),
             ),
             const SizedBox(width: 12),
@@ -370,18 +596,20 @@ class _DynamicSpecialAbilityCardState
                 children: [
                   Text(
                     _getFamilyAbilityName(family).toUpperCase(),
-                    style: TextStyle(
-                      color: widget.theme.text,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: FC.textPrimary,
                       fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                      letterSpacing: 0.5,
+                      fontSize: 12,
+                      letterSpacing: 0.8,
                     ),
                   ),
-                  Text(
-                    "Scales with Beauty • 3 elemental upgrades",
+                  const Text(
+                    'Scales with Beauty \u2022 3 elemental upgrades',
                     style: TextStyle(
-                      color: widget.theme.secondary,
-                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: FC.textSecondary,
+                      fontSize: 9,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -391,31 +619,17 @@ class _DynamicSpecialAbilityCardState
           ],
         ),
         const SizedBox(height: 12),
-
-        // Base Description
         Text(
           baseDescription,
-          style: TextStyle(
-            color: widget.theme.text.withOpacity(0.9),
-            fontSize: 12,
+          style: const TextStyle(
+            color: FC.textSecondary,
+            fontSize: 11,
             height: 1.4,
           ),
         ),
         const SizedBox(height: 16),
-
-        // Rank Selector
-        Text(
-          "ELEMENTAL MASTERY",
-          style: TextStyle(
-            color: widget.theme.textMuted,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.8,
-          ),
-        ),
+        const Text('ELEMENTAL MASTERY', style: FT.label),
         const SizedBox(height: 8),
-
-        // Rank Buttons (4 buttons: BASE + 3 tiers)
         Row(
           children: [
             _rankButton(0, 'BASE', null),
@@ -428,8 +642,6 @@ class _DynamicSpecialAbilityCardState
           ],
         ),
         const SizedBox(height: 12),
-
-        // Rank Description
         if (_selectedRank > 0) _rankDescriptionBox(family, element),
       ],
     );
@@ -438,16 +650,7 @@ class _DynamicSpecialAbilityCardState
   Widget _rankButton(int rank, String label, String? subtitle) {
     final isSelected = _selectedRank == rank;
     final isUltimate = rank == 3;
-
-    // Ultimate tier gets special styling
-    final borderColor = isSelected
-        ? (isUltimate ? Colors.amber : widget.theme.primary)
-        : widget.theme.primary.withOpacity(0.2);
-    final bgColor = isSelected
-        ? (isUltimate
-              ? Colors.amber.withOpacity(0.2)
-              : widget.theme.primary.withOpacity(0.3))
-        : Colors.black26;
+    final activeColor = isUltimate ? FC.amberGlow : FC.amber;
 
     return Expanded(
       child: InkWell(
@@ -455,19 +658,21 @@ class _DynamicSpecialAbilityCardState
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: borderColor, width: isSelected ? 2 : 1),
+            color: isSelected ? activeColor.withOpacity(0.15) : FC.bg3,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(
+              color: isSelected ? activeColor.withOpacity(0.8) : FC.borderDim,
+              width: isSelected ? 1.0 : 0.8,
+            ),
           ),
           child: Column(
             children: [
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected
-                      ? (isUltimate ? Colors.amber : widget.theme.text)
-                      : widget.theme.textMuted,
-                  fontSize: 14,
+                  fontFamily: 'monospace',
+                  color: isSelected ? activeColor : FC.textMuted,
+                  fontSize: 13,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -476,11 +681,10 @@ class _DynamicSpecialAbilityCardState
                 Text(
                   subtitle,
                   style: TextStyle(
+                    fontFamily: 'monospace',
                     color: isSelected
-                        ? (isUltimate
-                              ? Colors.amber.withOpacity(0.8)
-                              : widget.theme.secondary)
-                        : widget.theme.textMuted.withOpacity(0.6),
+                        ? activeColor.withOpacity(0.8)
+                        : FC.textMuted,
                     fontSize: 7,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
@@ -500,30 +704,16 @@ class _DynamicSpecialAbilityCardState
       element,
       _selectedRank,
     );
-
     final isUltimate = _selectedRank == 3;
     final tierLabel = _getTierLabel(_selectedRank);
+    final activeColor = isUltimate ? FC.amberGlow : FC.amber;
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isUltimate
-              ? [Colors.amber.withOpacity(0.15), Colors.orange.withOpacity(0.1)]
-              : [
-                  widget.theme.primary.withOpacity(0.15),
-                  widget.theme.secondary.withOpacity(0.1),
-                ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isUltimate
-              ? Colors.amber.withOpacity(0.5)
-              : widget.theme.primary.withOpacity(0.3),
-          width: 1.5,
-        ),
+        color: activeColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: activeColor.withOpacity(0.4)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -531,28 +721,29 @@ class _DynamicSpecialAbilityCardState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
-              color: isUltimate
-                  ? Colors.amber.withOpacity(0.2)
-                  : widget.theme.primary.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(4),
+              color: activeColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(2),
+              border: Border.all(color: activeColor.withOpacity(0.4)),
             ),
             child: Column(
               children: [
                 Text(
                   _getRomanNumeral(_selectedRank),
                   style: TextStyle(
-                    color: isUltimate ? Colors.amber : widget.theme.primary,
-                    fontSize: 14,
+                    fontFamily: 'monospace',
+                    color: activeColor,
+                    fontSize: 13,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
                 Text(
                   tierLabel,
                   style: TextStyle(
-                    color: (isUltimate ? Colors.amber : widget.theme.primary)
-                        .withOpacity(0.7),
+                    fontFamily: 'monospace',
+                    color: activeColor.withOpacity(0.7),
                     fontSize: 6,
                     fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
@@ -562,8 +753,8 @@ class _DynamicSpecialAbilityCardState
           Expanded(
             child: Text(
               description,
-              style: TextStyle(
-                color: widget.theme.text,
+              style: const TextStyle(
+                color: FC.textPrimary,
                 fontSize: 11,
                 height: 1.4,
                 fontWeight: FontWeight.w500,
@@ -648,13 +839,11 @@ class _DynamicSpecialAbilityCardState
   }
 }
 
-// ===============================================
+// ─────────────────────────────────────────────────────────────────────────────
 // STAT EFFECTS CARD
-// ===============================================
+// ─────────────────────────────────────────────────────────────────────────────
 class _StatEffectsCard extends StatelessWidget {
-  final FactionTheme theme;
-
-  const _StatEffectsCard({required this.theme});
+  const _StatEffectsCard();
 
   @override
   Widget build(BuildContext context) {
@@ -704,10 +893,10 @@ class _StatEffectsCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: theme.primary.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(4),
+            color: FC.amberDim.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(2),
           ),
-          child: Icon(icon, size: 14, color: theme.primary),
+          child: Icon(icon, size: 12, color: FC.amber),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -715,17 +904,19 @@ class _StatEffectsCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                stat,
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 11,
+                stat.toUpperCase(),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: FC.textPrimary,
+                  fontSize: 10,
                   fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
                 ),
               ),
               Text(
                 effect,
-                style: TextStyle(
-                  color: theme.textMuted,
+                style: const TextStyle(
+                  color: FC.textSecondary,
                   fontSize: 10,
                   height: 1.3,
                 ),

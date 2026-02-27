@@ -84,9 +84,7 @@ class BossSpawnPortal extends PositionComponent {
 
     // 1. Outer glow pulse
     final pulseScale = 1.0 + sin(_time * 8) * 0.1;
-    final glowPaint = Paint()
-      ..color = color.withOpacity(_opacity * 0.4)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 25);
+    final glowPaint = Paint()..color = color.withOpacity(_opacity * 0.4);
     canvas.drawCircle(Offset.zero, radius * pulseScale, glowPaint);
 
     // 2. Spinning outer ring

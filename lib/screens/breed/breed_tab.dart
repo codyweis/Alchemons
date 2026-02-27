@@ -105,6 +105,38 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
+  /// Mystics may only fuse with the exact same Mystic species.
+  Future<void> _showMysticBreedingLockedDialog(
+    BuildContext context,
+    String nameA,
+    String nameB,
+  ) async {
+    final theme = context.read<FactionTheme>();
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(
+            'Mystic Incompatibility',
+            style: TextStyle(color: theme.text),
+          ),
+          content: Text(
+            'Mystic entities are bound to their own essence.\n\n'
+            '$nameA and $nameB cannot be fused — Mystics may only '
+            'breed with another of the exact same Mystic species.',
+            style: TextStyle(color: theme.text),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -280,8 +312,26 @@ class _BreedingTabState extends State<BreedingTab>
 
   Widget _buildHeader(FactionTheme theme) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // Vertical accent bar with glow
+        Container(
+          width: 3,
+          height: 44,
+          decoration: BoxDecoration(
+            color: theme.accent,
+            borderRadius: BorderRadius.circular(2),
+            boxShadow: [
+              BoxShadow(
+                color: theme.accent.withOpacity(.5),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+        ),
         const SizedBox(width: 14),
+        // Title + subtitle
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,9 +340,9 @@ class _BreedingTabState extends State<BreedingTab>
                 'FUSION CHAMBER',
                 style: TextStyle(
                   color: theme.text,
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
+                  letterSpacing: 1.4,
                 ),
               ),
               const SizedBox(height: 3),
@@ -300,9 +350,10 @@ class _BreedingTabState extends State<BreedingTab>
                 'Select two specimens to synthesize new life',
                 style: TextStyle(
                   color: theme.textMuted,
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                   height: 1.3,
+                  letterSpacing: .3,
                 ),
               ),
             ],
@@ -808,10 +859,13 @@ class _BreedingTabState extends State<BreedingTab>
     return AnimatedBuilder(
       animation: _breedButtonController,
       builder: (context, child) {
+        final t = _breedButtonController.value;
         final pulseValue = canBreed
-            ? 1.0 +
-                  (math.sin(_breedButtonController.value * 2 * math.pi) * 0.05)
+            ? 1.0 + (math.sin(t * 2 * math.pi) * 0.04)
             : 1.0;
+        final glowAlpha = canBreed
+            ? 0.4 + math.sin(t * 2 * math.pi) * 0.2
+            : 0.0;
 
         return Transform.scale(
           scale: pulseValue,
@@ -822,22 +876,32 @@ class _BreedingTabState extends State<BreedingTab>
               padding: const EdgeInsets.symmetric(vertical: 18),
               decoration: BoxDecoration(
                 gradient: canBreed
-                    ? LinearGradient(colors: [theme.accent, theme.accentSoft])
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [theme.accent, theme.accentSoft, theme.accent],
+                        stops: const [0.0, 0.5, 1.0],
+                      )
                     : null,
                 color: canBreed ? null : theme.surfaceAlt.withOpacity(.4),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: canBreed
-                      ? theme.accent.withOpacity(.8)
+                      ? theme.accent.withOpacity(.9)
                       : theme.border.withOpacity(.4),
-                  width: 2,
+                  width: canBreed ? 1.5 : 1,
                 ),
                 boxShadow: canBreed
                     ? [
                         BoxShadow(
-                          color: theme.accent.withOpacity(.5),
+                          color: theme.accent.withOpacity(glowAlpha),
                           blurRadius: 28,
-                          spreadRadius: 4,
+                          spreadRadius: 6,
+                        ),
+                        BoxShadow(
+                          color: theme.accent.withOpacity(glowAlpha * .4),
+                          blurRadius: 52,
+                          spreadRadius: 2,
                         ),
                       ]
                     : [],
@@ -845,7 +909,14 @@ class _BreedingTabState extends State<BreedingTab>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(width: 12),
+                  if (canBreed) ...[
+                    Icon(
+                      Icons.merge_type_rounded,
+                      color: Colors.black,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                  ],
                   Text(
                     canBreed ? 'INITIATE FUSION' : 'SELECT TWO SPECIMENS',
                     style: TextStyle(
@@ -854,7 +925,7 @@ class _BreedingTabState extends State<BreedingTab>
                           : theme.textMuted.withOpacity(.5),
                       fontSize: 14,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: .8,
+                      letterSpacing: 1.0,
                     ),
                   ),
                 ],
@@ -885,6 +956,23 @@ class _BreedingTabState extends State<BreedingTab>
     final famA = _familyKeyForCreature(speciesA);
     final famB = _familyKeyForCreature(speciesB);
     final sameFamily = famA == famB;
+
+    // Mystic-only rule: Mystics can only breed with the EXACT same species.
+    final isMysticA = speciesA.mutationFamily == 'Mystic';
+    final isMysticB = speciesB.mutationFamily == 'Mystic';
+    if (isMysticA || isMysticB) {
+      final sameMysticSpecies =
+          isMysticA && isMysticB && speciesA.id == speciesB.id;
+      if (!sameMysticSpecies) {
+        await _showMysticBreedingLockedDialog(
+          context,
+          speciesA.name,
+          speciesB.name,
+        );
+        setState(() => _isBreeding = false);
+        return;
+      }
+    }
 
     final db = context.read<AlchemonsDatabase>();
     final skills = await db.constellationDao.getUnlockedSkillIds();

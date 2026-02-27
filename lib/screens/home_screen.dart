@@ -1,8 +1,11 @@
 // (imports unchanged except where noted)
 import 'dart:async' as async;
+import 'dart:math';
 
 import 'package:alchemons/games/survival/survival_game_screen.dart';
+import 'package:lottie/lottie.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
+import 'package:alchemons/screens/battle_mode_screen.dart';
 import 'package:alchemons/screens/boss/boss_intro_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/game_screen.dart';
@@ -11,6 +14,10 @@ import 'package:alchemons/screens/map_screen.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_points_widget.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_screen.dart';
+import 'package:alchemons/screens/mystic_altar/mystic_altar_screen.dart';
+import 'package:alchemons/data/boss_data.dart';
+import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
@@ -29,12 +36,15 @@ import 'package:alchemons/widgets/notification_banner_system.dart';
 import 'package:alchemons/widgets/side_dock_widget.dart';
 import 'package:alchemons/widgets/starter_granted_dialog.dart';
 import 'package:drift/drift.dart' hide Column;
+import 'package:flame/flame.dart' show Flame;
 import 'package:flutter/cupertino.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
@@ -48,6 +58,7 @@ import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/widgets/background/interactive_background_widget.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
+import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
@@ -148,11 +159,11 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _rotationController;
   late AnimationController _particleController;
   late AnimationController _waveController;
-  late AnimationController _glowController;
 
   final PushNotificationService _pushNotifications = PushNotificationService();
   String? _lastEggStateKey;
   String? _lastHarvestStateKey;
+  final Map<int, int> _lastScheduledEggHatchMsBySlot = {};
 
   bool _isFieldTutorialActive = false;
 
@@ -207,11 +218,6 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(seconds: 4),
       vsync: this,
     )..repeat();
-
-    _glowController = AnimationController(
-      duration: const Duration(milliseconds: 1600),
-      vsync: this,
-    )..repeat(reverse: true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _initializeApp();
@@ -298,7 +304,6 @@ class _HomeScreenState extends State<HomeScreen>
     _rotationController.dispose();
     _particleController.dispose();
     _waveController.dispose();
-    _glowController.dispose();
     _slotsSubscription?.cancel();
     _biomesSubscription?.cancel();
 
@@ -454,6 +459,7 @@ class _HomeScreenState extends State<HomeScreen>
       final spawnService = context.read<WildernessSpawnService>();
 
       await _grantStarterIfNeeded(faction, spawnService);
+      await _seedMissingBossTraitKeys();
 
       // Load featured hero
       final featuredInstance = await _loadFeaturedInstanceOrAuto();
@@ -470,6 +476,7 @@ class _HomeScreenState extends State<HomeScreen>
         debugPrint('🎯 SpriteData path: ${base?.spriteData?.spriteSheetPath}');
 
         _featuredInstanceId = featuredInstance.instanceId;
+        await _prewarmFeaturedSprite(featuredInstance, repo);
         _featuredData = _presentationFromInstance(featuredInstance, repo);
       } else {
         _featuredInstanceId = null;
@@ -599,9 +606,11 @@ class _HomeScreenState extends State<HomeScreen>
     final List<Future> scheduleTasks = [];
     final List<int> slotsToCancel = [];
     final List<int> readySlotIds = [];
+    final Set<int> activeSlotIds = <int>{};
 
     for (final slot in slots) {
       if (slot.unlocked && slot.eggId != null && slot.hatchAtUtcMs != null) {
+        activeSlotIds.add(slot.id);
         final hatchUtc = DateTime.fromMillisecondsSinceEpoch(
           slot.hatchAtUtcMs!,
           isUtc: true,
@@ -612,17 +621,36 @@ class _HomeScreenState extends State<HomeScreen>
           readySlotIds.add(slot.id);
           // Cancel per-slot scheduled notification (it would be in the past now)
           slotsToCancel.add(slot.id);
+          _lastScheduledEggHatchMsBySlot.remove(slot.id);
         } else {
-          // Schedule/update the per-egg local notification
-          scheduleTasks.add(
-            _pushNotifications.scheduleEggHatchingNotification(
-              hatchTime: hatchUtc.toLocal(),
-              eggId: slot.eggId!,
-              slotIndex: slot.id,
-            ),
-          );
+          // Schedule only when this slot's hatch timestamp actually changed.
+          final lastScheduledMs = _lastScheduledEggHatchMsBySlot[slot.id];
+          final hatchMs = slot.hatchAtUtcMs!;
+          if (lastScheduledMs != hatchMs) {
+            scheduleTasks.add(
+              _pushNotifications.scheduleEggHatchingNotification(
+                hatchTime: hatchUtc.toLocal(),
+                eggId: slot.eggId!,
+                slotIndex: slot.id,
+              ),
+            );
+            _lastScheduledEggHatchMsBySlot[slot.id] = hatchMs;
+          }
         }
+      } else {
+        // Slot is empty/invalid -> ensure any stale scheduled notification is cleared.
+        slotsToCancel.add(slot.id);
+        _lastScheduledEggHatchMsBySlot.remove(slot.id);
       }
+    }
+
+    // If slot list changed, clean up removed slot IDs too.
+    final staleTrackedSlots = _lastScheduledEggHatchMsBySlot.keys
+        .where((slotId) => !activeSlotIds.contains(slotId))
+        .toList();
+    for (final slotId in staleTrackedSlots) {
+      slotsToCancel.add(slotId);
+      _lastScheduledEggHatchMsBySlot.remove(slotId);
     }
 
     for (final slotId in slotsToCancel) {
@@ -717,10 +745,6 @@ class _HomeScreenState extends State<HomeScreen>
             );
           },
         ),
-      );
-
-      await _pushNotifications.showHarvestReadyNotification(
-        count: readyHarvests,
       );
     } else {
       _lastHarvestStateKey = null;
@@ -849,6 +873,20 @@ class _HomeScreenState extends State<HomeScreen>
     });
 
     return all.first;
+  }
+
+  /// Pre-loads the featured creature's sprite sheet into Flame's image cache
+  /// so that [CreatureSprite] can display it synchronously (no loading flash).
+  Future<void> _prewarmFeaturedSprite(
+    CreatureInstance inst,
+    CreatureCatalog repo,
+  ) async {
+    try {
+      final base = repo.getCreatureById(inst.baseId);
+      if (base?.spriteData == null) return;
+      final sheet = sheetFromCreature(base!);
+      await Flame.images.load(sheet.path);
+    } catch (_) {}
   }
 
   PresentationData? _presentationFromInstance(
@@ -987,6 +1025,7 @@ class _HomeScreenState extends State<HomeScreen>
     await db.settingsDao.setFeaturedInstanceId(pickedInstance.instanceId);
 
     // Step 4: update local state
+    await _prewarmFeaturedSprite(pickedInstance, repo);
     final newPresentation = _presentationFromInstance(pickedInstance, repo);
     if (!mounted) return;
     setState(() {
@@ -1190,7 +1229,7 @@ class _HomeScreenState extends State<HomeScreen>
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const BossBattleScreen(),
+                                  builder: (_) => const GameModeScreen(),
                                 ),
                               );
                             },
@@ -1205,6 +1244,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 ),
                               );
                             },
+                      onMysticAltar: null,
                     ),
                   ),
                 ),
@@ -1220,53 +1260,56 @@ class _HomeScreenState extends State<HomeScreen>
                         opacity: _isFieldTutorialActive ? 0.4 : 1.0,
                         child: IgnorePointer(
                           ignoring: _isFieldTutorialActive,
-                          child: GestureDetector(
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const BossBattleScreen(),
-                              ),
-                            ),
-                            child: Column(
-                              children: [ConstellationPointsWidget()],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    //go to survival battle screen on tap
-                    // --- 2. Second Icon (NEW ICON) ---
-                    Positioned(
-                      top: MediaQuery.of(context).padding.top + 220,
-                      right: 15,
-                      child: IgnorePointer(
-                        ignoring: _isFieldTutorialActive,
-                        child: GestureDetector(
-                          onTap: () =>
-                              Navigator.of(context, rootNavigator: true).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const SurvivalGameScreen(),
-                                ),
-                              ),
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Icon(Icons.shield, size: 36, color: Colors.black),
-                              SizedBox(height: 4),
-                              Text(
-                                'SURVIVAL',
-                                style: TextStyle(
-                                  color: theme.textMuted,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.4,
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const BossBattleScreen(),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [ConstellationPointsWidget()],
                                 ),
                               ),
+                              if (context
+                                      .watch<BossProgressNotifier>()
+                                      .totalBossesDefeated >
+                                  0) ...[
+                                const SizedBox(height: 10),
+                                MysticSwirlButton(
+                                  theme: theme,
+                                  size: 60,
+                                  onTap: () {
+                                    HapticFeedback.heavyImpact();
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const MysticAltarScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
                             ],
                           ),
                         ),
                       ),
                     ),
                   ],
+                ),
+
+                // Daily Treasure Chest — bottom center above nav bar
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 90),
+                    child: _DailyTreasureChest(),
+                  ),
                 ),
 
                 // Side dock etc. (static, doesn’t need TickerMode)
@@ -1295,7 +1338,35 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildHomeContent(FactionTheme theme) {
-    return SingleChildScrollView();
+    return const SizedBox.shrink();
+  }
+
+  /// One-time migration: grant trait keys for bosses already beaten before
+  /// the Mystic Altar feature was introduced.
+  Future<void> _seedMissingBossTraitKeys() async {
+    if (!mounted) return;
+    final db = context.read<AlchemonsDatabase>();
+    final bossProgress = context.read<BossProgressNotifier>();
+
+    // Wait for SharedPreferences to finish loading into the notifier
+    if (!bossProgress.isLoaded) {
+      await Future.doWhile(() async {
+        await Future.delayed(const Duration(milliseconds: 50));
+        return !bossProgress.isLoaded;
+      });
+    }
+
+    if (!mounted) return;
+
+    for (final boss in BossRepository.allBosses) {
+      if (!bossProgress.isBossDefeated(boss.id)) continue;
+      final traitKey = BossLootKeys.traitKeyForElement(boss.element);
+      final qty = await db.inventoryDao.getItemQty(traitKey);
+      if (qty == 0) {
+        await db.inventoryDao.addItemQty(traitKey, 1);
+        debugPrint('🔑 Seeded missing trait key: $traitKey (${boss.name})');
+      }
+    }
   }
 
   Future<void> _grantStarterIfNeeded(
@@ -1425,6 +1496,399 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Daily Treasure Chest
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DailyTreasureChest extends StatefulWidget {
+  const _DailyTreasureChest();
+
+  @override
+  State<_DailyTreasureChest> createState() => _DailyTreasureChestState();
+}
+
+class _DailyTreasureChestState extends State<_DailyTreasureChest>
+    with TickerProviderStateMixin {
+  late final AnimationController _lottieCtrl;
+  bool _isClaimed = false;
+  bool _isPlaying = false;
+  bool _ready = false; // true once lottie loaded
+
+  static const _settingKey = 'daily_loot_key';
+
+  String get _todayKey =>
+      DateTime.now().toUtc().toIso8601String().split('T').first;
+
+  @override
+  void initState() {
+    super.initState();
+    _lottieCtrl = AnimationController(vsync: this);
+    _checkClaimed();
+  }
+
+  Future<void> _checkClaimed() async {
+    final db = context.read<AlchemonsDatabase>();
+    final saved = await db.settingsDao.getSetting(_settingKey);
+    if (!mounted) return;
+    setState(() {
+      _isClaimed = saved == _todayKey;
+    });
+  }
+
+  @override
+  void dispose() {
+    _lottieCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _onTap() async {
+    if (_isClaimed || _isPlaying || !_ready) return;
+    setState(() => _isPlaying = true);
+
+    // Start lottie — show loot after 1.5 s without waiting for it to finish
+    _lottieCtrl.forward(from: 0);
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    if (!mounted) return;
+
+    // Grant rewards
+    final rng = Random();
+    final db = context.read<AlchemonsDatabase>();
+    final silver = 150 + rng.nextInt(351); // 150–500
+    final int gold = rng.nextDouble() < 0.15 ? 1 : 0;
+    final bool givesVial = rng.nextDouble() < 0.25;
+
+    await db.currencyDao.addSilver(silver);
+    if (gold > 0) await db.currencyDao.addGold(gold);
+    if (givesVial) {
+      try {
+        final groups = ElementalGroup.values;
+        final group = groups[rng.nextInt(groups.length)];
+        await db.inventoryDao.addVial('Daily Vial', group, VialRarity.common);
+      } catch (_) {}
+    }
+
+    // Persist claim
+    await db.settingsDao.setSetting(_settingKey, _todayKey);
+    if (!mounted) return;
+    setState(() {
+      _isClaimed = true;
+      _isPlaying = false;
+    });
+
+    // Build loot rewards
+    final rewards = [
+      _TreasureReward(
+        icon: Icons.monetization_on_rounded,
+        amount: '+$silver',
+        name: 'SILVER',
+        color: const Color(0xFFB0BEC5),
+      ),
+      if (gold > 0)
+        _TreasureReward(
+          icon: Icons.stars_rounded,
+          amount: '+$gold',
+          name: 'GOLD',
+          color: const Color(0xFFFFD700),
+        ),
+      if (givesVial)
+        _TreasureReward(
+          icon: Icons.science_rounded,
+          amount: '×1',
+          name: 'COMMON VIAL',
+          color: const Color(0xFF4CAF50),
+        ),
+    ];
+
+    if (!mounted) return;
+    await _showTreasureLootDialog(context, rewards);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isClaimed) return const SizedBox.shrink();
+    return GestureDetector(
+      onTap: _onTap,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Glow ring when unclaimed
+          if (!_isClaimed)
+            Container(
+              width: 81,
+              height: 81,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFFAA00).withOpacity(0.22),
+                    blurRadius: 5,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+            ),
+          Opacity(
+            opacity: 1.0,
+            child: SizedBox(
+              width: 160,
+              height: 160,
+              child: Lottie.asset(
+                'assets/animations/treasure_lottie.json',
+                controller: _lottieCtrl,
+                fit: BoxFit.contain,
+                repeat: false,
+                onLoaded: (comp) {
+                  if (!mounted) return;
+                  _lottieCtrl.duration = comp.duration;
+                  _lottieCtrl.value = 0;
+                  setState(() => _ready = true);
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Treasure Loot Dialog — sleek animated reward reveal
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TreasureReward {
+  final IconData icon;
+  final String amount;
+  final String name;
+  final Color color;
+
+  const _TreasureReward({
+    required this.icon,
+    required this.amount,
+    required this.name,
+    required this.color,
+  });
+}
+
+Future<void> _showTreasureLootDialog(
+  BuildContext context,
+  List<_TreasureReward> rewards,
+) async {
+  await showGeneralDialog(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: Colors.black.withOpacity(0.80),
+    transitionDuration: const Duration(milliseconds: 350),
+    transitionBuilder: (ctx, anim, _, child) =>
+        FadeTransition(opacity: anim, child: child),
+    pageBuilder: (ctx, _, __) => _TreasureLootDialog(rewards: rewards),
+  );
+}
+
+class _TreasureLootDialog extends StatefulWidget {
+  final List<_TreasureReward> rewards;
+  const _TreasureLootDialog({required this.rewards});
+
+  @override
+  State<_TreasureLootDialog> createState() => _TreasureLootDialogState();
+}
+
+class _TreasureLootDialogState extends State<_TreasureLootDialog>
+    with TickerProviderStateMixin {
+  late final List<AnimationController> _rowCtrls;
+  late final List<Animation<double>> _rowFade;
+  late final List<Animation<Offset>> _rowSlide;
+  late final AnimationController _btnCtrl;
+  late final Animation<double> _btnFade;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _rowCtrls = List.generate(
+      widget.rewards.length,
+      (_) => AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 480),
+      ),
+    );
+    _rowFade = _rowCtrls
+        .map(
+          (c) => CurvedAnimation(
+            parent: c,
+            curve: Curves.easeOut,
+          ).drive(Tween(begin: 0.0, end: 1.0)),
+        )
+        .toList();
+    _rowSlide = _rowCtrls
+        .map(
+          (c) => CurvedAnimation(
+            parent: c,
+            curve: Curves.easeOutCubic,
+          ).drive(Tween(begin: const Offset(0, 0.25), end: Offset.zero)),
+        )
+        .toList();
+
+    _btnCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _btnFade = CurvedAnimation(
+      parent: _btnCtrl,
+      curve: Curves.easeIn,
+    ).drive(Tween(begin: 0.0, end: 1.0));
+
+    // Stagger rows then button
+    for (int i = 0; i < _rowCtrls.length; i++) {
+      Future.delayed(Duration(milliseconds: 300 + i * 240), () {
+        if (mounted) _rowCtrls[i].forward();
+      });
+    }
+    final btnDelay = 300 + widget.rewards.length * 240 + 180;
+    Future.delayed(Duration(milliseconds: btnDelay), () {
+      if (mounted) _btnCtrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final c in _rowCtrls) c.dispose();
+    _btnCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const amber = Color(0xFFFFAA00);
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              const Text(
+                'DAILY REWARDS',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: amber,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 5.0,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(height: 1, color: amber.withOpacity(0.25)),
+              const SizedBox(height: 36),
+
+              // Reward rows
+              ...List.generate(widget.rewards.length, (i) {
+                final r = widget.rewards[i];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 28),
+                  child: FadeTransition(
+                    opacity: _rowFade[i],
+                    child: SlideTransition(
+                      position: _rowSlide[i],
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: r.color.withOpacity(0.12),
+                              border: Border.all(
+                                color: r.color.withOpacity(0.35),
+                                width: 1,
+                              ),
+                            ),
+                            child: Icon(r.icon, color: r.color, size: 22),
+                          ),
+                          const SizedBox(width: 18),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                r.amount,
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: r.color,
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.0,
+                                  height: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                r.name,
+                                style: const TextStyle(
+                                  color: Color(0xFF7A7A8A),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 2.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+
+              const SizedBox(height: 8),
+
+              // Collect button
+              FadeTransition(
+                opacity: _btnFade,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: double.infinity,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: amber.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: amber, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: amber.withOpacity(0.22),
+                          blurRadius: 20,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'COLLECT',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: Color(0xFFFFCC44),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 4.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

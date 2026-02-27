@@ -327,9 +327,7 @@ class GuardianInspectHud extends PositionComponent
         canvas.drawCircle(
           Offset(pipX, y + 5),
           5,
-          Paint()
-            ..color = const Color(0xFF8B5CF6).withOpacity(0.5)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+          Paint()..color = const Color(0xFF8B5CF6).withOpacity(0.5),
         );
       }
     }
@@ -357,9 +355,7 @@ class GuardianInspectHud extends PositionComponent
         canvas.drawCircle(
           Offset(pipX, y + 5),
           5,
-          Paint()
-            ..color = const Color(0xFFFFD700).withOpacity(0.5)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+          Paint()..color = const Color(0xFFFFD700).withOpacity(0.5),
         );
       }
     }

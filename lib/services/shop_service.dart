@@ -9,6 +9,8 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +29,8 @@ class ShopOffer {
   final PurchaseLimit limit;
   final String? inventoryKey;
   final String? assetName;
+  final Color? imageColor;
+  final Color? iconColor;
 
   const ShopOffer({
     required this.id,
@@ -39,6 +43,8 @@ class ShopOffer {
     required this.limit,
     this.inventoryKey,
     this.assetName,
+    this.imageColor,
+    this.iconColor,
   });
 }
 
@@ -100,6 +106,18 @@ class ShopService extends ChangeNotifier {
         return SizedBox.square(
           dimension: size,
           child: VolcanicAura(size: size),
+        );
+
+      case InvKeys.alchemyVoidRift:
+        return SizedBox.square(
+          dimension: size,
+          child: VoidRift(size: size * 0.8),
+        );
+
+      case InvKeys.alchemyPrismaticCascade:
+        return SizedBox.square(
+          dimension: size,
+          child: PrismaticCascade(size: size * 0.6),
         );
 
       default:
@@ -196,13 +214,25 @@ class ShopService extends ChangeNotifier {
       name: 'Stamina Elixir',
       description: 'Fully restores an Alchemon\'s stamina.',
       icon: Icons.local_drink_rounded,
-      cost: const {'silver': 1000}, // tweak cost as desired
+      cost: const {'silver': 10000}, // tweak cost as desired
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.staminaPotion,
       assetName:
           'assets/images/ui/instantstaminaicon.png', // optional, if you add one
+    ),
+    ShopOffer(
+      id: 'boost.instant_boss_refresh',
+      name: 'Boss Summon',
+      description: 'Resets your daily boss rematch limit for one boss.',
+      icon: Icons.local_drink_rounded,
+      cost: const {'gold': 10},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.bossRefresh,
+      assetName: 'assets/images/ui/boss-summon.png',
     ),
     // --- NEW: Devices (standard per element) ---
     ShopOffer(
@@ -287,7 +317,7 @@ class ShopService extends ChangeNotifier {
       description: 'Complete one active fusion vial instantly.',
       assetName: 'assets/images/ui/instantbreedicon.png',
       icon: Icons.access_alarms,
-      cost: const {'silver': 10000},
+      cost: const {'gold': 15},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -300,6 +330,7 @@ class ShopService extends ChangeNotifier {
       name: 'Silver → Gold (10g)',
       description: 'Convert 50,000 silver to 10 gold.',
       icon: Icons.currency_exchange_rounded,
+      iconColor: const Color(0xFFF59E0B),
       cost: const {'silver': 50000},
       reward: const {'gold': 10},
       rewardType: 'currency',
@@ -333,7 +364,7 @@ class ShopService extends ChangeNotifier {
       name: 'Fusion Slot (Step 2)',
       description: 'Add another incubator slot.',
       icon: Icons.biotech_rounded,
-      cost: const {'gold': 10}, // 2nd purchase: 5 gold
+      cost: const {'gold': 10}, // 2nd purchase: 10 gold
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -344,7 +375,7 @@ class ShopService extends ChangeNotifier {
       name: 'Fusion Slot (Step 3)',
       description: 'Add another incubator slot.',
       icon: Icons.biotech_rounded,
-      cost: const {'gold': 50}, // 3rd purchase: 25 gold
+      cost: const {'gold': 50}, // 3rd purchase: 50 gold
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -379,7 +410,7 @@ class ShopService extends ChangeNotifier {
       name: 'Alchemical Resonance',
       description: 'Ethereal glow effect for your Alchemon.',
       icon: Icons.auto_awesome_rounded,
-      cost: const {'silver': 10000},
+      cost: const {'gold': 10},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -391,7 +422,7 @@ class ShopService extends ChangeNotifier {
       name: 'Elemental Aura',
       description: 'Orbiting particles matching your Alchemon\'s element.',
       icon: Icons.bubble_chart_rounded,
-      cost: const {'silver': 10000},
+      cost: const {'gold': 10},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -409,6 +440,104 @@ class ShopService extends ChangeNotifier {
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.alchemyVolcanicAura,
       assetName: 'assets/images/ui/volcanicaura.png',
+    ),
+    ShopOffer(
+      id: 'effects.void_rift',
+      name: 'Void Rift',
+      description:
+          'Tear open a swirling void of dark energy around your Alchemon.',
+      icon: Icons.blur_circular_rounded,
+      iconColor: const Color(0xFFBB00FF),
+      cost: const {'gold': 15},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyVoidRift,
+    ),
+    ShopOffer(
+      id: 'effects.prismatic_cascade',
+      name: 'Prismatic Cascade',
+      description:
+          'Full-spectrum prismatic light cascade — the rarest cosmetic in existence.',
+      icon: Icons.lens_blur_rounded,
+      iconColor: const Color(0xFFFF80FF),
+      cost: const {'gold': 100},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyPrismaticCascade,
+    ),
+
+    // ── Portal Keys ──────────────────────────────────────────────────────────
+    ShopOffer(
+      id: 'key.portal.volcanic',
+      name: 'Volcanic Portal Key',
+      description:
+          'Grants entry into a Volcanic Rift portal. Consumed on entry.',
+      icon: Icons.vpn_key_rounded,
+      iconColor: const Color(0xFFFF5722),
+      assetName: 'assets/images/ui/volcanickey.png',
+      cost: const {'gold': 50},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.portalKeyVolcanic,
+    ),
+    ShopOffer(
+      id: 'key.portal.oceanic',
+      name: 'Oceanic Portal Key',
+      description:
+          'Grants entry into an Oceanic Rift portal. Consumed on entry.',
+      icon: Icons.vpn_key_rounded,
+      iconColor: const Color(0xFF64B5F6),
+      assetName: 'assets/images/ui/oceanickey.png',
+      cost: const {'silver': 50},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.portalKeyOceanic,
+    ),
+    ShopOffer(
+      id: 'key.portal.verdant',
+      name: 'Verdant Portal Key',
+      description:
+          'Grants entry into a Verdant Rift portal. Consumed on entry.',
+      icon: Icons.vpn_key_rounded,
+      iconColor: const Color(0xFF66BB6A),
+      assetName: 'assets/images/ui/verdantkey.png',
+      cost: const {'silver': 50},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.portalKeyVerdant,
+    ),
+    ShopOffer(
+      id: 'key.portal.earthen',
+      name: 'Earthen Portal Key',
+      description:
+          'Grants entry into an Earthen Rift portal. Consumed on entry.',
+      icon: Icons.vpn_key_rounded,
+      iconColor: const Color(0xFF8D6E63),
+      assetName: 'assets/images/ui/earthenkey.png',
+      cost: const {'gold': 50},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.portalKeyEarthen,
+    ),
+    ShopOffer(
+      id: 'key.portal.arcane',
+      name: 'Arcane Portal Key',
+      description:
+          'Grants entry into an Arcane Rift portal. Consumed on entry.',
+      icon: Icons.vpn_key_rounded,
+      iconColor: const Color(0xFFCE93D8),
+      assetName: 'assets/images/ui/arcanekey.png',
+      cost: const {'silver': 100},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.portalKeyArcane,
     ),
   ];
 
@@ -768,6 +897,12 @@ class ShopService extends ChangeNotifier {
       case 'effects.volcanic_aura':
         await _db.inventoryDao.addItemQty(InvKeys.alchemyVolcanicAura, qty);
         return true;
+      case 'effects.void_rift':
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyVoidRift, qty);
+        return true;
+      case 'effects.prismatic_cascade':
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyPrismaticCascade, qty);
+        return true;
 
       case 'unlock.fusion_slot.1':
       case 'unlock.fusion_slot.2':
@@ -786,6 +921,27 @@ class ShopService extends ChangeNotifier {
 
       case 'boost.instant_stamina_potion':
         await _db.inventoryDao.addItemQty(InvKeys.staminaPotion, qty);
+        return true;
+
+      case 'boost.instant_boss_refresh':
+        await _db.inventoryDao.addItemQty(InvKeys.bossRefresh, qty);
+        return true;
+
+      // Portal Keys → inventory
+      case 'key.portal.volcanic':
+        await _db.inventoryDao.addItemQty(InvKeys.portalKeyVolcanic, qty);
+        return true;
+      case 'key.portal.oceanic':
+        await _db.inventoryDao.addItemQty(InvKeys.portalKeyOceanic, qty);
+        return true;
+      case 'key.portal.verdant':
+        await _db.inventoryDao.addItemQty(InvKeys.portalKeyVerdant, qty);
+        return true;
+      case 'key.portal.earthen':
+        await _db.inventoryDao.addItemQty(InvKeys.portalKeyEarthen, qty);
+        return true;
+      case 'key.portal.arcane':
+        await _db.inventoryDao.addItemQty(InvKeys.portalKeyArcane, qty);
         return true;
 
       default:

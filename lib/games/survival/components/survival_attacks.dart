@@ -19,6 +19,8 @@ import 'package:flame/effects.dart';
 import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
+const bool _debugAttackLogs = false;
+
 // ════════════════════════════════════════════════════════════════════════════
 //  STATUS CONFIG – burn = short burst, poison = long linger
 // ════════════════════════════════════════════════════════════════════════════
@@ -81,7 +83,8 @@ double calcDmg(HoardGuardian att, HoardEnemy? def) {
   ).toDouble();
 
   // 🧪 DAMAGE DEBUG
-  print('''
+  if (_debugAttackLogs) {
+    print('''
 [DMG DEBUG]
   Wave: ${att.game.currentWave}
   Attacker: ${att.unit.id} (${att.unit.family})
@@ -91,6 +94,7 @@ double calcDmg(HoardGuardian att, HoardEnemy? def) {
     HP: ${defUnit.currentHp}/${defUnit.maxHp}
   BaseHit: $dmg
 ''');
+  }
 
   return dmg;
 }
@@ -100,10 +104,12 @@ double calcDmg(HoardGuardian att, HoardEnemy? def) {
 //
 
 class SurvivalAttackManager {
+  static final Random _rng = Random();
+
   static void triggerScreenShake(SurvivalHoardGame game, double intensity) {
     final offset = Vector2(
-      (Random().nextDouble() - 0.5) * intensity,
-      (Random().nextDouble() - 0.5) * intensity,
+      (_rng.nextDouble() - 0.5) * intensity,
+      (_rng.nextDouble() - 0.5) * intensity,
     );
     game.cameraComponent.viewfinder.position += offset;
     game.cameraComponent.viewfinder.add(
@@ -296,7 +302,8 @@ class SurvivalAttackManager {
     );
 
     // 🔥 BASIC ATTACK DEBUG
-    print('''
+    if (_debugAttackLogs) {
+      print('''
 [BASIC ATTACK]
   Wave: ${game.currentWave}
   Attacker: ${attacker.unit.id} (${attacker.unit.family})
@@ -305,6 +312,7 @@ class SurvivalAttackManager {
   Target: ${target.unit.name}
     HP: ${target.unit.currentHp}/${target.unit.maxHp}
 ''');
+    }
 
     final color = getElementColor(element);
     final shape = overrideShape ?? _getShapeForElement(element);

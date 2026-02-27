@@ -1,8 +1,10 @@
 // lib/widgets/wilderness/wilderness_controls.dart
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/wilderness/inventory_hud.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/models/wilderness.dart';
+import 'package:provider/provider.dart';
 
 /// Simple three-button control panel for wilderness scenes
 class WildernessControls extends StatelessWidget {
@@ -17,6 +19,7 @@ class WildernessControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(8),
@@ -25,14 +28,18 @@ class WildernessControls extends StatelessWidget {
           children: [
             _ControlButton(
               icon: Icons.exit_to_app_rounded,
-              color: const Color.fromARGB(255, 95, 33, 29),
+              bgColor: t.danger.withOpacity(0.85),
+              borderColor: t.danger,
+              glowColor: t.danger,
               tooltip: 'Leave Scene',
               onPressed: () => _showLeaveConfirmation(context),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(width: 8),
             _ControlButton(
-              icon: Icons.inventory,
-              color: const Color.fromARGB(255, 133, 115, 59),
+              icon: Icons.inventory_2_rounded,
+              bgColor: t.bg2,
+              borderColor: t.borderAccent,
+              glowColor: t.amber,
               tooltip: 'Inventory',
               onPressed: () => _showInventoryOverlay(context),
             ),
@@ -46,48 +53,137 @@ class WildernessControls extends StatelessWidget {
     HapticFeedback.mediumImpact();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF0A0E27),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.red.withOpacity(0.5), width: 2),
-        ),
-        title: const Text(
-          'Leave Scene?',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-        ),
-        content: Text(
-          'Any active encounters will be lost. Are you sure you want to leave?',
-          style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              Navigator.pop(context);
-            },
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontWeight: FontWeight.w600,
-              ),
+      builder: (ctx) {
+        final t2 = ForgeTokens(ctx.read<FactionTheme>());
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 360),
+            decoration: BoxDecoration(
+              color: t2.bg1,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: t2.danger.withOpacity(0.5), width: 1.5),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  decoration: BoxDecoration(
+                    color: t2.bg2,
+                    border: Border(bottom: BorderSide(color: t2.borderDim)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          color: t2.danger,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      Text(
+                        'LEAVE SCENE?',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: t2.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 2.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Any active encounters will be lost.',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: t2.textSecondary,
+                      fontSize: 11,
+                      letterSpacing: 0.3,
+                      height: 1.6,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.pop(ctx);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: t2.bg2,
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(color: t2.borderDim),
+                          ),
+                          child: Text(
+                            'CANCEL',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: t2.textSecondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.heavyImpact();
+                          Navigator.pop(ctx);
+                          onLeave();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: t2.danger.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(color: t2.danger),
+                          ),
+                          child: Text(
+                            'LEAVE',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: t2.danger,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              HapticFeedback.heavyImpact();
-              Navigator.pop(context);
-              onLeave();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Leave'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -116,17 +212,15 @@ class _InventoryOverlayShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
     return GestureDetector(
       onTap: () => Navigator.of(context).pop(),
       behavior: HitTestBehavior.opaque,
       child: Stack(
         children: [
-          // Darker transparent backdrop
           Container(color: Colors.black.withOpacity(0.1)),
-
-          // Inventory panel - NO EXTRA WRAPPER
           GestureDetector(
-            onTap: () {}, // Prevents tap-through
+            onTap: () {},
             child: SafeArea(
               child: Center(
                 child: Container(
@@ -135,9 +229,20 @@ class _InventoryOverlayShell extends StatelessWidget {
                     vertical: 32,
                   ),
                   constraints: const BoxConstraints(maxWidth: 450),
-
+                  decoration: BoxDecoration(
+                    color: t.bg1,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: t.borderAccent, width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: t.amber.withOpacity(0.08),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14.5),
+                    borderRadius: BorderRadius.circular(4),
                     child: const GameInventoryOverlay(),
                   ),
                 ),
@@ -152,13 +257,17 @@ class _InventoryOverlayShell extends StatelessWidget {
 
 class _ControlButton extends StatelessWidget {
   final IconData icon;
-  final Color color;
+  final Color bgColor;
+  final Color borderColor;
+  final Color glowColor;
   final String tooltip;
   final VoidCallback onPressed;
 
   const _ControlButton({
     required this.icon,
-    required this.color,
+    required this.bgColor,
+    required this.borderColor,
+    required this.glowColor,
     required this.tooltip,
     required this.onPressed,
   });
@@ -167,12 +276,25 @@ class _ControlButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
-      child: FloatingActionButton.small(
-        heroTag: tooltip,
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        onPressed: onPressed,
-        child: Icon(icon),
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: borderColor, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: glowColor.withOpacity(0.25),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(icon, color: Colors.white, size: 18),
+        ),
       ),
     );
   }

@@ -20,8 +20,12 @@ class StageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final party = context.watch<SelectedPartyNotifier>();
+    final count = party.members.length;
+    final max = SelectedPartyNotifier.maxSize;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
         color: theme.surface,
         border: Border(bottom: BorderSide(color: theme.border)),
@@ -29,44 +33,72 @@ class StageHeader extends StatelessWidget {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => {
-              HapticFeedback.lightImpact(),
-              Navigator.of(context).maybePop(),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).maybePop();
             },
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: theme.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(3),
                 border: Border.all(color: theme.border),
               ),
               child: Icon(Icons.arrow_back, color: theme.text, size: 18),
             ),
           ),
-          const SizedBox(width: 12),
-
-          // Title/subtitle
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'All Specimens',
+                  'SELECT YOUR TEAM',
                   style: TextStyle(
+                    fontFamily: 'monospace',
                     color: theme.text,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.0,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  'Select up to 3 for deployment',
+                  'Tap a creature to add or remove from squad',
                   style: TextStyle(
                     color: theme.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
+            ),
+          ),
+          // Live count badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: count > 0
+                  ? Colors.greenAccent.shade400.withOpacity(0.12)
+                  : theme.surfaceAlt,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(
+                color: count > 0
+                    ? Colors.greenAccent.shade400.withOpacity(0.5)
+                    : theme.border,
+              ),
+            ),
+            child: Text(
+              '$count / $max',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: count > 0
+                    ? Colors.greenAccent.shade400
+                    : theme.textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
             ),
           ),
         ],
@@ -78,9 +110,16 @@ class StageHeader extends StatelessWidget {
 // ---------- Footer ----------
 
 class PartyFooter extends StatelessWidget {
-  const PartyFooter({super.key, required this.theme});
+  const PartyFooter({
+    super.key,
+    required this.theme,
+    this.showDeployConfirm = true,
+  });
 
   final FactionTheme theme;
+
+  /// When false the "Deploy Team?" confirmation dialog is skipped.
+  final bool showDeployConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -176,13 +215,17 @@ class PartyFooter extends StatelessWidget {
 
                             if (!proceed) return;
 
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (_) => DeployConfirmDialog(theme: theme),
-                            );
+                            if (showDeployConfirm) {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) =>
+                                    DeployConfirmDialog(theme: theme),
+                              );
+                              if (confirmed != true) return;
+                            }
 
-                            if (confirmed == true && context.mounted) {
+                            if (context.mounted) {
                               Navigator.pop(
                                 context,
                                 context.read<SelectedPartyNotifier>().members,
@@ -237,11 +280,13 @@ class TeamDisplay extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'Current Team',
+                'YOUR SQUAD',
                 style: TextStyle(
+                  fontFamily: 'monospace',
                   color: theme.text,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
                 ),
               ),
               const Spacer(),
@@ -354,12 +399,47 @@ class TeamSlotFilled extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             Text(
-              'L${instance.level}',
+              'LV ${instance.level}',
               style: TextStyle(
                 color: Colors.amber.shade400,
                 fontSize: 7,
                 fontWeight: FontWeight.w700,
               ),
+            ),
+            const SizedBox(height: 3),
+            // Stamina pips
+            Builder(
+              builder: (context) {
+                final stamina = context.read<StaminaService>();
+                final state = stamina.computeState(instance);
+                final bars = state.bars.clamp(0, instance.staminaMax);
+                final max = instance.staminaMax;
+                final pipColor = bars == 0
+                    ? Colors.red.shade400
+                    : bars == 1 && max > 1
+                    ? Colors.orange.shade400
+                    : Colors.greenAccent.shade400;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(max, (i) {
+                    final filled = i < bars;
+                    return Container(
+                      width: 5,
+                      height: 5,
+                      margin: const EdgeInsets.symmetric(horizontal: 1),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: filled ? pipColor : pipColor.withOpacity(0.15),
+                        border: Border.all(
+                          color: pipColor.withOpacity(filled ? 0.9 : 0.3),
+                          width: 0.6,
+                        ),
+                      ),
+                    );
+                  }),
+                );
+              },
             ),
           ],
         ),
@@ -499,7 +579,7 @@ class _DeployButtonState extends State<DeployButton>
                   const SizedBox(width: 8),
                   Text(
                     widget.selectedCount > 0
-                        ? 'Deploy Team (${widget.selectedCount})'
+                        ? 'Confirm Team  (${widget.selectedCount})'
                         : 'Select Team Members',
                     style: TextStyle(
                       color: canTap ? Colors.white : widget.theme.textMuted,

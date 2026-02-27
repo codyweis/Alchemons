@@ -167,6 +167,27 @@ class LetMeteorMechanic {
       case 'Plant':
         _plantSeedBombardment(game, attacker, target);
         break;
+      case 'Water':
+        _waterDelugeSurge(game, attacker, target);
+        break;
+      case 'Steam':
+        _steamGeyserField(game, attacker, target);
+        break;
+      case 'Blood':
+        _bloodSanguineRain(game, attacker, target);
+        break;
+      case 'Mud':
+        _mudMireQuake(game, attacker, target);
+        break;
+      case 'Dust':
+        _dustHaboob(game, attacker, target);
+        break;
+      case 'Air':
+        _airAtmosphericBomb(game, attacker, target);
+        break;
+      case 'Spirit':
+        _spiritSoulHarvest(game, attacker, target);
+        break;
       default:
         // Fallback to huge single meteor
         _massiveSingleMeteor(game, attacker, target, element);
@@ -1060,6 +1081,558 @@ class LetMeteorMechanic {
     }
 
     SurvivalAttackManager.triggerScreenShake(game, 5.0);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  RANK 3 APOCALYPTIC ULTIMATES — ADDITIONAL ELEMENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// 💧 WATER - Deluge Surge (4 staggered tidal waves, healing + heavy push)
+  static void _waterDelugeSurge(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+  ) {
+    final baseDamage = (calcDmg(attacker, target) * 1.4).toInt();
+    final center = target.position.clone();
+    final int healAmount = (attacker.unit.statIntelligence * 4).toInt().clamp(
+      10,
+      180,
+    );
+
+    for (int i = 0; i < 4; i++) {
+      Future.delayed(Duration(milliseconds: i * 280), () {
+        if (attacker.isDead) return;
+        final wavePos = center + Vector2((i - 1.5) * 80, 0);
+        final waveRadius = 130.0 + i * 25;
+
+        final victims = game.getEnemiesInRange(wavePos, waveRadius);
+        for (final v in victims) {
+          v.takeDamage(baseDamage);
+          final pushDir = (v.position - game.orb.position).normalized();
+          v.add(
+            MoveEffect.by(
+              pushDir * (100 + i * 20),
+              EffectController(duration: 0.3, curve: Curves.easeOut),
+            ),
+          );
+        }
+
+        final allies = game.getGuardiansInRange(
+          center: wavePos,
+          range: waveRadius * 1.3,
+        );
+        for (final g in allies) {
+          g.unit.heal(healAmount);
+          ImpactVisuals.playHeal(game, g.position, scale: 0.7);
+        }
+        game.orb.heal((healAmount * 0.5).toInt());
+        ImpactVisuals.playExplosion(game, wavePos, 'Water', waveRadius);
+      });
+    }
+    SurvivalAttackManager.triggerScreenShake(game, 7.0);
+  }
+
+  /// 🌫️ STEAM - Geyser Field (7 eruptions in ring + center with steam patches)
+  static void _steamGeyserField(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+  ) {
+    final baseDamage = (calcDmg(attacker, target) * 1.3).toInt();
+    final color = SurvivalAttackManager.getElementColor('Steam');
+    final center = target.position.clone();
+
+    final geyserPositions = <Vector2>[
+      center.clone(),
+      ...List.generate(6, (i) {
+        final angle = (i / 6.0) * pi * 2;
+        return center + Vector2(cos(angle) * 130, sin(angle) * 130);
+      }),
+    ];
+
+    for (int i = 0; i < geyserPositions.length; i++) {
+      final gpos = geyserPositions[i].clone();
+      Future.delayed(Duration(milliseconds: i * 140), () {
+        if (attacker.isDead) return;
+
+        game.world.add(
+          CircleComponent(
+            radius: 35,
+            position: gpos,
+            anchor: Anchor.center,
+            paint: Paint()
+              ..color = color.withOpacity(0.45)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 3,
+          )..add(
+            SequenceEffect([
+              ScaleEffect.to(Vector2.all(1.3), EffectController(duration: 0.1)),
+              OpacityEffect.fadeOut(EffectController(duration: 0.1)),
+              RemoveEffect(),
+            ]),
+          ),
+        );
+
+        Future.delayed(const Duration(milliseconds: 120), () {
+          final victims = game.getEnemiesInRange(gpos, 70);
+          for (final v in victims) {
+            v.takeDamage(baseDamage);
+            final jitterDir = Vector2(
+              Random().nextDouble() - 0.5,
+              Random().nextDouble() - 0.5,
+            ).normalized();
+            v.add(
+              MoveEffect.by(
+                jitterDir * 70,
+                EffectController(duration: 0.2, curve: Curves.easeOut),
+              ),
+            );
+            v.unit.applyStatusEffect(
+              SurvivalStatusEffect(
+                type: 'Burn',
+                damagePerTick: (baseDamage * 0.1).toInt().clamp(2, 30),
+                ticksRemaining: 4,
+                tickInterval: 0.5,
+              ),
+            );
+          }
+          ImpactVisuals.playExplosion(game, gpos, 'Steam', 70);
+
+          final patch = CircleComponent(
+            radius: 50,
+            position: gpos,
+            anchor: Anchor.center,
+            paint: Paint()..color = color.withOpacity(0.25),
+          );
+          patch.add(
+            TimerComponent(
+              period: 0.4,
+              repeat: true,
+              onTick: () {
+                for (final v in game.getEnemiesInRange(gpos, 50)) {
+                  v.takeDamage(max(1, baseDamage ~/ 10));
+                }
+              },
+            ),
+          );
+          patch.add(RemoveEffect(delay: 4.0));
+          game.world.add(patch);
+        });
+      });
+    }
+    SurvivalAttackManager.triggerScreenShake(game, 6.0);
+  }
+
+  /// 🩸 BLOOD - Sanguine Rain (8 blood meteors, stolen HP split to all guardians)
+  static void _bloodSanguineRain(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+  ) {
+    final baseDamage = (calcDmg(attacker, target) * 1.1).toInt();
+    final color = SurvivalAttackManager.getElementColor('Blood');
+    final center = target.position.clone();
+    final rng = Random();
+
+    for (int i = 0; i < 8; i++) {
+      const spread = 200.0;
+      final impactPos =
+          center +
+          Vector2(
+            rng.nextDouble() * spread - spread / 2,
+            rng.nextDouble() * spread - spread / 2,
+          );
+      final startPos = impactPos + Vector2(rng.nextDouble() * 80 - 40, -500);
+
+      Future.delayed(Duration(milliseconds: i * 160), () {
+        if (attacker.isDead) return;
+        final meteor = CircleComponent(
+          radius: 18,
+          position: startPos,
+          anchor: Anchor.center,
+          paint: Paint()..color = color,
+        );
+        meteor.add(
+          TimerComponent(
+            period: 0.03,
+            repeat: true,
+            onTick: () {
+              game.world.add(
+                CircleComponent(
+                  radius: 8,
+                  position: meteor.position.clone(),
+                  anchor: Anchor.center,
+                  paint: Paint()..color = color.withOpacity(0.5),
+                )..add(
+                  SequenceEffect([
+                    ScaleEffect.to(
+                      Vector2.all(0.2),
+                      EffectController(duration: 0.3),
+                    ),
+                    RemoveEffect(),
+                  ]),
+                ),
+              );
+            },
+          ),
+        );
+        meteor.add(
+          MoveEffect.to(
+            impactPos,
+            EffectController(duration: 0.38, curve: Curves.easeIn),
+            onComplete: () {
+              meteor.removeFromParent();
+              SurvivalAttackManager.triggerScreenShake(game, 3.0);
+              final victims = game.getEnemiesInRange(impactPos, 100);
+              int totalDrained = 0;
+              for (final v in victims) {
+                v.takeDamage(baseDamage);
+                totalDrained += baseDamage;
+              }
+              ImpactVisuals.playExplosion(game, impactPos, 'Blood', 100);
+
+              if (totalDrained > 0) {
+                final guardianCount = max(1, game.guardians.length);
+                final healPerGuardian = max(1, totalDrained ~/ guardianCount);
+                for (final g in game.guardians) {
+                  if (!g.isDead) {
+                    g.unit.heal(healPerGuardian);
+                    ImpactVisuals.playHeal(game, g.position, scale: 0.5);
+                  }
+                }
+                game.orb.heal(max(1, totalDrained ~/ 8));
+              }
+            },
+          ),
+        );
+        game.world.add(meteor);
+      });
+    }
+  }
+
+  /// 🟤 MUD - Mire Quake (giant persistent slow swamp that pulls enemies in)
+  static void _mudMireQuake(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+  ) {
+    final color = SurvivalAttackManager.getElementColor('Mud');
+    final baseDamage = (calcDmg(attacker, target) * 2.0).toInt();
+    final impactPos = target.position.clone();
+    final startPos = impactPos + Vector2(0, -600);
+
+    final meteor = CircleComponent(
+      radius: 55,
+      position: startPos,
+      anchor: Anchor.center,
+      paint: Paint()..color = color,
+    );
+    meteor.add(
+      TimerComponent(
+        period: 0.025,
+        repeat: true,
+        onTick: () {
+          game.world.add(
+            CircleComponent(
+              radius: 28,
+              position: meteor.position.clone(),
+              anchor: Anchor.center,
+              paint: Paint()..color = color.withOpacity(0.35),
+            )..add(
+              SequenceEffect([
+                ScaleEffect.to(
+                  Vector2.all(0.4),
+                  EffectController(duration: 0.4),
+                ),
+                RemoveEffect(),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+    meteor.add(
+      MoveEffect.to(
+        impactPos,
+        EffectController(duration: 0.55, curve: Curves.easeIn),
+        onComplete: () {
+          meteor.removeFromParent();
+          SurvivalAttackManager.triggerScreenShake(game, 12.0);
+
+          final victims = game.getEnemiesInRange(impactPos, 210);
+          for (final v in victims) {
+            v.takeDamage(baseDamage);
+          }
+          ImpactVisuals.playExplosion(game, impactPos, 'Mud', 210);
+
+          // Giant mire zone that pulls enemies inward
+          const swampRadius = 180.0;
+          const swampDuration = 6.0;
+          final swamp = CircleComponent(
+            radius: swampRadius,
+            position: impactPos,
+            anchor: Anchor.center,
+            paint: Paint()..color = color.withOpacity(0.3),
+          );
+          swamp.add(
+            TimerComponent(
+              period: 0.4,
+              repeat: true,
+              onTick: () {
+                for (final v in game.getEnemiesInRange(
+                  impactPos,
+                  swampRadius,
+                )) {
+                  final pullDir = (impactPos - v.position).normalized();
+                  v.add(
+                    MoveEffect.by(
+                      pullDir * 18,
+                      EffectController(duration: 0.2),
+                    ),
+                  );
+                  v.unit.applyStatusEffect(
+                    SurvivalStatusEffect(
+                      type: 'Slow',
+                      damagePerTick: 0,
+                      ticksRemaining: 2,
+                      tickInterval: 0.4,
+                    ),
+                  );
+                }
+              },
+            ),
+          );
+          swamp.add(RemoveEffect(delay: swampDuration));
+          game.world.add(swamp);
+        },
+      ),
+    );
+    game.world.add(meteor);
+  }
+
+  /// 🌪️ DUST - Haboob (massive sandstorm, blinding randomised confusion for 3.5s)
+  static void _dustHaboob(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+  ) {
+    final color = SurvivalAttackManager.getElementColor('Dust');
+    final baseDamage = (calcDmg(attacker, target) * 1.8).toInt();
+    final impactPos = target.position.clone();
+    final startPos = impactPos + Vector2(0, -500);
+
+    final meteor = CircleComponent(
+      radius: 45,
+      position: startPos,
+      anchor: Anchor.center,
+      paint: Paint()..color = color,
+    );
+    meteor.add(
+      TimerComponent(
+        period: 0.03,
+        repeat: true,
+        onTick: () {
+          game.world.add(
+            CircleComponent(
+              radius: 22,
+              position: meteor.position.clone(),
+              anchor: Anchor.center,
+              paint: Paint()..color = color.withOpacity(0.4),
+            )..add(
+              SequenceEffect([
+                ScaleEffect.to(
+                  Vector2.all(0.3),
+                  EffectController(duration: 0.35),
+                ),
+                RemoveEffect(),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+    meteor.add(
+      MoveEffect.to(
+        impactPos,
+        EffectController(duration: 0.5, curve: Curves.easeIn),
+        onComplete: () {
+          meteor.removeFromParent();
+          SurvivalAttackManager.triggerScreenShake(game, 9.0);
+
+          final victims = game.getEnemiesInRange(impactPos, 230);
+          for (final v in victims) {
+            v.takeDamage(baseDamage);
+          }
+          ImpactVisuals.playExplosion(game, impactPos, 'Dust', 230);
+
+          const stormRadius = 200.0;
+          final rng = Random();
+          final storm = CircleComponent(
+            radius: stormRadius,
+            position: impactPos,
+            anchor: Anchor.center,
+            paint: Paint()..color = color.withOpacity(0.2),
+          );
+          storm.add(
+            TimerComponent(
+              period: 0.15,
+              repeat: true,
+              onTick: () {
+                for (final v in game.getEnemiesInRange(
+                  impactPos,
+                  stormRadius,
+                )) {
+                  final jitter = Vector2(
+                    rng.nextDouble() * 80 - 40,
+                    rng.nextDouble() * 80 - 40,
+                  );
+                  v.add(MoveEffect.by(jitter, EffectController(duration: 0.1)));
+                }
+              },
+            ),
+          );
+          storm.add(RemoveEffect(delay: 3.5));
+          game.world.add(storm);
+        },
+      ),
+    );
+    game.world.add(meteor);
+  }
+
+  /// 💨 AIR - Atmospheric Bomb (3 expanding shockwave rings, massive radial scatter)
+  static void _airAtmosphericBomb(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+  ) {
+    final color = SurvivalAttackManager.getElementColor('Air');
+    final baseDamage = (calcDmg(attacker, target) * 2.2).toInt();
+    final impactPos = target.position.clone();
+
+    for (int wave = 0; wave < 3; wave++) {
+      Future.delayed(Duration(milliseconds: wave * 200), () {
+        if (attacker.isDead) return;
+        const waveRadius = 280.0;
+        final victims = game.getEnemiesInRange(impactPos, waveRadius);
+        for (final v in victims) {
+          final dist = v.position.distanceTo(impactPos);
+          final falloff = (1.0 - dist / waveRadius).clamp(0.2, 1.0);
+          v.takeDamage((baseDamage * falloff * (0.6 + 0.2 * wave)).toInt());
+          final dir = (v.position - impactPos).normalized();
+          v.add(
+            MoveEffect.by(
+              dir * (180 + wave * 40),
+              EffectController(duration: 0.35, curve: Curves.easeOut),
+            ),
+          );
+        }
+        game.world.add(
+          CircleComponent(
+            radius: 10,
+            position: impactPos,
+            anchor: Anchor.center,
+            paint: Paint()
+              ..color = color.withOpacity(0.7)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 5,
+          )..add(
+            SequenceEffect([
+              ScaleEffect.to(
+                Vector2.all(waveRadius / 10),
+                EffectController(duration: 0.35),
+              ),
+              OpacityEffect.fadeOut(EffectController(duration: 0.15)),
+              RemoveEffect(),
+            ]),
+          ),
+        );
+      });
+    }
+    SurvivalAttackManager.triggerScreenShake(game, 14.0);
+  }
+
+  /// 👻 SPIRIT - Soul Harvest (5 soul meteors, delayed coordinated detonation + group heal)
+  static void _spiritSoulHarvest(
+    SurvivalHoardGame game,
+    HoardGuardian attacker,
+    HoardEnemy target,
+  ) {
+    final baseDamage = (calcDmg(attacker, target) * 1.0).toInt();
+    final color = SurvivalAttackManager.getElementColor('Spirit');
+    final center = target.position.clone();
+    final rng = Random();
+
+    for (int i = 0; i < 5; i++) {
+      final impactPos =
+          center +
+          Vector2(rng.nextDouble() * 160 - 80, rng.nextDouble() * 160 - 80);
+      final startPos = impactPos + Vector2(rng.nextDouble() * 60 - 30, -480);
+
+      Future.delayed(Duration(milliseconds: i * 220), () {
+        if (attacker.isDead) return;
+        final meteor = CircleComponent(
+          radius: 22,
+          position: startPos,
+          anchor: Anchor.center,
+          paint: Paint()..color = color,
+        );
+        meteor.add(
+          TimerComponent(
+            period: 0.03,
+            repeat: true,
+            onTick: () {
+              game.world.add(
+                CircleComponent(
+                  radius: 10,
+                  position: meteor.position.clone(),
+                  anchor: Anchor.center,
+                  paint: Paint()..color = color.withOpacity(0.45),
+                )..add(
+                  SequenceEffect([
+                    ScaleEffect.to(
+                      Vector2.all(0.2),
+                      EffectController(duration: 0.3),
+                    ),
+                    RemoveEffect(),
+                  ]),
+                ),
+              );
+            },
+          ),
+        );
+        meteor.add(
+          MoveEffect.to(
+            impactPos,
+            EffectController(duration: 0.42, curve: Curves.easeIn),
+            onComplete: () {
+              meteor.removeFromParent();
+              SurvivalAttackManager.triggerScreenShake(game, 4.0);
+
+              final victims = game.getEnemiesInRange(impactPos, 110);
+              for (final v in victims) {
+                v.takeDamage(baseDamage ~/ 2);
+                // Delayed soul detonation per marked enemy
+                Future.delayed(const Duration(milliseconds: 1400), () {
+                  if (v.isDead) return;
+                  final detonDmg = (baseDamage * 1.5).toInt();
+                  v.takeDamage(detonDmg);
+                  ImpactVisuals.playExplosion(game, v.position, 'Spirit', 80);
+                  final guardianCount = max(1, game.guardians.length);
+                  final healAmt = max(1, detonDmg ~/ guardianCount);
+                  for (final g in game.guardians) {
+                    if (!g.isDead) g.unit.heal(healAmt);
+                  }
+                  game.orb.heal(max(1, detonDmg ~/ 6));
+                });
+              }
+              ImpactVisuals.playExplosion(game, impactPos, 'Spirit', 110);
+            },
+          ),
+        );
+        game.world.add(meteor);
+      });
+    }
   }
 
   /// Fallback massive single meteor

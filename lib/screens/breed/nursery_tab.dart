@@ -318,13 +318,54 @@ class _NurseryTabState extends State<NurseryTab> {
   Widget _buildSectionHeader(String title, IconData icon, Color color) {
     return Row(
       children: [
+        // Vertical accent bar with glow
+        Container(
+          width: 3,
+          height: 22,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(.5),
+                blurRadius: 7,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        // Icon badge
+        Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: color.withOpacity(.1),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: color.withOpacity(.25), width: 1),
+          ),
+          child: Icon(icon, color: color, size: 12),
+        ),
+        const SizedBox(width: 10),
+        // Title
         Text(
           title,
           style: TextStyle(
             color: color,
-            fontSize: 13,
+            fontSize: 10,
             fontWeight: FontWeight.w900,
-            letterSpacing: 0.8,
+            letterSpacing: 2.0,
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Decorative fade-out line
+        Expanded(
+          child: Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color.withOpacity(.35), Colors.transparent],
+              ),
+            ),
           ),
         ),
       ],
@@ -1103,45 +1144,158 @@ class _SlotInfoDialogWrapperState extends State<_SlotInfoDialogWrapper> {
 // PLACEHOLDER TILE
 // ============================================================================
 
-class _PlaceholderTile extends StatelessWidget {
+class _PlaceholderTile extends StatefulWidget {
   final Color primaryColor;
   final VoidCallback onTap;
 
   const _PlaceholderTile({required this.primaryColor, required this.onTap});
 
   @override
+  State<_PlaceholderTile> createState() => _PlaceholderTileState();
+}
+
+class _PlaceholderTileState extends State<_PlaceholderTile>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.3, end: 0.75).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(.12),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: primaryColor.withOpacity(.35), width: 1.5),
-        ),
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add_rounded, color: primaryColor, size: 28),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Place specimen',
-                    style: TextStyle(
-                      color: primaryColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: .2,
-                    ),
-                  ),
-                ],
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _pulseAnim,
+        builder: (context, _) {
+          final a = _pulseAnim.value;
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(.08),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: widget.primaryColor.withOpacity(a * .55),
+                width: 1,
               ),
             ),
-          ],
-        ),
+            child: CustomPaint(
+              foregroundPainter: _CornerBracketsPainter(
+                color: widget.primaryColor.withOpacity(a),
+                bracketLength: 14,
+                bracketWidth: 2,
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: widget.primaryColor.withOpacity(a * .12),
+                        border: Border.all(
+                          color: widget.primaryColor.withOpacity(a * .45),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.add_rounded,
+                        color: widget.primaryColor.withOpacity(
+                          (a + .3).clamp(0, 1),
+                        ),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'PLACE SPECIMEN',
+                      style: TextStyle(
+                        color: widget.primaryColor.withOpacity(
+                          (a + .2).clamp(0, 1),
+                        ),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
+}
+
+// ============================================================================
+// CORNER BRACKETS PAINTER
+// ============================================================================
+
+class _CornerBracketsPainter extends CustomPainter {
+  final Color color;
+  final double bracketLength;
+  final double bracketWidth;
+
+  _CornerBracketsPainter({
+    required this.color,
+    this.bracketLength = 14,
+    this.bracketWidth = 2,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = bracketWidth
+      ..strokeCap = StrokeCap.square
+      ..style = PaintingStyle.stroke;
+
+    final l = bracketLength;
+    const m = 5.0; // margin from edge
+
+    // Top-left
+    final tl = Offset(m, m);
+    canvas.drawLine(tl, Offset(tl.dx + l, tl.dy), paint);
+    canvas.drawLine(tl, Offset(tl.dx, tl.dy + l), paint);
+
+    // Top-right
+    final tr = Offset(size.width - m, m);
+    canvas.drawLine(tr, Offset(tr.dx - l, tr.dy), paint);
+    canvas.drawLine(tr, Offset(tr.dx, tr.dy + l), paint);
+
+    // Bottom-left
+    final bl = Offset(m, size.height - m);
+    canvas.drawLine(bl, Offset(bl.dx + l, bl.dy), paint);
+    canvas.drawLine(bl, Offset(bl.dx, bl.dy - l), paint);
+
+    // Bottom-right
+    final br = Offset(size.width - m, size.height - m);
+    canvas.drawLine(br, Offset(br.dx - l, br.dy), paint);
+    canvas.drawLine(br, Offset(br.dx, br.dy - l), paint);
+  }
+
+  @override
+  bool shouldRepaint(_CornerBracketsPainter old) =>
+      old.color != color ||
+      old.bracketLength != bracketLength ||
+      old.bracketWidth != bracketWidth;
 }

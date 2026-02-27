@@ -21,6 +21,10 @@ import 'survival_enemy_types.dart';
 
 class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   static final Random _rng = Random();
+  static const double _enemyGuardianCrashMult = 1.25;
+  static const double _enemyOrbCrashMult = 6.15;
+  static const double _bossGuardianCrashMult = 1.2;
+  static const double _bossOrbCrashMult = 5.85;
 
   final AlchemyOrb targetOrb;
   final SurvivalEnemyTemplate template;
@@ -538,20 +542,28 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       return;
     }
 
-    _focusGuardianRetargetTimer -= dt;
-    if (_focusGuardian == null ||
-        _focusGuardian!.isDead ||
-        _focusGuardianRetargetTimer <= 0 ||
-        _focusGuardian!.position.distanceTo(targetOrb.position) > 2200) {
-      _focusGuardian = gameRef.getRandomGuardianInRange(
-        center: targetOrb.position,
-        range: 2000,
-      );
-      _focusGuardianRetargetTimer = 2.5 + _rng.nextDouble() * 2.0;
+    final bool isShooterBoss =
+        role == EnemyRole.shooter || bossArchetype == BossArchetype.artillery;
+
+    HoardGuardian? focusGuardian;
+    if (!isShooterBoss) {
+      _focusGuardianRetargetTimer -= dt;
+      if (_focusGuardian == null ||
+          _focusGuardian!.isDead ||
+          _focusGuardianRetargetTimer <= 0 ||
+          _focusGuardian!.position.distanceTo(targetOrb.position) > 2200) {
+        _focusGuardian = gameRef.getRandomGuardianInRange(
+          center: targetOrb.position,
+          range: 2000,
+        );
+        _focusGuardianRetargetTimer = 2.5 + _rng.nextDouble() * 2.0;
+      }
+      focusGuardian = _focusGuardian;
     }
 
-    final HoardGuardian? focusGuardian = _focusGuardian;
-    final Vector2 focusCenter = focusGuardian?.position ?? targetOrb.position;
+    final Vector2 focusCenter = isShooterBoss
+        ? targetOrb.position
+        : (focusGuardian?.position ?? targetOrb.position);
     final Vector2 toCenter = focusCenter - position;
     final double distToCenter = toCenter.length;
 
@@ -596,13 +608,22 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     final double innerComfort = minRadius + 40.0;
     final double outerComfort = maxRadius - 40.0;
 
-    _bossAnchorSwapTimer -= dt;
-    if (_bossAnchorSwapTimer <= 0.0) {
-      final double jitter = (_rng.nextDouble() - 0.5) * 0.6;
-      _bossAnchorAngleTarget =
-          (_bossAnchorAngleTarget + pi + jitter) % (2 * pi);
-      _bossAnchorSwapTimer =
-          _bossAnchorSwapInterval + (_rng.nextDouble() - 0.5) * 2.0;
+    if (!isShooterBoss) {
+      _bossAnchorSwapTimer -= dt;
+      if (_bossAnchorSwapTimer <= 0.0) {
+        final double jitter = (_rng.nextDouble() - 0.5) * 0.6;
+        _bossAnchorAngleTarget =
+            (_bossAnchorAngleTarget + pi + jitter) % (2 * pi);
+        _bossAnchorSwapTimer =
+            _bossAnchorSwapInterval + (_rng.nextDouble() - 0.5) * 2.0;
+      }
+    } else {
+      _bossAnchorSwapTimer -= dt;
+      if (_bossAnchorSwapTimer <= 0.0) {
+        final double jitter = (_rng.nextDouble() - 0.5) * 0.25;
+        _bossAnchorAngleTarget = (_bossAnchorAngleTarget + jitter) % (2 * pi);
+        _bossAnchorSwapTimer = 1.8 + _rng.nextDouble() * 1.6;
+      }
     }
 
     final double angleDiff = _wrapAngle(
@@ -635,12 +656,11 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       final double distToPerch = toPerch.length;
 
       if (distToPerch > 15.0) {
-        moveDir += toPerch / (distToPerch == 0 ? 1 : distToPerch) * 0.7;
-      } else {
-        moveDir += _computeSeparation(radius: size.x * 1.0) * 0.3;
+        final double perchPull = isShooterBoss ? 0.35 : 0.7;
+        moveDir += toPerch / (distToPerch == 0 ? 1 : distToPerch) * perchPull;
       }
 
-      moveDir += _computeSeparation(radius: size.x * 1.2) * 0.2;
+      // Intentionally allow boss overlap to avoid separation-induced jitter.
     }
 
     if (moveDir.length2 > 0) moveDir.normalize();
@@ -649,12 +669,14 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     final Vector2 desiredVel = moveDir * bossSpeed;
 
     final double bossTurnSpeed = isMegaBoss ? 3.0 : 2.0;
-    _velocity.lerp(desiredVel, dt * bossTurnSpeed);
+    final double turnLerp = (dt * bossTurnSpeed).clamp(0.0, 1.0);
+    _velocity.lerp(desiredVel, turnLerp);
     position += _velocity * dt;
 
-    if (_velocity.length2 > 10) {
+    if (_velocity.length2 > 36) {
       final double targetAngle = atan2(_velocity.y, _velocity.x);
-      angle = _smoothAngle(angle, targetAngle, dt * 6.0);
+      final double rotateLerp = (dt * 3.8).clamp(0.0, 1.0);
+      angle = _smoothAngle(angle, targetAngle, rotateLerp);
     }
 
     _bossAttackCooldown -= dt;
@@ -668,7 +690,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     final t = (_chargeTime / _chargeDuration).clamp(0.0, 1.0);
     position = _chargeStart! + (_chargeEnd! - _chargeStart!) * t;
 
-    final chargeDmg = (contactDamage * 1.2).round();
+    final chargeDmg = (contactDamage * 1.45).round();
     final guardians = gameRef.getGuardiansInRange(center: position, range: 70);
     for (final g in guardians) {
       if (!g.isDead && !_chargeHitGuardians.contains(g)) {
@@ -683,7 +705,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
     if (position.distanceTo(targetOrb.position) < 90 && !_chargeHitOrb) {
       _chargeHitOrb = true;
-      targetOrb.takeDamage((contactDamage * 0.8).round());
+      targetOrb.takeDamage((contactDamage * 5.85).round());
     }
 
     if (t >= 1.0) {
@@ -1071,7 +1093,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
   void _executeHydraSlam() {
     final slamRadius = _logicalRadius * (2.5 + (4 - hydraGeneration) * 0.5);
-    final slamDamage = (contactDamage * 1.5).round();
+    final slamDamage = (contactDamage * 1.75).round();
 
     _triggerScreenShake(10.0 + (4 - hydraGeneration) * 5.0);
 
@@ -1090,7 +1112,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     }
 
     if (position.distanceTo(targetOrb.position) < slamRadius) {
-      targetOrb.takeDamage((slamDamage * 0.8).round());
+      targetOrb.takeDamage((slamDamage * 5.1).round());
     }
 
     for (int i = 0; i < 3; i++) {
@@ -1193,7 +1215,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
               g.takeDamage(damage, source: 'Hydra Volley');
             }
             if (end.distanceTo(targetOrb.position) < 80) {
-              targetOrb.takeDamage(damage);
+              targetOrb.takeDamage((damage * 3).round());
             }
           },
         );
@@ -1234,8 +1256,9 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       );
     }
 
-    final separationForce = _computeSeparation(radius: size.x * 0.8);
-
+    final separationForce = isAnyBoss
+        ? Vector2.zero()
+        : _computeSeparation(radius: size.x * 0.8);
     final combined = steeringForce + separationForce * 2.5;
     final desiredVelocity = combined.length2 > 0.0001
         ? combined.normalized() * currentMaxSpeed
@@ -1260,6 +1283,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     final neighbors = gameRef.getEnemiesInRange(position, radius);
     for (final other in neighbors) {
       if (other == this) continue;
+      if (isAnyBoss && !other.isAnyBoss) continue;
 
       final delta = position - other.position;
       final dist = delta.length;
@@ -1277,6 +1301,9 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
     if (count == 0) return Vector2.zero();
     force /= count.toDouble();
+    if (isAnyBoss && force.length > 1.0) {
+      force = force.normalized();
+    }
     return force; // don’t normalize; let magnitude matter
   }
 
@@ -1427,7 +1454,9 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
           source: 'Leecher Drain',
         );
       } else if (_attachedTarget is AlchemyOrb) {
-        (_attachedTarget as AlchemyOrb).takeDamage(_leechDamagePerTick);
+        (_attachedTarget as AlchemyOrb).takeDamage(
+          (_leechDamagePerTick * 3).round(),
+        );
       }
 
       unit.heal(_leechHealPerTick);
@@ -1449,9 +1478,12 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     _orbitAngle = _rng.nextDouble() * pi * 2;
 
     if (target is HoardGuardian) {
-      target.takeDamage(contactDamage, source: 'Leecher Attach');
+      target.takeDamage(
+        (contactDamage * _enemyGuardianCrashMult).round(),
+        source: 'Leecher Attach',
+      );
     } else if (target is AlchemyOrb) {
-      target.takeDamage(contactDamage);
+      target.takeDamage((contactDamage * _enemyOrbCrashMult).round());
     }
 
     _body.bodyOpacity = 0.7;
@@ -1493,9 +1525,12 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     final explosionColor = _elementColor(template.element);
 
     if (target is HoardGuardian) {
-      target.takeDamage(contactDamage, source: 'Bomber Explosion');
+      target.takeDamage(
+        (contactDamage * _enemyGuardianCrashMult).round(),
+        source: 'Bomber Explosion',
+      );
     } else if (target is AlchemyOrb) {
-      target.takeDamage(contactDamage);
+      target.takeDamage((contactDamage * _enemyOrbCrashMult).round());
     }
 
     final nearbyGuardians = gameRef.getGuardiansInRange(
@@ -1504,13 +1539,13 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     );
     for (final g in nearbyGuardians) {
       if (g != target) {
-        g.takeDamage((contactDamage * 0.5).round(), source: 'Bomber Splash');
+        g.takeDamage((contactDamage * 0.7).round(), source: 'Bomber Splash');
       }
     }
 
     if (position.distanceTo(targetOrb.position) < explosionRadius &&
         target != targetOrb) {
-      targetOrb.takeDamage((contactDamage * 0.5).round());
+      targetOrb.takeDamage((contactDamage * 3.6).round());
     }
 
     gameRef.world.add(
@@ -1558,7 +1593,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
         start: position.clone(),
         targetPosition: targetOrb.position.clone(),
         color: projectileColor,
-        onHit: () => targetOrb.takeDamage(dmg),
+        onHit: () => targetOrb.takeDamage((dmg * 3).round()),
       );
     }
 
@@ -1581,20 +1616,23 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       if (_meleeCooldown <= 0) {
         if (target is HoardGuardian) {
           target.takeDamage(
-            contactDamage,
+            (contactDamage * _bossGuardianCrashMult).round(),
             source: 'Boss Melee',
             isBossAttack: true,
           );
         } else if (target is AlchemyOrb) {
-          target.takeDamage(contactDamage);
+          target.takeDamage((contactDamage * _bossOrbCrashMult).round());
         }
         _meleeCooldown = 0.9;
       }
     } else {
       if (target is HoardGuardian) {
-        target.takeDamage(contactDamage, source: 'Enemy Melee');
+        target.takeDamage(
+          (contactDamage * _enemyGuardianCrashMult).round(),
+          source: 'Enemy Melee',
+        );
       } else if (target is AlchemyOrb) {
-        target.takeDamage(contactDamage);
+        target.takeDamage((contactDamage * _enemyOrbCrashMult).round());
       }
       _die();
     }
@@ -1740,7 +1778,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
             g.takeDamage(damage);
           }
           if (end.distanceTo(targetOrb.position) < 100) {
-            targetOrb.takeDamage(damage);
+            targetOrb.takeDamage((damage * 3).round());
           }
         },
       );
@@ -1911,7 +1949,7 @@ class ArtilleryMine extends PositionComponent
     }
 
     if (position.distanceTo(gameRef.orb.position) <= blastRadius) {
-      gameRef.orb.takeDamage(damage);
+      gameRef.orb.takeDamage((damage * 3).round());
     }
 
     gameRef.world.add(

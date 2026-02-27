@@ -38,16 +38,13 @@ class AlchemyOrb extends PositionComponent {
 
   @override
   Future<void> onLoad() async {
-    _glowPaint = Paint()
-      ..color = Colors.indigoAccent.withOpacity(0.5)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30);
+    _glowPaint = Paint()..color = Colors.indigoAccent.withOpacity(0.5);
 
     _corePaint = Paint()
       ..shader = const RadialGradient(
         colors: [Colors.white, Colors.cyanAccent, Colors.blue],
         stops: [0.1, 0.4, 1.0],
-      ).createShader(Rect.fromLTWH(0, 0, size.x, size.y))
-      ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 5);
+      ).createShader(Rect.fromLTWH(0, 0, size.x, size.y));
 
     _runePaint = Paint()
       ..color = Colors.cyan.withOpacity(0.6)
@@ -77,8 +74,7 @@ class AlchemyOrb extends PositionComponent {
     _transmuteFillPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      ..strokeCap = StrokeCap.round;
 
     // Breathing effect
     add(
@@ -183,7 +179,7 @@ class AlchemyOrb extends PositionComponent {
 
     if (percent > 0.5) {
       _hpFillPaint.color = Colors.cyanAccent;
-      _hpFillPaint.maskFilter = const MaskFilter.blur(BlurStyle.solid, 2);
+      _hpFillPaint.maskFilter = null;
     } else if (percent > 0.25) {
       _hpFillPaint.color = Colors.orangeAccent;
       _hpFillPaint.maskFilter = null;

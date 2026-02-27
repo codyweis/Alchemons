@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:alchemons/games/boss/sprite_battle_adapter.dart';
 import 'package:alchemons/games/sprite_effects/sprite_elemental_aura_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_glow_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_prismatic_cascade_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_void_rift_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_volcanic_aura.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -102,6 +104,10 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
         );
       case 'volcanic_aura':
         return VolcanicAuraComponent(baseSize: baseSize);
+      case 'void_rift':
+        return VoidRiftComponent(baseSize: baseSize * 0.8);
+      case 'prismatic_cascade':
+        return PrismaticCascadeComponent(baseSize: baseSize * 0.6);
       default:
         return null;
     }

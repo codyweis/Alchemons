@@ -1692,23 +1692,59 @@ class ManeBarrageMechanic {
     int rank,
     HoardEnemy victim,
   ) {
-    final dir = (victim.position - attacker.position).normalized();
-    victim.add(
-      MoveEffect.by(dir * (18.0 + 4.5 * rank), EffectController(duration: 0.1)),
+    // Lava shot ignites and leaves a burning lava pool at impact — distinct from
+    // Earth's raw knockback.
+    victim.unit.applyStatusEffect(
+      SurvivalStatusEffect(
+        type: 'Burn',
+        damagePerTick: (attacker.unit.statIntelligence * (0.6 + 0.15 * rank))
+            .toInt()
+            .clamp(2, 50),
+        ticksRemaining: 4 + rank,
+        tickInterval: 0.4,
+      ),
     );
+    // Leave a small lava pool at the impact point
+    final color = SurvivalAttackManager.getElementColor('Lava');
+    final poolPos = victim.position.clone();
+    final poolRadius = 30.0 + rank * 5;
+    final pool = CircleComponent(
+      radius: poolRadius,
+      position: poolPos,
+      anchor: Anchor.center,
+      paint: Paint()..color = color.withOpacity(0.4),
+    );
+    final poolTick = max(
+      1,
+      (attacker.unit.statIntelligence * (0.3 + 0.08 * rank)).toInt(),
+    );
+    pool.add(
+      TimerComponent(
+        period: 0.5,
+        repeat: true,
+        onTick: () {
+          for (final v in game.getEnemiesInRange(poolPos, poolRadius)) {
+            v.takeDamage(poolTick);
+          }
+        },
+      ),
+    );
+    pool.add(RemoveEffect(delay: 2.0 + rank * 0.5));
+    game.world.add(pool);
   }
 
   //
   //  WATER / ICE / STEAM
   //
 
-  /// Water Barrage - Push enemies away from orb
+  /// Water Barrage - Push enemies away from orb + small guardian heal per shot
   static void _waterBarrage(
     SurvivalHoardGame game,
     HoardGuardian attacker,
     int rank,
     HoardEnemy victim,
   ) {
+    // Push away from orb
     final dir = (victim.position - game.orb.position).normalized();
     victim.add(
       MoveEffect.by(
@@ -1716,6 +1752,16 @@ class ManeBarrageMechanic {
         EffectController(duration: 0.12),
       ),
     );
+    // Each water shot carries healing energy to nearby guardians
+    final int healAmt = (attacker.unit.statIntelligence * (0.3 + 0.06 * rank))
+        .toInt()
+        .clamp(1, 20);
+    for (final g in game.getGuardiansInRange(
+      center: victim.position,
+      range: 120,
+    )) {
+      g.unit.heal(healAmt);
+    }
   }
 
   /// Ice Barrage - Stacking micro-slow / pushback
@@ -1974,10 +2020,17 @@ class ManeBarrageMechanic {
     int rank,
     HoardEnemy victim,
   ) {
-    final dir = (victim.position - game.orb.position).normalized();
+    // Air flings enemies in a chaotic spiral — random ±90° deviation from the
+    // orb-outward direction, creating wind-scatter rather than orderly push.
+    final baseDir = (victim.position - game.orb.position).normalized();
+    final angle = (Random().nextDouble() - 0.5) * pi; // ±90°
+    final spiralDir = Vector2(
+      baseDir.x * cos(angle) - baseDir.y * sin(angle),
+      baseDir.x * sin(angle) + baseDir.y * cos(angle),
+    );
     victim.add(
       MoveEffect.by(
-        dir * (26.0 + 6.0 * rank),
+        spiralDir * (28.0 + 7.0 * rank),
         EffectController(duration: 0.15, curve: Curves.easeOut),
       ),
     );

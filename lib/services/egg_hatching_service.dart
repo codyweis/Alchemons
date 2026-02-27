@@ -28,6 +28,7 @@ import 'package:alchemons/widgets/animations/database_typing_animation.dart';
 import 'package:alchemons/widgets/animations/hatching_cinematic.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/delay_type_widget.dart';
 import 'package:flame/extensions.dart';
 import 'package:flutter/material.dart';
@@ -141,6 +142,8 @@ class EggHatching {
         offspring: offspring,
         isNewDiscovery: isNewDiscovery,
         undiscoveredCache: undiscoveredCache,
+        isPrismatic: hp.isPrismaticSkin,
+        variantFaction: hp.lineage.variantFaction,
       );
       return HatchingResult.success();
     }
@@ -183,7 +186,7 @@ class EggHatching {
       return HatchingResult.failure(
         'Specimen containment full. Clear space to complete extraction.',
         icon: Icons.warning_amber_rounded,
-        color: Colors.orange.shade600,
+        color: FC.orange,
       );
     }
 
@@ -191,7 +194,7 @@ class EggHatching {
     if (instanceId == null || instanceId.isEmpty) {
       return HatchingResult.failure(
         'Extraction failed: system error',
-        color: Colors.red.shade600,
+        color: FC.danger,
       );
     }
 
@@ -202,6 +205,8 @@ class EggHatching {
       offspring: offspring,
       isNewDiscovery: isNewDiscovery,
       undiscoveredCache: undiscoveredCache,
+      isPrismatic: hp.isPrismaticSkin,
+      variantFaction: hp.lineage.variantFaction,
     );
     return HatchingResult.success();
   }
@@ -285,7 +290,7 @@ class EggHatching {
         success: true,
         message: 'Incubator full — embryo transferred to storage',
         icon: Icons.inventory_2_rounded,
-        color: Colors.orange,
+        color: FC.orange,
       );
     } else {
       // Place directly
@@ -399,6 +404,22 @@ class EggHatching {
     return EggPayload.fromJson(json);
   }
 
+  /// Get the color for a variant faction
+  static Color? _getVariantColor(String? variantFaction) {
+    if (variantFaction == null || variantFaction.isEmpty) return null;
+
+    // Map faction names to their signature colors
+    final factionColors = <String, Color>{
+      'Volcanic': const Color(0xFFFF5722), // Orange-red / Fire
+      'Oceanic': const Color(0xFF2196F3), // Blue / Water
+      'Earthen': const Color(0xFF795548), // Brown / Earth
+      'Verdant': const Color(0xFF4CAF50), // Green / Nature
+      'Arcane': const Color(0xFF9C27B0), // Purple / Magic
+    };
+
+    return factionColors[variantFaction];
+  }
+
   static Future<void> _afterHatchCommon({
     required BuildContext context,
     required IncubatorSlot slot,
@@ -406,6 +427,8 @@ class EggHatching {
     required Creature offspring,
     required bool isNewDiscovery,
     required Map<String, bool> undiscoveredCache,
+    bool isPrismatic = false,
+    String? variantFaction,
   }) async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
@@ -460,6 +483,23 @@ class EggHatching {
     final Color primaryHue = BreedConstants.getRarityColor(offspring.rarity);
     ImageProvider? silhouette = AssetImage('assets/images/$instancePath');
 
+    // Determine hint type for special hatches
+    // Check instance data as fallback (in case payload didn't have it)
+    final actualIsPrismatic =
+        isPrismatic || (instance?.isPrismaticSkin == true);
+    final actualVariantFaction = variantFaction ?? instance?.variantFaction;
+
+    HatchHintType hintType = HatchHintType.normal;
+    Color? variantColor;
+
+    if (actualIsPrismatic) {
+      hintType = HatchHintType.prismatic;
+    } else if (actualVariantFaction != null &&
+        actualVariantFaction.isNotEmpty) {
+      hintType = HatchHintType.variant;
+      variantColor = _getVariantColor(actualVariantFaction);
+    }
+
     try {
       // ✅ still use the original context for the cinematic if you want
       if (!context.mounted) return;
@@ -469,7 +509,9 @@ class EggHatching {
         parentBTypeId: types.length > 1 ? types[1] : offspring.types.last,
         paletteMain: primaryHue,
         creatureSilhouette: silhouette,
-        totalDuration: const Duration(milliseconds: 8000),
+        totalDuration: const Duration(milliseconds: 4200), // Faster!
+        hintType: hintType,
+        variantColor: variantColor,
       );
     } catch (e) {
       final factionSvc = context.read<FactionService>();
@@ -735,19 +777,12 @@ class EggHatching {
                   width: MediaQuery.of(context).size.width * 0.95,
                   height: MediaQuery.of(context).size.height * 0.82,
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(.25),
+                    color: FC.bg0.withOpacity(.7),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: primaryColor.withOpacity(.45),
                       width: 2,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(.18),
-                        blurRadius: 20,
-                        spreadRadius: 1,
-                      ),
-                    ],
                   ),
                   child: Column(
                     children: [
@@ -756,12 +791,10 @@ class EggHatching {
                       // Sprite dock
                       Container(
                         padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.03),
+                        decoration: const BoxDecoration(
+                          color: FC.bg2,
                           border: Border(
-                            bottom: BorderSide(
-                              color: Colors.white.withOpacity(.08),
-                            ),
+                            bottom: BorderSide(color: FC.borderDim),
                           ),
                         ),
                         child: Row(
@@ -774,11 +807,9 @@ class EggHatching {
                                   width: 200,
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(.02),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(.12),
-                                    ),
+                                    color: FC.bg1,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: FC.borderDim),
                                   ),
                                   child: CreatureScanAnimation(
                                     key: scanAnimationKey,
@@ -788,10 +819,11 @@ class EggHatching {
                                     ),
                                     onReadyChanged: (ready) {
                                       if (ready) {
-                                        safeSetDialogState(
-                                          setDialogState,
-                                          () => scanComplete = true,
-                                        );
+                                        safeSetDialogState(setDialogState, () {
+                                          scanComplete = true;
+                                          ctaVisible =
+                                              true; // Show button right away
+                                        });
                                       }
                                     },
                                     child: InstanceSprite(
@@ -812,7 +844,7 @@ class EggHatching {
                                       ),
                                       child: _buildBadge(
                                         'NEW DISCOVERY',
-                                        Colors.tealAccent,
+                                        FC.teal,
                                       ),
                                     ),
                                   ),
@@ -827,7 +859,7 @@ class EggHatching {
                                       ),
                                       child: _buildBadge(
                                         'VARIANT DISCOVERY',
-                                        Colors.purpleAccent,
+                                        FC.purple,
                                       ),
                                     ),
                                   ),
@@ -852,10 +884,7 @@ class EggHatching {
                                     milliseconds: 100,
                                   ),
                                   onComplete: () {
-                                    safeSetDialogState(setDialogState, () {
-                                      ctaVisible = true;
-                                      ctaTouchable = false;
-                                    });
+                                    // Typing done - button already visible
                                   },
                                   children: [
                                     _buildAnalysisSection(
@@ -959,7 +988,7 @@ class EggHatching {
                         ),
                         child: AnimatedOpacity(
                           opacity: ctaVisible ? 1 : 0,
-                          duration: const Duration(milliseconds: 450),
+                          duration: const Duration(milliseconds: 300),
                           onEnd: () {
                             if (ctaVisible && !closing) {
                               safeSetDialogState(
@@ -1019,18 +1048,7 @@ class EggHatching {
                                           ],
                                         ),
                                         borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: Colors.white.withOpacity(.18),
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: primaryColor.withOpacity(
-                                              .25,
-                                            ),
-                                            blurRadius: 12,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
+                                        border: Border.all(color: FC.borderDim),
                                       ),
                                       child: const Row(
                                         mainAxisAlignment:
@@ -1072,16 +1090,16 @@ class EggHatching {
                                     width: 50,
                                     height: 50,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(.08),
-                                      borderRadius: BorderRadius.circular(10),
+                                      color: FC.bg2,
+                                      borderRadius: BorderRadius.circular(6),
                                       border: Border.all(
-                                        color: Colors.white.withOpacity(.25),
+                                        color: FC.borderDim,
                                         width: 1.5,
                                       ),
                                     ),
-                                    child: Icon(
+                                    child: const Icon(
                                       Icons.pets_rounded,
-                                      color: Colors.white.withOpacity(.9),
+                                      color: FC.textSecondary,
                                       size: 22,
                                     ),
                                   ),
@@ -1129,15 +1147,13 @@ class EggHatching {
   static Widget _buildExtractionHeader(Creature offspring, Color primaryColor) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.03),
-        borderRadius: const BorderRadius.only(
+      decoration: const BoxDecoration(
+        color: FC.bg2,
+        borderRadius: BorderRadius.only(
           topLeft: Radius.circular(16),
           topRight: Radius.circular(16),
         ),
-        border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(.08)),
-        ),
+        border: Border(bottom: BorderSide(color: FC.borderDim)),
       ),
       child: Column(
         children: [
@@ -1162,7 +1178,7 @@ class EggHatching {
           Text(
             offspring.name,
             style: const TextStyle(
-              color: Color(0xFFE8EAED),
+              color: FC.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 13,
               letterSpacing: .3,
@@ -1189,7 +1205,7 @@ class EggHatching {
             Text(
               title,
               style: const TextStyle(
-                color: Color(0xFFE8EAED),
+                color: FC.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
                 letterSpacing: .6,
@@ -1202,9 +1218,9 @@ class EggHatching {
           width: double.infinity,
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(.25),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white.withOpacity(.12)),
+            color: FC.bg1,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: FC.borderDim),
           ),
           child: Column(children: children),
         ),
@@ -1242,7 +1258,7 @@ class EggHatching {
                     text: value,
                     delay: delay,
                     style: const TextStyle(
-                      color: Color(0xFFE8EAED),
+                      color: FC.textPrimary,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),

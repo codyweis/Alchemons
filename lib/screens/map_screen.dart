@@ -355,7 +355,9 @@ class _MapScreenState extends State<MapScreen>
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const PartyPickerScreen(),
+                        builder: (_) => const PartyPickerScreen(
+                          enforceUniqueSpecies: false,
+                        ),
                       ),
                     );
                   },
@@ -637,7 +639,9 @@ class _MapScreenState extends State<MapScreen>
     if (!context.mounted) return;
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const PartyPickerScreen()),
+      MaterialPageRoute(
+        builder: (_) => const PartyPickerScreen(enforceUniqueSpecies: false),
+      ),
     );
     if (result == null) return;
     selectedParty = (result as List).cast<PartyMember>();
@@ -1201,7 +1205,7 @@ class _InfoDialog extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Wild areas will light up when a creature has been detected. Venture into diverse biomes to discover new creatures. Successful breeding or harvesting will create an offspring you can extract in the Incubator.',
+              'Wild areas will light up when a creature has been detected. Venture into diverse biomes to discover new creatures. Successful breeding or harvesting will create an offspring you can extract in the Incubator. Wild Alchemons are more powerful and have better stats.',
               style: TextStyle(
                 color: theme.textMuted,
                 fontSize: 12,

@@ -104,9 +104,7 @@ class SurvivalHud extends PositionComponent
     _orbFillGoodPaint = Paint()..color = const Color(0xFF10B981);
     _orbFillMidPaint = Paint()..color = const Color(0xFFF59E0B);
     _orbFillLowPaint = Paint()..color = const Color(0xFFEF4444);
-    _orbGlowPaint = Paint()
-      ..color = const Color(0xFFFFD700).withOpacity(0.3)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    _orbGlowPaint = Paint()..color = const Color(0xFFFFD700).withOpacity(0.3);
     _orbBorderPaint = Paint()
       ..color = const Color(0xFFFFD700).withOpacity(0.6)
       ..style = PaintingStyle.stroke
@@ -121,8 +119,7 @@ class SurvivalHud extends PositionComponent
         colors: [Color(0xFF8B5CF6), Color(0xFFD946EF)],
       ).createShader(const Rect.fromLTWH(0, 0, 6, 100));
     _transmuteGlowPaint = Paint()
-      ..color = const Color(0xFF8B5CF6).withOpacity(0.5)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      ..color = const Color(0xFF8B5CF6).withOpacity(0.5);
 
     // Text paints
     _headerPaint = TextPaint(
@@ -458,9 +455,7 @@ class SurvivalHud extends PositionComponent
       canvas.drawCircle(
         Offset(barX + barWidth + 8, barY + barHeight / 2),
         6,
-        Paint()
-          ..color = const Color(0xFFD946EF)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        Paint()..color = const Color(0xFFD946EF),
       );
       canvas.drawCircle(
         Offset(barX + barWidth + 8, barY + barHeight / 2),
@@ -958,9 +953,7 @@ class SurvivalHud extends PositionComponent
       canvas.drawCircle(
         Offset(barX + _transmuteBarWidth / 2, barY - 6),
         5,
-        Paint()
-          ..color = const Color(0xFFD946EF)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        Paint()..color = const Color(0xFFD946EF),
       );
       canvas.drawCircle(
         Offset(barX + _transmuteBarWidth / 2, barY - 6),

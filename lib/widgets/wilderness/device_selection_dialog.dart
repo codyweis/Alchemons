@@ -1,6 +1,5 @@
 // lib/widgets/wilderness/device_selection_dialog.dart
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
@@ -88,7 +87,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
+    final t = ForgeTokens(context.watch<FactionTheme>());
     final size = MediaQuery.of(context).size;
     final isLandscape = size.width > size.height;
 
@@ -106,33 +105,36 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
             maxHeight: size.height * 0.9,
           ),
           decoration: BoxDecoration(
-            color: const Color(0xFF0A0E27).withOpacity(0.96),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.green.withOpacity(0.6), width: 2),
+            color: t.bg1,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: t.borderAccent, width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.green.withOpacity(0.3),
-                blurRadius: 30,
-                spreadRadius: 5,
+                color: t.amber.withOpacity(0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildHeader(theme),
+              _buildHeader(t),
               if (_loading)
-                const Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: CircularProgressIndicator(color: Colors.green),
+                Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: CircularProgressIndicator(
+                    color: t.amber,
+                    strokeWidth: 2,
+                  ),
                 )
               else
                 Flexible(
                   child: isLandscape
-                      ? _buildLandscapeDeviceGrid(theme)
-                      : _buildPortraitDeviceList(theme),
+                      ? _buildLandscapeDeviceGrid(t)
+                      : _buildPortraitDeviceList(t),
                 ),
-              _buildCancelButton(theme),
+              _buildCancelButton(t),
             ],
           ),
         ),
@@ -140,43 +142,49 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
     );
   }
 
-  Widget _buildHeader(FactionTheme theme) {
+  Widget _buildHeader(ForgeTokens t) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Colors.green.withOpacity(0.3), width: 1),
-        ),
+        color: t.bg2,
+        border: Border(bottom: BorderSide(color: t.borderDim)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
       ),
-      child: Text(
-        'Choose which harvester to use',
-        style: TextStyle(
-          color: theme.text,
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
-        textAlign: TextAlign.center,
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(color: t.amber, shape: BoxShape.circle),
+          ),
+          Text(
+            'SELECT HARVESTER',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: t.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2.0,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildLandscapeDeviceGrid(FactionTheme theme) {
-    if (_availableDevices.isEmpty) {
-      return _buildEmptyState(theme);
-    }
-
+  Widget _buildLandscapeDeviceGrid(ForgeTokens t) {
+    if (_availableDevices.isEmpty) return _buildEmptyState(t);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Calculate number of columns based on available width
-          final itemWidth = 240.0;
-          final spacing = 12.0;
+          const itemWidth = 240.0;
+          const spacing = 10.0;
           final crossAxisCount = (constraints.maxWidth / (itemWidth + spacing))
               .floor()
               .clamp(2, 4);
-
           return Wrap(
             spacing: spacing,
             runSpacing: spacing,
@@ -185,7 +193,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                 width:
                     (constraints.maxWidth - (spacing * (crossAxisCount - 1))) /
                     crossAxisCount,
-                child: _buildDeviceCard(theme, entry.key, entry.value),
+                child: _buildDeviceCard(t, entry.key, entry.value),
               );
             }).toList(),
           );
@@ -194,48 +202,48 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
     );
   }
 
-  Widget _buildPortraitDeviceList(FactionTheme theme) {
-    if (_availableDevices.isEmpty) {
-      return _buildEmptyState(theme);
-    }
-
+  Widget _buildPortraitDeviceList(ForgeTokens t) {
+    if (_availableDevices.isEmpty) return _buildEmptyState(t);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: _availableDevices.entries.map((entry) {
           return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildDeviceCard(theme, entry.key, entry.value),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildDeviceCard(t, entry.key, entry.value),
           );
         }).toList(),
       ),
     );
   }
 
-  Widget _buildEmptyState(FactionTheme theme) {
+  Widget _buildEmptyState(ForgeTokens t) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.inventory_2_outlined, color: theme.textMuted, size: 48),
+          Icon(Icons.inventory_2_outlined, color: t.borderAccent, size: 36),
           const SizedBox(height: 12),
           Text(
-            'No compatible devices',
+            'NO COMPATIBLE DEVICES',
             style: TextStyle(
-              color: theme.text,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
+              fontFamily: 'monospace',
+              color: t.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2.0,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'Purchase harvesters from the shop',
             style: TextStyle(
-              color: theme.textMuted,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+              fontFamily: 'monospace',
+              color: t.textMuted,
+              fontSize: 9,
+              letterSpacing: 0.5,
             ),
             textAlign: TextAlign.center,
           ),
@@ -244,14 +252,11 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
     );
   }
 
-  Widget _buildDeviceCard(
-    FactionTheme theme,
-    CatchDeviceType device,
-    int quantity,
-  ) {
+  Widget _buildDeviceCard(ForgeTokens t, CatchDeviceType device, int quantity) {
     final catchService = context.read<CatchService>();
     final chance = catchService.calculateCatchChance(device, widget.rarity);
     final isGuaranteed = device == CatchDeviceType.guaranteed;
+    final accentColor = isGuaranteed ? t.amberBright : t.success;
 
     return GestureDetector(
       onTap: () {
@@ -259,39 +264,31 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
         Navigator.pop(context, device);
       },
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isGuaranteed
-              ? Colors.amber.withOpacity(0.1)
-              : Colors.green.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isGuaranteed
-                ? Colors.amber.withOpacity(0.6)
-                : Colors.green.withOpacity(0.5),
-            width: 2,
-          ),
+          color: accentColor.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: accentColor.withOpacity(0.5), width: 1),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icon + Device name + quantity
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
-                    color: isGuaranteed
-                        ? Colors.amber.withOpacity(0.2)
-                        : Colors.green.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(10),
+                    color: t.bg2,
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: accentColor.withOpacity(0.4)),
                   ),
                   child: Icon(
                     isGuaranteed
                         ? Icons.shield_rounded
                         : Icons.catching_pokemon_rounded,
-                    color: isGuaranteed ? Colors.amber : Colors.green,
-                    size: 24,
+                    color: accentColor,
+                    size: 20,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -300,67 +297,85 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        device.label,
+                        device.label.toUpperCase(),
                         style: TextStyle(
-                          color: theme.text,
-                          fontSize: 13,
+                          fontFamily: 'monospace',
+                          color: t.textPrimary,
+                          fontSize: 11,
                           fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Owned: $quantity',
+                        'OWNED  $quantity',
                         style: TextStyle(
-                          color: theme.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                          fontFamily: 'monospace',
+                          color: t.textMuted,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: theme.textMuted,
-                  size: 20,
-                ),
+                Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 18),
               ],
             ),
-            const SizedBox(height: 10),
-            // Capture chance
+            const SizedBox(height: 8),
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: isGuaranteed
-                    ? Colors.amber.withOpacity(0.15)
-                    : Colors.green.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
+                color: t.bg2,
+                borderRadius: BorderRadius.circular(2),
+                border: Border.all(color: t.borderDim),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    isGuaranteed ? 'Guaranteed' : 'Capture Chance:',
+                    isGuaranteed ? 'CAPTURE RATE' : 'CAPTURE RATE',
                     style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      color: t.textMuted,
+                      fontSize: 9,
                       fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
                     ),
                   ),
                   if (!isGuaranteed)
                     Text(
                       '${(chance * 100).toStringAsFixed(0)}%',
-                      style: const TextStyle(
-                        color: Colors.green,
-                        fontSize: 13,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: t.success,
+                        fontSize: 11,
                         fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
                       ),
                     )
                   else
-                    const Icon(
-                      Icons.check_circle_rounded,
-                      color: Colors.amber,
-                      size: 16,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: t.amberBright,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'GUARANTEED',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.amberBright,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
                     ),
                 ],
               ),
@@ -371,7 +386,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
     );
   }
 
-  Widget _buildCancelButton(FactionTheme theme) {
+  Widget _buildCancelButton(ForgeTokens t) {
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -381,18 +396,19 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: theme.textMuted.withOpacity(0.2), width: 1),
-          ),
+          color: t.bg2,
+          border: Border(top: BorderSide(color: t.borderDim)),
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(3)),
         ),
         child: Text(
           'CANCEL',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: theme.textMuted,
-            fontSize: 12,
+            fontFamily: 'monospace',
+            color: t.textMuted,
+            fontSize: 10,
             fontWeight: FontWeight.w800,
-            letterSpacing: 0.6,
+            letterSpacing: 1.5,
           ),
         ),
       ),

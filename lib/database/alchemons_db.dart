@@ -20,6 +20,7 @@ import 'package:alchemons/database/daos/incubator_dao.dart';
 import 'package:alchemons/database/daos/inventory_dao.dart';
 import 'package:alchemons/database/daos/biome_dao.dart';
 import 'package:alchemons/database/daos/shop_dao.dart';
+import 'package:alchemons/database/daos/altar_dao.dart';
 
 part 'alchemons_db.g.dart';
 
@@ -52,6 +53,8 @@ part 'alchemons_db.g.dart';
     ConstellationTransactions,
     ConstellationUnlocks,
     BreedingStatistics,
+    AltarPlacements,
+    SurvivalHighScore,
   ],
   daos: [
     SettingsDao,
@@ -62,13 +65,14 @@ part 'alchemons_db.g.dart';
     BiomeDao,
     ShopDao,
     ConstellationDao,
+    AltarDao,
   ],
 )
 class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 30;
+  int get schemaVersion => 33;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -207,8 +211,57 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
           constellationPoints.hasSeenFinale,
         );
       }
+      if (from < 31) {
+        await m.createTable(altarPlacements);
+      }
+      if (from < 32) {
+        // Guard against "duplicate column" if the column was already added
+        // by a partially-committed prior migration run.
+        try {
+          await m.addColumn(altarPlacements, altarPlacements.snapshotJson);
+        } catch (_) {}
+      }
+      if (from < 33) {
+        await m.createTable(survivalHighScore);
+      }
     },
   );
+
+  // ── Survival Highscore helpers ────────────────────────────────────────────
+
+  /// Returns the single highscore row, or null if never played.
+  Future<SurvivalHighScoreData?> getSurvivalHighScore() async {
+    return (select(
+      survivalHighScore,
+    )..where((t) => t.id.equals(1))).getSingleOrNull();
+  }
+
+  /// Saves [wave], [score], [timeMs] only when they beat the stored records.
+  /// Creates the row if it doesn't exist yet.
+  Future<void> saveSurvivalHighScore({
+    required int wave,
+    required int score,
+    required int timeMs,
+  }) async {
+    final existing = await getSurvivalHighScore();
+    final newBestWave = existing == null
+        ? wave
+        : (wave > existing.bestWave ? wave : existing.bestWave);
+    final newBestScore = existing == null
+        ? score
+        : (score > existing.bestScore ? score : existing.bestScore);
+    final newBestTimeMs = existing == null
+        ? timeMs
+        : (timeMs > existing.bestTimeMs ? timeMs : existing.bestTimeMs);
+    await into(survivalHighScore).insertOnConflictUpdate(
+      SurvivalHighScoreCompanion(
+        id: const Value(1),
+        bestWave: Value(newBestWave),
+        bestScore: Value(newBestScore),
+        bestTimeMs: Value(newBestTimeMs),
+      ),
+    );
+  }
 
   Future<void> _seedInitialData() async {
     // Seed incubator slots

@@ -22,11 +22,11 @@ void main() {
 
       // Test formulas from StatsFormulas.csv
       expect(combatant.maxHp, (5 * 10) + (5 * 5)); // 75
-      expect(combatant.physAtk, 5 + (5 * 2)); // 15
-      expect(combatant.elemAtk, 6 + (5 * 2)); // 16
-      expect(combatant.physDef, ((5 * 0.5) + (7 * 0.5)).toInt() + 5); // 11
-      expect(combatant.elemDef, 7 + (5 * 2)); // 17
-      expect(combatant.speed, 8); // Raw statSpeed
+      expect(combatant.physAtk, 5 + (5 * 5)); // 30
+      expect(combatant.elemAtk, 34);
+      expect(combatant.physDef, ((50 + 70) * 0.2 + 5).round()); // 29
+      expect(combatant.elemDef, (70 * 0.4 + (5 * 2)).round()); // 38
+      expect(combatant.speed, (80 * 0.4).round()); // 32
 
       print('✅ Stat calculations correct!');
       print('   Max HP: ${combatant.maxHp}');
@@ -44,8 +44,8 @@ void main() {
       // Fire vs Water (×0.5, not effective)
       expect(BattleEngine.getTypeMultiplier('Fire', ['Water']), 0.5);
 
-      // Fire vs Earth (×1.0, neutral)
-      expect(BattleEngine.getTypeMultiplier('Fire', ['Earth']), 1.0);
+      // Fire vs Earth (×0.5, not effective)
+      expect(BattleEngine.getTypeMultiplier('Fire', ['Earth']), 0.5);
 
       // Lightning beats Water (×2)
       expect(BattleEngine.getTypeMultiplier('Lightning', ['Water']), 2.0);
@@ -92,11 +92,11 @@ void main() {
       );
 
       // Base = (Atk × 2) - Def
-      // Phys Atk = 10 + (10 × 2) = 30
-      // Phys Def = ((5 × 0.5) + (5 × 0.5)) + 10 = 15
-      // Base = (30 × 2) - 15 = 45
+      // Phys Atk = (100 × 0.4) + (10 × 2) = 60
+      // Phys Def = ((50 + 50) × 0.2) + 10 = 30
+      // Base = (60 × 2) - 30 = 90
 
-      expect(damage, 45);
+      expect(damage, 90);
       print('✅ Damage formula correct!');
       print('   Base damage: $damage');
     });
@@ -115,14 +115,14 @@ void main() {
     });
 
     test('Special moves are correct for each family', () {
-      expect(BattleMove.getSpecialMove('Let').name, 'Sprite-strike');
-      expect(BattleMove.getSpecialMove('Pip').name, 'Pip-fury');
-      expect(BattleMove.getSpecialMove('Mane').name, "Mane's-trick");
-      expect(BattleMove.getSpecialMove('Horn').name, 'Horn-guard');
-      expect(BattleMove.getSpecialMove('Mask').name, "Mask's-curse");
-      expect(BattleMove.getSpecialMove('Wing').name, 'Wing-assault');
-      expect(BattleMove.getSpecialMove('Kin').name, "Kin's-blessing");
-      expect(BattleMove.getSpecialMove('Mystic').name, 'Mystic-power');
+      expect(BattleMove.getSpecialMove('Let').name, 'Meteor');
+      expect(BattleMove.getSpecialMove('Pip').name, 'Ricochet');
+      expect(BattleMove.getSpecialMove('Mane').name, 'Barrage');
+      expect(BattleMove.getSpecialMove('Horn').name, 'Nova');
+      expect(BattleMove.getSpecialMove('Mask').name, 'Trap Field');
+      expect(BattleMove.getSpecialMove('Wing').name, 'Beam');
+      expect(BattleMove.getSpecialMove('Kin').name, 'Blessing');
+      expect(BattleMove.getSpecialMove('Mystic').name, 'Orbitals');
 
       print('✅ All special moves correct!');
     });
