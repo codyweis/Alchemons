@@ -10,8 +10,8 @@ class Silhouette extends StatelessWidget {
     final theme = Theme.of(context);
     if (!enabled) return child;
     final color = theme.brightness == Brightness.dark
-        ? Theme.of(context).colorScheme.onSurface.withOpacity(0.5)
-        : Colors.black.withOpacity(0.8);
+        ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)
+        : Colors.black.withValues(alpha: 0.8);
     // SRC_IN = use the child's alpha as a mask, fill with black.
     return ColorFiltered(
       colorFilter: ColorFilter.mode(color, BlendMode.srcIn),

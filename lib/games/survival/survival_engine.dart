@@ -1,4 +1,3 @@
-import 'dart:math';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';

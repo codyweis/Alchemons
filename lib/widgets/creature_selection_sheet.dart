@@ -1,7 +1,4 @@
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
-import 'package:alchemons/screens/creatures_screen.dart';
-import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/filterchip_solod.dart';
@@ -13,7 +10,6 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_image.dart';
-import 'package:alchemons/widgets/stamina_bar.dart';
 
 // ------------------------------------
 // VIEW MODES
@@ -117,6 +113,8 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
   static String _lastSelectedSpecies = 'All';
   String _searchQuery = '';
   final _searchController = TextEditingController();
+  bool _showFavoritesOnly = false;
+  Set<String> _favoriteSpecies = {};
 
   late String _selectedFilter;
   late String _selectedSort;
@@ -132,6 +130,18 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     _selectedSort = _lastSelectedSort;
     _detailMode = widget.initialDetailMode;
     _selectedSpecies = _lastSelectedSpecies;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadFavoriteSpecies();
+  }
+
+  Future<void> _loadFavoriteSpecies() async {
+    final db = context.read<AlchemonsDatabase>();
+    final favs = await db.creatureDao.getSpeciesWithFavorites();
+    if (mounted) setState(() => _favoriteSpecies = favs);
   }
 
   @override
@@ -194,66 +204,107 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
             if (widget.showSearch) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: theme.surfaceAlt,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: theme.border.withOpacity(.5),
-                      width: 1,
+                child: Row(
+                  children: [
+                    // Favorites toggle
+                    GestureDetector(
+                      onTap: () {
+                        setState(
+                          () => _showFavoritesOnly = !_showFavoritesOnly,
+                        );
+                      },
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: _showFavoritesOnly
+                              ? const Color(0xFFE91E63).withValues(alpha: 0.15)
+                              : theme.surfaceAlt,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _showFavoritesOnly
+                                ? const Color(0xFFE91E63).withValues(alpha: 0.6)
+                                : theme.border.withValues(alpha: .5),
+                            width: 1,
+                          ),
+                        ),
+                        child: Icon(
+                          _showFavoritesOnly
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          size: 20,
+                          color: _showFavoritesOnly
+                              ? const Color(0xFFE91E63)
+                              : theme.textMuted,
+                        ),
+                      ),
                     ),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.search_rounded,
-                        size: 18,
-                        color: theme.textMuted,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          style: TextStyle(
-                            color: theme.text,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                    const SizedBox(width: 8),
+                    // Search field
+                    Expanded(
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: theme.surfaceAlt,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: theme.border.withValues(alpha: .5),
+                            width: 1,
                           ),
-                          decoration: InputDecoration(
-                            isCollapsed: true,
-                            border: InputBorder.none,
-                            hintText: 'Search specimens...',
-                            hintStyle: TextStyle(
-                              color: theme.textMuted.withOpacity(.6),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.search_rounded,
+                              size: 18,
+                              color: theme.textMuted,
                             ),
-                          ),
-                          onChanged: (val) {
-                            setState(() {
-                              _searchQuery = val;
-                            });
-                          },
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                controller: _searchController,
+                                style: TextStyle(
+                                  color: theme.text,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                decoration: InputDecoration(
+                                  isCollapsed: true,
+                                  border: InputBorder.none,
+                                  hintText: 'Search specimens...',
+                                  hintStyle: TextStyle(
+                                    color: theme.textMuted.withValues(alpha: .6),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                onChanged: (val) {
+                                  setState(() {
+                                    _searchQuery = val;
+                                  });
+                                },
+                              ),
+                            ),
+                            if (_searchQuery.isNotEmpty)
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _searchQuery = '';
+                                    _searchController.clear();
+                                  });
+                                },
+                                child: Icon(
+                                  Icons.clear_rounded,
+                                  size: 18,
+                                  color: theme.textMuted,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      if (_searchQuery.isNotEmpty)
-                        GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _searchQuery = '';
-                              _searchController.clear();
-                            });
-                          },
-                          child: Icon(
-                            Icons.clear_rounded,
-                            size: 18,
-                            color: theme.textMuted,
-                          ),
-                        ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
@@ -408,9 +459,14 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     }
 
     // Filter by type
-    // Filter by type & species
+    // Filter by type & species & favorites
     var filtered = creatures.where((creatureData) {
       final c = creatureData.creature;
+
+      // FAVORITES filter
+      if (_showFavoritesOnly && !_favoriteSpecies.contains(c.id)) {
+        return false;
+      }
 
       // TYPE filter
       if (_selectedFilter != 'All' && !c.types.contains(_selectedFilter)) {
@@ -462,7 +518,7 @@ class _DragHandle extends StatelessWidget {
       width: 40,
       height: 4,
       decoration: BoxDecoration(
-        color: theme.text.withOpacity(.25),
+        color: theme.text.withValues(alpha: .25),
         borderRadius: BorderRadius.circular(4),
       ),
     );
@@ -606,7 +662,7 @@ class _DefaultHeader extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: theme.surfaceAlt.withOpacity(.5),
+                    color: theme.surfaceAlt.withValues(alpha: .5),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -761,7 +817,7 @@ class _CreatureGridCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.surface,
           borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: typeColor.withOpacity(.45), width: .5),
+          border: Border.all(color: typeColor.withValues(alpha: .45), width: .5),
         ),
         padding: const EdgeInsets.all(8),
         child: Column(
@@ -825,10 +881,10 @@ class _EmptyState extends StatelessWidget {
               decoration: BoxDecoration(
                 color: theme.surfaceAlt,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.accent.withOpacity(.4)),
+                border: Border.all(color: theme.accent.withValues(alpha: .4)),
                 boxShadow: [
                   BoxShadow(
-                    color: theme.accent.withOpacity(.16),
+                    color: theme.accent.withValues(alpha: .16),
                     blurRadius: 18,
                   ),
                 ],

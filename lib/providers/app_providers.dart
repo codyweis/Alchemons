@@ -22,7 +22,6 @@ import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

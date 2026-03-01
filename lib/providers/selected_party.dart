@@ -3,8 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/wilderness.dart'; // PartyMember
 
 // lib/providers/selected_party_notifier.dart
-import 'package:flutter/foundation.dart';
-import '../models/wilderness.dart'; // PartyMember
+// PartyMember
 
 class SelectedPartyNotifier extends ChangeNotifier {
   static const maxSize = 4; // ⬅️ changed from 3 to 4

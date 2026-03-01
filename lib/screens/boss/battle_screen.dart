@@ -64,6 +64,19 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       } else if (event is BossAttackExecutedEvent) {
         setState(() {
           _addToFeed(event.result.messages, _FeedSource.boss);
+
+          // If the selected creature was killed, deselect it
+          if (selectedCreatureIndex != null &&
+              widget.playerTeam[selectedCreatureIndex!].isDead) {
+            // Find next alive creature to auto-select
+            final nextAlive = widget.playerTeam.indexWhere((c) => c.canAct);
+            if (nextAlive >= 0) {
+              selectedCreatureIndex = nextAlive;
+              game.post(() => game.selectCreature(nextAlive));
+            } else {
+              selectedCreatureIndex = null;
+            }
+          }
         });
       } else if (event is StatusEffectEvent) {
         setState(() {
@@ -104,6 +117,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   void _showVictory() {
+    final fc = FC.of(context);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -113,42 +127,38 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
           decoration: BoxDecoration(
-            color: FC.bg1,
+            color: fc.bg1,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: FC.borderAccent, width: 1.5),
+            border: Border.all(color: fc.borderAccent, width: 1.5),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.emoji_events_rounded,
-                color: FC.amberBright,
-                size: 48,
-              ),
-              const SizedBox(height: 16),
-              const Text(
+              Icon(Icons.emoji_events_rounded, color: fc.amberBright, size: 48),
+              SizedBox(height: 16),
+              Text(
                 'VICTORY',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: FC.amberBright,
+                  color: fc.amberBright,
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 3.0,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
-                widget.bossDisplayName.toUpperCase() + ' DEFEATED',
-                style: const TextStyle(
+                '${widget.bossDisplayName.toUpperCase()} DEFEATED',
+                style: TextStyle(
                   fontFamily: 'monospace',
-                  color: FC.textSecondary,
+                  color: fc.textSecondary,
                   fontSize: 11,
                   letterSpacing: 1.8,
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
-              const Divider(color: FC.borderDim, height: 1),
+              SizedBox(height: 24),
+              Divider(color: fc.borderDim, height: 1),
               const SizedBox(height: 20),
               GestureDetector(
                 onTap: () {
@@ -159,16 +169,16 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                   width: double.infinity,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: FC.bg2,
+                    color: fc.bg2,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: FC.amber, width: 1.5),
+                    border: Border.all(color: fc.amber, width: 1.5),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
                       'CLAIM REWARDS',
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: FC.amberBright,
+                        color: fc.amberBright,
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 2.0,
@@ -185,6 +195,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   }
 
   void _showDefeat() {
+    final fc = FC.of(context);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -194,16 +205,16 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
           decoration: BoxDecoration(
-            color: FC.bg1,
+            color: fc.bg1,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: Colors.red.withOpacity(0.6), width: 1.5),
+            border: Border.all(color: Colors.red.withValues(alpha: 0.6), width: 1.5),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.close_rounded, color: Colors.red, size: 48),
-              const SizedBox(height: 16),
-              const Text(
+              Icon(Icons.close_rounded, color: Colors.red, size: 48),
+              SizedBox(height: 16),
+              Text(
                 'DEFEATED',
                 style: TextStyle(
                   fontFamily: 'monospace',
@@ -214,24 +225,24 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'YOUR TEAM WAS WIPED OUT',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: FC.textSecondary,
+                  color: fc.textSecondary,
                   fontSize: 11,
                   letterSpacing: 1.8,
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 12),
-              const Text(
+              SizedBox(height: 12),
+              Text(
                 'Regroup and try again with a stronger strategy.',
-                style: TextStyle(color: FC.textSecondary, fontSize: 12),
+                style: TextStyle(color: fc.textSecondary, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
-              const Divider(color: FC.borderDim, height: 1),
+              SizedBox(height: 24),
+              Divider(color: fc.borderDim, height: 1),
               const SizedBox(height: 20),
               GestureDetector(
                 onTap: () {
@@ -242,10 +253,10 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                   width: double.infinity,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: FC.bg2,
+                    color: fc.bg2,
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: Colors.red.withOpacity(0.5),
+                      color: Colors.red.withValues(alpha: 0.5),
                       width: 1.5,
                     ),
                   ),
@@ -322,7 +333,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  '${creature.name} special is on cooldown. Use a basic attack to recharge.',
+                  '${creature.name} special on cooldown (${creature.specialCooldown} turn${creature.specialCooldown == 1 ? '' : 's'} left)',
                   style: TextStyle(fontSize: 14),
                 ),
               ),
@@ -375,8 +386,8 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.black.withOpacity(0.86),
-            Colors.black.withOpacity(0.72),
+            Colors.black.withValues(alpha: 0.86),
+            Colors.black.withValues(alpha: 0.72),
             Colors.transparent,
           ],
           stops: [0.0, 0.55, 1.0],
@@ -391,9 +402,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
             constraints: BoxConstraints(maxHeight: 112),
             padding: EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.35),
+              color: Colors.black.withValues(alpha: 0.35),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: battleFeed.isEmpty
                 ? Text(
@@ -420,7 +431,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                               child: Text(
                                 e.message,
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.9),
+                                  color: Colors.white.withValues(alpha: 0.9),
                                   fontSize: 11,
                                   height: 1.25,
                                 ),
@@ -447,18 +458,18 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       padding: EdgeInsets.fromLTRB(10, 8, 10, 10),
       decoration: BoxDecoration(
         color: isLowHp
-            ? Colors.red.withOpacity(0.12)
-            : Colors.black.withOpacity(0.45),
+            ? Colors.red.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(12),
         border: isLowHp
-            ? Border.all(color: Colors.red.withOpacity(0.7), width: 1.5)
+            ? Border.all(color: Colors.red.withValues(alpha: 0.7), width: 1.5)
             : isMidHp
-            ? Border.all(color: Colors.orange.withOpacity(0.35), width: 1.0)
+            ? Border.all(color: Colors.orange.withValues(alpha: 0.35), width: 1.0)
             : null,
         boxShadow: isLowHp
             ? [
                 BoxShadow(
-                  color: Colors.red.withOpacity(0.25),
+                  color: Colors.red.withValues(alpha: 0.25),
                   blurRadius: 12,
                   spreadRadius: 2,
                 ),
@@ -474,37 +485,81 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               alignment: Alignment.center,
               children: [
                 _buildAnimatedBossTitle(),
-                if (widget.boss.needsRecharge)
+                if (widget.boss.needsRecharge ||
+                    widget.boss.tauntTargetId != null)
                   Positioned(
                     right: 0,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.orange.withOpacity(0.45),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.hourglass_bottom_rounded,
-                            color: Colors.orange.shade300,
-                            size: 12,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'COOLDOWN',
-                            style: TextStyle(
-                              color: Colors.orange.shade200,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.boss.tauntTargetId != null)
+                          Container(
+                            margin: EdgeInsets.only(right: 4),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.red.withValues(alpha: 0.45),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.gps_fixed_rounded,
+                                  color: Colors.red.shade300,
+                                  size: 12,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'TAUNTED',
+                                  style: TextStyle(
+                                    color: Colors.red.shade200,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
+                        if (widget.boss.needsRecharge)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.orange.withValues(alpha: 0.45),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.hourglass_bottom_rounded,
+                                  color: Colors.orange.shade300,
+                                  size: 12,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'CD:${widget.boss.specialCooldown}',
+                                  style: TextStyle(
+                                    color: Colors.orange.shade200,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                   ),
               ],
@@ -584,7 +639,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                   ],
                 ).createShader(Rect.fromLTWH(0, 0, 28, 26)),
               shadows: [
-                Shadow(color: Colors.red.withOpacity(0.38), blurRadius: 14),
+                Shadow(color: Colors.red.withValues(alpha: 0.38), blurRadius: 14),
                 Shadow(color: Colors.black, blurRadius: 5),
               ],
             ),
@@ -601,9 +656,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       height: 18,
       padding: EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.7),
+        color: Colors.black.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withOpacity(0.18)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
       ),
       child: Stack(
         fit: StackFit.expand,
@@ -619,8 +674,8 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      hpColor.withOpacity(0.95),
-                      hpColor.withOpacity(0.65),
+                      hpColor.withValues(alpha: 0.95),
+                      hpColor.withValues(alpha: 0.65),
                     ],
                   ),
                 ),
@@ -636,9 +691,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.white.withOpacity(0.2),
+                      Colors.white.withValues(alpha: 0.2),
                       Colors.transparent,
-                      Colors.black.withOpacity(0.15),
+                      Colors.black.withValues(alpha: 0.15),
                     ],
                     stops: [0.0, 0.45, 1.0],
                   ),
@@ -669,9 +724,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.18),
+        color: color.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Text(
         label,
@@ -693,8 +748,8 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
           colors: [
-            Colors.black.withOpacity(0.96),
-            Colors.black.withOpacity(0.82),
+            Colors.black.withValues(alpha: 0.96),
+            Colors.black.withValues(alpha: 0.82),
             Colors.transparent,
           ],
           stops: [0.0, 0.5, 1.0],
@@ -738,9 +793,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       width: double.infinity,
       padding: EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.45),
+        color: Colors.black.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Center(
         child: Text(
@@ -771,9 +826,10 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     final creature = widget.playerTeam[index];
     final isSelected = selectedCreatureIndex == index;
     final isDead = creature.isDead;
+    final isOnCooldown = !isDead && !creature.canAct;
 
     return GestureDetector(
-      onTap: isDead
+      onTap: (isDead || isOnCooldown)
           ? null
           : () {
               game.post(() => game.selectCreature(index));
@@ -786,32 +842,73 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
         padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: isDead
-              ? Colors.grey.shade900.withOpacity(0.6)
+              ? Colors.grey.shade900.withValues(alpha: 0.6)
+              : isOnCooldown
+              ? Colors.blueGrey.shade900.withValues(alpha: 0.5)
               : isSelected
-              ? widget.themeColor.withOpacity(0.35)
-              : Colors.black.withOpacity(0.45),
+              ? widget.themeColor.withValues(alpha: 0.35)
+              : Colors.black.withValues(alpha: 0.45),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected
                 ? widget.themeColor
+                : isOnCooldown
+                ? Colors.cyan.shade700.withValues(alpha: 0.5)
                 : isDead
                 ? Colors.grey.shade700
-                : Colors.white.withOpacity(0.15),
+                : Colors.white.withValues(alpha: 0.15),
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              creature.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isDead ? Colors.grey.shade500 : Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    creature.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isDead
+                          ? Colors.grey.shade500
+                          : isOnCooldown
+                          ? Colors.cyan.shade300.withValues(alpha: 0.7)
+                          : Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (isOnCooldown)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.cyan.shade900.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.hourglass_bottom_rounded,
+                          color: Colors.cyan.shade300,
+                          size: 10,
+                        ),
+                        SizedBox(width: 2),
+                        Text(
+                          '${creature.actionCooldown}',
+                          style: TextStyle(
+                            color: Colors.cyan.shade200,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
             SizedBox(height: 4),
             _buildAnimatedHPBar(
@@ -834,7 +931,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     final canAct =
         game.state == BattleState.playerTurn &&
         selected != null &&
-        !selected.isDead;
+        selected.canAct;
 
     final basicMove = selected == null
         ? const BattleMove(
@@ -854,6 +951,18 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
 
     final hasSpecial = selected != null && selected.level >= 5;
     final specialReady = canAct && hasSpecial && !selected.needsRecharge;
+
+    // Build subtitle for special button
+    String specialSubtitle;
+    if (!canAct) {
+      specialSubtitle = 'Select Creature';
+    } else if (!hasSpecial) {
+      specialSubtitle = 'Lv 5 Required';
+    } else if (selected.specialCooldown > 0) {
+      specialSubtitle = 'Cooldown: ${selected.specialCooldown} turns';
+    } else {
+      specialSubtitle = 'Special Ready';
+    }
 
     return Row(
       children: [
@@ -875,11 +984,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           child: _buildActionButton(
             onPressed: specialReady ? _useSpecialMove : null,
             title: specialMove.name,
-            subtitle: !canAct
-                ? 'Select Creature'
-                : hasSpecial
-                ? (specialReady ? 'Special Ready' : 'On Cooldown')
-                : 'Lv 5 Required',
+            subtitle: specialSubtitle,
             activeColor: Colors.purple.shade700,
             isActive: specialReady,
           ),
@@ -924,9 +1029,9 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
             Container(
               padding: EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.28),
+                color: Colors.black.withValues(alpha: 0.28),
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withOpacity(0.12)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
               ),
               child: Text(
                 subtitle,
@@ -954,7 +1059,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
       decoration: BoxDecoration(
         color: Colors.grey.shade900,
         borderRadius: BorderRadius.circular(height / 2),
-        border: Border.all(color: Colors.black.withOpacity(0.5), width: 1),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.5), width: 1),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(height / 2),
@@ -965,7 +1070,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           widthFactor: percent,
           child: Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [color, color.withOpacity(0.7)]),
+              gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.7)]),
             ),
           ),
         ),

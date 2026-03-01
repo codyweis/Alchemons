@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/special_attacks/horn_special.dart';
@@ -417,7 +416,7 @@ class ImpactVisuals {
         position: pos,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = color.withOpacity(0.4)
+          ..color = color.withValues(alpha: 0.4)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 4,
       )..add(
@@ -523,7 +522,7 @@ class ImpactVisuals {
       position: start.clone(),
       anchor: Anchor.centerLeft, // same as your debug line
       angle: angle,
-      paint: Paint()..color = color.withOpacity(0.5),
+      paint: Paint()..color = color.withValues(alpha: 0.5),
     );
 
     beam.add(OpacityEffect.fadeOut(EffectController(duration: 0.4)));
@@ -540,6 +539,7 @@ class PiercingProjectile extends PositionComponent {
   final Vector2 start;
   final Vector2 end;
   final double speed;
+  @override
   final double width;
   final int damage;
   final Color color;

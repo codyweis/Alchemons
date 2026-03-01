@@ -48,7 +48,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                 colors: [
                   theme.surface,
                   theme.surface,
-                  theme.surfaceAlt.withOpacity(.6),
+                  theme.surfaceAlt.withValues(alpha: .6),
                 ],
                 stops: const [0.0, 0.6, 1.0],
               ),

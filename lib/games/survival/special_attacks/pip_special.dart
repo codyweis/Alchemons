@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
@@ -9,7 +8,6 @@ import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
-import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
 /// PIP FAMILY - RICOCHET MECHANIC
@@ -288,7 +286,7 @@ class PipRicochetMechanic {
       radius: poolRadius,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.orange.shade800.withOpacity(0.5),
+      paint: Paint()..color = Colors.orange.shade800.withValues(alpha: 0.5),
     );
 
     // Initial burst damage
@@ -443,7 +441,7 @@ class PipRicochetMechanic {
       radius: gardenRadius,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.green.withOpacity(0.35),
+      paint: Paint()..color = Colors.green.withValues(alpha: 0.35),
     );
 
     garden.add(
@@ -592,7 +590,7 @@ class PipRicochetMechanic {
       radius: 100,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.brown.shade800.withOpacity(0.5),
+      paint: Paint()..color = Colors.brown.shade800.withValues(alpha: 0.5),
     );
 
     sinkhole.add(
@@ -672,7 +670,7 @@ class PipRicochetMechanic {
       radius: 80,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.cyan.withOpacity(0.3),
+      paint: Paint()..color = Colors.cyan.withValues(alpha: 0.3),
     );
 
     tornado.add(RotateEffect.by(6.28 * 3, EffectController(duration: 2.0)));
@@ -773,7 +771,7 @@ class PipRicochetMechanic {
       radius: 20,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.purple.shade200.withOpacity(0.7),
+      paint: Paint()..color = Colors.purple.shade200.withValues(alpha: 0.7),
     );
 
     ghost.add(
@@ -1010,7 +1008,7 @@ class PipRicochetMechanic {
       position: target.position.clone(),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = SurvivalAttackManager.getElementColor('Lava').withOpacity(0.3)
+        ..color = SurvivalAttackManager.getElementColor('Lava').withValues(alpha: 0.3)
         ..style = PaintingStyle.fill,
     );
 
@@ -1139,7 +1137,7 @@ class PipRicochetMechanic {
       paint: Paint()
         ..color = SurvivalAttackManager.getElementColor(
           'Plant',
-        ).withOpacity(0.25)
+        ).withValues(alpha: 0.25)
         ..style = PaintingStyle.fill,
     );
 
@@ -1224,7 +1222,7 @@ class PipRicochetMechanic {
       position: target.position.clone(),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = SurvivalAttackManager.getElementColor('Mud').withOpacity(0.3)
+        ..color = SurvivalAttackManager.getElementColor('Mud').withValues(alpha: 0.3)
         ..style = PaintingStyle.fill,
     );
 

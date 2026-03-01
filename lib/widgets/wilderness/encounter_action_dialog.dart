@@ -1,7 +1,6 @@
 // lib/widgets/wilderness/encounter_action_dialog.dart
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/wilderness.dart';
-import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
@@ -128,12 +127,12 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
               color: Colors.black,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: theme.accent.withOpacity(0.6),
+                color: theme.accent.withValues(alpha: 0.6),
                 width: 2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: theme.accent.withOpacity(0.3),
+                  color: theme.accent.withValues(alpha: 0.3),
                   blurRadius: 30,
                   spreadRadius: 5,
                 ),
@@ -197,7 +196,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: theme.accent.withOpacity(0.3), width: 1),
+          bottom: BorderSide(color: theme.accent.withValues(alpha: 0.3), width: 1),
         ),
       ),
       child: Column(
@@ -257,7 +256,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.1),
+                color: Colors.purple.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -293,9 +292,9 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: theme.surfaceAlt.withOpacity(0.3),
+          color: theme.surfaceAlt.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.textMuted.withOpacity(0.3), width: 2),
+          border: Border.all(color: theme.textMuted.withValues(alpha: 0.3), width: 2),
         ),
         child: const Center(
           child: Padding(
@@ -310,9 +309,9 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: theme.surfaceAlt.withOpacity(0.3),
+          color: theme.surfaceAlt.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.textMuted.withOpacity(0.3), width: 2),
+          border: Border.all(color: theme.textMuted.withValues(alpha: 0.3), width: 2),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -348,9 +347,9 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.15),
+          color: Colors.green.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.green.withOpacity(0.5), width: 2),
+          border: Border.all(color: Colors.green.withValues(alpha: 0.5), width: 2),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -395,7 +394,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.1),
+            color: Colors.green.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -441,10 +440,10 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: theme.surfaceAlt.withOpacity(0.5),
+          color: theme.surfaceAlt.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: theme.textMuted.withOpacity(0.3),
+            color: theme.textMuted.withValues(alpha: 0.3),
             width: 1.5,
           ),
         ),
@@ -466,22 +465,5 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         ),
       ),
     );
-  }
-
-  Color _getRarityColor() {
-    switch (widget.encounter.rarity.toLowerCase()) {
-      case 'common':
-        return Colors.grey;
-      case 'uncommon':
-        return Colors.green;
-      case 'rare':
-        return Colors.blue;
-      case 'epic':
-        return Colors.purple;
-      case 'legendary':
-        return Colors.amber;
-      default:
-        return Colors.white;
-    }
   }
 }

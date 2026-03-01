@@ -1,12 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/harvest_biome.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
-import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
@@ -16,7 +13,6 @@ import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
-import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/harvest_rate.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
@@ -26,7 +22,6 @@ import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
 import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -129,10 +124,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     super.dispose();
   }
 
-  String _getBackgroundAsset() {
-    return '';
-  }
-
   // Rebuild the creature widget cache if the active job's creature changed
   Future<void> _refreshCreatureCache() async {
     final farm = widget.service.biome(widget.biome);
@@ -143,7 +134,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       _creatureWidget = Icon(
         widget.biome.icon,
         size: 28,
-        color: Colors.white.withOpacity(.55),
+        color: Colors.white.withValues(alpha: .55),
       );
       return;
     }
@@ -165,7 +156,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       _creatureWidget = Icon(
         widget.biome.icon,
         size: 40,
-        color: Colors.white.withOpacity(.75),
+        color: Colors.white.withValues(alpha: .75),
       );
       setState(() {});
       return;
@@ -177,7 +168,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
       _creatureWidget = Icon(
         widget.biome.icon,
         size: 40,
-        color: Colors.white.withOpacity(.75),
+        color: Colors.white.withValues(alpha: .75),
       );
       setState(() {});
       return;
@@ -806,140 +797,6 @@ class _ProgressViewModel {
 }
 
 /// Extracted tube widget so only this subtree rerenders at ticker frequency
-class _TubeView extends StatelessWidget {
-  const _TubeView({
-    required this.tSeconds,
-    required this.collectCtrl,
-    required this.tapFxCtrl,
-    required this.onTapBoost,
-    required this.farm,
-    required this.accent,
-    required this.effectiveFill,
-    required this.creatureY,
-    required this.creatureWidget,
-    required this.onTapDown,
-    required this.tapLocal,
-  });
-
-  final double tSeconds;
-  final AnimationController collectCtrl;
-  final AnimationController tapFxCtrl;
-  final VoidCallback onTapBoost;
-
-  final BiomeFarmState farm;
-  final Color accent;
-  final double effectiveFill;
-  final double creatureY;
-  final Widget? creatureWidget;
-
-  final void Function(TapDownDetails details, RRect inner) onTapDown;
-  final Offset? tapLocal;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = Size(constraints.maxWidth, constraints.maxHeight);
-        final geo = _TubeGeometry.fromSize(size);
-        final inner = geo.inner;
-
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: (details) {
-            HapticFeedback.lightImpact();
-            onTapBoost();
-            onTapDown(details, inner);
-          },
-          child: AnimatedBuilder(
-            animation: collectCtrl,
-            child: Stack(
-              children: [
-                // CREATURE
-                Positioned.fill(
-                  child: ClipRRect(
-                    borderRadius: inner._toBorderRadius(),
-                    child: Align(
-                      alignment: Alignment(0, creatureY),
-                      child: AnimatedBuilder(
-                        animation: tapFxCtrl,
-                        builder: (context, child) {
-                          final v = tapFxCtrl.value;
-                          final osc = math.sin(v * math.pi * 10);
-                          final decay = (1.0 - v);
-                          final amp = 6.0 * decay;
-                          final dx = osc * amp * 0.6;
-                          final dy = -osc * amp * 0.35;
-                          final rot = osc * 0.025;
-
-                          return Transform.translate(
-                            offset: Offset(dx, dy),
-                            child: Transform.rotate(angle: rot, child: child),
-                          );
-                        },
-                        child:
-                            creatureWidget ??
-                            Icon(
-                              farm.biome.icon,
-                              size: 28,
-                              color: Colors.white.withOpacity(.55),
-                            ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // LIQUID + bubbles
-                CustomPaint(
-                  painter: _TubeBackgroundPainter(
-                    tSeconds: tSeconds,
-                    fill: effectiveFill,
-                    color: accent,
-                    active: farm.hasActive,
-                  ),
-                  size: size,
-                ),
-
-                // tap FX overlay
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: AnimatedBuilder(
-                      animation: tapFxCtrl,
-                      builder: (_, __) => AlchemyTapFX(
-                        center: tapLocal,
-                        progress: tapFxCtrl.value,
-                        color: accent,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // GLASS FOREGROUND
-                CustomPaint(
-                  painter: _TubeForegroundPainter(
-                    tSeconds: tSeconds,
-                    color: accent,
-                  ),
-                  size: size,
-                ),
-              ],
-            ),
-            builder: (_, child) {
-              final v = collectCtrl.value;
-              final decay = 1.0 - v;
-              final dx = math.sin(v * math.pi * 10) * 6.0 * decay;
-              final dy = math.cos(v * math.pi * 8) * 4.0 * decay;
-              final rot = math.sin(v * math.pi * 6) * 0.015 * decay;
-              return Transform.translate(
-                offset: Offset(dx, dy),
-                child: Transform.rotate(angle: rot, child: child),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-}
 
 class _StartPanel extends StatelessWidget {
   const _StartPanel({
@@ -1126,9 +983,6 @@ class _HeaderIconButtonState extends State<_HeaderIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = widget.accentColor.withOpacity(.15);
-    final border = widget.accentColor.withOpacity(.4);
-
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => setState(() => _pressed = true),
@@ -1140,7 +994,7 @@ class _HeaderIconButtonState extends State<_HeaderIconButton> {
       child: AnimatedScale(
         scale: _pressed ? 0.9 : 1.0,
         duration: const Duration(milliseconds: 100),
-        child: Container(
+        child: SizedBox(
           width: 40,
           height: 40,
           child: Icon(widget.icon, color: widget.theme.text, size: 20),
@@ -1260,39 +1114,21 @@ class _IconButtonState extends State<_IconButton> {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: widget.accentColor.withOpacity(0.15),
+            color: widget.accentColor.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: widget.accentColor.withOpacity(0.3),
+              color: widget.accentColor.withValues(alpha: 0.3),
               width: 1.5,
             ),
           ),
           child: Icon(
             widget.icon,
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: 0.9),
             size: 20,
           ),
         ),
       ),
     );
-  }
-}
-
-class _TubeGeometry {
-  _TubeGeometry(this.outer, this.inner);
-  final RRect outer;
-  final RRect inner;
-
-  static _TubeGeometry fromSize(Size size) {
-    final w = size.width * .48; // narrower like a test tube
-    final h = size.height * .85; // taller
-    final cx = size.width / 2;
-    final top = size.height * .04;
-    final rr = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset(cx, top + h / 2), width: w, height: h),
-      const Radius.circular(16), // tighter radius for test tube look
-    );
-    return _TubeGeometry(rr, rr.deflate(2.0));
   }
 }
 
@@ -1305,347 +1141,9 @@ extension _RRectBorderRadius on RRect {
   );
 }
 
-class _TubeBackgroundPainter extends CustomPainter {
-  _TubeBackgroundPainter({
-    required this.tSeconds,
-    required this.fill,
-    required this.color,
-    required this.active,
-  });
 
-  final double tSeconds;
-  final double fill;
-  final Color color;
-  final bool active;
-
-  double _harmonic(double x, double phase, double a1, double a2) {
-    return a1 * math.sin(x + phase) + a2 * math.sin(2 * x + phase * 1.7);
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final geo = _TubeGeometry.fromSize(size);
-    final rr = geo.outer;
-    final inner = geo.inner;
-
-    // Back glass accents (behind fluid slightly)
-    final glassStrokeBack = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..color = Colors.white.withOpacity(.28);
-    final redEdgeBack = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1
-      ..color = const Color(0xFFFF6B6B).withOpacity(.20);
-    final blueEdgeBack = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1
-      ..color = const Color(0xFF5EC8FF).withOpacity(.20);
-
-    // Slight offset double-edge for chromatic feel
-    canvas.save();
-    canvas.translate(.35, .35);
-    canvas.drawRRect(rr.deflate(0.6), redEdgeBack);
-    canvas.restore();
-    canvas.save();
-    canvas.translate(-.35, -.35);
-    canvas.drawRRect(rr.deflate(0.6), blueEdgeBack);
-    canvas.restore();
-
-    canvas.drawRRect(rr, glassStrokeBack);
-
-    // Clip to inner to draw fluid & contents
-    canvas.save();
-    canvas.clipRRect(inner);
-
-    final baseTop = inner.bottom - inner.height * fill;
-
-    final amp = (active ? 6.5 : 3.5);
-    final amp2 = (active ? 3.2 : 1.8);
-    final phase = tSeconds * 2 * math.pi;
-
-    final left = inner.left;
-    final right = inner.right;
-    final bottom = inner.bottom;
-
-    // Fluid surface path
-    final surface = Path();
-    const dx = 6.0;
-    surface.moveTo(left, bottom);
-    surface.lineTo(left, baseTop);
-
-    for (double x = left; x <= right; x += dx) {
-      final px = (x - left) / inner.width * math.pi * 2;
-      final y =
-          baseTop +
-          _harmonic(px, phase, amp, amp2) +
-          0.8 * math.sin(px * 3 + phase * 1.2);
-      surface.lineTo(x, y);
-    }
-    surface.lineTo(right, bottom);
-    surface.close();
-
-    final fluidGrad = LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [color.withOpacity(.5), color.withOpacity(.6)],
-    ).createShader(inner.outerRect);
-    final fluidPaint = Paint()..shader = fluidGrad;
-    canvas.drawPath(surface, fluidPaint);
-
-    // REMOVED: Surface shadow band (the horizontal gray line)
-
-    // Caustic stripes under the surface
-    final caustic = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..color = Colors.white.withOpacity(.08);
-    for (int i = 0; i < 3; i++) {
-      final p = Path();
-      final offset = (tSeconds * 2 + i * .33) * math.pi * 2;
-      final yBase = baseTop + 10 + i * 16.0;
-      for (double x = left + 6; x <= right - 6; x += 8) {
-        final px = (x - left) / inner.width * math.pi * 2;
-        final y = yBase + 3.0 * math.sin(px * 1.4 + offset);
-        if (x == left + 6) {
-          p.moveTo(x, y);
-        } else {
-          p.lineTo(x, y);
-        }
-      }
-      canvas.drawPath(p, caustic);
-    }
-
-    // Bubbles
-    final bubble = Paint()..color = Colors.white.withOpacity(.70);
-    final clip = Rect.fromLTRB(left + 6, baseTop + 6, right - 6, bottom - 6);
-    final total = active ? 28 : 12;
-    for (int i = 0; i < total; i++) {
-      final seed = i * 9176.0;
-      final col = (seed % 97) / 97.0;
-      final startX = left + 8 + col * (inner.width - 16);
-      final size = 1.4 + (seed % 5) * .35 + (i % 7 == 0 ? 0.8 : 0.0);
-      final speed = (0.15 + ((seed % 11) / 11.0) * 0.35) * (active ? 1.4 : 0.9);
-
-      final ty = (tSeconds * speed + (seed % 13) * .01) % 1.0;
-      final y = clip.bottom - clip.height * ty;
-      final wob = 3.0 * math.sin(ty * 10 + seed);
-      final x = startX + wob;
-
-      if (y < clip.top) continue;
-      canvas.drawCircle(Offset(x, y), size, bubble);
-
-      if (active && i % 5 == 0) {
-        final trail = Paint()..color = Colors.white.withOpacity(.10);
-        canvas.drawCircle(Offset(x, y + 6), size * .8, trail);
-      }
-    }
-
-    // Foam dots near surface
-    final foamPaint = Paint()..color = Colors.white.withOpacity(.28);
-    final foamCount = (inner.width / 18).floor();
-    for (int i = 0; i <= foamCount; i++) {
-      final fx = left + 8 + i * 18.0 + 3.0 * math.sin(i + phase);
-      final px = (fx - left) / inner.width * math.pi * 2;
-      final fy =
-          baseTop +
-          2.0 * math.sin(px * 1.2 + phase * 1.1) +
-          1.0 * math.sin(px * 2.0 + phase * 1.7);
-      canvas.drawCircle(
-        Offset(fx, fy),
-        1.6 + (i % 3 == 0 ? .8 : 0.0),
-        foamPaint,
-      );
-    }
-
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _TubeBackgroundPainter old) =>
-      old.tSeconds != tSeconds ||
-      old.fill != fill ||
-      old.color != color ||
-      old.active != active;
-}
-
-class _TubeForegroundPainter extends CustomPainter {
-  _TubeForegroundPainter({required this.tSeconds, required this.color});
-  final double tSeconds;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final geo = _TubeGeometry.fromSize(size);
-    final rr = geo.outer;
-
-    // Seamless sliding glare: draw two bands to cover wrap
-    final g = (tSeconds * 0.25) % 1.0; // cycles per second
-    const bandFrac = .22;
-
-    for (final base in [g, g - 1.0]) {
-      final leftFrac = base - bandFrac * .5;
-      final rect = Rect.fromLTWH(
-        rr.left + rr.width * leftFrac,
-        rr.top,
-        rr.width * bandFrac,
-        rr.height,
-      );
-      if (rect.right < rr.left || rect.left > rr.right) continue;
-
-      final glare = Paint()
-        ..blendMode = BlendMode.plus
-        ..shader = LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            Colors.transparent,
-            Colors.white.withOpacity(.25),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ).createShader(rect);
-      canvas.drawRRect(rr, glare);
-    }
-
-    // Droplets on glass
-    final drop = Paint()..color = Colors.white.withOpacity(.08);
-    for (int i = 0; i < 8; i++) {
-      final dx = (i.isEven ? 1 : -1) * (2 + (i % 3));
-      final x = rr.left + rr.width * (.18 + (i % 5) * .14) + dx;
-      final y = rr.top + 20 + (i * 9) % (rr.height * .35);
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(x, y), width: 3.2, height: 6.0),
-        drop,
-      );
-    }
-
-    // Foreground highlight line
-    final highlight = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomLeft,
-        colors: [Colors.white.withOpacity(.45), Colors.transparent],
-      ).createShader(Rect.fromLTWH(rr.left - 6, rr.top, 10, rr.height));
-    canvas.drawRRect(rr, highlight);
-
-    // Foreground crisp glass stroke
-    final glassStroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..color = Colors.white.withOpacity(.50);
-    canvas.drawRRect(rr, glassStroke);
-
-    // Subtle chromatic edges (foreground)
-    final redEdge = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.25
-      ..color = const Color(0xFFFF6B6B).withOpacity(.33);
-    final blueEdge = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.25
-      ..color = const Color(0xFF5EC8FF).withOpacity(.33);
-
-    canvas.save();
-    canvas.translate(.35, .35);
-    canvas.drawRRect(rr.deflate(0.6), redEdge);
-    canvas.restore();
-    canvas.save();
-    canvas.translate(-.35, -.35);
-    canvas.drawRRect(rr.deflate(0.6), blueEdge);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _TubeForegroundPainter old) =>
-      old.tSeconds != tSeconds || old.color != color;
-}
 
 // =================== UI Panels ===================
-
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({
-    required this.color,
-    required this.icon,
-    required this.label,
-    required this.status,
-    required this.theme,
-  });
-
-  final Color color; // biome accent
-  final IconData icon;
-  final String label;
-  final String status;
-  final FactionTheme theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = status.toLowerCase();
-
-    (IconData, Color, Color, Color) statusStyle() {
-      // returns (icon, fgText, rimBorder, bgFill)
-      switch (s) {
-        case 'locked':
-          return (
-            Icons.lock_outline_rounded,
-            theme.text,
-            theme.text.withOpacity(.2),
-            theme.surface.withOpacity(.4),
-          );
-        case 'active':
-          return (
-            Icons.bolt_rounded,
-            theme.text,
-            color.withOpacity(.55),
-            color.withOpacity(.18),
-          );
-        case 'complete':
-          return (
-            Icons.check_circle_rounded,
-            theme.text,
-            color.withOpacity(.55),
-            color.withOpacity(.18),
-          );
-        default:
-          return (
-            Icons.check_circle_rounded,
-            theme.text,
-            color.withOpacity(.45),
-            color.withOpacity(.14),
-          );
-      }
-    }
-
-    final (ic, fg, rim, bg) = statusStyle();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: rim, width: 1.2),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(ic, size: 14, color: fg),
-          const SizedBox(width: 6),
-          Text(
-            status.toUpperCase(),
-            style: TextStyle(
-              color: fg,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: .5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _PrimaryBtn extends StatelessWidget {
   const _PrimaryBtn({
@@ -1665,11 +1163,11 @@ class _PrimaryBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = disabled
-        ? theme.textMuted.withOpacity(.2)
-        : accent.withOpacity(.3);
+        ? theme.textMuted.withValues(alpha: .2)
+        : accent.withValues(alpha: .3);
     final border = disabled
-        ? theme.textMuted.withOpacity(.4)
-        : accent.withOpacity(.6);
+        ? theme.textMuted.withValues(alpha: .4)
+        : accent.withValues(alpha: .6);
 
     return Opacity(
       opacity: disabled ? .6 : 1,
@@ -1717,9 +1215,9 @@ class _OutlineBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: theme.surface.withOpacity(.4),
+          color: theme.surface.withValues(alpha: .4),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: accent.withOpacity(.55), width: 2),
+          border: Border.all(color: accent.withValues(alpha: .55), width: 2),
         ),
         alignment: Alignment.center,
         child: Text(
@@ -1736,75 +1234,6 @@ class _OutlineBtn extends StatelessWidget {
 }
 
 /// Background widget that creates an atmospheric biome environment
-class _BiomeBackground extends StatelessWidget {
-  const _BiomeBackground({required this.assetPath, required this.accentColor});
-
-  final String assetPath;
-  final Color accentColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // The biome image
-        Image.asset(
-          assetPath,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            // Fallback if image fails to load
-            return Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    accentColor.withOpacity(0.1),
-                    accentColor.withOpacity(0.05),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-
-        // Atmospheric overlay - darkens and adds color tint
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withOpacity(0.3),
-                accentColor.withOpacity(0.15),
-                Colors.black.withOpacity(0.5),
-              ],
-              stops: const [0.0, 0.5, 1.0],
-            ),
-          ),
-        ),
-
-        // Vignette effect for depth
-        Container(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.center,
-              radius: 1.0,
-              colors: [Colors.transparent, Colors.black.withOpacity(0.4)],
-              stops: const [0.3, 1.0],
-            ),
-          ),
-        ),
-
-        // Optional: Blur effect for depth of field
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 1.5, sigmaY: 1.5),
-          child: Container(color: Colors.transparent),
-        ),
-      ],
-    );
-  }
-}
 
 /// ============ Alchemy Extraction Chamber ============
 
@@ -1884,7 +1313,7 @@ class _ChamberView extends StatelessWidget {
                             Icon(
                               farm.biome.icon,
                               size: 28,
-                              color: Colors.white.withOpacity(.55),
+                              color: Colors.white.withValues(alpha: .55),
                             ),
                       ),
                     ),
@@ -2042,7 +1471,7 @@ class _ChamberBackgroundPainter extends CustomPainter {
     // 1) Dim backplate
     final back = Paint()
       ..shader = RadialGradient(
-        colors: [Colors.black.withOpacity(.45), Colors.black.withOpacity(.70)],
+        colors: [Colors.black.withValues(alpha: .45), Colors.black.withValues(alpha: .70)],
       ).createShader(inner.outerRect);
     canvas.drawRect(inner.outerRect, back);
 
@@ -2057,8 +1486,8 @@ class _ChamberBackgroundPainter extends CustomPainter {
         center: Alignment.center,
         radius: 0.55,
         colors: [
-          color.withOpacity(beamAlpha * .9),
-          color.withOpacity(beamAlpha * .35),
+          color.withValues(alpha: beamAlpha * .9),
+          color.withValues(alpha: beamAlpha * .35),
           Colors.transparent,
         ],
         stops: const [.0, .35, 1.0],
@@ -2070,18 +1499,16 @@ class _ChamberBackgroundPainter extends CustomPainter {
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6
-      ..color = Colors.white.withOpacity(.40);
+      ..color = Colors.white.withValues(alpha: .40);
     final glyph = Paint()
       ..style = PaintingStyle.fill
-      ..color = Colors.white.withOpacity(.85);
+      ..color = Colors.white.withValues(alpha: .85);
 
     void drawRing(double radius, double speed, int glyphs, double dash) {
       canvas.save();
       canvas.translate(c.dx, c.dy);
       canvas.rotate(baseAngle * speed);
       // dashed circle
-      final path = Path()
-        ..addOval(Rect.fromCircle(center: Offset.zero, radius: radius));
       final dashCount = (math.pi * 2 * radius / dash).floor();
       final segment = (2 * math.pi) / dashCount;
       for (int i = 0; i < dashCount; i += 2) {
@@ -2124,7 +1551,7 @@ class _ChamberBackgroundPainter extends CustomPainter {
     drawRing(r * .36, 1.6 + intensity, 8, 8);
 
     // 4) Spiral-in motes (suction toward center)
-    final mote = Paint()..color = Colors.white.withOpacity(.70);
+    final mote = Paint()..color = Colors.white.withValues(alpha: .70);
     final count = active ? 42 : 18;
 
     // suction strength grows with fill (0..1) and a bit with tempo
@@ -2167,7 +1594,7 @@ class _ChamberBackgroundPainter extends CustomPainter {
             c.dx + math.cos(ang2) * rad2,
             c.dy + math.sin(ang2) * rad2,
           );
-          final trail = Paint()..color = Colors.white.withOpacity(.10);
+          final trail = Paint()..color = Colors.white.withValues(alpha: .10);
           canvas.drawCircle(p2, sz * 0.85, trail);
         }
       }
@@ -2211,9 +1638,9 @@ class _ChamberForegroundPainter extends CustomPainter {
       ..strokeWidth = (outer.width * 0.06).clamp(6, 18)
       ..shader = SweepGradient(
         colors: [
-          Colors.white.withOpacity(.85),
-          Colors.white.withOpacity(.45),
-          Colors.white.withOpacity(.85),
+          Colors.white.withValues(alpha: .85),
+          Colors.white.withValues(alpha: .45),
+          Colors.white.withValues(alpha: .85),
         ],
       ).createShader(outer.outerRect);
     canvas.drawRRect(outer, rim);
@@ -2222,11 +1649,11 @@ class _ChamberForegroundPainter extends CustomPainter {
     final redEdge = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
-      ..color = const Color(0xFFFF6B6B).withOpacity(.33);
+      ..color = const Color(0xFFFF6B6B).withValues(alpha: .33);
     final blueEdge = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
-      ..color = const Color(0xFF5EC8FF).withOpacity(.33);
+      ..color = const Color(0xFF5EC8FF).withValues(alpha: .33);
     canvas.save();
     canvas.translate(.6, .6);
     canvas.drawRRect(outer.deflate(0.6), redEdge);
@@ -2244,7 +1671,7 @@ class _ChamberForegroundPainter extends CustomPainter {
           LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomLeft,
-            colors: [Colors.white.withOpacity(.50), Colors.transparent],
+            colors: [Colors.white.withValues(alpha: .50), Colors.transparent],
           ).createShader(
             Rect.fromLTWH(outer.left - 6, outer.top, 10, outer.height),
           );
@@ -2254,7 +1681,7 @@ class _ChamberForegroundPainter extends CustomPainter {
     final crown = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
-      ..color = color.withOpacity(.65);
+      ..color = color.withValues(alpha: .65);
     final ang = tSeconds * tempo * 1.2;
     canvas.save();
     canvas.translate(c.dx, c.dy);
@@ -2275,7 +1702,7 @@ class _ChamberForegroundPainter extends CustomPainter {
     final innerStroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.2
-      ..color = Colors.white.withOpacity(.45);
+      ..color = Colors.white.withValues(alpha: .45);
     canvas.drawRRect(inner, innerStroke);
   }
 
@@ -2347,7 +1774,7 @@ class _AlchemyStatusPainter extends CustomPainter {
       ..blendMode = BlendMode.plus
       ..shader = RadialGradient(
         colors: [
-          color.withOpacity(0.08 * (0.7 + 0.3 * glow)),
+          color.withValues(alpha: 0.08 * (0.7 + 0.3 * glow)),
           Colors.transparent,
         ],
       ).createShader(Rect.fromCircle(center: c, radius: r * 1.2));
@@ -2357,18 +1784,18 @@ class _AlchemyStatusPainter extends CustomPainter {
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0 + 1.8 * pulse
-      ..color = Colors.white.withOpacity(0.85);
+      ..color = Colors.white.withValues(alpha: 0.85);
     canvas.drawCircle(c, r, ring);
 
     // chromatic edges
     final red = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1
-      ..color = const Color(0xFFFF6B6B).withOpacity(.38);
+      ..color = const Color(0xFFFF6B6B).withValues(alpha: .38);
     final blue = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1
-      ..color = const Color(0xFF5EC8FF).withOpacity(.38);
+      ..color = const Color(0xFF5EC8FF).withValues(alpha: .38);
     canvas.save();
     canvas.translate(.8, .8);
     canvas.drawCircle(c, r * 0.985, red);
@@ -2382,7 +1809,7 @@ class _AlchemyStatusPainter extends CustomPainter {
     final ticks = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
-      ..color = color.withOpacity(.75);
+      ..color = color.withValues(alpha: .75);
     canvas.save();
     canvas.translate(c.dx, c.dy);
     canvas.rotate(t * math.pi * 2);
@@ -2406,9 +1833,9 @@ class _AlchemyStatusPainter extends CustomPainter {
           fontSize: 18,
           fontWeight: FontWeight.w900,
           letterSpacing: 2,
-          color: Colors.white.withOpacity(.95),
+          color: Colors.white.withValues(alpha: .95),
           shadows: [
-            Shadow(blurRadius: 6 + 10 * glow, color: color.withOpacity(.8)),
+            Shadow(blurRadius: 6 + 10 * glow, color: color.withValues(alpha: .8)),
           ],
         ),
       ),

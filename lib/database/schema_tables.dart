@@ -1,10 +1,5 @@
 // lib/database/schema_tables.dart
 import 'package:drift/drift.dart';
-import 'package:alchemons/constants/element_resources.dart';
-import 'package:alchemons/models/elemental_group.dart';
-import 'package:alchemons/models/extraction_vile.dart';
-import 'package:alchemons/models/harvest_biome.dart';
-import 'package:alchemons/models/biome_farm_state.dart';
 
 // =================== TABLES ===================
 
@@ -141,6 +136,7 @@ class CreatureInstances extends Table {
   BoolColumn get isPure => boolean().withDefault(const Constant(false))();
   TextColumn get elementLineageJson => text().nullable()();
   TextColumn get familyLineageJson => text().nullable()();
+  BoolColumn get isFavorite => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {instanceId};

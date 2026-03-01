@@ -43,7 +43,6 @@ class SceneGame extends FlameGame with ScaleDetector {
   void setTutorialMode(bool enabled) => isTutorialMode = enabled;
 
   bool showSpawnDebug = true; // toggle at runtime
-  final Map<String, RectangleComponent> _spawnDebugBoxes = {};
 
   final SceneDefinition scene;
   final CameraComponent cam = CameraComponent();
@@ -69,7 +68,7 @@ class SceneGame extends FlameGame with ScaleDetector {
   double _shakeTime = 0.0; // time remaining (seconds)
   double _shakeDuration = 0.0; // total duration (seconds)
   double _shakeAmplitude = 0.0; // max pixels of jitter at start
-  Vector2 _shakeOffset = Vector2.zero();
+  final Vector2 _shakeOffset = Vector2.zero();
 
   final Map<SceneLayer, _FiniteLayer> _layers = {};
   final PositionComponent layersRoot = PositionComponent()..priority = -200;
@@ -347,7 +346,8 @@ class SceneGame extends FlameGame with ScaleDetector {
   // ── Rift portal ────────────────────────────────────────────────────────────
 
   /// Call once after initial setup. 10% chance to spawn a faction rift portal.
-  void spawnRiftIfChance() {
+  /// [sceneId] restricts which factions may appear (e.g. 'valley' → earthen/arcane).
+  void spawnRiftIfChance({required String sceneId}) {
     // Evict any lingering stale rift from previous sessions.
     if (_riftPortalComp != null && !_riftPortalComp!.isMounted) {
       _riftPortalComp = null;
@@ -355,7 +355,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     if (_riftPortalComp != null) return; // already active
     if (_rng.nextDouble() > 0.10) return; // 10% chance
 
-    final faction = RiftFactionExt.random(_rng);
+    final faction = RiftFactionExt.randomForScene(sceneId, _rng);
 
     // Normalised screen fractions where the portal should appear.
     final normX = 0.55 + _rng.nextDouble() * 0.20;
@@ -671,32 +671,6 @@ class SceneGame extends FlameGame with ScaleDetector {
     _partyCreature = null;
   }
 
-  // Put this inside SceneGame (or a utils file)
-  Offset _partyBattlePosFor(SpawnPoint sp) {
-    // Wild's normalized position
-    final wx = sp.normalizedPos.dx;
-    final wy = sp.normalizedPos.dy;
-
-    // Desired horizontal offset in normalized units
-    // (roughly sprite width in world, plus breathing room)
-    final spriteNormW = (sp.size.x / scene.worldWidth).clamp(0.08, 0.22);
-    final desired = (spriteNormW * 1.25).clamp(0.10, 0.30); // 10–30% of width
-
-    // If wild is on the left, put party to the RIGHT; else to the LEFT.
-    double px = wx <= 0.5 ? wx + desired : wx - desired;
-
-    // Keep a minimum separation so they never overlap after clamps
-    final minSep = (sp.size.x / scene.worldWidth) * 1.1;
-    if ((px - wx).abs() < minSep) {
-      px = wx + (wx <= 0.5 ? minSep : -minSep);
-    }
-
-    // Stay inside safe normalized bounds
-    px = px.clamp(0.06, 0.94);
-    final py = wy.clamp(0.06, 0.94);
-
-    return Offset(px, py);
-  }
   // ------------------------------------------------------------
   // Gesture handling
   // ------------------------------------------------------------
@@ -1049,7 +1023,7 @@ class WildMonComponent extends PositionComponent
       radius: size.x * 0.4,
       anchor: Anchor.center,
       position: size / 2,
-      paint: Paint()..color = Colors.amber.withOpacity(0.9),
+      paint: Paint()..color = Colors.amber.withValues(alpha: 0.9),
       priority: 20,
     );
     add(circle);
@@ -1078,7 +1052,7 @@ class WildMonComponent extends PositionComponent
       radius: size.x * 0.4,
       anchor: Anchor.center,
       position: size / 2,
-      paint: Paint()..color = Colors.amber.withOpacity(0.9),
+      paint: Paint()..color = Colors.amber.withValues(alpha: 0.9),
       priority: 20,
     );
     add(circle);

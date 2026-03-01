@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 
 class _GeoCache {
@@ -91,7 +90,6 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
   late AnimationController _flashCtrl;
   late AnimationController _explosionCtrl;
   late AnimationController _hintJoltCtrl; // For special hint effects
-  late Animation<double> _flashAnim;
   late Animation<double> _explosionAnim;
   late Animation<double> _hintJoltAnim;
 
@@ -130,7 +128,6 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
       duration: const Duration(milliseconds: 300),
     );
 
-    _flashAnim = CurvedAnimation(parent: _flashCtrl, curve: Curves.easeOutQuad);
     _explosionAnim = CurvedAnimation(
       parent: _explosionCtrl,
       curve: Curves.easeOutCubic,
@@ -376,7 +373,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  ColoredBox(color: bg.withOpacity(0.98)),
+                  ColoredBox(color: bg.withValues(alpha: 0.98)),
 
                   // Particles
                   if (t > 0.02)
@@ -517,10 +514,10 @@ class _SilhouetteReveal extends StatelessWidget {
         silhouetteColor = Colors.white;
         break;
       case HatchHintType.variant:
-        silhouetteColor = variantColor ?? Colors.white.withOpacity(0.95);
+        silhouetteColor = variantColor ?? Colors.white.withValues(alpha: 0.95);
         break;
       case HatchHintType.normal:
-        silhouetteColor = Colors.white.withOpacity(0.95);
+        silhouetteColor = Colors.white.withValues(alpha: 0.95);
         break;
     }
 
@@ -624,7 +621,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
             RadialGradient(
               colors: [
                 Colors.transparent,
-                Colors.black.withOpacity(0.35 * vignette),
+                Colors.black.withValues(alpha: 0.35 * vignette),
               ],
               stops: const [0.0, 1.0],
             ).createShader(
@@ -654,7 +651,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
         canvas.translate(center.dx, center.dy);
         canvas.rotate(rot1);
         canvas.translate(-center.dx, -center.dy);
-        canvas.drawPicture(_flowerPic!);
+        canvas.drawPicture(_flowerPic);
         canvas.restore();
       }
 
@@ -663,7 +660,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
         canvas.translate(center.dx, center.dy);
         canvas.rotate(rot2);
         canvas.translate(-center.dx, -center.dy);
-        canvas.drawPicture(_cubePic!);
+        canvas.drawPicture(_cubePic);
         canvas.restore();
       }
 
@@ -680,8 +677,8 @@ class _CoreAndGeometryPainter extends CustomPainter {
         final explosionGlow = Paint()
           ..shader = RadialGradient(
             colors: [
-              base.withOpacity(0.4 * (1 - explosionT)),
-              base.withOpacity(0.0),
+              base.withValues(alpha: 0.4 * (1 - explosionT)),
+              base.withValues(alpha: 0.0),
             ],
             stops: const [0.1, 1.0],
           ).createShader(Rect.fromCircle(center: center, radius: r * 4));
@@ -691,7 +688,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
       // Outer glow
       final glow = Paint()
         ..shader = RadialGradient(
-          colors: [base.withOpacity(0.18 * coreOpacity), Colors.transparent],
+          colors: [base.withValues(alpha: 0.18 * coreOpacity), Colors.transparent],
           stops: const [0.0, 1.0],
         ).createShader(Rect.fromCircle(center: center, radius: r * 2.4));
       canvas.drawCircle(center, r * 2.2, glow);
@@ -699,7 +696,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
       // Orb
       final orb = Paint()
         ..shader = RadialGradient(
-          colors: [base.withOpacity(0.55 * coreOpacity), base.withOpacity(0.0)],
+          colors: [base.withValues(alpha: 0.55 * coreOpacity), base.withValues(alpha: 0.0)],
           stops: const [0.5, 1.0],
         ).createShader(Rect.fromCircle(center: center, radius: r));
       canvas.drawCircle(center, r, orb);
@@ -709,7 +706,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
         final rays = Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.2
-          ..color = base.withOpacity(0.2 * coreOpacity);
+          ..color = base.withValues(alpha: 0.2 * coreOpacity);
         final k = (coreScale - 1.0).clamp(0.0, 0.4) / 0.4;
         for (int i = 0; i < 8; i++) {
           final a = (i * 2 * pi / 8) + (t * 1.5);
@@ -757,14 +754,14 @@ class _CoreAndGeometryPainter extends CustomPainter {
         final particleAlpha = (1.0 - explosionT) * 0.75;
         final particleSize = ui.lerpDouble(3, 1, explosionT)!;
 
-        particlePaint.color = palette.withOpacity(particleAlpha);
+        particlePaint.color = palette.withValues(alpha: particleAlpha);
         canvas.drawCircle(particlePos, particleSize, particlePaint);
       }
     }
 
     // Whiteout
     if (whiteout > 0) {
-      final paint = Paint()..color = Colors.white.withOpacity(whiteout * 0.9);
+      final paint = Paint()..color = Colors.white.withValues(alpha: whiteout * 0.9);
       canvas.drawRect(Offset.zero & size, paint);
     }
   }
@@ -801,8 +798,8 @@ class _CoreAndGeometryPainter extends CustomPainter {
         ..shader =
             RadialGradient(
               colors: [
-                glowColor.withOpacity(0.3 * joltAlpha),
-                glowColor.withOpacity(0.0),
+                glowColor.withValues(alpha: 0.3 * joltAlpha),
+                glowColor.withValues(alpha: 0.0),
               ],
             ).createShader(
               Rect.fromCircle(center: center, radius: joltRadius * 0.5),
@@ -816,7 +813,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
         final pos = center + Offset(cos(angle) * dist, sin(angle) * dist);
         final sparkleColor = _rainbowColors[i % _rainbowColors.length];
         final sparklePaint = Paint()
-          ..color = sparkleColor.withOpacity(joltAlpha * 0.9)
+          ..color = sparkleColor.withValues(alpha: joltAlpha * 0.9)
           ..style = PaintingStyle.fill;
         canvas.drawCircle(pos, 3 * (1 - hintJoltT) + 1, sparklePaint);
       }
@@ -825,7 +822,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
       final ringPaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = ui.lerpDouble(16, 3, hintJoltT)!
-        ..color = variantColor!.withOpacity(joltAlpha * 0.85)
+        ..color = variantColor!.withValues(alpha: joltAlpha * 0.85)
         ..isAntiAlias = true;
       canvas.drawCircle(center, joltRadius, ringPaint);
 
@@ -834,8 +831,8 @@ class _CoreAndGeometryPainter extends CustomPainter {
         ..shader =
             RadialGradient(
               colors: [
-                variantColor!.withOpacity(0.35 * joltAlpha),
-                variantColor!.withOpacity(0.0),
+                variantColor!.withValues(alpha: 0.35 * joltAlpha),
+                variantColor!.withValues(alpha: 0.0),
               ],
             ).createShader(
               Rect.fromCircle(center: center, radius: joltRadius * 0.6),
@@ -848,7 +845,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
         final dist = joltRadius * 0.65;
         final pos = center + Offset(cos(angle) * dist, sin(angle) * dist);
         final sparklePaint = Paint()
-          ..color = variantColor!.withOpacity(joltAlpha * 0.85)
+          ..color = variantColor!.withValues(alpha: joltAlpha * 0.85)
           ..style = PaintingStyle.fill;
         canvas.drawCircle(pos, 4 * (1 - hintJoltT) + 1.5, sparklePaint);
       }
@@ -873,7 +870,7 @@ class _CoreAndGeometryPainter extends CustomPainter {
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = ui.lerpDouble(startStroke, endStroke, t)!
-      ..color = color.withOpacity(maxOpacity * alpha)
+      ..color = color.withValues(alpha: maxOpacity * alpha)
       ..isAntiAlias = true;
     canvas.drawCircle(center, r, ring);
   }

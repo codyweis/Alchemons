@@ -230,14 +230,14 @@ class _ConstellationScreenState extends State<ConstellationScreen>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.black.withOpacity(0.95),
-            Colors.black.withOpacity(0.75),
+            Colors.black.withValues(alpha: 0.95),
+            Colors.black.withValues(alpha: 0.75),
             Colors.transparent,
           ],
           stops: const [0.0, 0.65, 1.0],
         ),
         border: Border(
-          bottom: BorderSide(color: theme.primary.withOpacity(0.15), width: 1),
+          bottom: BorderSide(color: theme.primary.withValues(alpha: 0.15), width: 1),
         ),
       ),
       child: Row(
@@ -291,9 +291,9 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                         borderRadius: BorderRadius.circular(2),
                         child: LinearProgressIndicator(
                           value: progress,
-                          backgroundColor: theme.primary.withOpacity(0.12),
+                          backgroundColor: theme.primary.withValues(alpha: 0.12),
                           valueColor: AlwaysStoppedAnimation(
-                            theme.primary.withOpacity(0.7),
+                            theme.primary.withValues(alpha: 0.7),
                           ),
                           minHeight: 3,
                         ),
@@ -325,18 +325,18 @@ class _ConstellationScreenState extends State<ConstellationScreen>
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    theme.primary.withOpacity(0.22),
-                    theme.secondary.withOpacity(0.12),
+                    theme.primary.withValues(alpha: 0.22),
+                    theme.secondary.withValues(alpha: 0.12),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: theme.primary.withOpacity(0.55),
+                  color: theme.primary.withValues(alpha: 0.55),
                   width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: theme.primary.withOpacity(0.18),
+                    color: theme.primary.withValues(alpha: 0.18),
                     blurRadius: 10,
                     spreadRadius: 0,
                   ),
@@ -358,7 +358,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                   Text(
                     'pts',
                     style: TextStyle(
-                      color: theme.primary.withOpacity(0.8),
+                      color: theme.primary.withValues(alpha: 0.8),
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5,
@@ -406,9 +406,9 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(
                     value: total > 0 ? unlocked / total : 0,
-                    backgroundColor: Colors.white.withOpacity(0.1),
+                    backgroundColor: Colors.white.withValues(alpha: 0.1),
                     valueColor: AlwaysStoppedAnimation(
-                      theme.primary.withOpacity(0.7),
+                      theme.primary.withValues(alpha: 0.7),
                     ),
                     minHeight: 2.5,
                   ),
@@ -423,9 +423,9 @@ class _ConstellationScreenState extends State<ConstellationScreen>
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.65),
+        color: Colors.black.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.border.withOpacity(0.4), width: 1),
+        border: Border.all(color: theme.border.withValues(alpha: 0.4), width: 1),
       ),
       child: TabBar(
         controller: _tabController,
@@ -433,13 +433,13 @@ class _ConstellationScreenState extends State<ConstellationScreen>
         indicator: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              theme.primary.withOpacity(0.28),
-              theme.secondary.withOpacity(0.15),
+              theme.primary.withValues(alpha: 0.28),
+              theme.secondary.withValues(alpha: 0.15),
             ],
           ),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: theme.primary.withOpacity(0.45),
+            color: theme.primary.withValues(alpha: 0.45),
             width: 1.5,
           ),
         ),
@@ -474,15 +474,15 @@ class _ConstellationScreenState extends State<ConstellationScreen>
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
           colors: [
-            Colors.black.withOpacity(0.92),
-            Colors.black.withOpacity(0.7),
+            Colors.black.withValues(alpha: 0.92),
+            Colors.black.withValues(alpha: 0.7),
           ],
         ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.primary.withOpacity(0.2), width: 1),
+        border: Border.all(color: theme.primary.withValues(alpha: 0.2), width: 1),
         boxShadow: [
           BoxShadow(
-            color: theme.primary.withOpacity(0.08),
+            color: theme.primary.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, -2),
           ),
@@ -496,14 +496,14 @@ class _ConstellationScreenState extends State<ConstellationScreen>
             // Thin top accent bar that looks like an energy meter
             Stack(
               children: [
-                Container(height: 3, color: theme.primary.withOpacity(0.1)),
+                Container(height: 3, color: theme.primary.withValues(alpha: 0.1)),
                 FractionallySizedBox(
                   widthFactor: treeProgress,
                   child: Container(
                     height: 3,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [theme.primary.withOpacity(0.4), theme.primary],
+                        colors: [theme.primary.withValues(alpha: 0.4), theme.primary],
                       ),
                     ),
                   ),
@@ -519,10 +519,10 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: theme.primary.withOpacity(0.12),
+                      color: theme.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: theme.primary.withOpacity(0.3),
+                        color: theme.primary.withValues(alpha: 0.3),
                         width: 1,
                       ),
                     ),
@@ -589,10 +589,10 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                     child: Container(
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: theme.primary.withOpacity(0.08),
+                        color: theme.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: theme.primary.withOpacity(0.25),
+                          color: theme.primary.withValues(alpha: 0.25),
                         ),
                       ),
                       child: Icon(
@@ -619,16 +619,9 @@ class _ConstellationScreenState extends State<ConstellationScreen>
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.black.withOpacity(0.95),
-                theme.primary.withOpacity(0.1),
-              ],
-            ),
+            color: theme.isDark ? const Color(0xFF0E1118) : theme.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.primary.withOpacity(0.5), width: 2),
+            border: Border.all(color: theme.primary.withValues(alpha: 0.5), width: 2),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -720,8 +713,8 @@ class _ConstellationScreenState extends State<ConstellationScreen>
         maxChildSize: 0.95,
         builder: (context, scrollController) => Container(
           decoration: BoxDecoration(
-            color: theme.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            color: theme.isDark ? const Color(0xFF0E1118) : theme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             border: Border.all(color: theme.border),
           ),
           child: Column(
@@ -732,7 +725,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: theme.textMuted.withOpacity(0.3),
+                  color: theme.textMuted.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -820,7 +813,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                               Icon(
                                 Icons.lock_outline,
                                 size: 64,
-                                color: theme.textMuted.withOpacity(0.3),
+                                color: theme.textMuted.withValues(alpha: 0.3),
                               ),
                               const SizedBox(height: 16),
                               Text(
@@ -835,7 +828,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                               Text(
                                 'Start unlocking skills to see them here',
                                 style: TextStyle(
-                                  color: theme.textMuted.withOpacity(0.7),
+                                  color: theme.textMuted.withValues(alpha: 0.7),
                                   fontSize: 13,
                                 ),
                               ),
@@ -868,13 +861,13 @@ class _ConstellationScreenState extends State<ConstellationScreen>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                theme.primary.withOpacity(0.15),
-                theme.secondary.withOpacity(0.08),
+                theme.primary.withValues(alpha: 0.15),
+                theme.secondary.withValues(alpha: 0.08),
               ],
             ),
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
-              color: theme.primary.withOpacity(0.25),
+              color: theme.primary.withValues(alpha: 0.25),
               width: 1,
             ),
           ),
@@ -911,10 +904,10 @@ class _ConstellationScreenState extends State<ConstellationScreen>
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: theme.primary.withOpacity(0.04),
+                color: theme.primary.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: theme.border.withOpacity(0.2),
+                  color: theme.border.withValues(alpha: 0.2),
                   width: 1,
                 ),
               ),
@@ -957,7 +950,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: theme.primary.withOpacity(0.12),
+                      color: theme.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -1014,29 +1007,20 @@ class _ConstellationScreenState extends State<ConstellationScreen>
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.surface,
-                isUnlocked
-                    ? theme.primary.withOpacity(0.08)
-                    : Colors.black.withOpacity(0.95),
-              ],
-            ),
+            color: theme.isDark ? const Color(0xFF0E1118) : theme.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isUnlocked
-                  ? theme.primary.withOpacity(0.4)
-                  : theme.border.withOpacity(0.5),
+                  ? theme.primary.withValues(alpha: 0.45)
+                  : theme.border.withValues(alpha: 0.5),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
                 color: isUnlocked
-                    ? theme.primary.withOpacity(0.15)
-                    : Colors.black.withOpacity(0.4),
-                blurRadius: 20,
+                    ? theme.primary.withValues(alpha: 0.15)
+                    : Colors.black.withValues(alpha: 0.5),
+                blurRadius: 24,
                 spreadRadius: 2,
               ),
             ],
@@ -1052,8 +1036,8 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: isUnlocked
-                          ? theme.primary.withOpacity(0.2)
-                          : theme.textMuted.withOpacity(0.1),
+                          ? theme.primary.withValues(alpha: 0.2)
+                          : theme.textMuted.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -1082,7 +1066,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: theme.primary.withOpacity(0.12),
+                            color: theme.primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -1102,7 +1086,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
               ),
 
               const SizedBox(height: 14),
-              Container(height: 1, color: theme.border.withOpacity(0.3)),
+              Container(height: 1, color: theme.border.withValues(alpha: 0.3)),
               const SizedBox(height: 14),
 
               // Description
@@ -1136,7 +1120,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                       children: [
                         Icon(
                           Icons.chevron_right,
-                          color: theme.primary.withOpacity(0.6),
+                          color: theme.primary.withValues(alpha: 0.6),
                           size: 14,
                         ),
                         const SizedBox(width: 4),
@@ -1160,11 +1144,11 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                 child: TextButton(
                   onPressed: () => Navigator.pop(context),
                   style: TextButton.styleFrom(
-                    backgroundColor: theme.primary.withOpacity(0.1),
+                    backgroundColor: theme.primary.withValues(alpha: 0.1),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: theme.primary.withOpacity(0.3)),
+                      side: BorderSide(color: theme.primary.withValues(alpha: 0.3)),
                     ),
                   ),
                   child: Text(
@@ -1197,19 +1181,15 @@ class _ConstellationScreenState extends State<ConstellationScreen>
         child: Container(
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [theme.surface, theme.primary.withOpacity(0.1)],
-            ),
+            color: theme.isDark ? const Color(0xFF0E1118) : theme.surface,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: theme.primary.withOpacity(0.45),
+              color: theme.primary.withValues(alpha: 0.45),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: theme.primary.withOpacity(0.2),
+                color: theme.primary.withValues(alpha: 0.2),
                 blurRadius: 24,
                 spreadRadius: 2,
               ),
@@ -1235,7 +1215,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                   Text(
                     'TIER ${skill.tier}',
                     style: TextStyle(
-                      color: theme.primary.withOpacity(0.7),
+                      color: theme.primary.withValues(alpha: 0.7),
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.0,
@@ -1245,7 +1225,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
               ),
 
               const SizedBox(height: 14),
-              Container(height: 1, color: theme.border.withOpacity(0.3)),
+              Container(height: 1, color: theme.border.withValues(alpha: 0.3)),
               const SizedBox(height: 14),
 
               Text(
@@ -1268,12 +1248,12 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      theme.primary.withOpacity(0.15),
-                      theme.secondary.withOpacity(0.08),
+                      theme.primary.withValues(alpha: 0.15),
+                      theme.secondary.withValues(alpha: 0.08),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: theme.primary.withOpacity(0.35)),
+                  border: Border.all(color: theme.primary.withValues(alpha: 0.35)),
                 ),
                 child: Row(
                   children: [
@@ -1312,7 +1292,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                           side: BorderSide(
-                            color: theme.border.withOpacity(0.4),
+                            color: theme.border.withValues(alpha: 0.4),
                           ),
                         ),
                       ),

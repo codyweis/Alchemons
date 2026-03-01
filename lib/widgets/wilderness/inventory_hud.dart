@@ -113,7 +113,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                 ],
               ),
             ),
-            Container(height: 1, color: t.borderAccent.withOpacity(0.4)),
+            Container(height: 1, color: t.borderAccent.withValues(alpha: 0.4)),
             // Grid
             Expanded(
               child: GridView.builder(
@@ -195,7 +195,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
             ],
           ),
         ),
-        Container(height: 1, color: t.borderAccent.withOpacity(0.4)),
+        Container(height: 1, color: t.borderAccent.withValues(alpha: 0.4)),
         Expanded(
           child: Center(
             child: Column(
@@ -328,7 +328,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
                           color: t2.bg2,
                           borderRadius: BorderRadius.circular(3),
                           border: Border.all(
-                            color: t2.borderAccent.withOpacity(0.6),
+                            color: t2.borderAccent.withValues(alpha: 0.6),
                           ),
                         ),
                         child: Center(
@@ -676,7 +676,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(color: theme.accent.withValues(alpha: 0.5), width: 2),
         ),
         title: Text(
           'Remove Item',
@@ -802,7 +802,7 @@ class _CompactItemCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: t.bg3,
                   borderRadius: BorderRadius.circular(2),
-                  border: Border.all(color: t.borderAccent.withOpacity(0.6)),
+                  border: Border.all(color: t.borderAccent.withValues(alpha: 0.6)),
                 ),
                 child: Text(
                   '${item.qty}',

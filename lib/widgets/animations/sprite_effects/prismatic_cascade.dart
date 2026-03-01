@@ -324,7 +324,7 @@ class _PrismaticPainter extends CustomPainter {
     canvas.drawCircle(
       pos,
       r * 0.25,
-      Paint()..color = Colors.white.withOpacity(a * 0.8),
+      Paint()..color = Colors.white.withValues(alpha: a * 0.8),
     );
   }
 

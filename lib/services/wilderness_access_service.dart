@@ -16,7 +16,7 @@ class WildernessAccessService {
   }
 
   Future<bool> canEnter(String sceneId) async {
-    final last = await db.settingsDao.getSetting(_key(sceneId));
+    await db.settingsDao.getSetting(_key(sceneId));
     //return last != _todayStampLocal();
     return true;
   }

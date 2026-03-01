@@ -1,5 +1,4 @@
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/models/parent_snapshot.dart'; // CreatureInstance
 
 int computeHarvestRatePerMinute(

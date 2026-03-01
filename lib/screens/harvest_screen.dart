@@ -454,7 +454,7 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
                   color: const Color.fromARGB(255, 65, 153, 221),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.06),
+                    color: Colors.white.withValues(alpha: 0.06),
                     width: 1.2,
                   ),
                 )
@@ -463,7 +463,7 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
                   color: const Color.fromRGBO(91, 255, 128, 1),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.06),
+                    color: Colors.white.withValues(alpha: 0.06),
                     width: 1.2,
                   ),
                 )
@@ -472,7 +472,7 @@ class _BiomeCardCompactState extends State<_BiomeCardCompact> {
                   color: const Color.fromRGBO(255, 225, 91, 1),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.06),
+                    color: Colors.white.withValues(alpha: 0.06),
                     width: 1.2,
                   ),
                 )
@@ -643,9 +643,9 @@ class _BiomeIconCircleSmall extends StatelessWidget {
       width: 32,
       height: 32,
       decoration: BoxDecoration(
-        color: color.withOpacity(.15),
+        color: color.withValues(alpha: .15),
         shape: BoxShape.circle,
-        border: Border.all(color: color.withOpacity(.5), width: 1.2),
+        border: Border.all(color: color.withValues(alpha: .5), width: 1.2),
       ),
       child: Icon(icon, color: color, size: 18),
     );
@@ -666,10 +666,10 @@ class _StatusChipTiny extends StatelessWidget {
 
     switch (t) {
       case 'active':
-        fg = Colors.white.withOpacity(.95);
+        fg = Colors.white.withValues(alpha: .95);
         break;
       default:
-        fg = Colors.white.withOpacity(.0);
+        fg = Colors.white.withValues(alpha: .0);
         break;
     }
 
@@ -703,7 +703,7 @@ class _ElementChipTiny extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-      decoration: theme.chipDecoration(rim: theme.accent.withOpacity(0.18)),
+      decoration: theme.chipDecoration(rim: theme.accent.withValues(alpha: 0.18)),
       child: Text(
         label,
         style: TextStyle(
@@ -780,7 +780,7 @@ class _TinyReadyPillRow extends StatelessWidget {
         color: Colors.black,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: const Color.fromARGB(255, 0, 0, 0).withOpacity(.5),
+          color: const Color.fromARGB(255, 0, 0, 0).withValues(alpha: .5),
           width: 1.2,
         ),
       ),
@@ -824,10 +824,10 @@ class _PrimaryActionButtonCompact extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = filled ? accent.withOpacity(.25) : Colors.white.withOpacity(.03);
+    final bg = filled ? accent.withValues(alpha: .25) : Colors.white.withValues(alpha: .03);
     final border = filled
-        ? accent.withOpacity(.55)
-        : Colors.white.withOpacity(.12);
+        ? accent.withValues(alpha: .55)
+        : Colors.white.withValues(alpha: .12);
 
     return GestureDetector(
       onTap: onTap,
@@ -871,9 +871,9 @@ class _UnlockDialog extends StatelessWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF0A0E27).withOpacity(.95),
+          color: const Color(0xFF0A0E27).withValues(alpha: .95),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(.4), width: 1.4),
+          border: Border.all(color: color.withValues(alpha: .4), width: 1.4),
         ),
         padding: const EdgeInsets.all(16),
         child: StreamBuilder<Map<String, int>>(
@@ -899,10 +899,10 @@ class _UnlockDialog extends StatelessWidget {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: color.withOpacity(.15),
+                        color: color.withValues(alpha: .15),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: color.withOpacity(.5),
+                          color: color.withValues(alpha: .5),
                           width: 1.4,
                         ),
                       ),
@@ -929,7 +929,7 @@ class _UnlockDialog extends StatelessWidget {
                 Text(
                   biome.description,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(.7),
+                    color: Colors.white.withValues(alpha: .7),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     height: 1.3,
@@ -943,7 +943,7 @@ class _UnlockDialog extends StatelessWidget {
                   child: Text(
                     'Required resources',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(.75),
+                      color: Colors.white.withValues(alpha: .75),
                       fontWeight: FontWeight.w700,
                       fontSize: 12,
                       letterSpacing: .2,
@@ -966,12 +966,12 @@ class _UnlockDialog extends StatelessWidget {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.04),
+                      color: Colors.white.withValues(alpha: .04),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: ok
-                            ? color.withOpacity(.5)
-                            : Colors.redAccent.withOpacity(.5),
+                            ? color.withValues(alpha: .5)
+                            : Colors.redAccent.withValues(alpha: .5),
                         width: 1.4,
                       ),
                     ),
@@ -999,8 +999,8 @@ class _UnlockDialog extends StatelessWidget {
                           '$have / $need',
                           style: TextStyle(
                             color: ok
-                                ? Colors.greenAccent.withOpacity(.9)
-                                : Colors.redAccent.withOpacity(.9),
+                                ? Colors.greenAccent.withValues(alpha: .9)
+                                : Colors.redAccent.withValues(alpha: .9),
                             fontWeight: FontWeight.w900,
                             fontSize: 13,
                           ),
@@ -1053,9 +1053,9 @@ class _DialogBtn extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.04),
+        color: Colors.white.withValues(alpha: .04),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(.14)),
+        border: Border.all(color: Colors.white.withValues(alpha: .14)),
       ),
       alignment: Alignment.center,
       child: const Text(
@@ -1091,9 +1091,9 @@ class _DialogPrimaryBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(.3),
+          color: color.withValues(alpha: .3),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(.6), width: 1.4),
+          border: Border.all(color: color.withValues(alpha: .6), width: 1.4),
         ),
         alignment: Alignment.center,
         child: Text(
@@ -1217,9 +1217,9 @@ class _BiomeGradientLayer extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            colors[0].withOpacity(opacity),
-            if (colors.length > 1) colors[1].withOpacity(opacity * 0.7),
-            if (colors.length > 2) colors[2].withOpacity(opacity * 0.5),
+            colors[0].withValues(alpha: opacity),
+            if (colors.length > 1) colors[1].withValues(alpha: opacity * 0.7),
+            if (colors.length > 2) colors[2].withValues(alpha: opacity * 0.5),
             Colors.transparent,
           ],
         ),
@@ -1252,7 +1252,7 @@ class _BiomeParticlePainter extends CustomPainter {
       biomeIdx++
     ) {
       final biome = biomes[biomeIdx];
-      final color = biome.primaryColor.withOpacity(opacity);
+      final color = biome.primaryColor.withValues(alpha: opacity);
       paint.color = color;
 
       final particleCount = 8 + (biomeIdx * 4);
@@ -1302,9 +1302,9 @@ class _ExtractionEquipmentOverlay extends StatelessWidget {
     final size = MediaQuery.of(context).size;
 
     final c0 = (biomes.isNotEmpty ? biomes.first.primaryColor : Colors.cyan)
-        .withOpacity(opacity * 0.3);
+        .withValues(alpha: opacity * 0.3);
     final c1 = (biomes.length > 1 ? biomes[1].primaryColor : Colors.green)
-        .withOpacity(opacity * 0.25);
+        .withValues(alpha: opacity * 0.25);
 
     return Stack(
       children: [
@@ -1316,8 +1316,8 @@ class _ExtractionEquipmentOverlay extends StatelessWidget {
             height: size.height * 0.5,
             width: 80,
             color: c0,
-            strokeColor: c0.withOpacity(0.8),
-            shineColor: Colors.white.withOpacity(0.3),
+            strokeColor: c0.withValues(alpha: 0.8),
+            shineColor: Colors.white.withValues(alpha: 0.3),
             liquidTop: 0.6,
           ),
         ),
@@ -1328,8 +1328,8 @@ class _ExtractionEquipmentOverlay extends StatelessWidget {
             height: size.height * 0.4,
             width: 70,
             color: c1,
-            strokeColor: c1.withOpacity(0.8),
-            shineColor: Colors.white.withOpacity(0.3),
+            strokeColor: c1.withValues(alpha: 0.8),
+            shineColor: Colors.white.withValues(alpha: 0.3),
             liquidTop: 0.6,
           ),
         ),
@@ -1368,7 +1368,7 @@ class _TestTubeShape extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [color.withOpacity(0.33), color.withOpacity(0.6)],
+          colors: [color.withValues(alpha: 0.33), color.withValues(alpha: 0.6)],
         ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(width * 0.4),
@@ -1389,7 +1389,7 @@ class _TestTubeShape extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [color.withOpacity(0.25), color.withOpacity(0.7)],
+                  colors: [color.withValues(alpha: 0.25), color.withValues(alpha: 0.7)],
                 ),
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(width * 0.4),
@@ -1427,7 +1427,7 @@ class _GridOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.05)
+      ..color = Colors.white.withValues(alpha: 0.05)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
 

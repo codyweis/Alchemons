@@ -1,7 +1,6 @@
 // services/wilderness_service.dart
 import 'dart:math';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/services/stamina_service.dart';
 

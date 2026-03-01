@@ -42,7 +42,6 @@ class _C {
 
   // Runic teal — secondary accent
   static const teal = Color(0xFF0EA5E9);
-  static const tealDim = Color(0xFF0C4A6E);
 
   // Text
   static const textPrimary = Color(0xFFE8DCC8); // parchment
@@ -51,7 +50,6 @@ class _C {
 
   // Danger / wave red
   static const danger = Color(0xFFC0392B);
-  static const dangerDim = Color(0xFF7B241C);
 
   // Borders
   static const borderDim = Color(0xFF252D3A);
@@ -64,14 +62,6 @@ class _C {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _T {
-  // Display / heading — tight tracked caps
-  static const TextStyle title = TextStyle(
-    fontFamily: 'monospace',
-    color: _C.textPrimary,
-    fontSize: 22,
-    fontWeight: FontWeight.w800,
-    letterSpacing: 2.4,
-  );
 
   static const TextStyle heading = TextStyle(
     fontFamily: 'monospace',
@@ -153,13 +143,13 @@ class _PlateBox extends StatelessWidget {
         color: _C.bg2,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: highlight ? accent.withOpacity(0.6) : _C.borderDim,
+          color: highlight ? accent.withValues(alpha: 0.6) : _C.borderDim,
           width: highlight ? 1.5 : 1,
         ),
         boxShadow: highlight
             ? [
                 BoxShadow(
-                  color: accent.withOpacity(0.12),
+                  color: accent.withValues(alpha: 0.12),
                   blurRadius: 18,
                   spreadRadius: 0,
                 ),
@@ -178,8 +168,8 @@ class _PlateBox extends StatelessWidget {
               height: 8,
               decoration: BoxDecoration(
                 border: Border(
-                  top: BorderSide(color: accent.withOpacity(0.5), width: 1.5),
-                  left: BorderSide(color: accent.withOpacity(0.5), width: 1.5),
+                  top: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
+                  left: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
                 ),
               ),
             ),
@@ -194,10 +184,10 @@ class _PlateBox extends StatelessWidget {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: accent.withOpacity(0.5),
+                    color: accent.withValues(alpha: 0.5),
                     width: 1.5,
                   ),
-                  right: BorderSide(color: accent.withOpacity(0.5), width: 1.5),
+                  right: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
                 ),
               ),
             ),
@@ -239,14 +229,14 @@ class _ForgeButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
             color: secondary
-                ? _C.borderAccent.withOpacity(0.6)
+                ? _C.borderAccent.withValues(alpha: 0.6)
                 : (isDisabled ? _C.borderDim : _C.amberGlow),
             width: 1,
           ),
           boxShadow: (!secondary && !isDisabled)
               ? [
                   BoxShadow(
-                    color: _C.amber.withOpacity(0.35),
+                    color: _C.amber.withValues(alpha: 0.35),
                     blurRadius: 14,
                     offset: const Offset(0, 4),
                   ),
@@ -998,7 +988,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
                     decoration: BoxDecoration(
                       gradient: RadialGradient(
                         colors: [
-                          info.color.withOpacity(0.25),
+                          info.color.withValues(alpha: 0.25),
                           Colors.transparent,
                         ],
                         radius: 0.8,
@@ -1010,7 +1000,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
                     padding: const EdgeInsets.all(20),
                     child: ColorFiltered(
                       colorFilter: ColorFilter.mode(
-                        info.color.withOpacity(0.9),
+                        info.color.withValues(alpha: 0.9),
                         BlendMode.srcATop,
                       ),
                       child: Image.asset(info.assetPath, fit: BoxFit.contain),
@@ -1025,10 +1015,10 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: info.color.withOpacity(0.18),
+                        color: info.color.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(2),
                         border: Border.all(
-                          color: info.color.withOpacity(0.5),
+                          color: info.color.withValues(alpha: 0.5),
                           width: 0.8,
                         ),
                       ),
@@ -1224,7 +1214,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
           const ColoredBox(color: _C.bg0),
           const AlchemicalParticleBackground(opacity: 0.35),
           // Dark vignette so arena edges feel grounded
-          Container(color: Colors.black.withOpacity(0.2)),
+          Container(color: Colors.black.withValues(alpha: 0.2)),
           GameWidget(
             game: _game!,
             backgroundBuilder: (context) =>
@@ -1285,7 +1275,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
-            color: _C.bg0.withOpacity(0.88),
+            color: _C.bg0.withValues(alpha: 0.88),
             borderRadius: BorderRadius.circular(3),
             border: Border.all(color: _C.borderDim),
           ),
@@ -1337,7 +1327,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
       child: Container(
         padding: const EdgeInsets.all(9),
         decoration: BoxDecoration(
-          color: _C.bg0.withOpacity(0.88),
+          color: _C.bg0.withValues(alpha: 0.88),
           borderRadius: BorderRadius.circular(3),
           border: Border.all(color: _C.borderDim),
         ),
@@ -1363,8 +1353,8 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         decoration: BoxDecoration(
           color: _isSpeedUpEnabled
-              ? _C.amber.withOpacity(0.2)
-              : _C.bg0.withOpacity(0.88),
+              ? _C.amber.withValues(alpha: 0.2)
+              : _C.bg0.withValues(alpha: 0.88),
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
             color: _isSpeedUpEnabled ? _C.amber : _C.borderDim,
@@ -1391,7 +1381,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
       builder: (context, state, _) {
         if (state == null) return const SizedBox.shrink();
         return Container(
-          color: Colors.black.withOpacity(0.78),
+          color: Colors.black.withValues(alpha: 0.78),
           child: Center(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -1402,7 +1392,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
                 border: Border.all(color: _C.borderAccent),
                 boxShadow: [
                   BoxShadow(
-                    color: _C.amber.withOpacity(0.15),
+                    color: _C.amber.withValues(alpha: 0.15),
                     blurRadius: 32,
                     spreadRadius: 2,
                   ),
@@ -1426,7 +1416,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
                           width: 28,
                           height: 28,
                           decoration: BoxDecoration(
-                            color: _C.amberDim.withOpacity(0.3),
+                            color: _C.amberDim.withValues(alpha: 0.3),
                             borderRadius: BorderRadius.circular(2),
                             border: Border.all(color: _C.borderAccent),
                           ),
@@ -1523,10 +1513,10 @@ class _AlchemyOptionTileState extends State<_AlchemyOptionTile> {
         duration: const Duration(milliseconds: 80),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: _pressed ? c.withOpacity(0.15) : _C.bg2,
+          color: _pressed ? c.withValues(alpha: 0.15) : _C.bg2,
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
-            color: _pressed ? c.withOpacity(0.8) : c.withOpacity(0.35),
+            color: _pressed ? c.withValues(alpha: 0.8) : c.withValues(alpha: 0.35),
           ),
         ),
         child: Row(
@@ -1535,9 +1525,9 @@ class _AlchemyOptionTileState extends State<_AlchemyOptionTile> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: c.withOpacity(0.15),
+                color: c.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(2),
-                border: Border.all(color: c.withOpacity(0.4)),
+                border: Border.all(color: c.withValues(alpha: 0.4)),
               ),
               child: Icon(_getIcon(), color: c, size: 16),
             ),
@@ -1570,7 +1560,7 @@ class _AlchemyOptionTileState extends State<_AlchemyOptionTile> {
               width: 20,
               height: 20,
               decoration: BoxDecoration(
-                color: c.withOpacity(0.12),
+                color: c.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(2),
               ),
               child: Icon(Icons.chevron_right_rounded, color: c, size: 14),
@@ -1835,7 +1825,7 @@ class _GameOverDialog extends StatelessWidget {
           border: Border.all(color: _C.borderAccent),
           boxShadow: [
             BoxShadow(
-              color: _C.amber.withOpacity(0.12),
+              color: _C.amber.withValues(alpha: 0.12),
               blurRadius: 40,
               spreadRadius: 2,
             ),
@@ -1881,7 +1871,7 @@ class _GameOverDialog extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: _C.amberBright.withOpacity(0.12),
+                  color: _C.amberBright.withValues(alpha: 0.12),
                   border: const Border(
                     bottom: BorderSide(color: _C.borderAccent),
                   ),
@@ -2041,14 +2031,14 @@ class _StatCell extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
+        color: color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: _T.label.copyWith(color: color.withOpacity(0.7))),
+          Text(label, style: _T.label.copyWith(color: color.withValues(alpha: 0.7))),
           const SizedBox(height: 4),
           Text(value, style: _T.stat.copyWith(color: color, fontSize: 18)),
         ],
@@ -2182,7 +2172,7 @@ class _ConfirmExitDialog extends StatelessWidget {
 class _ScanlinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.black.withOpacity(0.08);
+    final paint = Paint()..color = Colors.black.withValues(alpha: 0.08);
     for (double y = 0; y < size.height; y += 3) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }

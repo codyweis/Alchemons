@@ -1,8 +1,6 @@
 // lib/games/survival/components/guardian_inspect_hud.dart
 import 'dart:math' as math;
-import 'dart:ui';
 
-import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
@@ -110,7 +108,7 @@ class GuardianInspectHud extends PositionComponent
     canvas.drawRRect(
       panelRect,
       Paint()
-        ..color = familyColor.withOpacity(0.3)
+        ..color = familyColor.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
@@ -137,7 +135,7 @@ class GuardianInspectHud extends PositionComponent
       const Radius.circular(4),
     );
     _closeButtonRect = closeRect;
-    canvas.drawRRect(closeRect, Paint()..color = Colors.white.withOpacity(0.1));
+    canvas.drawRRect(closeRect, Paint()..color = Colors.white.withValues(alpha: 0.1));
     _drawText(
       canvas,
       '✕',
@@ -157,7 +155,7 @@ class GuardianInspectHud extends PositionComponent
     );
     canvas.drawRRect(
       familyBadgeRect,
-      Paint()..color = familyColor.withOpacity(0.25),
+      Paint()..color = familyColor.withValues(alpha: 0.25),
     );
     canvas.drawRRect(
       familyBadgeRect,
@@ -184,7 +182,7 @@ class GuardianInspectHud extends PositionComponent
     );
     canvas.drawRRect(
       elementBadgeRect,
-      Paint()..color = elementColor.withOpacity(0.25),
+      Paint()..color = elementColor.withValues(alpha: 0.25),
     );
     _drawText(
       canvas,
@@ -234,7 +232,7 @@ class GuardianInspectHud extends PositionComponent
       Rect.fromLTWH(leftPad, y, panelWidth - 28, 6),
       const Radius.circular(3),
     );
-    canvas.drawRRect(hpBarBg, Paint()..color = Colors.white.withOpacity(0.1));
+    canvas.drawRRect(hpBarBg, Paint()..color = Colors.white.withValues(alpha: 0.1));
 
     if (hpPercent > 0) {
       final hpBarFill = RRect.fromRectAndRadius(
@@ -321,13 +319,13 @@ class GuardianInspectHud extends PositionComponent
         Paint()
           ..color = filled
               ? const Color(0xFF8B5CF6)
-              : Colors.white.withOpacity(0.15),
+              : Colors.white.withValues(alpha: 0.15),
       );
       if (filled) {
         canvas.drawCircle(
           Offset(pipX, y + 5),
           5,
-          Paint()..color = const Color(0xFF8B5CF6).withOpacity(0.5),
+          Paint()..color = const Color(0xFF8B5CF6).withValues(alpha: 0.5),
         );
       }
     }
@@ -349,13 +347,13 @@ class GuardianInspectHud extends PositionComponent
         Paint()
           ..color = filled
               ? const Color(0xFFFFD700)
-              : Colors.white.withOpacity(0.15),
+              : Colors.white.withValues(alpha: 0.15),
       );
       if (filled) {
         canvas.drawCircle(
           Offset(pipX, y + 5),
           5,
-          Paint()..color = const Color(0xFFFFD700).withOpacity(0.5),
+          Paint()..color = const Color(0xFFFFD700).withValues(alpha: 0.5),
         );
       }
     }
@@ -374,12 +372,12 @@ class GuardianInspectHud extends PositionComponent
     final pulse = 0.5 + 0.5 * math.sin(_pulseTimer * 3);
     canvas.drawRRect(
       targetRect,
-      Paint()..color = const Color(0xFF8B5CF6).withOpacity(0.15 + pulse * 0.05),
+      Paint()..color = const Color(0xFF8B5CF6).withValues(alpha: 0.15 + pulse * 0.05),
     );
     canvas.drawRRect(
       targetRect,
       Paint()
-        ..color = const Color(0xFF8B5CF6).withOpacity(0.6)
+        ..color = const Color(0xFF8B5CF6).withValues(alpha: 0.6)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );

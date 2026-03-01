@@ -298,33 +298,33 @@ class ForgeTokens {
   // bg0 = deepest / header strips; bg1 = dialog shell; bg2 = inset rows/cards
   Color get bg0 => isDark
       ? const Color(0xFF080A0E)
-      : _theme.backgroundGradient.first.withOpacity(1);
+      : _theme.backgroundGradient.first.withValues(alpha: 1);
 
   Color get bg1 => isDark ? const Color(0xFF0E1117) : _theme.surface;
 
   Color get bg2 => isDark ? const Color(0xFF141820) : _theme.surfaceAlt;
 
   Color get bg3 =>
-      isDark ? const Color(0xFF1C2230) : _theme.surfaceAlt.withOpacity(0.6);
+      isDark ? const Color(0xFF1C2230) : _theme.surfaceAlt.withValues(alpha: 0.6);
 
   // ── Accent (amber in dark, faction accent in light) ────────────────────────
   Color get amber => isDark ? const Color(0xFFD97706) : _theme.accent;
   Color get amberBright => isDark ? const Color(0xFFF59E0B) : _theme.accent;
   Color get amberDim => isDark ? const Color(0xFF92400E) : _theme.accentSoft;
   Color get amberGlow =>
-      isDark ? const Color(0xFFFFB020) : _theme.accent.withOpacity(0.5);
+      isDark ? const Color(0xFFFFB020) : _theme.accent.withValues(alpha: 0.5);
 
   // ── Text ───────────────────────────────────────────────────────────────────
   Color get textPrimary => isDark ? const Color(0xFFE8DCC8) : _theme.text;
   Color get textSecondary =>
-      isDark ? const Color(0xFF8A7B6A) : _theme.text.withOpacity(0.65);
+      isDark ? const Color(0xFF8A7B6A) : _theme.text.withValues(alpha: 0.65);
   Color get textMuted => isDark ? const Color(0xFF4A3F35) : _theme.textMuted;
 
   // ── Borders ────────────────────────────────────────────────────────────────
   Color get borderDim =>
-      isDark ? const Color(0xFF252D3A) : _theme.border.withOpacity(0.3);
+      isDark ? const Color(0xFF252D3A) : _theme.border.withValues(alpha: 0.3);
   Color get borderMid =>
-      isDark ? const Color(0xFF3A3020) : _theme.border.withOpacity(0.5);
+      isDark ? const Color(0xFF3A3020) : _theme.border.withValues(alpha: 0.5);
   Color get borderAccent =>
       isDark ? const Color(0xFF6B4C20) : _theme.accentSoft;
 
@@ -350,7 +350,7 @@ extension FactionThemeX on FactionTheme {
   Color get meterTrack =>
       isDark ? const Color(0xFF1A1E31) : const Color(0xFFE7EAF5);
   List<Color> get meterFill => [
-    accent.withOpacity(isDark ? 0.35 : 0.25),
+    accent.withValues(alpha: isDark ? 0.35 : 0.25),
     accent,
   ];
 
@@ -362,12 +362,12 @@ extension FactionThemeX on FactionTheme {
     boxShadow: [
       if (isDark)
         BoxShadow(
-          color: Colors.black.withOpacity(0.45),
+          color: Colors.black.withValues(alpha: 0.45),
           blurRadius: 22,
           offset: const Offset(0, 12),
         ),
       BoxShadow(
-        color: rim.withOpacity(isDark ? 0.14 : 0.10),
+        color: rim.withValues(alpha: isDark ? 0.14 : 0.10),
         blurRadius: 26,
         spreadRadius: 1,
       ),
@@ -379,7 +379,7 @@ extension FactionThemeX on FactionTheme {
     color: surfaceAlt,
     borderRadius: BorderRadius.circular(5),
     boxShadow: [
-      BoxShadow(color: rim.withOpacity(isDark ? 0.16 : 0.12), blurRadius: 18),
+      BoxShadow(color: rim.withValues(alpha: isDark ? 0.16 : 0.12), blurRadius: 18),
     ],
   );
 }

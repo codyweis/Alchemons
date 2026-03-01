@@ -49,6 +49,30 @@ extension RiftFactionExt on RiftFaction {
     RiftFaction.earthen => {'Earth', 'Mud', 'Crystal', 'Dust'},
     RiftFaction.arcane => {'Dark', 'Spirit', 'Lightning', 'Poison'},
   };
+
+  /// Factions that may spawn in a given scene.
+  /// Arcane can appear anywhere; the others are biome-locked.
+  static List<RiftFaction> allowedForScene(String sceneId) {
+    final biomeSpecific = switch (sceneId) {
+      'valley' => RiftFaction.earthen,
+      'swamp' => RiftFaction.oceanic,
+      'volcano' => RiftFaction.volcanic,
+      'sky' => RiftFaction.verdant,
+      _ => null,
+    };
+    return [
+      if (biomeSpecific != null) biomeSpecific,
+      RiftFaction.arcane, // always eligible
+    ];
+  }
+
+  /// Pick a random faction valid for [sceneId].
+  static RiftFaction randomForScene(String sceneId, [Random? rng]) {
+    final r = rng ?? Random();
+    final pool = allowedForScene(sceneId);
+    return pool[r.nextInt(pool.length)];
+  }
+
   static RiftFaction random([Random? rng]) {
     final r = rng ?? Random();
     return RiftFaction.values[r.nextInt(RiftFaction.values.length)];
@@ -143,7 +167,7 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
       Offset(cx, cy),
       r * 2.6,
       Paint()
-        ..color = color.withOpacity(0.07 * pulse)
+        ..color = color.withValues(alpha: 0.07 * pulse)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 32),
     );
 
@@ -152,7 +176,7 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
       Offset(cx, cy),
       r * 1.7,
       Paint()
-        ..color = color.withOpacity(0.14 * pulse)
+        ..color = color.withValues(alpha: 0.14 * pulse)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
     );
 
@@ -170,9 +194,9 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
       Paint()
         ..shader = RadialGradient(
           colors: [
-            color.withOpacity(0),
-            color.withOpacity(0.55 * pulse),
-            color.withOpacity(0),
+            color.withValues(alpha: 0),
+            color.withValues(alpha: 0.55 * pulse),
+            color.withValues(alpha: 0),
           ],
           stops: const [0.45, 0.68, 1.0],
         ).createShader(diskRect),
@@ -203,14 +227,14 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
         Offset(px, py),
         p.size * pulse,
         Paint()
-          ..color = color.withOpacity(p.opacity * pulse)
+          ..color = color.withValues(alpha: p.opacity * pulse)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8),
       );
     }
 
     // ── Inward spiral arms ────────────────────────────────────────────────────
     final spiralPaint = Paint()
-      ..color = color.withOpacity(0.28 * pulse)
+      ..color = color.withValues(alpha: 0.28 * pulse)
       ..strokeWidth = 0.7
       ..style = PaintingStyle.stroke;
 
@@ -238,7 +262,7 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
       Offset(cx, cy),
       r * pulse,
       Paint()
-        ..color = color.withOpacity(0.22 * pulse)
+        ..color = color.withValues(alpha: 0.22 * pulse)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),

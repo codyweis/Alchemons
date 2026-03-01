@@ -90,6 +90,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
   String? _filterTint;
   String? _filterNature;
   bool _filterPrismatic = false;
+  bool _filterFavorites = false;
   String? _filterVariant;
 
   late final List<String> _sizeCycle = sizeLabels.keys.toList(growable: false);
@@ -249,24 +250,30 @@ class _InstancesSheetState extends State<InstancesSheet> {
             }
 
             visible = visible.where((inst) {
-              if (_filterPrismatic && inst.isPrismaticSkin != true)
+              if (_filterFavorites && inst.isFavorite != true) return false;
+              if (_filterPrismatic && inst.isPrismaticSkin != true) {
                 return false;
+              }
               final hasVariant = inst.variantFaction?.isNotEmpty == true;
               if (_filterVariant == '__NON__') {
                 if (hasVariant) return false;
               } else if (_filterVariant != null) {
                 if (!hasVariant) return false;
                 if (inst.variantFaction!.trim().toLowerCase() !=
-                    _filterVariant!.toLowerCase())
+                    _filterVariant!.toLowerCase()) {
                   return false;
+                }
               }
               final g = decodeGenetics(inst.geneticsJson);
-              if (_filterSize != null && g?.get('size') != _filterSize)
+              if (_filterSize != null && g?.get('size') != _filterSize) {
                 return false;
-              if (_filterTint != null && g?.get('tinting') != _filterTint)
+              }
+              if (_filterTint != null && g?.get('tinting') != _filterTint) {
                 return false;
-              if (_filterNature != null && inst.natureId != _filterNature)
+              }
+              if (_filterNature != null && inst.natureId != _filterNature) {
                 return false;
+              }
               return true;
             }).toList();
 
@@ -303,6 +310,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       _searchText.trim().isNotEmpty ||
                       _sortBy != SortBy.newest
                 : _filterPrismatic ||
+                      _filterFavorites ||
                       _filterVariant != null ||
                       _filterSize != null ||
                       _filterTint != null ||
@@ -355,8 +363,12 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       filterNature: _filterNature,
                       onPickNature: (val) => _mutate(() => _filterNature = val),
                       natureOptions: _buildNatureOptions(),
+                      filterFavorites: _filterFavorites,
+                      onToggleFavorites: () =>
+                          _mutate(() => _filterFavorites = !_filterFavorites),
                       onClearAll: () => _mutate(() {
                         _filterPrismatic = false;
+                        _filterFavorites = false;
                         _filterVariant = null;
                         _filterSize = null;
                         _filterTint = null;
@@ -563,7 +575,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
           border: Border.all(
             color: _detailMode == InstanceDetailMode.info
                 ? t.borderDim
-                : color.withOpacity(0.5),
+                : color.withValues(alpha: 0.5),
           ),
         ),
         child: Row(
@@ -603,7 +615,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
         height: 36,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: hasFiltersActive ? t.amber.withOpacity(0.12) : t.bg2,
+          color: hasFiltersActive ? t.amber.withValues(alpha: 0.12) : t.bg2,
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
             color: hasFiltersActive ? t.borderAccent : t.borderDim,

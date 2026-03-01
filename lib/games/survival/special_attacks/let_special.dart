@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
@@ -74,7 +73,7 @@ class LetMeteorMechanic {
               radius: 12,
               position: meteor.position.clone(),
               anchor: Anchor.center,
-              paint: Paint()..color = color.withOpacity(0.4),
+              paint: Paint()..color = color.withValues(alpha: 0.4),
             )..add(
               SequenceEffect([
                 ScaleEffect.to(
@@ -238,7 +237,7 @@ class LetMeteorMechanic {
                   radius: 10,
                   position: meteor.position.clone(),
                   anchor: Anchor.center,
-                  paint: Paint()..color = color.withOpacity(0.5),
+                  paint: Paint()..color = color.withValues(alpha: 0.5),
                 )..add(
                   SequenceEffect([
                     ScaleEffect.to(
@@ -401,7 +400,7 @@ class LetMeteorMechanic {
                 radius: 140,
                 position: impactPos,
                 anchor: Anchor.center,
-                paint: Paint()..color = color.withOpacity(0.2),
+                paint: Paint()..color = color.withValues(alpha: 0.2),
               );
 
               freezeZone.add(
@@ -545,7 +544,7 @@ class LetMeteorMechanic {
               radius: 35,
               position: meteor.position.clone(),
               anchor: Anchor.center,
-              paint: Paint()..color = color.withOpacity(0.4),
+              paint: Paint()..color = color.withValues(alpha: 0.4),
             )..add(
               SequenceEffect([
                 ScaleEffect.to(
@@ -696,7 +695,7 @@ class LetMeteorMechanic {
             radius: 50,
             position: impactPos,
             anchor: Anchor.center,
-            paint: Paint()..color = color.withOpacity(0.7),
+            paint: Paint()..color = color.withValues(alpha: 0.7),
           );
           voidZone.add(
             ScaleEffect.to(Vector2.all(3.5), EffectController(duration: 1.5)),
@@ -820,7 +819,7 @@ class LetMeteorMechanic {
       radius: cloudRadius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = color.withOpacity(0.25),
+      paint: Paint()..color = color.withValues(alpha: 0.25),
     );
 
     // Periodically re-apply weaker poison inside the cloud
@@ -908,7 +907,7 @@ class LetMeteorMechanic {
                   radius: 8,
                   position: seed.position.clone(),
                   anchor: Anchor.center,
-                  paint: Paint()..color = color.withOpacity(0.5),
+                  paint: Paint()..color = color.withValues(alpha: 0.5),
                 )..add(
                   SequenceEffect([
                     ScaleEffect.to(
@@ -959,7 +958,7 @@ class LetMeteorMechanic {
                 radius: gardenRadius,
                 position: impactPos,
                 anchor: Anchor.center,
-                paint: Paint()..color = Colors.green.withOpacity(0.28),
+                paint: Paint()..color = Colors.green.withValues(alpha: 0.28),
               );
 
               garden.add(
@@ -1162,7 +1161,7 @@ class LetMeteorMechanic {
             position: gpos,
             anchor: Anchor.center,
             paint: Paint()
-              ..color = color.withOpacity(0.45)
+              ..color = color.withValues(alpha: 0.45)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 3,
           )..add(
@@ -1203,7 +1202,7 @@ class LetMeteorMechanic {
             radius: 50,
             position: gpos,
             anchor: Anchor.center,
-            paint: Paint()..color = color.withOpacity(0.25),
+            paint: Paint()..color = color.withValues(alpha: 0.25),
           );
           patch.add(
             TimerComponent(
@@ -1263,7 +1262,7 @@ class LetMeteorMechanic {
                   radius: 8,
                   position: meteor.position.clone(),
                   anchor: Anchor.center,
-                  paint: Paint()..color = color.withOpacity(0.5),
+                  paint: Paint()..color = color.withValues(alpha: 0.5),
                 )..add(
                   SequenceEffect([
                     ScaleEffect.to(
@@ -1338,7 +1337,7 @@ class LetMeteorMechanic {
               radius: 28,
               position: meteor.position.clone(),
               anchor: Anchor.center,
-              paint: Paint()..color = color.withOpacity(0.35),
+              paint: Paint()..color = color.withValues(alpha: 0.35),
             )..add(
               SequenceEffect([
                 ScaleEffect.to(
@@ -1373,7 +1372,7 @@ class LetMeteorMechanic {
             radius: swampRadius,
             position: impactPos,
             anchor: Anchor.center,
-            paint: Paint()..color = color.withOpacity(0.3),
+            paint: Paint()..color = color.withValues(alpha: 0.3),
           );
           swamp.add(
             TimerComponent(
@@ -1438,7 +1437,7 @@ class LetMeteorMechanic {
               radius: 22,
               position: meteor.position.clone(),
               anchor: Anchor.center,
-              paint: Paint()..color = color.withOpacity(0.4),
+              paint: Paint()..color = color.withValues(alpha: 0.4),
             )..add(
               SequenceEffect([
                 ScaleEffect.to(
@@ -1472,7 +1471,7 @@ class LetMeteorMechanic {
             radius: stormRadius,
             position: impactPos,
             anchor: Anchor.center,
-            paint: Paint()..color = color.withOpacity(0.2),
+            paint: Paint()..color = color.withValues(alpha: 0.2),
           );
           storm.add(
             TimerComponent(
@@ -1533,7 +1532,7 @@ class LetMeteorMechanic {
             position: impactPos,
             anchor: Anchor.center,
             paint: Paint()
-              ..color = color.withOpacity(0.7)
+              ..color = color.withValues(alpha: 0.7)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 5,
           )..add(
@@ -1587,7 +1586,7 @@ class LetMeteorMechanic {
                   radius: 10,
                   position: meteor.position.clone(),
                   anchor: Anchor.center,
-                  paint: Paint()..color = color.withOpacity(0.45),
+                  paint: Paint()..color = color.withValues(alpha: 0.45),
                 )..add(
                   SequenceEffect([
                     ScaleEffect.to(
@@ -1780,7 +1779,7 @@ class LetMeteorMechanic {
       position: center,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.deepOrange.withOpacity(0.3)
+        ..color = Colors.deepOrange.withValues(alpha: 0.3)
         ..style = PaintingStyle.fill,
     );
 
@@ -1839,7 +1838,7 @@ class LetMeteorMechanic {
       radius: poolRadius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.orange.shade800.withOpacity(0.4),
+      paint: Paint()..color = Colors.orange.shade800.withValues(alpha: 0.4),
     );
 
     lavaPool.add(
@@ -1960,7 +1959,7 @@ class LetMeteorMechanic {
       radius: iceRadius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.cyanAccent.withOpacity(0.25),
+      paint: Paint()..color = Colors.cyanAccent.withValues(alpha: 0.25),
     );
 
     iceField.add(
@@ -2028,7 +2027,7 @@ class LetMeteorMechanic {
       radius: radius * 0.7,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.blueGrey.shade300.withOpacity(0.3),
+      paint: Paint()..color = Colors.blueGrey.shade300.withValues(alpha: 0.3),
     );
     cloud.add(
       SequenceEffect([
@@ -2065,7 +2064,7 @@ class LetMeteorMechanic {
       radius: gardenRadius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.green.withOpacity(0.3),
+      paint: Paint()..color = Colors.green.withValues(alpha: 0.3),
     );
 
     garden.add(
@@ -2141,7 +2140,7 @@ class LetMeteorMechanic {
       radius: radius * 0.6,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.purple.withOpacity(0.25),
+      paint: Paint()..color = Colors.purple.withValues(alpha: 0.25),
     );
 
     cloud.add(
@@ -2231,7 +2230,7 @@ class LetMeteorMechanic {
       radius: mudRadius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.brown.shade600.withOpacity(0.4),
+      paint: Paint()..color = Colors.brown.shade600.withValues(alpha: 0.4),
     );
 
     mudPool.add(
@@ -2362,7 +2361,7 @@ class LetMeteorMechanic {
       radius: radius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.amber.shade300.withOpacity(0.35),
+      paint: Paint()..color = Colors.amber.shade300.withValues(alpha: 0.35),
     );
 
     sandstorm.add(

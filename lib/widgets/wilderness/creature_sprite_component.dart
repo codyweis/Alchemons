@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'dart:math' as math;
 
-import 'package:alchemons/games/boss/sprite_battle_adapter.dart';
 import 'package:alchemons/games/sprite_effects/sprite_elemental_aura_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_glow_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_prismatic_cascade_component.dart';

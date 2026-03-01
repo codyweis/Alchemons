@@ -225,7 +225,7 @@ class _ParticlePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.saveLayer(Rect.largest, Paint());
     for (final p in particles) {
-      _paint.color = p.color.withOpacity(p.opacity * globalOpacity);
+      _paint.color = p.color.withValues(alpha: p.opacity * globalOpacity);
       canvas.drawCircle(Offset(p.x, p.y), p.radius, _paint);
     }
     canvas.restore();

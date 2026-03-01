@@ -488,7 +488,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
           return Icon(
             Icons.pets,
-            color: Colors.white.withOpacity(.8),
+            color: Colors.white.withValues(alpha: .8),
             size: 64,
           );
         }
@@ -561,7 +561,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           );
         }
 
-        return Icon(Icons.pets, color: Colors.white.withOpacity(.8), size: 64);
+        return Icon(Icons.pets, color: Colors.white.withValues(alpha: .8), size: 64);
       }
 
       Color colorOf(Creature? c, Color fallback) =>
@@ -781,14 +781,14 @@ class _WildCreatureTitle extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: _rarityColor.withOpacity(0.4),
+                color: _rarityColor.withValues(alpha: 0.4),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
           child: Text(
-            '${rarity.toUpperCase()}', // Added 'RANK'
+            rarity.toUpperCase(), // Added 'RANK'
             style: const TextStyle(
               color: Colors.white,
               fontSize: 11,
@@ -925,7 +925,7 @@ class _PartyHUD extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: t.bg1.withOpacity(0.88),
+        color: t.bg1.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(3),
         border: Border.all(color: t.borderDim, width: 1),
       ),
@@ -981,7 +981,7 @@ class _PartyMemberCard extends StatelessWidget {
             width: 56,
             padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: selected ? t.amber.withOpacity(0.12) : t.bg2,
+              color: selected ? t.amber.withValues(alpha: 0.12) : t.bg2,
               borderRadius: BorderRadius.circular(3),
               border: Border.all(
                 color: selected ? t.amber : t.borderDim,
@@ -990,7 +990,7 @@ class _PartyMemberCard extends StatelessWidget {
               boxShadow: selected
                   ? [
                       BoxShadow(
-                        color: t.amber.withOpacity(0.28),
+                        color: t.amber.withValues(alpha: 0.28),
                         blurRadius: 10,
                         spreadRadius: 1,
                       ),
@@ -1147,7 +1147,7 @@ class _ActionButton extends StatelessWidget {
               ? null
               : [
                   BoxShadow(
-                    color: effectiveAccent.withOpacity(0.3),
+                    color: effectiveAccent.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 3),
                   ),

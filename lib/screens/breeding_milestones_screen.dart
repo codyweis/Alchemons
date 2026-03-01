@@ -63,9 +63,9 @@ class BreedingMilestoneScreen extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: rarityColor.withOpacity(0.15),
+                    color: rarityColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: rarityColor.withOpacity(0.5)),
+                    border: Border.all(color: rarityColor.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     rarity.toUpperCase(),
@@ -201,10 +201,10 @@ class BreedingMilestoneScreen extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: rarityColor.withOpacity(0.15),
+                          color: rarityColor.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(2),
                           border: Border.all(
-                            color: rarityColor.withOpacity(0.5),
+                            color: rarityColor.withValues(alpha: 0.5),
                           ),
                         ),
                         child: Row(
@@ -266,9 +266,9 @@ class BreedingMilestoneScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: t.success.withOpacity(0.1),
+                color: t.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(2),
-                border: Border.all(color: t.success.withOpacity(0.45)),
+                border: Border.all(color: t.success.withValues(alpha: 0.45)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -347,12 +347,12 @@ class BreedingMilestoneScreen extends StatelessWidget {
     final rarityColor = _rarityColor(rarity, t);
 
     final borderColor = isComplete
-        ? t.amber.withOpacity(0.55)
+        ? t.amber.withValues(alpha: 0.55)
         : isCurrent
-        ? t.amberDim.withOpacity(0.6)
+        ? t.amberDim.withValues(alpha: 0.6)
         : t.borderDim;
     final bgColor = isComplete
-        ? t.amber.withOpacity(0.08)
+        ? t.amber.withValues(alpha: 0.08)
         : isCurrent
         ? t.bg2
         : t.bg1;
@@ -371,7 +371,7 @@ class BreedingMilestoneScreen extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: isComplete ? t.amber.withOpacity(0.18) : t.bg3,
+              color: isComplete ? t.amber.withValues(alpha: 0.18) : t.bg3,
               borderRadius: BorderRadius.circular(2),
               border: Border.all(color: isComplete ? t.amber : t.borderDim),
             ),
@@ -446,10 +446,10 @@ class BreedingMilestoneScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isComplete ? rarityColor.withOpacity(0.18) : t.bg3,
+              color: isComplete ? rarityColor.withValues(alpha: 0.18) : t.bg3,
               borderRadius: BorderRadius.circular(2),
               border: Border.all(
-                color: isComplete ? rarityColor.withOpacity(0.6) : t.borderDim,
+                color: isComplete ? rarityColor.withValues(alpha: 0.6) : t.borderDim,
               ),
             ),
             child: Row(

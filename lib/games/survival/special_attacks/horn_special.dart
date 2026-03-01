@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
@@ -9,7 +8,6 @@ import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
-import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
 /// HORN FAMILY - NOVA MECHANIC
@@ -60,7 +58,7 @@ class HornNovaMechanic {
       position: attacker.position.clone(),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = color.withOpacity(0.7)
+        ..color = color.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = isCataclysmic ? 12 : 8,
     );
@@ -257,7 +255,7 @@ class HornNovaMechanic {
         position: center,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.deepOrange.withOpacity(0.2)
+          ..color = Colors.deepOrange.withValues(alpha: 0.2)
           ..style = PaintingStyle.fill,
       );
 
@@ -387,7 +385,7 @@ class HornNovaMechanic {
       radius: radius * 0.9,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.cyanAccent.withOpacity(0.2),
+      paint: Paint()..color = Colors.cyanAccent.withValues(alpha: 0.2),
     );
 
     slowZone.add(
@@ -483,7 +481,7 @@ class HornNovaMechanic {
       radius: radius * 0.7,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.green.withOpacity(0.2),
+      paint: Paint()..color = Colors.green.withValues(alpha: 0.2),
     );
 
     rootZone.add(
@@ -575,7 +573,7 @@ class HornNovaMechanic {
         position: attacker.position.clone(),
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.brown.shade400.withOpacity(0.3)
+          ..color = Colors.brown.shade400.withValues(alpha: 0.3)
           ..style = PaintingStyle.fill,
       );
 
@@ -585,7 +583,7 @@ class HornNovaMechanic {
         position: Vector2(tauntRadius, tauntRadius),
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.orange.shade700.withOpacity(0.5)
+          ..color = Colors.orange.shade700.withValues(alpha: 0.5)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 4,
       );
@@ -674,7 +672,7 @@ class HornNovaMechanic {
           position: attacker.position.clone(),
           anchor: Anchor.center,
           paint: Paint()
-            ..color = Colors.brown.withOpacity(0.5)
+            ..color = Colors.brown.withValues(alpha: 0.5)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 4,
         );
@@ -707,7 +705,7 @@ class HornNovaMechanic {
       radius: radius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.brown.shade600.withOpacity(0.3),
+      paint: Paint()..color = Colors.brown.shade600.withValues(alpha: 0.3),
     );
 
     mudZone.add(
@@ -830,7 +828,7 @@ class HornNovaMechanic {
       radius: radius * 0.8,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.amber.shade300.withOpacity(0.3),
+      paint: Paint()..color = Colors.amber.shade300.withValues(alpha: 0.3),
     );
 
     cloud.add(

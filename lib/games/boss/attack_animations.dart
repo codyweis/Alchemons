@@ -2,7 +2,6 @@
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
-import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 
@@ -125,7 +124,7 @@ class FireAnimation extends AttackAnimation {
       radius: 20,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.deepOrange.withOpacity(0.7),
+      paint: Paint()..color = Colors.deepOrange.withValues(alpha: 0.7),
     );
     flash.add(
       ScaleEffect.to(
@@ -213,7 +212,7 @@ class WaterAnimation extends AttackAnimation {
         position: targetPosition,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.lightBlue.withOpacity(0.65 - r * 0.1)
+          ..color = Colors.lightBlue.withValues(alpha: 0.65 - r * 0.1)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3.0 - r * 0.5,
       );
@@ -240,7 +239,7 @@ class WaterAnimation extends AttackAnimation {
             Colors.blue,
             Colors.lightBlue,
             Colors.cyan,
-          ][rng.nextInt(3)].withOpacity(0.85),
+          ][rng.nextInt(3)].withValues(alpha: 0.85),
       );
       drop.add(
         SequenceEffect([
@@ -267,7 +266,7 @@ class WaterAnimation extends AttackAnimation {
         position: targetPosition.clone(),
         angle: angle,
         anchor: Anchor.centerLeft,
-        paint: Paint()..color = Colors.cyan.withOpacity(0.7),
+        paint: Paint()..color = Colors.cyan.withValues(alpha: 0.7),
       );
       streak.add(
         MoveEffect.by(
@@ -295,7 +294,7 @@ class EarthAnimation extends AttackAnimation {
       position: targetPosition,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = const Color(0xFF8B6914).withOpacity(0.75)
+        ..color = const Color(0xFF8B6914).withValues(alpha: 0.75)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4,
     );
@@ -348,7 +347,7 @@ class EarthAnimation extends AttackAnimation {
         radius: 2 + rng.nextDouble() * 3,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.brown.withOpacity(0.5),
+        paint: Paint()..color = Colors.brown.withValues(alpha: 0.5),
       );
       dust.add(
         MoveEffect.by(
@@ -380,7 +379,7 @@ class AirAnimation extends AttackAnimation {
         position: targetPosition,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.white.withOpacity(0.45 - r * 0.08)
+          ..color = Colors.white.withValues(alpha: 0.45 - r * 0.08)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5 - r * 0.3,
       );
@@ -405,7 +404,7 @@ class AirAnimation extends AttackAnimation {
             Vector2(cos(blade + pi) * len / 2, sin(blade + pi) * len / 2),
         angle: blade,
         anchor: Anchor.centerLeft,
-        paint: Paint()..color = Colors.white.withOpacity(0.6),
+        paint: Paint()..color = Colors.white.withValues(alpha: 0.6),
       );
       streak.add(
         ScaleEffect.to(
@@ -425,7 +424,7 @@ class AirAnimation extends AttackAnimation {
         radius: 1 + rng.nextDouble() * 1.5,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withOpacity(0.4),
+        paint: Paint()..color = Colors.white.withValues(alpha: 0.4),
       );
       debris.add(
         MoveEffect.by(
@@ -452,7 +451,7 @@ class IceAnimation extends AttackAnimation {
       radius: 15,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.lightBlue.withOpacity(0.8),
+      paint: Paint()..color = Colors.lightBlue.withValues(alpha: 0.8),
     );
     flash.add(
       ScaleEffect.to(
@@ -469,7 +468,7 @@ class IceAnimation extends AttackAnimation {
       position: targetPosition,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.cyan.withOpacity(0.9)
+        ..color = Colors.cyan.withValues(alpha: 0.9)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3.5,
     );
@@ -518,7 +517,7 @@ class IceAnimation extends AttackAnimation {
             targetPosition +
             Vector2(-55 + rng.nextDouble() * 110, -65 - rng.nextDouble() * 30),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withOpacity(0.85),
+        paint: Paint()..color = Colors.white.withValues(alpha: 0.85),
       );
       snow.add(
         MoveEffect.by(
@@ -565,7 +564,7 @@ class LightningAnimation extends AttackAnimation {
         position: Vector2(prevX, prevY),
         angle: angle,
         anchor: Anchor.centerLeft,
-        paint: Paint()..color = Colors.yellow.withOpacity(0.7),
+        paint: Paint()..color = Colors.yellow.withValues(alpha: 0.7),
       );
       glow.add(RemoveEffect(delay: 0.25));
       bolt.add(glow);
@@ -590,7 +589,7 @@ class LightningAnimation extends AttackAnimation {
       radius: 18,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.yellow.withOpacity(0.75),
+      paint: Paint()..color = Colors.yellow.withValues(alpha: 0.75),
     );
     impactFlash.add(
       ScaleEffect.to(
@@ -677,7 +676,7 @@ class PlantAnimation extends AttackAnimation {
             Colors.green,
             Colors.lightGreen,
             Colors.lime.shade600,
-          ][rng.nextInt(3)].withOpacity(0.85),
+          ][rng.nextInt(3)].withValues(alpha: 0.85),
       );
       leaf.add(
         MoveEffect.by(
@@ -694,7 +693,7 @@ class PlantAnimation extends AttackAnimation {
       radius: 10,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.green.withOpacity(0.4),
+      paint: Paint()..color = Colors.green.withValues(alpha: 0.4),
     );
     glow.add(
       ScaleEffect.to(
@@ -720,7 +719,7 @@ class PoisonAnimation extends AttackAnimation {
       radius: 18,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.purple.withOpacity(0.55),
+      paint: Paint()..color = Colors.purple.withValues(alpha: 0.55),
     );
     orb.add(
       ScaleEffect.to(
@@ -743,7 +742,7 @@ class PoisonAnimation extends AttackAnimation {
             Colors.purple,
             Colors.green.shade700,
             Colors.lime.shade800,
-          ][rng.nextInt(3)].withOpacity(0.7)
+          ][rng.nextInt(3)].withValues(alpha: 0.7)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5,
       );
@@ -779,7 +778,7 @@ class PoisonAnimation extends AttackAnimation {
             Colors.purple.shade600,
             Colors.green.shade600,
             Colors.lime,
-          ][rng.nextInt(3)].withOpacity(0.65),
+          ][rng.nextInt(3)].withValues(alpha: 0.65),
       );
       drop.add(
         MoveEffect.by(
@@ -808,7 +807,7 @@ class SteamAnimation extends AttackAnimation {
         position: targetPosition,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.white.withOpacity(0.25)
+          ..color = Colors.white.withValues(alpha: 0.25)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3,
       );
@@ -838,7 +837,7 @@ class SteamAnimation extends AttackAnimation {
               Colors.grey.shade300,
               Colors.blueGrey.shade200,
               Colors.white70,
-            ][rng.nextInt(3)].withOpacity(0.45 - j * 0.07),
+            ][rng.nextInt(3)].withValues(alpha: 0.45 - j * 0.07),
         );
         puff.add(
           MoveEffect.by(
@@ -869,7 +868,7 @@ class LavaAnimation extends AttackAnimation {
       radius: 14,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.deepOrange.withOpacity(0.55),
+      paint: Paint()..color = Colors.deepOrange.withValues(alpha: 0.55),
     );
     pool.add(
       ScaleEffect.to(
@@ -916,7 +915,7 @@ class LavaAnimation extends AttackAnimation {
         position: targetPosition.clone(),
         angle: angle,
         anchor: Anchor.centerLeft,
-        paint: Paint()..color = Colors.orange.withOpacity(0.75),
+        paint: Paint()..color = Colors.orange.withValues(alpha: 0.75),
       );
       splat.add(
         MoveEffect.by(
@@ -943,7 +942,7 @@ class MudAnimation extends AttackAnimation {
       size: Vector2(60, 18),
       position: targetPosition + Vector2(0, 10),
       anchor: Anchor.center,
-      paint: Paint()..color = const Color(0xFF8B7355).withOpacity(0.8),
+      paint: Paint()..color = const Color(0xFF8B7355).withValues(alpha: 0.8),
     );
     splat.add(
       ScaleEffect.to(
@@ -1000,7 +999,7 @@ class MudAnimation extends AttackAnimation {
             targetPosition +
             Vector2(-45 + rng.nextDouble() * 90, -70 - rng.nextDouble() * 30),
         anchor: Anchor.center,
-        paint: Paint()..color = const Color(0xFF8B7355).withOpacity(0.7),
+        paint: Paint()..color = const Color(0xFF8B7355).withValues(alpha: 0.7),
       );
       drip.add(
         MoveEffect.by(
@@ -1039,7 +1038,7 @@ class DustAnimation extends AttackAnimation {
             Colors.brown.shade300,
             Colors.orange.shade200,
             Colors.yellow.shade200,
-          ][rng.nextInt(3)].withOpacity(0.65),
+          ][rng.nextInt(3)].withValues(alpha: 0.65),
       );
 
       // Spiral toward target
@@ -1066,7 +1065,7 @@ class DustAnimation extends AttackAnimation {
         radius: 1 + rng.nextDouble() * 2,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.brown.shade200.withOpacity(0.55),
+        paint: Paint()..color = Colors.brown.shade200.withValues(alpha: 0.55),
       );
       burst.add(
         MoveEffect.by(
@@ -1096,7 +1095,7 @@ class CrystalAnimation extends AttackAnimation {
       radius: 12,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.white.withOpacity(0.9),
+      paint: Paint()..color = Colors.white.withValues(alpha: 0.9),
     );
     flash.add(
       ScaleEffect.to(
@@ -1148,7 +1147,7 @@ class CrystalAnimation extends AttackAnimation {
         radius: 1.5 + rng.nextDouble() * 1.5,
         position: targetPosition + Vector2(cos(angle) * r2, sin(angle) * r2),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withOpacity(0.8),
+        paint: Paint()..color = Colors.white.withValues(alpha: 0.8),
       );
       sparkle.add(
         MoveEffect.by(
@@ -1184,7 +1183,7 @@ class SpiritAnimation extends AttackAnimation {
             Colors.white,
             Colors.indigo.shade100,
             Colors.deepPurple.shade100,
-          ][i % 3].withOpacity(0.6),
+          ][i % 3].withValues(alpha: 0.6),
       );
       wisp.add(
         MoveEffect.to(
@@ -1201,7 +1200,7 @@ class SpiritAnimation extends AttackAnimation {
       radius: 22,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.white.withOpacity(0.6),
+      paint: Paint()..color = Colors.white.withValues(alpha: 0.6),
     );
     impactFlash.add(
       ScaleEffect.to(Vector2.all(2.0), EffectController(duration: 0.2)),
@@ -1216,7 +1215,7 @@ class SpiritAnimation extends AttackAnimation {
         radius: 2.5 + rng.nextDouble() * 3,
         position: targetPosition + Vector2(xOff, rng.nextDouble() * 10),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withOpacity(0.5),
+        paint: Paint()..color = Colors.white.withValues(alpha: 0.5),
       );
       trail.add(
         MoveEffect.by(
@@ -1252,7 +1251,7 @@ class DarkAnimation extends AttackAnimation {
             Colors.purple.shade900,
             Colors.deepPurple.shade700,
             Colors.black87,
-          ][rng.nextInt(3)].withOpacity(0.85),
+          ][rng.nextInt(3)].withValues(alpha: 0.85),
       );
       particle.add(
         MoveEffect.to(
@@ -1277,7 +1276,7 @@ class DarkAnimation extends AttackAnimation {
             Colors.deepPurple,
             Colors.purple.shade800,
             Colors.indigo.shade900,
-          ][rng.nextInt(3)].withOpacity(0.8),
+          ][rng.nextInt(3)].withValues(alpha: 0.8),
       );
       nova.add(
         MoveEffect.by(
@@ -1295,7 +1294,7 @@ class DarkAnimation extends AttackAnimation {
       position: targetPosition,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.deepPurple.withOpacity(0.7)
+        ..color = Colors.deepPurple.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 5,
     );
@@ -1323,7 +1322,7 @@ class LightAnimation extends AttackAnimation {
       radius: 20,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.white.withOpacity(0.95),
+      paint: Paint()..color = Colors.white.withValues(alpha: 0.95),
     );
     flash.add(
       ScaleEffect.to(
@@ -1348,7 +1347,7 @@ class LightAnimation extends AttackAnimation {
         anchor: Anchor.bottomCenter,
         paint: Paint()
           ..color = (isDiag ? Colors.yellow.shade300 : Colors.white)
-              .withOpacity(0.85),
+              .withValues(alpha: 0.85),
       );
       beam.add(
         SequenceEffect([
@@ -1377,7 +1376,7 @@ class LightAnimation extends AttackAnimation {
         radius: 1.5 + rng.nextDouble() * 2,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.yellow.withOpacity(0.8),
+        paint: Paint()..color = Colors.yellow.withValues(alpha: 0.8),
       );
       sparkle.add(
         MoveEffect.by(
@@ -1442,7 +1441,7 @@ class BloodAnimation extends AttackAnimation {
         position: targetPosition.clone(),
         angle: angle,
         anchor: Anchor.centerLeft,
-        paint: Paint()..color = Colors.red.shade900.withOpacity(0.75),
+        paint: Paint()..color = Colors.red.shade900.withValues(alpha: 0.75),
       );
       splat.add(
         MoveEffect.by(
@@ -1470,7 +1469,7 @@ class GenericAnimation extends AttackAnimation {
       position: targetPosition,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.white.withOpacity(0.6)
+        ..color = Colors.white.withValues(alpha: 0.6)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
@@ -1491,7 +1490,7 @@ class GenericAnimation extends AttackAnimation {
         radius: 2 + rng.nextDouble() * 2,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withOpacity(0.7),
+        paint: Paint()..color = Colors.white.withValues(alpha: 0.7),
       );
       spark.add(
         MoveEffect.by(
@@ -1533,7 +1532,7 @@ class SpritestrikAnimation extends AttackAnimation {
         position: targetPosition + offset,
         angle: slashAngle,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withOpacity(0.5),
+        paint: Paint()..color = Colors.white.withValues(alpha: 0.5),
       );
       glowSlash.add(
         ScaleEffect.to(Vector2(1.0, 3.0), EffectController(duration: 0.05)),
@@ -1578,7 +1577,7 @@ class SpritestrikAnimation extends AttackAnimation {
         radius: 1.5 + rng.nextDouble() * 2,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withOpacity(0.8),
+        paint: Paint()..color = Colors.white.withValues(alpha: 0.8),
       );
       spark.add(
         MoveEffect.by(
@@ -1614,7 +1613,7 @@ class PipFuryAnimation extends AttackAnimation {
         radius: 4 + rng.nextDouble() * 3,
         position: startPos,
         anchor: Anchor.center,
-        paint: Paint()..color = elementColor.withOpacity(0.9),
+        paint: Paint()..color = elementColor.withValues(alpha: 0.9),
       );
       projectile.add(
         MoveEffect.to(
@@ -1630,7 +1629,7 @@ class PipFuryAnimation extends AttackAnimation {
         radius: 8,
         position: targetPosition + Vector2(spreadX * 0.2, 0),
         anchor: Anchor.center,
-        paint: Paint()..color = elementColor.withOpacity(0.55),
+        paint: Paint()..color = elementColor.withValues(alpha: 0.55),
       );
       impact.add(
         ScaleEffect.to(
@@ -1647,7 +1646,7 @@ class PipFuryAnimation extends AttackAnimation {
       radius: 15,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = elementColor.withOpacity(0.7),
+      paint: Paint()..color = elementColor.withValues(alpha: 0.7),
     );
     finalFlash.add(
       ScaleEffect.to(
@@ -1666,7 +1665,7 @@ class PipFuryAnimation extends AttackAnimation {
         radius: 1.5 + rng.nextDouble() * 2,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = elementColor.withOpacity(0.75),
+        paint: Paint()..color = elementColor.withValues(alpha: 0.75),
       );
       shard.add(
         MoveEffect.by(
@@ -1734,7 +1733,7 @@ class ManeTrickAnimation extends AttackAnimation {
         position: ghostPos,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.purple.withOpacity(alpha)
+          ..color = Colors.purple.withValues(alpha: alpha)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5,
       );
@@ -1760,7 +1759,7 @@ class ManeTrickAnimation extends AttackAnimation {
               Colors.purple,
               Colors.deepPurple.shade300,
               Colors.pinkAccent.shade100,
-            ][rng.nextInt(3)].withOpacity(alpha * 0.8),
+            ][rng.nextInt(3)].withValues(alpha: alpha * 0.8),
         );
         particle.add(
           MoveEffect.by(
@@ -1780,7 +1779,7 @@ class ManeTrickAnimation extends AttackAnimation {
         position: targetPosition,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.purple.shade300.withOpacity(0.5)
+          ..color = Colors.purple.shade300.withValues(alpha: 0.5)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5,
       );
@@ -1815,7 +1814,7 @@ class HornGuardAnimation extends AttackAnimation {
             Colors.lightBlue,
             Colors.cyan,
             Colors.blue.shade300,
-          ][r].withOpacity(0.7)
+          ][r].withValues(alpha: 0.7)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 4 - r * 1.0,
       );
@@ -1838,7 +1837,7 @@ class HornGuardAnimation extends AttackAnimation {
         position: targetPosition + Vector2(cos(angle) * 28, sin(angle) * 28),
         angle: angle,
         anchor: Anchor.bottomCenter,
-        paint: Paint()..color = Colors.lightBlue.withOpacity(0.8),
+        paint: Paint()..color = Colors.lightBlue.withValues(alpha: 0.8),
       );
       spike.add(
         MoveEffect.by(
@@ -1861,7 +1860,7 @@ class HornGuardAnimation extends AttackAnimation {
       radius: 22,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.cyan.withOpacity(0.3),
+      paint: Paint()..color = Colors.cyan.withValues(alpha: 0.3),
     );
     fill.add(
       ScaleEffect.to(Vector2.all(2.5), EffectController(duration: 0.25)),
@@ -1895,7 +1894,7 @@ class MaskCurseAnimation extends AttackAnimation {
             Vector2(cos(startAngle) * startR, sin(startAngle) * startR),
         angle: startAngle + pi / 2,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.purple.shade900.withOpacity(0.85),
+        paint: Paint()..color = Colors.purple.shade900.withValues(alpha: 0.85),
       );
       tendril.add(
         MoveEffect.to(
@@ -1918,7 +1917,7 @@ class MaskCurseAnimation extends AttackAnimation {
             Colors.purple.shade900,
             Colors.deepPurple.shade800,
             Colors.black87,
-          ][rng.nextInt(3)].withOpacity(0.8),
+          ][rng.nextInt(3)].withValues(alpha: 0.8),
       );
       dot.add(
         MoveEffect.to(
@@ -1935,7 +1934,7 @@ class MaskCurseAnimation extends AttackAnimation {
       radius: 12,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.deepPurple.shade900.withOpacity(0.8),
+      paint: Paint()..color = Colors.deepPurple.shade900.withValues(alpha: 0.8),
     );
     nova.add(
       ScaleEffect.to(
@@ -1952,7 +1951,7 @@ class MaskCurseAnimation extends AttackAnimation {
       position: targetPosition,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.purple.withOpacity(0.7)
+        ..color = Colors.purple.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
@@ -2000,7 +1999,7 @@ class WingAssaultAnimation extends AttackAnimation {
             Colors.orange.shade300,
             Colors.amber,
             Colors.yellow.shade600,
-          ][i % 3].withOpacity(0.85),
+          ][i % 3].withValues(alpha: 0.85),
       );
       shaft.add(
         MoveEffect.to(
@@ -2017,7 +2016,7 @@ class WingAssaultAnimation extends AttackAnimation {
         position: startPos + Vector2(cos(fanAngle) * 10, sin(fanAngle) * 10),
         angle: fanAngle,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.orange.shade100.withOpacity(0.6),
+        paint: Paint()..color = Colors.orange.shade100.withValues(alpha: 0.6),
       );
       barb.add(
         MoveEffect.to(
@@ -2035,7 +2034,7 @@ class WingAssaultAnimation extends AttackAnimation {
       position: targetPosition,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.orange.withOpacity(0.55)
+        ..color = Colors.orange.withValues(alpha: 0.55)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4,
     );
@@ -2056,7 +2055,7 @@ class WingAssaultAnimation extends AttackAnimation {
         radius: 2 + rng.nextDouble() * 2.5,
         position: targetPosition.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.orange.withOpacity(0.75),
+        paint: Paint()..color = Colors.orange.withValues(alpha: 0.75),
       );
       spark.add(
         MoveEffect.by(
@@ -2092,7 +2091,7 @@ class KinBlessingAnimation extends AttackAnimation {
             Colors.green,
             Colors.lightGreen,
             Colors.greenAccent,
-          ][r].withOpacity(0.6 - r * 0.12)
+          ][r].withValues(alpha: 0.6 - r * 0.12)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3.5 - r * 0.8,
       );
@@ -2111,7 +2110,7 @@ class KinBlessingAnimation extends AttackAnimation {
       radius: 20,
       position: targetPosition,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.green.withOpacity(0.25),
+      paint: Paint()..color = Colors.green.withValues(alpha: 0.25),
     );
     fill.add(ScaleEffect.to(Vector2.all(3), EffectController(duration: 0.3)));
     fill.add(RemoveEffect(delay: 0.3));
@@ -2123,7 +2122,7 @@ class KinBlessingAnimation extends AttackAnimation {
         size: axis == 0 ? Vector2(40, 4) : Vector2(4, 40),
         position: targetPosition,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.lightGreen.withOpacity(0.85),
+        paint: Paint()..color = Colors.lightGreen.withValues(alpha: 0.85),
       );
       crossBar.add(
         ScaleEffect.to(
@@ -2147,7 +2146,7 @@ class KinBlessingAnimation extends AttackAnimation {
             Colors.greenAccent,
             Colors.lightGreen,
             Colors.yellow.shade400,
-          ][rng.nextInt(3)].withOpacity(0.8),
+          ][rng.nextInt(3)].withValues(alpha: 0.8),
       );
       sparkle.add(
         MoveEffect.by(
@@ -2204,7 +2203,7 @@ class MysticPowerAnimation extends AttackAnimation {
             Colors.amber,
             Colors.white,
             Colors.yellow.shade300,
-          ][r].withOpacity(0.55 - r * 0.08)
+          ][r].withValues(alpha: 0.55 - r * 0.08)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5,
       );
@@ -2227,7 +2226,7 @@ class MysticPowerAnimation extends AttackAnimation {
         position: targetPosition,
         angle: angle,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.amber.withOpacity(0.8),
+        paint: Paint()..color = Colors.amber.withValues(alpha: 0.8),
       );
       rune.add(
         MoveEffect.by(

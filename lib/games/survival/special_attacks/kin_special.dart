@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
@@ -9,7 +8,6 @@ import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
-import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
 /// KIN FAMILY - BLESSING MECHANIC
@@ -47,7 +45,7 @@ class KinBlessingMechanic {
       position: attacker.position.clone(),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = color.withOpacity(0.5)
+        ..color = color.withValues(alpha: 0.5)
         ..style = PaintingStyle.stroke
         ..strokeWidth = isDivine ? 8 : 5,
     );
@@ -201,7 +199,7 @@ class KinBlessingMechanic {
         radius: auraRadius,
         position: Vector2.zero(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.deepOrange.withOpacity(0.15),
+        paint: Paint()..color = Colors.deepOrange.withValues(alpha: 0.15),
       );
 
       aura.add(
@@ -308,7 +306,7 @@ class KinBlessingMechanic {
       radius: wellRadius,
       position: game.orb.position.clone(),
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.red.withOpacity(0.25),
+      paint: Paint()..color = Colors.red.withValues(alpha: 0.25),
     );
 
     bloodWell.add(
@@ -397,7 +395,7 @@ class KinBlessingMechanic {
       radius: iceRadius,
       position: game.orb.position.clone(),
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.cyanAccent.withOpacity(0.2),
+      paint: Paint()..color = Colors.cyanAccent.withValues(alpha: 0.2),
     );
 
     iceZone.add(
@@ -450,7 +448,7 @@ class KinBlessingMechanic {
       position: game.orb.position.clone(),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.blueGrey.shade200.withOpacity(0.35)
+        ..color = Colors.blueGrey.shade200.withValues(alpha: 0.35)
         ..style = PaintingStyle.fill,
     );
 
@@ -460,7 +458,7 @@ class KinBlessingMechanic {
       position: Vector2(steamRadius, steamRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.white.withOpacity(0.3)
+        ..color = Colors.white.withValues(alpha: 0.3)
         ..style = PaintingStyle.fill,
     );
     steamCloud.add(steamWisp);
@@ -598,7 +596,7 @@ class KinBlessingMechanic {
       radius: gardenRadius,
       position: game.orb.position.clone(),
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.green.withOpacity(0.2),
+      paint: Paint()..color = Colors.green.withValues(alpha: 0.2),
     );
 
     garden.add(
@@ -668,7 +666,7 @@ class KinBlessingMechanic {
       radius: gardenRadius,
       position: game.orb.position.clone(),
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.green.withOpacity(0.28),
+      paint: Paint()..color = Colors.green.withValues(alpha: 0.28),
     );
 
     cloud.add(
@@ -745,7 +743,7 @@ class KinBlessingMechanic {
       radius: mudRadius,
       position: game.orb.position.clone(),
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.brown.shade600.withOpacity(0.3),
+      paint: Paint()..color = Colors.brown.shade600.withValues(alpha: 0.3),
     );
 
     mudField.add(
@@ -852,7 +850,7 @@ class KinBlessingMechanic {
       position: game.orb.position.clone(),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.cyan.withOpacity(0.2)
+        ..color = Colors.cyan.withValues(alpha: 0.2)
         ..style = PaintingStyle.fill,
     );
 
@@ -862,7 +860,7 @@ class KinBlessingMechanic {
       position: Vector2(barrierRadius, barrierRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.white.withOpacity(0.3)
+        ..color = Colors.white.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
@@ -874,7 +872,7 @@ class KinBlessingMechanic {
       position: Vector2(barrierRadius, barrierRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.cyan.withOpacity(0.25)
+        ..color = Colors.cyan.withValues(alpha: 0.25)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
@@ -1001,7 +999,7 @@ class KinBlessingMechanic {
       position: game.orb.position.clone(),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.amber.shade300.withOpacity(0.35)
+        ..color = Colors.amber.shade300.withValues(alpha: 0.35)
         ..style = PaintingStyle.fill,
     );
 
@@ -1011,7 +1009,7 @@ class KinBlessingMechanic {
       position: Vector2(cloudRadius, cloudRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.amber.shade600.withOpacity(0.3)
+        ..color = Colors.amber.shade600.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4,
     );
@@ -1211,7 +1209,7 @@ class KinBlessingMechanic {
       position: game.orb.position.clone(),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.deepPurple.shade900.withOpacity(0.4)
+        ..color = Colors.deepPurple.shade900.withValues(alpha: 0.4)
         ..style = PaintingStyle.fill,
     );
 
@@ -1221,7 +1219,7 @@ class KinBlessingMechanic {
       position: Vector2(zoneRadius, zoneRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.black.withOpacity(0.6)
+        ..color = Colors.black.withValues(alpha: 0.6)
         ..style = PaintingStyle.fill,
     );
     deathZone.add(voidCore);
@@ -1246,7 +1244,7 @@ class KinBlessingMechanic {
       position: Vector2(zoneRadius, zoneRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.purple.withOpacity(0.4)
+        ..color = Colors.purple.withValues(alpha: 0.4)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );

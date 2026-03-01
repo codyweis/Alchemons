@@ -53,11 +53,11 @@ class WaveTelegraph extends PositionComponent {
       ..lineTo(-120, 45)
       ..close();
 
-    canvas.drawPath(path, Paint()..color = color.withOpacity(alpha * 0.6));
+    canvas.drawPath(path, Paint()..color = color.withValues(alpha: alpha * 0.6));
     canvas.drawPath(
       path,
       Paint()
-        ..color = Colors.white.withOpacity(alpha * 0.8)
+        ..color = Colors.white.withValues(alpha: alpha * 0.8)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
@@ -69,7 +69,7 @@ class WaveTelegraph extends PositionComponent {
         const Offset(-70, 0),
         20 + ringProgress * 40,
         Paint()
-          ..color = color.withOpacity((1.0 - ringProgress) * alpha * 0.5)
+          ..color = color.withValues(alpha: (1.0 - ringProgress) * alpha * 0.5)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
       );
@@ -85,7 +85,9 @@ class WaveTelegraph extends PositionComponent {
 
 class RiftSpawner extends PositionComponent {
   final Color color;
+  @override
   final double width;
+  @override
   final double height;
   final int enemyCount;
   final double spawnDuration;
@@ -121,7 +123,9 @@ class RiftSpawner extends PositionComponent {
 
   @override
   Future<void> onLoad() async {
-    for (int i = 0; i < 20; i++) _addParticle();
+    for (int i = 0; i < 20; i++) {
+      _addParticle();
+    }
   }
 
   void _addParticle() {
@@ -165,7 +169,9 @@ class RiftSpawner extends PositionComponent {
                 (_rng.nextDouble() - 0.5) * height * 0.3,
               ),
         );
-        for (int i = 0; i < 5; i++) _addParticle();
+        for (int i = 0; i < 5; i++) {
+          _addParticle();
+        }
       }
       if (_spawned >= enemyCount) {
         _phase = 2;
@@ -202,19 +208,19 @@ class RiftSpawner extends PositionComponent {
         width: width * 1.3 * _riftOpenness,
         height: height * 1.5 * _riftOpenness,
       ),
-      Paint()..color = color.withOpacity(0.3 * _riftOpenness),
+      Paint()..color = color.withValues(alpha: 0.3 * _riftOpenness),
     );
 
     // Rift shape
     final path = _buildRiftPath();
     canvas.drawPath(
       path,
-      Paint()..color = Colors.black.withOpacity(0.9 * _riftOpenness),
+      Paint()..color = Colors.black.withValues(alpha: 0.9 * _riftOpenness),
     );
     canvas.drawPath(
       path,
       Paint()
-        ..color = color.withOpacity(0.8 * _riftOpenness)
+        ..color = color.withValues(alpha: 0.8 * _riftOpenness)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4,
     );
@@ -225,7 +231,7 @@ class RiftSpawner extends PositionComponent {
       canvas.drawCircle(
         p.position.toOffset(),
         p.size * alpha,
-        Paint()..color = color.withOpacity(alpha * 0.8),
+        Paint()..color = color.withValues(alpha: alpha * 0.8),
       );
     }
 
@@ -460,11 +466,12 @@ class ImprovedSurvivalSpawner extends Component
   int _calculateSurgeSize(int wave, WaveSurgeType type, int maxBudget) {
     int base = switch (type) {
       // Ring scales gently early, then bigger as a rare late-game threat
-      WaveSurgeType.ring => wave <= 10 ? 14 + wave * 2 : 20 + wave * 2,
+      // (toned down 25% for less overwhelming feel)
+      WaveSurgeType.ring => wave <= 10 ? 10 + wave * 2 : 15 + wave * 2,
       WaveSurgeType.swarm => 20 + wave,
       WaveSurgeType.flood => 15 + wave ~/ 2,
       WaveSurgeType.pincer => 12 + wave ~/ 2,
-      WaveSurgeType.encircle => 16 + wave ~/ 2,
+      WaveSurgeType.encircle => 12 + wave ~/ 2,
       WaveSurgeType.artillery => 10 + wave ~/ 3,
       WaveSurgeType.elite => 3 + wave ~/ 10,
       WaveSurgeType.boss => 8,

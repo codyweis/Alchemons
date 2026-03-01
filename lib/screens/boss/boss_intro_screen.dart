@@ -30,10 +30,8 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
-import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'dart:math';
@@ -50,18 +48,15 @@ class _C {
 
   static const amber = Color(0xFFD97706);
   static const amberBright = Color(0xFFF59E0B);
-  static const amberGlow = Color(0xFFFFB020);
   static const amberDim = Color(0xFF92400E);
 
   static const teal = Color(0xFF0EA5E9);
-  static const tealDim = Color(0xFF0C4A6E);
 
   static const textPrimary = Color(0xFFE8DCC8);
   static const textSecondary = Color(0xFF8A7B6A);
   static const textMuted = Color(0xFF4A3F35);
 
   static const danger = Color(0xFFC0392B);
-  static const dangerDim = Color(0xFF7B241C);
   static const success = Color(0xFF16A34A);
 
   static const borderDim = Color(0xFF252D3A);
@@ -137,11 +132,11 @@ class _PlateBox extends StatelessWidget {
         color: _C.bg2,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: highlight ? accent.withOpacity(0.55) : _C.borderDim,
+          color: highlight ? accent.withValues(alpha: 0.55) : _C.borderDim,
           width: highlight ? 1.5 : 1,
         ),
         boxShadow: highlight
-            ? [BoxShadow(color: accent.withOpacity(0.10), blurRadius: 16)]
+            ? [BoxShadow(color: accent.withValues(alpha: 0.10), blurRadius: 16)]
             : null,
       ),
       child: Stack(
@@ -155,8 +150,8 @@ class _PlateBox extends StatelessWidget {
               height: 8,
               decoration: BoxDecoration(
                 border: Border(
-                  top: BorderSide(color: accent.withOpacity(0.5), width: 1.5),
-                  left: BorderSide(color: accent.withOpacity(0.5), width: 1.5),
+                  top: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
+                  left: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
                 ),
               ),
             ),
@@ -170,10 +165,10 @@ class _PlateBox extends StatelessWidget {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: accent.withOpacity(0.5),
+                    color: accent.withValues(alpha: 0.5),
                     width: 1.5,
                   ),
-                  right: BorderSide(color: accent.withOpacity(0.5), width: 1.5),
+                  right: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
                 ),
               ),
             ),
@@ -216,14 +211,14 @@ class _ForgeButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
             color: secondary
-                ? _C.borderAccent.withOpacity(0.6)
+                ? _C.borderAccent.withValues(alpha: 0.6)
                 : (isDisabled ? _C.borderDim : c),
             width: 1,
           ),
           boxShadow: (!secondary && !isDisabled)
               ? [
                   BoxShadow(
-                    color: c.withOpacity(0.3),
+                    color: c.withValues(alpha: 0.3),
                     blurRadius: 14,
                     offset: const Offset(0, 4),
                   ),
@@ -287,7 +282,7 @@ class _FlatStat extends StatelessWidget {
     return Expanded(
       child: Row(
         children: [
-          Icon(icon, size: 11, color: color.withOpacity(0.75)),
+          Icon(icon, size: 11, color: color.withValues(alpha: 0.75)),
           const SizedBox(width: 5),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,7 +311,7 @@ class _FlatStat extends StatelessWidget {
 class _ScanlinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withOpacity(0.07);
+    final p = Paint()..color = Colors.black.withValues(alpha: 0.07);
     for (double y = 0; y < size.height; y += 3) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
     }
@@ -617,7 +612,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 color: active
                     ? boss.elementColor
                     : (defeated
-                          ? _C.success.withOpacity(0.5)
+                          ? _C.success.withValues(alpha: 0.5)
                           : _C.borderAccent),
                 borderRadius: BorderRadius.circular(2),
               ),
@@ -665,10 +660,10 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDC2626).withOpacity(0.15),
+                  color: const Color(0xFFDC2626).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(2),
                   border: Border.all(
-                    color: const Color(0xFFDC2626).withOpacity(0.5),
+                    color: const Color(0xFFDC2626).withValues(alpha: 0.5),
                     width: 0.8,
                   ),
                 ),
@@ -722,7 +717,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
           children: [
             Icon(
               boss.elementIcon,
-              color: boss.elementColor.withOpacity(0.7),
+              color: boss.elementColor.withValues(alpha: 0.7),
               size: 11,
             ),
             const SizedBox(width: 6),
@@ -740,7 +735,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 triggerMode: TooltipTriggerMode.tap,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: _C.bg0.withOpacity(0.95),
+                  color: _C.bg0.withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: _C.borderAccent),
                 ),
@@ -756,9 +751,9 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: c.withOpacity(0.08),
+                    color: c.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: c.withOpacity(0.28)),
+                    border: Border.all(color: c.withValues(alpha: 0.28)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -969,8 +964,8 @@ class _BossBattleScreenState extends State<BossBattleScreen>
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
             color: isEmpty
-                ? _C.danger.withOpacity(0.5)
-                : _C.borderAccent.withOpacity(0.5),
+                ? _C.danger.withValues(alpha: 0.5)
+                : _C.borderAccent.withValues(alpha: 0.5),
           ),
         ),
         child: Column(
@@ -1002,7 +997,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
               decoration: BoxDecoration(
-                color: _C.amberDim.withOpacity(0.4),
+                color: _C.amberDim.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(2),
                 border: Border.all(color: _C.borderAccent),
               ),
@@ -1031,9 +1026,9 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                     shape: BoxShape.circle,
                     color: filled
                         ? staminaColor
-                        : staminaColor.withOpacity(0.15),
+                        : staminaColor.withValues(alpha: 0.15),
                     border: Border.all(
-                      color: staminaColor.withOpacity(filled ? 0.9 : 0.3),
+                      color: staminaColor.withValues(alpha: filled ? 0.9 : 0.3),
                       width: 0.8,
                     ),
                   ),
@@ -1381,6 +1376,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 itemDescription: traitDef.description,
                 itemIcon: meta?.traitIcon ?? Icons.vpn_key_rounded,
                 elementColor: boss.elementColor,
+                itemImagePath: boss.relicImagePath,
               );
             }
           }
@@ -1529,13 +1525,13 @@ class _BossCarouselCard extends StatelessWidget {
         color: _C.bg2,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: isCurrent ? boss.elementColor.withOpacity(0.6) : _C.borderDim,
+          color: isCurrent ? boss.elementColor.withValues(alpha: 0.6) : _C.borderDim,
           width: isCurrent ? 1.5 : 1,
         ),
         boxShadow: isCurrent
             ? [
                 BoxShadow(
-                  color: boss.elementColor.withOpacity(0.12),
+                  color: boss.elementColor.withValues(alpha: 0.12),
                   blurRadius: 20,
                 ),
               ]
@@ -1563,7 +1559,7 @@ class _BossCarouselCard extends StatelessWidget {
                           decoration: BoxDecoration(
                             gradient: RadialGradient(
                               colors: [
-                                boss.elementColor.withOpacity(0.2),
+                                boss.elementColor.withValues(alpha: 0.2),
                                 Colors.transparent,
                               ],
                               radius: 0.75,
@@ -1601,9 +1597,9 @@ class _BossCarouselCard extends StatelessWidget {
                               height: 80,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: boss.elementColor.withOpacity(0.12),
+                                color: boss.elementColor.withValues(alpha: 0.12),
                                 border: Border.all(
-                                  color: boss.elementColor.withOpacity(0.4),
+                                  color: boss.elementColor.withValues(alpha: 0.4),
                                 ),
                               ),
                               child: Icon(
@@ -1623,10 +1619,10 @@ class _BossCarouselCard extends StatelessWidget {
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: boss.elementColor.withOpacity(0.15),
+                              color: boss.elementColor.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(2),
                               border: Border.all(
-                                color: boss.elementColor.withOpacity(0.5),
+                                color: boss.elementColor.withValues(alpha: 0.5),
                                 width: 0.8,
                               ),
                             ),
@@ -1669,12 +1665,12 @@ class _BossCarouselCard extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: const Color(
                                   0xFFDC2626,
-                                ).withOpacity(0.15),
+                                ).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(2),
                                 border: Border.all(
                                   color: const Color(
                                     0xFFDC2626,
-                                  ).withOpacity(0.5),
+                                  ).withValues(alpha: 0.5),
                                   width: 0.8,
                                 ),
                               ),
@@ -1712,7 +1708,7 @@ class _BossCarouselCard extends StatelessWidget {
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: _C.amberDim.withOpacity(0.3),
+                              color: _C.amberDim.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(2),
                               border: Border.all(color: _C.borderAccent),
                             ),
@@ -1791,7 +1787,7 @@ class _BossCarouselCard extends StatelessWidget {
                   width: 26,
                   height: 26,
                   decoration: BoxDecoration(
-                    color: _C.bg0.withOpacity(0.8),
+                    color: _C.bg0.withValues(alpha: 0.8),
                     shape: BoxShape.circle,
                     border: Border.all(color: _C.borderAccent),
                   ),
@@ -1812,7 +1808,7 @@ class _BossCarouselCard extends StatelessWidget {
               if (!isUnlocked)
                 Positioned.fill(
                   child: Container(
-                    color: _C.bg0.withOpacity(0.55),
+                    color: _C.bg0.withValues(alpha: 0.55),
                     child: const Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -1860,7 +1856,7 @@ class _MiniStatBadge extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 10, color: color.withOpacity(0.85)),
+        Icon(icon, size: 10, color: color.withValues(alpha: 0.85)),
         const SizedBox(width: 3),
         Text(
           value,
@@ -1885,9 +1881,9 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: color.withOpacity(0.5), width: 0.8),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 0.8),
       ),
       child: Text(
         label,
@@ -1942,7 +1938,7 @@ class _BossHistorySheet extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: _C.amberDim.withOpacity(0.25),
+                    color: _C.amberDim.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(3),
                     border: Border.all(color: _C.borderAccent),
                   ),
@@ -2011,7 +2007,7 @@ class _BossHistorySheet extends StatelessWidget {
                           borderRadius: BorderRadius.circular(2),
                           boxShadow: [
                             BoxShadow(
-                              color: _C.amberBright.withOpacity(0.4),
+                              color: _C.amberBright.withValues(alpha: 0.4),
                               blurRadius: 6,
                             ),
                           ],
@@ -2087,11 +2083,11 @@ class _BossHistoryRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isCurrent ? boss.elementColor.withOpacity(0.08) : _C.bg2,
+          color: isCurrent ? boss.elementColor.withValues(alpha: 0.08) : _C.bg2,
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
             color: isCurrent
-                ? boss.elementColor.withOpacity(0.45)
+                ? boss.elementColor.withValues(alpha: 0.45)
                 : _C.borderDim,
             width: isCurrent ? 1.5 : 1,
           ),
@@ -2118,27 +2114,36 @@ class _BossHistoryRow extends StatelessWidget {
               color: _C.borderDim,
               margin: const EdgeInsets.symmetric(horizontal: 10),
             ),
-            // Status icon
+            // Status icon / relic image
             Container(
               width: 30,
               height: 30,
               decoration: BoxDecoration(
                 color: defeated
-                    ? _C.success.withOpacity(0.15)
-                    : boss.elementColor.withOpacity(0.12),
+                    ? _C.success.withValues(alpha: 0.15)
+                    : boss.elementColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(2),
                 border: Border.all(
                   color: defeated
-                      ? _C.success.withOpacity(0.5)
-                      : boss.elementColor.withOpacity(0.3),
+                      ? _C.success.withValues(alpha: 0.5)
+                      : boss.elementColor.withValues(alpha: 0.3),
                   width: 0.8,
                 ),
               ),
-              child: Icon(
-                defeated ? Icons.check_rounded : boss.elementIcon,
-                color: defeated ? _C.success : boss.elementColor,
-                size: 15,
-              ),
+              child: defeated
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: Image.asset(
+                        boss.relicImagePath,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Icon(
+                          Icons.check_rounded,
+                          color: _C.success,
+                          size: 15,
+                        ),
+                      ),
+                    )
+                  : Icon(boss.elementIcon, color: boss.elementColor, size: 15),
             ),
             const SizedBox(width: 10),
             // Name + element
@@ -2190,10 +2195,10 @@ class _BossHistoryRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
-                  color: boss.elementColor.withOpacity(0.2),
+                  color: boss.elementColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(2),
                   border: Border.all(
-                    color: boss.elementColor.withOpacity(0.5),
+                    color: boss.elementColor.withValues(alpha: 0.5),
                     width: 0.8,
                   ),
                 ),
@@ -2212,10 +2217,10 @@ class _BossHistoryRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
-                  color: _C.success.withOpacity(0.12),
+                  color: _C.success.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(2),
                   border: Border.all(
-                    color: _C.success.withOpacity(0.4),
+                    color: _C.success.withValues(alpha: 0.4),
                     width: 0.8,
                   ),
                 ),

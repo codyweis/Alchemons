@@ -95,20 +95,20 @@ class _VoidRiftState extends State<VoidRift> with TickerProviderStateMixin {
                     colors: [
                       const Color(
                         0xFF4B0082,
-                      ).withOpacity(0.0), // invisible indigo
+                      ).withValues(alpha: 0.0), // invisible indigo
                       const Color(
                         0xFF6A0DAD,
-                      ).withOpacity(0.45 * _outerGlow.value), // violet
+                      ).withValues(alpha: 0.45 * _outerGlow.value), // violet
                       const Color(
                         0xFF000000,
-                      ).withOpacity(0.55 * _outerGlow.value), // void black
+                      ).withValues(alpha: 0.55 * _outerGlow.value), // void black
                       const Color(
                         0xFF9400D3,
-                      ).withOpacity(0.35 * _outerGlow.value), // dark violet
+                      ).withValues(alpha: 0.35 * _outerGlow.value), // dark violet
                       const Color(
                         0xFF000000,
-                      ).withOpacity(0.45 * _outerGlow.value), // void black
-                      const Color(0xFF4B0082).withOpacity(0.0),
+                      ).withValues(alpha: 0.45 * _outerGlow.value), // void black
+                      const Color(0xFF4B0082).withValues(alpha: 0.0),
                     ],
                     stops: const [0.0, 0.18, 0.38, 0.56, 0.76, 1.0],
                   ),
@@ -129,14 +129,14 @@ class _VoidRiftState extends State<VoidRift> with TickerProviderStateMixin {
                       Colors.transparent,
                       const Color(
                         0xFFBB00FF,
-                      ).withOpacity(0.5 * _outerGlow.value),
+                      ).withValues(alpha: 0.5 * _outerGlow.value),
                       Colors.transparent,
                       const Color(
                         0xFF000000,
-                      ).withOpacity(0.6 * _outerGlow.value),
+                      ).withValues(alpha: 0.6 * _outerGlow.value),
                       const Color(
                         0xFFBB00FF,
-                      ).withOpacity(0.3 * _outerGlow.value),
+                      ).withValues(alpha: 0.3 * _outerGlow.value),
                       Colors.transparent,
                     ],
                     stops: const [0.0, 0.15, 0.35, 0.55, 0.75, 1.0],
@@ -155,9 +155,9 @@ class _VoidRiftState extends State<VoidRift> with TickerProviderStateMixin {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      const Color(0xFF000000).withOpacity(0.8),
-                      const Color(0xFF3D0070).withOpacity(0.6),
-                      const Color(0xFF6A0DAD).withOpacity(0.25),
+                      const Color(0xFF000000).withValues(alpha: 0.8),
+                      const Color(0xFF3D0070).withValues(alpha: 0.6),
+                      const Color(0xFF6A0DAD).withValues(alpha: 0.25),
                       Colors.transparent,
                     ],
                     stops: const [0.0, 0.4, 0.75, 1.0],
@@ -166,7 +166,7 @@ class _VoidRiftState extends State<VoidRift> with TickerProviderStateMixin {
                     BoxShadow(
                       color: const Color(
                         0xFF9400D3,
-                      ).withOpacity(0.6 * _outerGlow.value),
+                      ).withValues(alpha: 0.6 * _outerGlow.value),
                       blurRadius: s * 0.6,
                       spreadRadius: s * 0.1,
                     ),
@@ -199,12 +199,12 @@ class _VoidRiftState extends State<VoidRift> with TickerProviderStateMixin {
                       const Color(0xFFBB00FF),
                       const Color(0xFF00EAFF),
                       phase,
-                    )!.withOpacity(opacity * 0.9),
+                    )!.withValues(alpha: opacity * 0.9),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(
                           0xFFBB00FF,
-                        ).withOpacity(opacity * 0.6),
+                        ).withValues(alpha: opacity * 0.6),
                         blurRadius: sparkSize * 2,
                       ),
                     ],
@@ -281,8 +281,8 @@ class _VoidCrackPainter extends CustomPainter {
   Shader ui_gradient(Offset from, Offset to, double opacity) {
     return LinearGradient(
       colors: [
-        const Color(0xFFBB00FF).withOpacity(opacity),
-        const Color(0xFF4B0082).withOpacity(opacity * 0.3),
+        const Color(0xFFBB00FF).withValues(alpha: opacity),
+        const Color(0xFF4B0082).withValues(alpha: opacity * 0.3),
         Colors.transparent,
       ],
       stops: const [0.0, 0.55, 1.0],

@@ -28,7 +28,7 @@ class WildernessControls extends StatelessWidget {
           children: [
             _ControlButton(
               icon: Icons.exit_to_app_rounded,
-              bgColor: t.danger.withOpacity(0.85),
+              bgColor: t.danger.withValues(alpha: 0.85),
               borderColor: t.danger,
               glowColor: t.danger,
               tooltip: 'Leave Scene',
@@ -62,7 +62,7 @@ class WildernessControls extends StatelessWidget {
             decoration: BoxDecoration(
               color: t2.bg1,
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: t2.danger.withOpacity(0.5), width: 1.5),
+              border: Border.all(color: t2.danger.withValues(alpha: 0.5), width: 1.5),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -160,7 +160,7 @@ class WildernessControls extends StatelessWidget {
                             vertical: 10,
                           ),
                           decoration: BoxDecoration(
-                            color: t2.danger.withOpacity(0.15),
+                            color: t2.danger.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(3),
                             border: Border.all(color: t2.danger),
                           ),
@@ -194,7 +194,7 @@ class WildernessControls extends StatelessWidget {
       PageRouteBuilder(
         opaque: false,
         barrierDismissible: true,
-        barrierColor: Colors.black.withOpacity(0.85),
+        barrierColor: Colors.black.withValues(alpha: 0.85),
         pageBuilder: (context, animation, secondaryAnimation) {
           return FadeTransition(
             opacity: animation,
@@ -218,7 +218,7 @@ class _InventoryOverlayShell extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: Stack(
         children: [
-          Container(color: Colors.black.withOpacity(0.1)),
+          Container(color: Colors.black.withValues(alpha: 0.1)),
           GestureDetector(
             onTap: () {},
             child: SafeArea(
@@ -235,7 +235,7 @@ class _InventoryOverlayShell extends StatelessWidget {
                     border: Border.all(color: t.borderAccent, width: 1),
                     boxShadow: [
                       BoxShadow(
-                        color: t.amber.withOpacity(0.08),
+                        color: t.amber.withValues(alpha: 0.08),
                         blurRadius: 24,
                         offset: const Offset(0, 8),
                       ),
@@ -287,7 +287,7 @@ class _ControlButton extends StatelessWidget {
             border: Border.all(color: borderColor, width: 1),
             boxShadow: [
               BoxShadow(
-                color: glowColor.withOpacity(0.25),
+                color: glowColor.withValues(alpha: 0.25),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),

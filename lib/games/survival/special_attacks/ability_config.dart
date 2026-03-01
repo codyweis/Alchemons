@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 
 /// Central configuration for all special abilities
 /// Makes it easy to balance and see all abilities at once

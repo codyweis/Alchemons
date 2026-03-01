@@ -233,7 +233,7 @@ class PrismaticCascadeComponent extends PositionComponent {
       canvas.drawCircle(
         pos,
         sparkR * 0.25,
-        Paint()..color = Colors.white.withOpacity(alpha * 0.8),
+        Paint()..color = Colors.white.withValues(alpha: alpha * 0.8),
       );
     }
   }

@@ -3,7 +3,6 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
-import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/pulsing_hitbox_widget.dart';
 import 'package:flutter/material.dart';
@@ -22,8 +21,7 @@ import 'package:alchemons/screens/scenes/scene_page.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_access_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/wilderness/countdown_badge.dart';
-import '../providers/app_providers.dart'; // for FactionTheme
+// for FactionTheme
 
 class MapScreen extends StatefulWidget {
   final bool isTutorial;
@@ -100,7 +98,7 @@ class _MapScreenState extends State<MapScreen>
 
     final repo = context.read<CreatureCatalog>();
 
-    Color _rarityColor(String rarityName) {
+    Color rarityColor0(String rarityName) {
       switch (rarityName) {
         case 'legendary':
           return const Color(0xFFFFD700);
@@ -186,7 +184,7 @@ class _MapScreenState extends State<MapScreen>
 
                       final base = repo.getCreatureById(roll.speciesId);
                       final rarityName = roll.rarity.name;
-                      final rarityColor = _rarityColor(rarityName);
+                      final rarityColor = rarityColor0(rarityName);
 
                       return ListTile(
                         dense: true,
@@ -205,7 +203,7 @@ class _MapScreenState extends State<MapScreen>
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: rarityColor.withOpacity(.16),
+                            color: rarityColor.withValues(alpha: .16),
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(color: rarityColor, width: 1),
                           ),
@@ -238,7 +236,7 @@ class _MapScreenState extends State<MapScreen>
                             color: theme.surfaceAlt,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: theme.accent.withOpacity(.3),
+                              color: theme.accent.withValues(alpha: .3),
                               width: 1.2,
                             ),
                           ),
@@ -371,12 +369,12 @@ class _MapScreenState extends State<MapScreen>
                     margin: const EdgeInsets.symmetric(horizontal: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: theme.accent.withOpacity(0.2),
+                      color: theme.accent.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: theme.accent, width: 2),
                       boxShadow: [
                         BoxShadow(
-                          color: theme.accent.withOpacity(0.3),
+                          color: theme.accent.withValues(alpha: 0.3),
                           blurRadius: 12,
                           spreadRadius: 2,
                         ),
@@ -424,11 +422,11 @@ class _MapScreenState extends State<MapScreen>
                         ),
                         decoration: BoxDecoration(
                           color: _showDebugInfo
-                              ? theme.accent.withOpacity(0.2)
+                              ? theme.accent.withValues(alpha: 0.2)
                               : theme.surfaceAlt,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: theme.accent.withOpacity(.35),
+                            color: theme.accent.withValues(alpha: .35),
                             width: 1.2,
                           ),
                         ),
@@ -502,7 +500,7 @@ class _MapScreenState extends State<MapScreen>
                             color: theme.surfaceAlt,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: theme.accent.withOpacity(.35),
+                              color: theme.accent.withValues(alpha: .35),
                               width: 1.2,
                             ),
                           ),
@@ -531,7 +529,7 @@ class _MapScreenState extends State<MapScreen>
         backgroundColor: Colors.transparent,
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0A0E27).withOpacity(.95),
+            color: const Color(0xFF0A0E27).withValues(alpha: .95),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: theme.accent, width: 1.4),
           ),
@@ -598,7 +596,7 @@ class _MapScreenState extends State<MapScreen>
   ) async {
     final db = context.read<AlchemonsDatabase>();
     final access = WildernessAccessService(db);
-    final factions = context.read<FactionService>();
+    context.read<FactionService>();
     final spawnService = context.read<WildernessSpawnService>();
 
     if (spawnService.getSceneSpawnCount(biomeId) == 0) {
@@ -663,13 +661,6 @@ class _MapScreenState extends State<MapScreen>
         isTutorial: widget.isTutorial,
         onNavigateSection: widget.onNavigateSection,
       ),
-    );
-  }
-
-  Future<bool?> _showRefreshDialog(BuildContext context) {
-    return showDialog<bool>(
-      context: context,
-      builder: (_) => const _RefreshDialog(),
     );
   }
 
@@ -873,7 +864,7 @@ class _SpawnDebugPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.surfaceAlt,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.accent.withOpacity(.35), width: 1.2),
+        border: Border.all(color: theme.accent.withValues(alpha: .35), width: 1.2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -937,7 +928,7 @@ class _SpawnDebugPanel extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: theme.accent.withOpacity(0.2),
+                        color: theme.accent.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(color: theme.accent, width: 1),
                       ),
@@ -1122,7 +1113,7 @@ class _MarkerTapWrapperState extends State<_MarkerTapWrapper> {
               width: 64,
               height: 64,
               // uncomment to debug tap zones:
-              // child: ColoredBox(color: Colors.red.withOpacity(.2)),
+              // child: ColoredBox(color: Colors.red.withValues(alpha: .2)),
             ),
             const SizedBox(height: 6),
             widget.child,
@@ -1144,9 +1135,9 @@ class _MapHintBar extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 40),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.45),
+        color: Colors.black.withValues(alpha: .45),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.accent.withOpacity(.35), width: 1.2),
+        border: Border.all(color: theme.accent.withValues(alpha: .35), width: 1.2),
       ),
       child: Row(
         children: [
@@ -1244,122 +1235,3 @@ class _InfoDialog extends StatelessWidget {
   }
 }
 
-// =====================================================
-// REFRESH DIALOG
-// =====================================================
-
-class _RefreshDialog extends StatelessWidget {
-  const _RefreshDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
-
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0A0E27).withOpacity(.95),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.greenAccent.withOpacity(.5),
-            width: 1.4,
-          ),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.forest_rounded,
-              color: Colors.greenAccent.withOpacity(.9),
-              size: 28,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'LandExplorer',
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Use today's instant refresh to reopen this ground?",
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                height: 1.3,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                // cancel
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context, false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.04),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(.14),
-                          width: 1.4,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'NOT NOW',
-                        style: TextStyle(
-                          color: theme.text,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                          letterSpacing: .5,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // confirm
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context, true),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.greenAccent.withOpacity(.2),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.greenAccent.withOpacity(.6),
-                          width: 1.4,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'REFRESH',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                          letterSpacing: .5,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

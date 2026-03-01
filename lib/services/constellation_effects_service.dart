@@ -1,6 +1,5 @@
 // lib/services/constellation_effects_service.dart
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:flutter/foundation.dart';
 
 /// Service for applying constellation skill effects throughout the game

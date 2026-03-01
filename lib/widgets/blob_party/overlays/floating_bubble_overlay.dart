@@ -4,12 +4,10 @@ import 'dart:math' as math;
 
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/blob_party/bubble_widget.dart';
 import 'package:alchemons/widgets/blob_party/floating_creature.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
@@ -17,7 +15,6 @@ import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -46,7 +43,6 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
 
   final List<_Bubble> _bubbles = [];
   Size _regionSize = Size.zero;
-  int _slotsUnlocked = 1;
 
   final List<_Spark> _sparks = [];
 
@@ -72,7 +68,6 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
     _lastElapsed = elapsed;
 
     // --- 1. UPDATE SPARKS (ADD THIS SECTION) ---
-    const sparkGravity = 250.0;
     _sparks.removeWhere((s) => s.life <= 0);
     for (final s in _sparks) {
       s.update(dt);
@@ -188,7 +183,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
 
   Future<void> _loadFromDb() async {
     final db = context.read<AlchemonsDatabase>();
-    final repo = context.read<CreatureCatalog>();
+    context.read<CreatureCatalog>();
 
     final slots = await db.settingsDao.getBlobSlotsUnlocked(); // 1..3
     final ids = await db.settingsDao.getBlobInstanceSlots(); // List<String?>
@@ -237,7 +232,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
 
       _bubbles.add(b);
     }
-    setState(() => _slotsUnlocked = slots);
+    setState(() {});
   }
 
   @override
@@ -268,7 +263,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
   // ... _tick() stays the same (integration, damping, collisions) ...
 
   Color _colorForInstance(CreatureCatalog repo, CreatureInstance? inst) {
-    if (inst == null) return Colors.white.withOpacity(0.35);
+    if (inst == null) return Colors.white.withValues(alpha: 0.35);
     final base = repo.getCreatureById(inst.baseId);
     final type = (base?.types.isNotEmpty ?? false)
         ? base!.types.first
@@ -352,7 +347,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
     final rng = math.Random();
 
     // helper: keep the exact hue; only nudge saturation/value (no hue shift)
-    Color _boostSameHue(
+    Color boostSameHue(
       Color src, {
       double satMul = 1.06,
       double valMul = 1.12,
@@ -380,7 +375,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
 
       // strictly use only the touching elements’ colors
       final base = (i.isEven ? c1 : c2);
-      final color = _boostSameHue(base).withOpacity(1.0);
+      final color = boostSameHue(base).withValues(alpha: 1.0);
 
       final spin = (rng.nextDouble() - 0.5) * 2.2; // -1.1..1.1 rad/s
       final damping = 0.30 + rng.nextDouble() * 0.25; // gentle drift
@@ -718,7 +713,7 @@ class _AlchemySparkPainter extends CustomPainter {
           final b = s._trail[i + 1];
           final segT = (i + 1) / s._trail.length;
           trail
-            ..color = s.color.withOpacity(0.10 * ease * segT)
+            ..color = s.color.withValues(alpha: 0.10 * ease * segT)
             ..strokeWidth = (s.radius * 0.9) * segT;
           canvas.drawLine(a, b, trail);
         }

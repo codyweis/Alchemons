@@ -6,7 +6,6 @@
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/creature_dao.dart';
-import 'package:alchemons/games/survival/survival_engine.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -22,32 +21,35 @@ import 'package:provider/provider.dart';
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _C {
-  static const bg0 = Color(0xFF080A0E);
-  static const bg1 = Color(0xFF0E1117);
-  static const bg2 = Color(0xFF141820);
-  static const bg3 = Color(0xFF1C2230);
+  static ForgeTokens _t = ForgeTokens(factionThemeFor(null));
+  static void bind(BuildContext context) {
+    _t = ForgeTokens(context.read<FactionTheme>());
+  }
 
-  static const amber = Color(0xFFD97706);
-  static const amberBright = Color(0xFFF59E0B);
-  static const amberDim = Color(0xFF92400E);
+  static Color get bg0 => _t.bg0;
+  static Color get bg1 => _t.bg1;
+  static Color get bg2 => _t.bg2;
+  static Color get bg3 => _t.bg3;
 
-  static const success = Color(0xFF16A34A);
-  static const successDim = Color(0xFF14532D);
-  static const successGlow = Color(0xFF22C55E);
+  static Color get amber => _t.amber;
+  static Color get amberBright => _t.amberBright;
+  static Color get amberDim => _t.amberDim;
 
-  static const warn = Color(0xFFF97316);
+  static Color get success => _t.success;
 
-  static const textPrimary = Color(0xFFE8DCC8);
-  static const textSecondary = Color(0xFF8A7B6A);
-  static const textMuted = Color(0xFF4A3F35);
+  static Color get warn => const Color(0xFFF97316);
 
-  static const borderDim = Color(0xFF252D3A);
-  static const borderMid = Color(0xFF3A3020);
-  static const borderAccent = Color(0xFF6B4C20);
+  static Color get textPrimary => _t.textPrimary;
+  static Color get textSecondary => _t.textSecondary;
+  static Color get textMuted => _t.textMuted;
+
+  static Color get borderDim => _t.borderDim;
+  static Color get borderMid => _t.borderMid;
+  static Color get borderAccent => _t.borderAccent;
 }
 
 class _T {
-  static const heading = TextStyle(
+  static TextStyle get heading => TextStyle(
     fontFamily: 'monospace',
     color: _C.textPrimary,
     fontSize: 13,
@@ -55,7 +57,7 @@ class _T {
     letterSpacing: 2.0,
   );
 
-  static const label = TextStyle(
+  static TextStyle get label => TextStyle(
     fontFamily: 'monospace',
     color: _C.textSecondary,
     fontSize: 10,
@@ -63,11 +65,8 @@ class _T {
     letterSpacing: 1.6,
   );
 
-  static const body = TextStyle(
-    color: _C.textSecondary,
-    fontSize: 12,
-    height: 1.5,
-  );
+  static TextStyle get body =>
+      TextStyle(color: _C.textSecondary, fontSize: 12, height: 1.5);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -120,13 +119,13 @@ class _ForgeButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
             color: secondary
-                ? _C.borderAccent.withOpacity(0.6)
+                ? _C.borderAccent.withValues(alpha: 0.6)
                 : (isDisabled ? _C.borderDim : c),
           ),
           boxShadow: (!secondary && !isDisabled)
               ? [
                   BoxShadow(
-                    color: c.withOpacity(0.28),
+                    color: c.withValues(alpha: 0.28),
                     blurRadius: 14,
                     offset: const Offset(0, 4),
                   ),
@@ -166,7 +165,7 @@ class _ForgeButton extends StatelessWidget {
 class _ScanlinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withOpacity(0.07);
+    final p = Paint()..color = Colors.black.withValues(alpha: 0.07);
     for (double y = 0; y < size.height; y += 3) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
     }
@@ -193,6 +192,7 @@ class _SurvivalFormationSelectorScreenState
   String _searchQuery = '';
   SortBy _sortBy = SortBy.levelHigh;
   bool _filterPrismatic = false;
+  bool _filterFavorites = false;
   String? _filterSize;
   String? _filterTint;
   String? _filterVariant;
@@ -218,6 +218,7 @@ class _SurvivalFormationSelectorScreenState
 
   @override
   Widget build(BuildContext context) {
+    _C.bind(context);
     final db = context.watch<AlchemonsDatabase>();
 
     return Scaffold(
@@ -243,7 +244,7 @@ class _SurvivalFormationSelectorScreenState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const _EtchedDivider(label: 'CREATURE ROSTER'),
+                          _EtchedDivider(label: 'CREATURE ROSTER'),
                           const SizedBox(height: 12),
                           _buildFiltersPanel(),
                           const SizedBox(height: 10),
@@ -258,7 +259,7 @@ class _SurvivalFormationSelectorScreenState
                     stream: db.creatureDao.watchAllInstances(),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) {
-                        return const SliverFillRemaining(
+                        return SliverFillRemaining(
                           child: Center(
                             child: CircularProgressIndicator(color: _C.amber),
                           ),
@@ -354,7 +355,7 @@ class _SurvivalFormationSelectorScreenState
                                   );
                                 } else if (hasMysticAlready) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
+                                    SnackBar(
                                       content: Text(
                                         'Only one Mystic is allowed per squad.',
                                         style: TextStyle(
@@ -413,7 +414,7 @@ class _SurvivalFormationSelectorScreenState
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: _C.borderDim)),
       ),
       child: Row(
@@ -427,7 +428,7 @@ class _SurvivalFormationSelectorScreenState
                 borderRadius: BorderRadius.circular(3),
                 border: Border.all(color: _C.borderDim),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back_rounded,
                 color: _C.textSecondary,
                 size: 18,
@@ -445,12 +446,12 @@ class _SurvivalFormationSelectorScreenState
                       width: 6,
                       height: 6,
                       margin: const EdgeInsets.only(right: 8, bottom: 1),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: _C.success,
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const Text('ASSEMBLE SQUAD', style: _T.heading),
+                    Text('ASSEMBLE SQUAD', style: _T.heading),
                   ],
                 ),
                 const SizedBox(height: 2),
@@ -474,7 +475,7 @@ class _SurvivalFormationSelectorScreenState
                   borderRadius: BorderRadius.circular(3),
                   border: Border.all(color: _C.borderDim),
                 ),
-                child: const Text(
+                child: Text(
                   'CLEAR',
                   style: TextStyle(
                     fontFamily: 'monospace',
@@ -504,11 +505,11 @@ class _SurvivalFormationSelectorScreenState
         color: _C.bg2,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: _hasMinimumSquad ? _C.success.withOpacity(0.55) : _C.borderDim,
+          color: _hasMinimumSquad ? _C.success.withValues(alpha: 0.55) : _C.borderDim,
           width: _hasMinimumSquad ? 1.5 : 1,
         ),
         boxShadow: _hasMinimumSquad
-            ? [BoxShadow(color: _C.success.withOpacity(0.10), blurRadius: 16)]
+            ? [BoxShadow(color: _C.success.withValues(alpha: 0.10), blurRadius: 16)]
             : null,
       ),
       child: ClipRRect(
@@ -551,7 +552,7 @@ class _SurvivalFormationSelectorScreenState
                                 ? Row(
                                     key: const ValueKey('ready'),
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.check_rounded,
                                         color: _C.success,
                                         size: 12,
@@ -583,7 +584,7 @@ class _SurvivalFormationSelectorScreenState
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.arrow_forward_rounded,
                             size: 10,
                             color: _C.textMuted,
@@ -651,13 +652,13 @@ class _SurvivalFormationSelectorScreenState
         duration: const Duration(milliseconds: 150),
         height: 58,
         decoration: BoxDecoration(
-          color: isFilled ? _C.success.withOpacity(0.10) : _C.bg1,
+          color: isFilled ? _C.success.withValues(alpha: 0.10) : _C.bg1,
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
             color: isFilled
-                ? _C.success.withOpacity(0.55)
+                ? _C.success.withValues(alpha: 0.55)
                 : isRequired
-                ? _C.warn.withOpacity(0.35)
+                ? _C.warn.withValues(alpha: 0.35)
                 : _C.borderDim,
             width: isFilled ? 1.5 : 1,
           ),
@@ -677,11 +678,7 @@ class _SurvivalFormationSelectorScreenState
                       ),
                     )
                   else
-                    const Icon(
-                      Icons.help_outline,
-                      size: 20,
-                      color: _C.textMuted,
-                    ),
+                    Icon(Icons.help_outline, size: 20, color: _C.textMuted),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 4,
@@ -689,7 +686,7 @@ class _SurvivalFormationSelectorScreenState
                     ),
                     child: Text(
                       '${slotIndex + 1}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
                         color: _C.success,
                         fontSize: 7,
@@ -707,7 +704,7 @@ class _SurvivalFormationSelectorScreenState
                         ? Icons.add_circle_outline_rounded
                         : Icons.add_rounded,
                     size: 16,
-                    color: isRequired ? _C.warn.withOpacity(0.5) : _C.textMuted,
+                    color: isRequired ? _C.warn.withValues(alpha: 0.5) : _C.textMuted,
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -715,7 +712,7 @@ class _SurvivalFormationSelectorScreenState
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: isRequired
-                          ? _C.warn.withOpacity(0.5)
+                          ? _C.warn.withValues(alpha: 0.5)
                           : _C.textMuted,
                       fontSize: 7,
                       fontWeight: FontWeight.w700,
@@ -737,6 +734,9 @@ class _SurvivalFormationSelectorScreenState
       sortBy: _sortBy,
       onSortChanged: (sort) => setState(() => _sortBy = sort),
       harvestMode: false,
+      filterFavorites: _filterFavorites,
+      onToggleFavorites: () =>
+          setState(() => _filterFavorites = !_filterFavorites),
       filterPrismatic: _filterPrismatic,
       onTogglePrismatic: () =>
           setState(() => _filterPrismatic = !_filterPrismatic),
@@ -785,6 +785,7 @@ class _SurvivalFormationSelectorScreenState
         'timid': 'Timid',
       },
       onClearAll: () => setState(() {
+        _filterFavorites = false;
         _filterPrismatic = false;
         _filterSize = null;
         _filterTint = null;
@@ -803,7 +804,7 @@ class _SurvivalFormationSelectorScreenState
       ),
       child: Row(
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(left: 12),
             child: Icon(Icons.search_rounded, color: _C.textMuted, size: 18),
           ),
@@ -811,7 +812,7 @@ class _SurvivalFormationSelectorScreenState
             child: TextField(
               controller: _searchController,
               onChanged: (value) => setState(() => _searchQuery = value),
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'monospace',
                 color: _C.textPrimary,
                 fontSize: 13,
@@ -834,7 +835,7 @@ class _SurvivalFormationSelectorScreenState
                 _searchController.clear();
                 setState(() => _searchQuery = '');
               },
-              child: const Padding(
+              child: Padding(
                 padding: EdgeInsets.only(right: 12),
                 child: Icon(Icons.close_rounded, color: _C.textMuted, size: 16),
               ),
@@ -851,14 +852,14 @@ class _SurvivalFormationSelectorScreenState
   Widget _buildFooter() {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: _C.bg1,
         border: Border(top: BorderSide(color: _C.borderDim)),
       ),
       child: _ForgeButton(
         label: _hasMinimumSquad
             ? 'Continue to Deployment  ·  ${_selectedCreatures.length} Selected'
-            : 'Select ${_remaining} More to Continue',
+            : 'Select $_remaining More to Continue',
         icon: _hasMinimumSquad
             ? Icons.arrow_forward_rounded
             : Icons.hourglass_empty_rounded,
@@ -892,16 +893,16 @@ class _SurvivalFormationSelectorScreenState
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: _C.borderDim),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.search_off_rounded,
               color: _C.textMuted,
               size: 32,
             ),
           ),
           const SizedBox(height: 14),
-          const Text('NO CREATURES FOUND', style: _T.heading),
+          Text('NO CREATURES FOUND', style: _T.heading),
           const SizedBox(height: 4),
-          const Text('Adjust filters or clear your search', style: _T.body),
+          Text('Adjust filters or clear your search', style: _T.body),
         ],
       ),
     );
@@ -928,22 +929,30 @@ class _SurvivalFormationSelectorScreenState
       }).toList();
     }
 
-    if (_filterPrismatic)
+    if (_filterFavorites) {
+      filtered = filtered.where((i) => i.isFavorite == true).toList();
+    }
+    if (_filterPrismatic) {
       filtered = filtered.where((i) => i.isPrismaticSkin).toList();
-    if (_filterSize != null)
+    }
+    if (_filterSize != null) {
       filtered = filtered
           .where((i) => decodeGenetics(i.geneticsJson)?.size == _filterSize)
           .toList();
-    if (_filterTint != null)
+    }
+    if (_filterTint != null) {
       filtered = filtered
           .where((i) => decodeGenetics(i.geneticsJson)?.tinting == _filterTint)
           .toList();
-    if (_filterVariant != null)
+    }
+    if (_filterVariant != null) {
       filtered = filtered
           .where((i) => i.variantFaction == _filterVariant)
           .toList();
-    if (_filterNature != null)
+    }
+    if (_filterNature != null) {
       filtered = filtered.where((i) => i.natureId == _filterNature).toList();
+    }
 
     filtered.sort((a, b) {
       switch (_sortBy) {
@@ -1034,6 +1043,7 @@ class _CreatureGridCardState extends State<_CreatureGridCard>
 
   @override
   Widget build(BuildContext context) {
+    _C.bind(context);
     final dimmed = !widget.canSelect && !widget.isSelected;
 
     return GestureDetector(
@@ -1049,18 +1059,18 @@ class _CreatureGridCardState extends State<_CreatureGridCard>
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             decoration: BoxDecoration(
-              color: widget.isSelected ? _C.success.withOpacity(0.10) : _C.bg2,
+              color: widget.isSelected ? _C.success.withValues(alpha: 0.10) : _C.bg2,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
                 color: widget.isSelected
-                    ? _C.success.withOpacity(0.6)
+                    ? _C.success.withValues(alpha: 0.6)
                     : _C.borderDim,
                 width: widget.isSelected ? 1.5 : 1,
               ),
               boxShadow: widget.isSelected
                   ? [
                       BoxShadow(
-                        color: _C.success.withOpacity(0.14),
+                        color: _C.success.withValues(alpha: 0.14),
                         blurRadius: 10,
                       ),
                     ]
@@ -1090,7 +1100,7 @@ class _CreatureGridCardState extends State<_CreatureGridCard>
                                   instance: widget.instance,
                                   size: 54,
                                 )
-                              : const Icon(
+                              : Icon(
                                   Icons.help_outline,
                                   size: 40,
                                   color: _C.textMuted,
@@ -1104,7 +1114,7 @@ class _CreatureGridCardState extends State<_CreatureGridCard>
                                 widget.species?.name ??
                                 'UNKNOWN')
                             .toUpperCase(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'monospace',
                           color: _C.textPrimary,
                           fontSize: 9,
@@ -1123,7 +1133,7 @@ class _CreatureGridCardState extends State<_CreatureGridCard>
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: _C.amberDim.withOpacity(0.3),
+                          color: _C.amberDim.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(2),
                           border: Border.all(
                             color: _C.borderAccent,
@@ -1132,7 +1142,7 @@ class _CreatureGridCardState extends State<_CreatureGridCard>
                         ),
                         child: Text(
                           'LV ${widget.instance.level}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'monospace',
                             color: _C.amberBright,
                             fontSize: 8,
@@ -1159,7 +1169,7 @@ class _CreatureGridCardState extends State<_CreatureGridCard>
                       child: Center(
                         child: Text(
                           '${widget.squadPosition}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'monospace',
                             color: _C.bg0,
                             fontSize: 9,
@@ -1178,14 +1188,10 @@ class _CreatureGridCardState extends State<_CreatureGridCard>
                       width: 16,
                       height: 16,
                       decoration: BoxDecoration(
-                        color: _C.success.withOpacity(0.9),
+                        color: _C.success.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(2),
                       ),
-                      child: const Icon(
-                        Icons.check_rounded,
-                        color: _C.bg0,
-                        size: 11,
-                      ),
+                      child: Icon(Icons.check_rounded, color: _C.bg0, size: 11),
                     ),
                   ),
               ],

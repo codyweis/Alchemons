@@ -6,7 +6,7 @@ class FloatingParticle extends StatelessWidget {
   final AnimationController controller;
   final int index;
 
-  const FloatingParticle({required this.controller, required this.index});
+  const FloatingParticle({super.key, required this.controller, required this.index});
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +35,7 @@ class FloatingParticle extends StatelessWidget {
                 color: const Color(0xFFD8BFD8),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF8B4789).withOpacity(0.5),
+                    color: const Color(0xFF8B4789).withValues(alpha: 0.5),
                     blurRadius: 6,
                     spreadRadius: 1,
                   ),

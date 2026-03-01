@@ -9,13 +9,13 @@ class FloatingCloseButton extends StatelessWidget {
   final FactionTheme theme;
 
   const FloatingCloseButton({
-    Key? key,
+    super.key,
     required this.onTap,
     this.size = 60,
     this.accentColor,
     this.iconColor,
     required this.theme,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +28,7 @@ class FloatingCloseButton extends StatelessWidget {
           border: Border.all(color: theme.text, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               blurRadius: 20,
               offset: Offset(0, 8),
               spreadRadius: 2,

@@ -3,10 +3,8 @@
 // IMPROVED ENEMY VISUALS - Beefier, more distinctive, satisfying to kill
 //
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:flame/components.dart';
-import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 
 import 'survival_enemy_types.dart';
@@ -172,20 +170,20 @@ class ImprovedBlobBody extends PositionComponent {
   @override
   Future<void> onLoad() async {
     _corePaint = Paint()
-      ..color = color.withOpacity(_currentOpacity)
+      ..color = color.withValues(alpha: _currentOpacity)
       ..style = PaintingStyle.fill;
 
     _shellPaint = Paint()
-      ..color = color.withOpacity(0.25)
+      ..color = color.withValues(alpha: 0.25)
       ..style = PaintingStyle.fill;
 
     _outlinePaint = Paint()
-      ..color = Colors.white.withOpacity(0.85)
+      ..color = Colors.white.withValues(alpha: 0.85)
       ..style = PaintingStyle.stroke
       ..strokeWidth = isBoss ? 3.5 : 2.0
       ..strokeCap = StrokeCap.round;
 
-    _glowPaint = Paint()..color = color.withOpacity(0.3);
+    _glowPaint = Paint()..color = color.withValues(alpha: 0.3);
   }
 
   @override
@@ -236,10 +234,10 @@ class ImprovedBlobBody extends PositionComponent {
           Color.lerp(finalColor, phaseTint, phaseTintStrength) ?? finalColor;
     }
 
-    _corePaint.color = finalColor.withOpacity(_currentOpacity);
-    _shellPaint.color = finalColor.withOpacity(_currentOpacity * 0.25);
-    _outlinePaint.color = Colors.white.withOpacity(_currentOpacity * 0.85);
-    _glowPaint.color = finalColor.withOpacity(_currentOpacity * 0.3);
+    _corePaint.color = finalColor.withValues(alpha: _currentOpacity);
+    _shellPaint.color = finalColor.withValues(alpha: _currentOpacity * 0.25);
+    _outlinePaint.color = Colors.white.withValues(alpha: _currentOpacity * 0.85);
+    _glowPaint.color = finalColor.withValues(alpha: _currentOpacity * 0.3);
 
     // Pulse animation
     final pulseSpeed = isBoss ? 2.0 : 3.5;
@@ -512,7 +510,7 @@ class ImprovedBlobBody extends PositionComponent {
       canvas.drawCircle(
         Offset(sin(_time * 2 + layer) * 3, cos(_time * 1.5 + layer) * 3),
         layerR,
-        Paint()..color = color.withOpacity(layerOpacity * _currentOpacity),
+        Paint()..color = color.withValues(alpha: layerOpacity * _currentOpacity),
       );
     }
 
@@ -522,7 +520,7 @@ class ImprovedBlobBody extends PositionComponent {
     canvas.drawCircle(
       Offset.zero,
       coreR,
-      Paint()..color = Colors.white.withOpacity(sparkle * _currentOpacity),
+      Paint()..color = Colors.white.withValues(alpha: sparkle * _currentOpacity),
     );
 
     // Orbiting particles
@@ -533,7 +531,7 @@ class ImprovedBlobBody extends PositionComponent {
       canvas.drawCircle(
         particlePos,
         radius * 0.08,
-        Paint()..color = color.withOpacity(0.6 * _currentOpacity),
+        Paint()..color = color.withValues(alpha: 0.6 * _currentOpacity),
       );
     }
   }
@@ -576,7 +574,7 @@ class ImprovedBlobBody extends PositionComponent {
     // Glowing eyes
     final eyeGlow = 0.5 + sin(_time * 5) * 0.3;
     final eyePaint = Paint()
-      ..color = Colors.red.withOpacity(eyeGlow * _currentOpacity);
+      ..color = Colors.red.withValues(alpha: eyeGlow * _currentOpacity);
     canvas.drawCircle(
       Offset(-radius * 0.15, -radius * 0.1),
       radius * 0.08,
@@ -664,13 +662,13 @@ class ImprovedBlobBody extends PositionComponent {
         blobOffset,
         blobR,
         Paint()
-          ..color = color.withOpacity((0.3 - blob * 0.05) * _currentOpacity),
+          ..color = color.withValues(alpha: (0.3 - blob * 0.05) * _currentOpacity),
       );
     }
 
     // Chaotic tendrils
     final tendrilPaint = Paint()
-      ..color = color.withOpacity(0.4 * _currentOpacity)
+      ..color = color.withValues(alpha: 0.4 * _currentOpacity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
@@ -702,7 +700,7 @@ class ImprovedBlobBody extends PositionComponent {
         Offset.zero,
         radius * (1.0 + ring * 0.15),
         Paint()
-          ..color = color.withOpacity((0.1 - ring * 0.02) * _currentOpacity),
+          ..color = color.withValues(alpha: (0.1 - ring * 0.02) * _currentOpacity),
       );
     }
 
@@ -743,7 +741,7 @@ class ImprovedBlobBody extends PositionComponent {
     canvas.drawCircle(
       Offset.zero,
       radius * 0.35,
-      Paint()..color = Colors.white.withOpacity(eyePulse * _currentOpacity),
+      Paint()..color = Colors.white.withValues(alpha: eyePulse * _currentOpacity),
     );
     canvas.drawCircle(Offset.zero, radius * 0.2, _corePaint);
   }
@@ -754,7 +752,7 @@ class ImprovedBlobBody extends PositionComponent {
       case EnemyRole.shooter:
         // Targeting reticle
         final reticlePaint = Paint()
-          ..color = Colors.cyan.withOpacity(0.6 * _currentOpacity)
+          ..color = Colors.cyan.withValues(alpha: 0.6 * _currentOpacity)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5;
         canvas.drawCircle(Offset.zero, radius * 1.1, reticlePaint);
@@ -774,7 +772,7 @@ class ImprovedBlobBody extends PositionComponent {
         // Warning pulse
         final warningPulse = (sin(_time * 8) + 1) / 2;
         final warningPaint = Paint()
-          ..color = Colors.orange.withOpacity(
+          ..color = Colors.orange.withValues(alpha: 
             warningPulse * 0.5 * _currentOpacity,
           );
         canvas.drawCircle(Offset.zero, radius * 1.2, warningPaint);
@@ -785,14 +783,14 @@ class ImprovedBlobBody extends PositionComponent {
           sparkPos,
           radius * 0.12,
           Paint()
-            ..color = Colors.yellow.withOpacity(warningPulse * _currentOpacity),
+            ..color = Colors.yellow.withValues(alpha: warningPulse * _currentOpacity),
         );
         break;
 
       case EnemyRole.leecher:
         // Drain tendrils hint
         final drainPaint = Paint()
-          ..color = Colors.purple.withOpacity(0.4 * _currentOpacity)
+          ..color = Colors.purple.withValues(alpha: 0.4 * _currentOpacity)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2;
 
@@ -814,7 +812,7 @@ class ImprovedBlobBody extends PositionComponent {
         // Forward momentum glow + trailing speed lines
         final chargePulse = (sin(_time * 6) + 1) / 2;
         final chargeGlow = Paint()
-          ..color = color.withOpacity(
+          ..color = color.withValues(alpha: 
             (0.2 + chargePulse * 0.25) * _currentOpacity,
           );
 
@@ -828,7 +826,7 @@ class ImprovedBlobBody extends PositionComponent {
 
         // Speed lines trailing behind
         final linesPaint = Paint()
-          ..color = Colors.white.withOpacity(
+          ..color = Colors.white.withValues(alpha: 
             0.3 * chargePulse * _currentOpacity,
           )
           ..style = PaintingStyle.stroke
@@ -875,7 +873,7 @@ class ImprovedBlobBody extends PositionComponent {
         Offset.zero,
         radius * (1.3 + glow * 0.2),
         Paint()
-          ..color = color.withOpacity((0.15 - glow * 0.04) * _currentOpacity),
+          ..color = color.withValues(alpha: (0.15 - glow * 0.04) * _currentOpacity),
       );
     }
 
@@ -916,7 +914,7 @@ class ImprovedBlobBody extends PositionComponent {
 
     // Impact cracks/scars
     final scarPaint = Paint()
-      ..color = Colors.white.withOpacity(0.3 * _currentOpacity)
+      ..color = Colors.white.withValues(alpha: 0.3 * _currentOpacity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
@@ -944,14 +942,6 @@ class ImprovedBlobBody extends PositionComponent {
     // Cannon barrels hint
     for (int i = 0; i < 3; i++) {
       final angle = (i / 3) * 2 * pi + _time * 0.3;
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(cos(angle) * radius * 0.7, sin(angle) * radius * 0.7),
-          width: radius * 0.15,
-          height: radius * 0.4,
-        ),
-        Radius.circular(radius * 0.05),
-      );
       canvas.save();
       canvas.translate(cos(angle) * radius * 0.7, sin(angle) * radius * 0.7);
       canvas.rotate(angle + pi / 2);
@@ -978,7 +968,7 @@ class ImprovedBlobBody extends PositionComponent {
 
       final ringR = radius * (0.9 + ring * 0.25);
       final dashPaint = Paint()
-        ..color = color.withOpacity((0.5 - ring * 0.1) * _currentOpacity)
+        ..color = color.withValues(alpha: (0.5 - ring * 0.1) * _currentOpacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
 
@@ -1001,7 +991,7 @@ class ImprovedBlobBody extends PositionComponent {
 
     // Arcane symbols at cardinal points
     final symbolPaint = Paint()
-      ..color = Colors.white.withOpacity(0.6 * _currentOpacity)
+      ..color = Colors.white.withValues(alpha: 0.6 * _currentOpacity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
@@ -1034,7 +1024,7 @@ class ImprovedBlobBody extends PositionComponent {
     canvas.drawCircle(
       Offset.zero,
       radius * 0.8,
-      Paint()..color = _corePaint.color.withOpacity(0.25),
+      Paint()..color = _corePaint.color.withValues(alpha: 0.25),
     );
 
     // Inner ring
@@ -1042,7 +1032,7 @@ class ImprovedBlobBody extends PositionComponent {
       Offset.zero,
       radius * 0.65,
       Paint()
-        ..color = _outlinePaint.color.withOpacity(0.55)
+        ..color = _outlinePaint.color.withValues(alpha: 0.55)
         ..style = PaintingStyle.stroke
         ..strokeWidth = radius * 0.045,
     );
@@ -1056,9 +1046,9 @@ class ImprovedBlobBody extends PositionComponent {
     final headRadius = radius * (0.32 - hydraGeneration * 0.05);
     final headDistance = radius * 0.75;
 
-    final headPaint = Paint()..color = _corePaint.color.withOpacity(0.85);
+    final headPaint = Paint()..color = _corePaint.color.withValues(alpha: 0.85);
     final outline = Paint()
-      ..color = _outlinePaint.color.withOpacity(0.45)
+      ..color = _outlinePaint.color.withValues(alpha: 0.45)
       ..style = PaintingStyle.stroke
       ..strokeWidth = radius * 0.035;
 
@@ -1073,7 +1063,7 @@ class ImprovedBlobBody extends PositionComponent {
       canvas.drawCircle(
         offset,
         headRadius * 1.2,
-        Paint()..color = _corePaint.color.withOpacity(0.18),
+        Paint()..color = _corePaint.color.withValues(alpha: 0.18),
       );
 
       // Head body
@@ -1086,7 +1076,7 @@ class ImprovedBlobBody extends PositionComponent {
       canvas.rotate(_time * 0.8);
 
       final sigilPaint = Paint()
-        ..color = Colors.white.withOpacity(0.7)
+        ..color = Colors.white.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = radius * 0.02;
 
@@ -1108,13 +1098,13 @@ class ImprovedBlobBody extends PositionComponent {
       canvas.drawCircle(
         offset + eyeOffset,
         headRadius * 0.13,
-        Paint()..color = Colors.white.withOpacity(0.9),
+        Paint()..color = Colors.white.withValues(alpha: 0.9),
       );
     }
 
     // Connecting lines
     final linkPaint = Paint()
-      ..color = _outlinePaint.color.withOpacity(0.35)
+      ..color = _outlinePaint.color.withValues(alpha: 0.35)
       ..strokeWidth = radius * 0.028;
 
     for (int i = 0; i < headCount; i++) {
@@ -1136,7 +1126,7 @@ class ImprovedBlobBody extends PositionComponent {
       Offset.zero,
       hpRingRadius,
       Paint()
-        ..color = Colors.black.withOpacity(0.6)
+        ..color = Colors.black.withValues(alpha: 0.6)
         ..style = PaintingStyle.stroke
         ..strokeWidth = ringThickness
         ..strokeCap = StrokeCap.round,
@@ -1168,7 +1158,7 @@ class ImprovedBlobBody extends PositionComponent {
       hpAngle,
       false,
       Paint()
-        ..color = hpColor.withOpacity(0.9)
+        ..color = hpColor.withValues(alpha: 0.9)
         ..style = PaintingStyle.stroke
         ..strokeWidth = ringThickness - 2
         ..strokeCap = StrokeCap.round,
@@ -1181,14 +1171,14 @@ class ImprovedBlobBody extends PositionComponent {
       hpAngle,
       false,
       Paint()
-        ..color = hpColor.withOpacity(0.3)
+        ..color = hpColor.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = ringThickness + 4,
     );
 
     // Tick marks
     final tickPaint = Paint()
-      ..color = Colors.white.withOpacity(0.5)
+      ..color = Colors.white.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
@@ -1256,7 +1246,6 @@ class ImprovedTrail extends PositionComponent {
     super.update(dt);
     if (parent is! PositionComponent) return;
 
-    final parentPc = parent as PositionComponent;
 
     // Spawn new particles
     _spawnTimer += dt;
@@ -1299,14 +1288,14 @@ class ImprovedTrail extends PositionComponent {
 
     for (final p in _particles) {
       final alpha = (p.life / p.maxLife).clamp(0.0, 1.0);
-      paint.color = color.withOpacity(0.5 * alpha);
+      paint.color = color.withValues(alpha: 0.5 * alpha);
 
       final currentSize = p.size * alpha;
       canvas.drawCircle(p.position.toOffset(), currentSize, paint);
 
       // Elite enemies get extra glow
       if (isElite && alpha > 0.5) {
-        paint.color = color.withOpacity(0.2 * alpha);
+        paint.color = color.withValues(alpha: 0.2 * alpha);
         canvas.drawCircle(p.position.toOffset(), currentSize * 1.5, paint);
       }
     }
@@ -1499,7 +1488,7 @@ class DeathExplosion extends PositionComponent {
           Offset.zero,
           r.radius,
           Paint()
-            ..color = color.withOpacity(r.opacity * 0.6)
+            ..color = color.withValues(alpha: r.opacity * 0.6)
             ..style = PaintingStyle.stroke
             ..strokeWidth = r.thickness,
         );
@@ -1512,7 +1501,7 @@ class DeathExplosion extends PositionComponent {
       canvas.drawCircle(
         p.position.toOffset(),
         p.size * alpha,
-        Paint()..color = p.color.withOpacity(alpha),
+        Paint()..color = p.color.withValues(alpha: alpha),
       );
     }
 
@@ -1522,7 +1511,7 @@ class DeathExplosion extends PositionComponent {
       canvas.drawCircle(
         Offset.zero,
         radius * (0.8 + _time * 3),
-        Paint()..color = Colors.white.withOpacity(flashAlpha * 0.8),
+        Paint()..color = Colors.white.withValues(alpha: flashAlpha * 0.8),
       );
     }
   }

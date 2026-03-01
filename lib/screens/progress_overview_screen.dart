@@ -35,7 +35,7 @@ Color _rarityColor(String rarity) => switch (rarity.toLowerCase()) {
 class _ScanlinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withOpacity(0.07);
+    final p = Paint()..color = Colors.black.withValues(alpha: 0.07);
     for (double y = 0; y < size.height; y += 3) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
     }
@@ -287,7 +287,7 @@ class _ConstellationProgressOverviewScreenState
                 decoration: BoxDecoration(
                   color: index == _currentPage
                       ? t.amberBright
-                      : t.borderAccent.withOpacity(0.5),
+                      : t.borderAccent.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
@@ -394,7 +394,7 @@ class _ConstellationProgressOverviewScreenState
               decoration: BoxDecoration(
                 color: t.bg2,
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: t.borderAccent.withOpacity(0.5)),
+                border: Border.all(color: t.borderAccent.withValues(alpha: 0.5)),
               ),
               child: Icon(
                 Icons.auto_awesome_outlined,
@@ -484,10 +484,10 @@ class _SpeciesCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: t.bg2,
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: rColor.withOpacity(0.35), width: 1.5),
+              border: Border.all(color: rColor.withValues(alpha: 0.35), width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: rColor.withOpacity(0.08),
+                  color: rColor.withValues(alpha: 0.08),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 ),
@@ -510,7 +510,7 @@ class _SpeciesCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
-                        colors: [rColor.withOpacity(0.10), Colors.transparent],
+                        colors: [rColor.withValues(alpha: 0.10), Colors.transparent],
                       ),
                     ),
                   ),
@@ -734,7 +734,7 @@ class _ListItem extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: t.bg3,
                     borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: rColor.withOpacity(0.4)),
+                    border: Border.all(color: rColor.withValues(alpha: 0.4)),
                   ),
                   child: SizedBox(
                     width: 52,
@@ -905,7 +905,7 @@ class _ProgressBar extends StatelessWidget {
             decoration: BoxDecoration(
               color: color,
               boxShadow: [
-                BoxShadow(color: color.withOpacity(0.4), blurRadius: 4),
+                BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4),
               ],
             ),
           ),
@@ -932,9 +932,9 @@ class _RarityBadge extends StatelessWidget {
       vertical: small ? 3 : 5,
     ),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.12),
+      color: color.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(2),
-      border: Border.all(color: color.withOpacity(0.4), width: 0.8),
+      border: Border.all(color: color.withValues(alpha: 0.4), width: 0.8),
     ),
     child: Text(
       rarity.toUpperCase(),
@@ -966,9 +966,9 @@ class _RewardBadge extends StatelessWidget {
       vertical: small ? 2 : 4,
     ),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.12),
+      color: color.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(2),
-      border: Border.all(color: color.withOpacity(0.35), width: 0.8),
+      border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -996,7 +996,7 @@ class _CompleteBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: t.amberDim.withOpacity(0.25),
+        color: t.amberDim.withValues(alpha: 0.25),
         borderRadius: BorderRadius.circular(3),
         border: Border.all(color: t.borderAccent),
       ),

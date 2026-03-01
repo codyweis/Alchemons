@@ -182,7 +182,7 @@ class LineageData {
   };
 
   factory LineageData.fromJson(Map<String, dynamic> json) {
-    Map<String, int> _parseLineageMap(dynamic value) {
+    Map<String, int> parseLineageMap(dynamic value) {
       if (value is! Map) return {};
       return value.map(
         (k, v) => MapEntry(k.toString(), (v as num?)?.toInt() ?? 0),
@@ -193,9 +193,9 @@ class LineageData {
       generationDepth: (json['generationDepth'] as num?)?.toInt() ?? 0,
       nativeFaction: json['nativeFaction'] as String?,
       variantFaction: json['variantFaction'] as String?,
-      factionLineage: _parseLineageMap(json['factionLineage']),
-      elementLineage: _parseLineageMap(json['elementLineage']),
-      familyLineage: _parseLineageMap(json['familyLineage']),
+      factionLineage: parseLineageMap(json['factionLineage']),
+      elementLineage: parseLineageMap(json['elementLineage']),
+      familyLineage: parseLineageMap(json['familyLineage']),
       isPure: json['isPure'] as bool? ?? false,
     );
   }
@@ -238,7 +238,7 @@ class EggPayloadFactory {
       rarity: creature.rarity,
       source: 'wild',
       natureId: creature.nature?.id, // keep wild’s nature if you have it
-      isPrismaticSkin: creature.isPrismaticSkin ?? false,
+      isPrismaticSkin: creature.isPrismaticSkin,
       genetics: creature.genetics?.variants ?? {},
       stats: CreatureStats(
         speed: _rollInRange(rng, statRange.min, statRange.max),
@@ -278,7 +278,7 @@ class EggPayloadFactory {
       rarity: offspring.rarity,
       source: 'breeding',
       natureId: offspring.nature?.id,
-      isPrismaticSkin: offspring.isPrismaticSkin ?? false,
+      isPrismaticSkin: offspring.isPrismaticSkin,
       genetics: offspring.genetics?.variants ?? {},
       stats: CreatureStats(
         speed: offspring.stats?.speed ?? 0.0,
@@ -390,7 +390,7 @@ class EggPayloadFactory {
       rarity: offspring.rarity,
       source: 'wild_breeding',
       natureId: offspring.nature?.id,
-      isPrismaticSkin: offspring.isPrismaticSkin ?? false,
+      isPrismaticSkin: offspring.isPrismaticSkin,
       genetics: offspring.genetics?.variants ?? {},
       stats: CreatureStats(
         speed: offspring.stats?.speed ?? 0.0,
@@ -412,7 +412,6 @@ class EggPayloadFactory {
 
   EggPayload createVialPayload(Creature creature) {
     final rng = _random;
-    final seed = DateTime.now().millisecondsSinceEpoch;
 
     // Vials get random nature
     final nature = NatureCatalogWeighted.weightedRandom(rng);
@@ -502,7 +501,7 @@ class EggPayloadFactory {
       factionLineage: lineage?.factionLineage ?? {},
       elementLineage: lineage?.elementLineage ?? {},
       familyLineage: lineage?.familyLineage ?? {},
-      isPure: creature.isPure ?? false,
+      isPure: creature.isPure,
     );
   }
 

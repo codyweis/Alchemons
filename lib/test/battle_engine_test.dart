@@ -115,14 +115,14 @@ void main() {
     });
 
     test('Special moves are correct for each family', () {
-      expect(BattleMove.getSpecialMove('Let').name, 'Meteor');
-      expect(BattleMove.getSpecialMove('Pip').name, 'Ricochet');
-      expect(BattleMove.getSpecialMove('Mane').name, 'Barrage');
-      expect(BattleMove.getSpecialMove('Horn').name, 'Nova');
-      expect(BattleMove.getSpecialMove('Mask').name, 'Trap Field');
-      expect(BattleMove.getSpecialMove('Wing').name, 'Beam');
-      expect(BattleMove.getSpecialMove('Kin').name, 'Blessing');
-      expect(BattleMove.getSpecialMove('Mystic').name, 'Orbitals');
+      expect(BattleMove.getSpecialMove('Let').name, 'Meteor Strike');
+      expect(BattleMove.getSpecialMove('Pip').name, 'Frenzy');
+      expect(BattleMove.getSpecialMove('Mane').name, 'Entangle');
+      expect(BattleMove.getSpecialMove('Horn').name, 'Fortress');
+      expect(BattleMove.getSpecialMove('Mask').name, 'Hex Field');
+      expect(BattleMove.getSpecialMove('Wing').name, 'Piercing Beam');
+      expect(BattleMove.getSpecialMove('Kin').name, 'Sanctuary');
+      expect(BattleMove.getSpecialMove('Mystic').name, 'Arcane Orbitals');
 
       print('✅ All special moves correct!');
     });

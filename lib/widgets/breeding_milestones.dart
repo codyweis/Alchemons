@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/models/constellation/constellation_catalog.dart';
 
 /// Shows breeding progress and milestone info for a species
 /// Add this to your creatures screen / dex entry
@@ -51,9 +50,9 @@ class BreedingMilestoneWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: theme.primary.withOpacity(.15),
+        color: theme.primary.withValues(alpha: .15),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: theme.primary.withOpacity(.3)),
+        border: Border.all(color: theme.primary.withValues(alpha: .3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -80,7 +79,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.surface,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: theme.border.withOpacity(.3)),
+          border: Border.all(color: theme.border.withValues(alpha: .3)),
         ),
         child: Row(
           children: [
@@ -117,12 +116,12 @@ class BreedingMilestoneWidget extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            theme.primary.withOpacity(.1),
-            theme.secondary.withOpacity(.08),
+            theme.primary.withValues(alpha: .1),
+            theme.secondary.withValues(alpha: .08),
           ],
         ),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.primary.withOpacity(.3), width: 1.5),
+        border: Border.all(color: theme.primary.withValues(alpha: .3), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,7 +148,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: theme.primary.withOpacity(.2),
+                  color: theme.primary.withValues(alpha: .2),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -188,7 +187,7 @@ class BreedingMilestoneWidget extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Next: ${nextMilestone!.displayName}',
+                        'Next: ${nextMilestone.displayName}',
                         style: TextStyle(
                           color: theme.text,
                           fontSize: 10,
@@ -215,14 +214,14 @@ class BreedingMilestoneWidget extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: rarityColor != null
-                          ? [rarityColor, rarityColor.withOpacity(0.8)]
+                          ? [rarityColor, rarityColor.withValues(alpha: 0.8)]
                           : [Colors.amber.shade600, Colors.amber.shade700],
                     ),
                     borderRadius: BorderRadius.circular(6),
                     boxShadow: [
                       BoxShadow(
                         color: (rarityColor ?? Colors.amber.shade600)
-                            .withOpacity(0.3),
+                            .withValues(alpha: 0.3),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
@@ -276,9 +275,9 @@ class BreedingMilestoneWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: theme.primary.withOpacity(.2),
+                color: theme.primary.withValues(alpha: .2),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: theme.primary.withOpacity(.4)),
+                border: Border.all(color: theme.primary.withValues(alpha: .4)),
               ),
               child: Row(
                 children: [

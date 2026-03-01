@@ -6,7 +6,6 @@ import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
-import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
@@ -61,7 +60,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
   // Saved references
   late WildernessSpawnService _spawnService;
-  late EncounterPool _scenePool;
   late FactionService _factionService;
   late AlchemonsDatabase _db;
   late CreatureCatalog _repo;
@@ -112,7 +110,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     super.didChangeDependencies();
 
     _spawnService = context.read<WildernessSpawnService>();
-    _scenePool = valleyEncounterPools(widget.scene).sceneWide;
     _factionService = context.read<FactionService>();
     _db = context.read<AlchemonsDatabase>();
     _repo = context.read<CreatureCatalog>();
@@ -154,7 +151,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     if (!_riftSpawned && !widget.isTutorial) {
       _riftSpawned = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _game.spawnRiftIfChance();
+        if (mounted) _game.spawnRiftIfChance(sceneId: widget.sceneId);
       });
     }
   }
@@ -267,8 +264,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   }
 
   Future<void> _maybeRestoreWaterParty() async {
-    if (!(_factionService.isWater() && await _factionService.perk2Active()))
+    if (!(_factionService.isWater() && await _factionService.perk2Active())) {
       return;
+    }
 
     for (final p in widget.party) {
       final inst = await _db.creatureDao.getInstance(p.instanceId);
@@ -654,9 +652,9 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      border: Border.all(color: color.withOpacity(0.4)),
+                      border: Border.all(color: color.withValues(alpha: 0.4)),
                       borderRadius: BorderRadius.circular(2),
-                      color: color.withOpacity(0.07),
+                      color: color.withValues(alpha: 0.07),
                     ),
                     child: Text(
                       _essenceLabel,
@@ -674,7 +672,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                     _crypticHint,
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      color: color.withOpacity(0.65),
+                      color: color.withValues(alpha: 0.65),
                       fontSize: 10,
                       height: 1.55,
                       letterSpacing: 0.4,
@@ -691,7 +689,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
               child: SizedBox(
                 height: 160,
                 child: VerticalDivider(
-                  color: color.withOpacity(0.25),
+                  color: color.withValues(alpha: 0.25),
                   thickness: 1,
                   width: 1,
                 ),
@@ -732,12 +730,12 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: keyQty > 0 ? color.withOpacity(0.6) : Colors.white24,
+                  color: keyQty > 0 ? color.withValues(alpha: 0.6) : Colors.white24,
                 ),
                 borderRadius: BorderRadius.circular(2),
                 color: keyQty > 0
-                    ? color.withOpacity(0.10)
-                    : Colors.white.withOpacity(0.04),
+                    ? color.withValues(alpha: 0.10)
+                    : Colors.white.withValues(alpha: 0.04),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -775,7 +773,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.white12),
                   borderRadius: BorderRadius.circular(3),
-                  color: Colors.white.withOpacity(0.03),
+                  color: Colors.white.withValues(alpha: 0.03),
                 ),
                 child: Text(
                   'You need a\n${widget.faction.displayName.toUpperCase()} PORTAL KEY\nto enter this rift.',
@@ -797,9 +795,9 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  border: Border.all(color: color.withOpacity(0.25)),
+                  border: Border.all(color: color.withValues(alpha: 0.25)),
                   borderRadius: BorderRadius.circular(3),
-                  color: color.withOpacity(0.05),
+                  color: color.withValues(alpha: 0.05),
                 ),
                 child: const Text(
                   'YOUR ENTIRE PARTY\nWILL ENTER THE VOID',
@@ -824,10 +822,10 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                   decoration: BoxDecoration(
                     border: Border.all(color: color, width: 1.5),
                     borderRadius: BorderRadius.circular(3),
-                    color: color.withOpacity(0.18),
+                    color: color.withValues(alpha: 0.18),
                     boxShadow: [
                       BoxShadow(
-                        color: color.withOpacity(0.35),
+                        color: color.withValues(alpha: 0.35),
                         blurRadius: 14,
                         spreadRadius: 1,
                       ),
@@ -853,9 +851,9 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  border: Border.all(color: color.withOpacity(0.5)),
+                  border: Border.all(color: color.withValues(alpha: 0.5)),
                   borderRadius: BorderRadius.circular(3),
-                  color: color.withOpacity(0.08),
+                  color: color.withValues(alpha: 0.08),
                 ),
                 child: Text(
                   'USE 1 ${widget.faction.displayName.toUpperCase()}\nPORTAL KEY?',
@@ -884,7 +882,7 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.white24),
                         borderRadius: BorderRadius.circular(2),
-                        color: Colors.white.withOpacity(0.05),
+                        color: Colors.white.withValues(alpha: 0.05),
                       ),
                       child: const Text(
                         'BACK',
@@ -909,10 +907,10 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
                       decoration: BoxDecoration(
                         border: Border.all(color: color, width: 1.5),
                         borderRadius: BorderRadius.circular(2),
-                        color: color.withOpacity(0.2),
+                        color: color.withValues(alpha: 0.2),
                         boxShadow: [
                           BoxShadow(
-                            color: color.withOpacity(0.3),
+                            color: color.withValues(alpha: 0.3),
                             blurRadius: 10,
                           ),
                         ],
@@ -1065,7 +1063,7 @@ class _VoidPainter extends CustomPainter {
         center,
         r * pulse,
         Paint()
-          ..color = color.withOpacity((0.13 - i * 0.02) * pulse)
+          ..color = color.withValues(alpha: (0.13 - i * 0.02) * pulse)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 0.8
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
@@ -1074,7 +1072,7 @@ class _VoidPainter extends CustomPainter {
 
     const spokeCount = 8;
     final spokePaint = Paint()
-      ..color = color.withOpacity(0.05 * pulse)
+      ..color = color.withValues(alpha: 0.05 * pulse)
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
     for (int i = 0; i < spokeCount; i++) {
@@ -1090,7 +1088,7 @@ class _VoidPainter extends CustomPainter {
       center,
       38 * pulse,
       Paint()
-        ..color = color.withOpacity(0.15 * pulse)
+        ..color = color.withValues(alpha: 0.15 * pulse)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
     );
   }

@@ -43,14 +43,14 @@ class AlchemyProjectile extends PositionComponent {
     // 2. Setup Paints (Cache them)
     // Outer Glow (The "Mystical" part)
     _glowPaint = Paint()
-      ..color = color.withOpacity(0.6)
+      ..color = color.withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
     // Inner Core (The "Elemental" part)
     _corePaint = Paint()
       ..color = Colors.white
-          .withOpacity(0.9) // Hot core
+          .withValues(alpha: 0.9) // Hot core
       ..style = PaintingStyle.fill;
 
     // 3. Orientation
@@ -119,7 +119,6 @@ class AlchemyProjectile extends PositionComponent {
         path.lineTo(0, 12);
         break;
       case ProjectileShape.orb: // Circle
-      default:
         path.addOval(Rect.fromCircle(center: Offset.zero, radius: 6));
         break;
     }
@@ -141,7 +140,7 @@ class AlchemyProjectile extends PositionComponent {
       radius: 4,
       position: position.clone(),
       anchor: Anchor.center,
-      paint: Paint()..color = color.withOpacity(0.3),
+      paint: Paint()..color = color.withValues(alpha: 0.3),
     )..add(
       SequenceEffect([
         ScaleEffect.to(Vector2.zero(), EffectController(duration: 0.3)),

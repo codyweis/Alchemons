@@ -24,7 +24,7 @@ import 'package:alchemons/widgets/creature_sprite.dart';
 class _ScanlinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withOpacity(0.07);
+    final p = Paint()..color = Colors.black.withValues(alpha: 0.07);
     for (double y = 0; y < size.height; y += 3) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
     }
@@ -120,11 +120,11 @@ class InstanceCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
-          color: isSelected ? selColor.withOpacity(0.08) : t.bg2,
+          color: isSelected ? selColor.withValues(alpha: 0.08) : t.bg2,
           borderRadius: BorderRadius.circular(4),
           border: Border.all(color: selColor, width: isSelected ? 1.5 : 1.0),
           boxShadow: isSelected
-              ? [BoxShadow(color: selColor.withOpacity(0.15), blurRadius: 10)]
+              ? [BoxShadow(color: selColor.withValues(alpha: 0.15), blurRadius: 10)]
               : null,
         ),
         child: ClipRRect(
@@ -157,6 +157,17 @@ class InstanceCard extends StatelessWidget {
                                     ),
                             ),
                           ),
+                          // Favorite star — top left
+                          if (instance.isFavorite)
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              child: Icon(
+                                Icons.star_rounded,
+                                color: const Color(0xFFE91E63),
+                                size: 14,
+                              ),
+                            ),
                           // Selection number badge — top right
                           if (isSelected && selectionNumber != null)
                             Positioned(
@@ -414,7 +425,7 @@ class _StatLine extends StatelessWidget {
           '$label  ${value.toStringAsFixed(0)}',
           style: TextStyle(
             fontFamily: 'monospace',
-            color: color.withOpacity(0.9),
+            color: color.withValues(alpha: 0.9),
             fontSize: 9,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.3,
@@ -645,9 +656,9 @@ class _ParentChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: c.withOpacity(0.15),
+        color: c.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: c.withOpacity(0.5)),
+        border: Border.all(color: c.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -677,9 +688,9 @@ class _PrismaticChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
     decoration: BoxDecoration(
-      color: const Color(0xFFA855F7).withOpacity(0.15),
+      color: const Color(0xFFA855F7).withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(2),
-      border: Border.all(color: const Color(0xFFA855F7).withOpacity(0.45)),
+      border: Border.all(color: const Color(0xFFA855F7).withValues(alpha: 0.45)),
     ),
     child: const Text(
       'PRISMATIC',
@@ -722,12 +733,12 @@ class InstancesEmptyState extends StatelessWidget {
               decoration: BoxDecoration(
                 color: t.bg2,
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: t.borderAccent.withOpacity(0.5)),
+                border: Border.all(color: t.borderAccent.withValues(alpha: 0.5)),
               ),
               child: Icon(
                 hasFilters ? Icons.search_off_rounded : Icons.science_outlined,
                 size: 36,
-                color: t.amberBright.withOpacity(0.4),
+                color: t.amberBright.withValues(alpha: 0.4),
               ),
             ),
             const SizedBox(height: 14),

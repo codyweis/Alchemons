@@ -120,7 +120,7 @@ class EncounterService extends ChangeNotifier {
 
   /// Force spawn at a specific point (for wilderness spawn service integration)
   void forceSpawnAt(String spawnPointId, WildEncounter encounter) {
-    final spawnPoint = scene.spawnPoints.firstWhere(
+    scene.spawnPoints.firstWhere(
       (sp) => sp.id == spawnPointId,
       orElse: () => throw Exception('Spawn point $spawnPointId not found'),
     );

@@ -1,15 +1,11 @@
 // lib/screens/black_market_screen.dart
-import 'dart:ui';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
-import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/faction_service.dart';
-import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
-import 'package:alchemons/widgets/creature_image.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/species_picker_sheet.dart';
 import 'package:flutter/material.dart';
@@ -109,13 +105,13 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             Icon(
               Icons.lock_rounded,
               size: 80,
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
             ),
             const SizedBox(height: 20),
             Text(
               'Resource selling is locked',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.4),
+                color: Colors.white.withValues(alpha: 0.4),
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
@@ -125,7 +121,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             Text(
               'Not accepting resources for some reason.',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -145,10 +141,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         child: Container(
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: const Color(0xFF8B4789).withOpacity(0.3),
+              color: const Color(0xFF8B4789).withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -201,10 +197,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         child: Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: const Color(0xFF8B4789).withOpacity(0.4),
+              color: const Color(0xFF8B4789).withValues(alpha: 0.4),
               width: 1,
             ),
           ),
@@ -253,13 +249,13 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               Icon(
                 Icons.schedule_rounded,
                 size: 80,
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
               ),
               const SizedBox(height: 20),
               Text(
                 "Loading weekly deals...",
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
+                  color: Colors.white.withValues(alpha: 0.4),
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -296,9 +292,9 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.2),
+                    color: Colors.orange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -358,7 +354,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                           Positioned.fill(
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.6),
+                                color: Colors.black.withValues(alpha: 0.6),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Center(
@@ -368,10 +364,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                                     vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.3),
+                                    color: Colors.green.withValues(alpha: 0.3),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: Colors.green.withOpacity(0.6),
+                                      color: Colors.green.withValues(alpha: 0.6),
                                     ),
                                   ),
                                   child: Row(
@@ -525,7 +521,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         backgroundColor: const Color(0xFF1A1D23),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: widget.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(color: widget.accent.withValues(alpha: 0.5), width: 2),
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -544,7 +540,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               Text(
                 '${vial.group.displayName} • ${vial.rarity.name}',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -675,10 +671,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   width: 1,
                 ),
               ),
@@ -706,10 +702,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: const Color(0xFF8B4789).withOpacity(0.4),
+                        color: const Color(0xFF8B4789).withValues(alpha: 0.4),
                         width: 1,
                       ),
                     ),
@@ -724,7 +720,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                         Container(
                           width: 1,
                           height: 20,
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                         ),
                         _CurrencyPill(
                           icon: Icons.monetization_on_rounded,
@@ -753,13 +749,13 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                const Color(0xFF8B4789).withOpacity(0.8),
-                Colors.purple.shade900.withOpacity(0.8),
+                const Color(0xFF8B4789).withValues(alpha: 0.8),
+                Colors.purple.shade900.withValues(alpha: 0.8),
               ],
             ),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: const Color(0xFF8B4789).withOpacity(0.6),
+              color: const Color(0xFF8B4789).withValues(alpha: 0.6),
               width: 1.5,
             ),
           ),
@@ -768,10 +764,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.2),
+                  color: Colors.orange.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: Colors.orange.withOpacity(0.5),
+                    color: Colors.orange.withValues(alpha: 0.5),
                     width: 1.5,
                   ),
                 ),
@@ -813,9 +809,9 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.2),
+                  color: Colors.green.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.withOpacity(0.5)),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.5)),
                 ),
                 child: Text(
                   '+${((marketService.premiumBonus - 1) * 100).toStringAsFixed(0)}%',
@@ -844,13 +840,13 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             Icon(
               Icons.inventory_2_outlined,
               size: 80,
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
             ),
             const SizedBox(height: 20),
             Text(
               'Select specimens to sell',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.4),
+                color: Colors.white.withValues(alpha: 0.4),
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
@@ -859,7 +855,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             Text(
               'Tap the button below to browse',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -880,13 +876,13 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             Icon(
               Icons.science_outlined,
               size: 80,
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
             ),
             const SizedBox(height: 20),
             Text(
               'Select resources to sell',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.4),
+                color: Colors.white.withValues(alpha: 0.4),
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
@@ -895,7 +891,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             Text(
               'Tap the button below to choose',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -925,10 +921,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.orange.withOpacity(0.4),
+                    color: Colors.orange.withValues(alpha: 0.4),
                     width: 1.5,
                   ),
                 ),
@@ -1023,10 +1019,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.15),
+                  color: Colors.green.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.green.withOpacity(0.4),
+                    color: Colors.green.withValues(alpha: 0.4),
                     width: 1.5,
                   ),
                 ),
@@ -1083,10 +1079,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.orange.withOpacity(0.4),
+                color: Colors.orange.withValues(alpha: 0.4),
                 width: 1.5,
               ),
             ),
@@ -1164,10 +1160,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.15),
+              color: Colors.green.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.green.withOpacity(0.4),
+                color: Colors.green.withValues(alpha: 0.4),
                 width: 1.5,
               ),
             ),
@@ -1222,7 +1218,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.7)],
         ),
       ),
       child: SafeArea(
@@ -1250,10 +1246,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF8B4789).withOpacity(0.3),
+                    color: const Color(0xFF8B4789).withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: const Color(0xFF8B4789).withOpacity(0.6),
+                      color: const Color(0xFF8B4789).withValues(alpha: 0.6),
                       width: 2,
                     ),
                   ),
@@ -1310,7 +1306,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     border: Border.all(color: Colors.green.shade400, width: 2),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.green.withOpacity(0.4),
+                        color: Colors.green.withValues(alpha: 0.4),
                         blurRadius: 16,
                         spreadRadius: 1,
                       ),
@@ -1375,7 +1371,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                 colors: [
                   theme.surface,
                   theme.surface,
-                  theme.surfaceAlt.withOpacity(.6),
+                  theme.surfaceAlt.withValues(alpha: .6),
                 ],
                 stops: const [0.0, 0.6, 1.0],
               ),
@@ -1391,7 +1387,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.textMuted.withOpacity(0.3),
+                    color: theme.textMuted.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1484,9 +1480,9 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                             decoration: BoxDecoration(
                               color: balance > 0
                                   ? (alreadySelected
-                                        ? theme.accent.withOpacity(0.2)
+                                        ? theme.accent.withValues(alpha: 0.2)
                                         : theme.surfaceAlt)
-                                  : theme.surfaceAlt.withOpacity(0.3),
+                                  : theme.surfaceAlt.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: alreadySelected
@@ -1502,10 +1498,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                                   width: 40,
                                   height: 40,
                                   decoration: BoxDecoration(
-                                    color: resource.color.withOpacity(0.2),
+                                    color: resource.color.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: resource.color.withOpacity(0.5),
+                                      color: resource.color.withValues(alpha: 0.5),
                                     ),
                                   ),
                                   child: Center(
@@ -1712,7 +1708,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                 colors: [
                   theme.surface,
                   theme.surface,
-                  theme.surfaceAlt.withOpacity(.6),
+                  theme.surfaceAlt.withValues(alpha: .6),
                 ],
                 stops: const [0.0, 0.6, 1.0],
               ),
@@ -1728,7 +1724,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.textMuted.withOpacity(0.3),
+                    color: theme.textMuted.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1813,17 +1809,6 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
       builder: (_) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            // Dynamically assign IDs to slots based on current selection
-            final String? slot1 = _selectedForSale.isNotEmpty
-                ? _selectedForSale[0].instanceId
-                : null;
-            final String? slot2 = _selectedForSale.length > 1
-                ? _selectedForSale[1].instanceId
-                : null;
-            final String? slot3 = _selectedForSale.length > 2
-                ? _selectedForSale[2].instanceId
-                : null;
-
             return BottomSheetShell(
               theme: theme,
               title: 'Select ${species.name}',
@@ -1997,9 +1982,9 @@ class _CompactCreatureRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.4),
+          color: Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(0.15)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
         ),
         child: Row(
           children: [
@@ -2008,9 +1993,9 @@ class _CompactCreatureRow extends StatelessWidget {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.2),
+                color: Colors.purple.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.purple.withOpacity(0.4)),
+                border: Border.all(color: Colors.purple.withValues(alpha: 0.4)),
               ),
               child: Center(
                 child: Text(
@@ -2044,7 +2029,7 @@ class _CompactCreatureRow extends StatelessWidget {
                   Text(
                     'Lv ${instance.level}',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
+                      color: Colors.white.withValues(alpha: 0.5),
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                     ),
@@ -2082,9 +2067,9 @@ class _CompactCreatureRow extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.2),
+                  color: Colors.red.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.red.withOpacity(0.4)),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
                 ),
                 child: const Icon(Icons.close, size: 14, color: Colors.red),
               ),
@@ -2120,9 +2105,9 @@ class _CompactResourceRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.4),
+          color: Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(0.15)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
         ),
         child: Column(
           children: [
@@ -2133,9 +2118,9 @@ class _CompactResourceRow extends StatelessWidget {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: resource.color.withOpacity(0.2),
+                    color: resource.color.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: resource.color.withOpacity(0.4)),
+                    border: Border.all(color: resource.color.withValues(alpha: 0.4)),
                   ),
                   child: Center(
                     child: Icon(resource.icon, color: resource.color, size: 16),
@@ -2162,7 +2147,7 @@ class _CompactResourceRow extends StatelessWidget {
                       Text(
                         'Available: $available',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
+                          color: Colors.white.withValues(alpha: 0.5),
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),
@@ -2200,9 +2185,9 @@ class _CompactResourceRow extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.2),
+                      color: Colors.red.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.red.withOpacity(0.4)),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
                     ),
                     child: const Icon(Icons.close, size: 14, color: Colors.red),
                   ),
@@ -2218,7 +2203,7 @@ class _CompactResourceRow extends StatelessWidget {
                 Text(
                   'Qty: $quantity',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -2230,7 +2215,7 @@ class _CompactResourceRow extends StatelessWidget {
                     max: available.toDouble(),
                     divisions: available > 1 ? available - 1 : 1,
                     activeColor: resource.color,
-                    inactiveColor: resource.color.withOpacity(0.3),
+                    inactiveColor: resource.color.withValues(alpha: 0.3),
                     onChanged: (value) => onQuantityChanged(value.toInt()),
                   ),
                 ),
@@ -2260,7 +2245,7 @@ class _SaleConfirmationDialog extends StatelessWidget {
       backgroundColor: const Color(0xFF1A1D23),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: accent.withOpacity(0.5), width: 2),
+        side: BorderSide(color: accent.withValues(alpha: 0.5), width: 2),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -2282,7 +2267,7 @@ class _SaleConfirmationDialog extends StatelessWidget {
             Text(
               'Sell $count specimen(s) for $total silver?',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -2305,7 +2290,7 @@ class _SaleConfirmationDialog extends StatelessWidget {
                   child: TextButton(
                     onPressed: () => Navigator.pop(context, false),
                     style: TextButton.styleFrom(
-                      backgroundColor: Colors.white.withOpacity(0.1),
+                      backgroundColor: Colors.white.withValues(alpha: 0.1),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -2368,7 +2353,7 @@ class _ResourceSaleConfirmationDialog extends StatelessWidget {
       backgroundColor: const Color(0xFF1A1D23),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: accent.withOpacity(0.5), width: 2),
+        side: BorderSide(color: accent.withValues(alpha: 0.5), width: 2),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -2390,7 +2375,7 @@ class _ResourceSaleConfirmationDialog extends StatelessWidget {
             Text(
               'Sell $totalQuantity resources ($resourceCount types) for $total silver?',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -2413,7 +2398,7 @@ class _ResourceSaleConfirmationDialog extends StatelessWidget {
                   child: TextButton(
                     onPressed: () => Navigator.pop(context, false),
                     style: TextButton.styleFrom(
-                      backgroundColor: Colors.white.withOpacity(0.1),
+                      backgroundColor: Colors.white.withValues(alpha: 0.1),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -2480,12 +2465,12 @@ class _TabButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: isActive
-              ? const Color(0xFF8B4789).withOpacity(0.4)
+              ? const Color(0xFF8B4789).withValues(alpha: 0.4)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isActive
-                ? const Color(0xFF8B4789).withOpacity(0.6)
+                ? const Color(0xFF8B4789).withValues(alpha: 0.6)
                 : Colors.transparent,
             width: 1.5,
           ),
@@ -2538,12 +2523,12 @@ class _SubTabButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: isActive
-              ? const Color(0xFF8B4789).withOpacity(0.3)
+              ? const Color(0xFF8B4789).withValues(alpha: 0.3)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(7),
           border: Border.all(
             color: isActive
-                ? const Color(0xFF8B4789).withOpacity(0.5)
+                ? const Color(0xFF8B4789).withValues(alpha: 0.5)
                 : Colors.transparent,
             width: 1,
           ),
@@ -2593,13 +2578,13 @@ class _OfferCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: isPurchased
-              ? Colors.black.withOpacity(0.6)
-              : Colors.black.withOpacity(0.4),
+              ? Colors.black.withValues(alpha: 0.6)
+              : Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isPurchased
-                ? Colors.grey.withOpacity(0.3)
-                : const Color(0xFF8B4789).withOpacity(0.5),
+                ? Colors.grey.withValues(alpha: 0.3)
+                : const Color(0xFF8B4789).withValues(alpha: 0.5),
             width: 1.5,
           ),
         ),
@@ -2612,13 +2597,13 @@ class _OfferCard extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: isPurchased
-                        ? Colors.grey.withOpacity(0.2)
-                        : const Color(0xFF8B4789).withOpacity(0.2),
+                        ? Colors.grey.withValues(alpha: 0.2)
+                        : const Color(0xFF8B4789).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isPurchased
-                          ? Colors.grey.withOpacity(0.4)
-                          : const Color(0xFF8B4789).withOpacity(0.5),
+                          ? Colors.grey.withValues(alpha: 0.4)
+                          : const Color(0xFF8B4789).withValues(alpha: 0.5),
                     ),
                   ),
                   child: Icon(
@@ -2659,10 +2644,10 @@ class _OfferCard extends StatelessWidget {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.2),
+                                color: Colors.green.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
-                                  color: Colors.green.withOpacity(0.5),
+                                  color: Colors.green.withValues(alpha: 0.5),
                                 ),
                               ),
                               child: Row(
@@ -2694,7 +2679,7 @@ class _OfferCard extends StatelessWidget {
                         style: TextStyle(
                           color: isPurchased
                               ? Colors.grey.shade500
-                              : Colors.white.withOpacity(0.6),
+                              : Colors.white.withValues(alpha: 0.6),
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -2783,9 +2768,9 @@ class _CostBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2821,7 +2806,7 @@ class _PurchaseConfirmationDialog extends StatelessWidget {
       backgroundColor: const Color(0xFF1A1D23),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: accent.withOpacity(0.5), width: 2),
+        side: BorderSide(color: accent.withValues(alpha: 0.5), width: 2),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -2843,7 +2828,7 @@ class _PurchaseConfirmationDialog extends StatelessWidget {
             Text(
               offer.name,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
@@ -2853,7 +2838,7 @@ class _PurchaseConfirmationDialog extends StatelessWidget {
             Text(
               offer.description,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -2875,7 +2860,7 @@ class _PurchaseConfirmationDialog extends StatelessWidget {
                   child: TextButton(
                     onPressed: () => Navigator.pop(context, false),
                     style: TextButton.styleFrom(
-                      backgroundColor: Colors.white.withOpacity(0.1),
+                      backgroundColor: Colors.white.withValues(alpha: 0.1),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),

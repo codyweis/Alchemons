@@ -92,7 +92,7 @@ class _TutorialHighlightState extends State<TutorialHighlight>
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -132,7 +132,7 @@ class _TutorialHighlightState extends State<TutorialHighlight>
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.amber.withOpacity(_glowAnimation.value),
+                          color: Colors.amber.withValues(alpha: _glowAnimation.value),
                           blurRadius: 20 * _glowAnimation.value,
                           spreadRadius: 4 * _glowAnimation.value,
                         ),
@@ -148,7 +148,7 @@ class _TutorialHighlightState extends State<TutorialHighlight>
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Colors.amber.withOpacity(0.8),
+                        color: Colors.amber.withValues(alpha: 0.8),
                         width: 3,
                       ),
                     ),
@@ -182,7 +182,7 @@ class TutorialCreatureHighlight extends PositionComponent {
     final outerRing = CircleComponent(
       radius: radius * 1.3,
       paint: Paint()
-        ..color = glowColor.withOpacity(0.3)
+        ..color = glowColor.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4,
       anchor: Anchor.center,
@@ -193,7 +193,7 @@ class TutorialCreatureHighlight extends PositionComponent {
     final middleRing = CircleComponent(
       radius: radius * 1.15,
       paint: Paint()
-        ..color = glowColor.withOpacity(0.5)
+        ..color = glowColor.withValues(alpha: 0.5)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
       anchor: Anchor.center,
@@ -204,7 +204,7 @@ class TutorialCreatureHighlight extends PositionComponent {
     final innerRing = CircleComponent(
       radius: radius,
       paint: Paint()
-        ..color = glowColor.withOpacity(0.7)
+        ..color = glowColor.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
       anchor: Anchor.center,

@@ -9,10 +9,12 @@ import 'package:flutter/material.dart';
 class UnknownScrollArea extends StatelessWidget {
   // ignore: unused_field
   final FactionTheme? theme;
-  const UnknownScrollArea({this.theme});
+  const UnknownScrollArea({super.key, this.theme});
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -22,25 +24,25 @@ class UnknownScrollArea extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: FC.bg3,
+                color: fc.bg3,
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: FC.borderAccent, width: 1),
+                border: Border.all(color: fc.borderAccent, width: 1),
               ),
               child: Icon(
                 Icons.help_outline_rounded,
-                color: FC.amberDim,
+                color: fc.amberDim,
                 size: 40,
               ),
             ),
             const SizedBox(height: 16),
             Text(
               'UNKNOWN SPECIMEN',
-              style: FT.heading.copyWith(color: FC.amberBright),
+              style: ft.heading.copyWith(color: fc.amberBright),
             ),
             const SizedBox(height: 8),
             Text(
               'Specimen data unavailable.\nContinue research to unlock analysis.',
-              style: FT.body.copyWith(fontSize: 11),
+              style: ft.body.copyWith(fontSize: 11),
               textAlign: TextAlign.center,
             ),
           ],

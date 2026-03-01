@@ -26,7 +26,7 @@ Future<void> showLootOpeningDialog({
   await showGeneralDialog(
     context: context,
     barrierDismissible: false,
-    barrierColor: Colors.black.withOpacity(0.80),
+    barrierColor: Colors.black.withValues(alpha: 0.80),
     transitionDuration: const Duration(milliseconds: 350),
     transitionBuilder: (ctx, anim, _, child) =>
         FadeTransition(opacity: anim, child: child),
@@ -106,7 +106,9 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
   @override
   void dispose() {
     _lottieCtrl.dispose();
-    for (final c in _rowCtrls) c.dispose();
+    for (final c in _rowCtrls) {
+      c.dispose();
+    }
     _btnCtrl.dispose();
     super.dispose();
   }
@@ -153,7 +155,7 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                 ),
               ),
               const SizedBox(height: 8),
-              Container(height: 1, color: amber.withOpacity(0.25)),
+              Container(height: 1, color: amber.withValues(alpha: 0.25)),
               const SizedBox(height: 32),
               ...List.generate(widget.entries.length, (i) {
                 final e = widget.entries[i];
@@ -171,9 +173,9 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                             height: 46,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: e.color.withOpacity(0.12),
+                              color: e.color.withValues(alpha: 0.12),
                               border: Border.all(
-                                color: e.color.withOpacity(0.35),
+                                color: e.color.withValues(alpha: 0.35),
                                 width: 1,
                               ),
                             ),
@@ -223,12 +225,12 @@ class _SleekLootDialogState extends State<_SleekLootDialog>
                     width: double.infinity,
                     height: 50,
                     decoration: BoxDecoration(
-                      color: amber.withOpacity(0.08),
+                      color: amber.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: amber, width: 1.5),
                       boxShadow: [
                         BoxShadow(
-                          color: amber.withOpacity(0.22),
+                          color: amber.withValues(alpha: 0.22),
                           blurRadius: 20,
                           offset: const Offset(0, 4),
                         ),
@@ -296,6 +298,7 @@ class _LootFallbackAnimationState extends State<_LootFallbackAnimation>
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     return Center(
       child: AnimatedBuilder(
         animation: _controller,
@@ -309,17 +312,17 @@ class _LootFallbackAnimationState extends State<_LootFallbackAnimation>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    FC.amberGlow.withOpacity(_glow.value),
-                    FC.amberDim.withOpacity(0.08),
+                    fc.amberGlow.withValues(alpha: _glow.value),
+                    fc.amberDim.withValues(alpha: 0.08),
                     Colors.transparent,
                   ],
                   stops: const [0.15, 0.7, 1.0],
                 ),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.auto_awesome_rounded,
                 size: 52,
-                color: FC.amberBright,
+                color: fc.amberBright,
               ),
             ),
           );
@@ -339,11 +342,13 @@ Future<void> showKeyItemUnlockDialog({
   required String itemDescription,
   required IconData itemIcon,
   required Color elementColor,
+  String?
+  itemImagePath, // optional relic PNG — shown instead of icon when provided
 }) async {
   await showGeneralDialog(
     context: context,
     barrierDismissible: false,
-    barrierColor: Colors.black.withOpacity(0.92),
+    barrierColor: Colors.black.withValues(alpha: 0.92),
     transitionDuration: const Duration(milliseconds: 400),
     transitionBuilder: (ctx, anim, _, child) {
       return FadeTransition(opacity: anim, child: child);
@@ -353,6 +358,7 @@ Future<void> showKeyItemUnlockDialog({
       itemDescription: itemDescription,
       itemIcon: itemIcon,
       elementColor: elementColor,
+      itemImagePath: itemImagePath,
     ),
   );
 }
@@ -362,12 +368,14 @@ class _KeyItemRevealDialog extends StatefulWidget {
   final String itemDescription;
   final IconData itemIcon;
   final Color elementColor;
+  final String? itemImagePath;
 
   const _KeyItemRevealDialog({
     required this.itemName,
     required this.itemDescription,
     required this.itemIcon,
     required this.elementColor,
+    this.itemImagePath,
   });
 
   @override
@@ -472,6 +480,7 @@ class _KeyItemRevealDialogState extends State<_KeyItemRevealDialog>
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final color = widget.elementColor;
 
     return Scaffold(
@@ -515,8 +524,8 @@ class _KeyItemRevealDialogState extends State<_KeyItemRevealDialog>
                           shape: BoxShape.circle,
                           gradient: RadialGradient(
                             colors: [
-                              color.withOpacity(0.28 * _iconGlow.value),
-                              color.withOpacity(0.0),
+                              color.withValues(alpha: 0.28 * _iconGlow.value),
+                              color.withValues(alpha: 0.0),
                             ],
                           ),
                         ),
@@ -530,20 +539,32 @@ class _KeyItemRevealDialogState extends State<_KeyItemRevealDialog>
                         height: 110,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: color.withOpacity(0.12),
+                          color: color.withValues(alpha: 0.12),
                           border: Border.all(
-                            color: color.withOpacity(0.6),
+                            color: color.withValues(alpha: 0.6),
                             width: 2,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: color.withOpacity(0.5),
+                              color: color.withValues(alpha: 0.5),
                               blurRadius: 30,
                               spreadRadius: 4,
                             ),
                           ],
                         ),
-                        child: Icon(widget.itemIcon, color: color, size: 52),
+                        child: widget.itemImagePath != null
+                            ? Image.asset(
+                                widget.itemImagePath!,
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  widget.itemIcon,
+                                  color: color,
+                                  size: 52,
+                                ),
+                              )
+                            : Icon(widget.itemIcon, color: color, size: 52),
                       ),
                     ),
                     // Orbiting sparkles (8 points)
@@ -566,7 +587,7 @@ class _KeyItemRevealDialogState extends State<_KeyItemRevealDialog>
                                 height: i.isEven ? 5 : 3,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: color.withOpacity(
+                                  color: color.withValues(alpha: 
                                     opacity.clamp(0.0, 1.0),
                                   ),
                                 ),
@@ -602,8 +623,8 @@ class _KeyItemRevealDialogState extends State<_KeyItemRevealDialog>
                     Text(
                       widget.itemDescription,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: FC.textSecondary,
+                      style: TextStyle(
+                        color: fc.textSecondary,
                         fontSize: 12,
                         height: 1.5,
                       ),
@@ -623,12 +644,12 @@ class _KeyItemRevealDialogState extends State<_KeyItemRevealDialog>
                     width: double.infinity,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.15),
+                      color: color.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: color, width: 1.5),
                       boxShadow: [
                         BoxShadow(
-                          color: color.withOpacity(0.35),
+                          color: color.withValues(alpha: 0.35),
                           blurRadius: 18,
                           offset: const Offset(0, 4),
                         ),

@@ -84,14 +84,14 @@ class BossSpawnPortal extends PositionComponent {
 
     // 1. Outer glow pulse
     final pulseScale = 1.0 + sin(_time * 8) * 0.1;
-    final glowPaint = Paint()..color = color.withOpacity(_opacity * 0.4);
+    final glowPaint = Paint()..color = color.withValues(alpha: _opacity * 0.4);
     canvas.drawCircle(Offset.zero, radius * pulseScale, glowPaint);
 
     // 2. Spinning outer ring
     canvas.save();
     canvas.rotate(_rotation);
     final outerRingPaint = Paint()
-      ..color = color.withOpacity(_opacity * 0.7)
+      ..color = color.withValues(alpha: _opacity * 0.7)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4.0;
     _drawDashedCircle(canvas, radius * 0.9, outerRingPaint, 8);
@@ -101,7 +101,7 @@ class BossSpawnPortal extends PositionComponent {
     canvas.save();
     canvas.rotate(-_rotation * 1.5);
     final innerRingPaint = Paint()
-      ..color = Colors.white.withOpacity(_opacity * 0.8)
+      ..color = Colors.white.withValues(alpha: _opacity * 0.8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
     _drawDashedCircle(canvas, radius * 0.5, innerRingPaint, 12);
@@ -110,9 +110,9 @@ class BossSpawnPortal extends PositionComponent {
     // 4. Dark vortex center
     final vortexGradient = RadialGradient(
       colors: [
-        Colors.black.withOpacity(_opacity),
-        Colors.black.withOpacity(_opacity * 0.8),
-        color.withOpacity(_opacity * 0.4),
+        Colors.black.withValues(alpha: _opacity),
+        Colors.black.withValues(alpha: _opacity * 0.8),
+        color.withValues(alpha: _opacity * 0.4),
         Colors.transparent,
       ],
       stops: const [0.0, 0.3, 0.6, 1.0],
@@ -125,18 +125,18 @@ class BossSpawnPortal extends PositionComponent {
 
     // 5. Lightning bolts
     final boltPaint = Paint()
-      ..color = Colors.white.withOpacity(_opacity)
+      ..color = Colors.white.withValues(alpha: _opacity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0
       ..strokeCap = StrokeCap.round;
 
     for (final bolt in _bolts) {
-      boltPaint.color = Colors.white.withOpacity(bolt.life / 0.15 * _opacity);
+      boltPaint.color = Colors.white.withValues(alpha: bolt.life / 0.15 * _opacity);
       _drawLightningBolt(canvas, bolt, boltPaint);
     }
 
     // 6. Core bright point
-    final corePaint = Paint()..color = Colors.white.withOpacity(_opacity * 0.9);
+    final corePaint = Paint()..color = Colors.white.withValues(alpha: _opacity * 0.9);
     canvas.drawCircle(Offset.zero, 4, corePaint);
 
     canvas.restore();

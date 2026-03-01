@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
@@ -9,7 +8,6 @@ import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
-import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
 /// MYSTIC FAMILY - ORBITAL SWARM MECHANIC
@@ -208,7 +206,7 @@ class MysticOrbitalMechanic {
       radius: zoneRadius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.orange.withOpacity(0.35),
+      paint: Paint()..color = Colors.orange.withValues(alpha: 0.35),
     );
 
     int ticks = 0;
@@ -396,7 +394,7 @@ class MysticOrbitalMechanic {
       paint: Paint()
         ..color = SurvivalAttackManager.getElementColor(
           'Plant',
-        ).withOpacity(0.3)
+        ).withValues(alpha: 0.3)
         ..style = PaintingStyle.fill,
     );
 
@@ -496,7 +494,7 @@ class MysticOrbitalMechanic {
       position: target.position.clone(),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = SurvivalAttackManager.getElementColor('Mud').withOpacity(0.3)
+        ..color = SurvivalAttackManager.getElementColor('Mud').withValues(alpha: 0.3)
         ..style = PaintingStyle.fill,
     );
 
@@ -646,7 +644,7 @@ class MysticOrbitalMechanic {
       radius: 10,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = color.withOpacity(0.9),
+      paint: Paint()..color = color.withValues(alpha: 0.9),
     );
     node.add(
       ScaleEffect.by(
@@ -779,13 +777,13 @@ class MysticOrbitalMechanic {
       radius: zoneRadius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = color.withOpacity(0.18),
+      paint: Paint()..color = color.withValues(alpha: 0.18),
     );
     // Pulsing ring
     final ring = CircleComponent(
       radius: zoneRadius,
       paint: Paint()
-        ..color = color.withOpacity(0.55)
+        ..color = color.withValues(alpha: 0.55)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5,
       anchor: Anchor.center,
@@ -1003,7 +1001,7 @@ class _MysticOrb extends PositionComponent {
         EffectController(duration: 0.7, reverseDuration: 0.7, infinite: true),
       ),
     );
-    final r2 = _addRing(color.withOpacity(0.4), 13, 1.0);
+    final r2 = _addRing(color.withValues(alpha: 0.4), 13, 1.0);
     r2.add(
       ScaleEffect.by(
         Vector2.all(1.2),
@@ -1051,7 +1049,7 @@ class _MysticOrb extends PositionComponent {
       final angle = i * pi / 2;
       final petal = CircleComponent(
         radius: 4,
-        paint: Paint()..color = color.withOpacity(0.8),
+        paint: Paint()..color = color.withValues(alpha: 0.8),
         anchor: Anchor.center,
         position: Vector2(cos(angle), sin(angle)) * 9,
       );
@@ -1075,7 +1073,7 @@ class _MysticOrb extends PositionComponent {
     r1.add(
       RotateEffect.by(pi * 2, EffectController(duration: 0.6, infinite: true)),
     );
-    final r2 = _addRing(color.withOpacity(0.4), 7, 1.0);
+    final r2 = _addRing(color.withValues(alpha: 0.4), 7, 1.0);
     r2.add(
       RotateEffect.by(-pi * 2, EffectController(duration: 1.1, infinite: true)),
     );
@@ -1118,7 +1116,7 @@ class _MysticOrb extends PositionComponent {
     _addCore(Colors.white, 4);
     for (int i = 0; i < 3; i++) {
       final ring = _addRing(
-        color.withOpacity(0.7 - i * 0.15),
+        color.withValues(alpha: 0.7 - i * 0.15),
         6.0 + i * 4,
         1.0,
       );
@@ -1136,7 +1134,7 @@ class _MysticOrb extends PositionComponent {
     _addGlow(color, 13, 0.2);
     _addCore(Colors.white60, 3);
     for (double r in [7.0, 11.0, 15.0]) {
-      final ring = _addRing(color.withOpacity(0.25), r, 0.8);
+      final ring = _addRing(color.withValues(alpha: 0.25), r, 0.8);
       ring.add(
         RotateEffect.by(
           pi * 2,
@@ -1156,7 +1154,7 @@ class _MysticOrb extends PositionComponent {
       spinner.add(
         CircleComponent(
           radius: 2.5,
-          paint: Paint()..color = color.withOpacity(0.7),
+          paint: Paint()..color = color.withValues(alpha: 0.7),
           anchor: Anchor.center,
           position: Vector2(cos(angle), sin(angle)) * 10,
         ),
@@ -1189,7 +1187,7 @@ class _MysticOrb extends PositionComponent {
     _addGlow(color, 15, 0.3);
     _addGlow(Colors.white, 8, 0.3);
     _addCore(Colors.white70, 4);
-    final ring = _addRing(color.withOpacity(0.3), 12, 1.0);
+    final ring = _addRing(color.withValues(alpha: 0.3), 12, 1.0);
     ring.add(
       RotateEffect.by(pi * 2, EffectController(duration: 2.2, infinite: true)),
     );
@@ -1217,7 +1215,7 @@ class _MysticOrb extends PositionComponent {
     _addCore(Colors.white, 6);
     for (double r in [8.0, 12.0, 16.0]) {
       final ring = _addRing(
-        color.withOpacity(0.9 - r * 0.04),
+        color.withValues(alpha: 0.9 - r * 0.04),
         r,
         1.5 - r * 0.04,
       );
@@ -1252,7 +1250,7 @@ class _MysticOrb extends PositionComponent {
   CircleComponent _addGlow(Color color, double radius, double opacity) {
     final c = CircleComponent(
       radius: radius,
-      paint: Paint()..color = color.withOpacity(opacity),
+      paint: Paint()..color = color.withValues(alpha: opacity),
       anchor: Anchor.center,
     );
     add(c);

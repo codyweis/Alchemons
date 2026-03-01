@@ -38,13 +38,9 @@ class SurvivalHud extends PositionComponent
 
   // Transmutation progress paints
   late Paint _transmuteBgPaint;
-  late Paint _transmuteFillPaint;
   late Paint _transmuteGlowPaint;
 
   // Text paints
-  late TextPaint _headerPaint;
-  late TextPaint _labelPaint;
-  late TextPaint _valuePaint;
   late TextPaint _orbHpPaint;
   late TextPaint _smallLabelPaint;
 
@@ -84,72 +80,38 @@ class SurvivalHud extends PositionComponent
       ..style = PaintingStyle.fill;
 
     _borderPaint = Paint()
-      ..color = Colors.white.withOpacity(0.15)
+      ..color = Colors.white.withValues(alpha: 0.15)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
     _accentBorderPaint = Paint()
-      ..color = const Color(0xFF8B5CF6).withOpacity(0.4)
+      ..color = const Color(0xFF8B5CF6).withValues(alpha: 0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
     // HP bars
-    _hpBgPaint = Paint()..color = Colors.white.withOpacity(0.1);
+    _hpBgPaint = Paint()..color = Colors.white.withValues(alpha: 0.1);
     _hpGoodPaint = Paint()..color = const Color(0xFF10B981);
     _hpMidPaint = Paint()..color = const Color(0xFFF59E0B);
     _hpLowPaint = Paint()..color = const Color(0xFFEF4444);
 
     // Orb health
-    _orbBgPaint = Paint()..color = Colors.white.withOpacity(0.08);
+    _orbBgPaint = Paint()..color = Colors.white.withValues(alpha: 0.08);
     _orbFillGoodPaint = Paint()..color = const Color(0xFF10B981);
     _orbFillMidPaint = Paint()..color = const Color(0xFFF59E0B);
     _orbFillLowPaint = Paint()..color = const Color(0xFFEF4444);
-    _orbGlowPaint = Paint()..color = const Color(0xFFFFD700).withOpacity(0.3);
+    _orbGlowPaint = Paint()..color = const Color(0xFFFFD700).withValues(alpha: 0.3);
     _orbBorderPaint = Paint()
-      ..color = const Color(0xFFFFD700).withOpacity(0.6)
+      ..color = const Color(0xFFFFD700).withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
     // Transmutation progress
-    _transmuteBgPaint = Paint()..color = Colors.white.withOpacity(0.1);
-    _transmuteFillPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.bottomCenter,
-        end: Alignment.topCenter,
-        colors: [Color(0xFF8B5CF6), Color(0xFFD946EF)],
-      ).createShader(const Rect.fromLTWH(0, 0, 6, 100));
+    _transmuteBgPaint = Paint()..color = Colors.white.withValues(alpha: 0.1);
     _transmuteGlowPaint = Paint()
-      ..color = const Color(0xFF8B5CF6).withOpacity(0.5);
+      ..color = const Color(0xFF8B5CF6).withValues(alpha: 0.5);
 
     // Text paints
-    _headerPaint = TextPaint(
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.2,
-        fontFamily: 'monospace',
-      ),
-    );
-
-    _labelPaint = TextPaint(
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 9,
-        fontWeight: FontWeight.w700,
-        fontFamily: 'monospace',
-      ),
-    );
-
-    _valuePaint = TextPaint(
-      style: TextStyle(
-        color: Colors.white.withOpacity(0.6),
-        fontSize: 9,
-        fontWeight: FontWeight.w500,
-        fontFamily: 'monospace',
-      ),
-    );
-
     _orbHpPaint = TextPaint(
       style: const TextStyle(
         color: Color(0xFFFFD700),
@@ -161,7 +123,7 @@ class SurvivalHud extends PositionComponent
 
     _smallLabelPaint = TextPaint(
       style: TextStyle(
-        color: Colors.white.withOpacity(0.5),
+        color: Colors.white.withValues(alpha: 0.5),
         fontSize: 7,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.5,
@@ -185,8 +147,6 @@ class SurvivalHud extends PositionComponent
 
   void _updateSize() {
     // Lerp between collapsed and expanded size
-    final targetWidth = _isCollapsed ? _collapsedWidth : _expandedWidth;
-    final targetHeight = _isCollapsed ? _collapsedHeight : _expandedHeight;
 
     final currentWidth = lerpDouble(
       _expandedWidth,
@@ -303,7 +263,7 @@ class SurvivalHud extends PositionComponent
       // Fade in expanded content
       canvas.saveLayer(
         null,
-        Paint()..color = Colors.white.withOpacity(1 - _collapseProgress),
+        Paint()..color = Colors.white.withValues(alpha: 1 - _collapseProgress),
       );
       _drawExpandedView(canvas, stats);
       canvas.restore();
@@ -445,7 +405,7 @@ class SurvivalHud extends PositionComponent
         const Radius.circular(4),
       ),
       Paint()
-        ..color = const Color(0xFF8B5CF6).withOpacity(0.5)
+        ..color = const Color(0xFF8B5CF6).withValues(alpha: 0.5)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -486,7 +446,7 @@ class SurvivalHud extends PositionComponent
     // Button background
     canvas.drawRRect(
       RRect.fromRectAndRadius(_toggleButtonRect, const Radius.circular(4)),
-      Paint()..color = Colors.white.withOpacity(0.1),
+      Paint()..color = Colors.white.withValues(alpha: 0.1),
     );
 
     // Arrow icon
@@ -494,7 +454,7 @@ class SurvivalHud extends PositionComponent
     final centerY = _toggleButtonRect.center.dy;
 
     final arrowPaint = Paint()
-      ..color = Colors.white.withOpacity(0.6)
+      ..color = Colors.white.withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
@@ -615,7 +575,7 @@ class SurvivalHud extends PositionComponent
 
     // Draw inner shine
     final shinePaint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
+      ..color = Colors.white.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawArc(
@@ -685,7 +645,7 @@ class SurvivalHud extends PositionComponent
         const Radius.circular(4),
       ),
       Paint()
-        ..color = Colors.white.withOpacity(0.2)
+        ..color = Colors.white.withValues(alpha: 0.2)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.5,
     );
@@ -693,7 +653,7 @@ class SurvivalHud extends PositionComponent
 
   void _drawDivider(Canvas canvas, double y) {
     final dividerPaint = Paint()
-      ..color = Colors.white.withOpacity(0.1)
+      ..color = Colors.white.withValues(alpha: 0.1)
       ..strokeWidth = 1;
 
     canvas.drawLine(
@@ -782,7 +742,7 @@ class SurvivalHud extends PositionComponent
           Rect.fromLTWH(x - 2, y - 1, width + 4, _guardianRowHeight - 2),
           const Radius.circular(4),
         ),
-        Paint()..color = familyColor.withOpacity(0.15),
+        Paint()..color = familyColor.withValues(alpha: 0.15),
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -790,7 +750,7 @@ class SurvivalHud extends PositionComponent
           const Radius.circular(4),
         ),
         Paint()
-          ..color = familyColor.withOpacity(0.5)
+          ..color = familyColor.withValues(alpha: 0.5)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1,
       );
@@ -864,7 +824,7 @@ class SurvivalHud extends PositionComponent
         Paint()
           ..color = filled
               ? const Color(0xFF8B5CF6)
-              : Colors.white.withOpacity(0.2),
+              : Colors.white.withValues(alpha: 0.2),
       );
     }
 
@@ -877,7 +837,7 @@ class SurvivalHud extends PositionComponent
         Paint()
           ..color = filled
               ? const Color(0xFFFFD700)
-              : Colors.white.withOpacity(0.2),
+              : Colors.white.withValues(alpha: 0.2),
       );
     }
   }
@@ -943,7 +903,7 @@ class SurvivalHud extends PositionComponent
         const Radius.circular(3),
       ),
       Paint()
-        ..color = const Color(0xFF8B5CF6).withOpacity(0.4)
+        ..color = const Color(0xFF8B5CF6).withValues(alpha: 0.4)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -967,14 +927,6 @@ class SurvivalHud extends PositionComponent
     canvas.translate(barX + _transmuteBarWidth / 2, barY + barHeight + 2);
     canvas.rotate(-math.pi / 2);
 
-    final labelPaint = TextPaint(
-      style: TextStyle(
-        color: Colors.white.withOpacity(0.4),
-        fontSize: 6,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.5,
-      ),
-    );
     // Note: rotated text would need different positioning
     canvas.restore();
   }
@@ -982,7 +934,6 @@ class SurvivalHud extends PositionComponent
   void _drawWaveTime(Canvas canvas, SurvivalGameStats stats) {
     // Wave badge (top area, but avoiding orb section overlap)
     final waveText = 'W${stats.wave}';
-    final timeText = stats.formattedTime;
 
     final textX = size.x - _padding - _transmuteBarWidth - 8;
 

@@ -110,7 +110,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
             border: Border.all(color: t.borderAccent, width: 1),
             boxShadow: [
               BoxShadow(
-                color: t.amber.withOpacity(0.08),
+                color: t.amber.withValues(alpha: 0.08),
                 blurRadius: 24,
                 offset: const Offset(0, 8),
               ),
@@ -266,9 +266,9 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: accentColor.withOpacity(0.06),
+          color: accentColor.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: accentColor.withOpacity(0.5), width: 1),
+          border: Border.all(color: accentColor.withValues(alpha: 0.5), width: 1),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -281,7 +281,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                   decoration: BoxDecoration(
                     color: t.bg2,
                     borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: accentColor.withOpacity(0.4)),
+                    border: Border.all(color: accentColor.withValues(alpha: 0.4)),
                   ),
                   child: Icon(
                     isGuaranteed

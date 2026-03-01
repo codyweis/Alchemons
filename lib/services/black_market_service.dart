@@ -3,7 +3,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/database/alchemons_db.dart'; // <-- use Settings table
 import 'package:alchemons/models/elemental_group.dart';
@@ -11,7 +10,6 @@ import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class DailyOffer {

@@ -353,7 +353,7 @@ class HolographicGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final grid = Paint()
-      ..color = Colors.cyan.shade400.withOpacity(0.4)
+      ..color = Colors.cyan.shade400.withValues(alpha: 0.4)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
 
@@ -366,7 +366,7 @@ class HolographicGridPainter extends CustomPainter {
     }
 
     final border = Paint()
-      ..color = Colors.cyan.shade400.withOpacity(0.6)
+      ..color = Colors.cyan.shade400.withValues(alpha: 0.6)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
     canvas.drawRect(Offset.zero & size, border);
@@ -382,7 +382,7 @@ class ScanningBracketsPainter extends CustomPainter {
   ScanningBracketsPainter({required this.progress}) : super(repaint: progress);
 
   final Paint _p = Paint()
-    ..color = Colors.cyan.shade400.withOpacity(0.8)
+    ..color = Colors.cyan.shade400.withValues(alpha: 0.8)
     ..strokeWidth = 3
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;

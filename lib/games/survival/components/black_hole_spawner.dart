@@ -1,9 +1,7 @@
 // lib/games/survival/components/black_hole_spawner.dart
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:flame/components.dart';
-import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 
 /// A dramatic black hole spawn effect that enemies emerge from.
@@ -160,7 +158,7 @@ class BlackHoleSpawner extends PositionComponent {
 
     // 1. Outer glow
     final glowPaint = Paint()
-      ..color = accentColor.withOpacity(0.3 * _currentScale);
+      ..color = accentColor.withValues(alpha: 0.3 * _currentScale);
     canvas.drawCircle(Offset.zero, radius * 0.9, glowPaint);
 
     // 2. Accretion disk rings
@@ -171,7 +169,7 @@ class BlackHoleSpawner extends PositionComponent {
     // 3. Vortex particles
     final particlePaint = Paint();
     for (final p in _particles) {
-      particlePaint.color = accentColor.withOpacity(p.life * 0.8);
+      particlePaint.color = accentColor.withValues(alpha: p.life * 0.8);
       canvas.drawCircle(p.position.toOffset(), p.size * p.life, particlePaint);
     }
 
@@ -180,8 +178,8 @@ class BlackHoleSpawner extends PositionComponent {
       colors: [
         Colors.black,
         Colors.black,
-        accentColor.withOpacity(0.5),
-        accentColor.withOpacity(0.0),
+        accentColor.withValues(alpha: 0.5),
+        accentColor.withValues(alpha: 0.0),
       ],
       stops: const [0.0, 0.5, 0.7, 1.0],
     );
@@ -199,7 +197,7 @@ class BlackHoleSpawner extends PositionComponent {
 
     // Bright inner ring (photon sphere)
     final photonPaint = Paint()
-      ..color = Colors.white.withOpacity(0.9)
+      ..color = Colors.white.withValues(alpha: 0.9)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
     canvas.drawCircle(Offset.zero, radius * 0.2, photonPaint);
@@ -216,7 +214,7 @@ class BlackHoleSpawner extends PositionComponent {
 
     // Draw as dashed arc for visual interest
     final ringPaint = Paint()
-      ..color = accentColor.withOpacity(ring.opacity * _currentScale)
+      ..color = accentColor.withValues(alpha: ring.opacity * _currentScale)
       ..style = PaintingStyle.stroke
       ..strokeWidth = ring.thickness;
 

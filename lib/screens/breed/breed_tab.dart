@@ -1,32 +1,23 @@
-import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:math';
 import 'package:alchemons/constants/breed_constants.dart';
-import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_service.dart';
-import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/utils/genetics_util.dart';
-import 'package:alchemons/utils/likelihood_analyzer.dart';
-import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
-import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../database/alchemons_db.dart';
 import '../../models/creature.dart';
-import '../../providers/app_providers.dart';
-import '../../services/breeding_engine.dart';
 import '../../services/creature_repository.dart';
 
 class BreedingTab extends StatefulWidget {
@@ -48,6 +39,10 @@ class _BreedingTabState extends State<BreedingTab>
   CreatureInstance? selectedParent1;
   CreatureInstance? selectedParent2;
   bool _isBreeding = false;
+
+  // Remember last breeding pair for quick repeat
+  String? _lastParent1InstanceId;
+  String? _lastParent2InstanceId;
 
   late AnimationController _slot1Controller;
   late AnimationController _slot2Controller;
@@ -263,6 +258,19 @@ class _BreedingTabState extends State<BreedingTab>
           const SizedBox(height: 16),
           if (selectedParent1 != null && selectedParent2 != null)
             _buildBreedButton(theme),
+          // Quick-select both button when neither slot is filled
+          if (selectedParent1 == null && selectedParent2 == null) ...[
+            const SizedBox(height: 8),
+            _buildQuickSelectButton(theme),
+          ],
+          // Repeat breed button when both slots empty but we have a last pair
+          if (selectedParent1 == null &&
+              selectedParent2 == null &&
+              _lastParent1InstanceId != null &&
+              _lastParent2InstanceId != null) ...[
+            const SizedBox(height: 10),
+            _buildRepeatBreedButton(theme),
+          ],
         ],
       ),
     );
@@ -272,10 +280,10 @@ class _BreedingTabState extends State<BreedingTab>
   Widget _buildBreedingCard(FactionTheme theme) {
     return Container(
       decoration: BoxDecoration(
-        color: theme.surfaceAlt.withOpacity(.4),
+        color: theme.surfaceAlt.withValues(alpha: .4),
         boxShadow: [
           BoxShadow(
-            color: theme.surface.withOpacity(.2),
+            color: theme.surface.withValues(alpha: .2),
             blurRadius: 32,
             offset: const Offset(0, 0),
           ),
@@ -284,8 +292,8 @@ class _BreedingTabState extends State<BreedingTab>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            theme.surface.withOpacity(.6),
-            theme.surfaceAlt.withOpacity(.15),
+            theme.surface.withValues(alpha: .6),
+            theme.surfaceAlt.withValues(alpha: .15),
           ],
         ),
       ),
@@ -323,7 +331,7 @@ class _BreedingTabState extends State<BreedingTab>
             borderRadius: BorderRadius.circular(2),
             boxShadow: [
               BoxShadow(
-                color: theme.accent.withOpacity(.5),
+                color: theme.accent.withValues(alpha: .5),
                 blurRadius: 8,
                 spreadRadius: 1,
               ),
@@ -463,7 +471,7 @@ class _BreedingTabState extends State<BreedingTab>
         return Transform.scale(
           scale: scale,
           child: GestureDetector(
-            onTap: () => _showCreatureSelection(slotIndex),
+            onTap: () => _showBreedingPicker(),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOut,
@@ -487,7 +495,7 @@ class _BreedingTabState extends State<BreedingTab>
                             : Opacity(
                                 opacity: spriteOpacity.clamp(0, 1),
                                 child: _buildCreatureAvatar(
-                                  base!,
+                                  base,
                                   inst!,
                                   genetics,
                                 ),
@@ -499,7 +507,7 @@ class _BreedingTabState extends State<BreedingTab>
                       // NAME + TYPE
                       if (!isEmpty) ...[
                         Text(
-                          base!.name.toUpperCase(),
+                          base.name.toUpperCase(),
                           style: TextStyle(
                             color: theme.text,
                             fontSize: 12,
@@ -516,7 +524,7 @@ class _BreedingTabState extends State<BreedingTab>
                         Text(
                           'Tap to select',
                           style: TextStyle(
-                            color: theme.textMuted.withOpacity(.6),
+                            color: theme.textMuted.withValues(alpha: .6),
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
@@ -544,15 +552,15 @@ class _BreedingTabState extends State<BreedingTab>
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(.7),
+                            color: Colors.black.withValues(alpha: .7),
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Colors.red.withOpacity(.6),
+                              color: Colors.red.withValues(alpha: .6),
                               width: 1.5,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.red.withOpacity(.4),
+                                color: Colors.red.withValues(alpha: .4),
                                 blurRadius: 8,
                                 spreadRadius: 1,
                               ),
@@ -591,13 +599,13 @@ class _BreedingTabState extends State<BreedingTab>
             height: 96,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: theme.border.withOpacity(.4), width: 2),
+              border: Border.all(color: theme.border.withValues(alpha: .4), width: 2),
               gradient: RadialGradient(
-                colors: [theme.surfaceAlt.withOpacity(.2), Colors.transparent],
+                colors: [theme.surfaceAlt.withValues(alpha: .2), Colors.transparent],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: primary.withOpacity(.2),
+                  color: primary.withValues(alpha: .2),
                   blurRadius: 16,
                   spreadRadius: 2,
                 ),
@@ -605,7 +613,7 @@ class _BreedingTabState extends State<BreedingTab>
             ),
             child: Icon(
               Icons.help_center_rounded,
-              color: theme.textMuted.withOpacity(.3),
+              color: theme.textMuted.withValues(alpha: .3),
               size: 32,
             ),
           ),
@@ -645,11 +653,11 @@ class _BreedingTabState extends State<BreedingTab>
       height: 96,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.black.withOpacity(.3),
-        border: Border.all(color: Colors.white.withOpacity(.08), width: 1),
+        color: Colors.black.withValues(alpha: .3),
+        border: Border.all(color: Colors.white.withValues(alpha: .08), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.6),
+            color: Colors.black.withValues(alpha: .6),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -663,7 +671,7 @@ class _BreedingTabState extends State<BreedingTab>
             )
           : Icon(
               Icons.image_not_supported_rounded,
-              color: Colors.white.withOpacity(.4),
+              color: Colors.white.withValues(alpha: .4),
               size: 32,
             ),
     );
@@ -673,9 +681,9 @@ class _BreedingTabState extends State<BreedingTab>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(.25),
+        color: color.withValues(alpha: .25),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(.5), width: 1),
+        border: Border.all(color: color.withValues(alpha: .5), width: 1),
       ),
       child: Text(
         type.toUpperCase(),
@@ -765,13 +773,13 @@ class _BreedingTabState extends State<BreedingTab>
 
         Color ringColor;
         if (leftColor != null && rightColor != null) {
-          ringColor = Color.lerp(leftColor, rightColor, 0.5)!.withOpacity(.8);
+          ringColor = Color.lerp(leftColor, rightColor, 0.5)!.withValues(alpha: .8);
         } else if (leftColor != null) {
-          ringColor = leftColor.withOpacity(.8);
+          ringColor = leftColor.withValues(alpha: .8);
         } else if (rightColor != null) {
-          ringColor = rightColor.withOpacity(.8);
+          ringColor = rightColor.withValues(alpha: .8);
         } else {
-          ringColor = theme.border.withOpacity(.4);
+          ringColor = theme.border.withValues(alpha: .4);
         }
 
         final innerOrb = _buildOrbFill(
@@ -793,13 +801,13 @@ class _BreedingTabState extends State<BreedingTab>
                 border: Border.all(
                   color: (leftColor != null || rightColor != null)
                       ? ringColor
-                      : theme.border.withOpacity(.3),
+                      : theme.border.withValues(alpha: .3),
                   width: 1.5,
                 ),
                 boxShadow: (leftColor != null || rightColor != null)
                     ? [
                         BoxShadow(
-                          color: ringColor.withOpacity(.3),
+                          color: ringColor.withValues(alpha: .3),
                           blurRadius: 24,
                           spreadRadius: 4,
                         ),
@@ -883,23 +891,23 @@ class _BreedingTabState extends State<BreedingTab>
                         stops: const [0.0, 0.5, 1.0],
                       )
                     : null,
-                color: canBreed ? null : theme.surfaceAlt.withOpacity(.4),
+                color: canBreed ? null : theme.surfaceAlt.withValues(alpha: .4),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: canBreed
-                      ? theme.accent.withOpacity(.9)
-                      : theme.border.withOpacity(.4),
+                      ? theme.accent.withValues(alpha: .9)
+                      : theme.border.withValues(alpha: .4),
                   width: canBreed ? 1.5 : 1,
                 ),
                 boxShadow: canBreed
                     ? [
                         BoxShadow(
-                          color: theme.accent.withOpacity(glowAlpha),
+                          color: theme.accent.withValues(alpha: glowAlpha),
                           blurRadius: 28,
                           spreadRadius: 6,
                         ),
                         BoxShadow(
-                          color: theme.accent.withOpacity(glowAlpha * .4),
+                          color: theme.accent.withValues(alpha: glowAlpha * .4),
                           blurRadius: 52,
                           spreadRadius: 2,
                         ),
@@ -922,7 +930,7 @@ class _BreedingTabState extends State<BreedingTab>
                     style: TextStyle(
                       color: canBreed
                           ? Colors.black
-                          : theme.textMuted.withOpacity(.5),
+                          : theme.textMuted.withValues(alpha: .5),
                       fontSize: 14,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1.0,
@@ -934,6 +942,93 @@ class _BreedingTabState extends State<BreedingTab>
           ),
         );
       },
+    );
+  }
+
+  // ================== REPEAT BREED BUTTON ==================
+  Widget _buildRepeatBreedButton(FactionTheme theme) {
+    return GestureDetector(
+      onTap: _onRepeatBreed,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: theme.surfaceAlt.withValues(alpha: .5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.accent.withValues(alpha: .5), width: 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.replay_rounded, color: theme.accent, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              'BREED AGAIN',
+              style: TextStyle(
+                color: theme.accent,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onRepeatBreed() async {
+    if (_lastParent1InstanceId == null || _lastParent2InstanceId == null) {
+      return;
+    }
+    final db = context.read<AlchemonsDatabase>();
+    final inst1 = await db.creatureDao.getInstance(_lastParent1InstanceId!);
+    final inst2 = await db.creatureDao.getInstance(_lastParent2InstanceId!);
+
+    if (inst1 == null || inst2 == null) {
+      _showToast(
+        'Previous specimens no longer available',
+        icon: Icons.warning_rounded,
+        color: Colors.orange,
+      );
+      setState(() {
+        _lastParent1InstanceId = null;
+        _lastParent2InstanceId = null;
+      });
+      return;
+    }
+
+    setState(() {
+      selectedParent1 = inst1;
+      selectedParent2 = inst2;
+      _updateAnimations();
+    });
+  }
+
+  // ================== QUICK SELECT BOTH BUTTON ==================
+  Widget _buildQuickSelectButton(FactionTheme theme) {
+    return GestureDetector(
+      onTap: () => _showBreedingPicker(),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: theme.surfaceAlt.withValues(alpha: .3),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.border.withValues(alpha: .4), width: 1),
+        ),
+        child: Center(
+          child: Text(
+            'SELECT ALCHEMONS',
+            style: TextStyle(
+              color: theme.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1041,7 +1136,7 @@ class _BreedingTabState extends State<BreedingTab>
         if (base?.spriteData == null) {
           return Icon(
             Icons.pets,
-            color: Colors.white.withOpacity(.8),
+            color: Colors.white.withValues(alpha: .8),
             size: 64,
           );
         }
@@ -1105,6 +1200,9 @@ class _BreedingTabState extends State<BreedingTab>
       if (!mounted) return;
 
       setState(() {
+        // Save last pair for repeat breeding
+        _lastParent1InstanceId = selectedParent1?.instanceId;
+        _lastParent2InstanceId = selectedParent2?.instanceId;
         selectedParent1 = null;
         selectedParent2 = null;
         _updateAnimations();
@@ -1155,8 +1253,10 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
-  // CORRECTED _showCreatureSelection method for breeding_tab.dart
-  void _showCreatureSelection(int slotNumber) async {
+  // ================== PERSISTENT BREEDING PICKER ==================
+  // Single sheet that stays open while user picks both parents.
+  // Highlights selections in real-time, auto-closes when 2 are chosen.
+  void _showBreedingPicker() async {
     final db = context.read<AlchemonsDatabase>();
     final available = await db.creatureDao.getSpeciesWithInstances();
 
@@ -1165,61 +1265,139 @@ class _BreedingTabState extends State<BreedingTab>
       available,
     );
 
+    if (!mounted) return;
+
+    // Seed from current selections so tapping a filled slot continues naturally
+    CreatureInstance? tempPick1 = selectedParent1;
+    CreatureInstance? tempPick2 = selectedParent2;
+
+    // We need a reference to the outer context for Navigator.pop on the main sheet
+    final outerContext = context;
+
     showModalBottomSheet(
-      context: context,
+      context: outerContext,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            return CreatureSelectionSheet(
-              scrollController: scrollController,
-              discoveredCreatures: filteredDiscovered,
-              showOnlyAvailableTypes: true,
-              selectedInstanceIds: [
-                if (selectedParent1 != null) selectedParent1!.instanceId,
-                if (selectedParent2 != null) selectedParent2!.instanceId,
-              ],
-              onSelectInstance: (instance) async {
-                Navigator.pop(context);
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (_, setSheetState) {
+            // Determine which slot we need next
+            final needsA = tempPick1 == null;
+            final needsB = tempPick1 != null && tempPick2 == null;
+            final title = needsA
+                ? 'Select Specimen A'
+                : needsB
+                ? 'Now Select Specimen B'
+                : 'Both Selected';
 
-                final stamina = context.read<StaminaService>();
-                final refreshed = await stamina.refreshAndGet(
-                  instance.instanceId,
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.4,
+              maxChildSize: 0.9,
+              expand: false,
+              builder: (_, scrollController) {
+                return CreatureSelectionSheet(
+                  scrollController: scrollController,
+                  discoveredCreatures: filteredDiscovered,
+                  showOnlyAvailableTypes: true,
+                  title: title,
+                  selectedInstanceIds: [
+                    if (tempPick1 != null) tempPick1!.instanceId,
+                    if (tempPick2 != null) tempPick2!.instanceId,
+                  ],
+                  onSelectInstance: (instance) async {
+                    // --- Toggle off if already selected ---
+                    if (tempPick1?.instanceId == instance.instanceId) {
+                      setSheetState(() => tempPick1 = null);
+                      return;
+                    }
+                    if (tempPick2?.instanceId == instance.instanceId) {
+                      setSheetState(() => tempPick2 = null);
+                      return;
+                    }
+
+                    // --- Stamina check ---
+                    final stamina = outerContext.read<StaminaService>();
+                    final refreshed = await stamina.refreshAndGet(
+                      instance.instanceId,
+                    );
+                    if ((refreshed?.staminaBars ?? 0) < 1) {
+                      final perBar = stamina.regenPerBar;
+                      final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+                      final last = refreshed?.staminaLastUtcMs ?? now;
+                      final elapsed = now - last;
+                      final remMs =
+                          perBar.inMilliseconds -
+                          (elapsed % perBar.inMilliseconds);
+                      final mins = (remMs / 60000).ceil();
+                      if (!mounted) return;
+                      _showToast(
+                        'Specimen is resting — next stamina in ~${mins}m',
+                        icon: Icons.hourglass_bottom_rounded,
+                        color: Colors.orange,
+                        fromTop: true,
+                      );
+                      return;
+                    }
+
+                    // --- Fill next empty slot ---
+                    if (tempPick1 == null) {
+                      tempPick1 = instance;
+                    } else {
+                      tempPick2 ??= instance;
+                    }
+
+                    // --- Both filled? Apply and close ---
+                    if (tempPick1 != null && tempPick2 != null) {
+                      Navigator.pop(sheetCtx);
+                      setState(() {
+                        selectedParent1 = tempPick1;
+                        selectedParent2 = tempPick2;
+                        _updateAnimations();
+                      });
+                      return;
+                    }
+
+                    // Otherwise refresh highlights, stay open
+                    setSheetState(() {});
+                  },
+                  onSelectCreature: (creatureId) async {
+                    // Species-grid tap → open instance picker ON TOP (stacked)
+                    final repo = outerContext.read<CreatureCatalog>();
+                    final species = repo.getCreatureById(creatureId);
+                    if (species == null) return;
+
+                    _showInstancePickerStacked(
+                      species: species,
+                      selectedIds: [
+                        if (tempPick1 != null) tempPick1!.instanceId,
+                        if (tempPick2 != null) tempPick2!.instanceId,
+                      ],
+                      onPicked: (inst) {
+                        // Fill next empty slot
+                        if (tempPick1 == null) {
+                          tempPick1 = inst;
+                        } else {
+                          tempPick2 ??= inst;
+                        }
+
+                        // Both filled? Close main sheet too
+                        if (tempPick1 != null && tempPick2 != null) {
+                          Navigator.pop(sheetCtx);
+                          setState(() {
+                            selectedParent1 = tempPick1;
+                            selectedParent2 = tempPick2;
+                            _updateAnimations();
+                          });
+                          return;
+                        }
+
+                        // Stay open, refresh highlights
+                        setSheetState(() {});
+                      },
+                    );
+                  },
                 );
-                final canUse = (refreshed?.staminaBars ?? 0) >= 1;
-
-                if (!canUse) {
-                  final perBar = stamina.regenPerBar;
-                  final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-                  final last = refreshed?.staminaLastUtcMs ?? now;
-                  final elapsed = now - last;
-                  final remMs =
-                      perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
-                  final mins = (remMs / 60000).ceil();
-
-                  if (!mounted) return;
-                  _showToast(
-                    'Specimen is resting — next stamina in ~${mins}m',
-                    icon: Icons.hourglass_bottom_rounded,
-                    color: Colors.orange,
-                    fromTop: true,
-                  );
-                  return;
-                }
-
-                _selectInstance(instance, slotNumber);
-              },
-              onSelectCreature: (creatureId) async {
-                Navigator.pop(context);
-                final repo = context.read<CreatureCatalog>();
-                final species = repo.getCreatureById(creatureId);
-                if (species == null) return;
-                _showInstancePicker(slotNumber, species);
               },
             );
           },
@@ -1228,7 +1406,13 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
-  void _showInstancePicker(int slotNumber, Creature species) {
+  /// Opens an instance picker that stacks ON TOP of the main breeding sheet.
+  /// When the user picks one, it pops itself and calls [onPicked].
+  void _showInstancePickerStacked({
+    required Creature species,
+    required List<String> selectedIds,
+    required void Function(CreatureInstance inst) onPicked,
+  }) {
     final theme = context.read<FactionTheme>();
 
     showModalBottomSheet(
@@ -1242,19 +1426,12 @@ class _BreedingTabState extends State<BreedingTab>
           child: InstancesSheet(
             species: species,
             theme: theme,
-            selectedInstanceIds: [
-              if (selectedParent1?.instanceId != null)
-                selectedParent1!.instanceId,
-              if (selectedParent2?.instanceId != null)
-                selectedParent2!.instanceId,
-            ],
+            selectedInstanceIds: selectedIds,
             onTap: (CreatureInstance inst) async {
+              // --- Stamina check ---
               final stamina = context.read<StaminaService>();
-
               final refreshed = await stamina.refreshAndGet(inst.instanceId);
-              final canUse = (refreshed?.staminaBars ?? 0) >= 1;
-
-              if (!canUse) {
+              if ((refreshed?.staminaBars ?? 0) < 1) {
                 final perBar = stamina.regenPerBar;
                 final now = DateTime.now().toUtc().millisecondsSinceEpoch;
                 final last = refreshed?.staminaLastUtcMs ?? now;
@@ -1262,7 +1439,6 @@ class _BreedingTabState extends State<BreedingTab>
                 final remMs =
                     perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
                 final mins = (remMs / 60000).ceil();
-
                 if (!mounted) return;
                 _showToast(
                   'Specimen is resting — next stamina in ~${mins}m',
@@ -1274,28 +1450,13 @@ class _BreedingTabState extends State<BreedingTab>
               }
 
               if (!mounted) return;
-              Navigator.of(context).pop();
-              _selectInstance(inst, slotNumber);
+              Navigator.of(context).pop(); // pop ONLY the instance picker
+              onPicked(inst);
             },
           ),
         );
       },
     );
-  }
-
-  void _selectInstance(CreatureInstance inst, int slotNumber) {
-    setState(() {
-      if (slotNumber == 1) {
-        if (selectedParent2?.instanceId != inst.instanceId) {
-          selectedParent1 = inst;
-        }
-      } else {
-        if (selectedParent1?.instanceId != inst.instanceId) {
-          selectedParent2 = inst;
-        }
-      }
-      _updateAnimations();
-    });
   }
 
   void _showToast(
@@ -1346,7 +1507,7 @@ class _DNAConnectionPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withOpacity(.3)
+      ..color = color.withValues(alpha: .3)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
@@ -1382,7 +1543,7 @@ class _ParticlePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withOpacity(.2)
+      ..color = color.withValues(alpha: .2)
       ..style = PaintingStyle.fill;
 
     final random = math.Random(42); // Fixed seed for consistency

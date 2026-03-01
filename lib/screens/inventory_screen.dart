@@ -71,7 +71,7 @@ class InventoryImageHelper {
     // Default fallback (placeholder)
     return SizedBox.square(
       dimension: size,
-      child: Container(color: Colors.grey.withOpacity(0.1)),
+      child: Container(color: Colors.grey.withValues(alpha: 0.1)),
     );
   }
 }
@@ -168,7 +168,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         // Color for the SELECTED tab text
         labelColor: theme.text,
         // Color for the UNSELECTED tab text
-        unselectedLabelColor: theme.text.withOpacity(0.6),
+        unselectedLabelColor: theme.text.withValues(alpha: 0.6),
 
         tabs: _tabLabels
             .map(
@@ -406,7 +406,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 80, color: theme.textMuted.withOpacity(0.3)),
+            Icon(icon, size: 80, color: theme.textMuted.withValues(alpha: 0.3)),
             const SizedBox(height: 20),
             Text(
               message,
@@ -420,7 +420,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             Text(
               subtitle,
               style: TextStyle(
-                color: theme.textMuted.withOpacity(0.7),
+                color: theme.textMuted.withValues(alpha: 0.7),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -462,7 +462,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             border: Border.all(color: t.borderAccent, width: 1),
             boxShadow: [
               BoxShadow(
-                color: t.amber.withOpacity(0.08),
+                color: t.amber.withValues(alpha: 0.08),
                 blurRadius: 32,
                 spreadRadius: 2,
               ),
@@ -552,7 +552,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: t.amberDim.withOpacity(0.2),
+                    color: t.amberDim.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(2),
                     border: Border.all(color: t.borderAccent, width: 1),
                   ),
@@ -615,7 +615,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                           borderRadius: BorderRadius.circular(2),
                           border: Border.all(
                             color: canDelete
-                                ? t.danger.withOpacity(0.6)
+                                ? t.danger.withValues(alpha: 0.6)
                                 : t.borderDim,
                             width: 1,
                           ),
@@ -628,7 +628,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                               Icons.delete_outline_rounded,
                               size: 13,
                               color: canDelete
-                                  ? t.danger.withOpacity(0.8)
+                                  ? t.danger.withValues(alpha: 0.8)
                                   : t.textMuted,
                             ),
                             const SizedBox(width: 4),
@@ -637,7 +637,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: canDelete
-                                    ? t.danger.withOpacity(0.8)
+                                    ? t.danger.withValues(alpha: 0.8)
                                     : t.textMuted,
                                 fontSize: 9,
                                 fontWeight: FontWeight.w700,
@@ -660,12 +660,12 @@ class _InventoryScreenState extends State<InventoryScreen>
                           child: Container(
                             height: 44,
                             decoration: BoxDecoration(
-                              color: t.amberDim.withOpacity(0.35),
+                              color: t.amberDim.withValues(alpha: 0.35),
                               borderRadius: BorderRadius.circular(2),
                               border: Border.all(color: t.amber, width: 1),
                               boxShadow: [
                                 BoxShadow(
-                                  color: t.amber.withOpacity(0.15),
+                                  color: t.amber.withValues(alpha: 0.15),
                                   blurRadius: 12,
                                 ),
                               ],
@@ -721,7 +721,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             border: Border.all(color: t.borderAccent, width: 1),
             boxShadow: [
               BoxShadow(
-                color: t.amber.withOpacity(0.08),
+                color: t.amber.withValues(alpha: 0.08),
                 blurRadius: 32,
                 spreadRadius: 2,
               ),
@@ -815,7 +815,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: t.amberDim.withOpacity(0.2),
+                    color: t.amberDim.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(2),
                     border: Border.all(color: t.borderAccent, width: 1),
                   ),
@@ -875,7 +875,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                           color: Colors.transparent,
                           borderRadius: BorderRadius.circular(2),
                           border: Border.all(
-                            color: t.danger.withOpacity(0.6),
+                            color: t.danger.withValues(alpha: 0.6),
                             width: 1,
                           ),
                         ),
@@ -886,14 +886,14 @@ class _InventoryScreenState extends State<InventoryScreen>
                             Icon(
                               Icons.delete_outline_rounded,
                               size: 13,
-                              color: t.danger.withOpacity(0.8),
+                              color: t.danger.withValues(alpha: 0.8),
                             ),
                             const SizedBox(width: 4),
                             Text(
                               'DEL',
                               style: TextStyle(
                                 fontFamily: 'monospace',
-                                color: t.danger.withOpacity(0.8),
+                                color: t.danger.withValues(alpha: 0.8),
                                 fontSize: 9,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1.0,
@@ -914,12 +914,12 @@ class _InventoryScreenState extends State<InventoryScreen>
                         child: Container(
                           height: 44,
                           decoration: BoxDecoration(
-                            color: t.amberDim.withOpacity(0.35),
+                            color: t.amberDim.withValues(alpha: 0.35),
                             borderRadius: BorderRadius.circular(2),
                             border: Border.all(color: t.amber, width: 1),
                             boxShadow: [
                               BoxShadow(
-                                color: t.amber.withOpacity(0.15),
+                                color: t.amber.withValues(alpha: 0.15),
                                 blurRadius: 12,
                               ),
                             ],
@@ -1273,7 +1273,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(color: theme.accent.withValues(alpha: 0.5), width: 2),
         ),
         title: Text(
           'Remove Item',
@@ -1355,7 +1355,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(color: theme.accent.withValues(alpha: 0.5), width: 2),
         ),
         title: Text(
           'Extract Vial?',
@@ -1419,7 +1419,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(color: theme.accent.withValues(alpha: 0.5), width: 2),
         ),
         title: Text(
           'Remove Vial',
@@ -1557,7 +1557,7 @@ class _CleanItemCard extends StatelessWidget {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                   ),
                   child: Center(
                     child: Text(
@@ -1610,10 +1610,10 @@ class _CleanVialCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: accent.withOpacity(0.9),
+                color: accent.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   width: 1.5,
                 ),
               ),

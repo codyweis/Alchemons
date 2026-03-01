@@ -37,6 +37,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     String? filterNature,
     bool filterPrismatic = false,
     String? filterVariant,
+    bool filterFavoritesOnly = false,
     SortBy sortBy = SortBy.newest,
   }) {
     // Start with base query
@@ -46,6 +47,11 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     query = query
       ..where((t) {
         final conditions = <Expression<bool>>[];
+
+        // Favorites filter
+        if (filterFavoritesOnly) {
+          conditions.add(t.isFavorite.equals(true));
+        }
 
         // Prismatic filter
         if (filterPrismatic) {
@@ -134,15 +140,15 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     }
 
     // Helpers
-    double? _asDouble(dynamic v) =>
+    double? asDouble(dynamic v) =>
         (v is num) ? v.toDouble() : double.tryParse('$v');
-    int _asInt(dynamic v, {int or = 0}) =>
+    int asInt(dynamic v, {int or = 0}) =>
         (v is num) ? v.toInt() : (int.tryParse('$v') ?? or);
-    Map<String, int> _normLineage(dynamic raw) {
+    Map<String, int> normLineage(dynamic raw) {
       if (raw is! Map) return {};
       final out = <String, int>{};
       raw.forEach((k, v) {
-        final n = _asInt(v, or: 0);
+        final n = asInt(v, or: 0);
         if (n > 0) out['$k'] = n;
       });
       return out;
@@ -166,17 +172,17 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         ? Map<String, dynamic>.from(payload['lineage'] as Map)
         : payload;
 
-    final generationDepth = _asInt(
+    final generationDepth = asInt(
       lin['generationDepth'],
       or: fallbackGenerationDepth,
     );
-    final factionLineage = _normLineage(
+    final factionLineage = normLineage(
       lin['factionLineage'] ?? fallbackFactionLineage,
     );
-    final elementLineage = _normLineage(
+    final elementLineage = normLineage(
       lin['elementLineage'] ?? fallbackElementLineage,
     );
-    final familyLineage = _normLineage(
+    final familyLineage = normLineage(
       lin['familyLineage'] ?? fallbackFamilyLineage,
     );
 
@@ -191,16 +197,16 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
       likelihoodAnalysisJson: payload['likelihoodAnalysis'] as String?,
 
       // Stats (respect explicit values)
-      statSpeed: _asDouble(stats['speed']),
-      statIntelligence: _asDouble(stats['intelligence']),
-      statStrength: _asDouble(stats['strength']),
-      statBeauty: _asDouble(stats['beauty']),
+      statSpeed: asDouble(stats['speed']),
+      statIntelligence: asDouble(stats['intelligence']),
+      statStrength: asDouble(stats['strength']),
+      statBeauty: asDouble(stats['beauty']),
 
       // Potentials
-      statSpeedPotential: _asDouble(pots['speed']),
-      statIntelligencePotential: _asDouble(pots['intelligence']),
-      statStrengthPotential: _asDouble(pots['strength']),
-      statBeautyPotential: _asDouble(pots['beauty']),
+      statSpeedPotential: asDouble(pots['speed']),
+      statIntelligencePotential: asDouble(pots['intelligence']),
+      statStrengthPotential: asDouble(pots['strength']),
+      statBeautyPotential: asDouble(pots['beauty']),
 
       // Lineage
       generationDepth: generationDepth,
@@ -470,6 +476,23 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     await (update(creatureInstances)
           ..where((t) => t.instanceId.equals(instanceId)))
         .write(CreatureInstancesCompanion(nickname: Value(nickname)));
+  }
+
+  Future<void> setFavorite(String instanceId, bool favorite) async {
+    await (update(creatureInstances)
+          ..where((t) => t.instanceId.equals(instanceId)))
+        .write(CreatureInstancesCompanion(isFavorite: Value(favorite)));
+  }
+
+  /// Species (baseIds) that have at least one favorited instance.
+  Future<Set<String>> getSpeciesWithFavorites() async {
+    final rows =
+        await (selectOnly(creatureInstances)
+              ..addColumns([creatureInstances.baseId])
+              ..where(creatureInstances.isFavorite.equals(true))
+              ..groupBy([creatureInstances.baseId]))
+            .get();
+    return rows.map((r) => r.read<String>(creatureInstances.baseId)!).toSet();
   }
 
   Future<void> addXpAndMaybeLevel({

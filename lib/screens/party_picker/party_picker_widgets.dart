@@ -1,5 +1,4 @@
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
@@ -79,12 +78,12 @@ class StageHeader extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: count > 0
-                  ? Colors.greenAccent.shade400.withOpacity(0.12)
+                  ? Colors.greenAccent.shade400.withValues(alpha: 0.12)
                   : theme.surfaceAlt,
               borderRadius: BorderRadius.circular(3),
               border: Border.all(
                 color: count > 0
-                    ? Colors.greenAccent.shade400.withOpacity(0.5)
+                    ? Colors.greenAccent.shade400.withValues(alpha: 0.5)
                     : theme.border,
               ),
             ),
@@ -264,7 +263,7 @@ class TeamDisplay extends StatelessWidget {
         color: theme.surfaceAlt,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.greenAccent.shade400.withOpacity(.5),
+          color: Colors.greenAccent.shade400.withValues(alpha: .5),
           width: 1.2,
         ),
       ),
@@ -293,10 +292,10 @@ class TeamDisplay extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.greenAccent.shade400.withOpacity(.12),
+                  color: Colors.greenAccent.shade400.withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: Colors.greenAccent.shade400.withOpacity(.5),
+                    color: Colors.greenAccent.shade400.withValues(alpha: .5),
                   ),
                 ),
                 child: Text(
@@ -430,9 +429,9 @@ class TeamSlotFilled extends StatelessWidget {
                       margin: const EdgeInsets.symmetric(horizontal: 1),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: filled ? pipColor : pipColor.withOpacity(0.15),
+                        color: filled ? pipColor : pipColor.withValues(alpha: 0.15),
                         border: Border.all(
-                          color: pipColor.withOpacity(filled ? 0.9 : 0.3),
+                          color: pipColor.withValues(alpha: filled ? 0.9 : 0.3),
                           width: 0.6,
                         ),
                       ),
@@ -555,13 +554,13 @@ class _DeployButtonState extends State<DeployButton>
                 border: Border.all(
                   color: canTap
                       ? Colors.greenAccent.shade400
-                      : widget.theme.border.withOpacity(.8),
+                      : widget.theme.border.withValues(alpha: .8),
                   width: 1.5,
                 ),
                 boxShadow: canTap
                     ? [
                         BoxShadow(
-                          color: Colors.greenAccent.shade400.withOpacity(.4),
+                          color: Colors.greenAccent.shade400.withValues(alpha: .4),
                           blurRadius: 16,
                           spreadRadius: 1,
                         ),

@@ -30,12 +30,12 @@ class OperationSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.surface.withOpacity(0.3),
+        color: theme.surface.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: ready > 0
-              ? theme.accent.withOpacity(0.4)
-              : theme.textMuted.withOpacity(0.2),
+              ? theme.accent.withValues(alpha: 0.4)
+              : theme.textMuted.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -142,7 +142,7 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: theme.surface.withOpacity(0.5),
+        color: theme.surface.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(

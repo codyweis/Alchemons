@@ -1,6 +1,4 @@
 // lib/games/survival/components/guardian_details.dart (Corrected)
-import 'dart:ui';
-import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
 import 'package:flame/components.dart';
@@ -36,12 +34,12 @@ class GuardianRangeIndicator extends PositionComponent
     final specialRange = unit.specialAbilityRange;
 
     final basePaint = Paint()
-      ..color = Colors.white.withOpacity(0.12)
+      ..color = Colors.white.withValues(alpha: 0.12)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
     final specialPaint = Paint()
-      ..color = Colors.tealAccent.withOpacity(0.25)
+      ..color = Colors.tealAccent.withValues(alpha: 0.25)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0;
 

@@ -1806,6 +1806,21 @@ class $CreatureInstancesTable extends CreatureInstances
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _isFavoriteMeta = const VerificationMeta(
+    'isFavorite',
+  );
+  @override
+  late final GeneratedColumn<bool> isFavorite = GeneratedColumn<bool>(
+    'is_favorite',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_favorite" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     instanceId,
@@ -1839,6 +1854,7 @@ class $CreatureInstancesTable extends CreatureInstances
     isPure,
     elementLineageJson,
     familyLineageJson,
+    isFavorite,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2096,6 +2112,12 @@ class $CreatureInstancesTable extends CreatureInstances
         ),
       );
     }
+    if (data.containsKey('is_favorite')) {
+      context.handle(
+        _isFavoriteMeta,
+        isFavorite.isAcceptableOrUnknown(data['is_favorite']!, _isFavoriteMeta),
+      );
+    }
     return context;
   }
 
@@ -2229,6 +2251,10 @@ class $CreatureInstancesTable extends CreatureInstances
         DriftSqlType.string,
         data['${effectivePrefix}family_lineage_json'],
       ),
+      isFavorite: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_favorite'],
+      )!,
     );
   }
 
@@ -2271,6 +2297,7 @@ class CreatureInstance extends DataClass
   final bool isPure;
   final String? elementLineageJson;
   final String? familyLineageJson;
+  final bool isFavorite;
   const CreatureInstance({
     required this.instanceId,
     required this.baseId,
@@ -2303,6 +2330,7 @@ class CreatureInstance extends DataClass
     required this.isPure,
     this.elementLineageJson,
     this.familyLineageJson,
+    required this.isFavorite,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2362,6 +2390,7 @@ class CreatureInstance extends DataClass
     if (!nullToAbsent || familyLineageJson != null) {
       map['family_lineage_json'] = Variable<String>(familyLineageJson);
     }
+    map['is_favorite'] = Variable<bool>(isFavorite);
     return map;
   }
 
@@ -2418,6 +2447,7 @@ class CreatureInstance extends DataClass
       familyLineageJson: familyLineageJson == null && nullToAbsent
           ? const Value.absent()
           : Value(familyLineageJson),
+      isFavorite: Value(isFavorite),
     );
   }
 
@@ -2474,6 +2504,7 @@ class CreatureInstance extends DataClass
       familyLineageJson: serializer.fromJson<String?>(
         json['familyLineageJson'],
       ),
+      isFavorite: serializer.fromJson<bool>(json['isFavorite']),
     );
   }
   @override
@@ -2515,6 +2546,7 @@ class CreatureInstance extends DataClass
       'isPure': serializer.toJson<bool>(isPure),
       'elementLineageJson': serializer.toJson<String?>(elementLineageJson),
       'familyLineageJson': serializer.toJson<String?>(familyLineageJson),
+      'isFavorite': serializer.toJson<bool>(isFavorite),
     };
   }
 
@@ -2550,6 +2582,7 @@ class CreatureInstance extends DataClass
     bool? isPure,
     Value<String?> elementLineageJson = const Value.absent(),
     Value<String?> familyLineageJson = const Value.absent(),
+    bool? isFavorite,
   }) => CreatureInstance(
     instanceId: instanceId ?? this.instanceId,
     baseId: baseId ?? this.baseId,
@@ -2597,6 +2630,7 @@ class CreatureInstance extends DataClass
     familyLineageJson: familyLineageJson.present
         ? familyLineageJson.value
         : this.familyLineageJson,
+    isFavorite: isFavorite ?? this.isFavorite,
   );
   CreatureInstance copyWithCompanion(CreatureInstancesCompanion data) {
     return CreatureInstance(
@@ -2675,6 +2709,9 @@ class CreatureInstance extends DataClass
       familyLineageJson: data.familyLineageJson.present
           ? data.familyLineageJson.value
           : this.familyLineageJson,
+      isFavorite: data.isFavorite.present
+          ? data.isFavorite.value
+          : this.isFavorite,
     );
   }
 
@@ -2711,7 +2748,8 @@ class CreatureInstance extends DataClass
           ..write('variantFaction: $variantFaction, ')
           ..write('isPure: $isPure, ')
           ..write('elementLineageJson: $elementLineageJson, ')
-          ..write('familyLineageJson: $familyLineageJson')
+          ..write('familyLineageJson: $familyLineageJson, ')
+          ..write('isFavorite: $isFavorite')
           ..write(')'))
         .toString();
   }
@@ -2749,6 +2787,7 @@ class CreatureInstance extends DataClass
     isPure,
     elementLineageJson,
     familyLineageJson,
+    isFavorite,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -2784,7 +2823,8 @@ class CreatureInstance extends DataClass
           other.variantFaction == this.variantFaction &&
           other.isPure == this.isPure &&
           other.elementLineageJson == this.elementLineageJson &&
-          other.familyLineageJson == this.familyLineageJson);
+          other.familyLineageJson == this.familyLineageJson &&
+          other.isFavorite == this.isFavorite);
 }
 
 class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
@@ -2819,6 +2859,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
   final Value<bool> isPure;
   final Value<String?> elementLineageJson;
   final Value<String?> familyLineageJson;
+  final Value<bool> isFavorite;
   final Value<int> rowid;
   const CreatureInstancesCompanion({
     this.instanceId = const Value.absent(),
@@ -2852,6 +2893,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.isPure = const Value.absent(),
     this.elementLineageJson = const Value.absent(),
     this.familyLineageJson = const Value.absent(),
+    this.isFavorite = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CreatureInstancesCompanion.insert({
@@ -2886,6 +2928,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.isPure = const Value.absent(),
     this.elementLineageJson = const Value.absent(),
     this.familyLineageJson = const Value.absent(),
+    this.isFavorite = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : instanceId = Value(instanceId),
        baseId = Value(baseId);
@@ -2921,6 +2964,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Expression<bool>? isPure,
     Expression<String>? elementLineageJson,
     Expression<String>? familyLineageJson,
+    Expression<bool>? isFavorite,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2962,6 +3006,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       if (elementLineageJson != null)
         'element_lineage_json': elementLineageJson,
       if (familyLineageJson != null) 'family_lineage_json': familyLineageJson,
+      if (isFavorite != null) 'is_favorite': isFavorite,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2998,6 +3043,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Value<bool>? isPure,
     Value<String?>? elementLineageJson,
     Value<String?>? familyLineageJson,
+    Value<bool>? isFavorite,
     Value<int>? rowid,
   }) {
     return CreatureInstancesCompanion(
@@ -3035,6 +3081,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       isPure: isPure ?? this.isPure,
       elementLineageJson: elementLineageJson ?? this.elementLineageJson,
       familyLineageJson: familyLineageJson ?? this.familyLineageJson,
+      isFavorite: isFavorite ?? this.isFavorite,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3143,6 +3190,9 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     if (familyLineageJson.present) {
       map['family_lineage_json'] = Variable<String>(familyLineageJson.value);
     }
+    if (isFavorite.present) {
+      map['is_favorite'] = Variable<bool>(isFavorite.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3183,6 +3233,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
           ..write('isPure: $isPure, ')
           ..write('elementLineageJson: $elementLineageJson, ')
           ..write('familyLineageJson: $familyLineageJson, ')
+          ..write('isFavorite: $isFavorite, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9506,6 +9557,7 @@ typedef $$CreatureInstancesTableCreateCompanionBuilder =
       Value<bool> isPure,
       Value<String?> elementLineageJson,
       Value<String?> familyLineageJson,
+      Value<bool> isFavorite,
       Value<int> rowid,
     });
 typedef $$CreatureInstancesTableUpdateCompanionBuilder =
@@ -9541,6 +9593,7 @@ typedef $$CreatureInstancesTableUpdateCompanionBuilder =
       Value<bool> isPure,
       Value<String?> elementLineageJson,
       Value<String?> familyLineageJson,
+      Value<bool> isFavorite,
       Value<int> rowid,
     });
 
@@ -9705,6 +9758,11 @@ class $$CreatureInstancesTableFilterComposer
 
   ColumnFilters<String> get familyLineageJson => $composableBuilder(
     column: $table.familyLineageJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isFavorite => $composableBuilder(
+    column: $table.isFavorite,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -9872,6 +9930,11 @@ class $$CreatureInstancesTableOrderingComposer
     column: $table.familyLineageJson,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isFavorite => $composableBuilder(
+    column: $table.isFavorite,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CreatureInstancesTableAnnotationComposer
@@ -10019,6 +10082,11 @@ class $$CreatureInstancesTableAnnotationComposer
     column: $table.familyLineageJson,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get isFavorite => $composableBuilder(
+    column: $table.isFavorite,
+    builder: (column) => column,
+  );
 }
 
 class $$CreatureInstancesTableTableManager
@@ -10092,6 +10160,7 @@ class $$CreatureInstancesTableTableManager
                 Value<bool> isPure = const Value.absent(),
                 Value<String?> elementLineageJson = const Value.absent(),
                 Value<String?> familyLineageJson = const Value.absent(),
+                Value<bool> isFavorite = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreatureInstancesCompanion(
                 instanceId: instanceId,
@@ -10125,6 +10194,7 @@ class $$CreatureInstancesTableTableManager
                 isPure: isPure,
                 elementLineageJson: elementLineageJson,
                 familyLineageJson: familyLineageJson,
+                isFavorite: isFavorite,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -10160,6 +10230,7 @@ class $$CreatureInstancesTableTableManager
                 Value<bool> isPure = const Value.absent(),
                 Value<String?> elementLineageJson = const Value.absent(),
                 Value<String?> familyLineageJson = const Value.absent(),
+                Value<bool> isFavorite = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreatureInstancesCompanion.insert(
                 instanceId: instanceId,
@@ -10193,6 +10264,7 @@ class $$CreatureInstancesTableTableManager
                 isPure: isPure,
                 elementLineageJson: elementLineageJson,
                 familyLineageJson: familyLineageJson,
+                isFavorite: isFavorite,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

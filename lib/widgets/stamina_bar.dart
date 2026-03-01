@@ -41,7 +41,7 @@ class StaminaBar extends StatelessWidget {
             borderRadius: radius,
             border: Border.all(
               color: filled
-                  ? fillColor.withOpacity(0.8)
+                  ? fillColor.withValues(alpha: 0.8)
                   : const Color(0xFFD1D5DB),
               width: 1,
             ),

@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
@@ -9,7 +8,6 @@ import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
-import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
 /// WING FAMILY - PIERCE MECHANIC (3-RANK VERSION)
@@ -739,7 +737,7 @@ class WingPierceMechanic {
         radius: 30,
         position: pos,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.brown.shade700.withOpacity(0.7),
+        paint: Paint()..color = Colors.brown.shade700.withValues(alpha: 0.7),
       );
 
       rock.add(
@@ -849,7 +847,7 @@ class WingPierceMechanic {
         radius: 60,
         position: pos,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.green.withOpacity(0.25),
+        paint: Paint()..color = Colors.green.withValues(alpha: 0.25),
       );
 
       cloud.add(
@@ -976,7 +974,7 @@ class WingPierceMechanic {
         radius: 55,
         position: crackPos,
         anchor: Anchor.center,
-        paint: Paint()..color = color.withOpacity(0.35),
+        paint: Paint()..color = color.withValues(alpha: 0.35),
       );
       crack.add(
         TimerComponent(
@@ -1033,7 +1031,7 @@ class WingPierceMechanic {
         radius: 60,
         position: patchPos,
         anchor: Anchor.center,
-        paint: Paint()..color = color.withOpacity(0.3),
+        paint: Paint()..color = color.withValues(alpha: 0.3),
       );
       patch.add(
         TimerComponent(
@@ -1107,7 +1105,7 @@ class WingPierceMechanic {
         radius: 70,
         position: segPos,
         anchor: Anchor.center,
-        paint: Paint()..color = color.withOpacity(0.2),
+        paint: Paint()..color = color.withValues(alpha: 0.2),
       );
       storm.add(
         TimerComponent(
@@ -1332,7 +1330,7 @@ class WingPierceMechanic {
         radius: 30,
         position: segmentPos,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.orange.shade800.withOpacity(0.25),
+        paint: Paint()..color = Colors.orange.shade800.withValues(alpha: 0.25),
       );
 
       fireSegment.add(

@@ -37,8 +37,7 @@ class LandscapeDialog extends StatelessWidget {
       case LandscapeDialogKind.danger:
         return const Color(0xFFFF9BA3);
       case LandscapeDialogKind.info:
-      default:
-        return Colors.white.withOpacity(0.5);
+        return Colors.white.withValues(alpha: 0.5);
     }
   }
 
@@ -52,7 +51,6 @@ class LandscapeDialog extends StatelessWidget {
       case LandscapeDialogKind.danger:
         return Icons.gpp_bad_outlined;
       case LandscapeDialogKind.info:
-      default:
         return Icons.info_outline;
     }
   }
@@ -72,12 +70,12 @@ class LandscapeDialog extends StatelessWidget {
         ),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.92),
+          color: Colors.black.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(2),
           border: Border.all(color: frame, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: frame.withOpacity(0.3),
+              color: frame.withValues(alpha: 0.3),
               blurRadius: 30,
               spreadRadius: 5,
             ),
@@ -114,7 +112,7 @@ class LandscapeDialog extends StatelessWidget {
             Container(
               width: 100,
               height: 1,
-              color: Colors.white.withOpacity(0.25),
+              color: Colors.white.withValues(alpha: 0.25),
             ),
             const SizedBox(height: 16),
 
@@ -131,7 +129,7 @@ class LandscapeDialog extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white.withOpacity(0.85),
+                          color: Colors.white.withValues(alpha: 0.85),
                           height: 1.4,
                           fontFamily: 'monospace',
                           letterSpacing: 0.4,
@@ -157,7 +155,7 @@ class LandscapeDialog extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white70,
                         side: BorderSide(
-                          color: Colors.white.withOpacity(0.4),
+                          color: Colors.white.withValues(alpha: 0.4),
                           width: 1.2,
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -288,7 +286,7 @@ class _TypewriterTextState extends State<_TypewriterText> {
       textAlign: TextAlign.center,
       style: TextStyle(
         fontSize: 14,
-        color: Colors.white.withOpacity(0.85),
+        color: Colors.white.withValues(alpha: 0.85),
         height: 1.4,
         fontFamily: 'monospace',
         letterSpacing: 0.4,

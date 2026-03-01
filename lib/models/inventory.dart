@@ -133,7 +133,7 @@ class BossLootKeys {
       lootboxIcon: Icons.bug_report_rounded,
     ),
     'steam': const _BossRewardMeta(
-      traitName: 'Steam Valve',
+      traitName: 'Steam Stone',
       traitDescription:
           'A pressurized valve from the Steam Mystic. Unlocks future pressure paths.',
       traitIcon: Icons.device_thermostat_rounded,

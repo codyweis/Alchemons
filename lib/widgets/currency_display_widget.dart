@@ -1,9 +1,10 @@
 // lib/widgets/currency_display_widget.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 
-class CurrencyDisplayWidget extends StatelessWidget {
+class CurrencyDisplayWidget extends StatefulWidget {
   final Color? accentColor;
   final bool compact;
   final VoidCallback? onTap;
@@ -15,59 +16,123 @@ class CurrencyDisplayWidget extends StatelessWidget {
     this.onTap,
   });
 
+  @override
+  State<CurrencyDisplayWidget> createState() => _CurrencyDisplayWidgetState();
+}
+
+class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
+    with SingleTickerProviderStateMixin {
+  bool _condensed = true;
+
+  /// 0 = fully expanded, 1 = fully condensed.
+  late final AnimationController _ctrl;
+  late final Animation<double> _progress;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+      value: 1.0,
+    );
+    _progress = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutCubic);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
   String _formatCurrency(int amount) {
-    if (amount >= 1000000000) {
-      return '${(amount / 1e9).toStringAsFixed(1)}B';
-    }
-    if (amount >= 1000000) {
-      return '${(amount / 1e6).toStringAsFixed(1)}M';
-    }
-    if (amount >= 1000) {
-      return '${(amount / 1e3).toStringAsFixed(1)}K';
-    }
+    if (amount >= 1000000000) return '${(amount / 1e9).toStringAsFixed(1)}B';
+    if (amount >= 1000000) return '${(amount / 1e6).toStringAsFixed(1)}M';
+    if (amount >= 1000) return '${(amount / 1e3).toStringAsFixed(1)}K';
     return '$amount';
+  }
+
+  void _handleTap() {
+    HapticFeedback.lightImpact();
+    setState(() => _condensed = !_condensed);
+    if (_condensed) {
+      _ctrl.forward();
+    } else {
+      _ctrl.reverse();
+    }
+    widget.onTap?.call();
   }
 
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
-    final accent = accentColor ?? Theme.of(context).colorScheme.primary;
+    final accent = widget.accentColor ?? Theme.of(context).colorScheme.primary;
 
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 10 : 12,
-          vertical: compact ? 6 : 8,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.25),
-          borderRadius: BorderRadius.circular(compact ? 8 : 12),
-          border: Border.all(color: accent.withOpacity(0.3), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withOpacity(0.1),
-              blurRadius: 8,
-              spreadRadius: 1,
+      onTap: _handleTap,
+      child: AnimatedBuilder(
+        animation: _progress,
+        builder: (context, _) {
+          final t = _progress.value;
+          // Interpolate padding so the container shrinks smoothly.
+          final hPad = lerpDouble(12, 10, t)!;
+          final vPad = lerpDouble(8, 6, t)!;
+          final radius = lerpDouble(12, 8, t)!;
+
+          return Container(
+            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(color: accent.withValues(alpha: 0.3), width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
-          ],
-        ),
-        child: StreamBuilder<Map<String, int>>(
-          stream: db.currencyDao.watchAllCurrencies(),
-          builder: (context, snapshot) {
-            final currencies =
-                snapshot.data ?? {'gold': 0, 'silver': 0, 'soft': 0};
+            child: StreamBuilder<Map<String, int>>(
+              stream: db.currencyDao.watchAllCurrencies(),
+              builder: (context, snapshot) {
+                final currencies =
+                    snapshot.data ?? {'gold': 0, 'silver': 0, 'soft': 0};
+                final gold = currencies['gold'] ?? 0;
+                final silver = currencies['silver'] ?? 0;
 
-            final gold = currencies['gold'] ?? 0;
-            final silver = currencies['silver'] ?? 0;
-
-            if (compact) {
-              return _buildCompactView(gold, silver);
-            } else {
-              return _buildFullView(gold, silver);
-            }
-          },
-        ),
+                return AnimatedSize(
+                  duration: const Duration(milliseconds: 380),
+                  curve: Curves.easeInOutCubic,
+                  alignment: Alignment.centerLeft,
+                  child: Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      // ── Full view (fades out when condensing) ──────────────
+                      IgnorePointer(
+                        child: Opacity(
+                          opacity: (1.0 - t).clamp(0.0, 1.0),
+                          child: t < 0.99
+                              ? _buildFullView(gold, silver)
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                      // ── Condensed view (fades in when condensing) ──────────
+                      IgnorePointer(
+                        child: Opacity(
+                          opacity: t.clamp(0.0, 1.0),
+                          child: t > 0.01
+                              ? _buildCondensedView(gold, silver)
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          );
+        },
       ),
     );
   }
@@ -76,62 +141,52 @@ class CurrencyDisplayWidget extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Gold
         _CurrencyPill(
           icon: Icons.diamond_rounded,
           amount: gold,
-          color: const Color(0xFFFFD700), // Gold color
+          color: const Color(0xFFFFD700),
           formatter: _formatCurrency,
         ),
-
         const SizedBox(width: 8),
-
-        // Divider
-        Container(width: 1, height: 20, color: Colors.white.withOpacity(0.2)),
-
+        Container(width: 1, height: 20, color: Colors.white.withValues(alpha: 0.2)),
         const SizedBox(width: 8),
-
-        // Silver
         _CurrencyPill(
           icon: Icons.monetization_on_rounded,
           amount: silver,
-          color: const Color(0xFFC0C0C0), // Silver color
+          color: const Color(0xFFC0C0C0),
           formatter: _formatCurrency,
         ),
       ],
     );
   }
 
-  Widget _buildCompactView(int gold, int silver) {
+  /// Condensed view — numbers only, no icon circles.
+  Widget _buildCondensedView(int gold, int silver) {
+    const goldColor = Color(0xFFFFD700);
+    const silverColor = Color(0xFFC0C0C0);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Gold icon + amount
-        Icon(Icons.diamond_rounded, size: 14, color: const Color(0xFFFFD700)),
-        const SizedBox(width: 4),
+        Icon(Icons.diamond_rounded, size: 11, color: goldColor),
+        const SizedBox(width: 3),
         Text(
           _formatCurrency(gold),
           style: const TextStyle(
-            color: Color(0xFFFFD700),
+            color: goldColor,
             fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: 0.3,
           ),
         ),
-
-        const SizedBox(width: 10),
-
-        // Silver icon + amount
-        Icon(
-          Icons.monetization_on_rounded,
-          size: 14,
-          color: const Color(0xFFC0C0C0),
-        ),
-        const SizedBox(width: 4),
+        const SizedBox(width: 8),
+        Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.2)),
+        const SizedBox(width: 8),
+        Icon(Icons.monetization_on_rounded, size: 11, color: silverColor),
+        const SizedBox(width: 3),
         Text(
           _formatCurrency(silver),
           style: const TextStyle(
-            color: Color(0xFFC0C0C0),
+            color: silverColor,
             fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: 0.3,
@@ -141,6 +196,8 @@ class CurrencyDisplayWidget extends StatelessWidget {
     );
   }
 }
+
+double? lerpDouble(double a, double b, double t) => a + (b - a) * t;
 
 class _CurrencyPill extends StatelessWidget {
   final IconData icon;
@@ -165,11 +222,11 @@ class _CurrencyPill extends StatelessWidget {
           height: 24,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: color.withOpacity(0.15),
-            border: Border.all(color: color.withOpacity(0.5), width: 1.5),
+            color: color.withValues(alpha: 0.15),
+            border: Border.all(color: color.withValues(alpha: 0.5), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.3),
+                color: color.withValues(alpha: 0.3),
                 blurRadius: 6,
                 spreadRadius: 1,
               ),
@@ -185,7 +242,7 @@ class _CurrencyPill extends StatelessWidget {
             fontSize: 14,
             fontWeight: FontWeight.w900,
             letterSpacing: 0.4,
-            shadows: [Shadow(color: color.withOpacity(0.5), blurRadius: 4)],
+            shadows: [Shadow(color: color.withValues(alpha: 0.5), blurRadius: 4)],
           ),
         ),
       ],

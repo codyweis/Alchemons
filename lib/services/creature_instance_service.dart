@@ -4,7 +4,6 @@ import 'package:alchemons/database/alchemons_db.dart' as db;
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/services/faction_service.dart';
 import 'package:uuid/uuid.dart';
 
 /// What to do when species cap is reached.
@@ -112,7 +111,7 @@ class CreatureInstanceService {
         InstanceFinalizeStatus.created,
         instanceId: instanceId,
       );
-    } catch (e, st) {
+    } catch (e) {
       // TODO: log error + stack trace somewhere
       return InstanceFinalizeResult(InstanceFinalizeStatus.failed);
     }

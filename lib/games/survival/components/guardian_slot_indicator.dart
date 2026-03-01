@@ -46,7 +46,7 @@ class GuardianSlotIndicator extends PositionComponent
 
     // 1. Outer Glow Ring (Pulsing)
     final paintGlow = Paint()
-      ..color = Colors.cyanAccent.withOpacity(alphaPulse)
+      ..color = Colors.cyanAccent.withValues(alpha: alphaPulse)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
 
@@ -54,7 +54,7 @@ class GuardianSlotIndicator extends PositionComponent
 
     // 2. Inner Solid Ring
     final paintRim = Paint()
-      ..color = Colors.cyan.withOpacity(0.8)
+      ..color = Colors.cyan.withValues(alpha: 0.8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
@@ -62,14 +62,14 @@ class GuardianSlotIndicator extends PositionComponent
 
     // 3. Core "Landing Pad" (Semi-transparent fill)
     final paintCore = Paint()
-      ..color = Colors.cyanAccent.withOpacity(0.2)
+      ..color = Colors.cyanAccent.withValues(alpha: 0.2)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(Offset.zero, (drawRadius * 0.7) * scale, paintCore);
 
     // 4. Crosshairs / Tech lines
     final paintLines = Paint()
-      ..color = Colors.white.withOpacity(0.6)
+      ..color = Colors.white.withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 

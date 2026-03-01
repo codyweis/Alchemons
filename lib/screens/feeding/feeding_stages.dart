@@ -118,7 +118,7 @@ class FeedingStageBuilders {
               decoration: InputDecoration(
                 hintText: 'Search species...',
                 hintStyle: TextStyle(
-                  color: t.textSecondary.withOpacity(.7),
+                  color: t.textSecondary.withValues(alpha: .7),
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -220,6 +220,7 @@ class FeedingStageBuilders {
     CreatureCatalog repo,
   ) {
     final t = ForgeTokens(theme);
+    final fc = FC(theme);
     final candidates =
         instances
             .where(
@@ -305,16 +306,16 @@ class FeedingStageBuilders {
                 width: double.infinity,
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: isSelected ? FC.amberDim.withOpacity(0.2) : t.bg1,
+                  color: isSelected ? fc.amberDim.withValues(alpha: 0.2) : t.bg1,
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
-                    color: isSelected ? FC.amberGlow : t.borderDim,
+                    color: isSelected ? fc.amberGlow : t.borderDim,
                     width: isSelected ? 2.0 : 1.0,
                   ),
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: FC.amber.withOpacity(0.35),
+                            color: fc.amber.withValues(alpha: 0.35),
                             blurRadius: 10,
                             spreadRadius: 1,
                           ),
@@ -347,7 +348,7 @@ class FeedingStageBuilders {
                       Text(
                         inst.nickname ?? baseCreature!.name,
                         style: TextStyle(
-                          color: isSelected ? FC.amberBright : t.textPrimary,
+                          color: isSelected ? fc.amberBright : t.textPrimary,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
@@ -359,7 +360,7 @@ class FeedingStageBuilders {
                     Text(
                       'Lv ${inst.level}',
                       style: TextStyle(
-                        color: isSelected ? FC.amber : t.textSecondary,
+                        color: isSelected ? fc.amber : t.textSecondary,
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
                       ),
@@ -372,14 +373,14 @@ class FeedingStageBuilders {
                       ),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? FC.amberDim.withOpacity(0.25)
+                            ? fc.amberDim.withValues(alpha: 0.25)
                             : t.bg2,
                         borderRadius: BorderRadius.circular(3),
                       ),
                       child: Text(
                         '${highestEntry.key} ${highestEntry.value.toStringAsFixed(1)}',
                         style: TextStyle(
-                          color: isSelected ? FC.amberBright : FC.amber,
+                          color: isSelected ? fc.amberBright : fc.amber,
                           fontSize: 9,
                           fontWeight: FontWeight.w900,
                         ),
@@ -395,11 +396,11 @@ class FeedingStageBuilders {
                   child: Container(
                     width: 16,
                     height: 16,
-                    decoration: const BoxDecoration(
-                      color: FC.amberGlow,
+                    decoration: BoxDecoration(
+                      color: fc.amberGlow,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.check, size: 10, color: FC.bg0),
+                    child: Icon(Icons.check, size: 10, color: fc.bg0),
                   ),
                 ),
             ],

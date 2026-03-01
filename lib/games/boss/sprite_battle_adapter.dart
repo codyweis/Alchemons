@@ -98,7 +98,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     selectionIndicator = CircleComponent(
       radius: 48,
       paint: Paint()
-        ..color = Colors.yellow.withOpacity(0)
+        ..color = Colors.yellow.withValues(alpha: 0)
         ..style = PaintingStyle.stroke
         ..strokeWidth = .5,
       anchor: Anchor.center,
@@ -217,32 +217,32 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
 
     switch (statusType) {
       case 'burn':
-        bgColor = Colors.orange.withOpacity(0.85);
+        bgColor = Colors.orange.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = 'BRN';
         break;
       case 'poison':
-        bgColor = Colors.purple.withOpacity(0.85);
+        bgColor = Colors.purple.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = 'PSN';
         break;
       case 'freeze':
-        bgColor = Colors.cyan.withOpacity(0.85);
+        bgColor = Colors.cyan.withValues(alpha: 0.85);
         textColor = Colors.black;
         text = 'FRZ';
         break;
       case 'curse':
-        bgColor = Colors.purple.shade900.withOpacity(0.85);
+        bgColor = Colors.purple.shade900.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = 'CRS';
         break;
       case 'regen':
-        bgColor = Colors.green.withOpacity(0.85);
+        bgColor = Colors.green.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = 'REG';
         break;
       default:
-        bgColor = Colors.grey.withOpacity(0.85);
+        bgColor = Colors.grey.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = '???';
     }
@@ -287,37 +287,37 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
 
     switch (modifierType) {
       case 'attack_up':
-        bgColor = Colors.red.withOpacity(0.85);
+        bgColor = Colors.red.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = 'ATK↑';
         break;
       case 'attack_down':
-        bgColor = Colors.red.shade300.withOpacity(0.85);
+        bgColor = Colors.red.shade300.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = 'ATK↓';
         break;
       case 'defense_up':
-        bgColor = Colors.blue.withOpacity(0.85);
+        bgColor = Colors.blue.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = 'DEF↑';
         break;
       case 'defense_down':
-        bgColor = Colors.blue.shade300.withOpacity(0.85);
+        bgColor = Colors.blue.shade300.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = 'DEF↓';
         break;
       case 'speed_up':
-        bgColor = Colors.yellow.withOpacity(0.85);
+        bgColor = Colors.yellow.withValues(alpha: 0.85);
         textColor = Colors.black;
         text = 'SPD↑';
         break;
       case 'speed_down':
-        bgColor = Colors.yellow.shade700.withOpacity(0.85);
+        bgColor = Colors.yellow.shade700.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = 'SPD↓';
         break;
       default:
-        bgColor = Colors.grey.withOpacity(0.85);
+        bgColor = Colors.grey.withValues(alpha: 0.85);
         textColor = Colors.white;
         text = '???';
     }
@@ -518,7 +518,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       radius: 52,
       position: size / 2,
       anchor: Anchor.center,
-      paint: Paint()..color = flashColor.withOpacity(0.50),
+      paint: Paint()..color = flashColor.withValues(alpha: 0.50),
       priority: 20,
     );
     flash.add(RemoveEffect(delay: 0.15));
@@ -527,8 +527,8 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
 
   void setSelectionIndicator(bool selected) {
     selectionIndicator.paint.color = selected
-        ? Colors.yellow.withOpacity(0.2)
-        : Colors.yellow.withOpacity(0);
+        ? Colors.yellow.withValues(alpha: 0.2)
+        : Colors.yellow.withValues(alpha: 0);
   }
 
   void setSelected(bool selected) {
@@ -662,7 +662,7 @@ class CreatureSpriteComponentBattle extends PositionComponent
         anchor: Anchor.center,
         position: size / 2,
         paint: Paint()
-          ..color = Colors.red.withOpacity(0.5)
+          ..color = Colors.red.withValues(alpha: 0.5)
           ..style = PaintingStyle.fill,
       );
 
@@ -817,7 +817,7 @@ class FlameAlchemyGlow extends PositionComponent with HasGameRef {
 
     // Create a paint with a subtle blur to mimic the soft edges of a glow/gradient
     final paint = Paint()
-      ..color = Colors.cyan.withOpacity(0.3)
+      ..color = Colors.cyan.withValues(alpha: 0.3)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12.0 * pulseScale);
 
     // Draw a series of circles with diminishing opacity to simulate radial gradient
@@ -825,7 +825,7 @@ class FlameAlchemyGlow extends PositionComponent with HasGameRef {
     canvas.drawCircle(center.toOffset(), maxRadius, paint);
 
     // Inner glow (brighter core)
-    paint.color = Colors.purple.withOpacity(0.2);
+    paint.color = Colors.purple.withValues(alpha: 0.2);
     paint.maskFilter = MaskFilter.blur(BlurStyle.normal, 4.0 * pulseScale);
     canvas.drawCircle(center.toOffset(), maxRadius * 0.6, paint);
   }
@@ -849,7 +849,7 @@ class FlameElementalAura extends PositionComponent with HasGameRef {
   @override
   void render(Canvas canvas) {
     final paint = Paint()
-      ..color = color.withOpacity(0.6)
+      ..color = color.withValues(alpha: 0.6)
       ..style = PaintingStyle.fill;
 
     final center = (size / 2).toOffset();
@@ -908,8 +908,8 @@ class _FlameVoidRift extends PositionComponent with HasGameRef {
     final coreShader =
         RadialGradient(
           colors: [
-            const Color(0xFF000000).withOpacity(0.85),
-            const Color(0xFF3D0070).withOpacity(0.6 * outerGlow),
+            const Color(0xFF000000).withValues(alpha: 0.85),
+            const Color(0xFF3D0070).withValues(alpha: 0.6 * outerGlow),
             Colors.transparent,
           ],
           stops: const [0.0, 0.55, 1.0],
@@ -942,7 +942,7 @@ class _FlameVoidRift extends PositionComponent with HasGameRef {
       );
       crackPaint.shader = LinearGradient(
         colors: [
-          const Color(0xFFBB00FF).withOpacity(outerGlow * 0.7),
+          const Color(0xFFBB00FF).withValues(alpha: outerGlow * 0.7),
           Colors.transparent,
         ],
       ).createShader(Rect.fromPoints(center, end));
@@ -965,7 +965,7 @@ class _FlameVoidRift extends PositionComponent with HasGameRef {
         const Color(0xFFBB00FF),
         const Color(0xFF00EAFF),
         phase,
-      )!.withOpacity(alpha * 0.9 * outerGlow);
+      )!.withValues(alpha: alpha * 0.9 * outerGlow);
       canvas.drawCircle(Offset(x, y), sparkR, sparkPaint);
     }
   }
@@ -981,10 +981,10 @@ class _FlameVoidRift extends PositionComponent with HasGameRef {
       transform: GradientRotation(rotation),
       colors: [
         Colors.transparent,
-        const Color(0xFF6A0DAD).withOpacity(opacity),
-        const Color(0xFF000000).withOpacity(opacity * 1.2),
-        const Color(0xFF9400D3).withOpacity(opacity * 0.7),
-        const Color(0xFF000000).withOpacity(opacity),
+        const Color(0xFF6A0DAD).withValues(alpha: opacity),
+        const Color(0xFF000000).withValues(alpha: opacity * 1.2),
+        const Color(0xFF9400D3).withValues(alpha: opacity * 0.7),
+        const Color(0xFF000000).withValues(alpha: opacity),
         Colors.transparent,
       ],
       stops: const [0.0, 0.18, 0.38, 0.56, 0.76, 1.0],
@@ -1215,7 +1215,7 @@ class _FlamePrismaticCascade extends PositionComponent with HasGameRef {
       canvas.drawCircle(
         pos,
         sparkR * 0.25,
-        Paint()..color = Colors.white.withOpacity(alpha * 0.8),
+        Paint()..color = Colors.white.withValues(alpha: alpha * 0.8),
       );
     }
   }

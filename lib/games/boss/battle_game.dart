@@ -148,7 +148,7 @@ class BattleGame extends FlameGame with TapCallbacks {
   void selectCreature(int index) {
     if (state != BattleState.playerTurn) return;
     if (index >= playerTeam.length) return; // Safety: index out of bounds
-    if (playerTeam[index].isDead) return;
+    if (!playerTeam[index].canAct) return; // On cooldown or dead
 
     // Deselect previous
     if (currentPlayerIndex < playerSprites.length) {
@@ -179,8 +179,8 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     final attacker = playerTeam[currentPlayerIndex];
 
-    // Safety check: don't attack if creature is dead
-    if (attacker.isDead) {
+    // Safety check: don't attack if creature is dead or on cooldown
+    if (attacker.isDead || !attacker.canAct) {
       state = BattleState.playerTurn;
       return;
     }
@@ -193,6 +193,9 @@ class BattleGame extends FlameGame with TapCallbacks {
       await attackerSprite.playSkipTurnAnimation();
       onGameEvent(AttackExecutedEvent(blocked));
 
+      // Set action cooldown even if blocked
+      attacker.actionCooldown = 2;
+
       // Boss still gets a turn when player action is skipped
       await Future.delayed(Duration(milliseconds: 350));
       await executeBossAttack();
@@ -202,23 +205,34 @@ class BattleGame extends FlameGame with TapCallbacks {
     // Play attack animation
     await attackerSprite.playAttackAnimation(move, bossSprite);
 
-    // Calculate damage
+    // Calculate damage — pass ally team for team-affecting specials
     final action = BattleAction(actor: attacker, move: move, target: boss);
-    final result = BattleEngine.executeAction(action);
+    final result = BattleEngine.executeAction(action, allyTeam: playerTeam);
+
+    // Set action cooldown after acting
+    attacker.actionCooldown = 2;
 
     // Shake camera on hit
     shakeCamera(intensity: result.damage / 5.0);
 
     // Show damage numbers + hit feedback
-    bossSprite.showDamage(
-      result.damage,
-      result.typeMultiplier,
-      isCritical: result.isCritical,
-    );
-    bossSprite.playHitFlash(isCrit: result.isCritical);
-    _showTypeEffectivenessText(bossSprite.position, result.typeMultiplier);
+    if (result.damage > 0) {
+      bossSprite.showDamage(
+        result.damage,
+        result.typeMultiplier,
+        isCritical: result.isCritical,
+      );
+      bossSprite.playHitFlash(isCrit: result.isCritical);
+      _showTypeEffectivenessText(bossSprite.position, result.typeMultiplier);
+    }
     bossSprite.updateHpBar();
     bossSprite.updateStatusIcons();
+
+    // Update all player sprites (shields, regen, etc. from team specials)
+    for (final sprite in playerSprites) {
+      sprite.updateStatusIcons();
+      sprite.updateHpBar();
+    }
 
     // Send result to UI
     onGameEvent(AttackExecutedEvent(result));
@@ -239,7 +253,7 @@ class BattleGame extends FlameGame with TapCallbacks {
   Future<void> executeBossAttack() async {
     state = BattleState.bossTurn;
 
-    // Boss picks random alive creature
+    // Boss picks target — check for taunt first
     final aliveCreatures = playerTeam
         .asMap()
         .entries
@@ -251,7 +265,18 @@ class BattleGame extends FlameGame with TapCallbacks {
       return;
     }
 
-    final targetEntry =
+    // If boss is taunted, try to target the taunting creature
+    MapEntry<int, BattleCombatant>? targetEntry;
+    if (boss.tauntTargetId != null) {
+      targetEntry = aliveCreatures
+          .cast<MapEntry<int, BattleCombatant>?>()
+          .firstWhere(
+            (e) => e!.value.id == boss.tauntTargetId,
+            orElse: () => null,
+          );
+    }
+    // Fallback to random alive creature
+    targetEntry ??=
         aliveCreatures[DateTime.now().millisecondsSinceEpoch %
             aliveCreatures.length];
     final targetIndex = targetEntry.key;
@@ -640,6 +665,23 @@ class BattleGame extends FlameGame with TapCallbacks {
       }
     }
 
+    // Tick cooldowns for all player creatures
+    for (final creature in playerTeam) {
+      creature.tickActionCooldown();
+      creature.tickSpecialCooldown();
+    }
+
+    // Safety: if all alive creatures are on cooldown, reset all cooldowns
+    final aliveAndReady = playerTeam.where((c) => c.canAct).toList();
+    if (aliveAndReady.isEmpty) {
+      for (final c in playerTeam) {
+        if (c.isAlive) c.actionCooldown = 0;
+      }
+    }
+
+    // Auto-select next available creature
+    _autoSelectNextCreature();
+
     // Wait a frame before updating icons
     await Future.delayed(Duration(milliseconds: 100));
 
@@ -649,6 +691,31 @@ class BattleGame extends FlameGame with TapCallbacks {
     for (final sprite in playerSprites) {
       sprite.updateStatusIcons();
       sprite.updateHpBar();
+    }
+  }
+
+  /// Auto-select the next available creature (one not on cooldown and alive).
+  void _autoSelectNextCreature() {
+    // If current creature can still act, keep selection
+    if (currentPlayerIndex < playerTeam.length &&
+        playerTeam[currentPlayerIndex].canAct) {
+      return;
+    }
+
+    // Find first available creature — bypass state guard since this is internal
+    for (int i = 0; i < playerTeam.length; i++) {
+      if (playerTeam[i].canAct) {
+        // Direct selection (don't use selectCreature which checks BattleState)
+        if (currentPlayerIndex < playerSprites.length) {
+          playerSprites[currentPlayerIndex].setSelected(false);
+        }
+        currentPlayerIndex = i;
+        if (i < playerSprites.length) {
+          playerSprites[i].setSelected(true);
+        }
+        onGameEvent(CreatureSelectedEvent(i));
+        return;
+      }
     }
   }
 }
@@ -715,7 +782,7 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
       bossVisual = CircleComponent(
         radius: 60,
         paint: Paint()
-          ..color = _auraColor.withOpacity(0.0)
+          ..color = _auraColor.withValues(alpha: 0.0)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0,
         anchor: Anchor.center,
@@ -751,7 +818,7 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
     // Fade in boss visual by changing paint color
     Future.delayed(Duration(milliseconds: 0), () {
       if (bossVisual != null) {
-        bossVisual!.paint.color = _auraColor.withOpacity(0.35);
+        bossVisual!.paint.color = _auraColor.withValues(alpha: 0.35);
       }
     });
   }
@@ -767,7 +834,7 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
       Future.delayed(Duration(milliseconds: f * 90), () {
         final flash = RectangleComponent(
           size: size * 1.2,
-          paint: Paint()..color = Colors.white.withOpacity(0.65),
+          paint: Paint()..color = Colors.white.withValues(alpha: 0.65),
           anchor: Anchor.center,
           position: size / 2,
           priority: 30,
@@ -926,32 +993,37 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
 
     switch (statusType) {
       case 'burn':
-        bgColor = Colors.orange.withOpacity(0.8);
+        bgColor = Colors.orange.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = 'BURN';
         break;
       case 'poison':
-        bgColor = Colors.purple.withOpacity(0.8);
+        bgColor = Colors.purple.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = 'PSN';
         break;
       case 'freeze':
-        bgColor = Colors.cyan.withOpacity(0.8);
+        bgColor = Colors.cyan.withValues(alpha: 0.8);
         textColor = Colors.black;
         text = 'FRZ';
         break;
       case 'curse':
-        bgColor = Colors.purple.shade900.withOpacity(0.8);
+        bgColor = Colors.purple.shade900.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = 'CURSE';
         break;
       case 'regen':
-        bgColor = Colors.green.withOpacity(0.8);
+        bgColor = Colors.green.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = 'REGEN';
         break;
+      case 'taunt':
+        bgColor = Colors.red.withValues(alpha: 0.8);
+        textColor = Colors.white;
+        text = 'TAUNT';
+        break;
       default:
-        bgColor = Colors.grey.withOpacity(0.8);
+        bgColor = Colors.grey.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = '???';
     }
@@ -996,37 +1068,37 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
 
     switch (modifierType) {
       case 'attack_up':
-        bgColor = Colors.red.withOpacity(0.8);
+        bgColor = Colors.red.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = 'ATK ↑';
         break;
       case 'attack_down':
-        bgColor = Colors.red.shade300.withOpacity(0.8);
+        bgColor = Colors.red.shade300.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = 'ATK ↓';
         break;
       case 'defense_up':
-        bgColor = Colors.blue.withOpacity(0.8);
+        bgColor = Colors.blue.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = 'DEF ↑';
         break;
       case 'defense_down':
-        bgColor = Colors.blue.shade300.withOpacity(0.8);
+        bgColor = Colors.blue.shade300.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = 'DEF ↓';
         break;
       case 'speed_up':
-        bgColor = Colors.yellow.withOpacity(0.8);
+        bgColor = Colors.yellow.withValues(alpha: 0.8);
         textColor = Colors.black;
         text = 'SPD ↑';
         break;
       case 'speed_down':
-        bgColor = Colors.yellow.shade700.withOpacity(0.8);
+        bgColor = Colors.yellow.shade700.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = 'SPD ↓';
         break;
       default:
-        bgColor = Colors.grey.withOpacity(0.8);
+        bgColor = Colors.grey.withValues(alpha: 0.8);
         textColor = Colors.white;
         text = '???';
     }
@@ -1129,7 +1201,7 @@ class BossSprite extends PositionComponent with HasGameRef<BattleGame> {
       radius: 88,
       position: size / 2,
       anchor: Anchor.center,
-      paint: Paint()..color = flashColor.withOpacity(0.50),
+      paint: Paint()..color = flashColor.withValues(alpha: 0.50),
       priority: 20,
     );
     flash.add(RemoveEffect(delay: 0.15));

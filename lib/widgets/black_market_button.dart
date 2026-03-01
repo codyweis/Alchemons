@@ -6,7 +6,7 @@ class AnimatedBlackMarketButton extends StatefulWidget {
   final Color accent;
   final VoidCallback onTap;
 
-  const AnimatedBlackMarketButton({
+  const AnimatedBlackMarketButton({super.key, 
     required this.isOpen,
     required this.accent,
     required this.onTap,
@@ -84,7 +84,7 @@ class AnimatedBlackMarketButtonState extends State<AnimatedBlackMarketButton>
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF8B4789).withOpacity(
+                            color: const Color(0xFF8B4789).withValues(alpha: 
                               0.4 *
                                   (pulse - 1.0) /
                                   0.08, // Smooth opacity change

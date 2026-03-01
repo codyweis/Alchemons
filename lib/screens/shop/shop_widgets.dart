@@ -83,7 +83,7 @@ Future<bool> showItemDetailDialog({
               border: Border.all(color: t.borderAccent, width: 1),
               boxShadow: [
                 BoxShadow(
-                  color: t.amber.withOpacity(0.08),
+                  color: t.amber.withValues(alpha: 0.08),
                   blurRadius: 32,
                   spreadRadius: 2,
                 ),
@@ -193,7 +193,7 @@ Future<bool> showItemDetailDialog({
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: t.amberDim.withOpacity(0.2),
+                        color: t.amberDim.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(2),
                         border: Border.all(color: t.borderAccent, width: 1),
                       ),
@@ -278,7 +278,7 @@ Future<bool> showItemDetailDialog({
                             color: Colors.transparent,
                             borderRadius: BorderRadius.circular(2),
                             border: Border.all(
-                              color: t.borderAccent.withOpacity(0.6),
+                              color: t.borderAccent.withValues(alpha: 0.6),
                               width: 1,
                             ),
                           ),
@@ -307,19 +307,19 @@ Future<bool> showItemDetailDialog({
                                   height: 44,
                                   decoration: BoxDecoration(
                                     color: canAfford
-                                        ? t.amberDim.withOpacity(0.35)
+                                        ? t.amberDim.withValues(alpha: 0.35)
                                         : t.bg3,
                                     borderRadius: BorderRadius.circular(2),
                                     border: Border.all(
                                       color: canAfford
                                           ? t.amber
-                                          : t.danger.withOpacity(0.5),
+                                          : t.danger.withValues(alpha: 0.5),
                                       width: 1,
                                     ),
                                     boxShadow: canAfford
                                         ? [
                                             BoxShadow(
-                                              color: t.amber.withOpacity(0.15),
+                                              color: t.amber.withValues(alpha: 0.15),
                                               blurRadius: 12,
                                             ),
                                           ]
@@ -335,7 +335,7 @@ Future<bool> showItemDetailDialog({
                                             : Icons.block_rounded,
                                         color: canAfford
                                             ? t.amberBright
-                                            : t.danger.withOpacity(0.7),
+                                            : t.danger.withValues(alpha: 0.7),
                                         size: 15,
                                       ),
                                       const SizedBox(width: 7),
@@ -347,7 +347,7 @@ Future<bool> showItemDetailDialog({
                                           fontFamily: 'monospace',
                                           color: canAfford
                                               ? t.amberBright
-                                              : t.danger.withOpacity(0.7),
+                                              : t.danger.withValues(alpha: 0.7),
                                           fontSize: 11,
                                           fontWeight: FontWeight.w800,
                                           letterSpacing: 1.4,
@@ -360,10 +360,10 @@ Future<bool> showItemDetailDialog({
                             : Container(
                                 height: 44,
                                 decoration: BoxDecoration(
-                                  color: t.successDim.withOpacity(0.3),
+                                  color: t.successDim.withValues(alpha: 0.3),
                                   borderRadius: BorderRadius.circular(2),
                                   border: Border.all(
-                                    color: t.success.withOpacity(0.5),
+                                    color: t.success.withValues(alpha: 0.5),
                                     width: 1,
                                   ),
                                 ),
@@ -460,7 +460,7 @@ class _ForgeCostRow extends StatelessWidget {
         color: t.bg2,
         borderRadius: BorderRadius.circular(2),
         border: Border.all(
-          color: hasEnough ? t.borderDim : t.danger.withOpacity(0.4),
+          color: hasEnough ? t.borderDim : t.danger.withValues(alpha: 0.4),
           width: 1,
         ),
       ),
@@ -485,7 +485,7 @@ class _ForgeCostRow extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               color: hasEnough
-                  ? color.withOpacity(0.9)
+                  ? color.withValues(alpha: 0.9)
                   : const Color(0xFFEF4444),
               fontSize: 13,
               fontWeight: FontWeight.w800,
@@ -498,7 +498,7 @@ class _ForgeCostRow extends StatelessWidget {
               fontFamily: 'monospace',
               color: hasEnough
                   ? t.textMuted
-                  : const Color(0xFFEF4444).withOpacity(0.7),
+                  : const Color(0xFFEF4444).withValues(alpha: 0.7),
               fontSize: 9,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.8,
@@ -631,20 +631,20 @@ class GameShopCard extends StatelessWidget {
     if (!enabled) {
       overlayColor = Colors.transparent;
     } else if (!canAfford) {
-      overlayColor = const Color.fromARGB(86, 244, 67, 54).withOpacity(0.3);
+      overlayColor = const Color.fromARGB(86, 244, 67, 54).withValues(alpha: 0.3);
     }
 
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: theme.surface.withOpacity(0.1),
+        color: theme.surface.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
           color: !enabled
-              ? theme.text.withOpacity(0.3)
+              ? theme.text.withValues(alpha: 0.3)
               : !canAfford
-              ? Colors.red.withOpacity(0.5)
-              : theme.accent.withOpacity(0.3),
+              ? Colors.red.withValues(alpha: 0.5)
+              : theme.accent.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -656,7 +656,7 @@ class GameShopCard extends StatelessWidget {
               // Image / Preview area - SIMPLIFIED
               Expanded(
                 child: Container(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   child: _buildOfferPreview(offer, size: 64.0, theme: theme),
                 ),
               ),
@@ -682,7 +682,7 @@ class GameShopCard extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Icon(
                   !enabled ? Icons.check_circle : Icons.lock,
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                   size: 32,
                 ),
               ),
@@ -696,10 +696,10 @@ class GameShopCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(
-                  color: theme.accent.withOpacity(0.9),
+                  color: theme.accent.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     width: 1,
                   ),
                 ),
@@ -741,7 +741,7 @@ class SectionHeader extends StatelessWidget {
         color: backgroundColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 1,
             offset: const Offset(0, 1),
           ),
@@ -784,13 +784,13 @@ class MiniCostChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: hasEnough
-            ? resource.color.withOpacity(0.15)
-            : Colors.red.withOpacity(0.15),
+            ? resource.color.withValues(alpha: 0.15)
+            : Colors.red.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: hasEnough
-              ? resource.color.withOpacity(0.4)
-              : Colors.red.withOpacity(0.4),
+              ? resource.color.withValues(alpha: 0.4)
+              : Colors.red.withValues(alpha: 0.4),
         ),
       ),
       child: Row(
@@ -841,10 +841,10 @@ class TabButton extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isActive ? accent.withOpacity(0.4) : Colors.transparent,
+          color: isActive ? accent.withValues(alpha: 0.4) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isActive ? accent.withOpacity(0.6) : Colors.transparent,
+            color: isActive ? accent.withValues(alpha: 0.6) : Colors.transparent,
             width: 1.5,
           ),
         ),
@@ -890,12 +890,12 @@ class CostChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: hasEnough ? Colors.transparent : Colors.red.withOpacity(0.15),
+        color: hasEnough ? Colors.transparent : Colors.red.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: hasEnough
-              ? color.withOpacity(0.4)
-              : Colors.red.withOpacity(0.4),
+              ? color.withValues(alpha: 0.4)
+              : Colors.red.withValues(alpha: 0.4),
         ),
       ),
       child: Row(
@@ -954,19 +954,19 @@ class EmptySection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3), // Already transparent, good
+        color: Colors.black.withValues(alpha: 0.3), // Already transparent, good
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Center(
         child: Column(
           children: [
-            Icon(icon, size: 32, color: Colors.white.withOpacity(0.3)),
+            Icon(icon, size: 32, color: Colors.white.withValues(alpha: 0.3)),
             const SizedBox(height: 8),
             Text(
               message,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
@@ -1340,7 +1340,7 @@ Future<bool> showBiomeUnlockConfirmationDialog({
           backgroundColor: const Color(0xFF1A1D23),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
+            side: BorderSide(color: theme.accent.withValues(alpha: 0.5), width: 2),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -1352,7 +1352,7 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                 Text(
                   '$biomeName Farm',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                   ),
@@ -1429,7 +1429,7 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
                         style: TextButton.styleFrom(
-                          backgroundColor: Colors.grey.shade800.withOpacity(
+                          backgroundColor: Colors.grey.shade800.withValues(alpha: 
                             0.5,
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1440,7 +1440,7 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                         child: Text(
                           'CANCEL',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
+                            color: Colors.white.withValues(alpha: 0.7),
                             fontWeight: FontWeight.w900,
                             fontSize: 13,
                             letterSpacing: 0.6,
@@ -1453,7 +1453,7 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx, true),
                         style: TextButton.styleFrom(
-                          backgroundColor: theme.accent.withOpacity(0.2),
+                          backgroundColor: theme.accent.withValues(alpha: 0.2),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
@@ -1644,7 +1644,7 @@ Future<int?> showPurchaseConfirmationDialog({
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.white12),
                         borderRadius: BorderRadius.circular(3),
-                        color: Colors.white.withOpacity(0.03),
+                        color: Colors.white.withValues(alpha: 0.03),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1727,7 +1727,7 @@ Future<int?> showPurchaseConfirmationDialog({
                             decoration: BoxDecoration(
                               border: Border.all(color: Colors.white24),
                               borderRadius: BorderRadius.circular(3),
-                              color: Colors.white.withOpacity(0.04),
+                              color: Colors.white.withValues(alpha: 0.04),
                             ),
                             child: const Text(
                               'CANCEL',
@@ -1755,12 +1755,12 @@ Future<int?> showPurchaseConfirmationDialog({
                                 width: 1,
                               ),
                               borderRadius: BorderRadius.circular(3),
-                              color: const Color(0xFFD4AF37).withOpacity(0.15),
+                              color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
                               boxShadow: [
                                 BoxShadow(
                                   color: const Color(
                                     0xFFD4AF37,
-                                  ).withOpacity(0.2),
+                                  ).withValues(alpha: 0.2),
                                   blurRadius: 10,
                                 ),
                               ],
@@ -1802,7 +1802,7 @@ class _MonoSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Container(height: 1, color: color.withOpacity(0.25))),
+        Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.25))),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
@@ -1816,7 +1816,7 @@ class _MonoSectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(child: Container(height: 1, color: color.withOpacity(0.25))),
+        Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.25))),
       ],
     );
   }
@@ -1836,7 +1836,7 @@ class DialogSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Container(height: 1, color: color.withOpacity(0.3))),
+        Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.3))),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Text(
@@ -1849,7 +1849,7 @@ class DialogSectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(child: Container(height: 1, color: color.withOpacity(0.3))),
+        Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.3))),
       ],
     );
   }

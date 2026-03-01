@@ -351,10 +351,10 @@ class AlchemyBrewingPainter extends CustomPainter {
     for (final spark in sparks) {
       // ... (fast glow/core logic here) ...
       final glowPaint = Paint()
-        ..color = spark.color.withOpacity(spark.life * 0.15)
+        ..color = spark.color.withValues(alpha: spark.life * 0.15)
         ..style = PaintingStyle.fill;
       final corePaint = Paint()
-        ..color = spark.color.withOpacity(spark.life * 0.8)
+        ..color = spark.color.withValues(alpha: spark.life * 0.8)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(spark.position, spark.size * 2.5, glowPaint);
       canvas.drawCircle(spark.position, spark.size, corePaint);
@@ -460,7 +460,7 @@ class AlchemyBrewingPainter extends CustomPainter {
         _blendColors(
           config1.colors.first,
           config2?.colors.first ?? config1.colors.first,
-        ).withOpacity(0.3),
+        ).withValues(alpha: 0.3),
         Colors.transparent,
       ],
     );
@@ -475,7 +475,7 @@ class AlchemyBrewingPainter extends CustomPainter {
 
   void _drawParticle(Canvas canvas, AlchemyParticle particle) {
     final paint = Paint()
-      ..color = particle.color.withOpacity(particle.opacity * particle.life)
+      ..color = particle.color.withValues(alpha: particle.opacity * particle.life)
       ..style = PaintingStyle.fill;
 
     canvas.save();
@@ -573,10 +573,7 @@ class AlchemyBrewingPainter extends CustomPainter {
     );
 
     // Easing functions
-    double easeIn(double x) => x * x;
     double easeOut(double x) => 1 - pow(1 - x, 2).toDouble();
-    double easeInOut(double x) =>
-        x < 0.5 ? 2 * x * x : 1 - pow(-2 * x + 2, 2) / 2;
     double smoothstep(double x) => x <= 0
         ? 0
         : x >= 1
@@ -675,8 +672,8 @@ class AlchemyBrewingPainter extends CustomPainter {
         ..strokeWidth = 2
         ..shader = RadialGradient(
           colors: [
-            baseColor.withOpacity(0.4 * progress),
-            baseColor.withOpacity(0.2 * progress),
+            baseColor.withValues(alpha: 0.4 * progress),
+            baseColor.withValues(alpha: 0.2 * progress),
           ],
           stops: const [0.0, 1.0],
         ).createShader(Rect.fromCircle(center: center, radius: radius))
@@ -709,7 +706,7 @@ class AlchemyBrewingPainter extends CustomPainter {
       final flowerPaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8
-        ..color = baseColor.withOpacity(0.3 * progress * (isIdle ? pulse : 1.0))
+        ..color = baseColor.withValues(alpha: 0.3 * progress * (isIdle ? pulse : 1.0))
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1);
 
       // Draw overlapping circles for flower of life
@@ -728,7 +725,7 @@ class AlchemyBrewingPainter extends CustomPainter {
     final cubePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5
-      ..color = baseColor.withOpacity(
+      ..color = baseColor.withValues(alpha: 
         0.25 * progress * (isIdle ? breathe : 1.0),
       );
 
@@ -804,8 +801,8 @@ class AlchemyBrewingPainter extends CustomPainter {
       ..style = PaintingStyle.fill
       ..shader = RadialGradient(
         colors: [
-          baseColor.withOpacity(outerGlowOpacity),
-          baseColor.withOpacity(outerGlowOpacity * 0.3),
+          baseColor.withValues(alpha: outerGlowOpacity),
+          baseColor.withValues(alpha: outerGlowOpacity * 0.3),
           Colors.transparent,
         ],
         stops: const [0.0, 0.6, 1.0],
@@ -824,8 +821,8 @@ class AlchemyBrewingPainter extends CustomPainter {
       ..style = PaintingStyle.fill
       ..shader = RadialGradient(
         colors: [
-          baseColor.withOpacity(coreOpacity),
-          baseColor.withOpacity(coreOpacity * 0.4),
+          baseColor.withValues(alpha: coreOpacity),
+          baseColor.withValues(alpha: coreOpacity * 0.4),
           Colors.transparent,
         ],
         stops: const [0.0, 0.7, 1.0],
@@ -839,7 +836,7 @@ class AlchemyBrewingPainter extends CustomPainter {
       final rayPaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.5
-        ..color = baseColor.withOpacity(0.2 * rayAlpha * fadeMultiplier);
+        ..color = baseColor.withValues(alpha: 0.2 * rayAlpha * fadeMultiplier);
 
       for (int i = 0; i < 8; i++) {
         final angle = i * pi / 4 + rotation * 0.2;
@@ -868,7 +865,7 @@ class AlchemyBrewingPainter extends CustomPainter {
 
         final particlePaint = Paint()
           ..style = PaintingStyle.fill
-          ..color = baseColor.withOpacity(0.6 * pulse);
+          ..color = baseColor.withValues(alpha: 0.6 * pulse);
 
         canvas.drawCircle(particlePos, 3, particlePaint);
       }
@@ -1253,22 +1250,23 @@ class _AlchemyBrewingParticleSystemState
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([_controller, _fusionCtrl]),
-      builder: (context, child) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final newSize = Size(constraints.maxWidth, constraints.maxHeight);
+    // LayoutBuilder is OUTSIDE AnimatedBuilder so a layout pass only happens
+    // when the parent constraints change, not on every 60-fps animation tick.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final newSize = Size(constraints.maxWidth, constraints.maxHeight);
 
-            if (newSize != Size.zero && newSize != _lastSize) {
-              _lastSize = newSize;
+        if (newSize != Size.zero && newSize != _lastSize) {
+          _lastSize = newSize;
+          if (!_hasInitializedParticles) {
+            _hasInitializedParticles = true;
+            _initParticles();
+          }
+        }
 
-              if (!_hasInitializedParticles) {
-                _hasInitializedParticles = true;
-                _initParticles(); // first time: now we have real size
-              }
-            }
-
+        return AnimatedBuilder(
+          animation: Listenable.merge([_controller, _fusionCtrl]),
+          builder: (context, child) {
             if (_hasInitializedParticles) {
               _updateParticles();
             }
@@ -1289,7 +1287,7 @@ class _AlchemyBrewingParticleSystemState
                 theme: widget.theme,
                 fromCinematic: widget.fromCinematic,
               ),
-              size: newSize,
+              size: _lastSize,
             );
           },
         );
@@ -1307,9 +1305,7 @@ class _AlchemyBrewingParticleSystemState
       for (int i = 0; i < _particles.length; i++) {
         final p = _particles[i];
         final toCenter = center - p.position;
-        final distance = sqrt(
-          toCenter.dx * toCenter.dx + toCenter.dy * toCenter.dy,
-        );
+        final distance = toCenter.distance;
 
         if (i < 2) {
           // Main particles: circular orbit
@@ -1367,9 +1363,7 @@ class _AlchemyBrewingParticleSystemState
 
           // Pull strongly to center
           final toCenter = center - p.position;
-          final distance = sqrt(
-            toCenter.dx * toCenter.dx + toCenter.dy * toCenter.dy,
-          );
+          final distance = toCenter.distance;
           if (distance > 0) {
             p.velocity += Offset(
               (toCenter.dx / distance) * 0.3 * fadeProgress,
@@ -1403,7 +1397,14 @@ class _AlchemyBrewingParticleSystemState
     final fusionDamp = widget.fusion ? 0.35 : 1.0;
     final speedMult = baseMult * fusionDamp;
 
-    for (int i = 0; i < _particles.length; i++) {
+    // Pre-compute constants for the loop
+    final particleCount = _particles.length;
+    final boundLeft = -30.0;
+    final boundRight = width + 30.0;
+    final boundTop = -30.0;
+    final boundBottom = height + 30.0;
+
+    for (int i = 0; i < particleCount; i++) {
       final p = _particles[i];
       final config = p.elementType == 'parentA'
           ? _configA
@@ -1415,9 +1416,7 @@ class _AlchemyBrewingParticleSystemState
 
       // Attraction to center
       final toCenter = center - p.position;
-      final distance = sqrt(
-        toCenter.dx * toCenter.dx + toCenter.dy * toCenter.dy,
-      );
+      final distance = toCenter.distance;
       final pullStrength = widget.fusion ? 0.12 : 0.02;
       if (distance > 6) {
         p.velocity += Offset(
@@ -1429,9 +1428,7 @@ class _AlchemyBrewingParticleSystemState
       // Swirl
       final angle = atan2(p.velocity.dy, p.velocity.dx);
       final newAngle = angle + (widget.fusion ? 0.01 : 0.03) * speedMult;
-      final spd = sqrt(
-        p.velocity.dx * p.velocity.dx + p.velocity.dy * p.velocity.dy,
-      );
+      final spd = p.velocity.distance;
       p.velocity = Offset(cos(newAngle) * spd, sin(newAngle) * spd);
 
       // Pulsing elements
@@ -1444,10 +1441,10 @@ class _AlchemyBrewingParticleSystemState
       p.life -= 0.002 * speedMult;
 
       if (p.life <= 0 ||
-          p.position.dx < -30 ||
-          p.position.dx > width + 30 ||
-          p.position.dy < -30 ||
-          p.position.dy > height + 30) {
+          p.position.dx < boundLeft ||
+          p.position.dx > boundRight ||
+          p.position.dy < boundTop ||
+          p.position.dy > boundBottom) {
         _particles[i] = _createParticle(config, p.elementType);
         if (widget.fusion) {
           _particles[i].position = Offset(

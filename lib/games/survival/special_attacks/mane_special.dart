@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
@@ -10,7 +9,6 @@ import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
-import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
 /// MANE FAMILY - BARRAGE MECHANIC (CREATIVE RANK 3 PATTERNS)
@@ -334,7 +332,7 @@ class ManeBarrageMechanic {
           radius: 60,
           position: geyserPos,
           anchor: Anchor.center,
-          paint: Paint()..color = Colors.white.withOpacity(0.4),
+          paint: Paint()..color = Colors.white.withValues(alpha: 0.4),
         );
 
         // Eruption bursts
@@ -466,7 +464,7 @@ class ManeBarrageMechanic {
       radius: patchRadius,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.brown.shade700.withOpacity(0.35),
+      paint: Paint()..color = Colors.brown.shade700.withValues(alpha: 0.35),
     );
 
     mudPatch.add(
@@ -525,7 +523,7 @@ class ManeBarrageMechanic {
       radius: stormWidth,
       position: stormCenter,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.amber.shade300.withOpacity(0.3),
+      paint: Paint()..color = Colors.amber.shade300.withValues(alpha: 0.3),
     );
 
     // Swirling effect
@@ -669,7 +667,6 @@ class ManeBarrageMechanic {
           final angle =
               (i / 16.0) * pi * 2 + (wave * pi / 4); // Offset each wave
           final direction = Vector2(cos(angle), sin(angle));
-          final endPos = center + direction * 600;
 
           Future.delayed(Duration(milliseconds: i * 30), () {
             if (attacker.isDead) return;
@@ -807,7 +804,7 @@ class ManeBarrageMechanic {
               radius: 70,
               position: best.position.clone(),
               anchor: Anchor.center,
-              paint: Paint()..color = Colors.orange.shade800.withOpacity(0.4),
+              paint: Paint()..color = Colors.orange.shade800.withValues(alpha: 0.4),
             );
             pool.add(
               TimerComponent(
@@ -855,8 +852,6 @@ class ManeBarrageMechanic {
 
       Future.delayed(Duration(milliseconds: i * 20), () {
         if (attacker.isDead) return;
-
-        final endPos = startPos + toOrb * 800;
 
         // Find enemies along this path
         final enemies = game.getEnemiesInRange(startPos, 800);
@@ -1000,7 +995,6 @@ class ManeBarrageMechanic {
       Future.delayed(Duration(milliseconds: i * 50), () {
         if (attacker.isDead) return;
 
-        final endPos = attacker.position + direction * 500;
         final enemies = game.getEnemiesInRange(attacker.position, 500);
 
         HoardEnemy? best;
@@ -1061,7 +1055,7 @@ class ManeBarrageMechanic {
       position: centerPos,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = color.withOpacity(0.3)
+        ..color = color.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 6,
     );
@@ -1252,7 +1246,7 @@ class ManeBarrageMechanic {
           radius: gardenRadius,
           position: pos,
           anchor: Anchor.center,
-          paint: Paint()..color = Colors.green.withOpacity(0.3),
+          paint: Paint()..color = Colors.green.withValues(alpha: 0.3),
         );
 
         garden.add(
@@ -1314,7 +1308,7 @@ class ManeBarrageMechanic {
       radius: radius,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = color.withOpacity(0.4),
+      paint: Paint()..color = color.withValues(alpha: 0.4),
     );
 
     int tickCount = 0;
@@ -1389,7 +1383,7 @@ class ManeBarrageMechanic {
       position: vortexPos,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = color.withOpacity(0.6)
+        ..color = color.withValues(alpha: 0.6)
         ..style = PaintingStyle.fill,
     );
     vortex.add(
@@ -1450,7 +1444,7 @@ class ManeBarrageMechanic {
       radius: 40,
       position: center,
       anchor: Anchor.center,
-      paint: Paint()..color = color.withOpacity(0.4),
+      paint: Paint()..color = color.withValues(alpha: 0.4),
     );
     nova.add(
       SequenceEffect([
@@ -1712,7 +1706,7 @@ class ManeBarrageMechanic {
       radius: poolRadius,
       position: poolPos,
       anchor: Anchor.center,
-      paint: Paint()..color = color.withOpacity(0.4),
+      paint: Paint()..color = color.withValues(alpha: 0.4),
     );
     final poolTick = max(
       1,

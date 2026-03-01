@@ -133,7 +133,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
       bosses.map((b) => b.id).toList(),
     );
 
-    if (mounted)
+    if (mounted) {
       setState(() {
         _keyItemQtys = qtys;
         _placedCounts = placed;
@@ -144,6 +144,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
           ..addAll(relicIds);
         _loading = false;
       });
+    }
   }
 
   // ── wheel math ────────────────────────────────────────────────────────────
@@ -151,8 +152,12 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
   int get _n => BossRepository.allBosses.length;
   double _bossAngle(int i) => _norm(_wheelOffset + (i / _n) * math.pi * 2);
   double _norm(double a) {
-    while (a > math.pi) a -= math.pi * 2;
-    while (a < -math.pi) a += math.pi * 2;
+    while (a > math.pi) {
+      a -= math.pi * 2;
+    }
+    while (a < -math.pi) {
+      a += math.pi * 2;
+    }
     return a;
   }
 
@@ -181,8 +186,12 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 
   void _snapToSel() {
     double t = -(_selectedIdx / _n) * math.pi * 2;
-    while ((t - _wheelOffset) > math.pi) t -= math.pi * 2;
-    while ((t - _wheelOffset) < -math.pi) t += math.pi * 2;
+    while ((t - _wheelOffset) > math.pi) {
+      t -= math.pi * 2;
+    }
+    while ((t - _wheelOffset) < -math.pi) {
+      t += math.pi * 2;
+    }
     final from = _wheelOffset;
     _snapCtrl.reset();
     _snapAnim = Tween<double>(begin: from, end: t).animate(
@@ -379,10 +388,10 @@ class _Header extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: _C.void_.withOpacity(0.6),
+                color: _C.void_.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: _C.voidBright.withOpacity(0.3),
+                  color: _C.voidBright.withValues(alpha: 0.3),
                   width: 0.5,
                 ),
               ),
@@ -418,38 +427,6 @@ class _Header extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-          AnimatedBuilder(
-            animation: bgCtrl,
-            builder: (_, __) {
-              final p = (math.sin(bgCtrl.value * math.pi * 2) + 1) / 2;
-              return Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _C.void_.withOpacity(0.45),
-                  border: Border.all(
-                    color: _C.voidBright.withOpacity(0.2 + p * 0.35),
-                    width: 0.8,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _C.voidBright.withOpacity(p * 0.25),
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
-                child: Transform.rotate(
-                  angle: bgCtrl.value * math.pi * 2,
-                  child: Icon(
-                    Icons.auto_awesome,
-                    color: _C.voidGlow.withOpacity(0.45 + p * 0.4),
-                    size: 18,
-                  ),
-                ),
-              );
-            },
           ),
         ],
       ),
@@ -588,7 +565,7 @@ class _SpinningWheel extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: boss.elementColor.withOpacity(
+                            color: boss.elementColor.withValues(alpha: 
                               ring1Op * 0.95,
                             ),
                             width: 2.5,
@@ -606,7 +583,7 @@ class _SpinningWheel extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: boss.elementColor.withOpacity(ring2Op),
+                            color: boss.elementColor.withValues(alpha: ring2Op),
                             width: 1.5,
                           ),
                         ),
@@ -680,7 +657,7 @@ class _BossNode extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: elColor.withOpacity(0.50 + pulse * 0.38),
+                  color: elColor.withValues(alpha: 0.50 + pulse * 0.38),
                   blurRadius: 24,
                   spreadRadius: 6,
                 ),
@@ -693,14 +670,14 @@ class _BossNode extends StatelessWidget {
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: elColor.withOpacity(0.28 + pulse * 0.16),
+              color: elColor.withValues(alpha: 0.28 + pulse * 0.16),
               border: Border.all(
-                color: elColor.withOpacity(0.75 + pulse * 0.20),
+                color: elColor.withValues(alpha: 0.75 + pulse * 0.20),
                 width: isSelected ? 2.5 : 2.0,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: elColor.withOpacity(0.55 + pulse * 0.30),
+                  color: elColor.withValues(alpha: 0.55 + pulse * 0.30),
                   blurRadius: 22,
                   spreadRadius: 3,
                 ),
@@ -722,8 +699,8 @@ class _BossNode extends StatelessWidget {
               child: CircularProgressIndicator(
                 value: required > 0 ? placed / required : 0.0,
                 strokeWidth: 2.0,
-                backgroundColor: elColor.withOpacity(0.06),
-                color: complete ? _C.success : elColor.withOpacity(0.60),
+                backgroundColor: elColor.withValues(alpha: 0.06),
+                color: complete ? _C.success : elColor.withValues(alpha: 0.60),
               ),
             ),
         ],
@@ -744,7 +721,7 @@ class _BossNode extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: glowC.withOpacity(0.18 + pulse * 0.24),
+                color: glowC.withValues(alpha: 0.18 + pulse * 0.24),
                 width: 1.0,
               ),
             ),
@@ -757,20 +734,20 @@ class _BossNode extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: unlocked
-                ? elColor.withOpacity(0.10)
-                : _C.surface.withOpacity(0.45),
+                ? elColor.withValues(alpha: 0.10)
+                : _C.surface.withValues(alpha: 0.45),
             border: Border.all(
               color: unlocked
-                  ? elColor.withOpacity(
+                  ? elColor.withValues(alpha: 
                       isSelected ? (0.55 + pulse * 0.30) : 0.22,
                     )
-                  : _C.locked.withOpacity(0.22),
+                  : _C.locked.withValues(alpha: 0.22),
               width: isSelected ? 2.0 : 0.8,
             ),
             boxShadow: (isSelected && unlocked)
                 ? [
                     BoxShadow(
-                      color: glowC.withOpacity(0.30 + pulse * 0.25),
+                      color: glowC.withValues(alpha: 0.30 + pulse * 0.25),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -781,8 +758,8 @@ class _BossNode extends StatelessWidget {
           child: ColorFiltered(
             colorFilter: ColorFilter.mode(
               unlocked
-                  ? elColor.withOpacity(0.60)
-                  : _C.locked.withOpacity(0.55),
+                  ? elColor.withValues(alpha: 0.60)
+                  : _C.locked.withValues(alpha: 0.55),
               BlendMode.srcIn,
             ),
             child: Opacity(
@@ -792,7 +769,7 @@ class _BossNode extends StatelessWidget {
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => Icon(
                   unlocked ? boss.elementIcon : Icons.lock_outline_rounded,
-                  color: unlocked ? elColor : _C.locked.withOpacity(0.45),
+                  color: unlocked ? elColor : _C.locked.withValues(alpha: 0.45),
                   size: size * (unlocked ? 0.38 : 0.33),
                 ),
               ),
@@ -808,8 +785,8 @@ class _BossNode extends StatelessWidget {
             child: CircularProgressIndicator(
               value: required > 0 ? placed / required : 0.0,
               strokeWidth: 2.0,
-              backgroundColor: elColor.withOpacity(0.06),
-              color: complete ? _C.success : elColor.withOpacity(0.50),
+              backgroundColor: elColor.withValues(alpha: 0.06),
+              color: complete ? _C.success : elColor.withValues(alpha: 0.50),
             ),
           ),
 
@@ -823,7 +800,7 @@ class _BossNode extends StatelessWidget {
               height: size * 0.28,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: hasKey ? _C.gold : _C.surface.withOpacity(0.8),
+                color: hasKey ? _C.gold : _C.surface.withValues(alpha: 0.8),
                 border: Border.all(
                   color: hasKey ? _C.gold : _C.muted,
                   width: 0.7,
@@ -886,18 +863,18 @@ class _InfoPanel extends StatelessWidget {
           margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           decoration: BoxDecoration(
-            color: _C.surface.withOpacity(0.90),
+            color: _C.surface.withValues(alpha: 0.90),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: unlocked
-                  ? elColor.withOpacity(0.18 + p * 0.20)
-                  : _C.muted.withOpacity(0.15),
+                  ? elColor.withValues(alpha: 0.18 + p * 0.20)
+                  : _C.muted.withValues(alpha: 0.15),
               width: 1.0,
             ),
             boxShadow: complete
                 ? [
                     BoxShadow(
-                      color: elColor.withOpacity(0.14 + p * 0.14),
+                      color: elColor.withValues(alpha: 0.14 + p * 0.14),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -912,12 +889,12 @@ class _InfoPanel extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: unlocked
-                      ? elColor.withOpacity(0.12)
-                      : _C.locked.withOpacity(0.08),
+                      ? elColor.withValues(alpha: 0.12)
+                      : _C.locked.withValues(alpha: 0.08),
                   border: Border.all(
                     color: unlocked
-                        ? elColor.withOpacity(0.35 + p * 0.25)
-                        : _C.locked.withOpacity(0.18),
+                        ? elColor.withValues(alpha: 0.35 + p * 0.25)
+                        : _C.locked.withValues(alpha: 0.18),
                     width: 1.2,
                   ),
                 ),
@@ -932,7 +909,7 @@ class _InfoPanel extends StatelessWidget {
                       )
                     : Icon(
                         boss.elementIcon,
-                        color: unlocked ? elColor : _C.locked.withOpacity(0.45),
+                        color: unlocked ? elColor : _C.locked.withValues(alpha: 0.45),
                         size: 22,
                       ),
               ),
@@ -991,8 +968,8 @@ class _InfoPanel extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: f
                                       ? (complete ? _C.success : elColor)
-                                            .withOpacity(0.85)
-                                      : elColor.withOpacity(0.10),
+                                            .withValues(alpha: 0.85)
+                                      : elColor.withValues(alpha: 0.10),
                                   borderRadius: BorderRadius.circular(2),
                                 ),
                               ),
@@ -1014,13 +991,13 @@ class _InfoPanel extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: unlocked
-                        ? elColor.withOpacity(0.14 + p * 0.06)
+                        ? elColor.withValues(alpha: 0.14 + p * 0.06)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: unlocked
-                          ? elColor.withOpacity(0.50)
-                          : _C.muted.withOpacity(0.18),
+                          ? elColor.withValues(alpha: 0.50)
+                          : _C.muted.withValues(alpha: 0.18),
                       width: 0.8,
                     ),
                   ),
@@ -1032,7 +1009,7 @@ class _InfoPanel extends StatelessWidget {
                         : 'LOCKED',
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      color: unlocked ? elColor : _C.muted.withOpacity(0.35),
+                      color: unlocked ? elColor : _C.muted.withValues(alpha: 0.35),
                       fontSize: 9,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.5,
@@ -1052,8 +1029,9 @@ class _InfoPanel extends StatelessWidget {
     if (!def) return 'DEFEAT ${boss.name.toUpperCase()} FIRST';
     if (!unlocked) return 'KEY REQUIRED: ${tn.toUpperCase()}';
     if (complete) return 'ALL OFFERINGS SET — READY TO SUMMON';
-    if (placedCount > 0)
+    if (placedCount > 0) {
       return '$placedCount / $requiredCount OFFERINGS COMMITTED';
+    }
     if (relicPlaced) return 'RELIC PLACED — ENTER THE ALTAR';
     return 'PLACE ${tn.toUpperCase()} TO BEGIN';
   }
@@ -1116,7 +1094,7 @@ class _RelicPlaceDialogState extends State<_RelicPlaceDialog>
         backgroundColor: _C.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: elColor.withOpacity(0.55), width: 1),
+          side: BorderSide(color: elColor.withValues(alpha: 0.55), width: 1),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1124,7 +1102,7 @@ class _RelicPlaceDialogState extends State<_RelicPlaceDialog>
             Container(
               height: 3,
               decoration: BoxDecoration(
-                color: elColor.withOpacity(0.8),
+                color: elColor.withValues(alpha: 0.8),
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(20),
                 ),
@@ -1140,14 +1118,14 @@ class _RelicPlaceDialogState extends State<_RelicPlaceDialog>
                     height: 62,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: _C.gold.withOpacity(0.12),
+                      color: _C.gold.withValues(alpha: 0.12),
                       border: Border.all(
-                        color: _C.gold.withOpacity(0.6),
+                        color: _C.gold.withValues(alpha: 0.6),
                         width: 1.5,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: _C.gold.withOpacity(0.30),
+                          color: _C.gold.withValues(alpha: 0.30),
                           blurRadius: 18,
                         ),
                       ],
@@ -1231,9 +1209,9 @@ class _Btn extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.4), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
       ),
       child: Center(
         child: Text(
@@ -1271,7 +1249,7 @@ class _WheelTrackPainter extends CustomPainter {
     canvas.drawOval(
       Rect.fromCenter(center: Offset(cx, cy), width: rx * 2, height: ry * 2),
       Paint()
-        ..color = _C.voidBright.withOpacity(0.07)
+        ..color = _C.voidBright.withValues(alpha: 0.07)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8,
     );
@@ -1279,7 +1257,7 @@ class _WheelTrackPainter extends CustomPainter {
     const segs = 28;
     final outerRx = rx + 12, outerRy = ry + 8;
     final dashPaint = Paint()
-      ..color = _C.voidBright.withOpacity(0.09)
+      ..color = _C.voidBright.withValues(alpha: 0.09)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5;
     for (int i = 0; i < segs; i++) {
@@ -1291,10 +1269,11 @@ class _WheelTrackPainter extends CustomPainter {
         final a = a0 + (a1 - a0) * s / steps;
         final px = cx + outerRx * math.sin(a);
         final py = cy + outerRy * math.cos(a);
-        if (s == 0)
+        if (s == 0) {
           path.moveTo(px, py);
-        else
+        } else {
           path.lineTo(px, py);
+        }
       }
       canvas.drawPath(path, dashPaint);
     }
@@ -1303,7 +1282,7 @@ class _WheelTrackPainter extends CustomPainter {
       Offset(cx, cy),
       32,
       Paint()
-        ..color = _C.voidBright.withOpacity(
+        ..color = _C.voidBright.withValues(alpha: 
           0.04 + 0.03 * math.sin(t * math.pi * 2),
         )
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
@@ -1351,7 +1330,7 @@ class _SwirlPainter extends CustomPainter {
       center,
       size.width * 0.18 + pulse * 4,
       Paint()
-        ..color = _C.voidBright.withOpacity(0.18 + pulse * 0.18)
+        ..color = _C.voidBright.withValues(alpha: 0.18 + pulse * 0.18)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
     );
 
@@ -1392,7 +1371,7 @@ class _SwirlPainter extends CustomPainter {
           pA,
           pB,
           Paint()
-            ..color = _C.voidGlow.withOpacity(opacity * (0.55 + pulse * 0.45))
+            ..color = _C.voidGlow.withValues(alpha: opacity * (0.55 + pulse * 0.45))
             ..strokeWidth = strokeW
             ..strokeCap = StrokeCap.round,
         );
@@ -1405,7 +1384,7 @@ class _SwirlPainter extends CustomPainter {
             pA,
             pB,
             Paint()
-              ..color = Colors.white.withOpacity(shimmerOp)
+              ..color = Colors.white.withValues(alpha: shimmerOp)
               ..strokeWidth = strokeW * 0.35
               ..strokeCap = StrokeCap.round,
           );
@@ -1418,13 +1397,13 @@ class _SwirlPainter extends CustomPainter {
       center,
       3.0 + pulse * 1.6,
       Paint()
-        ..color = _C.voidGlow.withOpacity(0.80 + pulse * 0.20)
+        ..color = _C.voidGlow.withValues(alpha: 0.80 + pulse * 0.20)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
     );
     canvas.drawCircle(
       center,
       1.4,
-      Paint()..color = Colors.white.withOpacity(0.85 + pulse * 0.15),
+      Paint()..color = Colors.white.withValues(alpha: 0.85 + pulse * 0.15),
     );
   }
 
@@ -1454,7 +1433,7 @@ class _StarfieldPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(s.dx * size.width, s.dy * size.height),
         0.4 + (i % 3) * 0.4,
-        Paint()..color = _C.voidGlow.withOpacity(b),
+        Paint()..color = _C.voidGlow.withValues(alpha: b),
       );
     }
   }

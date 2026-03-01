@@ -12,11 +12,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart' as db;
-import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/genetics.dart';
-import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/breeding_config.dart';
@@ -659,8 +656,9 @@ class BreedingLikelihoodAnalyzer {
     final s2 = p2.genetics?.get('size') ?? 'normal';
 
     if (s1 == 'giant' && s2 == 'giant') {
-      if (size == 'giant')
+      if (size == 'giant') {
         return 'Extreme size lock-in from both giant parents';
+      }
       return 'Size drifted toward midpoint despite both parents being giant';
     }
     if (s1 == 'tiny' && s2 == 'tiny') {
@@ -900,7 +898,7 @@ class BreedingLikelihoodAnalyzer {
     return base.copyWith(
       genetics: genetics ?? base.genetics,
       nature: nature,
-      isPrismaticSkin: row.isPrismaticSkin || (base.isPrismaticSkin ?? false),
+      isPrismaticSkin: row.isPrismaticSkin || base.isPrismaticSkin,
     );
   }
 

@@ -42,7 +42,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
   Creature? _voidCreature;
   EncounterRarity _voidRarity = EncounterRarity.common;
   bool _spawned = false;
-  bool _encounterActive = true;
+  final bool _encounterActive = true;
   Creature? _selectedPartyCreature;
 
   // Rarity weights: common / uncommon / rare / legendary
@@ -197,7 +197,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                     child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: t.bg1.withOpacity(0.85),
+                        color: t.bg1.withValues(alpha: 0.85),
                         borderRadius: BorderRadius.circular(3),
                         border: Border.all(color: t.borderDim, width: 1),
                       ),
@@ -414,7 +414,7 @@ class _PortalPainter extends CustomPainter {
       Offset(cx, cy),
       r * 2.6,
       Paint()
-        ..color = color.withOpacity(0.08 * pulse)
+        ..color = color.withValues(alpha: 0.08 * pulse)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 36),
     );
 
@@ -423,7 +423,7 @@ class _PortalPainter extends CustomPainter {
       Offset(cx, cy),
       r * 1.8,
       Paint()
-        ..color = color.withOpacity(0.16 * pulse)
+        ..color = color.withValues(alpha: 0.16 * pulse)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
     );
 
@@ -437,9 +437,9 @@ class _PortalPainter extends CustomPainter {
       Paint()
         ..shader = RadialGradient(
           colors: [
-            color.withOpacity(0),
-            color.withOpacity(0.55 * pulse),
-            color.withOpacity(0),
+            color.withValues(alpha: 0),
+            color.withValues(alpha: 0.55 * pulse),
+            color.withValues(alpha: 0),
           ],
           stops: const [0.42, 0.65, 1.0],
         ).createShader(Rect.fromCircle(center: Offset.zero, radius: diskR)),
@@ -472,14 +472,14 @@ class _PortalPainter extends CustomPainter {
         Offset(px, py),
         p.size * pulse,
         Paint()
-          ..color = color.withOpacity(p.opacity * pulse)
+          ..color = color.withValues(alpha: p.opacity * pulse)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.8),
       );
     }
 
     // Spiral arms
     final spiralPaint = Paint()
-      ..color = color.withOpacity(0.30 * pulse)
+      ..color = color.withValues(alpha: 0.30 * pulse)
       ..strokeWidth = 0.9
       ..style = PaintingStyle.stroke;
 
@@ -507,7 +507,7 @@ class _PortalPainter extends CustomPainter {
       Offset(cx, cy),
       r * pulse,
       Paint()
-        ..color = color.withOpacity(0.22 * pulse)
+        ..color = color.withValues(alpha: 0.22 * pulse)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.4
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
@@ -595,8 +595,8 @@ class _EntryFlashPainter extends CustomPainter {
           center: Alignment.center,
           radius: 0.8,
           colors: [
-            Color.lerp(color, Colors.black, 0.3)!.withOpacity(0.85),
-            Colors.black.withOpacity(0.95),
+            Color.lerp(color, Colors.black, 0.3)!.withValues(alpha: 0.85),
+            Colors.black.withValues(alpha: 0.95),
           ],
         ).createShader(Offset.zero & size),
     );
@@ -612,7 +612,7 @@ class _EntryFlashPainter extends CustomPainter {
     if (flashAlpha > 0) {
       canvas.drawRect(
         Offset.zero & size,
-        Paint()..color = Colors.white.withOpacity(flashAlpha),
+        Paint()..color = Colors.white.withValues(alpha: flashAlpha),
       );
     }
 
@@ -631,7 +631,7 @@ class _EntryFlashPainter extends CustomPainter {
         center,
         ringR,
         Paint()
-          ..color = color.withOpacity(ringAlpha)
+          ..color = color.withValues(alpha: ringAlpha)
           ..style = PaintingStyle.stroke
           ..strokeWidth = ringWidth
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
@@ -645,7 +645,7 @@ class _EntryFlashPainter extends CustomPainter {
         center,
         maxR * 0.25,
         Paint()
-          ..color = color.withOpacity(glowAlpha)
+          ..color = color.withValues(alpha: glowAlpha)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60),
       );
     }

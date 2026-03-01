@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -94,7 +93,7 @@ class _GameScreenState extends State<GameScreen>
             colors: [
               theme.surface,
               theme.surface,
-              theme.surfaceAlt.withOpacity(.6),
+              theme.surfaceAlt.withValues(alpha: .6),
             ],
             stops: const [0.0, 0.6, 1.0],
           ),
@@ -149,12 +148,12 @@ class _HeaderBar extends StatelessWidget {
         border: Border(bottom: BorderSide(color: theme.border, width: 1.5)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.6),
+            color: Colors.black.withValues(alpha: .6),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
           BoxShadow(
-            color: theme.accent.withOpacity(.25),
+            color: theme.accent.withValues(alpha: .25),
             blurRadius: 24,
             spreadRadius: 2,
           ),

@@ -1,6 +1,5 @@
 // screens/breed/breed_screen.dart
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
@@ -103,7 +102,7 @@ class _BreedScreenState extends State<BreedScreen>
                           gradient: LinearGradient(
                             colors: [
                               Colors.transparent,
-                              theme.border.withOpacity(.7),
+                              theme.border.withValues(alpha: .7),
                               Colors.transparent,
                             ],
                           ),

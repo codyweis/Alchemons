@@ -2,18 +2,14 @@
 import 'dart:async' as async;
 import 'dart:math';
 
-import 'package:alchemons/games/survival/survival_game_screen.dart';
 import 'package:lottie/lottie.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/screens/battle_mode_screen.dart';
 import 'package:alchemons/screens/boss/boss_intro_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
-import 'package:alchemons/screens/game_screen.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
-import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_points_widget.dart';
-import 'package:alchemons/screens/upgrade_tree/constellation_screen.dart';
 import 'package:alchemons/screens/mystic_altar/mystic_altar_screen.dart';
 import 'package:alchemons/data/boss_data.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -47,7 +43,6 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
-import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/screens/feeding/feeding_screen.dart';
 import 'package:alchemons/screens/harvest_screen.dart';
 import 'package:alchemons/screens/profile_screen.dart';
@@ -166,6 +161,8 @@ class _HomeScreenState extends State<HomeScreen>
   final Map<int, int> _lastScheduledEggHatchMsBySlot = {};
 
   bool _isFieldTutorialActive = false;
+  bool _tutorialCheckInProgress =
+      false; // prevents double-fire from didUpdateWidget + didPopNext
 
   bool _isInitialized = false;
 
@@ -240,38 +237,6 @@ class _HomeScreenState extends State<HomeScreen>
     _updateAnimationState(); // route no longer current → disables TickerMode
   }
 
-  Future<void> _maybeStartFieldTutorial() async {
-    if (_isFieldTutorialActive) return;
-
-    final db = context.read<AlchemonsDatabase>();
-
-    final completed = await db.settingsDao.hasCompletedFieldTutorial();
-    if (completed) return;
-
-    final extractionPending =
-        await db.settingsDao.getSetting('tutorial_extraction_pending') == '1';
-    if (extractionPending) return;
-
-    final firstDone =
-        await db.settingsDao.getSetting('first_extraction_done') == '1';
-    if (!firstDone) return;
-
-    final instances = await db.creatureDao.listAllInstances();
-    if (instances.isEmpty) return;
-
-    debugPrint('🎓 Tutorial: Starting field tutorial');
-    await db.settingsDao.setNavLocked(true);
-
-    if (!mounted) return;
-
-    setState(() {
-      _isFieldTutorialActive = true;
-      _activeNotifications.clear();
-    });
-
-    _updateAnimationState();
-  }
-
   // MODIFY didUpdateWidget to call it:
 
   @override
@@ -315,100 +280,106 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _checkFieldTutorial() async {
-    final db = context.read<AlchemonsDatabase>();
-    final spawnService = context.read<WildernessSpawnService>();
+    if (_tutorialCheckInProgress) return;
+    _tutorialCheckInProgress = true;
+    try {
+      final db = context.read<AlchemonsDatabase>();
+      final spawnService = context.read<WildernessSpawnService>();
 
-    // 🔹 First: if tutorial is already completed in DB, make sure local state matches
-    final completed = await db.settingsDao.hasCompletedFieldTutorial();
+      // 🔹 First: if tutorial is already completed in DB, make sure local state matches
+      final completed = await db.settingsDao.hasCompletedFieldTutorial();
 
-    if (completed) {
-      // unlock nav just in case
-      await db.settingsDao.setNavLocked(false);
+      if (completed) {
+        // unlock nav just in case
+        await db.settingsDao.setNavLocked(false);
 
-      if (_isFieldTutorialActive) {
-        if (!mounted) return;
-        setState(() {
-          _isFieldTutorialActive = false;
-          _activeNotifications.clear();
-        });
-        _updateAnimationState();
-      }
-
-      return; // nothing else to do
-    } // Check if extraction tutorial is still pending
-    final extractionPending =
-        await db.settingsDao.getSetting('tutorial_extraction_pending') == '1';
-    if (extractionPending) {
-      debugPrint(
-        '🎓 Tutorial: Extraction pending, redirecting to breed screen',
-      );
-      await db.settingsDao.setNavLocked(true);
-      widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
-      return;
-    }
-
-    if (!completed) {
-      // 🔑 STEP 3: Verify user actually has creatures before starting field tutorial
-      final instances = await db.creatureDao.listAllInstances();
-
-      if (instances.isEmpty) {
-        debugPrint('🎓 Tutorial: No creatures found, checking for eggs...');
-
-        // No creatures yet - check if there's an egg they need to extract
-        final slots = await db.incubatorDao.watchSlots().first;
-        final hasEgg = slots.any((s) => s.unlocked && s.eggId != null);
-
-        if (hasEgg) {
-          // Has egg but no creatures - send to extraction
-          debugPrint('🎓 Tutorial: Found egg, redirecting to extraction');
-          await db.settingsDao.setNavLocked(true);
-          // Mark extraction as pending since they clearly need to do it
-          await db.settingsDao.setSetting('tutorial_extraction_pending', '1');
-          widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
-        } else {
-          // No egg and no creatures - check if starter was ever granted
-          final starterGranted =
-              await db.settingsDao.getSetting('starter_granted_v1') == '1';
-
-          if (!starterGranted) {
-            // Let normal starter flow handle it in _grantStarterIfNeeded
-            debugPrint(
-              '🎓 Tutorial: No starter granted yet, waiting for grant flow',
-            );
-          } else {
-            // Edge case: starter was granted but egg is gone and no creatures
-            // This shouldn't happen, but if it does, skip tutorial
-            debugPrint(
-              '🎓 Tutorial: Edge case - starter granted but no egg/creatures, skipping field tutorial',
-            );
-            await db.settingsDao.setFieldTutorialCompleted();
-            await db.settingsDao.setNavLocked(false);
-          }
+        if (_isFieldTutorialActive) {
+          if (!mounted) return;
+          setState(() {
+            _isFieldTutorialActive = false;
+            _activeNotifications.clear();
+          });
+          _updateAnimationState();
         }
+
+        return; // nothing else to do
+      } // Check if extraction tutorial is still pending
+      final extractionPending =
+          await db.settingsDao.getSetting('tutorial_extraction_pending') == '1';
+      if (extractionPending) {
+        debugPrint(
+          '🎓 Tutorial: Extraction pending, redirecting to breed screen',
+        );
+        await db.settingsDao.setNavLocked(true);
+        widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
         return;
       }
 
-      // User has creatures - proceed with field tutorial
-      debugPrint('🎓 Tutorial: Starting field tutorial');
-      await db.settingsDao.setNavLocked(true);
+      if (!completed) {
+        // 🔑 STEP 3: Verify user actually has creatures before starting field tutorial
+        final instances = await db.creatureDao.listAllInstances();
 
-      if (!spawnService.hasAnyActiveSpawns) {
-        debugPrint(
-          '🎓 Tutorial: No spawns found, scheduling immediate spawn for tutorial',
-        );
-        await spawnService.clearSceneSpawns('valley');
-        await spawnService.scheduleNextSpawnTime(
-          'valley',
-          windowMax: const Duration(seconds: 3),
-        );
+        if (instances.isEmpty) {
+          debugPrint('🎓 Tutorial: No creatures found, checking for eggs...');
+
+          // No creatures yet - check if there's an egg they need to extract
+          final slots = await db.incubatorDao.watchSlots().first;
+          final hasEgg = slots.any((s) => s.unlocked && s.eggId != null);
+
+          if (hasEgg) {
+            // Has egg but no creatures - send to extraction
+            debugPrint('🎓 Tutorial: Found egg, redirecting to extraction');
+            await db.settingsDao.setNavLocked(true);
+            // Mark extraction as pending since they clearly need to do it
+            await db.settingsDao.setSetting('tutorial_extraction_pending', '1');
+            widget.onNavigateSection(NavSection.breed, breedInitialTab: 1);
+          } else {
+            // No egg and no creatures - check if starter was ever granted
+            final starterGranted =
+                await db.settingsDao.getSetting('starter_granted_v1') == '1';
+
+            if (!starterGranted) {
+              // Let normal starter flow handle it in _grantStarterIfNeeded
+              debugPrint(
+                '🎓 Tutorial: No starter granted yet, waiting for grant flow',
+              );
+            } else {
+              // Edge case: starter was granted but egg is gone and no creatures
+              // This shouldn't happen, but if it does, skip tutorial
+              debugPrint(
+                '🎓 Tutorial: Edge case - starter granted but no egg/creatures, skipping field tutorial',
+              );
+              await db.settingsDao.setFieldTutorialCompleted();
+              await db.settingsDao.setNavLocked(false);
+            }
+          }
+          return;
+        }
+
+        // User has creatures - proceed with field tutorial
+        debugPrint('🎓 Tutorial: Starting field tutorial');
+        await db.settingsDao.setNavLocked(true);
+
+        if (!spawnService.hasAnyActiveSpawns) {
+          debugPrint(
+            '🎓 Tutorial: No spawns found, scheduling immediate spawn for tutorial',
+          );
+          await spawnService.clearSceneSpawns('valley');
+          await spawnService.scheduleNextSpawnTime(
+            'valley',
+            windowMax: const Duration(seconds: 3),
+          );
+        }
+
+        setState(() {
+          _isFieldTutorialActive = true;
+          _activeNotifications.clear();
+        });
+
+        _updateAnimationState();
       }
-
-      setState(() {
-        _isFieldTutorialActive = true;
-        _activeNotifications.clear();
-      });
-
-      _updateAnimationState();
+    } finally {
+      _tutorialCheckInProgress = false;
     }
   }
 
@@ -437,7 +408,6 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _initializeApp() async {
     await _pushNotifications.initialize();
     try {
-      await _initializeRepository();
       if (!mounted) return;
       final factionSvc = context.read<FactionService>();
 
@@ -463,7 +433,6 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Load featured hero
       final featuredInstance = await _loadFeaturedInstanceOrAuto();
-      debugPrint('🎯 Featured instance: ${featuredInstance?.instanceId}');
       debugPrint('🎯 Featured instance: ${featuredInstance?.instanceId}');
       debugPrint('🎯 Featured baseId: ${featuredInstance?.baseId}');
 
@@ -491,8 +460,7 @@ class _HomeScreenState extends State<HomeScreen>
       // Check wilderness now
       _checkWildernessNotifications();
 
-      final pushNotifications = PushNotificationService();
-      await pushNotifications.debugPrintPendingNotifications();
+      await _pushNotifications.debugPrintPendingNotifications();
 
       // Recreate per-egg schedules on cold start
       await _rehydrateEggSchedules();
@@ -503,20 +471,6 @@ class _HomeScreenState extends State<HomeScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to initialize app: $e'),
-          backgroundColor: Colors.red.shade600,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
-    }
-  }
-
-  Future<void> _initializeRepository() async {
-    try {} catch (e) {
-      debugPrint('Error loading creature repository: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load specimen database: $e'),
           backgroundColor: Colors.red.shade600,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
@@ -1153,7 +1107,7 @@ class _HomeScreenState extends State<HomeScreen>
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.red.withOpacity(0.6),
+                                      color: Colors.red.withValues(alpha: 0.6),
                                       blurRadius: 8,
                                       spreadRadius: 2,
                                     ),
@@ -1625,7 +1579,7 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFFAA00).withOpacity(0.22),
+                    color: const Color(0xFFFFAA00).withValues(alpha: 0.22),
                     blurRadius: 5,
                     spreadRadius: 1,
                   ),
@@ -1682,7 +1636,7 @@ Future<void> _showTreasureLootDialog(
   await showGeneralDialog(
     context: context,
     barrierDismissible: false,
-    barrierColor: Colors.black.withOpacity(0.80),
+    barrierColor: Colors.black.withValues(alpha: 0.80),
     transitionDuration: const Duration(milliseconds: 350),
     transitionBuilder: (ctx, anim, _, child) =>
         FadeTransition(opacity: anim, child: child),
@@ -1757,7 +1711,9 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
 
   @override
   void dispose() {
-    for (final c in _rowCtrls) c.dispose();
+    for (final c in _rowCtrls) {
+      c.dispose();
+    }
     _btnCtrl.dispose();
     super.dispose();
   }
@@ -1786,7 +1742,7 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
                 ),
               ),
               const SizedBox(height: 8),
-              Container(height: 1, color: amber.withOpacity(0.25)),
+              Container(height: 1, color: amber.withValues(alpha: 0.25)),
               const SizedBox(height: 36),
 
               // Reward rows
@@ -1806,9 +1762,9 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
                             height: 46,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: r.color.withOpacity(0.12),
+                              color: r.color.withValues(alpha: 0.12),
                               border: Border.all(
-                                color: r.color.withOpacity(0.35),
+                                color: r.color.withValues(alpha: 0.35),
                                 width: 1,
                               ),
                             ),
@@ -1859,12 +1815,12 @@ class _TreasureLootDialogState extends State<_TreasureLootDialog>
                     width: double.infinity,
                     height: 50,
                     decoration: BoxDecoration(
-                      color: amber.withOpacity(0.08),
+                      color: amber.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: amber, width: 1.5),
                       boxShadow: [
                         BoxShadow(
-                          color: amber.withOpacity(0.22),
+                          color: amber.withValues(alpha: 0.22),
                           blurRadius: 20,
                           offset: const Offset(0, 4),
                         ),

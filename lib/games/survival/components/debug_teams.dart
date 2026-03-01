@@ -2,7 +2,7 @@
 import 'package:alchemons/games/survival/survival_engine.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:flame/components.dart'; // REQUIRED for Vector2
-import 'package:flutter/material.dart'; // For Color
+// For Color
 
 // Helper function to construct the dynamic sprite sheet path
 SpriteSheetDef _getSpriteSheetDef(

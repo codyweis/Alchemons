@@ -31,10 +31,10 @@ BoxDecoration _chipBox({
   Color? activeColor,
   required ForgeTokens t,
 }) => BoxDecoration(
-  color: active ? (activeColor ?? t.amber).withOpacity(0.12) : t.bg2,
+  color: active ? (activeColor ?? t.amber).withValues(alpha: 0.12) : t.bg2,
   borderRadius: BorderRadius.circular(3),
   border: Border.all(
-    color: active ? (activeColor ?? t.amber).withOpacity(0.55) : t.borderDim,
+    color: active ? (activeColor ?? t.amber).withValues(alpha: 0.55) : t.borderDim,
     width: active ? 1.2 : 1.0,
   ),
 );
@@ -63,6 +63,9 @@ class InstanceFiltersPanel extends StatelessWidget {
   final ValueChanged<String?> onPickNature;
   final Map<String, String> natureOptions;
 
+  final bool filterFavorites;
+  final VoidCallback? onToggleFavorites;
+
   final VoidCallback onClearAll;
 
   const InstanceFiltersPanel({
@@ -82,11 +85,14 @@ class InstanceFiltersPanel extends StatelessWidget {
     required this.filterNature,
     required this.onPickNature,
     required this.natureOptions,
+    this.filterFavorites = false,
+    this.onToggleFavorites,
     required this.onClearAll,
   });
 
   bool get _hasActiveFilters =>
       filterPrismatic ||
+      filterFavorites ||
       filterNature != null ||
       sizeValueText != null ||
       tintValueText != null ||
@@ -154,6 +160,15 @@ class InstanceFiltersPanel extends StatelessWidget {
         activeColor: const Color(0xFFE879F9), // purple for prismatic
         onTap: onTogglePrismatic,
       ),
+
+      if (onToggleFavorites != null)
+        _ToggleChip(
+          icon: Icons.star_rounded,
+          label: 'FAVORITES',
+          active: filterFavorites,
+          activeColor: const Color(0xFFE91E8C), // pink for favorites
+          onTap: onToggleFavorites!,
+        ),
     ];
 
     return Column(
@@ -265,8 +280,9 @@ class _StatCycleChip extends StatelessWidget {
 
   (IconData, String, Color) _info() {
     final isStat = currentStat.name.startsWith('stat');
-    if (!isStat)
+    if (!isStat) {
       return (Icons.bar_chart_rounded, 'STAT', const Color(0xFF8A7B6A));
+    }
     return switch (currentStat) {
       SortBy.statSpeed => (Icons.speed, 'SPD ↓', const Color(0xFFFDE047)),
       SortBy.statIntelligence => (
@@ -436,7 +452,7 @@ class _PickerChip extends StatelessWidget {
             Icon(
               Icons.keyboard_arrow_down_rounded,
               size: 12,
-              color: active ? t.amberBright.withOpacity(0.7) : t.textMuted,
+              color: active ? t.amberBright.withValues(alpha: 0.7) : t.textMuted,
             ),
           ],
         ),
@@ -457,9 +473,9 @@ class _ClearChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: const Color(0xFF7F1D1D).withOpacity(0.25),
+          color: const Color(0xFF7F1D1D).withValues(alpha: 0.25),
           borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: t.danger.withOpacity(0.45)),
+          border: Border.all(color: t.danger.withValues(alpha: 0.45)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -467,14 +483,14 @@ class _ClearChip extends StatelessWidget {
             Icon(
               Icons.close_rounded,
               size: 11,
-              color: t.danger.withOpacity(0.8),
+              color: t.danger.withValues(alpha: 0.8),
             ),
             const SizedBox(width: 4),
             Text(
               'CLEAR',
               style: TextStyle(
                 fontFamily: 'monospace',
-                color: t.danger.withOpacity(0.8),
+                color: t.danger.withValues(alpha: 0.8),
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.2,
@@ -570,10 +586,10 @@ Future<String?> pickFromList(
                             vertical: 11,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF7F1D1D).withOpacity(0.2),
+                            color: const Color(0xFF7F1D1D).withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(3),
                             border: Border.all(
-                              color: t.danger.withOpacity(0.4),
+                              color: t.danger.withValues(alpha: 0.4),
                             ),
                           ),
                           child: Row(
@@ -581,7 +597,7 @@ Future<String?> pickFromList(
                             children: [
                               Icon(
                                 Icons.close_rounded,
-                                color: t.danger.withOpacity(0.8),
+                                color: t.danger.withValues(alpha: 0.8),
                                 size: 14,
                               ),
                               const SizedBox(width: 6),
@@ -589,7 +605,7 @@ Future<String?> pickFromList(
                                 'CLEAR FILTER',
                                 style: TextStyle(
                                   fontFamily: 'monospace',
-                                  color: t.danger.withOpacity(0.8),
+                                  color: t.danger.withValues(alpha: 0.8),
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 1.2,
@@ -614,7 +630,7 @@ Future<String?> pickFromList(
                         vertical: 11,
                       ),
                       decoration: BoxDecoration(
-                        color: isSelected ? t.amber.withOpacity(0.12) : t.bg2,
+                        color: isSelected ? t.amber.withValues(alpha: 0.12) : t.bg2,
                         borderRadius: BorderRadius.circular(3),
                         border: Border.all(
                           color: isSelected ? t.borderAccent : t.borderDim,

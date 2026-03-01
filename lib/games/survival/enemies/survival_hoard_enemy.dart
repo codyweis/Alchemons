@@ -1,11 +1,9 @@
 // lib/games/survival/survival_hoard_enemy.dart
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_orb.dart';
 import 'package:alchemons/games/survival/components/enemy_spawn_effect.dart';
 import 'package:alchemons/games/survival/enemies/survival_enemy_visuals.dart';
-import 'package:alchemons/games/survival/scaling_system.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_creature_sprite.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
@@ -65,7 +63,6 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   static const double _bossAnchorSwapInterval = 6.0;
 
   double _timeAlive = 0;
-  double _timeSinceLastDamage = 0;
 
   bool _spawnEffectStarted = false;
   bool _shooterInPosition = false;
@@ -81,8 +78,6 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   bool _isInvulnerable = false;
   double _bossAttackCooldown = 0.0;
 
-  bool _hasEnteredPhase2 = false;
-  bool _hasEnteredPhase1 = false;
 
   HoardGuardian? _focusGuardian;
   double _focusGuardianRetargetTimer = 0.0;
@@ -377,7 +372,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       radius: _logicalRadius * 1.1,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.white.withOpacity(0.4)
+        ..color = Colors.white.withValues(alpha: 0.4)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4,
     );
@@ -399,7 +394,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
             position: position.clone(),
             anchor: Anchor.center,
             paint: Paint()
-              ..color = _elementColor(template.element).withOpacity(0.5)
+              ..color = _elementColor(template.element).withValues(alpha: 0.5)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 1,
           )..add(
@@ -509,7 +504,6 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     _hydraSlamCooldown = (_hydraSlamCooldown - dt).clamp(0, double.infinity);
 
     _timeAlive += dt;
-    _timeSinceLastDamage += dt;
     _meleeCooldown = (_meleeCooldown - dt).clamp(0, double.infinity);
     _attackCooldown = (_attackCooldown - dt).clamp(0, double.infinity);
 
@@ -755,7 +749,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
           position: m.position.clone(),
           anchor: Anchor.center,
           paint: Paint()
-            ..color = _elementColor(template.element).withOpacity(0.4)
+            ..color = _elementColor(template.element).withValues(alpha: 0.4)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2,
         )..add(
@@ -917,7 +911,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
           radius: 6,
           position: pos.clone(),
           anchor: Anchor.center,
-          paint: Paint()..color = color.withOpacity(0.8),
+          paint: Paint()..color = color.withValues(alpha: 0.8),
         )..add(
           SequenceEffect([
             MoveEffect.by(
@@ -936,7 +930,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
         radius: 20,
         position: pos.clone(),
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.white.withOpacity(0.9),
+        paint: Paint()..color = Colors.white.withValues(alpha: 0.9),
       )..add(
         SequenceEffect([
           ScaleEffect.to(Vector2.all(3), EffectController(duration: 0.3)),
@@ -1043,7 +1037,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
         position: warningPos,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.red.withOpacity(0.16)
+          ..color = Colors.red.withValues(alpha: 0.16)
           ..style = PaintingStyle.fill,
       )..add(
         SequenceEffect([
@@ -1059,7 +1053,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
         position: warningPos,
         anchor: Anchor.center,
         paint: Paint()
-          ..color = Colors.red.withOpacity(0.55)
+          ..color = Colors.red.withValues(alpha: 0.55)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.6,
       )..add(
@@ -1127,7 +1121,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
             position: position.clone(),
             anchor: Anchor.center,
             paint: Paint()
-              ..color = _elementColor(template.element).withOpacity(0.22)
+              ..color = _elementColor(template.element).withValues(alpha: 0.22)
               ..style = PaintingStyle.fill,
           )..add(
             SequenceEffect([
@@ -1147,7 +1141,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
             position: position.clone(),
             anchor: Anchor.center,
             paint: Paint()
-              ..color = _elementColor(template.element).withOpacity(0.85)
+              ..color = _elementColor(template.element).withValues(alpha: 0.85)
               ..style = PaintingStyle.stroke
               ..strokeWidth = 0.12,
           )..add(
@@ -1175,7 +1169,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
           anchor: Anchor.center,
           angle: _rng.nextDouble() * pi,
           paint: Paint()
-            ..color = _elementColor(template.element).withOpacity(0.7),
+            ..color = _elementColor(template.element).withValues(alpha: 0.7),
         )..add(
           SequenceEffect([
             MoveEffect.by(
@@ -1640,14 +1634,22 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
   double _smoothAngle(double current, double target, double rate) {
     double diff = target - current;
-    while (diff < -pi) diff += 2 * pi;
-    while (diff > pi) diff -= 2 * pi;
+    while (diff < -pi) {
+      diff += 2 * pi;
+    }
+    while (diff > pi) {
+      diff -= 2 * pi;
+    }
     return current + diff * rate;
   }
 
   double _wrapAngle(double a) {
-    while (a < -pi) a += 2 * pi;
-    while (a > pi) a -= 2 * pi;
+    while (a < -pi) {
+      a += 2 * pi;
+    }
+    while (a > pi) {
+      a -= 2 * pi;
+    }
     return a;
   }
 
@@ -1659,7 +1661,6 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       return;
     }
 
-    _timeSinceLastDamage = 0;
     unit.takeDamage(amount);
     _hitFlash = 1.0;
 
@@ -1928,10 +1929,10 @@ class ArtilleryMine extends PositionComponent
     final center = Offset.zero;
 
     final fill = Paint()
-      ..color = color.withOpacity(0.15 + 0.15 * pulse)
+      ..color = color.withValues(alpha: 0.15 + 0.15 * pulse)
       ..style = PaintingStyle.fill;
     final outline = Paint()
-      ..color = color.withOpacity(0.9)
+      ..color = color.withValues(alpha: 0.9)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 

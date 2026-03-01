@@ -20,7 +20,7 @@ class AlchemyGlowComponent extends PositionComponent {
     _glow1 = CircleComponent(
       radius: baseSize * 0.6,
       paint: Paint()
-        ..color = Colors.purple.withOpacity(0.3)
+        ..color = Colors.purple.withValues(alpha: 0.3)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20),
       anchor: Anchor.center,
       position: size / 2,
@@ -30,7 +30,7 @@ class AlchemyGlowComponent extends PositionComponent {
     _glow2 = CircleComponent(
       radius: baseSize * 0.8,
       paint: Paint()
-        ..color = Colors.blue.withOpacity(0.2)
+        ..color = Colors.blue.withValues(alpha: 0.2)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 30),
       anchor: Anchor.center,
       position: size / 2,

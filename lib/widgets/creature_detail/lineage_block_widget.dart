@@ -21,13 +21,15 @@ class LineageBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     final genDepth = instance.generationDepth;
     final isPure = instance.isPure == true;
 
     if (genDepth == 0) {
       return Text(
         'This is a first generation and elementally pure Alchemon.',
-        style: FT.body.copyWith(fontSize: 11, height: 1.3),
+        style: ft.body.copyWith(fontSize: 11, height: 1.3),
       );
     }
 
@@ -55,7 +57,7 @@ class LineageBlock extends StatelessWidget {
         LabeledInlineValue(
           label: 'Generation',
           valueText: genDepth.toString(),
-          valueColor: theme?.text ?? FC.textPrimary,
+          valueColor: theme?.text ?? fc.textPrimary,
         ),
 
         // Purity descriptor
@@ -64,7 +66,7 @@ class LineageBlock extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(width: 100, child: Text('LINEAGE', style: FT.label)),
+              SizedBox(width: 100, child: Text('LINEAGE', style: ft.label)),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,7 +97,7 @@ class LineageBlock extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       purityDesc,
-                      style: FT.body.copyWith(fontSize: 10, height: 1.3),
+                      style: ft.body.copyWith(fontSize: 10, height: 1.3),
                     ),
                   ],
                 ),
@@ -200,7 +202,7 @@ class _LineageRow extends StatelessWidget {
     if (total <= 0) return const SizedBox.shrink();
     final items = data.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    String _label(String k) => labelOf?.call(k) ?? k;
+    String label(String k) => labelOf?.call(k) ?? k;
 
     return Row(
       children: [
@@ -211,7 +213,7 @@ class _LineageRow extends StatelessWidget {
             slices: [
               for (final e in items)
                 _Slice(
-                  label: _label(e.key),
+                  label: label(e.key),
                   value: e.value.toDouble(),
                   color: colorOf(e.key),
                 ),
@@ -228,7 +230,7 @@ class _LineageRow extends StatelessWidget {
               for (final e in items)
                 _LegendItem(
                   color: colorOf(e.key),
-                  label: _label(e.key),
+                  label: label(e.key),
                   pct: (e.value / total) * 100.0,
                 ),
             ],
@@ -280,7 +282,7 @@ class _DonutPainter extends CustomPainter {
     final bgPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
-      ..color = Colors.black.withOpacity(0.06)
+      ..color = Colors.black.withValues(alpha: 0.06)
       ..strokeCap = StrokeCap.butt;
     canvas.drawCircle(center, radius - strokeWidth / 2, bgPaint);
 
@@ -327,6 +329,7 @@ class _LegendItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final pctText = '${pct.toStringAsFixed(pct >= 10 ? 0 : 1)}%';
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -342,9 +345,9 @@ class _LegendItem extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           '$label · $pctText',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'monospace',
-            color: FC.textSecondary,
+            color: fc.textSecondary,
             fontSize: 10,
             fontWeight: FontWeight.w600,
           ),
@@ -361,9 +364,11 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     return Padding(
       padding: const EdgeInsets.only(top: 6.0, bottom: 2.0),
-      child: Text(text.toUpperCase(), style: FT.sectionTitle),
+      child: Text(text.toUpperCase(), style: ft.sectionTitle),
     );
   }
 }
@@ -382,12 +387,13 @@ class _FactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: color.withOpacity(0.45), width: 0.8),
+        border: Border.all(color: color.withValues(alpha: 0.45), width: 0.8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -414,9 +420,9 @@ class _FactionTile extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             count.toString(),
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'monospace',
-              color: FC.textPrimary,
+              color: fc.textPrimary,
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),

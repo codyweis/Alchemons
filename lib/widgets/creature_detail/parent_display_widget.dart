@@ -21,7 +21,7 @@ class ParentCard extends StatelessWidget {
   final bool isExpanded;
   final VoidCallback onToggle;
 
-  const ParentCard({
+  const ParentCard({super.key, 
     this.theme,
     required this.snap,
     required this.parentKey,
@@ -31,6 +31,7 @@ class ParentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
     final creature = repo.getCreatureById(snap.baseId);
@@ -39,9 +40,9 @@ class ParentCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: FC.bg2,
+        color: fc.bg2,
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: FC.borderDim),
+        border: Border.all(color: fc.borderDim),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -57,9 +58,9 @@ class ParentCard extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: FC.bg3,
+                      color: fc.bg3,
                       borderRadius: BorderRadius.circular(3),
-                      border: Border.all(color: FC.borderAccent, width: 0.8),
+                      border: Border.all(color: fc.borderAccent, width: 0.8),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(2),
@@ -98,9 +99,9 @@ class ParentCard extends StatelessWidget {
                           snap.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'monospace',
-                            color: FC.textPrimary,
+                            color: fc.textPrimary,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.4,
@@ -109,9 +110,9 @@ class ParentCard extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           snap.types.join(' • '),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'monospace',
-                            color: FC.textSecondary,
+                            color: fc.textSecondary,
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.8,
@@ -119,9 +120,9 @@ class ParentCard extends StatelessWidget {
                         ),
                         Text(
                           snap.rarity.toUpperCase(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'monospace',
-                            color: FC.textMuted,
+                            color: fc.textMuted,
                             fontSize: 8,
                             letterSpacing: 1.0,
                           ),
@@ -139,10 +140,10 @@ class ParentCard extends StatelessWidget {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: FC.purple.withOpacity(.15),
+                            color: FC.purple.withValues(alpha: .15),
                             borderRadius: BorderRadius.circular(2),
                             border: Border.all(
-                              color: FC.purple.withOpacity(.5),
+                              color: FC.purple.withValues(alpha: .5),
                               width: 0.8,
                             ),
                           ),
@@ -161,9 +162,9 @@ class ParentCard extends StatelessWidget {
                       AnimatedRotation(
                         turns: isExpanded ? 0.5 : 0,
                         duration: const Duration(milliseconds: 200),
-                        child: const Icon(
+                        child: Icon(
                           Icons.expand_more,
-                          color: FC.amber,
+                          color: fc.amber,
                           size: 16,
                         ),
                       ),
@@ -184,7 +185,7 @@ class ParentCard extends StatelessWidget {
               firstChild: const SizedBox(width: double.infinity, height: 0),
               secondChild: Column(
                 children: [
-                  const Divider(color: FC.borderDim, height: 1),
+                  Divider(color: fc.borderDim, height: 1),
                   Padding(
                     padding: const EdgeInsets.all(10),
                     child: Column(
@@ -195,7 +196,7 @@ class ParentCard extends StatelessWidget {
                             if (snap.genetics?.get('size') != null)
                               LabeledInlineValue(
                                 label: 'Size Variant',
-                                valueColor: FC.textPrimary,
+                                valueColor: fc.textPrimary,
                                 valueText:
                                     sizeLabels[snap.genetics!.get('size')] ??
                                     'Standard',
@@ -203,14 +204,14 @@ class ParentCard extends StatelessWidget {
                             if (snap.genetics?.get('tinting') != null)
                               LabeledInlineValue(
                                 label: 'Pigmentation',
-                                valueColor: FC.textPrimary,
+                                valueColor: fc.textPrimary,
                                 valueText:
                                     tintLabels[snap.genetics!.get('tinting')] ??
                                     'Standard',
                               ),
                             if (snap.nature != null)
                               LabeledInlineValue(
-                                valueColor: FC.textPrimary,
+                                valueColor: fc.textPrimary,
                                 label: 'Behavior',
                                 valueText: snap.nature!.id,
                               ),
@@ -241,6 +242,8 @@ class _ParentSubSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -249,10 +252,10 @@ class _ParentSubSection extends StatelessWidget {
             Container(
               width: 3,
               height: 10,
-              color: FC.amber,
+              color: fc.amber,
               margin: const EdgeInsets.only(right: 8),
             ),
-            Text(title.toUpperCase(), style: FT.sectionTitle),
+            Text(title.toUpperCase(), style: ft.sectionTitle),
           ],
         ),
         const SizedBox(height: 6),
@@ -260,9 +263,9 @@ class _ParentSubSection extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: FC.bg3,
+            color: fc.bg3,
             borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: FC.borderDim),
+            border: Border.all(color: fc.borderDim),
           ),
           child: Column(children: children),
         ),

@@ -127,12 +127,10 @@ class SurvivalUnit {
 
   double _curve(double x) => pow(x / 2.5, 2.4).toDouble();
   void calculateCombatStats() {
-    final speedScale = _curve(statSpeed);
     final intScale = _curve(statIntelligence);
     final strScale = _curve(statStrength);
     final beaScale = _curve(statBeauty);
 
-    final sSpd = speedScale * 60;
     final sInt = intScale * 70;
     final sStr = strScale * 80;
     final sBea = beaScale * 80;
@@ -215,14 +213,18 @@ class SurvivalUnit {
       effect.tickDuration();
       if (effect.isExpired) toRemoveStatus.add(entry.key);
     }
-    for (final key in toRemoveStatus) statusEffects.remove(key);
+    for (final key in toRemoveStatus) {
+      statusEffects.remove(key);
+    }
 
     for (final entry in statModifiers.entries) {
       final mod = entry.value;
       mod.tickDuration(1.0);
       if (mod.isExpired) toRemoveMods.add(entry.key);
     }
-    for (final key in toRemoveMods) statModifiers.remove(key);
+    for (final key in toRemoveMods) {
+      statModifiers.remove(key);
+    }
   }
 }
 

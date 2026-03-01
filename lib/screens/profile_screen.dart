@@ -87,7 +87,7 @@ class _ForgePanel extends StatelessWidget {
         border: Border.all(color: t.borderDim),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
@@ -264,10 +264,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: accentColor.withOpacity(0.12),
+                          color: accentColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(2),
                           border: Border.all(
-                            color: accentColor.withOpacity(0.4),
+                            color: accentColor.withValues(alpha: 0.4),
                           ),
                         ),
                         child: Text(
@@ -382,7 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // ── Perks list ────────────────────────────────────────────
                   for (var i = 0; i < perks.length; i++) ...[
                     _ForgePanel(
-                      accentBar: accentColor.withOpacity(0.75),
+                      accentBar: accentColor.withValues(alpha: 0.75),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

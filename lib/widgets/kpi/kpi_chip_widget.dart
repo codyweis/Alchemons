@@ -340,12 +340,12 @@ class _BlinkAuraState extends State<_BlinkAura>
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: widget.color.withOpacity(0.35 + 0.35 * glow),
+                color: widget.color.withValues(alpha: 0.35 + 0.35 * glow),
                 width: 1.0 + 0.6 * glow,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: widget.color.withOpacity(0.50 * glow),
+                  color: widget.color.withValues(alpha: 0.50 * glow),
                   blurRadius: 16 + 24 * glow,
                   spreadRadius: 1.0 + 0.5 * glow,
                 ),
@@ -369,10 +369,10 @@ class _ChipSurface extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accent.withOpacity(0.55)),
-        boxShadow: [BoxShadow(color: accent.withOpacity(0.16), blurRadius: 12)],
+        border: Border.all(color: accent.withValues(alpha: 0.55)),
+        boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.16), blurRadius: 12)],
       ),
       child: child,
     );
@@ -393,9 +393,9 @@ class _IconBadge extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: RadialGradient(
-          colors: [accent.withOpacity(0.5), Colors.transparent],
+          colors: [accent.withValues(alpha: 0.5), Colors.transparent],
         ),
-        border: Border.all(color: accent.withOpacity(0.55)),
+        border: Border.all(color: accent.withValues(alpha: 0.55)),
       ),
       child: Icon(icon, size: size * 0.57, color: const Color(0xFFE8EAED)),
     );
@@ -432,12 +432,12 @@ class _ReadyDotState extends State<_ReadyDot>
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.06),
+            color: Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: widget.accent.withOpacity(0.65)),
+            border: Border.all(color: widget.accent.withValues(alpha: 0.65)),
             boxShadow: [
               BoxShadow(
-                color: widget.accent.withOpacity(0.25 * glow),
+                color: widget.accent.withValues(alpha: 0.25 * glow),
                 blurRadius: 10 + 6 * glow,
               ),
             ],
@@ -452,7 +452,7 @@ class _ReadyDotState extends State<_ReadyDot>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: widget.accent.withOpacity(0.7),
+                      color: widget.accent.withValues(alpha: 0.7),
                       blurRadius: 8,
                     ),
                   ],
@@ -518,7 +518,7 @@ class _PingDotState extends State<_PingDot>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: widget.color.withOpacity((1.0 - t) * 0.8),
+                      color: widget.color.withValues(alpha: (1.0 - t) * 0.8),
                       width: 1.4,
                     ),
                   ),
@@ -533,7 +533,7 @@ class _PingDotState extends State<_PingDot>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: widget.color.withOpacity(0.7),
+                      color: widget.color.withValues(alpha: 0.7),
                       blurRadius: 6,
                     ),
                   ],
@@ -561,12 +561,12 @@ class _GlassPanel extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.18),
+            color: Colors.black.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: accent.withOpacity(0.35), width: 1),
+            border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
             boxShadow: [
               BoxShadow(
-                color: accent.withOpacity(0.18),
+                color: accent.withValues(alpha: 0.18),
                 blurRadius: 18,
                 spreadRadius: 1,
               ),
@@ -592,10 +592,10 @@ class _GlassButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(accent != null ? 0.08 : 0.04),
+          color: Colors.white.withValues(alpha: accent != null ? 0.08 : 0.04),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: (accent ?? Colors.white).withOpacity(
+            color: (accent ?? Colors.white).withValues(alpha: 
               accent != null ? 0.6 : 0.25,
             ),
           ),

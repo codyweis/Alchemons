@@ -4,77 +4,89 @@
 // All creature_detail widgets import this instead of using FactionTheme.
 //
 
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// COLORS
+// COLORS  (instance-based — respects light/dark via ForgeTokens)
 // ──────────────────────────────────────────────────────────────────────────────
 
 class FC {
-  static const bg0 = Color(0xFF080A0E);
-  static const bg1 = Color(0xFF0E1117);
-  static const bg2 = Color(0xFF141820);
-  static const bg3 = Color(0xFF1C2230);
+  FC(FactionTheme theme) : _t = ForgeTokens(theme);
+  final ForgeTokens _t;
 
-  static const amber = Color(0xFFD97706);
-  static const amberBright = Color(0xFFF59E0B);
-  static const amberDim = Color(0xFF92400E);
-  static const amberGlow = Color(0xFFFFB020);
+  static FC of(BuildContext context) => FC(context.read<FactionTheme>());
 
-  static const teal = Color(0xFF0EA5E9);
-  static const success = Color(0xFF16A34A);
-  static const danger = Color(0xFFC0392B);
+  // Backgrounds
+  Color get bg0 => _t.bg0;
+  Color get bg1 => _t.bg1;
+  Color get bg2 => _t.bg2;
+  Color get bg3 => _t.bg3;
+
+  // Accent
+  Color get amber => _t.amber;
+  Color get amberBright => _t.amberBright;
+  Color get amberDim => _t.amberDim;
+  Color get amberGlow => _t.amberGlow;
+
+  // Status (game-semantic, fixed)
+  Color get teal => _t.teal;
+  Color get success => _t.success;
+  Color get danger => _t.danger;
   static const purple = Color(0xFF9333EA);
   static const blue = Color(0xFF3B82F6);
   static const orange = Color(0xFFF97316);
 
-  static const textPrimary = Color(0xFFE8DCC8);
-  static const textSecondary = Color(0xFF8A7B6A);
-  static const textMuted = Color(0xFF4A3F35);
+  // Text
+  Color get textPrimary => _t.textPrimary;
+  Color get textSecondary => _t.textSecondary;
+  Color get textMuted => _t.textMuted;
 
-  static const borderDim = Color(0xFF252D3A);
-  static const borderMid = Color(0xFF3A3020);
-  static const borderAccent = Color(0xFF6B4C20);
+  // Borders
+  Color get borderDim => _t.borderDim;
+  Color get borderMid => _t.borderMid;
+  Color get borderAccent => _t.borderAccent;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// TEXT STYLES
+// TEXT STYLES  (instance-based — colors pulled from FC instance)
 // ──────────────────────────────────────────────────────────────────────────────
 
 class FT {
-  static const heading = TextStyle(
+  FT(this._c);
+  final FC _c;
+
+  TextStyle get heading => TextStyle(
     fontFamily: 'monospace',
-    color: FC.textPrimary,
+    color: _c.textPrimary,
     fontSize: 13,
     fontWeight: FontWeight.w700,
     letterSpacing: 2.0,
   );
 
-  static const label = TextStyle(
+  TextStyle get label => TextStyle(
     fontFamily: 'monospace',
-    color: FC.textSecondary,
+    color: _c.textSecondary,
     fontSize: 10,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
 
-  static const body = TextStyle(
-    color: FC.textSecondary,
-    fontSize: 12,
-    height: 1.5,
-  );
+  TextStyle get body =>
+      TextStyle(color: _c.textSecondary, fontSize: 12, height: 1.5);
 
-  static const sectionTitle = TextStyle(
+  TextStyle get sectionTitle => TextStyle(
     fontFamily: 'monospace',
-    color: FC.amberBright,
+    color: _c.amberBright,
     fontSize: 10,
     fontWeight: FontWeight.w800,
     letterSpacing: 2.0,
   );
 
-  static const mono = TextStyle(
+  TextStyle get mono => TextStyle(
     fontFamily: 'monospace',
-    color: FC.textPrimary,
+    color: _c.textPrimary,
     fontSize: 11,
     fontWeight: FontWeight.w700,
     letterSpacing: 0.5,
@@ -100,12 +112,14 @@ class ForgeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentColor ?? FC.amber;
+    final fc = FC.of(context);
+    final ft = FT(fc);
+    final accent = accentColor ?? fc.amber;
     return Container(
       decoration: BoxDecoration(
-        color: FC.bg2,
+        color: fc.bg2,
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: FC.borderDim),
+        border: Border.all(color: fc.borderDim),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,11 +127,11 @@ class ForgeSection extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: FC.bg3,
+              color: fc.bg3,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(2),
               ),
-              border: const Border(bottom: BorderSide(color: FC.borderDim)),
+              border: Border(bottom: BorderSide(color: fc.borderDim)),
             ),
             child: Row(
               children: [
@@ -129,7 +143,7 @@ class ForgeSection extends StatelessWidget {
                 ),
                 Text(
                   title.toUpperCase(),
-                  style: FT.sectionTitle.copyWith(color: accent),
+                  style: ft.sectionTitle.copyWith(color: accent),
                 ),
               ],
             ),
@@ -147,17 +161,21 @@ class ForgeEtchedDivider extends StatelessWidget {
   const ForgeEtchedDivider({super.key, this.label});
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(child: Container(height: 1, color: FC.borderMid)),
-      if (label != null) ...[
-        const SizedBox(width: 10),
-        Text(label!, style: FT.label),
-        const SizedBox(width: 10),
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
+    return Row(
+      children: [
+        Expanded(child: Container(height: 1, color: fc.borderMid)),
+        if (label != null) ...[
+          const SizedBox(width: 10),
+          Text(label!, style: ft.label),
+          const SizedBox(width: 10),
+        ],
+        Expanded(child: Container(height: 1, color: fc.borderMid)),
       ],
-      Expanded(child: Container(height: 1, color: FC.borderMid)),
-    ],
-  );
+    );
+  }
 }
 
 /// Lozenge badge
@@ -170,9 +188,9 @@ class ForgeTagBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.12),
+      color: color.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(2),
-      border: Border.all(color: color.withOpacity(0.45), width: 0.8),
+      border: Border.all(color: color.withValues(alpha: 0.45), width: 0.8),
     ),
     child: Text(
       label.toUpperCase(),
@@ -200,22 +218,29 @@ class ForgeDataRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(width: 130, child: Text(label.toUpperCase(), style: FT.label)),
-        Expanded(
-          child: Text(
-            value,
-            style: FT.body.copyWith(
-              color: valueColor ?? FC.textPrimary,
-              fontSize: 11,
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(label.toUpperCase(), style: ft.label),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: ft.body.copyWith(
+                color: valueColor ?? fc.textPrimary,
+                fontSize: 11,
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }

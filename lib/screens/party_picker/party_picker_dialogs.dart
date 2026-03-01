@@ -14,9 +14,9 @@ class DeployConfirmDialog extends StatelessWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF0A0E27).withOpacity(.95),
+          color: const Color(0xFF0A0E27).withValues(alpha: .95),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.amber.withOpacity(.5), width: 1.4),
+          border: Border.all(color: Colors.amber.withValues(alpha: .5), width: 1.4),
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -24,7 +24,7 @@ class DeployConfirmDialog extends StatelessWidget {
           children: [
             Icon(
               Icons.warning_amber_rounded,
-              color: Colors.amber.withOpacity(.9),
+              color: Colors.amber.withValues(alpha: .9),
               size: 28,
             ),
             const SizedBox(height: 12),
@@ -58,10 +58,10 @@ class DeployConfirmDialog extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.04),
+                        color: Colors.white.withValues(alpha: .04),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: Colors.white.withOpacity(.14),
+                          color: Colors.white.withValues(alpha: .14),
                           width: 1.4,
                         ),
                       ),
@@ -86,10 +86,10 @@ class DeployConfirmDialog extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.greenAccent.withOpacity(.2),
+                        color: Colors.greenAccent.withValues(alpha: .2),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: Colors.greenAccent.withOpacity(.6),
+                          color: Colors.greenAccent.withValues(alpha: .6),
                           width: 1.4,
                         ),
                       ),
@@ -128,9 +128,9 @@ class ZeroStaminaWarningDialog extends StatelessWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF0A0E27).withOpacity(.95),
+          color: const Color(0xFF0A0E27).withValues(alpha: .95),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.amber.withOpacity(.6), width: 1.4),
+          border: Border.all(color: Colors.amber.withValues(alpha: .6), width: 1.4),
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -138,7 +138,7 @@ class ZeroStaminaWarningDialog extends StatelessWidget {
           children: [
             Icon(
               Icons.warning_amber_rounded,
-              color: Colors.amber.withOpacity(.95),
+              color: Colors.amber.withValues(alpha: .95),
               size: 28,
             ),
             const SizedBox(height: 12),
@@ -171,10 +171,10 @@ class ZeroStaminaWarningDialog extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.04),
+                        color: Colors.white.withValues(alpha: .04),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: Colors.white.withOpacity(.14),
+                          color: Colors.white.withValues(alpha: .14),
                           width: 1.4,
                         ),
                       ),
@@ -198,10 +198,10 @@ class ZeroStaminaWarningDialog extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(.18),
+                        color: Colors.amber.withValues(alpha: .18),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: Colors.amber.withOpacity(.7),
+                          color: Colors.amber.withValues(alpha: .7),
                           width: 1.4,
                         ),
                       ),

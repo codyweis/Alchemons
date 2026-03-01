@@ -1,6 +1,5 @@
 // lib/games/survival/components/alchemy_orb.dart
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
@@ -38,7 +37,7 @@ class AlchemyOrb extends PositionComponent {
 
   @override
   Future<void> onLoad() async {
-    _glowPaint = Paint()..color = Colors.indigoAccent.withOpacity(0.5);
+    _glowPaint = Paint()..color = Colors.indigoAccent.withValues(alpha: 0.5);
 
     _corePaint = Paint()
       ..shader = const RadialGradient(
@@ -47,13 +46,13 @@ class AlchemyOrb extends PositionComponent {
       ).createShader(Rect.fromLTWH(0, 0, size.x, size.y));
 
     _runePaint = Paint()
-      ..color = Colors.cyan.withOpacity(0.6)
+      ..color = Colors.cyan.withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
 
     _hpBackgroundPaint = Paint()
-      ..color = Colors.black.withOpacity(0.5)
+      ..color = Colors.black.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 6;
 
@@ -63,11 +62,11 @@ class AlchemyOrb extends PositionComponent {
       ..strokeWidth = 6
       ..strokeCap = StrokeCap.round;
 
-    _flashPaint = Paint()..color = Colors.red.withOpacity(0.0);
+    _flashPaint = Paint()..color = Colors.red.withValues(alpha: 0.0);
 
     // NEW transmutation paints
     _transmuteBgPaint = Paint()
-      ..color = Colors.deepPurple.withOpacity(0.3)
+      ..color = Colors.deepPurple.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4;
 
@@ -117,7 +116,7 @@ class AlchemyOrb extends PositionComponent {
 
     // 2. Particles
     for (var p in _particles) {
-      particlePaint.color = Colors.cyanAccent.withOpacity(p.life);
+      particlePaint.color = Colors.cyanAccent.withValues(alpha: p.life);
       canvas.drawCircle(p.position, p.size, particlePaint);
     }
 
@@ -131,7 +130,7 @@ class AlchemyOrb extends PositionComponent {
     // 5. Damage flash
     if (_hitFlash > 0) {
       final opacity = 0.5 * _hitFlash;
-      _flashPaint.color = Colors.red.withOpacity(opacity);
+      _flashPaint.color = Colors.red.withValues(alpha: opacity);
       canvas.drawCircle(center, 40, _flashPaint);
     }
 

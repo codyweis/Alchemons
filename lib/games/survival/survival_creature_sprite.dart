@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart'; // REQUIRED IMPORT
 import 'package:alchemons/games/survival/components/guardian_indicator.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
@@ -116,7 +115,7 @@ class HoardGuardian extends PositionComponent
           paint: Paint()
             ..color = _getElementColor(
               unit.types.firstOrNull ?? 'Normal',
-            ).withOpacity(0.7),
+            ).withValues(alpha: 0.7),
           anchor: Anchor.center,
           position: _animContainer.size / 2,
         ),
@@ -331,17 +330,6 @@ class HoardGuardian extends PositionComponent
     return (shape, speedMod);
   }
 
-  int _calcSpecialDmg(SurvivalUnit defender) {
-    return SurvivalCombat.computeHitDamage(
-      SurvivalAttackContext(
-        attacker: unit,
-        defender: defender,
-        damageKind: SurvivalDamageKind.elemental,
-        isSpecial: true,
-      ),
-    );
-  }
-
   // --- UTILS ---
 
   void takeDamage(int amount, {String? source, bool isBossAttack = false}) {
@@ -405,7 +393,7 @@ class HoardGuardian extends PositionComponent
       position: size / 2,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.redAccent.withOpacity(0.8)
+        ..color = Colors.redAccent.withValues(alpha: 0.8)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4,
     );
@@ -426,7 +414,7 @@ class HoardGuardian extends PositionComponent
       radius: size.x / 2,
       position: size / 2,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.red.withOpacity(0.6),
+      paint: Paint()..color = Colors.red.withValues(alpha: 0.6),
     );
     add(flashOverlay);
 

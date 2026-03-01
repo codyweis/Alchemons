@@ -39,7 +39,7 @@ class VolcanicAuraComponent extends PositionComponent {
     super.render(canvas);
 
     final paint = Paint()
-      ..color = Colors.orange.withOpacity(0.8)
+      ..color = Colors.orange.withValues(alpha: 0.8)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
 
     for (final ember in _embers) {

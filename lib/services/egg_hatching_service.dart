@@ -8,12 +8,8 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
-import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
-import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/screens/breed/utils/breed_utils.dart';
-import 'package:alchemons/screens/creatures_screen.dart';
-import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
@@ -30,7 +26,6 @@ import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/delay_type_widget.dart';
-import 'package:flame/extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -95,6 +90,7 @@ class EggHatching {
     final repo = context.read<CreatureCatalog>();
     final gameData = context.read<GameDataService>();
     final db = context.read<AlchemonsDatabase>();
+    final fc = FC.of(context);
 
     if (slot.resultCreatureId == null) {
       return HatchingResult.failure('Could not load specimen data');
@@ -113,7 +109,7 @@ class EggHatching {
     final hp = _parsePayload(slot.payloadJson, offspring);
 
     // Starter branch: exact DB write, no rerolls
-    if ((hp.source ?? '') == 'starter') {
+    if (hp.source == 'starter') {
       final fb = _fallbackLineageFor(offspring);
 
       final createdId = await db.creatureDao.insertInstanceFromHatchPayload(
@@ -194,7 +190,7 @@ class EggHatching {
     if (instanceId == null || instanceId.isEmpty) {
       return HatchingResult.failure(
         'Extraction failed: system error',
-        color: FC.danger,
+        color: fc.danger,
       );
     }
 
@@ -347,33 +343,6 @@ class EggHatching {
   // ============================================================================
 
   /// Pick a random creature from the elemental group
-  static Creature? _pickRandomCreatureFromGroup(
-    CreatureCatalog repo,
-    ElementalGroup group,
-    String? fixedRarity,
-  ) {
-    final allCreatures = repo.creatures;
-
-    // Filter by group
-    final inGroup = allCreatures.where((c) {
-      return c.types.any((type) => elementalGroupOf(c) == group);
-    }).toList();
-
-    if (inGroup.isEmpty) return null;
-
-    // Filter by rarity if specified
-    final candidates = fixedRarity != null
-        ? inGroup
-              .where((c) => c.rarity.toLowerCase() == fixedRarity.toLowerCase())
-              .toList()
-        : inGroup;
-
-    if (candidates.isEmpty) return null;
-
-    // Pick random
-    final rng = Random();
-    return candidates[rng.nextInt(candidates.length)];
-  }
 
   /// Parse payload from JSON
   static EggPayload _parsePayload(String? payloadJson, Creature offspring) {
@@ -474,10 +443,12 @@ class EggHatching {
     final p2Types = parent2?['types'] as List<dynamic>?;
 
     final types = <String>[];
-    if (p1Types != null && p1Types.isNotEmpty)
+    if (p1Types != null && p1Types.isNotEmpty) {
       types.add(p1Types.first.toString());
-    if (p2Types != null && p2Types.isNotEmpty)
+    }
+    if (p2Types != null && p2Types.isNotEmpty) {
       types.add(p2Types.first.toString());
+    }
 
     final instancePath = creature!.image;
     final Color primaryHue = BreedConstants.getRarityColor(offspring.rarity);
@@ -529,95 +500,6 @@ class EggHatching {
     await _showExtractionResult(safeContext, instanceId, isNewDiscovery);
   }
 
-  /// Extract and normalize lineage data from payload
-  static ({
-    int generationDepth,
-    Map<String, int> factionLineage,
-    Map<String, int> elementLineage,
-    Map<String, int> familyLineage,
-    String? variantFaction,
-    bool isPure,
-  })
-  _extractLineage(Map<String, dynamic>? payload, Creature offspring) {
-    // Support both nested payload['lineage'] and flat form
-    Map<String, dynamic>? lineageBlock;
-    final rawLineage = payload?['lineage'];
-    if (rawLineage is Map) {
-      lineageBlock = rawLineage.cast<String, dynamic>();
-    } else {
-      lineageBlock = payload;
-    }
-
-    // Helper to convert values to int
-    int? _asInt(dynamic v) => (v is num) ? v.toInt() : null;
-
-    // Helper to normalize lineage maps
-    Map<String, int>? _normalizeLineageMap(dynamic raw) {
-      if (raw is! Map) return null;
-      final m = <String, int>{};
-      raw.forEach((k, v) {
-        var key = k.toString();
-
-        // Legacy enum-style keys like "CreatureFamily.let" -> "Let"
-        if (key.startsWith('CreatureFamily.')) {
-          final tail = key.split('.').last;
-          key = tail.isEmpty
-              ? 'Unknown'
-              : (tail[0].toUpperCase() + tail.substring(1));
-        }
-
-        final vv = (v is num)
-            ? v.toInt()
-            : (v is String ? int.tryParse(v) ?? 0 : 0);
-
-        if (vv > 0) m[key] = vv;
-      });
-      return m;
-    }
-
-    final payloadDepth = _asInt(lineageBlock?['generationDepth']);
-    final payloadVariantFaction = (lineageBlock?['variantFaction'] as String?);
-    final payloadIsPure = (lineageBlock?['isPure'] as bool?);
-
-    final payloadFactionLineage = _normalizeLineageMap(
-      lineageBlock?['factionLineage'],
-    );
-    final payloadElementLineage = _normalizeLineageMap(
-      lineageBlock?['elementLineage'],
-    );
-    final payloadFamilyLineage = _normalizeLineageMap(
-      lineageBlock?['familyLineage'],
-    );
-
-    // Choose lineage: trust payload when present; otherwise synthesize fallback
-    if (payloadDepth != null && (payloadFactionLineage?.isNotEmpty ?? false)) {
-      // TRUST PAYLOAD
-      return (
-        generationDepth: payloadDepth,
-        factionLineage: payloadFactionLineage!,
-        variantFaction: payloadVariantFaction,
-        isPure: payloadIsPure ?? false,
-        elementLineage: payloadElementLineage?.isNotEmpty ?? false
-            ? payloadElementLineage!
-            : _fallbackLineageFor(offspring).elementLineage,
-        familyLineage: payloadFamilyLineage?.isNotEmpty ?? false
-            ? payloadFamilyLineage!
-            : _fallbackLineageFor(offspring).familyLineage,
-      );
-    } else {
-      // FALLBACK (wild/legacy eggs)
-      final fb = _fallbackLineageFor(offspring);
-      return (
-        generationDepth: fb.generationDepth,
-        factionLineage: fb.factionLineage,
-        variantFaction: fb.variantFaction,
-        isPure: fb.isPure,
-        elementLineage: fb.elementLineage,
-        familyLineage: fb.familyLineage,
-      );
-    }
-  }
-
   /// Generate fallback lineage for wild/legacy creatures
   static ({
     int generationDepth,
@@ -640,7 +522,6 @@ class EggHatching {
     String? familyId() {
       try {
         final f = familyOf(offspring);
-        if (f == null) return null;
         return f.toString();
       } catch (_) {
         return null;
@@ -766,6 +647,7 @@ class EggHatching {
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
+          final fc = FC.of(context);
           return Dialog(
             backgroundColor: Colors.transparent,
             insetPadding: const EdgeInsets.all(12),
@@ -777,24 +659,24 @@ class EggHatching {
                   width: MediaQuery.of(context).size.width * 0.95,
                   height: MediaQuery.of(context).size.height * 0.82,
                   decoration: BoxDecoration(
-                    color: FC.bg0.withOpacity(.7),
+                    color: fc.bg0.withValues(alpha: .7),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: primaryColor.withOpacity(.45),
+                      color: primaryColor.withValues(alpha: .45),
                       width: 2,
                     ),
                   ),
                   child: Column(
                     children: [
-                      _buildExtractionHeader(offspring, primaryColor),
+                      _buildExtractionHeader(offspring, primaryColor, fc),
 
                       // Sprite dock
                       Container(
                         padding: const EdgeInsets.all(14),
-                        decoration: const BoxDecoration(
-                          color: FC.bg2,
+                        decoration: BoxDecoration(
+                          color: fc.bg2,
                           border: Border(
-                            bottom: BorderSide(color: FC.borderDim),
+                            bottom: BorderSide(color: fc.borderDim),
                           ),
                         ),
                         child: Row(
@@ -807,9 +689,9 @@ class EggHatching {
                                   width: 200,
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: FC.bg1,
+                                    color: fc.bg1,
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: FC.borderDim),
+                                    border: Border.all(color: fc.borderDim),
                                   ),
                                   child: CreatureScanAnimation(
                                     key: scanAnimationKey,
@@ -844,7 +726,7 @@ class EggHatching {
                                       ),
                                       child: _buildBadge(
                                         'NEW DISCOVERY',
-                                        FC.teal,
+                                        fc.teal,
                                       ),
                                     ),
                                   ),
@@ -861,6 +743,18 @@ class EggHatching {
                                         'VARIANT DISCOVERY',
                                         FC.purple,
                                       ),
+                                    ),
+                                  ),
+                                if (instance.isPrismaticSkin == true)
+                                  Positioned(
+                                    bottom: 8,
+                                    left: 8,
+                                    child: AnimatedOpacity(
+                                      opacity: scanComplete ? 1 : 0,
+                                      duration: const Duration(
+                                        milliseconds: 300,
+                                      ),
+                                      child: _buildPrismaticBadge(),
                                     ),
                                   ),
                               ],
@@ -896,6 +790,7 @@ class EggHatching {
                                           offspring.rarity,
                                           scanComplete,
                                           primaryColor,
+                                          fc: fc,
                                         ),
                                         _buildTypingAnalysisRow(
                                           'TYPE CATEGORIES',
@@ -905,6 +800,7 @@ class EggHatching {
                                           delay: const Duration(
                                             milliseconds: 300,
                                           ),
+                                          fc: fc,
                                         ),
                                         if (offspring.description.isNotEmpty)
                                           _buildTypingAnalysisRow(
@@ -915,8 +811,10 @@ class EggHatching {
                                             delay: const Duration(
                                               milliseconds: 600,
                                             ),
+                                            fc: fc,
                                           ),
                                       ],
+                                      fc,
                                     ),
                                     const SizedBox(height: 15),
                                     _buildAnalysisSection(
@@ -928,6 +826,7 @@ class EggHatching {
                                           _getSizeName(offspring),
                                           scanComplete,
                                           primaryColor,
+                                          fc: fc,
                                         ),
                                         _buildTypingAnalysisRow(
                                           'PIGMENTATION',
@@ -937,6 +836,7 @@ class EggHatching {
                                           delay: const Duration(
                                             milliseconds: 300,
                                           ),
+                                          fc: fc,
                                         ),
                                         if (offspring.nature != null)
                                           _buildTypingAnalysisRow(
@@ -947,16 +847,7 @@ class EggHatching {
                                             delay: const Duration(
                                               milliseconds: 600,
                                             ),
-                                          ),
-                                        if (offspring.isPrismaticSkin == true)
-                                          _buildTypingAnalysisRow(
-                                            'SPECIAL TRAIT',
-                                            'PRISMATIC PHENOTYPE',
-                                            scanComplete,
-                                            primaryColor,
-                                            delay: const Duration(
-                                              milliseconds: 900,
-                                            ),
+                                            fc: fc,
                                           ),
                                         _buildVariantTypingRow(
                                           context,
@@ -965,6 +856,7 @@ class EggHatching {
                                           primaryColor,
                                         ),
                                       ],
+                                      fc,
                                     ),
                                   ],
                                 ),
@@ -979,10 +871,10 @@ class EggHatching {
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(.2),
+                          color: fc.bg2,
                           border: Border(
                             top: BorderSide(
-                              color: Colors.white.withOpacity(.08),
+                              color: fc.borderDim,
                             ),
                           ),
                         ),
@@ -1043,12 +935,12 @@ class EggHatching {
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: [
-                                            primaryColor.withOpacity(.95),
-                                            primaryColor.withOpacity(.8),
+                                            primaryColor.withValues(alpha: .95),
+                                            primaryColor.withValues(alpha: .8),
                                           ],
                                         ),
                                         borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: FC.borderDim),
+                                        border: Border.all(color: fc.borderDim),
                                       ),
                                       child: const Row(
                                         mainAxisAlignment:
@@ -1090,16 +982,16 @@ class EggHatching {
                                     width: 50,
                                     height: 50,
                                     decoration: BoxDecoration(
-                                      color: FC.bg2,
+                                      color: fc.bg2,
                                       borderRadius: BorderRadius.circular(6),
                                       border: Border.all(
-                                        color: FC.borderDim,
+                                        color: fc.borderDim,
                                         width: 1.5,
                                       ),
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.pets_rounded,
-                                      color: FC.textSecondary,
+                                      color: fc.textSecondary,
                                       size: 22,
                                     ),
                                   ),
@@ -1128,9 +1020,9 @@ class EggHatching {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(.18),
+        color: color.withValues(alpha: .18),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(.45)),
+        border: Border.all(color: color.withValues(alpha: .45)),
       ),
       child: Text(
         text,
@@ -1144,16 +1036,55 @@ class EggHatching {
     );
   }
 
-  static Widget _buildExtractionHeader(Creature offspring, Color primaryColor) {
+  static Widget _buildPrismaticBadge() {
+    const prismaticColors = [
+      Colors.red,
+      Colors.orange,
+      Colors.yellow,
+      Colors.green,
+      Colors.cyan,
+      Colors.blue,
+      Colors.purple,
+    ];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: prismaticColors.map((c) => c.withValues(alpha: .15)).toList(),
+        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: .4)),
+      ),
+      child: ShaderMask(
+        shaderCallback: (bounds) =>
+            LinearGradient(colors: prismaticColors).createShader(bounds),
+        child: const Text(
+          'PRISMATIC',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 7,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildExtractionHeader(
+    Creature offspring,
+    Color primaryColor,
+    FC fc,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: FC.bg2,
+      decoration: BoxDecoration(
+        color: fc.bg2,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(16),
           topRight: Radius.circular(16),
         ),
-        border: Border(bottom: BorderSide(color: FC.borderDim)),
+        border: Border(bottom: BorderSide(color: fc.borderDim)),
       ),
       child: Column(
         children: [
@@ -1177,8 +1108,8 @@ class EggHatching {
           const SizedBox(height: 6),
           Text(
             offspring.name,
-            style: const TextStyle(
-              color: FC.textPrimary,
+            style: TextStyle(
+              color: fc.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 13,
               letterSpacing: .3,
@@ -1194,6 +1125,7 @@ class EggHatching {
     String title,
     Color primaryColor,
     List<Widget> children,
+    FC fc,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1204,8 +1136,8 @@ class EggHatching {
             const SizedBox(width: 8),
             Text(
               title,
-              style: const TextStyle(
-                color: FC.textPrimary,
+              style: TextStyle(
+                color: fc.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
                 letterSpacing: .6,
@@ -1218,9 +1150,9 @@ class EggHatching {
           width: double.infinity,
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: FC.bg1,
+            color: fc.bg1,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: FC.borderDim),
+            border: Border.all(color: fc.borderDim),
           ),
           child: Column(children: children),
         ),
@@ -1234,6 +1166,7 @@ class EggHatching {
     bool startTyping,
     Color primaryColor, {
     Duration delay = Duration.zero,
+    required FC fc,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -1245,7 +1178,7 @@ class EggHatching {
             child: Text(
               label,
               style: TextStyle(
-                color: Colors.white.withOpacity(.6),
+                color: fc.textSecondary,
                 fontSize: 10.5,
                 fontWeight: FontWeight.w800,
                 letterSpacing: .4,
@@ -1257,8 +1190,8 @@ class EggHatching {
                 ? DelayedTypingText(
                     text: value,
                     delay: delay,
-                    style: const TextStyle(
-                      color: FC.textPrimary,
+                    style: TextStyle(
+                      color: fc.textPrimary,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1276,6 +1209,7 @@ class EggHatching {
     bool startTyping,
     Color primaryColor,
   ) {
+    final fc = FC.of(context);
     return FutureBuilder<CreatureInstance?>(
       future: context.read<AlchemonsDatabase>().creatureDao.getInstance(
         instanceId,
@@ -1298,6 +1232,7 @@ class EggHatching {
           startTyping,
           primaryColor,
           delay: const Duration(milliseconds: 900),
+          fc: fc,
         );
       },
     );

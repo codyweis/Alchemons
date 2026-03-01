@@ -232,12 +232,12 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: widget.theme.accent.withOpacity(0.6),
+                          color: widget.theme.accent.withValues(alpha: 0.6),
                           blurRadius: 25,
                           spreadRadius: 8,
                         ),
                         BoxShadow(
-                          color: widget.theme.accent.withOpacity(0.3),
+                          color: widget.theme.accent.withValues(alpha: 0.3),
                           blurRadius: 40,
                           spreadRadius: 15,
                         ),
@@ -251,7 +251,7 @@ class _FloatingSideButtonState extends State<_FloatingSideButton>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: widget.theme.accent.withOpacity(0.8),
+                        color: widget.theme.accent.withValues(alpha: 0.8),
                         width: 3,
                       ),
                     ),
@@ -279,7 +279,7 @@ class MysticSwirlButton extends StatefulWidget {
   final double size;
   final VoidCallback onTap;
 
-  const MysticSwirlButton({
+  const MysticSwirlButton({super.key, 
     required this.theme,
     required this.onTap,
     this.size = 60,
@@ -340,12 +340,12 @@ class _MysticSwirlButtonState extends State<MysticSwirlButton>
                   color: const Color(0xFF0C0418),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF9C27B0).withOpacity(glow),
+                      color: const Color(0xFF9C27B0).withValues(alpha: glow),
                       blurRadius: 18,
                       spreadRadius: 4,
                     ),
                     BoxShadow(
-                      color: const Color(0xFF6366F1).withOpacity(glow * 0.5),
+                      color: const Color(0xFF6366F1).withValues(alpha: glow * 0.5),
                       blurRadius: 32,
                       spreadRadius: 8,
                     ),
@@ -465,7 +465,7 @@ class MysticSwirlPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
-        ..color = const Color(0xFF9C27B0).withOpacity(0.3),
+        ..color = const Color(0xFF9C27B0).withValues(alpha: 0.3),
     );
 
     // Glowing centre orb
@@ -473,8 +473,8 @@ class MysticSwirlPainter extends CustomPainter {
     final orbPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          Colors.white.withOpacity(0.95),
-          const Color(0xFFE879F9).withOpacity(0.8),
+          Colors.white.withValues(alpha: 0.95),
+          const Color(0xFFE879F9).withValues(alpha: 0.8),
           Colors.transparent,
         ],
       ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: orbR));
@@ -501,7 +501,7 @@ class MysticSwirlPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeW
       ..strokeCap = StrokeCap.round
-      ..color = color.withOpacity(opacity);
+      ..color = color.withValues(alpha: opacity);
 
     final path = Path();
     const steps = 80;
@@ -526,7 +526,7 @@ class MysticSwirlPainter extends CustomPainter {
     canvas.drawCircle(
       Offset(cx + cos(a) * orbitR, cy + sin(a) * orbitR),
       r,
-      Paint()..color = Colors.white.withOpacity(0.75),
+      Paint()..color = Colors.white.withValues(alpha: 0.75),
     );
   }
 
@@ -550,7 +550,7 @@ class _RedDotTiny extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withOpacity(0.6),
+            color: Colors.red.withValues(alpha: 0.6),
             blurRadius: 6,
             spreadRadius: 1,
           ),

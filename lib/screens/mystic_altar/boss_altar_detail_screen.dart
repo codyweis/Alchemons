@@ -110,8 +110,12 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         .toList();
 
     final placed = <String, String?>{};
-    for (final sp in species) placed[sp.id] = null;
-    for (final p in placements) placed[p.speciesId] = p.instanceId;
+    for (final sp in species) {
+      placed[sp.id] = null;
+    }
+    for (final p in placements) {
+      placed[p.speciesId] = p.instanceId;
+    }
 
     if (mounted) {
       setState(() {
@@ -163,8 +167,12 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
   }
 
   double _norm(double a) {
-    while (a > math.pi) a -= math.pi * 2;
-    while (a < -math.pi) a += math.pi * 2;
+    while (a > math.pi) {
+      a -= math.pi * 2;
+    }
+    while (a < -math.pi) {
+      a += math.pi * 2;
+    }
     return a;
   }
 
@@ -194,8 +202,12 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 
   void _snapToSelected() {
     double t = -(_selectedIndex / _n) * math.pi * 2;
-    while ((t - _wheelOffset) > math.pi) t -= math.pi * 2;
-    while ((t - _wheelOffset) < -math.pi) t += math.pi * 2;
+    while ((t - _wheelOffset) > math.pi) {
+      t -= math.pi * 2;
+    }
+    while ((t - _wheelOffset) < -math.pi) {
+      t += math.pi * 2;
+    }
 
     _snapFrom = _wheelOffset;
     _snapCtrl.reset();
@@ -597,9 +609,9 @@ class _TopBar extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: _C.surface.withOpacity(0.8),
+                color: _C.surface.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _C.muted.withOpacity(0.4), width: 1),
+                border: Border.all(color: _C.muted.withValues(alpha: 0.4), width: 1),
               ),
               child: const Icon(
                 Icons.arrow_back_ios_new_rounded,
@@ -639,13 +651,13 @@ class _TopBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
               color: hasKey
-                  ? _C.success.withOpacity(0.12)
-                  : _C.danger.withOpacity(0.08),
+                  ? _C.success.withValues(alpha: 0.12)
+                  : _C.danger.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color: hasKey
-                    ? _C.success.withOpacity(0.4)
-                    : _C.danger.withOpacity(0.3),
+                    ? _C.success.withValues(alpha: 0.4)
+                    : _C.danger.withValues(alpha: 0.3),
                 width: 0.5,
               ),
             ),
@@ -912,7 +924,7 @@ class _SlotNodeState extends State<_SlotNode>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: widget.elColor.withOpacity(ringOpacity1 * 0.90),
+                  color: widget.elColor.withValues(alpha: ringOpacity1 * 0.90),
                   width: 2.5,
                 ),
               ),
@@ -929,7 +941,7 @@ class _SlotNodeState extends State<_SlotNode>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: widget.elColor.withOpacity(ringOpacity2),
+                  color: widget.elColor.withValues(alpha: ringOpacity2),
                   width: 1.5,
                 ),
               ),
@@ -944,7 +956,7 @@ class _SlotNodeState extends State<_SlotNode>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: widget.elColor.withOpacity(
+                color: widget.elColor.withValues(alpha: 
                   (widget.isFilled ? 0.32 : 0.14) + widget.pulse * 0.24,
                 ),
                 width: 1.0,
@@ -961,7 +973,7 @@ class _SlotNodeState extends State<_SlotNode>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: widget.elColor.withOpacity(0.45 + widget.pulse * 0.38),
+                  color: widget.elColor.withValues(alpha: 0.45 + widget.pulse * 0.38),
                   blurRadius: 22,
                   spreadRadius: 4,
                 ),
@@ -978,16 +990,16 @@ class _SlotNodeState extends State<_SlotNode>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: (widget.isFilled || widget.isSelected)
-                  ? widget.elColor.withOpacity(bgOp)
-                  : _C.surface.withOpacity(0.50),
+                  ? widget.elColor.withValues(alpha: bgOp)
+                  : _C.surface.withValues(alpha: 0.50),
               border: Border.all(
-                color: widget.elColor.withOpacity(borderOp),
+                color: widget.elColor.withValues(alpha: borderOp),
                 width: (widget.isFilled || widget.isSelected) ? 2.2 : 0.8,
               ),
               boxShadow: widget.isFilled
                   ? [
                       BoxShadow(
-                        color: widget.elColor.withOpacity(
+                        color: widget.elColor.withValues(alpha: 
                           0.38 + widget.pulse * 0.32,
                         ),
                         blurRadius: 18,
@@ -997,7 +1009,7 @@ class _SlotNodeState extends State<_SlotNode>
                   : widget.isSelected
                   ? [
                       BoxShadow(
-                        color: widget.elColor.withOpacity(
+                        color: widget.elColor.withValues(alpha: 
                           0.20 + widget.pulse * 0.18,
                         ),
                         blurRadius: 14,
@@ -1034,7 +1046,7 @@ class _SlotNodeState extends State<_SlotNode>
                         fit: BoxFit.contain,
                         errorBuilder: (_, __, ___) => Icon(
                           Icons.auto_awesome,
-                          color: widget.elColor.withOpacity(0.35),
+                          color: widget.elColor.withValues(alpha: 0.35),
                           size: widget.size * 0.42,
                         ),
                       ),
@@ -1056,7 +1068,7 @@ class _SlotNodeState extends State<_SlotNode>
                 color: _C.success,
                 border: Border.all(color: _C.bg, width: 1.5),
                 boxShadow: [
-                  BoxShadow(color: _C.success.withOpacity(0.50), blurRadius: 7),
+                  BoxShadow(color: _C.success.withValues(alpha: 0.50), blurRadius: 7),
                 ],
               ),
               child: Icon(
@@ -1081,7 +1093,7 @@ class _SlotNodeState extends State<_SlotNode>
                 border: Border.all(color: _C.bg, width: 1.5),
                 boxShadow: [
                   BoxShadow(
-                    color: widget.elColor.withOpacity(0.55),
+                    color: widget.elColor.withValues(alpha: 0.55),
                     blurRadius: 6,
                   ),
                 ],
@@ -1108,7 +1120,7 @@ class _SlotNodeState extends State<_SlotNode>
                 color: widget.isFilled
                     ? widget.elColor
                     : (widget.isSelected
-                          ? widget.elColor.withOpacity(0.80)
+                          ? widget.elColor.withValues(alpha: 0.80)
                           : _C.muted),
                 fontSize: 7.5,
                 fontWeight: widget.isFilled ? FontWeight.w800 : FontWeight.w600,
@@ -1153,7 +1165,7 @@ class _CenterMystic extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: elColor.withOpacity((0.40 + pulse * 0.35) * 0.30),
+                color: elColor.withValues(alpha: (0.40 + pulse * 0.35) * 0.30),
                 width: 1.0,
               ),
             ),
@@ -1163,14 +1175,14 @@ class _CenterMystic extends StatelessWidget {
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: elColor.withOpacity(0.10),
+              color: elColor.withValues(alpha: 0.10),
               border: Border.all(
-                color: elColor.withOpacity(0.40 + pulse * 0.35),
+                color: elColor.withValues(alpha: 0.40 + pulse * 0.35),
                 width: 2.0,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: elColor.withOpacity(0.18 + pulse * 0.15),
+                  color: elColor.withValues(alpha: 0.18 + pulse * 0.15),
                   blurRadius: 18,
                 ),
               ],
@@ -1194,7 +1206,7 @@ class _CenterMystic extends StatelessWidget {
               mystic?.name.toUpperCase() ?? 'MYSTIC',
               style: TextStyle(
                 fontFamily: 'monospace',
-                color: elColor.withOpacity(0.65),
+                color: elColor.withValues(alpha: 0.65),
                 fontSize: 8,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,
@@ -1233,7 +1245,7 @@ class _TrackPainter extends CustomPainter {
     canvas.drawOval(
       Rect.fromCenter(center: Offset(cx, cy), width: rx * 2, height: ry * 2),
       Paint()
-        ..color = color.withOpacity(0.08)
+        ..color = color.withValues(alpha: 0.08)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8,
     );
@@ -1248,7 +1260,7 @@ class _TrackPainter extends CustomPainter {
         math.pi * 2 * fraction,
         false,
         Paint()
-          ..color = color.withOpacity(0.35 + pulse * 0.25)
+          ..color = color.withValues(alpha: 0.35 + pulse * 0.25)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5
           ..strokeCap = StrokeCap.round,
@@ -1260,7 +1272,7 @@ class _TrackPainter extends CustomPainter {
       Offset(cx, cy),
       r * 0.44,
       Paint()
-        ..color = color.withOpacity(0.04 + pulse * 0.04)
+        ..color = color.withValues(alpha: 0.04 + pulse * 0.04)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.7,
     );
@@ -1311,7 +1323,7 @@ class _BottomBar extends StatelessWidget {
         MediaQuery.of(context).padding.bottom + 14,
       ),
       decoration: BoxDecoration(
-        color: _C.surface.withOpacity(0.90),
+        color: _C.surface.withValues(alpha: 0.90),
         border: const Border(top: BorderSide(color: _C.border, width: 0.5)),
       ),
       child: AnimatedBuilder(
@@ -1333,8 +1345,8 @@ class _BottomBar extends StatelessWidget {
                         height: 4,
                         decoration: BoxDecoration(
                           color: i < filled
-                              ? elColor.withOpacity(0.75 + pulse.value * 0.20)
-                              : _C.muted.withOpacity(0.18),
+                              ? elColor.withValues(alpha: 0.75 + pulse.value * 0.20)
+                              : _C.muted.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -1362,8 +1374,8 @@ class _BottomBar extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
                           color: selectedFilled
-                              ? _C.success.withOpacity(0.10)
-                              : elColor.withOpacity(0.14 + pulse.value * 0.06),
+                              ? _C.success.withValues(alpha: 0.10)
+                              : elColor.withValues(alpha: 0.14 + pulse.value * 0.06),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: selectedFilled ? _C.success : elColor,
@@ -1443,11 +1455,11 @@ class _BottomBar extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
                     color: canSummon
-                        ? elColor.withOpacity(0.18 + pulse.value * 0.07)
+                        ? elColor.withValues(alpha: 0.18 + pulse.value * 0.07)
                         : _C.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: canSummon ? elColor : _C.muted.withOpacity(0.22),
+                      color: canSummon ? elColor : _C.muted.withValues(alpha: 0.22),
                       width: canSummon ? 1.5 : 0.5,
                     ),
                   ),
@@ -1510,18 +1522,18 @@ class _NavBtn extends StatelessWidget {
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: onTap != null ? elColor.withOpacity(0.12) : Colors.transparent,
+        color: onTap != null ? elColor.withValues(alpha: 0.12) : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: onTap != null
-              ? elColor.withOpacity(0.4)
-              : _C.muted.withOpacity(0.12),
+              ? elColor.withValues(alpha: 0.4)
+              : _C.muted.withValues(alpha: 0.12),
           width: 0.8,
         ),
       ),
       child: Icon(
         icon,
-        color: onTap != null ? elColor : _C.muted.withOpacity(0.25),
+        color: onTap != null ? elColor : _C.muted.withValues(alpha: 0.25),
         size: 22,
       ),
     ),
@@ -1553,7 +1565,7 @@ class _InstancePickerSheet extends StatelessWidget {
         decoration: BoxDecoration(
           color: _C.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border.all(color: elColor.withOpacity(0.3), width: 0.5),
+          border: Border.all(color: elColor.withValues(alpha: 0.3), width: 0.5),
         ),
         child: Column(
           children: [
@@ -1576,8 +1588,8 @@ class _InstancePickerSheet extends StatelessWidget {
                     height: 30,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: elColor.withOpacity(0.1),
-                      border: Border.all(color: elColor.withOpacity(0.3)),
+                      color: elColor.withValues(alpha: 0.1),
+                      border: Border.all(color: elColor.withValues(alpha: 0.3)),
                     ),
                     child: ClipOval(
                       child: Image.asset(
@@ -1639,7 +1651,7 @@ class _InstancePickerSheet extends StatelessWidget {
                           color: _C.bg,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: elColor.withOpacity(0.2),
+                            color: elColor.withValues(alpha: 0.2),
                             width: 0.5,
                           ),
                         ),
@@ -1650,13 +1662,13 @@ class _InstancePickerSheet extends StatelessWidget {
                               child: Container(
                                 width: 44,
                                 height: 44,
-                                color: elColor.withOpacity(0.07),
+                                color: elColor.withValues(alpha: 0.07),
                                 child: Image.asset(
                                   'assets/images/${species.image}',
                                   fit: BoxFit.contain,
                                   errorBuilder: (_, __, ___) => Icon(
                                     Icons.catching_pokemon_rounded,
-                                    color: elColor.withOpacity(0.5),
+                                    color: elColor.withValues(alpha: 0.5),
                                     size: 22,
                                   ),
                                 ),
@@ -1695,10 +1707,10 @@ class _InstancePickerSheet extends StatelessWidget {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: elColor.withOpacity(0.1),
+                                color: elColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
-                                  color: elColor.withOpacity(0.3),
+                                  color: elColor.withValues(alpha: 0.3),
                                   width: 0.5,
                                 ),
                               ),
@@ -1756,7 +1768,7 @@ class _GameDialog extends StatelessWidget {
       backgroundColor: _C.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: elColor.withOpacity(0.45), width: 1),
+        side: BorderSide(color: elColor.withValues(alpha: 0.45), width: 1),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1764,7 +1776,7 @@ class _GameDialog extends StatelessWidget {
           Container(
             height: 3,
             decoration: BoxDecoration(
-              color: elColor.withOpacity(0.7),
+              color: elColor.withValues(alpha: 0.7),
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(15),
               ),
@@ -1845,9 +1857,9 @@ class _Btn extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.4), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
       ),
       child: Center(
         child: Text(
@@ -1913,7 +1925,7 @@ class _SuccessDialogState extends State<_SuccessDialog>
         backgroundColor: _C.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: el.withOpacity(0.5), width: 1),
+          side: BorderSide(color: el.withValues(alpha: 0.5), width: 1),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1921,7 +1933,7 @@ class _SuccessDialogState extends State<_SuccessDialog>
             Container(
               height: 3,
               decoration: BoxDecoration(
-                color: el.withOpacity(0.7),
+                color: el.withValues(alpha: 0.7),
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(15),
                 ),
@@ -1937,13 +1949,13 @@ class _SuccessDialogState extends State<_SuccessDialog>
                     height: 64,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: el.withOpacity(0.12),
+                      color: el.withValues(alpha: 0.12),
                       border: Border.all(
-                        color: el.withOpacity(0.5),
+                        color: el.withValues(alpha: 0.5),
                         width: 1.5,
                       ),
                       boxShadow: [
-                        BoxShadow(color: el.withOpacity(0.3), blurRadius: 18),
+                        BoxShadow(color: el.withValues(alpha: 0.3), blurRadius: 18),
                       ],
                     ),
                     child: Icon(widget.boss.elementIcon, color: el, size: 32),
@@ -1973,10 +1985,10 @@ class _SuccessDialogState extends State<_SuccessDialog>
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: el.withOpacity(0.07),
+                      color: el.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: el.withOpacity(0.2),
+                        color: el.withValues(alpha: 0.2),
                         width: 0.5,
                       ),
                     ),
@@ -1984,7 +1996,7 @@ class _SuccessDialogState extends State<_SuccessDialog>
                       children: [
                         Icon(
                           Icons.egg_outlined,
-                          color: el.withOpacity(0.7),
+                          color: el.withValues(alpha: 0.7),
                           size: 20,
                         ),
                         const SizedBox(width: 10),

@@ -56,10 +56,10 @@ class VoidRiftComponent extends PositionComponent {
       transform: GradientRotation(rotation),
       colors: [
         Colors.transparent,
-        const Color(0xFF6A0DAD).withOpacity(opacity),
-        const Color(0xFF000000).withOpacity(opacity * 1.2),
-        const Color(0xFF9400D3).withOpacity(opacity * 0.7),
-        const Color(0xFF000000).withOpacity(opacity),
+        const Color(0xFF6A0DAD).withValues(alpha: opacity),
+        const Color(0xFF000000).withValues(alpha: opacity * 1.2),
+        const Color(0xFF9400D3).withValues(alpha: opacity * 0.7),
+        const Color(0xFF000000).withValues(alpha: opacity),
         Colors.transparent,
       ],
       stops: const [0.0, 0.18, 0.38, 0.56, 0.76, 1.0],
@@ -82,9 +82,9 @@ class VoidRiftComponent extends PositionComponent {
   ) {
     final shader = RadialGradient(
       colors: [
-        const Color(0xFF000000).withOpacity(0.85),
-        const Color(0xFF3D0070).withOpacity(0.6 * opacity),
-        const Color(0xFF6A0DAD).withOpacity(0.3 * opacity),
+        const Color(0xFF000000).withValues(alpha: 0.85),
+        const Color(0xFF3D0070).withValues(alpha: 0.6 * opacity),
+        const Color(0xFF6A0DAD).withValues(alpha: 0.3 * opacity),
         Colors.transparent,
       ],
       stops: const [0.0, 0.4, 0.75, 1.0],
@@ -121,8 +121,8 @@ class VoidRiftComponent extends PositionComponent {
 
       paint.shader = LinearGradient(
         colors: [
-          const Color(0xFFBB00FF).withOpacity(opacity),
-          const Color(0xFF4B0082).withOpacity(opacity * 0.4),
+          const Color(0xFFBB00FF).withValues(alpha: opacity),
+          const Color(0xFF4B0082).withValues(alpha: opacity * 0.4),
           Colors.transparent,
         ],
         stops: const [0.0, 0.55, 1.0],
@@ -142,7 +142,7 @@ class VoidRiftComponent extends PositionComponent {
       );
       paint.shader = LinearGradient(
         colors: [
-          const Color(0xFF9400D3).withOpacity(opacity * 0.7),
+          const Color(0xFF9400D3).withValues(alpha: opacity * 0.7),
           Colors.transparent,
         ],
       ).createShader(Rect.fromPoints(mid, branchEnd));
@@ -174,7 +174,7 @@ class VoidRiftComponent extends PositionComponent {
         const Color(0xFFBB00FF),
         const Color(0xFF00EAFF),
         phase,
-      )!.withOpacity(alpha * 0.9 * opacity);
+      )!.withValues(alpha: alpha * 0.9 * opacity);
 
       canvas.drawCircle(Offset(x, y), sparkR, sparkPaint);
     }

@@ -20,6 +20,7 @@ class SurvivalSpecsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final unit = SurvivalUnit(
       id: 'preview',
       name: creature.name,
@@ -35,7 +36,7 @@ class SurvivalSpecsWidget extends StatelessWidget {
     final isRanged = unit.attackRange >= 300;
     final roleLabel = isRanged ? 'RANGED BLASTER' : 'MELEE BRAWLER';
     final roleIcon = isRanged ? Icons.gps_fixed : Icons.sports_mma;
-    final roleColor = isRanged ? FC.teal : FC.amber;
+    final roleColor = isRanged ? fc.teal : fc.amber;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,7 +61,7 @@ class SurvivalSpecsWidget extends StatelessWidget {
               'SURVIVAL METRICS',
               style: TextStyle(
                 fontFamily: 'monospace',
-                color: FC.textMuted,
+                color: fc.textMuted,
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.8,
@@ -79,7 +80,7 @@ class SurvivalSpecsWidget extends StatelessWidget {
                 value: unit.maxHp.toString(),
                 subLabel: 'Base + Str',
                 icon: Icons.favorite,
-                accentColor: FC.danger,
+                accentColor: fc.danger,
               ),
             ),
             const SizedBox(width: 8),
@@ -100,9 +101,9 @@ class SurvivalSpecsWidget extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: FC.bg3,
+            color: fc.bg3,
             borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: FC.borderDim),
+            border: Border.all(color: fc.borderDim),
           ),
           child: Column(
             children: [
@@ -119,7 +120,7 @@ class SurvivalSpecsWidget extends StatelessWidget {
                 sourceStat: 'Intelligence',
                 isPrimary: unit.elemAtk >= unit.physAtk,
               ),
-              const Divider(height: 12, color: FC.borderDim),
+              Divider(height: 12, color: fc.borderDim),
               _ForgeCompactRow(
                 label: 'Crit Chance',
                 value: '${(unit.critChance * 100).toInt()}%',
@@ -164,12 +165,13 @@ class _ForgeStatBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: FC.bg3,
+        color: fc.bg3,
         borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: accentColor.withOpacity(0.35)),
+        border: Border.all(color: accentColor.withValues(alpha: 0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,7 +184,7 @@ class _ForgeStatBox extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: FC.textMuted,
+                  color: fc.textMuted,
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
@@ -193,9 +195,9 @@ class _ForgeStatBox extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'monospace',
-              color: FC.textPrimary,
+              color: fc.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
@@ -204,7 +206,7 @@ class _ForgeStatBox extends StatelessWidget {
             subLabel,
             style: TextStyle(
               fontFamily: 'monospace',
-              color: accentColor.withOpacity(0.7),
+              color: accentColor.withValues(alpha: 0.7),
               fontSize: 9,
             ),
           ),
@@ -231,7 +233,8 @@ class _ForgeCompactRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = highlight ? FC.amberBright : FC.textPrimary;
+    final fc = FC.of(context);
+    final textColor = highlight ? fc.amberBright : fc.textPrimary;
     return Row(
       children: [
         SizedBox(
@@ -240,7 +243,7 @@ class _ForgeCompactRow extends StatelessWidget {
             label,
             style: TextStyle(
               fontFamily: 'monospace',
-              color: highlight ? FC.amberBright : FC.textSecondary,
+              color: highlight ? fc.amberBright : fc.textSecondary,
               fontSize: 11,
               fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
             ),
@@ -257,14 +260,14 @@ class _ForgeCompactRow extends StatelessWidget {
         ),
         if (isPrimary) ...[
           const SizedBox(width: 5),
-          const Icon(Icons.star, size: 9, color: FC.amber),
+          Icon(Icons.star, size: 9, color: fc.amber),
         ],
         const Spacer(),
         Text(
           sourceStat,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'monospace',
-            color: FC.textMuted,
+            color: fc.textMuted,
             fontSize: 10,
             fontStyle: FontStyle.italic,
           ),

@@ -257,7 +257,7 @@ class FilterDropdown extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.white.withOpacity(0.9), themeColor.withOpacity(0.9)],
+          colors: [Colors.white.withValues(alpha: 0.9), themeColor.withValues(alpha: 0.9)],
         ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: themeColor, width: 2),

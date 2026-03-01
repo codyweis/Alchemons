@@ -1,13 +1,10 @@
 // lib/widgets/creature_sprite.dart
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/utils/color_util.dart';
-import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
@@ -288,20 +285,6 @@ class _CreatureSpriteState extends State<CreatureSprite>
   }
 }
 
-class _LoadingIndicator extends StatelessWidget {
-  const _LoadingIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: SizedBox.square(
-        dimension: 16,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
-    );
-  }
-}
-
 class InstanceSprite extends StatelessWidget {
   final Creature creature;
   final CreatureInstance instance;
@@ -421,11 +404,6 @@ String? _tryGetString(CreatureInstance inst, String field) {
   } catch (_) {
     return null;
   }
-}
-
-// Tiny extension to make the fold block cleaner (optional). Put near bottom or in a utils file.
-extension _LetExt<T> on T {
-  R let<R>(R Function(T it) block) => block(this);
 }
 
 // ── color math helpers ────────────────────────────────────

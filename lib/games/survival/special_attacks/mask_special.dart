@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
 import 'package:alchemons/games/survival/components/survival_attacks.dart';
@@ -9,7 +8,6 @@ import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
-import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 
 /// MASK FAMILY - TRAP FIELD MECHANIC (3-RANK VERSION)
@@ -169,7 +167,7 @@ class MaskTrapMechanic {
       position: position,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = color.withOpacity(0.3)
+        ..color = color.withValues(alpha: 0.3)
         ..style = PaintingStyle.fill,
     );
 
@@ -180,7 +178,7 @@ class MaskTrapMechanic {
         anchor: Anchor.center,
         position: Vector2(radius, radius),
         paint: Paint()
-          ..color = color.withOpacity(0.6)
+          ..color = color.withValues(alpha: 0.6)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
       ),
@@ -383,7 +381,7 @@ class MaskTrapMechanic {
       radius: radius * 0.8,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.deepOrange.withOpacity(0.25),
+      paint: Paint()..color = Colors.deepOrange.withValues(alpha: 0.25),
     );
 
     fireZone.add(
@@ -427,7 +425,7 @@ class MaskTrapMechanic {
       radius: radius * 0.7,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.orange.shade800.withOpacity(0.35),
+      paint: Paint()..color = Colors.orange.shade800.withValues(alpha: 0.35),
     );
 
     pool.add(
@@ -514,7 +512,7 @@ class MaskTrapMechanic {
       position: position,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.blue.shade300.withOpacity(0.3)
+        ..color = Colors.blue.shade300.withValues(alpha: 0.3)
         ..style = PaintingStyle.fill,
     );
 
@@ -524,7 +522,7 @@ class MaskTrapMechanic {
       position: Vector2(geyserRadius, geyserRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.cyan.withOpacity(0.4)
+        ..color = Colors.cyan.withValues(alpha: 0.4)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
@@ -705,7 +703,7 @@ class MaskTrapMechanic {
       radius: radius,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.cyanAccent.withOpacity(0.2),
+      paint: Paint()..color = Colors.cyanAccent.withValues(alpha: 0.2),
     );
 
     slowZone.add(
@@ -798,7 +796,7 @@ class MaskTrapMechanic {
       radius: radius,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.green.withOpacity(0.25),
+      paint: Paint()..color = Colors.green.withValues(alpha: 0.25),
     );
 
     rootZone.add(
@@ -857,7 +855,7 @@ class MaskTrapMechanic {
         radius: cloudRadius,
         position: position,
         anchor: Anchor.center,
-        paint: Paint()..color = Colors.purple.withOpacity(0.25),
+        paint: Paint()..color = Colors.purple.withValues(alpha: 0.25),
       );
 
       cloud.add(
@@ -950,7 +948,7 @@ class MaskTrapMechanic {
       radius: radius,
       position: position,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.brown.shade600.withOpacity(0.35),
+      paint: Paint()..color = Colors.brown.shade600.withValues(alpha: 0.35),
     );
 
     mudZone.add(
@@ -1047,7 +1045,7 @@ class MaskTrapMechanic {
       position: position,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.cyan.withOpacity(0.25)
+        ..color = Colors.cyan.withValues(alpha: 0.25)
         ..style = PaintingStyle.fill,
     );
 
@@ -1057,7 +1055,7 @@ class MaskTrapMechanic {
       position: Vector2(tornadoRadius, tornadoRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.cyan.withOpacity(0.4)
+        ..color = Colors.cyan.withValues(alpha: 0.4)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
@@ -1069,7 +1067,7 @@ class MaskTrapMechanic {
       position: Vector2(tornadoRadius, tornadoRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.white.withOpacity(0.3)
+        ..color = Colors.white.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
@@ -1189,7 +1187,7 @@ class MaskTrapMechanic {
       position: position,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.amber.shade300.withOpacity(0.35)
+        ..color = Colors.amber.shade300.withValues(alpha: 0.35)
         ..style = PaintingStyle.fill,
     );
 
@@ -1199,7 +1197,7 @@ class MaskTrapMechanic {
       position: Vector2(cloudRadius, cloudRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.amber.shade600.withOpacity(0.3)
+        ..color = Colors.amber.shade600.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4,
     );
@@ -1372,7 +1370,7 @@ class MaskTrapMechanic {
       position: position,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.deepPurple.withOpacity(0.3)
+        ..color = Colors.deepPurple.withValues(alpha: 0.3)
         ..style = PaintingStyle.fill,
     );
 
@@ -1382,7 +1380,7 @@ class MaskTrapMechanic {
       position: Vector2(radius * 0.5, radius * 0.5),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.purple.shade200.withOpacity(0.4)
+        ..color = Colors.purple.shade200.withValues(alpha: 0.4)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
@@ -1458,7 +1456,7 @@ class MaskTrapMechanic {
       position: startPosition,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.purple.shade200.withOpacity(0.7)
+        ..color = Colors.purple.shade200.withValues(alpha: 0.7)
         ..style = PaintingStyle.fill,
     );
 
@@ -1468,7 +1466,7 @@ class MaskTrapMechanic {
       position: Vector2(12, 12),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.white.withOpacity(0.5)
+        ..color = Colors.white.withValues(alpha: 0.5)
         ..style = PaintingStyle.fill,
     );
     ghost.add(ghostCore);
@@ -1596,7 +1594,7 @@ class MaskTrapMechanic {
       position: position,
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.deepPurple.shade900.withOpacity(0.5)
+        ..color = Colors.deepPurple.shade900.withValues(alpha: 0.5)
         ..style = PaintingStyle.fill,
     );
 
@@ -1606,7 +1604,7 @@ class MaskTrapMechanic {
       position: Vector2(voidRadius, voidRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.black.withOpacity(0.8)
+        ..color = Colors.black.withValues(alpha: 0.8)
         ..style = PaintingStyle.fill,
     );
     voidZone.add(voidCore);
@@ -1617,7 +1615,7 @@ class MaskTrapMechanic {
       position: Vector2(voidRadius, voidRadius),
       anchor: Anchor.center,
       paint: Paint()
-        ..color = Colors.purple.withOpacity(0.4)
+        ..color = Colors.purple.withValues(alpha: 0.4)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );

@@ -11,19 +11,20 @@ class OutcomeBadge extends StatelessWidget {
   final FactionTheme? theme;
   final Map<String, dynamic> report;
 
-  const OutcomeBadge({this.theme, required this.report});
+  const OutcomeBadge({super.key, this.theme, required this.report});
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final outcomeCategory = report['outcomeCategory'] as String? ?? 'Unknown';
-    final color = _outcomeColor(outcomeCategory);
+    final color = _outcomeColor(outcomeCategory, fc);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: color.withOpacity(0.45), width: 0.8),
+        border: Border.all(color: color.withValues(alpha: 0.45), width: 0.8),
       ),
       child: Text(
         outcomeCategory.toUpperCase(),
@@ -38,18 +39,18 @@ class OutcomeBadge extends StatelessWidget {
     );
   }
 
-  static Color _outcomeColor(String category) {
+  Color _outcomeColor(String category, FC fc) {
     switch (category) {
       case 'Expected':
-        return FC.success;
+        return fc.success;
       case 'Somewhat Unexpected':
-        return FC.teal;
+        return fc.teal;
       case 'Surprising':
-        return FC.amber;
+        return fc.amber;
       case 'Rare':
         return FC.purple;
       default:
-        return FC.textSecondary;
+        return fc.textSecondary;
     }
   }
 }
@@ -63,16 +64,18 @@ class OutcomeExplanation extends StatelessWidget {
   final FactionTheme? theme;
   final Map<String, dynamic> report;
 
-  const OutcomeExplanation({this.theme, required this.report});
+  const OutcomeExplanation({super.key, this.theme, required this.report});
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     final explanation = report['outcomeExplanation'] as String? ?? '';
     if (explanation.isEmpty) return const SizedBox.shrink();
 
     return Text(
       explanation,
-      style: FT.body.copyWith(fontSize: 11, height: 1.4),
+      style: ft.body.copyWith(fontSize: 11, height: 1.4),
     );
   }
 }

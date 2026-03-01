@@ -18,7 +18,6 @@ import 'package:alchemons/widgets/background/alchemical_particle_background.dart
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'database/alchemons_db.dart';
 import 'database/db_helper.dart';
@@ -36,6 +35,12 @@ import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Increase Flutter image cache to reduce sprite eviction when navigating
+  // between screens that load many creature assets.
+  PaintingBinding.instance.imageCache.maximumSizeBytes =
+      150 * 1024 * 1024; // 150 MB
+
   FlutterError.onError = (details) {
     FlutterError.dumpErrorToConsole(details);
   };
@@ -303,22 +308,24 @@ class _AppGateState extends State<AppGate> {
       final toPrecache = priorityIds.take(maxPrecache);
 
       int cached = 0;
-      for (final id in toPrecache) {
-        if (!mounted) break;
+      await Future.wait(
+        toPrecache.map((id) async {
+          if (!mounted) return;
 
-        final creature = catalog.getCreatureById(id);
-        if (creature?.spriteData == null) continue;
+          final creature = catalog.getCreatureById(id);
+          if (creature?.spriteData == null) return;
 
-        try {
-          await precacheImage(
-            AssetImage(creature!.spriteData!.spriteSheetPath),
-            context,
-          );
-          cached++;
-        } catch (e) {
-          debugPrint('Failed to precache sprite for $id: $e');
-        }
-      }
+          try {
+            await precacheImage(
+              AssetImage(creature!.spriteData!.spriteSheetPath),
+              context,
+            );
+            cached++;
+          } catch (e) {
+            debugPrint('Failed to precache sprite for $id: $e');
+          }
+        }),
+      );
 
       debugPrint(
         '🐉 Precached $cached creature sprites (${ownedIds.length} owned, ${discoveredIds.length} discovered)',
@@ -370,11 +377,11 @@ class _AppGateState extends State<AppGate> {
     // Initialize from DB (loads active spawns & schedules; creates schedules if missing)
     await spawnService.initializeActiveSpawns(scenes: scenes);
 
-    // Reset any existing long-wait timers to use the new window
-    await spawnService.rescheduleAllScenes();
-
-    // (Optional) Fire once so any overdue scenes materialize immediately
-    await spawnService.processDueScenes(scenes);
+    // Reset any existing long-wait timers and fire overdue scenes — independent, run in parallel
+    await Future.wait([
+      spawnService.rescheduleAllScenes(),
+      spawnService.processDueScenes(scenes),
+    ]);
 
     // Start the background tick owned by the service (default: 10s)
     spawnService.startTick(

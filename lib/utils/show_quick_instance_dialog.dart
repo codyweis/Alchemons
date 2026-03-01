@@ -25,7 +25,7 @@ Future<void> showQuickInstanceDialog({
 
   await showDialog(
     context: context,
-    barrierColor: Colors.black.withOpacity(.8),
+    barrierColor: Colors.black.withValues(alpha: .8),
     builder: (ctx) {
       final db = ctx.read<AlchemonsDatabase>();
 
@@ -57,7 +57,7 @@ Future<void> showQuickInstanceDialog({
         decoration: BoxDecoration(
           color: t.bg2,
           borderRadius: BorderRadius.circular(2),
-          border: Border.all(color: color.withOpacity(.35), width: 1),
+          border: Border.all(color: color.withValues(alpha: .35), width: 1),
         ),
         child: Row(
           children: [
@@ -92,7 +92,7 @@ Future<void> showQuickInstanceDialog({
         decoration: BoxDecoration(
           color: t.bg2,
           borderRadius: BorderRadius.circular(2),
-          border: Border.all(color: color.withOpacity(.4), width: 1),
+          border: Border.all(color: color.withValues(alpha: .4), width: 1),
         ),
         child: Row(
           children: [
@@ -124,12 +124,12 @@ Future<void> showQuickInstanceDialog({
             border: Border.all(color: t.borderAccent, width: 1),
             boxShadow: [
               BoxShadow(
-                color: t.amber.withOpacity(.12),
+                color: t.amber.withValues(alpha: .12),
                 blurRadius: 32,
                 spreadRadius: 4,
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(.85),
+                color: Colors.black.withValues(alpha: .85),
                 blurRadius: 48,
                 spreadRadius: 20,
               ),
@@ -276,7 +276,7 @@ Future<void> showQuickInstanceDialog({
                                         vertical: 3,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: t.amberDim.withOpacity(.3),
+                                        color: t.amberDim.withValues(alpha: .3),
                                         borderRadius: BorderRadius.circular(2),
                                         border: Border.all(
                                           color: t.borderAccent,
@@ -388,7 +388,7 @@ Future<void> showQuickInstanceDialog({
                                   vertical: 9,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: t.amberDim.withOpacity(.15),
+                                  color: t.amberDim.withValues(alpha: .15),
                                   borderRadius: BorderRadius.circular(2),
                                   border: Border.all(
                                     color: t.borderAccent,
@@ -396,7 +396,7 @@ Future<void> showQuickInstanceDialog({
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: t.amber.withOpacity(.08),
+                                      color: t.amber.withValues(alpha: .08),
                                       blurRadius: 10,
                                     ),
                                   ],

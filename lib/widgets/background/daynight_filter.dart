@@ -31,7 +31,7 @@ class DayNightFilter extends StatelessWidget {
       colorFilter: ColorFilter.matrix(_brightnessMatrix(luma)),
       child: ShaderMask(
         shaderCallback: (rect) {
-          final c = tint.withOpacity(0.35 * t); // feel free to tweak
+          final c = tint.withValues(alpha: 0.35 * t); // feel free to tweak
           return LinearGradient(colors: [c, c]).createShader(rect);
         },
         blendMode: BlendMode.multiply,

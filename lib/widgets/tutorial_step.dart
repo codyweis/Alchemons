@@ -7,7 +7,7 @@ class TutorialStep extends StatelessWidget {
   final String title;
   final String body;
 
-  const TutorialStep({
+  const TutorialStep({super.key, 
     required this.theme,
     required this.icon,
     required this.title,

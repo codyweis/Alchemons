@@ -1,11 +1,9 @@
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 class FeaturedCreaturePresentation extends StatelessWidget {
@@ -54,7 +52,7 @@ class FeaturedCreaturePresentation extends StatelessWidget {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: theme.accent.withOpacity(0.45),
+                        color: theme.accent.withValues(alpha: 0.45),
                         blurRadius: 40,
                         spreadRadius: 8,
                       ),

@@ -97,19 +97,19 @@ class _StorageSectionState extends State<StorageSection> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(1) : color.withOpacity(0.15),
+          color: isSelected ? color.withValues(alpha: 1) : color.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
-                ? color.withOpacity(0.6)
-                : Colors.white.withOpacity(0.15),
+                ? color.withValues(alpha: 0.6)
+                : Colors.white.withValues(alpha: 0.15),
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.white.withOpacity(0.7),
+            color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.7),
             fontSize: 10,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.5,
@@ -127,15 +127,15 @@ class _StorageSectionState extends State<StorageSection> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(.15),
+            color: Colors.black.withValues(alpha: .15),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(.15)),
+            border: Border.all(color: Colors.white.withValues(alpha: .15)),
           ),
           child: Row(
             children: [
               Icon(
                 Icons.inventory_2_outlined,
-                color: Colors.white.withOpacity(.4),
+                color: Colors.white.withValues(alpha: .4),
                 size: 20,
               ),
               const SizedBox(width: 12),
@@ -214,7 +214,7 @@ class StorageEggCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: skin.frameEnd.withOpacity(0.25),
+              color: skin.frameEnd.withValues(alpha: 0.25),
               blurRadius: 16,
               spreadRadius: 1,
             ),
@@ -233,8 +233,8 @@ class StorageEggCard extends StatelessWidget {
                       radius: 1.0,
                       colors: [
                         skin.fill,
-                        Colors.black.withOpacity(0.08),
-                        Colors.black.withOpacity(0.18),
+                        Colors.black.withValues(alpha: 0.08),
+                        Colors.black.withValues(alpha: 0.18),
                       ],
                       stops: const [0.2, 0.7, 1.0],
                     ),
@@ -356,7 +356,7 @@ class _ProgressBadge extends StatelessWidget {
                 value: 1,
                 strokeWidth: stroke,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  Colors.white.withOpacity(0.12),
+                  Colors.white.withValues(alpha: 0.12),
                 ),
                 backgroundColor: Colors.transparent,
               ),
@@ -398,7 +398,7 @@ class _ProgressBadge extends StatelessWidget {
                 Text(
                   percentLeft != null ? 'left' : 'remaining',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.4,
@@ -428,10 +428,8 @@ class EggDetailsModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skin = elementGroup.skin;
-    final rarity = payload['rarity'] as String? ?? 'Common';
     final generation =
         (payload['lineage'] as Map?)?['generationDepth'] as int? ?? 0;
-    final isPure = (payload['lineage'] as Map?)?['isPure'] as bool? ?? false;
     final source = payload['source'] as String? ?? 'unknown';
 
     return Container(
@@ -451,7 +449,7 @@ class EggDetailsModal extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -492,7 +490,7 @@ class EggDetailsModal extends StatelessWidget {
                             Text(
                               '${elementGroup.displayName} • Gen $generation',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
+                                color: Colors.white.withValues(alpha: 0.6),
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -508,10 +506,10 @@ class EggDetailsModal extends StatelessWidget {
                       //       vertical: 6,
                       //     ),
                       //     decoration: BoxDecoration(
-                      //       color: elementGroup.color.withOpacity(0.2),
+                      //       color: elementGroup.color.withValues(alpha: 0.2),
                       //       borderRadius: BorderRadius.circular(8),
                       //       border: Border.all(
-                      //         color: elementGroup.color.withOpacity(0.4),
+                      //         color: elementGroup.color.withValues(alpha: 0.4),
                       //       ),
                       //     ),
                       //     child: Row(
@@ -587,7 +585,7 @@ class EggDetailsModal extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: skin.frameEnd.withOpacity(0.4),
+            color: skin.frameEnd.withValues(alpha: 0.4),
             blurRadius: 24,
             spreadRadius: 2,
           ),
@@ -606,8 +604,8 @@ class EggDetailsModal extends StatelessWidget {
                     radius: 1.0,
                     colors: [
                       skin.fill,
-                      Colors.black.withOpacity(0.08),
-                      Colors.black.withOpacity(0.18),
+                      Colors.black.withValues(alpha: 0.08),
+                      Colors.black.withValues(alpha: 0.18),
                     ],
                     stops: const [0.2, 0.7, 1.0],
                   ),
@@ -635,7 +633,7 @@ class EggDetailsModal extends StatelessWidget {
               child: Text(
                 'Time Left: ${_fmtShort(Duration(milliseconds: egg.remainingMs))}',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
@@ -654,7 +652,7 @@ class EggDetailsModal extends StatelessWidget {
         Text(
           label.toUpperCase(),
           style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
             fontSize: 11,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
@@ -688,7 +686,7 @@ class EggDetailsModal extends StatelessWidget {
         Text(
           'PARENTS',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
             fontSize: 11,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
@@ -701,9 +699,9 @@ class EggDetailsModal extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 ),
                 child: Text(
                   nameA,
@@ -720,16 +718,16 @@ class EggDetailsModal extends StatelessWidget {
               child: Icon(
                 Icons.close,
                 size: 16,
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
               ),
             ),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 ),
                 child: Text(
                   nameB,
@@ -747,78 +745,6 @@ class EggDetailsModal extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsSection(Map<String, dynamic> payload) {
-    final stats = payload['stats'] as Map?;
-    if (stats == null) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'STATS',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-          ),
-        ),
-        const SizedBox(height: 8),
-        _buildStatBar('Speed', stats['speed'] as num? ?? 0),
-        const SizedBox(height: 6),
-        _buildStatBar('Intelligence', stats['intelligence'] as num? ?? 0),
-        const SizedBox(height: 6),
-        _buildStatBar('Strength', stats['strength'] as num? ?? 0),
-        const SizedBox(height: 6),
-        _buildStatBar('Beauty', stats['beauty'] as num? ?? 0),
-      ],
-    );
-  }
-
-  Widget _buildStatBar(String label, num value) {
-    final percentage = (value / 3.0).clamp(0.0, 1.0);
-
-    return Row(
-      children: [
-        SizedBox(
-          width: 100,
-          child: Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: percentage,
-              backgroundColor: Colors.white.withOpacity(0.1),
-              valueColor: AlwaysStoppedAnimation(elementGroup.color),
-              minHeight: 8,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 40,
-          child: Text(
-            value.toStringAsFixed(1),
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildActionButton({
     required BuildContext context,
     required String label,
@@ -831,11 +757,11 @@ class EggDetailsModal extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [color, color.withOpacity(0.8)]),
+          gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.8)]),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.3),
+              color: color.withValues(alpha: 0.3),
               blurRadius: 12,
               spreadRadius: 1,
             ),
@@ -867,9 +793,9 @@ class EggDetailsModal extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.15),
+          color: Colors.red.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.red.withOpacity(0.3)),
+          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
         ),
         child: const Icon(Icons.delete_outline, color: Colors.red, size: 24),
       ),
@@ -962,7 +888,7 @@ class EggDetailsModal extends StatelessWidget {
             child: Text(
               'CANCEL',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 fontWeight: FontWeight.w700,
               ),
             ),

@@ -9,7 +9,6 @@
 import 'dart:convert';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
-import 'package:alchemons/widgets/survival_specs_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/components.dart';
@@ -18,7 +17,6 @@ import 'package:alchemons/widgets/creature_detail/detail_helper_widgets.dart';
 import 'package:alchemons/widgets/creature_detail/lineage_block_widget.dart';
 import 'package:alchemons/widgets/creature_detail/outcome_widget.dart';
 import 'package:alchemons/widgets/creature_detail/parent_display_widget.dart';
-import 'package:alchemons/widgets/creature_detail/section_block.dart';
 import 'package:alchemons/widgets/creature_detail/stats_potential_widget.dart';
 import 'package:alchemons/widgets/creature_detail/unknow_helper.dart';
 
@@ -41,55 +39,55 @@ import '../../models/creature.dart';
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _C {
-  static const bg0 = Color(0xFF080A0E);
-  static const bg1 = Color(0xFF0E1117);
-  static const bg2 = Color(0xFF141820);
-  static const bg3 = Color(0xFF1C2230);
+  _C(FactionTheme theme) : _t = ForgeTokens(theme);
+  final ForgeTokens _t;
+  static _C of(BuildContext context) => _C(context.read<FactionTheme>());
 
-  static const amber = Color(0xFFD97706);
-  static const amberBright = Color(0xFFF59E0B);
-  static const amberDim = Color(0xFF92400E);
-  static const amberGlow = Color(0xFFFFB020);
-
-  static const teal = Color(0xFF0EA5E9);
-  static const success = Color(0xFF16A34A);
-  static const danger = Color(0xFFC0392B);
-
-  static const textPrimary = Color(0xFFE8DCC8);
-  static const textSecondary = Color(0xFF8A7B6A);
-  static const textMuted = Color(0xFF4A3F35);
-
-  static const borderDim = Color(0xFF252D3A);
-  static const borderMid = Color(0xFF3A3020);
-  static const borderAccent = Color(0xFF6B4C20);
+  Color get bg0 => _t.bg0;
+  Color get bg1 => _t.bg1;
+  Color get bg2 => _t.bg2;
+  Color get bg3 => _t.bg3;
+  Color get amber => _t.amber;
+  Color get amberBright => _t.amberBright;
+  Color get amberDim => _t.amberDim;
+  Color get amberGlow => _t.amberGlow;
+  Color get teal => _t.teal;
+  Color get success => _t.success;
+  Color get danger => _t.danger;
+  Color get textPrimary => _t.textPrimary;
+  Color get textSecondary => _t.textSecondary;
+  Color get textMuted => _t.textMuted;
+  Color get borderDim => _t.borderDim;
+  Color get borderMid => _t.borderMid;
+  Color get borderAccent => _t.borderAccent;
 }
 
 class _T {
-  static const heading = TextStyle(
+  _T(this._c);
+  final _C _c;
+
+  TextStyle get heading => TextStyle(
     fontFamily: 'monospace',
-    color: _C.textPrimary,
+    color: _c.textPrimary,
     fontSize: 13,
     fontWeight: FontWeight.w700,
     letterSpacing: 2.0,
   );
 
-  static const label = TextStyle(
+  TextStyle get label => TextStyle(
     fontFamily: 'monospace',
-    color: _C.textSecondary,
+    color: _c.textSecondary,
     fontSize: 10,
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
   );
 
-  static const body = TextStyle(
-    color: _C.textSecondary,
-    fontSize: 12,
-    height: 1.5,
-  );
+  TextStyle get body =>
+      TextStyle(color: _c.textSecondary, fontSize: 12, height: 1.5);
 
-  static const sectionTitle = TextStyle(
+  TextStyle get sectionTitle => TextStyle(
     fontFamily: 'monospace',
-    color: _C.amberBright,
+    color: _c.amberBright,
     fontSize: 10,
     fontWeight: FontWeight.w800,
     letterSpacing: 2.0,
@@ -104,17 +102,22 @@ class _EtchedDivider extends StatelessWidget {
   final String? label;
   const _EtchedDivider({this.label});
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(child: Container(height: 1, color: _C.borderMid)),
-      if (label != null) ...[
-        const SizedBox(width: 10),
-        Text(label!, style: _T.label),
-        const SizedBox(width: 10),
+  @override
+  Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final t = _T(c);
+    return Row(
+      children: [
+        Expanded(child: Container(height: 1, color: c.borderMid)),
+        if (label != null) ...[
+          const SizedBox(width: 10),
+          Text(label!, style: t.label),
+          const SizedBox(width: 10),
+        ],
+        Expanded(child: Container(height: 1, color: c.borderMid)),
       ],
-      Expanded(child: Container(height: 1, color: _C.borderMid)),
-    ],
-  );
+    );
+  }
 }
 
 /// Flat analysis section — label + thin rule, no box or background
@@ -131,7 +134,9 @@ class _AnalysisSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentColor ?? _C.amber;
+    final c = _C.of(context);
+    final t = _T(c);
+    final accent = accentColor ?? c.amber;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -141,12 +146,12 @@ class _AnalysisSection extends StatelessWidget {
             const SizedBox(width: 7),
             Text(
               title.toUpperCase(),
-              style: _T.sectionTitle.copyWith(color: accent),
+              style: t.sectionTitle.copyWith(color: accent),
             ),
           ],
         ),
         const SizedBox(height: 2),
-        Container(height: 1, color: _C.borderDim),
+        Container(height: 1, color: c.borderDim),
         const SizedBox(height: 8),
         child,
       ],
@@ -173,9 +178,9 @@ class _TagBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.12),
+      color: color.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(2),
-      border: Border.all(color: color.withOpacity(0.45), width: 0.8),
+      border: Border.all(color: color.withValues(alpha: 0.45), width: 0.8),
     ),
     child: Text(
       label.toUpperCase(),
@@ -197,24 +202,32 @@ class _DataRow extends StatelessWidget {
   final Color? valueColor;
   const _DataRow({required this.label, required this.value, this.valueColor});
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(width: 130, child: Text(label.toUpperCase(), style: _T.label)),
-        Expanded(
-          child: Text(
-            value,
-            style: _T.body.copyWith(
-              color: valueColor ?? _C.textPrimary,
-              fontSize: 11,
+  @override
+  Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final t = _T(c);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(label.toUpperCase(), style: t.label),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: t.body.copyWith(
+                color: valueColor ?? c.textPrimary,
+                fontSize: 11,
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 /// Forge-style section container with etched header
@@ -231,12 +244,14 @@ class _ForgeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentColor ?? _C.amber;
+    final c = _C.of(context);
+    final t = _T(c);
+    final accent = accentColor ?? c.amber;
     return Container(
       decoration: BoxDecoration(
-        color: _C.bg2,
+        color: c.bg2,
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: _C.borderDim),
+        border: Border.all(color: c.borderDim),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,11 +260,11 @@ class _ForgeSection extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: _C.bg3,
+              color: c.bg3,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(2),
               ),
-              border: Border(bottom: BorderSide(color: _C.borderDim)),
+              border: Border(bottom: BorderSide(color: c.borderDim)),
             ),
             child: Row(
               children: [
@@ -261,7 +276,7 @@ class _ForgeSection extends StatelessWidget {
                 ),
                 Text(
                   title.toUpperCase(),
-                  style: _T.sectionTitle.copyWith(color: accent),
+                  style: t.sectionTitle.copyWith(color: accent),
                 ),
               ],
             ),
@@ -276,7 +291,7 @@ class _ForgeSection extends StatelessWidget {
 class _ScanlinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withOpacity(0.06);
+    final p = Paint()..color = Colors.black.withValues(alpha: 0.06);
     for (double y = 0; y < size.height; y += 3) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
     }
@@ -316,7 +331,7 @@ class CreatureDetailsDialog extends StatefulWidget {
   }) async {
     await showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.82),
+      barrierColor: Colors.black.withValues(alpha: 0.82),
       builder: (context) => CreatureDetailsDialog(
         creature: creature,
         isDiscovered: isDiscovered || instanceId != null,
@@ -375,8 +390,9 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
       _instance = row;
       _instanceLevel = row.level;
       final base = repo.getCreatureById(row.baseId);
-      if (base == null)
+      if (base == null) {
         throw Exception('Catalog creature ${row.baseId} not loaded');
+      }
       _effectiveCreature = _hydrateCatalogCreature(base, row, repo);
     } catch (_) {
       // fall back to base creature
@@ -426,6 +442,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   }
 
   Future<void> _toggleLock() async {
+    final c = _C.of(context);
     final i = _instance;
     if (i == null) return;
     final db = context.read<AlchemonsDatabase>();
@@ -436,15 +453,45 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
       SnackBar(
         content: Text(
           !i.locked ? 'SPECIMEN LOCKED' : 'SPECIMEN UNLOCKED',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'monospace',
-            color: _C.bg0,
+            color: c.bg0,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.0,
             fontSize: 11,
           ),
         ),
-        backgroundColor: _C.amber,
+        backgroundColor: c.amber,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+        duration: const Duration(milliseconds: 1200),
+      ),
+    );
+  }
+
+  Future<void> _toggleFavorite() async {
+    final c = _C.of(context);
+    final i = _instance;
+    if (i == null) return;
+    final db = context.read<AlchemonsDatabase>();
+    await db.creatureDao.setFavorite(i.instanceId, !i.isFavorite);
+    await _hydrateFromInstance(i.instanceId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          !i.isFavorite ? 'ADDED TO FAVORITES' : 'REMOVED FROM FAVORITES',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: c.bg0,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+            fontSize: 11,
+          ),
+        ),
+        backgroundColor: !i.isFavorite
+            ? const Color(0xFFE91E63)
+            : c.textSecondary,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
         duration: const Duration(milliseconds: 1200),
@@ -453,6 +500,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   }
 
   Future<void> _editNickname() async {
+    final c = _C.of(context);
     final i = _instance;
     if (i == null) return;
 
@@ -472,15 +520,15 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
       SnackBar(
         content: Text(
           normalized == null ? 'DESIGNATION CLEARED' : 'DESIGNATION SAVED',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'monospace',
-            color: _C.bg0,
+            color: c.bg0,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.0,
             fontSize: 11,
           ),
         ),
-        backgroundColor: _C.success,
+        backgroundColor: c.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
         duration: const Duration(milliseconds: 1200),
@@ -504,6 +552,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     required bool hydrating,
     required CreatureInstance? instance,
   }) {
+    final c = _C.of(context);
     final discovered = widget.isDiscovered;
 
     return Dialog(
@@ -513,17 +562,17 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
         width: MediaQuery.of(context).size.width,
         height: MediaQuery.of(context).size.height * 0.88,
         decoration: BoxDecoration(
-          color: _C.bg1,
+          color: c.bg1,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: _C.borderAccent, width: 1.5),
+          border: Border.all(color: c.borderAccent, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: _C.amber.withOpacity(0.08),
+              color: c.amber.withValues(alpha: 0.08),
               blurRadius: 32,
               spreadRadius: 2,
             ),
             BoxShadow(
-              color: Colors.black.withOpacity(0.7),
+              color: Colors.black.withValues(alpha: 0.7),
               blurRadius: 40,
               offset: const Offset(0, 12),
             ),
@@ -539,6 +588,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
               onClose: () => Navigator.of(context).pop(),
               onToggleLock: instance == null ? null : _toggleLock,
               onEditNickname: instance == null ? null : _editNickname,
+              onToggleFavorite: instance == null ? null : _toggleFavorite,
             ),
             if (discovered) _TabSelector(tabController: _tabController),
             Expanded(
@@ -627,16 +677,18 @@ class _NicknameDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final t = _T(c);
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 320),
         decoration: BoxDecoration(
-          color: _C.bg1,
+          color: c.bg1,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: _C.borderAccent),
+          border: Border.all(color: c.borderAccent),
           boxShadow: [
-            BoxShadow(color: _C.amber.withOpacity(0.10), blurRadius: 20),
+            BoxShadow(color: c.amber.withValues(alpha: 0.10), blurRadius: 20),
           ],
         ),
         padding: const EdgeInsets.all(16),
@@ -649,38 +701,38 @@ class _NicknameDialog extends StatelessWidget {
                 Container(
                   width: 3,
                   height: 14,
-                  color: _C.amber,
+                  color: c.amber,
                   margin: const EdgeInsets.only(right: 8),
                 ),
-                const Text('SET DESIGNATION', style: _T.heading),
+                Text('SET DESIGNATION', style: t.heading),
               ],
             ),
             const SizedBox(height: 14),
             Container(
               decoration: BoxDecoration(
-                color: _C.bg2,
+                color: c.bg2,
                 borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: _C.borderDim),
+                border: Border.all(color: c.borderDim),
               ),
               child: TextField(
                 controller: controller,
                 maxLength: 24,
                 autofocus: true,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'monospace',
-                  color: _C.textPrimary,
+                  color: c.textPrimary,
                   fontSize: 13,
                   letterSpacing: 0.5,
                 ),
                 decoration: InputDecoration(
                   hintText: 'NICKNAME  (BLANK TO CLEAR)',
-                  hintStyle: _T.label.copyWith(letterSpacing: 0.8),
+                  hintStyle: t.label.copyWith(letterSpacing: 0.8),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 12,
                   ),
-                  counterStyle: _T.label.copyWith(fontSize: 9),
+                  counterStyle: t.label.copyWith(fontSize: 9),
                 ),
               ),
             ),
@@ -721,31 +773,34 @@ class _SmallButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      height: 38,
-      decoration: BoxDecoration(
-        color: secondary ? Colors.transparent : _C.amber,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(
-          color: secondary ? _C.borderAccent.withOpacity(0.6) : _C.amber,
+  Widget build(BuildContext context) {
+    final c = _C.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 38,
+        decoration: BoxDecoration(
+          color: secondary ? Colors.transparent : c.amber,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: secondary ? c.borderAccent.withValues(alpha: 0.6) : c.amber,
+          ),
         ),
-      ),
-      child: Center(
-        child: Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.6,
-            color: secondary ? _C.textSecondary : _C.bg0,
+        child: Center(
+          child: Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.6,
+              color: secondary ? c.textSecondary : c.bg0,
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -759,6 +814,7 @@ class _HeaderBar extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback? onToggleLock;
   final VoidCallback? onEditNickname;
+  final VoidCallback? onToggleFavorite;
 
   const _HeaderBar({
     required this.creature,
@@ -767,9 +823,10 @@ class _HeaderBar extends StatelessWidget {
     this.instance,
     this.onToggleLock,
     this.onEditNickname,
+    this.onToggleFavorite,
   });
 
-  Color _rarityColor(String rarity) {
+  Color _rarityColor(String rarity, _C c) {
     switch (rarity.toLowerCase()) {
       case 'legendary':
         return const Color(0xFFFFB020);
@@ -778,21 +835,23 @@ class _HeaderBar extends StatelessWidget {
       case 'uncommon':
         return const Color(0xFF34D399);
       default:
-        return _C.textSecondary;
+        return c.textSecondary;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final t = _T(c);
     final hasNickname = instance?.nickname?.trim().isNotEmpty == true;
     final displayName = hasNickname ? instance!.nickname! : creature.name;
-    final rarityColor = _rarityColor(creature.rarity);
+    final rarityColor = _rarityColor(creature.rarity, c);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: _C.bg2,
-        border: Border(bottom: BorderSide(color: _C.borderDim)),
+        color: c.bg2,
+        border: Border(bottom: BorderSide(color: c.borderDim)),
       ),
       child: Row(
         children: [
@@ -811,9 +870,9 @@ class _HeaderBar extends StatelessWidget {
                           displayName.toUpperCase(),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'monospace',
-                            color: _C.textPrimary,
+                            color: c.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 2.0,
@@ -822,11 +881,7 @@ class _HeaderBar extends StatelessWidget {
                       ),
                       if (instance != null) ...[
                         const SizedBox(width: 6),
-                        const Icon(
-                          Icons.edit_rounded,
-                          color: _C.textMuted,
-                          size: 11,
-                        ),
+                        Icon(Icons.edit_rounded, color: c.textMuted, size: 11),
                       ],
                     ],
                   ),
@@ -838,8 +893,8 @@ class _HeaderBar extends StatelessWidget {
                     if (hasNickname) ...[
                       Text(
                         creature.name.toUpperCase(),
-                        style: _T.label.copyWith(
-                          color: _C.textMuted,
+                        style: t.label.copyWith(
+                          color: c.textMuted,
                           fontSize: 9,
                         ),
                       ),
@@ -852,7 +907,7 @@ class _HeaderBar extends StatelessWidget {
                         .map(
                           (t) => Padding(
                             padding: const EdgeInsets.only(right: 6),
-                            child: _TagBadge(label: t, color: _C.teal),
+                            child: _TagBadge(label: t, color: c.teal),
                           ),
                         ),
                   ],
@@ -873,15 +928,15 @@ class _HeaderBar extends StatelessWidget {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: _C.amberDim.withOpacity(0.35),
+                    color: c.amberDim.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: _C.borderAccent),
+                    border: Border.all(color: c.borderAccent),
                   ),
                   child: Text(
                     'LV $level',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
-                      color: _C.amberBright,
+                      color: c.amberBright,
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.8,
@@ -890,28 +945,55 @@ class _HeaderBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
               ],
-              // Lock
+              // Favorite + Lock
               if (instance != null) ...[
+                GestureDetector(
+                  onTap: onToggleFavorite,
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: instance!.isFavorite
+                          ? const Color(0xFFE91E63).withValues(alpha: 0.2)
+                          : c.bg3,
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: instance!.isFavorite
+                            ? const Color(0xFFE91E63).withValues(alpha: 0.6)
+                            : c.borderDim,
+                      ),
+                    ),
+                    child: Icon(
+                      instance!.isFavorite
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: instance!.isFavorite
+                          ? const Color(0xFFE91E63)
+                          : c.textMuted,
+                      size: 15,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
                 GestureDetector(
                   onTap: onToggleLock,
                   child: Container(
                     padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
                       color: instance!.locked
-                          ? _C.amberDim.withOpacity(0.3)
-                          : _C.bg3,
+                          ? c.amberDim.withValues(alpha: 0.3)
+                          : c.bg3,
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
                         color: instance!.locked
-                            ? _C.borderAccent
-                            : _C.borderDim,
+                            ? c.borderAccent
+                            : c.borderDim,
                       ),
                     ),
                     child: Icon(
                       instance!.locked
                           ? Icons.lock_rounded
                           : Icons.lock_open_rounded,
-                      color: instance!.locked ? _C.amberBright : _C.textMuted,
+                      color: instance!.locked ? c.amberBright : c.textMuted,
                       size: 15,
                     ),
                   ),
@@ -924,13 +1006,13 @@ class _HeaderBar extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(7),
                   decoration: BoxDecoration(
-                    color: _C.bg3,
+                    color: c.bg3,
                     borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: _C.borderDim),
+                    border: Border.all(color: c.borderDim),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.close_rounded,
-                    color: _C.textSecondary,
+                    color: c.textSecondary,
                     size: 16,
                   ),
                 ),
@@ -953,21 +1035,22 @@ class _TabSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: _C.bg2,
-        border: Border(bottom: BorderSide(color: _C.borderDim)),
+        color: c.bg2,
+        border: Border(bottom: BorderSide(color: c.borderDim)),
       ),
       child: TabBar(
         controller: tabController,
         indicator: BoxDecoration(
-          color: _C.bg3,
-          border: Border(bottom: BorderSide(color: _C.amberBright, width: 2)),
+          color: c.bg3,
+          border: Border(bottom: BorderSide(color: c.amberBright, width: 2)),
         ),
         indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: Colors.transparent,
-        labelColor: _C.amberBright,
-        unselectedLabelColor: _C.textMuted,
+        labelColor: c.amberBright,
+        unselectedLabelColor: c.textMuted,
         labelStyle: const TextStyle(
           fontFamily: 'monospace',
           fontWeight: FontWeight.w800,
@@ -998,28 +1081,33 @@ class _LockedTabPlaceholder extends StatelessWidget {
   final String message;
   const _LockedTabPlaceholder({required this.message});
   @override
-  Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _C.bg2,
-            borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: _C.borderDim),
+  @override
+  Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final t = _T(c);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: c.bg2,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: c.borderDim),
+            ),
+            child: Icon(
+              Icons.lock_outline_rounded,
+              color: c.textMuted,
+              size: 28,
+            ),
           ),
-          child: const Icon(
-            Icons.lock_outline_rounded,
-            color: _C.textMuted,
-            size: 28,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(message, style: _T.label.copyWith(color: _C.textMuted)),
-      ],
-    ),
-  );
+          const SizedBox(height: 12),
+          Text(message, style: t.label.copyWith(color: c.textMuted)),
+        ],
+      ),
+    );
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1048,6 +1136,7 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
@@ -1055,15 +1144,15 @@ class _OverviewTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ── Sprite hero ─────────────────────────────────────────────────────
-          _buildSpriteHero(),
+          _buildSpriteHero(c),
           const SizedBox(height: 20),
 
           // ── Specimen status (instance only) ─────────────────────────────────
           if (instance != null) ...[
             _ForgeSection(
               title: 'Specimen Status',
-              accentColor: _C.success,
-              child: _buildSpecimenStatus(),
+              accentColor: c.success,
+              child: _buildSpecimenStatus(c),
             ),
             const SizedBox(height: 10),
             _ForgeSection(
@@ -1126,7 +1215,7 @@ class _OverviewTab extends StatelessWidget {
           if (instance != null) ...[
             _ForgeSection(
               title: 'Physical Attributes',
-              accentColor: _C.amberBright,
+              accentColor: c.amberBright,
               child: Column(
                 children: [
                   _StatBar(label: 'Speed', value: instance!.statSpeed),
@@ -1146,7 +1235,7 @@ class _OverviewTab extends StatelessWidget {
           if (creature.specialBreeding != null) ...[
             _ForgeSection(
               title: 'Synthesis Requirements',
-              accentColor: _C.danger,
+              accentColor: c.danger,
               child: Column(
                 children: [
                   _DataRow(
@@ -1168,16 +1257,16 @@ class _OverviewTab extends StatelessWidget {
     );
   }
 
-  Widget _buildSpriteHero() {
+  Widget _buildSpriteHero(_C c) {
     return Stack(
       children: [
         // Background plate with scanlines
         Container(
           height: 210,
           decoration: BoxDecoration(
-            color: _C.bg2,
+            color: c.bg2,
             borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: _C.borderDim),
+            border: Border.all(color: c.borderDim),
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
@@ -1191,7 +1280,7 @@ class _OverviewTab extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
-                      colors: [_C.amber.withOpacity(0.12), Colors.transparent],
+                      colors: [c.amber.withValues(alpha: 0.12), Colors.transparent],
                     ),
                   ),
                 ),
@@ -1254,15 +1343,15 @@ class _OverviewTab extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: fColor.withOpacity(0.18),
+                    color: fColor.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(3),
                     border: Border.all(
-                      color: fColor.withOpacity(0.75),
+                      color: fColor.withValues(alpha: 0.75),
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: fColor.withOpacity(0.3),
+                        color: fColor.withValues(alpha: 0.3),
                         blurRadius: 10,
                         spreadRadius: 1,
                       ),
@@ -1293,14 +1382,14 @@ class _OverviewTab extends StatelessWidget {
     );
   }
 
-  Widget _buildSpecimenStatus() {
+  Widget _buildSpecimenStatus(_C c) {
     return Column(
       children: [
         if (instanceLevel != null)
           _DataRow(
             label: 'Level',
             value: '$instanceLevel',
-            valueColor: _C.amberBright,
+            valueColor: c.amberBright,
           ),
         _DataRow(
           label: 'Designation',
@@ -1311,7 +1400,7 @@ class _OverviewTab extends StatelessWidget {
         _DataRow(
           label: 'Security',
           value: instance!.locked ? 'Locked' : 'Unlocked',
-          valueColor: instance!.locked ? _C.amberBright : _C.textSecondary,
+          valueColor: instance!.locked ? c.amberBright : c.textSecondary,
         ),
         // Stamina inline row (uses existing widget, theme-adapted)
         StaminaInlineRow(
@@ -1348,6 +1437,7 @@ class _StaminaRestoreButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
     final db = context.read<AlchemonsDatabase>();
     return StreamBuilder<List<InventoryItem>>(
       stream: db.inventoryDao.watchItemInventory(),
@@ -1368,27 +1458,27 @@ class _StaminaRestoreButton extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: _C.amberDim.withOpacity(0.2),
+                color: c.amberDim.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(2),
-                border: Border.all(color: _C.borderAccent, width: 1),
+                border: Border.all(color: c.borderAccent, width: 1),
                 boxShadow: [
-                  BoxShadow(color: _C.amber.withOpacity(0.10), blurRadius: 10),
+                  BoxShadow(color: c.amber.withValues(alpha: 0.10), blurRadius: 10),
                 ],
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.local_drink_rounded,
-                    color: _C.amberBright,
+                    color: c.amberBright,
                     size: 14,
                   ),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'RESTORE STAMINA',
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: _C.amberBright,
+                        color: c.amberBright,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.4,
@@ -1401,15 +1491,15 @@ class _StaminaRestoreButton extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: _C.bg2,
+                      color: c.bg2,
                       borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: _C.borderAccent, width: 1),
+                      border: Border.all(color: c.borderAccent, width: 1),
                     ),
                     child: Text(
                       '×$qty',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
-                        color: _C.amber,
+                        color: c.amber,
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1476,17 +1566,19 @@ class _StatBar extends StatelessWidget {
 
   const _StatBar({required this.label, required this.value});
 
-  Color _barColor() {
+  Color _barColor(_C c) {
     final ratio = value / _maxStat;
-    if (ratio >= 0.7) return _C.success;
-    if (ratio >= 0.4) return _C.amberBright;
-    return _C.danger;
+    if (ratio >= 0.7) return c.success;
+    if (ratio >= 0.4) return c.amberBright;
+    return c.danger;
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final t = _T(c);
     final ratio = (value / _maxStat).clamp(0.0, 1.0);
-    final color = _barColor();
+    final color = _barColor(c);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1494,13 +1586,13 @@ class _StatBar extends StatelessWidget {
         children: [
           SizedBox(
             width: 110,
-            child: Text(label.toUpperCase(), style: _T.label),
+            child: Text(label.toUpperCase(), style: t.label),
           ),
           Expanded(
             child: Container(
               height: 4,
               decoration: BoxDecoration(
-                color: _C.bg3,
+                color: c.bg3,
                 borderRadius: BorderRadius.circular(2),
               ),
               child: FractionallySizedBox(
@@ -1511,7 +1603,7 @@ class _StatBar extends StatelessWidget {
                     color: color,
                     borderRadius: BorderRadius.circular(2),
                     boxShadow: [
-                      BoxShadow(color: color.withOpacity(0.4), blurRadius: 4),
+                      BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4),
                     ],
                   ),
                 ),
@@ -1543,7 +1635,6 @@ class _StatBar extends StatelessWidget {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _AnalysisTab extends StatelessWidget {
-  final FactionTheme? theme;
   final ScrollController controller;
   final Creature creature;
   final bool isInstance;
@@ -1554,7 +1645,6 @@ class _AnalysisTab extends StatelessWidget {
   final Parentage? parentage;
 
   const _AnalysisTab({
-    this.theme,
     required this.controller,
     required this.creature,
     required this.isInstance,
@@ -1567,7 +1657,8 @@ class _AnalysisTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fTheme = theme ?? context.read<FactionTheme>();
+    final fTheme = context.read<FactionTheme>();
+    final c = _C.of(context);
     final constellation = context.watch<ConstellationEffectsService>();
     final hasLineageAnalyzer = constellation.hasLineageAnalyzer();
     final hasGeneAnalyzer = constellation.hasGeneAnalyzer();
@@ -1602,7 +1693,7 @@ class _AnalysisTab extends StatelessWidget {
             hasPotentialAnalyzer
                 ? _AnalysisSection(
                     title: 'Stat Potentials',
-                    accentColor: _C.teal,
+                    accentColor: c.teal,
                     child: StatPotentialBlock(
                       theme: fTheme,
                       instanceId: instanceId!,
@@ -1622,7 +1713,7 @@ class _AnalysisTab extends StatelessWidget {
           if (isInstance && instance != null) ...[
             _AnalysisSection(
               title: 'Lineage',
-              accentColor: _C.teal,
+              accentColor: c.teal,
               child: LineageBlock(theme: fTheme, instance: instance!),
             ),
             const SizedBox(height: 18),
@@ -1686,18 +1777,23 @@ class _GatedContent extends StatelessWidget {
   final String message;
   const _GatedContent({required this.message});
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      const Icon(Icons.visibility_off_rounded, color: _C.textMuted, size: 14),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Text(
-          message,
-          style: _T.body.copyWith(fontSize: 11, fontStyle: FontStyle.italic),
+  @override
+  Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final t = _T(c);
+    return Row(
+      children: [
+        Icon(Icons.visibility_off_rounded, color: c.textMuted, size: 14),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            message,
+            style: t.body.copyWith(fontSize: 11, fontStyle: FontStyle.italic),
+          ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1714,6 +1810,7 @@ class _BehaviorBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
     final n = creature.nature;
     if (n == null) {
       return _DataRow(
@@ -1728,7 +1825,7 @@ class _BehaviorBlock extends StatelessWidget {
           _DataRow(
             label: 'Effects',
             value: 'Behavioral modifiers obscured.',
-            valueColor: _C.textMuted,
+            valueColor: c.textMuted,
           )
         else if (n.effect.modifiers.isNotEmpty)
           _DataRow(
@@ -1850,8 +1947,9 @@ class _BreedingAnalysisSection extends StatelessWidget {
       final db = context.read<AlchemonsDatabase>();
       final instance = await db.creatureDao.getInstance(instanceId);
       if (instance?.likelihoodAnalysisJson == null ||
-          instance!.likelihoodAnalysisJson!.isEmpty)
+          instance!.likelihoodAnalysisJson!.isEmpty) {
         return null;
+      }
       return jsonDecode(instance.likelihoodAnalysisJson!)
           as Map<String, dynamic>;
     } catch (_) {
@@ -1861,6 +1959,7 @@ class _BreedingAnalysisSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
     return FutureBuilder<Map<String, dynamic>?>(
       future: _loadReport(context),
       builder: (ctx, snap) {
@@ -1868,7 +1967,7 @@ class _BreedingAnalysisSection extends StatelessWidget {
           return _DataRow(
             label: 'Status',
             value: 'No breeding record — wild-caught or starter specimen',
-            valueColor: _C.textMuted,
+            valueColor: c.textMuted,
           );
         }
         final report = snap.data!;
@@ -1900,6 +1999,7 @@ class _SummaryBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
     final summaryLine = report['summaryLine'] as String? ?? '';
     if (summaryLine.isEmpty) return const SizedBox.shrink();
     final parts = summaryLine.split(':');
@@ -1907,15 +2007,15 @@ class _SummaryBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: _C.bg3,
+        color: c.bg3,
         borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: _C.borderDim),
+        border: Border.all(color: c.borderDim),
       ),
       child: Text(
         cross.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'monospace',
-          color: _C.textPrimary,
+          color: c.textPrimary,
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.8,
@@ -1955,35 +2055,37 @@ class _MechanicCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final t = _T(c);
     final category = mechanic['category'] as String? ?? '';
     final result = mechanic['result'] as String? ?? '';
     final mechanism = mechanic['mechanism'] as String? ?? '';
     final percentage = (mechanic['percentage'] as num?)?.toDouble() ?? 0.0;
     final likelihood = mechanic['likelihood'] as int? ?? 0;
-    final color = _likelihoodColor(likelihood);
+    final color = _likelihoodColor(likelihood, c);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: _C.bg3,
+          color: c.bg3,
           borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: _C.borderDim),
+          border: Border.all(color: c.borderDim),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(_categoryIcon(category), size: 13, color: _C.amberBright),
+                Icon(_categoryIcon(category), size: 13, color: c.amberBright),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     '$category: $result',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
-                      color: _C.textPrimary,
+                      color: c.textPrimary,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1995,10 +2097,10 @@ class _MechanicCard extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(2),
                     border: Border.all(
-                      color: color.withOpacity(0.4),
+                      color: color.withValues(alpha: 0.4),
                       width: 0.8,
                     ),
                   ),
@@ -2015,25 +2117,25 @@ class _MechanicCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 5),
-            Text(mechanism, style: _T.body.copyWith(fontSize: 10)),
+            Text(mechanism, style: t.body.copyWith(fontSize: 10)),
           ],
         ),
       ),
     );
   }
 
-  static Color _likelihoodColor(int l) {
+  static Color _likelihoodColor(int l, _C c) {
     switch (l) {
       case 3:
-        return _C.success;
+        return c.success;
       case 2:
-        return _C.teal;
+        return c.teal;
       case 1:
-        return _C.amberBright;
+        return c.amberBright;
       case 0:
         return const Color(0xFFA855F7);
       default:
-        return _C.textSecondary;
+        return c.textSecondary;
     }
   }
 
@@ -2065,6 +2167,8 @@ class _InheritedTraitsSimple extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final t = _T(c);
     final traits = analysis['traitJustifications'] as List? ?? [];
     if (traits.isEmpty) return const SizedBox.shrink();
 
@@ -2087,14 +2191,14 @@ class _InheritedTraitsSimple extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
-                    color: _C.amberDim.withOpacity(0.25),
+                    color: c.amberDim.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: _C.borderAccent, width: 0.8),
+                    border: Border.all(color: c.borderAccent, width: 0.8),
                   ),
                   child: Icon(
                     _MechanicCard._categoryIcon(category),
                     size: 11,
-                    color: _C.amberBright,
+                    color: c.amberBright,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -2104,16 +2208,16 @@ class _InheritedTraitsSimple extends StatelessWidget {
                     children: [
                       Text(
                         '$traitName: $actualValue',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'monospace',
-                          color: _C.textPrimary,
+                          color: c.textPrimary,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       Text(
                         mechanism,
-                        style: _T.body.copyWith(
+                        style: t.body.copyWith(
                           fontSize: 9,
                           fontStyle: FontStyle.italic,
                         ),

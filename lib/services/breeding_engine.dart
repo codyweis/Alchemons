@@ -390,11 +390,9 @@ class BreedingEngine {
     final factionA = elementalGroupNameOf(p1);
     final factionB = elementalGroupNameOf(p2);
 
-    final primaryElemChild = child.types.isNotEmpty ? child.types.first : null;
     final primaryElemA = p1.types.isNotEmpty ? p1.types.first : null;
     final primaryElemB = p2.types.isNotEmpty ? p2.types.first : null;
 
-    final famChild = _familyOf(child);
     final famA = _familyOf(p1);
     final famB = _familyOf(p2);
 
@@ -665,7 +663,7 @@ class BreedingEngine {
       mutationWeights[v.id] = 1.0;
     }
 
-    Map<String, double> _normalize(Map<String, double> src) {
+    Map<String, double> normalize(Map<String, double> src) {
       final total = src.values.fold<double>(0, (a, b) => a + b);
       if (total <= 0) {
         return src.map((k, v) => MapEntry(k, 0.0));
@@ -673,8 +671,8 @@ class BreedingEngine {
       return src.map((k, v) => MapEntry(k, v / total));
     }
 
-    final normInherit = _normalize(inheritWeights);
-    final normMut = _normalize(mutationWeights);
+    final normInherit = normalize(inheritWeights);
+    final normMut = normalize(mutationWeights);
 
     final blended = <String, double>{};
     final allKeys = {...normInherit.keys, ...normMut.keys};
@@ -746,16 +744,16 @@ class BreedingEngine {
 
     final parents = [p1.nature, p2.nature].whereType<NatureDef>().toList();
 
-    Map<String, double> _poolDom(List<NatureDef> pool) {
+    Map<String, double> poolDom(List<NatureDef> pool) {
       final m = <String, double>{};
       for (final n in pool) {
-        final dom = (n.dominance ?? 1).toDouble();
+        final dom = n.dominance.toDouble();
         m[n.id] = (m[n.id] ?? 0) + dom;
       }
       return m;
     }
 
-    final globalDom = _poolDom(NatureCatalog.all);
+    final globalDom = poolDom(NatureCatalog.all);
 
     if (parents.isEmpty) {
       return OutcomeDistribution<String>(globalDom);
@@ -787,7 +785,7 @@ class BreedingEngine {
     }
 
     // mixed parent natures:
-    final parentDom = _poolDom(parents);
+    final parentDom = poolDom(parents);
     final out = <String, double>{};
 
     final totalParentDom = parentDom.values.fold<double>(0, (a, b) => a + b);
@@ -847,14 +845,14 @@ class BreedingEngine {
       mutPool[v.id] = 1.0;
     }
 
-    Map<String, double> _normalize(Map<String, double> w) {
+    Map<String, double> normalize(Map<String, double> w) {
       final tot = w.values.fold<double>(0, (a, b) => a + b);
       if (tot <= 0) return w.map((k, v) => MapEntry(k, 0.0));
       return w.map((k, v) => MapEntry(k, v / tot));
     }
 
-    final normInherit = _normalize(biased);
-    final normMut = _normalize(mutPool);
+    final normInherit = normalize(biased);
+    final normMut = normalize(mutPool);
 
     final finalWeights = <String, double>{};
     for (final id in {...normInherit.keys, ...normMut.keys}) {
@@ -1541,11 +1539,6 @@ class BreedingEngine {
     return (j - i).abs() <= 1;
   }
 
-  bool _passesRequiredTypes(Creature c, Creature p1, Creature p2) {
-    // require offspring to share at least one element with a parent
-    return c.types.any((t) => p1.types.contains(t) || p2.types.contains(t));
-  }
-
   double _noise(Random r, double mean, double sigma) =>
       (r.nextDouble() * 2 - 1) * sigma + mean;
 
@@ -1753,7 +1746,7 @@ class ParentSnapshotFactory {
           strengthPotential: inst.statStrengthPotential,
           beautyPotential: inst.statBeautyPotential,
         ),
-        generationDepth: inst.generationDepth ?? 0,
+        generationDepth: inst.generationDepth,
         factionLineage: decodeLineage(inst.factionLineageJson),
         nativeFaction: 'Unknown',
         variantFaction: inst.variantFaction,
@@ -1771,7 +1764,7 @@ class ParentSnapshotFactory {
       types: base.types,
       rarity: base.rarity,
       image: base.image,
-      isPrismaticSkin: inst.isPrismaticSkin || (base.isPrismaticSkin ?? false),
+      isPrismaticSkin: inst.isPrismaticSkin || base.isPrismaticSkin,
       genetics: decodedGenetics ?? base.genetics,
       nature: (inst.natureId != null)
           ? NatureCatalog.byId(inst.natureId!)
@@ -1787,7 +1780,7 @@ class ParentSnapshotFactory {
         strengthPotential: inst.statStrengthPotential,
         beautyPotential: inst.statBeautyPotential,
       ),
-      generationDepth: inst.generationDepth ?? 0,
+      generationDepth: inst.generationDepth,
       factionLineage: decodeLineage(inst.factionLineageJson),
       nativeFaction: nativeFaction,
       variantFaction: inst.variantFaction,

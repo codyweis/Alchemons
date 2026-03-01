@@ -83,7 +83,6 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     ConstellationTree.extraction: Vector2(700, 400),
   };
 
-  double _currentScale = 1.0;
   double _baseScaleForGesture = 1.0;
   static const double _minScale = 0.2;
   static const double _maxScale = 2.0;
@@ -263,7 +262,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     final tempNodes = <String, SkillNode>{};
     const double ringSpacing = 150.0;
 
-    double _angleForSkill(ConstellationSkill skill) {
+    double angleForSkill(ConstellationSkill skill) {
       final id = skill.id;
       if (id.startsWith('combat_atk_')) return -math.pi / 2;
       if (id.startsWith('combat_int_')) return 0.0;
@@ -273,7 +272,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     }
 
     for (final skill in skills) {
-      final angle = _angleForSkill(skill);
+      final angle = angleForSkill(skill);
       final radius = skill.tier * ringSpacing;
       final localPos = Vector2(
         math.cos(angle) * radius,
@@ -388,7 +387,6 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
   @override
   void onScaleEnd(ScaleEndInfo info) {
-    _currentScale = camera.viewfinder.zoom;
     _lastFocalPoint = null;
   }
 
@@ -409,7 +407,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       final skill = ConstellationCatalog.byId(skillId);
       if (skill != null) {
         for (final prereqId in skill.prerequisites) {
-          final connectionKey = '${prereqId}_${skillId}';
+          final connectionKey = '${prereqId}_$skillId';
           final connection = _connections[connectionKey];
           if (connection != null) {
             connection.animateActivation();
@@ -470,7 +468,6 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     camera.viewfinder.position = centerPosition;
     camera.viewfinder.zoom = 0.4;
-    _currentScale = 0.4;
 
     final sprite = await Sprite.load('ui/constellationbackgroundimg.png');
     final originalWidth = sprite.originalSize.x;
@@ -531,7 +528,6 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     );
 
     await Future.delayed(const Duration(milliseconds: 2000));
-    _currentScale = 0.4;
   }
 
   Future<void> _fadeInConstellation() async {
@@ -593,8 +589,6 @@ class SkillNode extends PositionComponent with TapCallbacks {
   // Improved particle system - persistent particles with pooling
   final List<_NodeParticle> _particles = [];
   static const int _maxParticles = 12;
-  double _particleSpawnTimer = 0.0;
-  static const double _particleSpawnInterval = 0.25;
 
   // Pulse animation state
   double _pulseTime = 0.0;
@@ -704,7 +698,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
       final glowSize = 3.0 + pulseValue * 4.0;
 
       final glowPaint = Paint()
-        ..color = primaryColor.withOpacity(glowOpacity)
+        ..color = primaryColor.withValues(alpha: glowOpacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = glowSize
         ..maskFilter = MaskFilter.blur(
@@ -717,7 +711,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
     // Outer glow for unlocked nodes
     if (isUnlocked) {
       final glowPaint = Paint()
-        ..color = primaryColor.withOpacity(0.6)
+        ..color = primaryColor.withValues(alpha: 0.6)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
@@ -730,7 +724,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
       ..shader = ui.Gradient.linear(
         Offset(center.x, center.y - 35),
         Offset(center.x, center.y + 35),
-        [ringColor, ringColor.withOpacity(0.6)],
+        [ringColor, ringColor.withValues(alpha: 0.6)],
       )
       ..style = PaintingStyle.stroke
       ..strokeWidth = borderWidth;
@@ -743,9 +737,9 @@ class SkillNode extends PositionComponent with TapCallbacks {
         center.toOffset(),
         28,
         [
-          coreColor.withOpacity(0.6),
-          coreColor.withOpacity(0.2),
-          coreColor.withOpacity(0.35),
+          coreColor.withValues(alpha: 0.6),
+          coreColor.withValues(alpha: 0.2),
+          coreColor.withValues(alpha: 0.35),
         ],
         [0.0, 0.5, 1.0],
       )
@@ -770,7 +764,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
       // Diamond shape
       final size = particle.size;
       final paint = Paint()
-        ..color = primaryColor.withOpacity((opacity * 0.8).clamp(0.0, 1.0))
+        ..color = primaryColor.withValues(alpha: (opacity * 0.8).clamp(0.0, 1.0))
         ..style = PaintingStyle.fill;
 
       final path = Path()
@@ -784,7 +778,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
       // Inner glow
       final glowPaint = Paint()
-        ..color = secondaryColor.withOpacity((opacity * 0.4).clamp(0.0, 1.0))
+        ..color = secondaryColor.withValues(alpha: (opacity * 0.4).clamp(0.0, 1.0))
         ..style = PaintingStyle.fill;
       final glowPath = Path()
         ..moveTo(pos.x, pos.y - size * 0.5)
@@ -815,7 +809,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
   void _drawAlchemicalAccents(Canvas canvas, Offset center, double radius) {
     final paint = Paint()
-      ..color = secondaryColor.withOpacity(0.7)
+      ..color = secondaryColor.withValues(alpha: 0.7)
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < 6; i++) {
@@ -837,14 +831,14 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
   Color _getRingColor() {
     if (isUnlocked) return primaryColor;
-    if (canUnlock) return primaryColor.withOpacity(0.8);
-    return primaryColor.withOpacity(0.3);
+    if (canUnlock) return primaryColor.withValues(alpha: 0.8);
+    return primaryColor.withValues(alpha: 0.3);
   }
 
   Color _getCoreColor() {
-    if (isUnlocked) return primaryColor.withOpacity(0.4);
-    if (canUnlock) return primaryColor.withOpacity(0.15);
-    return Colors.black.withOpacity(0.6);
+    if (isUnlocked) return primaryColor.withValues(alpha: 0.4);
+    if (canUnlock) return primaryColor.withValues(alpha: 0.15);
+    return Colors.black.withValues(alpha: 0.6);
   }
 
   void updateState({required bool isUnlocked, required bool canUnlock}) {
@@ -932,7 +926,6 @@ class ConnectionLine extends Component {
 
   // Smoother timing
   static const double _drawDuration = 1.2;
-  static const double _glowPeakTime = 0.3;
   static const double _glowFadeTime = 0.8;
   static const double _storyFadeInTime = 0.6;
 
@@ -1026,7 +1019,7 @@ class ConnectionLine extends Component {
 
     // Main line
     final paint = Paint()
-      ..color = Colors.white.withOpacity(
+      ..color = Colors.white.withValues(alpha: 
         (baseOpacity + glowBoost).clamp(0.0, 1.0),
       )
       ..strokeWidth = 2.0 + (_glowIntensity * 2.0)
@@ -1038,7 +1031,7 @@ class ConnectionLine extends Component {
     // Outer glow
     if (isActive) {
       final glowPaint = Paint()
-        ..color = Colors.white.withOpacity(
+        ..color = Colors.white.withValues(alpha: 
           ((0.2 + glowBoost) * 0.6).clamp(0.0, 1.0),
         )
         ..strokeWidth = 6.0 + (_glowIntensity * 6.0)
@@ -1053,7 +1046,7 @@ class ConnectionLine extends Component {
     if (_showEnergyPulse && _animationProgress > 0.05) {
       final pulsePos = fromPos + (toPos - fromPos) * _energyPulsePosition;
       final pulsePaint = Paint()
-        ..color = primaryColor.withOpacity(0.9)
+        ..color = primaryColor.withValues(alpha: 0.9)
         ..style = PaintingStyle.fill;
 
       canvas.drawCircle(
@@ -1064,7 +1057,7 @@ class ConnectionLine extends Component {
 
       // Pulse glow
       final pulseGlowPaint = Paint()
-        ..color = primaryColor.withOpacity(0.4)
+        ..color = primaryColor.withValues(alpha: 0.4)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
       canvas.drawCircle(pulsePos.toOffset(), 8.0, pulseGlowPaint);
     }
@@ -1099,7 +1092,7 @@ class ConnectionLine extends Component {
 
     final mainPaint = TextPaint(
       style: GoogleFonts.imFellGreatPrimer(
-        color: Colors.white.withOpacity((_storyOpacity * 0.85).clamp(0.0, 1.0)),
+        color: Colors.white.withValues(alpha: (_storyOpacity * 0.85).clamp(0.0, 1.0)),
         fontSize: 12,
       ),
     );
@@ -1113,7 +1106,6 @@ class StarfieldBackground extends Component {
   final Color primaryColor;
   final Color secondaryColor;
   final List<Star> stars = [];
-  bool _rapidBlinkMode = false;
 
   StarfieldBackground({
     required this.primaryColor,
@@ -1177,14 +1169,12 @@ class StarfieldBackground extends Component {
   }
 
   void startRapidBlink() {
-    _rapidBlinkMode = true;
     for (final star in stars) {
       star.startRapidBlink();
     }
   }
 
   void restoreNormalTwinkling() {
-    _rapidBlinkMode = false;
     for (final star in stars) {
       star.restoreNormalTwinkle();
     }
@@ -1195,7 +1185,7 @@ class StarfieldBackground extends Component {
     final paint = Paint();
 
     for (final star in stars) {
-      paint.color = primaryColor.withOpacity(star.currentOpacity);
+      paint.color = primaryColor.withValues(alpha: star.currentOpacity);
       canvas.drawCircle(star.position.toOffset(), star.size, paint);
     }
   }

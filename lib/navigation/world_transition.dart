@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -387,11 +386,11 @@ class _WarpPainterData {
     // Pre-compute opacity variants
     final starOpacities = List.generate(
       21,
-      (i) => config.starColor.withOpacity(i / 20),
+      (i) => config.starColor.withValues(alpha: i / 20),
     );
     final dimStarOpacities = List.generate(
       21,
-      (i) => config.dimStarColor.withOpacity(i / 20),
+      (i) => config.dimStarColor.withValues(alpha: i / 20),
     );
 
     // Create reusable paints
@@ -465,7 +464,7 @@ class _WarpPainter extends CustomPainter {
 
     data.backgroundPaint
       ..shader = null
-      ..color = data.config.color.withOpacity(opacity);
+      ..color = data.config.color.withValues(alpha: opacity);
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
       data.backgroundPaint,
@@ -541,7 +540,7 @@ class _WarpPainter extends CustomPainter {
 
     // Soft white glow at center
     data.glowPaint
-      ..shader =
+      .shader =
           RadialGradient(
             colors: [
               data.getStarWithOpacity(glowIntensity * 0.4),

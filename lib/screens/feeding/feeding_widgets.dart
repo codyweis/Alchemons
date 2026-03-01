@@ -43,6 +43,7 @@ class StageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final t = ForgeTokens(theme);
     final canGoBack = stage != 'species';
     final (title, subtitle) = _getStageText();
@@ -85,9 +86,9 @@ class StageHeader extends StatelessWidget {
                     children: [
                       Text(
                         title.toUpperCase(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'monospace',
-                          color: FC.textPrimary,
+                          color: fc.textPrimary,
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1.5,
@@ -137,7 +138,7 @@ class StageHeader extends StatelessWidget {
                       child: Container(
                         height: 1.5,
                         color: filled
-                            ? FC.amber.withOpacity(0.55)
+                            ? fc.amber.withValues(alpha: 0.55)
                             : t.borderDim,
                       ),
                     );
@@ -154,42 +155,42 @@ class StageHeader extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: isActive
-                              ? FC.amber
-                              : (isDone ? FC.amberDim : t.bg3),
+                              ? fc.amber
+                              : (isDone ? fc.amberDim : t.bg3),
                           border: Border.all(
                             color: isActive
-                                ? FC.amberGlow
+                                ? fc.amberGlow
                                 : (isDone
-                                      ? FC.amber.withOpacity(0.4)
+                                      ? fc.amber.withValues(alpha: 0.4)
                                       : t.borderDim),
                             width: 1.5,
                           ),
                         ),
                         child: Center(
                           child: isDone
-                              ? const Icon(
+                              ? Icon(
                                   Icons.check,
                                   size: 10,
-                                  color: FC.amberBright,
+                                  color: fc.amberBright,
                                 )
                               : Text(
                                   '${idx + 1}',
                                   style: TextStyle(
                                     fontFamily: 'monospace',
-                                    color: isActive ? FC.bg0 : t.textMuted,
+                                    color: isActive ? fc.bg0 : t.textMuted,
                                     fontSize: 8,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         stepLabels[idx],
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: isActive
-                              ? FC.amberBright
+                              ? fc.amberBright
                               : (isDone ? t.textSecondary : t.textMuted),
                           fontSize: 7,
                           fontWeight: FontWeight.w700,
@@ -317,6 +318,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final t = ForgeTokens(widget.theme);
     final currentLevel = widget.instance.level;
     final currentXp = widget.instance.xp;
@@ -353,17 +355,17 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                   ),
                 ),
                 if (currentLevel < 10) ...[
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Container(
                       height: 11,
                       decoration: BoxDecoration(
-                        color: FC.bg0,
+                        color: fc.bg0,
                         borderRadius: BorderRadius.circular(5),
-                        border: Border.all(color: FC.borderDim, width: 1),
+                        border: Border.all(color: fc.borderDim, width: 1),
                         boxShadow: [
                           BoxShadow(
-                            color: FC.amberDim.withOpacity(0.3),
+                            color: fc.amberDim.withValues(alpha: 0.3),
                             blurRadius: 4,
                           ),
                         ],
@@ -375,12 +377,12 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                             FractionallySizedBox(
                               widthFactor: displayXpPercent.clamp(0.0, 1.0),
                               child: Container(
-                                decoration: const BoxDecoration(
+                                decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     colors: [
-                                      FC.amberDim,
-                                      FC.amber,
-                                      FC.amberGlow,
+                                      fc.amberDim,
+                                      fc.amber,
+                                      fc.amberGlow,
                                     ],
                                   ),
                                 ),
@@ -391,7 +393,7 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Text(
                     '$displayXp/$xpNeeded',
                     style: TextStyle(
@@ -410,17 +412,17 @@ class _XPBarDisplayState extends State<XPBarDisplay>
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: FC.amberBright.withOpacity(0.15),
+                        color: fc.amberBright.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
-                          color: FC.amber.withOpacity(0.4),
+                          color: fc.amber.withValues(alpha: 0.4),
                           width: 1,
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'MAX',
                         style: TextStyle(
-                          color: FC.amberBright,
+                          color: fc.amberBright,
                           fontSize: 9,
                           fontWeight: FontWeight.w900,
                         ),
@@ -640,27 +642,28 @@ class StatGainsPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final gains = preview.statGains ?? {};
 
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: FC.amberDim.withOpacity(0.1),
+        color: fc.amberDim.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: FC.amber.withOpacity(0.3)),
+        border: Border.all(color: fc.amber.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.analytics_rounded, color: FC.amber, size: 12),
-              const SizedBox(width: 5),
-              const Text(
+              Icon(Icons.analytics_rounded, color: fc.amber, size: 12),
+              SizedBox(width: 5),
+              Text(
                 'POWER ANALYSIS',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: FC.amberBright,
+                  color: fc.amberBright,
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.2,
@@ -668,7 +671,7 @@ class StatGainsPreview extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -706,12 +709,12 @@ class StatGainsPreview extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.star, color: FC.amberBright, size: 12),
+                Icon(Icons.star, color: fc.amberBright, size: 12),
                 const SizedBox(width: 4),
                 Text(
                   'Level ${instance.level} → ${preview.newLevel}',
-                  style: const TextStyle(
-                    color: FC.amberBright,
+                  style: TextStyle(
+                    color: fc.amberBright,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                   ),
@@ -743,11 +746,12 @@ class StatGainIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final t = ForgeTokens(theme);
     final newValue = (current + gain).clamp(0.0, potential);
     final color = gain > 0
-        ? FC.amberBright
-        : (gain < 0 ? FC.danger : t.textSecondary);
+        ? fc.amberBright
+        : (gain < 0 ? fc.danger : t.textSecondary);
     final arrow = gain > 0 ? '↑' : (gain < 0 ? '↓' : '•');
 
     return Column(
@@ -811,6 +815,7 @@ class FeedFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final t = ForgeTokens(theme);
     final isMaxLevel = targetInstance?.level == 10;
     final constellationEffects = context.watch<ConstellationEffectsService>();
@@ -834,9 +839,9 @@ class FeedFooter extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: FC.amberDim.withOpacity(0.2),
+                    color: fc.amberDim.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: FC.amber.withOpacity(0.45)),
+                    border: Border.all(color: fc.amber.withValues(alpha: 0.45)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -845,16 +850,16 @@ class FeedFooter extends StatelessWidget {
                         width: 6,
                         height: 6,
                         margin: const EdgeInsets.only(right: 5),
-                        decoration: const BoxDecoration(
-                          color: FC.amberGlow,
+                        decoration: BoxDecoration(
+                          color: fc.amberGlow,
                           shape: BoxShape.circle,
                         ),
                       ),
-                      const Text(
+                      Text(
                         'SPECIMEN LOADED',
                         style: TextStyle(
                           fontFamily: 'monospace',
-                          color: FC.amberBright,
+                          color: fc.amberBright,
                           fontSize: 8,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1.5,
@@ -865,7 +870,7 @@ class FeedFooter extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
           ],
           if (targetInstance != null && targetCreature != null) ...[
             if (isMaxLevel)
@@ -873,19 +878,19 @@ class FeedFooter extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
-                  color: FC.amberBright.withOpacity(0.08),
+                  color: fc.amberBright.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: FC.amber.withOpacity(0.3)),
+                  border: Border.all(color: fc.amber.withValues(alpha: 0.3)),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.stars, color: FC.amberBright, size: 20),
+                    Icon(Icons.stars, color: fc.amberBright, size: 20),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Max Level Reached!\nThis creature can no longer be enhanced.',
                         style: TextStyle(
-                          color: FC.amberBright,
+                          color: fc.amberBright,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
@@ -947,9 +952,9 @@ Widget _buildConstellationBonuses(
     margin: const EdgeInsets.only(top: 8, bottom: 4),
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     decoration: BoxDecoration(
-      color: theme.primary.withOpacity(0.1),
+      color: theme.primary.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: theme.primary.withOpacity(0.3)),
+      border: Border.all(color: theme.primary.withValues(alpha: 0.3)),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -973,17 +978,18 @@ Widget _buildConstellationBonuses(
 }
 
 Widget _buildBonusPill(String label, double bonus, FactionTheme theme) {
+  final fc = FC(theme);
   return Container(
     margin: const EdgeInsets.only(left: 4),
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
     decoration: BoxDecoration(
-      color: FC.amber.withOpacity(0.2),
+      color: fc.amber.withValues(alpha: 0.2),
       borderRadius: BorderRadius.circular(4),
     ),
     child: Text(
       '$label +${(bonus * 100).toStringAsFixed(1)}%',
-      style: const TextStyle(
-        color: FC.amber,
+      style: TextStyle(
+        color: fc.amber,
         fontSize: 9,
         fontWeight: FontWeight.w800,
       ),
@@ -1034,6 +1040,7 @@ class _EnhanceButtonState extends State<EnhanceButton>
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final canTap = widget.enabled && !widget.busy;
 
     return AnimatedBuilder(
@@ -1051,22 +1058,22 @@ class _EnhanceButtonState extends State<EnhanceButton>
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
                 gradient: canTap
-                    ? const LinearGradient(
-                        colors: [FC.amberDim, FC.amber],
+                    ? LinearGradient(
+                        colors: [fc.amberDim, fc.amber],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       )
                     : null,
-                color: canTap ? null : FC.bg2,
+                color: canTap ? null : fc.bg2,
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(
-                  color: canTap ? FC.amberGlow : FC.borderDim,
+                  color: canTap ? fc.amberGlow : fc.borderDim,
                   width: canTap ? 1.5 : 1.0,
                 ),
                 boxShadow: canTap
                     ? [
                         BoxShadow(
-                          color: FC.amber.withOpacity(0.45),
+                          color: fc.amber.withValues(alpha: 0.45),
                           blurRadius: 18,
                           spreadRadius: 1,
                           offset: const Offset(0, 2),
@@ -1078,13 +1085,13 @@ class _EnhanceButtonState extends State<EnhanceButton>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (widget.busy)
-                    const SizedBox(
+                    SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          FC.textPrimary,
+                          fc.textPrimary,
                         ),
                       ),
                     )
@@ -1092,7 +1099,7 @@ class _EnhanceButtonState extends State<EnhanceButton>
                     Icon(
                       Icons.bolt_rounded,
                       size: 18,
-                      color: canTap ? FC.bg0 : FC.textMuted,
+                      color: canTap ? fc.bg0 : fc.textMuted,
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -1101,7 +1108,7 @@ class _EnhanceButtonState extends State<EnhanceButton>
                           : 'SELECT FODDER',
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: canTap ? FC.bg0 : FC.textMuted,
+                        color: canTap ? fc.bg0 : fc.textMuted,
                         fontSize: 13,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1.2,
@@ -1156,7 +1163,7 @@ class NoResultsFound extends StatelessWidget {
         children: [
           Icon(
             Icons.search_off_rounded,
-            color: t.textSecondary.withOpacity(.3),
+            color: t.textSecondary.withValues(alpha: .3),
             size: 48,
           ),
           const SizedBox(height: 12),
@@ -1172,7 +1179,7 @@ class NoResultsFound extends StatelessWidget {
           Text(
             'Try a different search term',
             style: TextStyle(
-              color: t.textSecondary.withOpacity(.7),
+              color: t.textSecondary.withValues(alpha: .7),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -1201,6 +1208,7 @@ class SpeciesRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final t = ForgeTokens(theme);
     return GestureDetector(
       onTap: onTap,
@@ -1217,15 +1225,15 @@ class SpeciesRow extends StatelessWidget {
             // Left amber accent bar
             Container(
               width: 3,
-              decoration: const BoxDecoration(
-                color: FC.amber,
+              decoration: BoxDecoration(
+                color: fc.amber,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(3),
                   bottomLeft: Radius.circular(3),
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             CreatureImage(c: creature, discovered: true),
             const SizedBox(width: 12),
             Expanded(
@@ -1235,15 +1243,15 @@ class SpeciesRow extends StatelessWidget {
                 children: [
                   Text(
                     creature.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
-                      color: FC.textPrimary,
+                      color: fc.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.3,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  SizedBox(height: 3),
                   if (creature.types.isNotEmpty)
                     Row(
                       children: [
@@ -1254,25 +1262,25 @@ class SpeciesRow extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: FC.amberDim.withOpacity(0.25),
+                              color: fc.amberDim.withValues(alpha: 0.25),
                               borderRadius: BorderRadius.circular(2),
                               border: Border.all(
-                                color: FC.amber.withOpacity(0.4),
+                                color: fc.amber.withValues(alpha: 0.4),
                                 width: 0.8,
                               ),
                             ),
                             child: Text(
                               type.toUpperCase(),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'monospace',
-                                color: FC.amber,
+                                color: fc.amber,
                                 fontSize: 7,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.5,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                         ],
                       ],
                     ),
@@ -1284,25 +1292,21 @@ class SpeciesRow extends StatelessWidget {
               margin: const EdgeInsets.only(right: 10),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: FC.amberDim.withOpacity(0.2),
+                color: fc.amberDim.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: FC.amber.withOpacity(0.45)),
+                border: Border.all(color: fc.amber.withValues(alpha: 0.45)),
               ),
               child: Text(
                 '×$count',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'monospace',
-                  color: FC.amberBright,
+                  color: fc.amberBright,
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
               ),
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: FC.textMuted,
-              size: 16,
-            ),
+            Icon(Icons.chevron_right_rounded, color: fc.textMuted, size: 16),
             const SizedBox(width: 8),
           ],
         ),

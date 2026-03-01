@@ -221,9 +221,9 @@ class _ShopScreenState extends State<ShopScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: t.bg2.withOpacity(0.6),
+              color: t.bg2.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: t.borderAccent.withOpacity(0.5)),
+              border: Border.all(color: t.borderAccent.withValues(alpha: 0.5)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -276,7 +276,7 @@ class _ShopScreenState extends State<ShopScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Container(height: 1, color: accent.withOpacity(0.2))),
+          Expanded(child: Container(height: 1, color: accent.withValues(alpha: 0.2))),
         ],
       ),
     );
@@ -324,10 +324,10 @@ class _ShopScreenState extends State<ShopScreen> {
 
         // Border color reflects purchase state — transparent card preserved
         final borderColor = isPurchased
-            ? t.success.withOpacity(0.5)
+            ? t.success.withValues(alpha: 0.5)
             : canAfford
             ? t.borderAccent
-            : t.danger.withOpacity(0.5);
+            : t.danger.withValues(alpha: 0.5);
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -343,7 +343,7 @@ class _ShopScreenState extends State<ShopScreen> {
               height: 140,
               decoration: BoxDecoration(
                 // TRANSPARENT card style preserved
-                color: theme.surface.withOpacity(0.3),
+                color: theme.surface.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(color: borderColor, width: 1.5),
               ),
@@ -408,7 +408,7 @@ class _ShopScreenState extends State<ShopScreen> {
                     Positioned.fill(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.65),
+                          color: Colors.black.withValues(alpha: 0.65),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Column(
@@ -417,10 +417,10 @@ class _ShopScreenState extends State<ShopScreen> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: t.successDim.withOpacity(0.5),
+                                color: t.successDim.withValues(alpha: 0.5),
                                 borderRadius: BorderRadius.circular(3),
                                 border: Border.all(
-                                  color: t.success.withOpacity(0.5),
+                                  color: t.success.withValues(alpha: 0.5),
                                 ),
                               ),
                               child: const Icon(
@@ -757,7 +757,7 @@ class _ShopScreenState extends State<ShopScreen> {
           final invQty = offer.inventoryKey != null
               ? (inventory[offer.inventoryKey] ?? 0)
               : 0;
-          final status = invQty > 0 ? 'x\$invQty' : null;
+          final status = invQty > 0 ? 'x$invQty' : null;
           final costWidgets = <Widget>[
             for (final entry in effectiveCost.entries)
               CostChip(
@@ -771,7 +771,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 ? _handlePurchase(context, offer, allCurrencies, canAffordUnit)
                 : _showDetails(context, offer, allCurrencies, canAffordUnit),
             child: GameShopCard(
-              key: ValueKey('portalkey-\${offer.id}'),
+              key: ValueKey('portalkey-${offer.id}'),
               title: offer.name,
               offer: offer,
               theme: theme,
@@ -1348,7 +1348,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: t.amberDim.withOpacity(0.2),
+                  color: t.amberDim.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(3),
                   border: Border.all(color: t.borderAccent),
                 ),

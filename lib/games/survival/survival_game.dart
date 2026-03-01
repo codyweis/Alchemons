@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:alchemons/games/survival/components/alchemy_orb.dart';
 import 'package:alchemons/games/survival/components/alchemy_projectile.dart';
@@ -97,6 +96,7 @@ class SurvivalHoardGame extends FlameGame
   final List<PartyMember> party;
   final VoidCallback onGameOver;
 
+  @override
   late World world;
   late CameraComponent cameraComponent;
   late AlchemyOrb orb;
@@ -273,7 +273,7 @@ class SurvivalHoardGame extends FlameGame
     if (!rect.isEmpty) {
       final paint = Paint()
         ..shader = RadialGradient(
-          colors: [Colors.transparent, Colors.black.withOpacity(0.85)],
+          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.85)],
           stops: const [0.6, 1.0],
           radius: 0.8,
         ).createShader(rect);
@@ -719,7 +719,7 @@ class SurvivalHoardGame extends FlameGame
             kind: AlchemyUpgradeKind.specialAbility,
             label: label,
             description:
-                '$effectText\n(${element} Special • Tier $nextTier of $maxAbilityTier)',
+                '$effectText\n($element Special • Tier $nextTier of $maxAbilityTier)',
             targetUnit: unit,
           ),
         );
@@ -1154,7 +1154,7 @@ class SurvivalHoardGame extends FlameGame
     final projectile = SimpleProjectile(
       start: start,
       end: targetPosition,
-      color: color.withOpacity(0.9),
+      color: color.withValues(alpha: 0.9),
       onHit: onHit,
     );
     world.add(projectile);

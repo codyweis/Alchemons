@@ -83,7 +83,7 @@ class _SpeciesPickerSheetState extends State<SpeciesPickerSheet> {
               color: widget.theme.surfaceAlt,
               borderRadius: BorderRadius.circular(5),
               border: Border.all(
-                color: widget.theme.border.withOpacity(.5),
+                color: widget.theme.border.withValues(alpha: .5),
                 width: 1,
               ),
             ),
@@ -102,7 +102,7 @@ class _SpeciesPickerSheetState extends State<SpeciesPickerSheet> {
               decoration: InputDecoration(
                 hintText: 'Search species...',
                 hintStyle: TextStyle(
-                  color: widget.theme.textMuted.withOpacity(.5),
+                  color: widget.theme.textMuted.withValues(alpha: .5),
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -198,7 +198,7 @@ class _NoResultsFound extends StatelessWidget {
         children: [
           Icon(
             Icons.search_off_rounded,
-            color: theme.textMuted.withOpacity(.3),
+            color: theme.textMuted.withValues(alpha: .3),
             size: 48,
           ),
           const SizedBox(height: 12),
@@ -214,7 +214,7 @@ class _NoResultsFound extends StatelessWidget {
           Text(
             'Try a different search term',
             style: TextStyle(
-              color: theme.textMuted.withOpacity(.7),
+              color: theme.textMuted.withValues(alpha: .7),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),

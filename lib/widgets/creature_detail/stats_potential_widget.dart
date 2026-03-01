@@ -16,7 +16,7 @@ class StatPotentialBar extends StatelessWidget {
   final double potential;
   final IconData icon;
 
-  const StatPotentialBar({
+  const StatPotentialBar({super.key, 
     this.theme,
     required this.statName,
     required this.currentValue,
@@ -26,6 +26,8 @@ class StatPotentialBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     final currentPercent = (currentValue / 5.0).clamp(0.0, 1.0);
     final potentialPercent = (potential / 5.0).clamp(0.0, 1.0);
     final roomForGrowth = potential - currentValue;
@@ -34,12 +36,12 @@ class StatPotentialBar extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(icon, size: 14, color: FC.amberDim),
+        Icon(icon, size: 14, color: fc.amberDim),
         const SizedBox(width: 8),
 
         SizedBox(
           width: 85,
-          child: Text(statName.toUpperCase(), style: FT.label),
+          child: Text(statName.toUpperCase(), style: ft.label),
         ),
 
         Expanded(
@@ -51,9 +53,9 @@ class StatPotentialBar extends StatelessWidget {
                   Container(
                     height: 16,
                     decoration: BoxDecoration(
-                      color: FC.bg3,
+                      color: fc.bg3,
                       borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: FC.borderDim),
+                      border: Border.all(color: fc.borderDim),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(1),
@@ -62,8 +64,8 @@ class StatPotentialBar extends StatelessWidget {
                           Container(
                             width: availableWidth * potentialPercent,
                             color: isPerfectPotential
-                                ? FC.purple.withOpacity(.18)
-                                : FC.bg2,
+                                ? FC.purple.withValues(alpha: .18)
+                                : fc.bg2,
                           ),
                         ],
                       ),
@@ -84,8 +86,8 @@ class StatPotentialBar extends StatelessWidget {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  FC.amberGlow,
-                                  FC.amber.withOpacity(.7),
+                                  fc.amberGlow,
+                                  fc.amber.withValues(alpha: .7),
                                 ],
                               ),
                             ),
@@ -109,9 +111,9 @@ class StatPotentialBar extends StatelessWidget {
             children: [
               Text(
                 '${currentValue.toStringAsFixed(1)} / ${potential.toStringAsFixed(1)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'monospace',
-                  color: FC.textPrimary,
+                  color: fc.textPrimary,
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
                 ),
@@ -123,7 +125,7 @@ class StatPotentialBar extends StatelessWidget {
                   'Near Max',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: FC.amberBright,
+                    color: fc.amberBright,
                     fontSize: 8,
                     fontWeight: FontWeight.w600,
                   ),
@@ -131,9 +133,9 @@ class StatPotentialBar extends StatelessWidget {
               else
                 Text(
                   '+${roomForGrowth.toStringAsFixed(1)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'monospace',
-                    color: FC.textMuted,
+                    color: fc.textMuted,
                     fontSize: 8,
                   ),
                 ),
@@ -152,6 +154,8 @@ class _PotentialSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     final totalPotential =
         instance.statSpeedPotential +
         instance.statIntelligencePotential +
@@ -187,24 +191,24 @@ class _PotentialSummary extends StatelessWidget {
         ? FC.purple
         : isHighPotential
         ? FC.blue
-        : FC.textMuted;
+        : fc.textMuted;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: isLegendaryPotential
-            ? FC.purple.withOpacity(.08)
+            ? FC.purple.withValues(alpha: .08)
             : isHighPotential
-            ? FC.blue.withOpacity(.08)
-            : FC.bg3,
+            ? FC.blue.withValues(alpha: .08)
+            : fc.bg3,
         borderRadius: BorderRadius.circular(2),
         border: Border.all(
           color: isLegendaryPotential
-              ? FC.purple.withOpacity(.35)
+              ? FC.purple.withValues(alpha: .35)
               : isHighPotential
-              ? FC.blue.withOpacity(.35)
-              : FC.borderDim,
+              ? FC.blue.withValues(alpha: .35)
+              : fc.borderDim,
         ),
       ),
       child: Column(
@@ -213,14 +217,14 @@ class _PotentialSummary extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('GROWTH POTENTIAL', style: FT.label),
+              Text('GROWTH POTENTIAL', style: ft.label),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: tierColor.withOpacity(.15),
+                  color: tierColor.withValues(alpha: .15),
                   borderRadius: BorderRadius.circular(2),
                   border: Border.all(
-                    color: tierColor.withOpacity(.45),
+                    color: tierColor.withValues(alpha: .45),
                     width: 0.8,
                   ),
                 ),
@@ -240,14 +244,14 @@ class _PotentialSummary extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Total: ${totalCurrent.toStringAsFixed(1)} / ${totalPotential.toStringAsFixed(1)}',
-            style: FT.body.copyWith(fontSize: 10),
+            style: ft.body.copyWith(fontSize: 10),
           ),
           const SizedBox(height: 4),
           Text(
             'Best Gene: ${highestPotential.key} (${highestPotential.value.toStringAsFixed(1)})',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'monospace',
-              color: FC.amberBright,
+              color: fc.amberBright,
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
@@ -263,7 +267,7 @@ class StatPotentialBlock extends StatelessWidget {
   final FactionTheme? theme;
   final String? instanceId;
 
-  const StatPotentialBlock({this.theme, this.instanceId});
+  const StatPotentialBlock({super.key, this.theme, this.instanceId});
 
   Future<CreatureInstance?> _getInstance(BuildContext context) async {
     if (instanceId == null) return null;
@@ -273,6 +277,8 @@ class StatPotentialBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     if (instanceId == null) {
       return const SizedBox.shrink();
     }
@@ -294,24 +300,24 @@ class StatPotentialBlock extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: FC.amberDim.withOpacity(.08),
+                color: fc.amberDim.withValues(alpha: .08),
                 borderRadius: BorderRadius.circular(2),
-                border: Border.all(color: FC.amber.withOpacity(.2)),
+                border: Border.all(color: fc.amber.withValues(alpha: .2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.info_outline, size: 12, color: FC.amber),
+                      Icon(Icons.info_outline, size: 12, color: fc.amber),
                       const SizedBox(width: 6),
-                      Text('UNDERSTANDING POTENTIAL', style: FT.sectionTitle),
+                      Text('UNDERSTANDING POTENTIAL', style: ft.sectionTitle),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
                     'Each creature has a genetic potential cap for every stat. Feeding can increase stats up to their potential, but never beyond. Breed creatures with high potential to create powerful offspring!',
-                    style: FT.body.copyWith(fontSize: 10, height: 1.4),
+                    style: ft.body.copyWith(fontSize: 10, height: 1.4),
                   ),
                 ],
               ),

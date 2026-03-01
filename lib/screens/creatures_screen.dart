@@ -43,7 +43,6 @@ import '../models/creature.dart';
 
 class _C {
   // Only textPrimary/textSecondary remain — used by _T static const TextStyles.
-  static const textPrimary = Color(0xFFE8DCC8);
   static const textSecondary = Color(0xFF8A7B6A);
 }
 
@@ -275,7 +274,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
-                    color: t.amberDim.withOpacity(0.25),
+                    color: t.amberDim.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(3),
                     border: Border.all(color: t.borderAccent),
                   ),
@@ -355,6 +354,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                         theme: theme,
                         highlightAllInstances: _highlightAllInstances,
                         onOpenAllInstances: () => _showAllInstancesView(theme),
+                        onOpenFavorites: () => _showFavoritesView(theme),
                       ),
                       SliverToBoxAdapter(
                         child: _StatsHeaderSolid(
@@ -433,8 +433,120 @@ class CreaturesScreenState extends State<CreaturesScreen>
     if (isDiscovered) {
       _showInstancesSheet(species, theme);
     } else {
-      _showCreatureDetails(species, false);
+      _showSilhouettePopup(species, theme);
     }
+  }
+
+  void _showSilhouettePopup(Creature species, FactionTheme theme) {
+    final t = ForgeTokens(theme);
+    final spriteData = species.spriteData;
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: Container(
+            decoration: BoxDecoration(
+              color: t.bg1,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: t.borderDim, width: 1.5),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Silhouette image
+                SizedBox(
+                  height: 320,
+                  width: double.infinity,
+                  child: Center(
+                    child: Silhouette(
+                      enabled: true,
+                      child: spriteData != null
+                          ? SizedBox(
+                              width: 260,
+                              height: 260,
+                              child: CreatureSprite(
+                                spritePath: spriteData.spriteSheetPath,
+                                totalFrames: spriteData.totalFrames,
+                                rows: spriteData.rows,
+                                frameSize: Vector2(
+                                  spriteData.frameWidth.toDouble(),
+                                  spriteData.frameHeight.toDouble(),
+                                ),
+                                stepTime: spriteData.frameDurationMs / 1000.0,
+                              ),
+                            )
+                          : SizedBox(
+                              width: 260,
+                              height: 260,
+                              child: CreatureImage(
+                                c: species,
+                                discovered: false,
+                                rounded: 6,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'UNKNOWN SPECIMEN',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.8,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Classification data unavailable.\nDiscover this species to reveal its true form.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _RarityPill(rarity: 'CLASS ?'),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    decoration: BoxDecoration(
+                      color: t.borderDim.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: t.borderDim),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'CLOSE',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: t.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   List<CreatureEntry> _filterAndSort(
@@ -499,10 +611,6 @@ class CreaturesScreenState extends State<CreaturesScreen>
     'legendary' => 4,
     _ => 0,
   };
-
-  void _showCreatureDetails(Creature c, bool isDiscovered) {
-    CreatureDetailsDialog.show(context, c, isDiscovered);
-  }
 
   void _showInstancesSheet(Creature species, FactionTheme theme) {
     final t = ForgeTokens(theme);
@@ -585,6 +693,36 @@ class CreaturesScreenState extends State<CreaturesScreen>
       ),
     );
   }
+
+  void _showFavoritesView(FactionTheme theme) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, animation, secondaryAnimation) => _FavoritesPage(
+          theme: theme,
+          onInstanceTap: (inst) {
+            final repo = context.read<CreatureCatalog>();
+            final creature = repo.getCreatureById(inst.baseId);
+            if (creature != null) {
+              Navigator.pop(context);
+              _openDetailsForInstance(creature, inst);
+            }
+          },
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final tween = Tween(
+            begin: const Offset(0.0, 1.0),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeOutCubic));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -595,10 +733,12 @@ class _SolidHeader extends StatelessWidget {
   final FactionTheme theme;
   final bool highlightAllInstances;
   final VoidCallback onOpenAllInstances;
+  final VoidCallback onOpenFavorites;
 
   const _SolidHeader({
     required this.theme,
     required this.onOpenAllInstances,
+    required this.onOpenFavorites,
     this.highlightAllInstances = false,
   });
 
@@ -624,7 +764,7 @@ class _SolidHeader extends StatelessWidget {
               duration: const Duration(milliseconds: 300),
               decoration: BoxDecoration(
                 color: highlightAllInstances
-                    ? t.amber.withOpacity(0.15)
+                    ? t.amber.withValues(alpha: 0.15)
                     : t.bg2,
                 borderRadius: BorderRadius.circular(3),
                 border: Border.all(
@@ -645,6 +785,28 @@ class _SolidHeader extends StatelessWidget {
                         ? t.amberBright
                         : t.textSecondary,
                   ),
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            // Favorites button
+            GestureDetector(
+              onTap: onOpenFavorites,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: t.bg2,
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: t.borderDim),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 18,
+                  color: const Color(0xFFE91E8C),
                 ),
               ),
             ),
@@ -691,7 +853,7 @@ class _SolidHeader extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: t.amberDim.withOpacity(0.15),
+                  color: t.amberDim.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(3),
                   border: Border.all(color: t.borderAccent),
                 ),
@@ -1284,7 +1446,7 @@ class ProgressBar extends StatelessWidget {
                       color: t.amberBright,
                       boxShadow: [
                         BoxShadow(
-                          color: t.amber.withOpacity(0.4),
+                          color: t.amber.withValues(alpha: 0.4),
                           blurRadius: 4,
                         ),
                       ],
@@ -1428,7 +1590,7 @@ class PillButton extends StatelessWidget {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 9),
         decoration: BoxDecoration(
-          color: t.amberDim.withOpacity(0.15),
+          color: t.amberDim.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(3),
           border: Border.all(color: t.borderAccent),
         ),
@@ -1510,9 +1672,9 @@ class _RarityPill extends StatelessWidget {
         vertical: small ? 2 : 2,
       ),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: color.withOpacity(0.35), width: 0.8),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
       ),
       child: Text(
         rarity.toUpperCase(),
@@ -1541,7 +1703,7 @@ class _TypeTiny extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(2),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
         label.toUpperCase(),
@@ -1663,7 +1825,7 @@ class _ArcPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 9
         ..strokeCap = StrokeCap.round
-        ..color = color.withOpacity(0.25),
+        ..color = color.withValues(alpha: 0.25),
     );
 
     // Fill
@@ -1679,7 +1841,7 @@ class _ArcPainter extends CustomPainter {
         ..shader = SweepGradient(
           startAngle: -math.pi / 2,
           endAngle: -math.pi / 2 + math.pi * 2,
-          colors: [color.withOpacity(0.3), color, color.withOpacity(0.9)],
+          colors: [color.withValues(alpha: 0.3), color, color.withValues(alpha: 0.9)],
           stops: const [0, .7, 1],
         ).createShader(Rect.fromCircle(center: center, radius: r)),
     );
@@ -1712,7 +1874,7 @@ class _EmptyState extends StatelessWidget {
               decoration: BoxDecoration(
                 color: t.bg2,
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: t.borderAccent.withOpacity(0.5)),
+                border: Border.all(color: t.borderAccent.withValues(alpha: 0.5)),
               ),
               child: Icon(
                 Icons.search_off_rounded,
@@ -1816,13 +1978,72 @@ class AllInstancesPage extends StatelessWidget {
 }
 
 class LoadingScaffold extends StatelessWidget {
-  const LoadingScaffold();
+  const LoadingScaffold({super.key});
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
     return Scaffold(
       backgroundColor: t.bg0,
       body: const Center(child: CircularProgressIndicator.adaptive()),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// FAVORITES PAGE
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _FavoritesPage extends StatelessWidget {
+  final FactionTheme theme;
+  final ValueChanged<CreatureInstance> onInstanceTap;
+
+  const _FavoritesPage({required this.theme, required this.onInstanceTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    return Scaffold(
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: FloatingCloseButton(
+        onTap: () => Navigator.of(context).pop(),
+        theme: theme,
+      ),
+      backgroundColor: t.bg0,
+      appBar: AppBar(
+        backgroundColor: t.bg1,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+            margin: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: t.bg2,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: t.borderDim),
+            ),
+            child: Icon(Icons.close_rounded, color: t.textSecondary, size: 16),
+          ),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.star_rounded, size: 16, color: const Color(0xFFE91E8C)),
+            const SizedBox(width: 8),
+            const Text('FAVORITES', style: _T.heading),
+          ],
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: t.borderDim),
+        ),
+      ),
+      body: SafeArea(
+        child: AllCreatureInstances(
+          theme: theme,
+          favoritesOnly: true,
+          onTap: (inst) => onInstanceTap(inst),
+        ),
+      ),
     );
   }
 }

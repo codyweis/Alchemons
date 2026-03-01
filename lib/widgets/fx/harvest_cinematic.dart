@@ -134,7 +134,7 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black.withOpacity(.70),
+      backgroundColor: Colors.black.withValues(alpha: .70),
       body: Stack(
         children: [
           // Vignette
@@ -146,8 +146,8 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
                   radius: 1.1,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(.6),
-                    Colors.black.withOpacity(.85),
+                    Colors.black.withValues(alpha: .6),
+                    Colors.black.withValues(alpha: .85),
                   ],
                   stops: const [0.25, 0.65, 1.0],
                 ),
@@ -282,7 +282,7 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
                         letterSpacing: 1.2,
                         shadows: [
                           Shadow(
-                            color: Colors.black.withOpacity(0.8),
+                            color: Colors.black.withValues(alpha: 0.8),
                             blurRadius: 8,
                           ),
                         ],
@@ -362,12 +362,12 @@ class _Glow extends StatelessWidget {
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(.4 * intensity),
+            color: color.withValues(alpha: .4 * intensity),
             blurRadius: 25,
             spreadRadius: 3,
           ),
           BoxShadow(
-            color: color.withOpacity(.2 * intensity),
+            color: color.withValues(alpha: .2 * intensity),
             blurRadius: 50,
             spreadRadius: 15,
           ),
@@ -395,17 +395,12 @@ class _HarvestRingsPainter extends CustomPainter {
     final c = Offset(size.width / 2, size.height / 2);
     final baseR = math.min(size.width, size.height) * .28;
 
-    final paint = Paint()
-      ..color = color.withOpacity(.7)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
     // Outer containment circle
     canvas.drawCircle(
       c,
       baseR * 1.4,
       Paint()
-        ..color = Colors.white.withOpacity(.08)
+        ..color = Colors.white.withValues(alpha: .08)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
@@ -422,7 +417,7 @@ class _HarvestRingsPainter extends CustomPainter {
           a1 - a0,
           false,
           Paint()
-            ..color = color.withOpacity(opacity)
+            ..color = color.withValues(alpha: opacity)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2.0,
         );
@@ -442,7 +437,7 @@ class _HarvestRingsPainter extends CustomPainter {
     // Directional extraction markers (triangles pointing inward)
     if (extractPhase > 0) {
       final markerPaint = Paint()
-        ..color = color.withOpacity(extractPhase * 0.7)
+        ..color = color.withValues(alpha: extractPhase * 0.7)
         ..style = PaintingStyle.fill;
 
       for (int i = 0; i < 6; i++) {
@@ -466,7 +461,7 @@ class _HarvestRingsPainter extends CustomPainter {
     final coreR = baseR * (0.15 + corePulse * 0.08);
     final corePaint = Paint()
       ..shader = RadialGradient(
-        colors: [color.withOpacity(.6), Colors.white.withOpacity(.0)],
+        colors: [color.withValues(alpha: .6), Colors.white.withValues(alpha: .0)],
       ).createShader(Rect.fromCircle(center: c, radius: coreR * 2));
     canvas.drawCircle(c, coreR * 2, corePaint);
   }
@@ -505,8 +500,8 @@ class _ExtractionBeam extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: RadialGradient(
                   colors: [
-                    color.withOpacity(.12 * opacity),
-                    color.withOpacity(.0),
+                    color.withValues(alpha: .12 * opacity),
+                    color.withValues(alpha: .0),
                   ],
                   stops: const [0.0, 1.0],
                 ),
@@ -525,7 +520,7 @@ class _ExtractionBeam extends StatelessWidget {
                   gradient: LinearGradient(
                     colors: [
                       Colors.transparent,
-                      color.withOpacity(.85),
+                      color.withValues(alpha: .85),
                       Colors.transparent,
                     ],
                     begin: Alignment.topCenter,
@@ -534,7 +529,7 @@ class _ExtractionBeam extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: color.withOpacity(.4),
+                      color: color.withValues(alpha: .4),
                       blurRadius: 30,
                       spreadRadius: 5,
                     ),
@@ -569,7 +564,7 @@ class _FailureIndicator extends StatelessWidget {
               height: 120,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.red.withOpacity(.2),
+                color: Colors.red.withValues(alpha: .2),
                 border: Border.all(color: Colors.red, width: 3),
               ),
               child: const Icon(

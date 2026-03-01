@@ -32,7 +32,7 @@ class CreatureImage extends StatelessWidget {
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => Container(
           decoration: BoxDecoration(
-            color: BreedConstants.getTypeColor(c.types.first).withOpacity(.12),
+            color: BreedConstants.getTypeColor(c.types.first).withValues(alpha: .12),
             borderRadius: BorderRadius.circular(rounded),
           ),
           child: Icon(

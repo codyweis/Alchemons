@@ -49,9 +49,9 @@ class GameModeScreen extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: theme.surface.withOpacity(0.6),
+                      color: theme.surface.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: theme.border.withOpacity(0.3)),
+                      border: Border.all(color: theme.border.withValues(alpha: 0.3)),
                     ),
                     child: Icon(
                       Icons.arrow_back_rounded,
@@ -164,9 +164,9 @@ class _ModeCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: theme.surface.withOpacity(0.6),
+          color: theme.surface.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: accentColor.withOpacity(0.25), width: 1),
+          border: Border.all(color: accentColor.withValues(alpha: 0.25), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,7 +213,7 @@ class _ModeCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.1),
+                    color: accentColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -246,8 +246,8 @@ class _ModeCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(1),
                 gradient: LinearGradient(
                   colors: [
-                    accentColor.withOpacity(0.5),
-                    accentColor.withOpacity(0.0),
+                    accentColor.withValues(alpha: 0.5),
+                    accentColor.withValues(alpha: 0.0),
                   ],
                 ),
               ),

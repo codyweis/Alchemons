@@ -1,16 +1,10 @@
 // lib/database/alchemons_db.dart
-import 'dart:convert';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/database/daos/constellation_dao.dart';
-import 'package:alchemons/models/elemental_group.dart';
-import 'package:alchemons/models/extraction_vile.dart';
-import 'package:alchemons/models/harvest_biome.dart';
-import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:drift/drift.dart';
 
 // Schema and Model Imports
 import 'package:alchemons/database/schema_tables.dart';
-import 'package:alchemons/database/models/stored_theme_mode.dart';
 
 // DAO Imports
 import 'package:alchemons/database/daos/settings_dao.dart';
@@ -72,7 +66,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 33;
+  int get schemaVersion => 34;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -223,6 +217,9 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
       }
       if (from < 33) {
         await m.createTable(survivalHighScore);
+      }
+      if (from < 34) {
+        await m.addColumn(creatureInstances, creatureInstances.isFavorite);
       }
     },
   );

@@ -84,12 +84,12 @@ class _DebugTeamCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: theme.surface.withOpacity(0.9),
+          color: theme.surface.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.accent.withOpacity(0.4), width: 1.5),
+          border: Border.all(color: theme.accent.withValues(alpha: 0.4), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: theme.accent.withOpacity(0.3),
+              color: theme.accent.withValues(alpha: 0.3),
               blurRadius: 14,
               spreadRadius: 1,
               offset: const Offset(0, 8),
@@ -106,7 +106,7 @@ class _DebugTeamCard extends StatelessWidget {
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: theme.accent.withOpacity(0.2),
+                    color: theme.accent.withValues(alpha: 0.2),
                   ),
                   child: Icon(Icons.groups, color: theme.accent, size: 20),
                 ),
@@ -155,7 +155,7 @@ class _DebugTeamCard extends StatelessWidget {
                     horizontal: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: theme.surfaceAlt.withOpacity(0.7),
+                    color: theme.surfaceAlt.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(

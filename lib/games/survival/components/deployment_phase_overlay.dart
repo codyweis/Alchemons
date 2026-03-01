@@ -210,14 +210,15 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   }
 
   Widget _buildContent() {
+    final fc = FC.of(context);
     return Material(
       color: Colors.transparent,
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [FC.bg0, FC.bg1],
+            colors: [fc.bg0, fc.bg1],
           ),
         ),
         child: SafeArea(
@@ -236,6 +237,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   }
 
   Widget _buildHeader() {
+    final fc = FC.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
@@ -245,27 +247,27 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: FC.bg2,
+                color: fc.bg2,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: FC.borderDim),
+                border: Border.all(color: fc.borderDim),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back_rounded,
-                color: FC.textSecondary,
+                color: fc.textSecondary,
                 size: 22,
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'DEPLOY GUARDIANS',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: FC.textPrimary,
+                    color: fc.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 2.0,
@@ -278,8 +280,8 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                       : 'Place ${maxDeployments - deployedCount} more guardian${maxDeployments - deployedCount == 1 ? '' : 's'} to begin',
                   style: TextStyle(
                     color: deployedCount == maxDeployments
-                        ? FC.amberBright
-                        : FC.textSecondary,
+                        ? fc.amberBright
+                        : fc.textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -289,10 +291,10 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: FC.bg2,
+              color: fc.bg2,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: canConfirm ? FC.amber : FC.borderDim,
+                color: canConfirm ? fc.amber : fc.borderDim,
                 width: 1.5,
               ),
             ),
@@ -300,7 +302,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
               '$deployedCount / $maxDeployments',
               style: TextStyle(
                 fontFamily: 'monospace',
-                color: canConfirm ? FC.amberBright : FC.textSecondary,
+                color: canConfirm ? fc.amberBright : fc.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.0,
@@ -360,6 +362,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   }
 
   Widget _buildCentralOrb() {
+    final fc = FC.of(context);
     return AnimatedBuilder(
       animation: _pulseController,
       builder: (context, child) {
@@ -379,7 +382,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: FC.amber.withOpacity(0.10 + 0.18 * pulse),
+                      color: fc.amber.withValues(alpha: 0.10 + 0.18 * pulse),
                       width: 1.5,
                     ),
                   ),
@@ -393,14 +396,14 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      FC.amberGlow.withOpacity(0.55 + 0.25 * pulse),
-                      FC.orange.withOpacity(0.28),
+                      fc.amberGlow.withValues(alpha: 0.55 + 0.25 * pulse),
+                      FC.orange.withValues(alpha: 0.28),
                       Colors.transparent,
                     ],
                     stops: const [0.0, 0.55, 1.0],
                   ),
                   border: Border.all(
-                    color: FC.amber.withOpacity(0.55 + 0.25 * pulse),
+                    color: fc.amber.withValues(alpha: 0.55 + 0.25 * pulse),
                     width: 2.0,
                   ),
                 ),
@@ -413,13 +416,13 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                   shape: BoxShape.circle,
                   color: const Color(0xFF1C1208),
                   border: Border.all(
-                    color: FC.amberBright.withOpacity(0.75 + 0.25 * pulse),
+                    color: fc.amberBright.withValues(alpha: 0.75 + 0.25 * pulse),
                     width: 1.5,
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.shield_rounded,
-                  color: FC.amberBright,
+                  color: fc.amberBright,
                   size: 20,
                 ),
               ),
@@ -431,6 +434,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   }
 
   Widget _buildSlot(int index) {
+    final fc = FC.of(context);
     final creature = _slotAssignments[index];
     final isOccupied = creature != null;
     final isHighlighted =
@@ -458,10 +462,10 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
           final glowColor = isOccupied
               ? _getFamilyColor(creature.family)
               : isHighlighted
-              ? FC.amberBright
+              ? fc.amberBright
               : isSwapHighlighted
-              ? FC.amber
-              : FC.borderDim;
+              ? fc.amber
+              : fc.borderDim;
 
           return Transform.scale(
             scale: scale,
@@ -476,7 +480,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: glowColor.withOpacity(
+                        color: glowColor.withValues(alpha: 
                           isHighlighted ? 0.25 + 0.25 * pulse : 0.15,
                         ),
                         width: 1.0,
@@ -490,18 +494,18 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: isOccupied
-                        ? _getFamilyColor(creature.family).withOpacity(0.15)
+                        ? _getFamilyColor(creature.family).withValues(alpha: 0.15)
                         : isHighlighted
-                        ? FC.amber.withOpacity(0.08 + 0.06 * pulse)
-                        : FC.bg2,
+                        ? fc.amber.withValues(alpha: 0.08 + 0.06 * pulse)
+                        : fc.bg2,
                     border: Border.all(
                       color: isHighlighted
-                          ? FC.amberBright.withOpacity(0.8 + 0.2 * pulse)
+                          ? fc.amberBright.withValues(alpha: 0.8 + 0.2 * pulse)
                           : isSwapHighlighted
-                          ? FC.amber.withOpacity(0.7 + 0.2 * pulse)
+                          ? fc.amber.withValues(alpha: 0.7 + 0.2 * pulse)
                           : isOccupied
-                          ? _getFamilyColor(creature.family).withOpacity(0.75)
-                          : FC.borderDim,
+                          ? _getFamilyColor(creature.family).withValues(alpha: 0.75)
+                          : fc.borderDim,
                       width: isHighlighted || isSwapHighlighted ? 2.5 : 1.5,
                     ),
                   ),
@@ -518,6 +522,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   }
 
   Widget _buildSlotCreature(DeploymentCreature creature) {
+    final fc = FC.of(context);
     return Stack(
       children: [
         Center(
@@ -554,15 +559,15 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
             decoration: BoxDecoration(
-              color: FC.bg0,
+              color: fc.bg0,
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: FC.borderDim),
+              border: Border.all(color: fc.borderDim),
             ),
             child: Text(
               'Lv${creature.level}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'monospace',
-                color: FC.textSecondary,
+                color: fc.textSecondary,
                 fontSize: 9,
                 fontWeight: FontWeight.bold,
               ),
@@ -574,22 +579,23 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   }
 
   Widget _buildEmptySlot(int index, bool isHighlighted) {
+    final fc = FC.of(context);
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(
           isHighlighted ? Icons.add_circle_rounded : _slotIcons[index],
           color: isHighlighted
-              ? FC.amberBright
-              : FC.textMuted.withOpacity(0.55),
+              ? fc.amberBright
+              : fc.textMuted.withValues(alpha: 0.55),
           size: isHighlighted ? 26 : 20,
         ),
-        const SizedBox(height: 3),
+        SizedBox(height: 3),
         Text(
           _slotLabels[index],
           style: TextStyle(
             fontFamily: 'monospace',
-            color: isHighlighted ? FC.amber : FC.textMuted,
+            color: isHighlighted ? fc.amber : fc.textMuted,
             fontSize: 7,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.2,
@@ -600,11 +606,13 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   }
 
   Widget _buildCreatureGrid() {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     return Container(
       height: 155,
       margin: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: FC.borderDim)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: fc.borderDim)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -613,11 +621,11 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
             child: Row(
               children: [
-                const Text('YOUR GUARDIANS', style: FT.label),
+                Text('YOUR GUARDIANS', style: ft.label),
                 const Spacer(),
-                const Text(
+                Text(
                   'tap to select  ·  tap slot to place',
-                  style: TextStyle(color: FC.textMuted, fontSize: 10),
+                  style: TextStyle(color: fc.textMuted, fontSize: 10),
                 ),
               ],
             ),
@@ -637,6 +645,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   }
 
   Widget _buildCreatureCard(DeploymentCreature creature) {
+    final fc = FC.of(context);
     final isSelected = _selectedCreature == creature;
     final isPlaced = creature.isPlaced;
     final familyColor = _getFamilyColor(creature.family);
@@ -649,13 +658,13 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
         margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: isSelected ? familyColor.withOpacity(0.18) : FC.bg2,
+          color: isSelected ? familyColor.withValues(alpha: 0.18) : fc.bg2,
           border: Border.all(
             color: isSelected
                 ? familyColor
                 : isPlaced
-                ? FC.success.withOpacity(0.55)
-                : FC.borderDim,
+                ? fc.success.withValues(alpha: 0.55)
+                : fc.borderDim,
             width: isSelected ? 2.0 : 1.0,
           ),
         ),
@@ -695,11 +704,11 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                             ),
                           ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     creature.name,
-                    style: const TextStyle(
-                      color: FC.textPrimary,
+                    style: TextStyle(
+                      color: fc.textPrimary,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                     ),
@@ -712,7 +721,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                     'Lv${creature.level} · ${creature.family}',
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      color: familyColor.withOpacity(0.9),
+                      color: familyColor.withValues(alpha: 0.9),
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
                     ),
@@ -730,16 +739,16 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                   width: 18,
                   height: 18,
                   decoration: BoxDecoration(
-                    color: FC.bg0,
+                    color: fc.bg0,
                     shape: BoxShape.circle,
-                    border: Border.all(color: FC.amber, width: 1.5),
+                    border: Border.all(color: fc.amber, width: 1.5),
                   ),
                   child: Center(
                     child: Text(
                       _slotLabels[creature.assignedSlot!][0],
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
-                        color: FC.amberBright,
+                        color: fc.amberBright,
                         fontSize: 8,
                         fontWeight: FontWeight.bold,
                       ),
@@ -752,7 +761,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
-                    color: FC.bg0.withOpacity(0.4),
+                    color: fc.bg0.withValues(alpha: 0.4),
                   ),
                 ),
               ),
@@ -763,6 +772,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   }
 
   Widget _buildConfirmButton() {
+    final fc = FC.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: AnimatedBuilder(
@@ -777,18 +787,18 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 color: canConfirm
-                    ? FC.amberDim.withOpacity(0.85 + 0.15 * pulse)
-                    : FC.bg2,
+                    ? fc.amberDim.withValues(alpha: 0.85 + 0.15 * pulse)
+                    : fc.bg2,
                 border: Border.all(
                   color: canConfirm
-                      ? FC.amber.withOpacity(0.7 + 0.3 * pulse)
-                      : FC.borderDim,
+                      ? fc.amber.withValues(alpha: 0.7 + 0.3 * pulse)
+                      : fc.borderDim,
                   width: canConfirm ? 2.0 : 1.0,
                 ),
                 boxShadow: canConfirm
                     ? [
                         BoxShadow(
-                          color: FC.amber.withOpacity(0.18 + 0.14 * pulse),
+                          color: fc.amber.withValues(alpha: 0.18 + 0.14 * pulse),
                           blurRadius: 18,
                           spreadRadius: 2,
                         ),
@@ -802,7 +812,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                     canConfirm
                         ? Icons.play_arrow_rounded
                         : Icons.lock_outline_rounded,
-                    color: canConfirm ? FC.amberBright : FC.textMuted,
+                    color: canConfirm ? fc.amberBright : fc.textMuted,
                     size: 24,
                   ),
                   const SizedBox(width: 10),
@@ -815,7 +825,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.8,
-                      color: canConfirm ? FC.amberBright : FC.textSecondary,
+                      color: canConfirm ? fc.amberBright : fc.textSecondary,
                     ),
                   ),
                 ],
@@ -869,7 +879,7 @@ class _ArenaPainter extends CustomPainter {
     // --- Background radial atmosphere ---
     final bgGlow = Paint()
       ..shader = RadialGradient(
-        colors: [const Color(0xFF1A1005).withOpacity(0.55), Colors.transparent],
+        colors: [const Color(0xFF1A1005).withValues(alpha: 0.55), Colors.transparent],
       ).createShader(Rect.fromCircle(center: center, radius: radius * 1.9));
     canvas.drawCircle(center, radius * 1.9, bgGlow);
 
@@ -890,8 +900,8 @@ class _ArenaPainter extends CustomPainter {
               end: Alignment(math.cos(angle), math.sin(angle)),
               colors: [
                 Colors.transparent,
-                const Color(0xFFD97706).withOpacity(0.2 + pulse * 0.18),
-                const Color(0xFFD97706).withOpacity(0.45 + pulse * 0.2),
+                const Color(0xFFD97706).withValues(alpha: 0.2 + pulse * 0.18),
+                const Color(0xFFD97706).withValues(alpha: 0.45 + pulse * 0.2),
               ],
               stops: const [0.0, 0.45, 1.0],
             ).createShader(
@@ -903,7 +913,7 @@ class _ArenaPainter extends CustomPainter {
 
       // Tick mark at slot end
       final tickPaint = Paint()
-        ..color = const Color(0xFFD97706).withOpacity(0.5 + pulse * 0.3)
+        ..color = const Color(0xFFD97706).withValues(alpha: 0.5 + pulse * 0.3)
         ..strokeWidth = 2.5
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round;
@@ -917,41 +927,41 @@ class _ArenaPainter extends CustomPainter {
 
     // --- Main orbit ring with glow ---
     final mainGlow = Paint()
-      ..color = const Color(0xFFD97706).withOpacity(0.06 + pulse * 0.05)
+      ..color = const Color(0xFFD97706).withValues(alpha: 0.06 + pulse * 0.05)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 10;
     canvas.drawCircle(center, radius, mainGlow);
 
     final mainRing = Paint()
-      ..color = const Color(0xFFD97706).withOpacity(0.28 + pulse * 0.16)
+      ..color = const Color(0xFFD97706).withValues(alpha: 0.28 + pulse * 0.16)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.8;
     canvas.drawCircle(center, radius, mainRing);
 
     // --- Outer decorative ring ---
     final outerRing = Paint()
-      ..color = const Color(0xFF92400E).withOpacity(0.14 + pulse * 0.06)
+      ..color = const Color(0xFF92400E).withValues(alpha: 0.14 + pulse * 0.06)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     canvas.drawCircle(center, radius + 52, outerRing);
 
     // --- Mid ring ---
     final midRing = Paint()
-      ..color = const Color(0xFF6B4C20).withOpacity(0.18 + pulse * 0.08)
+      ..color = const Color(0xFF6B4C20).withValues(alpha: 0.18 + pulse * 0.08)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     canvas.drawCircle(center, radius * 0.6, midRing);
 
     // --- Inner ring ---
     final innerRing = Paint()
-      ..color = const Color(0xFFD97706).withOpacity(0.22 + pulse * 0.10)
+      ..color = const Color(0xFFD97706).withValues(alpha: 0.22 + pulse * 0.10)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawCircle(center, radius * 0.36, innerRing);
 
     // --- Dot marks at cardinal inner ring ---
     final dotPaint = Paint()
-      ..color = const Color(0xFFD97706).withOpacity(0.5 + pulse * 0.3)
+      ..color = const Color(0xFFD97706).withValues(alpha: 0.5 + pulse * 0.3)
       ..style = PaintingStyle.fill;
     for (int i = 0; i < 4; i++) {
       final a = (i / 4) * math.pi * 2 - math.pi / 2;
@@ -970,7 +980,7 @@ class _ArenaPainter extends CustomPainter {
     canvas.translate(center.dx, center.dy);
     canvas.rotate(pulse * math.pi * 0.25);
     final arcPaint1 = Paint()
-      ..color = const Color(0xFF92400E).withOpacity(0.22)
+      ..color = const Color(0xFF92400E).withValues(alpha: 0.22)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0
       ..strokeCap = StrokeCap.round;
@@ -991,7 +1001,7 @@ class _ArenaPainter extends CustomPainter {
     canvas.translate(center.dx, center.dy);
     canvas.rotate(-pulse * math.pi * 0.15);
     final arcPaint2 = Paint()
-      ..color = const Color(0xFF6B21A8).withOpacity(0.14)
+      ..color = const Color(0xFF6B21A8).withValues(alpha: 0.14)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;

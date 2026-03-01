@@ -118,5 +118,5 @@ class FactionColors {
   };
 
   static Color of(String key) =>
-      _map[key] ?? Colors.grey.shade500.withOpacity(.5);
+      _map[key] ?? Colors.grey.shade500.withValues(alpha: .5);
 }

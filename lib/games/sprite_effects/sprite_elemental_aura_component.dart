@@ -24,7 +24,7 @@ class ElementalAuraComponent extends PositionComponent {
       final particle = CircleComponent(
         radius: 3,
         paint: Paint()
-          ..color = color.withOpacity(0.6)
+          ..color = color.withValues(alpha: 0.6)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
         anchor: Anchor.center,
       );
