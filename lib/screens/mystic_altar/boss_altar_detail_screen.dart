@@ -461,7 +461,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
           iconColor: widget.boss.elementColor,
           title: 'PERFORM RITUAL?',
           body:
-              'Summoning ${widget.boss.name} will consume your ${_traitName()} and all committed Alchemons. A Mystic Egg will be placed in your Chamber.',
+              'Summoning ${widget.boss.name} will consume your ${_traitName()} and all committed Alchemons. A Mystic Vial will be placed in your Chamber.',
           cancelLabel: 'CANCEL',
           confirmLabel: 'SUMMON',
           onCancel: () => Navigator.pop(ctx, false),
@@ -611,7 +611,10 @@ class _TopBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _C.surface.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _C.muted.withValues(alpha: 0.4), width: 1),
+                border: Border.all(
+                  color: _C.muted.withValues(alpha: 0.4),
+                  width: 1,
+                ),
               ),
               child: const Icon(
                 Icons.arrow_back_ios_new_rounded,
@@ -956,8 +959,8 @@ class _SlotNodeState extends State<_SlotNode>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: widget.elColor.withValues(alpha: 
-                  (widget.isFilled ? 0.32 : 0.14) + widget.pulse * 0.24,
+                color: widget.elColor.withValues(
+                  alpha: (widget.isFilled ? 0.32 : 0.14) + widget.pulse * 0.24,
                 ),
                 width: 1.0,
               ),
@@ -973,7 +976,9 @@ class _SlotNodeState extends State<_SlotNode>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: widget.elColor.withValues(alpha: 0.45 + widget.pulse * 0.38),
+                  color: widget.elColor.withValues(
+                    alpha: 0.45 + widget.pulse * 0.38,
+                  ),
                   blurRadius: 22,
                   spreadRadius: 4,
                 ),
@@ -999,8 +1004,8 @@ class _SlotNodeState extends State<_SlotNode>
               boxShadow: widget.isFilled
                   ? [
                       BoxShadow(
-                        color: widget.elColor.withValues(alpha: 
-                          0.38 + widget.pulse * 0.32,
+                        color: widget.elColor.withValues(
+                          alpha: 0.38 + widget.pulse * 0.32,
                         ),
                         blurRadius: 18,
                         spreadRadius: 2,
@@ -1009,8 +1014,8 @@ class _SlotNodeState extends State<_SlotNode>
                   : widget.isSelected
                   ? [
                       BoxShadow(
-                        color: widget.elColor.withValues(alpha: 
-                          0.20 + widget.pulse * 0.18,
+                        color: widget.elColor.withValues(
+                          alpha: 0.20 + widget.pulse * 0.18,
                         ),
                         blurRadius: 14,
                       ),
@@ -1068,7 +1073,10 @@ class _SlotNodeState extends State<_SlotNode>
                 color: _C.success,
                 border: Border.all(color: _C.bg, width: 1.5),
                 boxShadow: [
-                  BoxShadow(color: _C.success.withValues(alpha: 0.50), blurRadius: 7),
+                  BoxShadow(
+                    color: _C.success.withValues(alpha: 0.50),
+                    blurRadius: 7,
+                  ),
                 ],
               ),
               child: Icon(
@@ -1345,7 +1353,9 @@ class _BottomBar extends StatelessWidget {
                         height: 4,
                         decoration: BoxDecoration(
                           color: i < filled
-                              ? elColor.withValues(alpha: 0.75 + pulse.value * 0.20)
+                              ? elColor.withValues(
+                                  alpha: 0.75 + pulse.value * 0.20,
+                                )
                               : _C.muted.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(2),
                         ),
@@ -1375,7 +1385,9 @@ class _BottomBar extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: selectedFilled
                               ? _C.success.withValues(alpha: 0.10)
-                              : elColor.withValues(alpha: 0.14 + pulse.value * 0.06),
+                              : elColor.withValues(
+                                  alpha: 0.14 + pulse.value * 0.06,
+                                ),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: selectedFilled ? _C.success : elColor,
@@ -1459,7 +1471,9 @@ class _BottomBar extends StatelessWidget {
                         : _C.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: canSummon ? elColor : _C.muted.withValues(alpha: 0.22),
+                      color: canSummon
+                          ? elColor
+                          : _C.muted.withValues(alpha: 0.22),
                       width: canSummon ? 1.5 : 0.5,
                     ),
                   ),
@@ -1522,7 +1536,9 @@ class _NavBtn extends StatelessWidget {
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: onTap != null ? elColor.withValues(alpha: 0.12) : Colors.transparent,
+        color: onTap != null
+            ? elColor.withValues(alpha: 0.12)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: onTap != null
@@ -1955,7 +1971,10 @@ class _SuccessDialogState extends State<_SuccessDialog>
                         width: 1.5,
                       ),
                       boxShadow: [
-                        BoxShadow(color: el.withValues(alpha: 0.3), blurRadius: 18),
+                        BoxShadow(
+                          color: el.withValues(alpha: 0.3),
+                          blurRadius: 18,
+                        ),
                       ],
                     ),
                     child: Icon(widget.boss.elementIcon, color: el, size: 32),
@@ -1995,14 +2014,14 @@ class _SuccessDialogState extends State<_SuccessDialog>
                     child: Row(
                       children: [
                         Icon(
-                          Icons.egg_outlined,
+                          Icons.science_outlined,
                           color: el.withValues(alpha: 0.7),
                           size: 20,
                         ),
                         const SizedBox(width: 10),
                         const Expanded(
                           child: Text(
-                            'A Mystic Egg awaits in your Alchemy Chamber. Incubation: 1 hour.',
+                            'A Mystic Vial awaits in your Alchemy Chamber. Cultivation: 1 hour.',
                             style: TextStyle(
                               color: _C.sub,
                               fontSize: 11,

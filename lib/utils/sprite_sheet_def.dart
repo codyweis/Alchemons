@@ -36,6 +36,7 @@ class SpriteVisuals {
   final bool isAlbino; // computed flag for special rendering
   final String? alchemyEffect; // 'alchemy_glow', 'volcanic_aura', etc.
   final String? variantFaction; // 'Pyro', 'Aqua', etc. for elemental aura color
+  final double prismaticHueDeg; // Hue for prismatic visuals
 
   const SpriteVisuals({
     this.scale = 1.0,
@@ -47,6 +48,7 @@ class SpriteVisuals {
     this.isAlbino = false,
     this.alchemyEffect,
     this.variantFaction,
+    this.prismaticHueDeg = 0.0, // Default value
   });
 }
 
@@ -79,6 +81,15 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
   // Special case: albino rendering (high brightness, no prismatic)
   final isAlbino = (bri == 1.45) && !isPrismatic;
 
+  // Improved fallback logic for alchemyEffect and variantFaction
+  final alchemyEffect = inst?.alchemyEffect?.isNotEmpty == true
+      ? inst!.alchemyEffect
+      : creature?.alchemyEffect;
+
+  final variantFaction = inst?.variantFaction?.isNotEmpty == true
+      ? inst!.variantFaction
+      : creature?.variantFaction;
+
   return SpriteVisuals(
     scale: scale,
     saturation: sat,
@@ -87,8 +98,7 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
     isPrismatic: isPrismatic,
     tint: tint,
     isAlbino: isAlbino,
-    // ✅ FIX: Read from instance first, then fall back to creature
-    alchemyEffect: inst?.alchemyEffect ?? creature?.alchemyEffect,
-    variantFaction: inst?.variantFaction ?? creature?.variantFaction,
+    alchemyEffect: alchemyEffect,
+    variantFaction: variantFaction,
   );
 }

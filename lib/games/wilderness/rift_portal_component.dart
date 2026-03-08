@@ -51,25 +51,25 @@ extension RiftFactionExt on RiftFaction {
   };
 
   /// Factions that may spawn in a given scene.
-  /// Arcane can appear anywhere; the others are biome-locked.
+  /// Each faction is locked to its matching biome.
+  /// Arcane rift only appears in the arcane biome.
+  /// No rift portals spawn in the arcane biome.
   static List<RiftFaction> allowedForScene(String sceneId) {
-    final biomeSpecific = switch (sceneId) {
-      'valley' => RiftFaction.earthen,
-      'swamp' => RiftFaction.oceanic,
-      'volcano' => RiftFaction.volcanic,
-      'sky' => RiftFaction.verdant,
-      _ => null,
+    return switch (sceneId) {
+      'valley' => [RiftFaction.earthen],
+      'swamp' => [RiftFaction.oceanic],
+      'volcano' => [RiftFaction.volcanic],
+      'sky' => [RiftFaction.verdant],
+      'arcane' => [RiftFaction.arcane],
+      _ => <RiftFaction>[],
     };
-    return [
-      if (biomeSpecific != null) biomeSpecific,
-      RiftFaction.arcane, // always eligible
-    ];
   }
 
-  /// Pick a random faction valid for [sceneId].
-  static RiftFaction randomForScene(String sceneId, [Random? rng]) {
-    final r = rng ?? Random();
+  /// Pick a random faction valid for [sceneId]. Returns null if none allowed.
+  static RiftFaction? randomForScene(String sceneId, [Random? rng]) {
     final pool = allowedForScene(sceneId);
+    if (pool.isEmpty) return null;
+    final r = rng ?? Random();
     return pool[r.nextInt(pool.length)];
   }
 

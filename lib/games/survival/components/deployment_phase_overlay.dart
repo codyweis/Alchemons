@@ -1,6 +1,7 @@
 // lib/games/survival/components/deployment_phase_overlay.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:alchemons/games/survival/survival_engine.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -35,18 +36,63 @@ class DeploymentResult {
     required this.deployedCreatures,
     required this.benchCreatures,
   });
-
-  Map<int, String> toFormationSlots() {
-    final Map<int, String> result = {};
-    for (int i = 0; i < deployedCreatures.length && i < 4; i++) {
-      result[i] = deployedCreatures[i].id;
-    }
-    for (int i = 0; i < benchCreatures.length && i < 4; i++) {
-      result[100 + i] = benchCreatures[i].id;
-    }
-    return result;
-  }
 }
+
+// ── Ring definition matching survival_game.dart _initGuardianSlots ──
+class _RingDef {
+  final String label;
+  final double gameRadius; // actual radius in the game world
+  final int slotCount;
+  final double angleOffset;
+  final int startIndex; // global slot index of first slot in this ring
+
+  const _RingDef({
+    required this.label,
+    required this.gameRadius,
+    required this.slotCount,
+    required this.angleOffset,
+    required this.startIndex,
+  });
+}
+
+// Must match _initGuardianSlots() in survival_game.dart exactly
+const List<_RingDef> _kRings = [
+  _RingDef(
+    label: 'INNER',
+    gameRadius: 350,
+    slotCount: 8,
+    angleOffset: -1.5707963,
+    startIndex: 0,
+  ),
+  _RingDef(
+    label: 'MID',
+    gameRadius: 550,
+    slotCount: 10,
+    angleOffset: 0.31415926,
+    startIndex: 8,
+  ),
+  _RingDef(
+    label: 'OUTER',
+    gameRadius: 780,
+    slotCount: 12,
+    angleOffset: 0,
+    startIndex: 18,
+  ),
+  _RingDef(
+    label: 'RANGE',
+    gameRadius: 1000,
+    slotCount: 14,
+    angleOffset: 0.44879895,
+    startIndex: 30,
+  ),
+  _RingDef(
+    label: 'OUTPOST',
+    gameRadius: 1250,
+    slotCount: 16,
+    angleOffset: 0,
+    startIndex: 44,
+  ),
+];
 
 class DeploymentPhaseOverlay extends StatefulWidget {
   final List<PartyMember> party;
@@ -75,17 +121,16 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   late AnimationController _pulseController;
   late AnimationController _introController;
 
+  // Deploy exactly 4 guardians; rest start on bench
+  static const int minDeployments = 4;
   static const int maxDeployments = 4;
-  static const List<String> _slotLabels = ['NORTH', 'EAST', 'SOUTH', 'WEST'];
-  static const List<IconData> _slotIcons = [
-    Icons.keyboard_arrow_up_rounded,
-    Icons.keyboard_arrow_right_rounded,
-    Icons.keyboard_arrow_down_rounded,
-    Icons.keyboard_arrow_left_rounded,
-  ];
 
   int get deployedCount => _creatures.where((c) => c.isPlaced).length;
-  bool get canConfirm => deployedCount == maxDeployments;
+  int get unplacedCount => _creatures.length - deployedCount;
+  bool get canConfirm => deployedCount >= minDeployments;
+
+  // Which ring is visible (for swipe / tab navigation)
+  int _activeRingIndex = 0;
 
   @override
   void initState() {
@@ -98,8 +143,11 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
       );
     }).toList();
 
-    for (int i = 0; i < 4; i++) {
-      _slotAssignments[i] = null;
+    // Initialize all slot assignments across all rings
+    for (final ring in _kRings) {
+      for (int i = 0; i < ring.slotCount; i++) {
+        _slotAssignments[ring.startIndex + i] = null;
+      }
     }
 
     _pulseController = AnimationController(
@@ -142,14 +190,18 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
 
   void _assignToSlot(int slotIndex) {
     if (_selectedCreature == null) return;
-    if (deployedCount >= maxDeployments && !_selectedCreature!.isPlaced) return;
+
+    // If creature is not already placed and we're at the cap, block
+    if (!_selectedCreature!.isPlaced && deployedCount >= maxDeployments) return;
 
     setState(() {
+      // If something is already in this slot, unplace it
       final existingCreature = _slotAssignments[slotIndex];
       if (existingCreature != null) {
         existingCreature.assignedSlot = null;
       }
 
+      // If creature was previously in a different slot, clear it
       if (_selectedCreature!.assignedSlot != null) {
         _slotAssignments[_selectedCreature!.assignedSlot!] = null;
       }
@@ -158,6 +210,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
       _selectedCreature!.assignedSlot = slotIndex;
       _selectedCreature = null;
     });
+    HapticFeedback.lightImpact();
   }
 
   void _confirm() {
@@ -167,11 +220,10 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
     final bench = <DeploymentCreature>[];
     final Map<int, DeploymentCreature> filledSlots = {};
 
-    for (int i = 0; i < 4; i++) {
-      final creature = _slotAssignments[i];
-      if (creature != null) {
-        deployed.add(creature);
-        filledSlots[i] = creature;
+    for (final entry in _slotAssignments.entries) {
+      if (entry.value != null) {
+        deployed.add(entry.value!);
+        filledSlots[entry.key] = entry.value!;
       }
     }
 
@@ -181,6 +233,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
       }
     }
 
+    HapticFeedback.heavyImpact();
     widget.onConfirm(
       DeploymentResult(
         slotAssignments: filledSlots,
@@ -188,6 +241,49 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
         benchCreatures: bench,
       ),
     );
+  }
+
+  /// Auto-place up to 4 unplaced creatures into open slots (inner ring first)
+  void _autoPlace() {
+    setState(() {
+      // Cardinal slots on the inner ring: N=0, E=2, S=4, W=6
+      const cardinalSlots = [0, 4, 6, 2]; // top, bottom, left, right
+      final unplaced = _creatures.where((c) => !c.isPlaced).toList();
+      for (final slotIdx in cardinalSlots) {
+        if (unplaced.isEmpty || deployedCount >= maxDeployments) break;
+        if (_slotAssignments[slotIdx] != null) continue; // already occupied
+        final creature = unplaced.removeAt(0);
+        _slotAssignments[slotIdx] = creature;
+        creature.assignedSlot = slotIdx;
+      }
+      _selectedCreature = null;
+    });
+    HapticFeedback.mediumImpact();
+  }
+
+  /// Clear all placements
+  void _clearAll() {
+    setState(() {
+      for (final creature in _creatures) {
+        if (creature.assignedSlot != null) {
+          _slotAssignments[creature.assignedSlot!] = null;
+          creature.assignedSlot = null;
+        }
+      }
+      _selectedCreature = null;
+    });
+  }
+
+  // ── Ring label for a given global slot index ──
+  String _ringLabelForSlot(int slotIndex) {
+    for (final ring in _kRings) {
+      if (slotIndex >= ring.startIndex &&
+          slotIndex < ring.startIndex + ring.slotCount) {
+        final local = slotIndex - ring.startIndex + 1;
+        return '${ring.label}·$local';
+      }
+    }
+    return '?';
   }
 
   @override
@@ -225,10 +321,11 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
           child: Column(
             children: [
               _buildHeader(),
-              Expanded(flex: 5, child: _buildArena()),
+              _buildRingTabs(),
+              Expanded(child: _buildArena()),
               _buildCreatureGrid(),
               _buildConfirmButton(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -238,27 +335,28 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
 
   Widget _buildHeader() {
     final fc = FC.of(context);
+    final needMore = minDeployments - deployedCount;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           GestureDetector(
             onTap: widget.onCancel,
             child: Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: fc.bg2,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: fc.borderDim),
               ),
               child: Icon(
                 Icons.arrow_back_rounded,
                 color: fc.textSecondary,
-                size: 22,
+                size: 20,
               ),
             ),
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,31 +366,82 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: fc.textPrimary,
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 2.0,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  deployedCount == maxDeployments
-                      ? 'Ready to begin — tap Begin Battle'
-                      : 'Place ${maxDeployments - deployedCount} more guardian${maxDeployments - deployedCount == 1 ? '' : 's'} to begin',
+                  canConfirm
+                      ? 'Ready — $unplacedCount on bench'
+                      : 'Place $needMore more to begin',
                   style: TextStyle(
-                    color: deployedCount == maxDeployments
-                        ? fc.amberBright
-                        : fc.textSecondary,
-                    fontSize: 12,
+                    color: canConfirm ? fc.amberBright : fc.textSecondary,
+                    fontSize: 11,
                   ),
                 ),
               ],
             ),
           ),
+          // Auto-place / Clear buttons
+          GestureDetector(
+            onTap: deployedCount > 0 ? _clearAll : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: fc.bg2,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: fc.borderDim),
+              ),
+              child: Text(
+                'CLEAR',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: deployedCount > 0 ? fc.textSecondary : fc.textMuted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: unplacedCount > 0 && deployedCount < maxDeployments
+                ? _autoPlace
+                : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: unplacedCount > 0
+                    ? fc.amber.withValues(alpha: 0.15)
+                    : fc.bg2,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: unplacedCount > 0
+                      ? fc.amber.withValues(alpha: 0.5)
+                      : fc.borderDim,
+                ),
+              ),
+              child: Text(
+                'AUTO',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: unplacedCount > 0 ? fc.amberBright : fc.textMuted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: fc.bg2,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: canConfirm ? fc.amber : fc.borderDim,
                 width: 1.5,
@@ -303,7 +452,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: canConfirm ? fc.amberBright : fc.textSecondary,
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.0,
               ),
@@ -314,51 +463,170 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
     );
   }
 
-  Widget _buildArena() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = math.min(constraints.maxWidth, constraints.maxHeight);
-        final center = Offset(
-          constraints.maxWidth / 2,
-          constraints.maxHeight / 2,
-        );
-        final radius = size * 0.30;
-
-        // Cardinal positions: Top, Right, Bottom, Left
-        final slotPositions = [
-          Offset(center.dx, center.dy - radius), // Top
-          Offset(center.dx + radius, center.dy), // Right
-          Offset(center.dx, center.dy + radius), // Bottom
-          Offset(center.dx - radius, center.dy), // Left
-        ];
-
-        return Stack(
-          children: [
-            CustomPaint(
-              size: Size(constraints.maxWidth, constraints.maxHeight),
-              painter: _ArenaPainter(
-                animation: _pulseController,
-                center: center,
-                radius: radius,
+  // ── Ring selector tabs ──
+  Widget _buildRingTabs() {
+    final fc = FC.of(context);
+    return Container(
+      height: 32,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: fc.bg2,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: fc.borderDim),
+      ),
+      child: Row(
+        children: List.generate(_kRings.length, (i) {
+          final ring = _kRings[i];
+          final isActive = i == _activeRingIndex;
+          final filledInRing = _countFilledInRing(ring);
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _activeRingIndex = i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? fc.amber.withValues(alpha: 0.15)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(3),
+                  border: isActive
+                      ? Border.all(color: fc.amber.withValues(alpha: 0.4))
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      ring.label,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: isActive ? fc.amberBright : fc.textMuted,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    if (filledInRing > 0) ...[
+                      const SizedBox(width: 3),
+                      Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: fc.success.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$filledInRing',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: fc.success,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
-            Positioned(
-              left: center.dx - 40,
-              top: center.dy - 40,
-              child: _buildCentralOrb(),
-            ),
-            ...List.generate(4, (index) {
-              final pos = slotPositions[index];
-              return Positioned(
-                left: pos.dx - 40,
-                top: pos.dy - 40,
-                child: _buildSlot(index),
-              );
-            }),
-          ],
-        );
-      },
+          );
+        }),
+      ),
     );
+  }
+
+  int _countFilledInRing(_RingDef ring) {
+    int count = 0;
+    for (int i = 0; i < ring.slotCount; i++) {
+      if (_slotAssignments[ring.startIndex + i] != null) count++;
+    }
+    return count;
+  }
+
+  // ── Arena: shows the active ring as a circle of slots around the orb ──
+  Widget _buildArena() {
+    final ring = _kRings[_activeRingIndex];
+
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity == null) return;
+        if (details.primaryVelocity! < -200 &&
+            _activeRingIndex < _kRings.length - 1) {
+          setState(() => _activeRingIndex++);
+        } else if (details.primaryVelocity! > 200 && _activeRingIndex > 0) {
+          setState(() => _activeRingIndex--);
+        }
+      },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final areaSize = math.min(
+            constraints.maxWidth,
+            constraints.maxHeight,
+          );
+          final center = Offset(
+            constraints.maxWidth / 2,
+            constraints.maxHeight / 2,
+          );
+          final radius = areaSize * 0.34;
+          final slotSize = _slotSizeForRing(ring, areaSize);
+
+          // Compute slot positions for this ring
+          final slotPositions = <int, Offset>{};
+          for (int i = 0; i < ring.slotCount; i++) {
+            final angle = (i / ring.slotCount) * math.pi * 2 + ring.angleOffset;
+            slotPositions[ring.startIndex + i] = Offset(
+              center.dx + math.cos(angle) * radius,
+              center.dy + math.sin(angle) * radius,
+            );
+          }
+
+          return Stack(
+            children: [
+              // Background arena painting
+              CustomPaint(
+                size: Size(constraints.maxWidth, constraints.maxHeight),
+                painter: _ArenaPainter(
+                  animation: _pulseController,
+                  center: center,
+                  radius: radius,
+                  slotCount: ring.slotCount,
+                  angleOffset: ring.angleOffset,
+                ),
+              ),
+              // Central orb
+              Positioned(
+                left: center.dx - 30,
+                top: center.dy - 30,
+                child: _buildCentralOrb(),
+              ),
+              // Slots
+              ...slotPositions.entries.map((entry) {
+                final halfSlot = slotSize / 2;
+                return Positioned(
+                  left: entry.value.dx - halfSlot,
+                  top: entry.value.dy - halfSlot,
+                  child: _buildSlot(entry.key, slotSize),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  double _slotSizeForRing(_RingDef ring, double areaSize) {
+    // Scale slot size based on ring density so they don't overlap
+    if (ring.slotCount <= 8) return 56;
+    if (ring.slotCount <= 10) return 50;
+    if (ring.slotCount <= 12) return 46;
+    if (ring.slotCount <= 14) return 42;
+    return 38;
   }
 
   Widget _buildCentralOrb() {
@@ -368,62 +636,59 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
       builder: (context, child) {
         final pulse = _pulseController.value;
         return SizedBox(
-          width: 80,
-          height: 80,
+          width: 60,
+          height: 60,
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Outer pulsing halo
               Transform.scale(
-                scale: 0.88 + 0.12 * pulse,
+                scale: 0.9 + 0.1 * pulse,
                 child: Container(
-                  width: 80,
-                  height: 80,
+                  width: 60,
+                  height: 60,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: fc.amber.withValues(alpha: 0.10 + 0.18 * pulse),
+                      color: fc.amber.withValues(alpha: 0.12 + 0.16 * pulse),
                       width: 1.5,
                     ),
                   ),
                 ),
               ),
-              // Mid glow ring
               Container(
-                width: 64,
-                height: 64,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      fc.amberGlow.withValues(alpha: 0.55 + 0.25 * pulse),
-                      FC.orange.withValues(alpha: 0.28),
+                      fc.amberGlow.withValues(alpha: 0.5 + 0.2 * pulse),
+                      FC.orange.withValues(alpha: 0.22),
                       Colors.transparent,
                     ],
                     stops: const [0.0, 0.55, 1.0],
                   ),
                   border: Border.all(
-                    color: fc.amber.withValues(alpha: 0.55 + 0.25 * pulse),
-                    width: 2.0,
+                    color: fc.amber.withValues(alpha: 0.5 + 0.25 * pulse),
+                    width: 1.5,
                   ),
                 ),
               ),
-              // Inner core
               Container(
-                width: 40,
-                height: 40,
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: const Color(0xFF1C1208),
                   border: Border.all(
-                    color: fc.amberBright.withValues(alpha: 0.75 + 0.25 * pulse),
+                    color: fc.amberBright.withValues(alpha: 0.7 + 0.3 * pulse),
                     width: 1.5,
                   ),
                 ),
                 child: Icon(
                   Icons.shield_rounded,
                   color: fc.amberBright,
-                  size: 20,
+                  size: 14,
                 ),
               ),
             ],
@@ -433,21 +698,18 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
     );
   }
 
-  Widget _buildSlot(int index) {
+  Widget _buildSlot(int globalIndex, double slotSize) {
     final fc = FC.of(context);
-    final creature = _slotAssignments[index];
+    final creature = _slotAssignments[globalIndex];
     final isOccupied = creature != null;
-    final isHighlighted =
-        _selectedCreature != null &&
-        !_selectedCreature!.isPlaced &&
-        deployedCount < maxDeployments;
-    final isSwapHighlighted =
-        _selectedCreature != null && _selectedCreature!.isPlaced;
+    final hasSelection = _selectedCreature != null;
+    final isHighlighted = hasSelection && !_selectedCreature!.isPlaced;
+    final isSwapHighlighted = hasSelection && _selectedCreature!.isPlaced;
 
     return GestureDetector(
       onTap: () {
         if (_selectedCreature != null) {
-          _assignToSlot(index);
+          _assignToSlot(globalIndex);
         } else if (isOccupied) {
           _selectCreature(creature);
         }
@@ -456,8 +718,8 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
         animation: _pulseController,
         builder: (context, child) {
           final pulse = _pulseController.value;
-          final scale = isHighlighted || isSwapHighlighted
-              ? 1.0 + 0.09 * pulse
+          final scale = (isHighlighted || isSwapHighlighted)
+              ? 1.0 + 0.08 * pulse
               : 1.0;
           final glowColor = isOccupied
               ? _getFamilyColor(creature.family)
@@ -469,51 +731,59 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
 
           return Transform.scale(
             scale: scale,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Outer glow halo when active
-                if (isHighlighted || isSwapHighlighted || isOccupied)
-                  Container(
-                    width: 88,
-                    height: 88,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: glowColor.withValues(alpha: 
-                          isHighlighted ? 0.25 + 0.25 * pulse : 0.15,
+            child: SizedBox(
+              width: slotSize,
+              height: slotSize,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (isHighlighted || isSwapHighlighted || isOccupied)
+                    Container(
+                      width: slotSize + 6,
+                      height: slotSize + 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: glowColor.withValues(
+                            alpha: isHighlighted ? 0.2 + 0.2 * pulse : 0.12,
+                          ),
+                          width: 1.0,
                         ),
-                        width: 1.0,
                       ),
                     ),
-                  ),
-                // Main slot circle
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isOccupied
-                        ? _getFamilyColor(creature.family).withValues(alpha: 0.15)
-                        : isHighlighted
-                        ? fc.amber.withValues(alpha: 0.08 + 0.06 * pulse)
-                        : fc.bg2,
-                    border: Border.all(
-                      color: isHighlighted
-                          ? fc.amberBright.withValues(alpha: 0.8 + 0.2 * pulse)
-                          : isSwapHighlighted
-                          ? fc.amber.withValues(alpha: 0.7 + 0.2 * pulse)
-                          : isOccupied
-                          ? _getFamilyColor(creature.family).withValues(alpha: 0.75)
-                          : fc.borderDim,
-                      width: isHighlighted || isSwapHighlighted ? 2.5 : 1.5,
+                  Container(
+                    width: slotSize,
+                    height: slotSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isOccupied
+                          ? _getFamilyColor(
+                              creature.family,
+                            ).withValues(alpha: 0.15)
+                          : isHighlighted
+                          ? fc.amber.withValues(alpha: 0.06 + 0.05 * pulse)
+                          : fc.bg2.withValues(alpha: 0.8),
+                      border: Border.all(
+                        color: isHighlighted
+                            ? fc.amberBright.withValues(
+                                alpha: 0.7 + 0.3 * pulse,
+                              )
+                            : isSwapHighlighted
+                            ? fc.amber.withValues(alpha: 0.6 + 0.2 * pulse)
+                            : isOccupied
+                            ? _getFamilyColor(
+                                creature.family,
+                              ).withValues(alpha: 0.7)
+                            : fc.borderDim.withValues(alpha: 0.5),
+                        width: (isHighlighted || isSwapHighlighted) ? 2.0 : 1.0,
+                      ),
                     ),
+                    child: isOccupied
+                        ? _buildSlotCreature(creature, slotSize)
+                        : _buildEmptySlot(globalIndex, isHighlighted, slotSize),
                   ),
-                  child: isOccupied
-                      ? _buildSlotCreature(creature)
-                      : _buildEmptySlot(index, isHighlighted),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
@@ -521,84 +791,62 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
     );
   }
 
-  Widget _buildSlotCreature(DeploymentCreature creature) {
-    final fc = FC.of(context);
-    return Stack(
-      children: [
-        Center(
-          child: creature.hasSprite
-              ? SizedBox(
-                  width: 54,
-                  height: 54,
-                  child: CreatureSprite(
-                    spritePath: creature.sheetDef!.path,
-                    totalFrames: creature.sheetDef!.totalFrames,
-                    rows: creature.sheetDef!.rows,
-                    frameSize: creature.sheetDef!.frameSize,
-                    stepTime: creature.sheetDef!.stepTime,
-                    scale: creature.spriteVisuals?.scale ?? 1.0,
-                    saturation: creature.spriteVisuals?.saturation ?? 1.0,
-                    brightness: creature.spriteVisuals?.brightness ?? 1.0,
-                    hueShift: creature.spriteVisuals?.hueShiftDeg ?? 0.0,
-                    isPrismatic: creature.spriteVisuals?.isPrismatic ?? false,
-                    tint: creature.spriteVisuals?.tint,
-                  ),
-                )
-              : Text(
-                  creature.family[0],
-                  style: TextStyle(
-                    color: _getFamilyColor(creature.family),
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-        ),
-        Positioned(
-          bottom: 4,
-          right: 4,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-            decoration: BoxDecoration(
-              color: fc.bg0,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: fc.borderDim),
-            ),
-            child: Text(
-              'Lv${creature.level}',
+  Widget _buildSlotCreature(DeploymentCreature creature, double slotSize) {
+    final spriteSize = slotSize * 0.65;
+    return Center(
+      child: creature.hasSprite
+          ? SizedBox(
+              width: spriteSize,
+              height: spriteSize,
+              child: CreatureSprite(
+                spritePath: creature.sheetDef!.path,
+                totalFrames: creature.sheetDef!.totalFrames,
+                rows: creature.sheetDef!.rows,
+                frameSize: creature.sheetDef!.frameSize,
+                stepTime: creature.sheetDef!.stepTime,
+                scale: creature.spriteVisuals?.scale ?? 1.0,
+                saturation: creature.spriteVisuals?.saturation ?? 1.0,
+                brightness: creature.spriteVisuals?.brightness ?? 1.0,
+                hueShift: creature.spriteVisuals?.hueShiftDeg ?? 0.0,
+                isPrismatic: creature.spriteVisuals?.isPrismatic ?? false,
+                tint: creature.spriteVisuals?.tint,
+              ),
+            )
+          : Text(
+              creature.family[0],
               style: TextStyle(
-                fontFamily: 'monospace',
-                color: fc.textSecondary,
-                fontSize: 9,
+                color: _getFamilyColor(creature.family),
+                fontSize: slotSize * 0.4,
                 fontWeight: FontWeight.bold,
               ),
             ),
-          ),
-        ),
-      ],
     );
   }
 
-  Widget _buildEmptySlot(int index, bool isHighlighted) {
+  Widget _buildEmptySlot(int globalIndex, bool isHighlighted, double slotSize) {
     final fc = FC.of(context);
+    final localIndex = globalIndex - _kRings[_activeRingIndex].startIndex + 1;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(
-          isHighlighted ? Icons.add_circle_rounded : _slotIcons[index],
+          isHighlighted
+              ? Icons.add_circle_rounded
+              : Icons.radio_button_unchecked,
           color: isHighlighted
               ? fc.amberBright
-              : fc.textMuted.withValues(alpha: 0.55),
-          size: isHighlighted ? 26 : 20,
+              : fc.textMuted.withValues(alpha: 0.35),
+          size: slotSize * 0.32,
         ),
-        SizedBox(height: 3),
         Text(
-          _slotLabels[index],
+          '$localIndex',
           style: TextStyle(
             fontFamily: 'monospace',
-            color: isHighlighted ? fc.amber : fc.textMuted,
+            color: isHighlighted
+                ? fc.amber
+                : fc.textMuted.withValues(alpha: 0.4),
             fontSize: 7,
             fontWeight: FontWeight.w800,
-            letterSpacing: 1.2,
           ),
         ),
       ],
@@ -609,7 +857,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
     final fc = FC.of(context);
     final ft = FT(fc);
     return Container(
-      height: 155,
+      height: 140,
       margin: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: fc.borderDim)),
@@ -618,14 +866,14 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: [
                 Text('YOUR GUARDIANS', style: ft.label),
                 const Spacer(),
                 Text(
-                  'tap to select  ·  tap slot to place',
-                  style: TextStyle(color: fc.textMuted, fontSize: 10),
+                  'tap creature → tap slot',
+                  style: TextStyle(color: fc.textMuted, fontSize: 9),
                 ),
               ],
             ),
@@ -654,10 +902,10 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
       onTap: () => _selectCreature(creature),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 88,
-        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        width: 80,
+        margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           color: isSelected ? familyColor.withValues(alpha: 0.18) : fc.bg2,
           border: Border.all(
             color: isSelected
@@ -671,7 +919,7 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(4),
               child: Column(
                 children: [
                   Expanded(
@@ -698,60 +946,56 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                               creature.family[0],
                               style: TextStyle(
                                 color: familyColor,
-                                fontSize: 28,
+                                fontSize: 24,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                   ),
-                  SizedBox(height: 2),
                   Text(
                     creature.name,
                     style: TextStyle(
                       color: fc.textPrimary,
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: FontWeight.w600,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 1),
                   Text(
-                    'Lv${creature.level} · ${creature.family}',
+                    'Lv${creature.level}',
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: familyColor.withValues(alpha: 0.9),
-                      fontSize: 9,
+                      fontSize: 8,
                       fontWeight: FontWeight.w600,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
             if (isPlaced)
               Positioned(
-                top: 4,
-                right: 4,
+                top: 2,
+                right: 2,
                 child: Container(
-                  width: 18,
-                  height: 18,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: fc.bg0,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: fc.amber, width: 1.5),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: fc.amber, width: 1.0),
                   ),
-                  child: Center(
-                    child: Text(
-                      _slotLabels[creature.assignedSlot!][0],
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: fc.amberBright,
-                        fontSize: 8,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  child: Text(
+                    _ringLabelForSlot(creature.assignedSlot!),
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: fc.amberBright,
+                      fontSize: 6,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
@@ -760,8 +1004,8 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: fc.bg0.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(10),
+                    color: fc.bg0.withValues(alpha: 0.35),
                   ),
                 ),
               ),
@@ -774,18 +1018,19 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   Widget _buildConfirmButton() {
     final fc = FC.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: AnimatedBuilder(
         animation: _pulseController,
         builder: (context, child) {
           final pulse = _pulseController.value;
+          final needMore = minDeployments - deployedCount;
           return GestureDetector(
             onTap: canConfirm ? _confirm : null,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              height: 56,
+              height: 50,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 color: canConfirm
                     ? fc.amberDim.withValues(alpha: 0.85 + 0.15 * pulse)
                     : fc.bg2,
@@ -798,8 +1043,10 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                 boxShadow: canConfirm
                     ? [
                         BoxShadow(
-                          color: fc.amber.withValues(alpha: 0.18 + 0.14 * pulse),
-                          blurRadius: 18,
+                          color: fc.amber.withValues(
+                            alpha: 0.15 + 0.12 * pulse,
+                          ),
+                          blurRadius: 14,
                           spreadRadius: 2,
                         ),
                       ]
@@ -813,18 +1060,18 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                         ? Icons.play_arrow_rounded
                         : Icons.lock_outline_rounded,
                     color: canConfirm ? fc.amberBright : fc.textMuted,
-                    size: 24,
+                    size: 22,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Text(
                     canConfirm
-                        ? 'BEGIN BATTLE'
-                        : 'PLACE ${maxDeployments - deployedCount} MORE',
+                        ? 'BEGIN BATTLE  ·  $deployedCount DEPLOYED'
+                        : 'PLACE $needMore MORE',
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.8,
+                      letterSpacing: 1.6,
                       color: canConfirm ? fc.amberBright : fc.textSecondary,
                     ),
                   ),
@@ -861,35 +1108,43 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
   }
 }
 
+// ── Arena background painter ──
 class _ArenaPainter extends CustomPainter {
   final Animation<double> animation;
   final Offset center;
   final double radius;
+  final int slotCount;
+  final double angleOffset;
 
   _ArenaPainter({
     required this.animation,
     required this.center,
     required this.radius,
+    required this.slotCount,
+    required this.angleOffset,
   }) : super(repaint: animation);
 
   @override
   void paint(Canvas canvas, Size size) {
     final pulse = animation.value;
 
-    // --- Background radial atmosphere ---
+    // Background radial atmosphere
     final bgGlow = Paint()
       ..shader = RadialGradient(
-        colors: [const Color(0xFF1A1005).withValues(alpha: 0.55), Colors.transparent],
-      ).createShader(Rect.fromCircle(center: center, radius: radius * 1.9));
-    canvas.drawCircle(center, radius * 1.9, bgGlow);
+        colors: [
+          const Color(0xFF1A1005).withValues(alpha: 0.55),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius * 1.8));
+    canvas.drawCircle(center, radius * 1.8, bgGlow);
 
-    // --- Glowing cardinal connector lines ---
-    for (int i = 0; i < 4; i++) {
-      final angle = (i / 4) * math.pi * 2 - math.pi / 2;
-      final startX = center.dx + math.cos(angle) * radius * 0.42;
-      final startY = center.dy + math.sin(angle) * radius * 0.42;
-      final endX = center.dx + math.cos(angle) * (radius - 4);
-      final endY = center.dy + math.sin(angle) * (radius - 4);
+    // Connector lines from center to each slot
+    for (int i = 0; i < slotCount; i++) {
+      final angle = (i / slotCount) * math.pi * 2 + angleOffset;
+      final startX = center.dx + math.cos(angle) * 32;
+      final startY = center.dy + math.sin(angle) * 32;
+      final endX = center.dx + math.cos(angle) * (radius - 8);
+      final endY = center.dy + math.sin(angle) * (radius - 8);
       final connPaint = Paint()
         ..shader =
             LinearGradient(
@@ -900,119 +1155,55 @@ class _ArenaPainter extends CustomPainter {
               end: Alignment(math.cos(angle), math.sin(angle)),
               colors: [
                 Colors.transparent,
-                const Color(0xFFD97706).withValues(alpha: 0.2 + pulse * 0.18),
-                const Color(0xFFD97706).withValues(alpha: 0.45 + pulse * 0.2),
+                const Color(0xFFD97706).withValues(alpha: 0.08 + pulse * 0.06),
+                const Color(0xFFD97706).withValues(alpha: 0.18 + pulse * 0.10),
               ],
-              stops: const [0.0, 0.45, 1.0],
+              stops: const [0.0, 0.5, 1.0],
             ).createShader(
               Rect.fromPoints(Offset(startX, startY), Offset(endX, endY)),
             )
-        ..strokeWidth = 1.5
+        ..strokeWidth = 1.0
         ..style = PaintingStyle.stroke;
       canvas.drawLine(Offset(startX, startY), Offset(endX, endY), connPaint);
-
-      // Tick mark at slot end
-      final tickPaint = Paint()
-        ..color = const Color(0xFFD97706).withValues(alpha: 0.5 + pulse * 0.3)
-        ..strokeWidth = 2.5
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round;
-      final perp = Offset(-math.sin(angle), math.cos(angle));
-      canvas.drawLine(
-        Offset(endX - perp.dx * 6, endY - perp.dy * 6),
-        Offset(endX + perp.dx * 6, endY + perp.dy * 6),
-        tickPaint,
-      );
     }
 
-    // --- Main orbit ring with glow ---
+    // Main orbit ring with glow
     final mainGlow = Paint()
-      ..color = const Color(0xFFD97706).withValues(alpha: 0.06 + pulse * 0.05)
+      ..color = const Color(0xFFD97706).withValues(alpha: 0.04 + pulse * 0.04)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 10;
+      ..strokeWidth = 8;
     canvas.drawCircle(center, radius, mainGlow);
 
     final mainRing = Paint()
-      ..color = const Color(0xFFD97706).withValues(alpha: 0.28 + pulse * 0.16)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8;
-    canvas.drawCircle(center, radius, mainRing);
-
-    // --- Outer decorative ring ---
-    final outerRing = Paint()
-      ..color = const Color(0xFF92400E).withValues(alpha: 0.14 + pulse * 0.06)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawCircle(center, radius + 52, outerRing);
-
-    // --- Mid ring ---
-    final midRing = Paint()
-      ..color = const Color(0xFF6B4C20).withValues(alpha: 0.18 + pulse * 0.08)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawCircle(center, radius * 0.6, midRing);
-
-    // --- Inner ring ---
-    final innerRing = Paint()
-      ..color = const Color(0xFFD97706).withValues(alpha: 0.22 + pulse * 0.10)
+      ..color = const Color(0xFFD97706).withValues(alpha: 0.22 + pulse * 0.14)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
-    canvas.drawCircle(center, radius * 0.36, innerRing);
+    canvas.drawCircle(center, radius, mainRing);
 
-    // --- Dot marks at cardinal inner ring ---
-    final dotPaint = Paint()
-      ..color = const Color(0xFFD97706).withValues(alpha: 0.5 + pulse * 0.3)
-      ..style = PaintingStyle.fill;
-    for (int i = 0; i < 4; i++) {
-      final a = (i / 4) * math.pi * 2 - math.pi / 2;
-      canvas.drawCircle(
-        Offset(
-          center.dx + math.cos(a) * radius * 0.36,
-          center.dy + math.sin(a) * radius * 0.36,
-        ),
-        2.5,
-        dotPaint,
-      );
-    }
-
-    // --- Clockwise rotating arcs (inner band) ---
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(pulse * math.pi * 0.25);
-    final arcPaint1 = Paint()
-      ..color = const Color(0xFF92400E).withValues(alpha: 0.22)
+    // Inner decorative ring
+    final innerRing = Paint()
+      ..color = const Color(0xFFD97706).withValues(alpha: 0.18 + pulse * 0.08)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round;
-    for (int i = 0; i < 4; i++) {
-      final start = (i / 4) * math.pi * 2 + math.pi / 8;
-      canvas.drawArc(
-        Rect.fromCircle(center: Offset.zero, radius: radius + 28),
-        start,
-        math.pi / 6,
-        false,
-        arcPaint1,
-      );
-    }
-    canvas.restore();
+      ..strokeWidth = 1.0;
+    canvas.drawCircle(center, radius * 0.22, innerRing);
 
-    // --- Counter-rotating outer arcs ---
+    // Rotating arcs
     canvas.save();
     canvas.translate(center.dx, center.dy);
-    canvas.rotate(-pulse * math.pi * 0.15);
-    final arcPaint2 = Paint()
-      ..color = const Color(0xFF6B21A8).withValues(alpha: 0.14)
+    canvas.rotate(pulse * math.pi * 0.2);
+    final arcPaint = Paint()
+      ..color = const Color(0xFF92400E).withValues(alpha: 0.18)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
-    for (int i = 0; i < 6; i++) {
-      final start = (i / 6) * math.pi * 2;
+    for (int i = 0; i < slotCount; i += 3) {
+      final start = (i / slotCount) * math.pi * 2 + math.pi / slotCount;
       canvas.drawArc(
-        Rect.fromCircle(center: Offset.zero, radius: radius + 52),
+        Rect.fromCircle(center: Offset.zero, radius: radius + 16),
         start,
-        math.pi / 9,
+        math.pi / (slotCount * 0.6),
         false,
-        arcPaint2,
+        arcPaint,
       );
     }
     canvas.restore();

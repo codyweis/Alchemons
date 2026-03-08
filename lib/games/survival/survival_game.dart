@@ -12,6 +12,7 @@ import 'package:alchemons/games/survival/enemies/survival_enemies.dart';
 import 'package:alchemons/games/survival/survival_engine.dart';
 import 'package:alchemons/games/survival/survival_combat.dart';
 import 'package:alchemons/games/survival/survival_spawner_v2.dart';
+import 'package:alchemons/models/survival_upgrades.dart';
 
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
@@ -95,6 +96,11 @@ class SurvivalHoardGame extends FlameGame
     with HasCollisionDetection, ScaleDetector {
   final List<PartyMember> party;
   final VoidCallback onGameOver;
+  final SurvivalUpgradeState upgradeState;
+
+  /// Maps creature ID → global slot index chosen during deployment.
+  /// Creatures NOT in this map are placed on the bench.
+  final Map<String, int> slotAssignments;
 
   @override
   late World world;
@@ -111,6 +117,9 @@ class SurvivalHoardGame extends FlameGame
 
   // ADDED: Death cascade manager for chain kill effects
   DeathCascadeManager? deathCascade;
+
+  // ADDED: Detonation ability component (if unlocked)
+  DetonationTimerComponent? detonationComponent;
 
   int _totalChoicesMade = 0; // Track how many times we've leveled up
   int _killsSinceLastChoice = 0;
@@ -171,7 +180,13 @@ class SurvivalHoardGame extends FlameGame
   final ValueNotifier<AlchemyChoiceState?> alchemyChoiceNotifier =
       ValueNotifier<AlchemyChoiceState?>(null);
 
-  SurvivalHoardGame({required this.party, required this.onGameOver});
+  SurvivalHoardGame({
+    required this.party,
+    required this.onGameOver,
+    SurvivalUpgradeState? upgradeState,
+    Map<String, int>? slotAssignments,
+  }) : upgradeState = upgradeState ?? SurvivalUpgradeState(),
+       slotAssignments = slotAssignments ?? {};
 
   List<HoardGuardian> get guardians => _guardians;
 
@@ -246,7 +261,17 @@ class SurvivalHoardGame extends FlameGame
     add(world);
     add(cameraComponent);
 
-    orb = AlchemyOrb(maxHp: 500);
+    final skinDef = kOrbBases.firstWhere(
+      (d) => d.skin == upgradeState.equippedSkin,
+      orElse: () => kOrbBases.first,
+    );
+    orb = AlchemyOrb(
+      maxHp: (400 + upgradeState.bonusOrbHp).toDouble(),
+      skinType: skinDef.skin,
+      primaryColor: skinDef.primaryColor,
+      secondaryColor: skinDef.secondaryColor,
+      glowColor: skinDef.glowColor,
+    );
     world.add(orb);
 
     _initGuardianSlots();
@@ -257,6 +282,23 @@ class SurvivalHoardGame extends FlameGame
     // ADDED: Initialize death cascade manager for chain kill effects
     deathCascade = DeathCascadeManager();
     add(deathCascade!);
+
+    // Add base ability components from upgrade state
+    if (upgradeState.turretDamage > 0) {
+      add(OrbTurretComponent(upgradeState: upgradeState));
+    }
+    if (upgradeState.detonationDamage > 0) {
+      detonationComponent = DetonationTimerComponent(
+        upgradeState: upgradeState,
+      );
+      add(detonationComponent!);
+    }
+    if (upgradeState.shieldPulseInterval < double.infinity) {
+      add(ShieldPulseComponent(upgradeState: upgradeState));
+    }
+    if (upgradeState.healingPerSecond > 0) {
+      add(HealingAuraComponent(upgradeState: upgradeState));
+    }
 
     _setupFormation();
     _initBenchFromParty();
@@ -320,12 +362,11 @@ class SurvivalHoardGame extends FlameGame
   }
 
   void _initBenchFromParty() {
-    // If party has more than 4, put the rest on bench
-    if (party.length <= 4) return;
-
-    for (int i = 4; i < party.length; i++) {
+    // Any party member NOT in slotAssignments goes to the bench
+    for (int i = 0; i < party.length; i++) {
       final member = party[i];
       final c = member.combatant;
+      if (slotAssignments.containsKey(c.id)) continue; // already deployed
 
       final unit = SurvivalUnit(
         id: '${c.id}_bench$i',
@@ -430,6 +471,9 @@ class SurvivalHoardGame extends FlameGame
       unit: unit,
       position: orb.position + slot.offset,
     );
+
+    // Apply persistent upgrade bonuses to the guardian
+    _applyUpgradeBonusesToUnit(unit);
 
     slot.guardian = guardian;
     _guardians.add(guardian);
@@ -1067,19 +1111,16 @@ class SurvivalHoardGame extends FlameGame
   }
 
   void _setupFormation() {
-    // The first 4 party members are active — positions chosen by the player
-    // during the deployment phase (TOP, RIGHT, BOTTOM, LEFT).
-    // They map to cardinal directions on the inner ring (8 slots total).
-    final int activeCount = party.length.clamp(0, 4);
+    // Deploy creatures that have slot assignments from the deployment phase.
+    // Any party member whose ID is in slotAssignments gets placed;
+    // the rest go to the bench via _initBenchFromParty.
 
-    // Slot indices for the 4 starting positions: N, E, S, W
-    const List<int> startingSlotIndices = [0, 2, 4, 6];
-
-    for (int idx = 0; idx < activeCount; idx++) {
-      final member = party[idx];
+    for (final member in party) {
       final c = member.combatant;
+      final slotIndex = slotAssignments[c.id];
+      if (slotIndex == null) continue; // bench creature
+      if (slotIndex < 0 || slotIndex >= _slots.length) continue;
 
-      final slotIndex = startingSlotIndices[idx];
       final slot = _slots[slotIndex];
 
       final unit = SurvivalUnit(
@@ -1098,6 +1139,9 @@ class SurvivalHoardGame extends FlameGame
 
       // Apply scaling for starters
       _applyScalingToGuardian(unit);
+
+      // Apply persistent upgrade bonuses
+      _applyUpgradeBonusesToUnit(unit);
 
       final guardian = HoardGuardian(
         unit: unit,
@@ -1191,6 +1235,207 @@ class SurvivalHoardGame extends FlameGame
   @override
   void onScaleEnd(ScaleEndInfo info) {
     _lastFocalPoint = null;
+  }
+
+  // ── Persistent Upgrade Bonus Application ─────────────────────────────────
+
+  void _applyUpgradeBonusesToUnit(SurvivalUnit unit) {
+    final st = upgradeState;
+
+    // Cooldown reduction bonus (reduces cooldown, so boost Speed)
+    if (st.guardianCDRBonus > 0) {
+      unit.cooldownReduction *= (1 + st.guardianCDRBonus);
+    }
+
+    // Defense bonus
+    if (st.guardianDefenseBonus > 0) {
+      unit.physDef = (unit.physDef * (1 + st.guardianDefenseBonus)).round();
+      unit.elemDef = (unit.elemDef * (1 + st.guardianDefenseBonus)).round();
+    }
+
+    // Attack bonus
+    if (st.guardianAttackBonus > 0) {
+      unit.physAtk = (unit.physAtk * (1 + st.guardianAttackBonus)).round();
+      unit.elemAtk = (unit.elemAtk * (1 + st.guardianAttackBonus)).round();
+    }
+
+    // Crit bonus
+    if (st.guardianCritBonus > 0) {
+      unit.critChance = (unit.critChance + st.guardianCritBonus).clamp(0, 0.80);
+    }
+
+    // Range bonus
+    if (st.guardianRangeBonus > 0) {
+      unit.attackRange *= (1 + st.guardianRangeBonus);
+      unit.specialAbilityRange *= (1 + st.guardianRangeBonus);
+    }
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// BASE ABILITY COMPONENTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Auto-turret that fires at the nearest enemy from the orb.
+class OrbTurretComponent extends Component
+    with HasGameReference<SurvivalHoardGame> {
+  final SurvivalUpgradeState upgradeState;
+  double _timer = 0;
+
+  OrbTurretComponent({required this.upgradeState});
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    if (game.isGameOver || game.isInAlchemyPause) return;
+
+    _timer += dt * game.simulationSpeed;
+    final fireRate = upgradeState.turretFireRate;
+    if (_timer < fireRate) return;
+    _timer -= fireRate;
+
+    final enemies = game.getEnemiesInRange(game.orb.position, 500);
+    if (enemies.isEmpty) return;
+
+    // Find nearest enemy
+    HoardEnemy? nearest;
+    double nearestDist = double.infinity;
+    for (final e in enemies) {
+      final d = game.orb.position.distanceToSquared(e.position);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = e;
+      }
+    }
+    if (nearest == null) return;
+
+    final targetEnemy = nearest;
+    final damage = upgradeState.turretDamage;
+
+    // Fire a projectile using the existing AlchemyProjectile system
+    game.world.add(
+      AlchemyProjectile(
+        start: game.orb.position.clone(),
+        end: targetEnemy.position.clone(),
+        color: const Color(0xFF3B82F6),
+        shape: ProjectileShape.bolt,
+        speedMultiplier: 2.0,
+        onHit: () {
+          if (!targetEnemy.isDead) {
+            targetEnemy.unit.takeDamage(damage);
+            if (targetEnemy.unit.isDead) {
+              game.kills++;
+              game.score += 10;
+            }
+          }
+        },
+      ),
+    );
+  }
+}
+
+/// Periodically enables a "detonation ready" flag. The HUD can show a button;
+/// when tapped, all enemies on screen take damage.
+class DetonationTimerComponent extends Component
+    with HasGameReference<SurvivalHoardGame> {
+  final SurvivalUpgradeState upgradeState;
+  double _timer = 0;
+
+  final ValueNotifier<bool> readyNotifier = ValueNotifier(false);
+
+  DetonationTimerComponent({required this.upgradeState});
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    if (game.isGameOver || game.isInAlchemyPause) return;
+    if (readyNotifier.value) return; // waiting for player tap
+
+    _timer += dt * game.simulationSpeed;
+    if (_timer >= upgradeState.detonationCooldown) {
+      _timer = 0;
+      readyNotifier.value = true;
+    }
+  }
+
+  void detonate() {
+    if (!readyNotifier.value) return;
+    readyNotifier.value = false;
+
+    // Deal damage to ALL enemies
+    final damage = upgradeState.detonationDamage;
+    for (final enemy in List.of(game.enemies)) {
+      if (enemy.isDead) continue;
+      enemy.unit.takeDamage(damage);
+      if (enemy.unit.isDead) {
+        game.kills++;
+        game.score += 10;
+      }
+    }
+  }
+}
+
+/// Periodically pushes enemies away and stuns them briefly.
+class ShieldPulseComponent extends Component
+    with HasGameReference<SurvivalHoardGame> {
+  final SurvivalUpgradeState upgradeState;
+  double _timer = 0;
+
+  ShieldPulseComponent({required this.upgradeState});
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    if (game.isGameOver || game.isInAlchemyPause) return;
+
+    _timer += dt * game.simulationSpeed;
+    if (_timer < upgradeState.shieldPulseInterval) return;
+    _timer -= upgradeState.shieldPulseInterval;
+
+    // Push all enemies in range outward
+    const pulseRange = 400.0;
+    const pushStrength = 350.0;
+    final enemies = game.getEnemiesInRange(game.orb.position, pulseRange);
+    for (final enemy in enemies) {
+      final dir = (enemy.position - game.orb.position);
+      if (dir.length2 > 0) {
+        dir.normalize();
+        enemy.position += dir * pushStrength;
+      }
+      // Apply brief stun (set a status effect)
+      enemy.unit.applyStatusEffect(
+        SurvivalStatusEffect(
+          type: 'stun',
+          damagePerTick: 0,
+          ticksRemaining: (upgradeState.shieldStunDuration * 2).ceil(),
+          tickInterval: 0.5,
+        ),
+      );
+    }
+  }
+}
+
+/// Slowly regenerates the orb's HP over time.
+class HealingAuraComponent extends Component
+    with HasGameReference<SurvivalHoardGame> {
+  final SurvivalUpgradeState upgradeState;
+  double _healAccumulator = 0;
+
+  HealingAuraComponent({required this.upgradeState});
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    if (game.isGameOver || game.isInAlchemyPause) return;
+    if (game.orb.isDestroyed) return;
+
+    _healAccumulator +=
+        upgradeState.healingPerSecond * dt * game.simulationSpeed;
+    if (_healAccumulator >= 1.0) {
+      final healAmt = _healAccumulator.floor();
+      _healAccumulator -= healAmt;
+      game.orb.heal(healAmt);
+    }
   }
 }
 

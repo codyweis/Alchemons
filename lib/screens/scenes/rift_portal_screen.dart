@@ -13,6 +13,7 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class RiftPortalScreen extends StatefulWidget {
@@ -45,12 +46,14 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
   final bool _encounterActive = true;
   Creature? _selectedPartyCreature;
 
-  // Rarity weights: common / uncommon / rare / legendary
-  static const _rarityWeights = [60.0, 25.0, 10.0, 2.0];
-
   @override
   void initState() {
     super.initState();
+    // Force landscape orientation inside the rift
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
@@ -82,18 +85,6 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     final repo = context.read<CreatureCatalog>();
     final rng = Random();
 
-    // Roll rarity using base weights.
-    final total = _rarityWeights.reduce((a, b) => a + b);
-    double roll = rng.nextDouble() * total;
-    EncounterRarity rarity = EncounterRarity.common;
-    for (int i = 0; i < EncounterRarity.values.length; i++) {
-      roll -= _rarityWeights[i];
-      if (roll <= 0) {
-        rarity = EncounterRarity.values[i];
-        break;
-      }
-    }
-
     // Filter catalog to species whose types overlap the faction.
     // Exclude Mystic rarity — they are not part of the standard encounter pool.
     final matchTypes = widget.faction.matchingTypes;
@@ -110,7 +101,9 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
       return;
     }
 
-    // Build a rarity-weighted list.
+    // Build a rarity-weighted list using each creature's own rarity weight.
+    // This gives the correct spawn probabilities:
+    //   Common ~62%  ·  Uncommon ~26%  ·  Rare ~10%  ·  Legendary ~2%
     // Guard against non-standard rarity strings (e.g. "Mystic") by falling
     // back to the rare weight so they can still appear but are uncommon.
     final weighted = <Creature>[];
@@ -126,6 +119,12 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     }
 
     final picked = weighted[rng.nextInt(weighted.length)];
+
+    // Derive encounter rarity from the creature's own rarity label.
+    final rarity = EncounterRarity.values.firstWhere(
+      (e) => e.label == picked.rarity.toLowerCase(),
+      orElse: () => EncounterRarity.rare,
+    );
 
     // Generate a prismatic instance (100% prismatic chance for void spawns).
     final gen = WildlifeGenerator(
@@ -144,6 +143,13 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
 
   @override
   void dispose() {
+    // Restore all orientations when leaving the rift
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     _controller.dispose();
     _bannerCtrl.dispose();
     _entryCtrl.dispose();
@@ -283,6 +289,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                 baseBreedChance: breedChanceForRarity(_voidRarity),
                 rarity: _voidRarity.label,
                 voidBred: true, // guarantees prismatic offspring on fuse
+                source: 'rift_portal',
               ),
               hydratedWildCreature: _voidCreature!,
               party: widget.party,

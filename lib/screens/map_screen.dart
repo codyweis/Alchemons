@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -15,6 +17,7 @@ import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
+import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
 import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/screens/scenes/scene_page.dart';
@@ -22,6 +25,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/wilderness_access_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 // for FactionTheme
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 
 class MapScreen extends StatefulWidget {
   final bool isTutorial;
@@ -37,6 +41,7 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen>
     with SingleTickerProviderStateMixin {
   bool _showDebugInfo = false; // Add this state variable
+  bool _arcaneUnlocked = false;
   late final AnimationController _mapController;
   late final Animation<double> _mapScale;
   late final Animation<double> _mapOpacity;
@@ -62,6 +67,10 @@ class _MapScreenState extends State<MapScreen>
     // the map is animating in instead of just appearing.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       precacheImage(const AssetImage('assets/images/ui/map.png'), context);
+      // Check if arcane portal is unlocked
+      final db = context.read<AlchemonsDatabase>();
+      final v = await db.settingsDao.getSetting('arcane_portal_unlocked');
+      if (mounted && v == '1') setState(() => _arcaneUnlocked = true);
       await Future.delayed(const Duration(milliseconds: 150));
       if (mounted) _mapController.forward();
     });
@@ -346,21 +355,6 @@ class _MapScreenState extends State<MapScreen>
 
                 const SizedBox(height: 12),
 
-                _PartyStatusCard(
-                  theme: theme,
-                  onTap: () async {
-                    HapticFeedback.selectionClick();
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PartyPickerScreen(
-                          enforceUniqueSpecies: false,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
                 if (!widget.isTutorial) const SizedBox(height: 16),
 
                 // Show tutorial hint
@@ -405,64 +399,46 @@ class _MapScreenState extends State<MapScreen>
                   const SizedBox(height: 16),
                 ],
 
-                // ADD DEBUG TOGGLE BUTTON
+                // Top scorched spawn boxes row (replaces debug toggle/panel)
                 if (!widget.isTutorial) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _showDebugInfo = !_showDebugInfo;
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                  // Compact 2x2 grid of spawn boxes (reduced top margin)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        _ScorchedSpawnBox(
+                          biomeId: 'valley',
+                          spawnService: spawnService,
+                          compact: true,
                         ),
-                        decoration: BoxDecoration(
-                          color: _showDebugInfo
-                              ? theme.accent.withValues(alpha: 0.2)
-                              : theme.surfaceAlt,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: theme.accent.withValues(alpha: .35),
-                            width: 1.2,
+                        _ScorchedSpawnBox(
+                          biomeId: 'sky',
+                          spawnService: spawnService,
+                          compact: true,
+                        ),
+                        _ScorchedSpawnBox(
+                          biomeId: 'volcano',
+                          spawnService: spawnService,
+                          compact: true,
+                        ),
+                        _ScorchedSpawnBox(
+                          biomeId: 'swamp',
+                          spawnService: spawnService,
+                          compact: true,
+                        ),
+                        if (_arcaneUnlocked)
+                          _ScorchedSpawnBox(
+                            biomeId: 'arcane',
+                            spawnService: spawnService,
+                            compact: true,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _showDebugInfo
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                              size: 16,
-                              color: theme.text,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _showDebugInfo
-                                  ? 'Hide Spawn Times'
-                                  : 'Show Spawn Times',
-                              style: TextStyle(
-                                color: theme.text,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                ],
-
-                // SHOW DEBUG INFO PANEL
-                if (_showDebugInfo && !widget.isTutorial) ...[
-                  _SpawnDebugPanel(theme: theme, spawnService: spawnService),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 2),
                 ],
 
                 // MAP AREA
@@ -482,6 +458,7 @@ class _MapScreenState extends State<MapScreen>
                     child: _ExpeditionMap(
                       theme: theme,
                       isTutorial: widget.isTutorial,
+                      arcaneUnlocked: _arcaneUnlocked,
                       onSelectRegion: (biomeId, scene) {
                         _handleRegionTap(context, biomeId, scene);
                       },
@@ -491,6 +468,7 @@ class _MapScreenState extends State<MapScreen>
                     ),
                   ),
                 ),
+
                 // Hint bar pinned to bottom
                 if (!widget.isTutorial)
                   anySpawns
@@ -787,62 +765,8 @@ class _HeaderBar extends StatelessWidget {
 }
 
 // =====================================================
-// PARTY STATUS CARD
+// SPAWN DEBUG PANEL
 // =====================================================
-
-class _PartyStatusCard extends StatelessWidget {
-  const _PartyStatusCard({required this.theme, required this.onTap});
-
-  final FactionTheme theme;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12),
-        padding: const EdgeInsets.all(12),
-        decoration: theme.chipDecoration(rim: theme.accent),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Party',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: .4,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Choose which Alchemons go into the wild',
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      height: 1.2,
-                      letterSpacing: .3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: theme.textMuted, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ADD THIS NEW WIDGET AT THE BOTTOM OF THE FILE
 class _SpawnDebugPanel extends StatelessWidget {
   const _SpawnDebugPanel({required this.theme, required this.spawnService});
 
@@ -856,6 +780,7 @@ class _SpawnDebugPanel extends StatelessWidget {
       ('sky', 'Sky'),
       ('volcano', 'Volcano'),
       ('swamp', 'Swamp'),
+      ('arcane', 'Arcane Portal'),
     ];
 
     return Container(
@@ -864,7 +789,10 @@ class _SpawnDebugPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.surfaceAlt,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.accent.withValues(alpha: .35), width: 1.2),
+        border: Border.all(
+          color: theme.accent.withValues(alpha: .35),
+          width: 1.2,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -960,12 +888,14 @@ class _ExpeditionMap extends StatelessWidget {
     required this.onSelectRegion,
     this.isTutorial = false,
     this.onPeekRegion,
+    this.arcaneUnlocked = false,
   });
 
   final FactionTheme theme;
   final void Function(String biomeId, SceneDefinition scene) onSelectRegion;
   final bool isTutorial;
   final void Function(String biomeId)? onPeekRegion; // NEW
+  final bool arcaneUnlocked;
 
   @override
   Widget build(BuildContext context) {
@@ -1067,6 +997,14 @@ class _ExpeditionMap extends StatelessWidget {
                   biomeId: 'swamp',
                   scene: swampScene,
                 ),
+
+                // ARCANE PORTAL VORTEX — centre of map
+                if (arcaneUnlocked)
+                  _ArcaneVortex(
+                    mapSize: size,
+                    hasSpawns: spawnService.getSceneSpawnCount('arcane') > 0,
+                    onTap: () => onSelectRegion('arcane', arcaneScene),
+                  ),
               ],
             ),
           ),
@@ -1074,6 +1012,244 @@ class _ExpeditionMap extends StatelessWidget {
       },
     );
   }
+}
+
+// =====================================================
+// SCORCHED SPAWN BOX
+// =====================================================
+class _ScorchedSpawnBox extends StatelessWidget {
+  final String biomeId;
+  final WildernessSpawnService spawnService;
+  final bool compact;
+
+  const _ScorchedSpawnBox({
+    required this.biomeId,
+    required this.spawnService,
+    this.compact = false,
+  });
+
+  String _formatTime(int? dueMs) {
+    if (dueMs == null) return 'Not scheduled';
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final diff = dueMs - now;
+    if (diff <= 0) return 'Due now!';
+    final minutes = diff ~/ 60000;
+    final seconds = (diff % 60000) ~/ 1000;
+    if (minutes > 0) return '${minutes}m ${seconds}s';
+    return '${seconds}s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
+    final nextDue = spawnService.getNextSpawnTime(biomeId);
+    final count = spawnService.getSceneSpawnCount(biomeId);
+
+    final boxWidth = compact ? 140.0 : 180.0;
+    final titleSize = compact ? 10.0 : 11.0;
+    final timeSize = compact ? 9.0 : 12.0;
+
+    return Container(
+      width: boxWidth,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: compact ? 4 : 6),
+      decoration: BoxDecoration(
+        color: fc.bg1,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: fc.borderAccent, width: 1.2),
+        boxShadow: [BoxShadow(color: fc.borderDim.withValues(alpha: .12), blurRadius: 6)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  biomeId.toUpperCase(),
+                  style: ft.heading.copyWith(fontSize: titleSize, color: fc.amberBright),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _formatTime(nextDue),
+                style: ft.mono.copyWith(fontSize: timeSize, color: fc.textSecondary),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =====================================================
+// ARCANE VORTEX (black hole in map centre)
+// =====================================================
+class _ArcaneVortex extends StatefulWidget {
+  final double mapSize;
+  final VoidCallback onTap;
+  final bool hasSpawns;
+  const _ArcaneVortex({
+    required this.mapSize,
+    required this.onTap,
+    this.hasSpawns = false,
+  });
+
+  @override
+  State<_ArcaneVortex> createState() => _ArcaneVortexState();
+}
+
+class _ArcaneVortexState extends State<_ArcaneVortex>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: widget.hasSpawns ? 3 : 6),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const vortexSize = 100.0;
+    final cx = widget.mapSize * 0.50 - vortexSize / 2;
+    final cy = widget.mapSize * 0.50 - vortexSize / 2;
+
+    return Positioned(
+      left: cx,
+      top: cy,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: SizedBox(
+          width: vortexSize,
+          height: vortexSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (widget.hasSpawns)
+                PulsingDebugHitbox(
+                  size: 90,
+                  color: Colors.black,
+                  clipOval: true,
+                ),
+              AnimatedBuilder(
+                animation: _ctrl,
+                builder: (_, __) =>
+                    CustomPaint(painter: _VortexPainter(t: _ctrl.value)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VortexPainter extends CustomPainter {
+  final double t;
+  const _VortexPainter({required this.t});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final center = Offset(cx, cy);
+    final pulse = (math.sin(t * math.pi * 2) + 1) / 2;
+
+    // Outer event-horizon glow
+    canvas.drawCircle(
+      center,
+      size.width * 0.48,
+      Paint()
+        ..color = const Color(0xFF7C3AED).withValues(alpha: 0.08 + pulse * 0.06)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20),
+    );
+
+    // Dark accretion disc rings
+    for (int ring = 0; ring < 3; ring++) {
+      final r = size.width * (0.18 + ring * 0.10);
+      final alpha = (0.12 - ring * 0.03 + pulse * 0.04).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        center,
+        r,
+        Paint()
+          ..color = const Color(0xFF7C3AED).withValues(alpha: alpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2 - ring * 0.2,
+      );
+    }
+
+    // Spiral arms (4 arms, faster spin)
+    const arms = 4;
+    const sweepRad = math.pi * 1.8;
+    const steps = 40;
+
+    for (int arm = 0; arm < arms; arm++) {
+      final armOffset = (arm / arms) * math.pi * 2;
+      for (int s = 0; s < steps; s++) {
+        final frac = s / steps;
+        final r = size.width * 0.04 + frac * size.width * 0.42;
+        final angle = t * math.pi * 2 * 2 + armOffset + frac * sweepRad;
+        final nextFrac = (s + 1) / steps;
+        final rN = size.width * 0.04 + nextFrac * size.width * 0.42;
+        final angleN = t * math.pi * 2 * 2 + armOffset + nextFrac * sweepRad;
+
+        final pA = Offset(cx + r * math.cos(angle), cy + r * math.sin(angle));
+        final pB = Offset(
+          cx + rN * math.cos(angleN),
+          cy + rN * math.sin(angleN),
+        );
+
+        final opacity = (0.08 + frac * 0.5).clamp(0.0, 1.0);
+        canvas.drawLine(
+          pA,
+          pB,
+          Paint()
+            ..color = const Color(
+              0xFFAB78FF,
+            ).withValues(alpha: opacity * (0.5 + pulse * 0.5))
+            ..strokeWidth = 0.6 + frac * 1.5
+            ..strokeCap = StrokeCap.round,
+        );
+      }
+    }
+
+    // Black hole centre
+    canvas.drawCircle(
+      center,
+      size.width * 0.08,
+      Paint()..color = const Color(0xFF050010),
+    );
+    // Hot edge glow
+    canvas.drawCircle(
+      center,
+      size.width * 0.10,
+      Paint()
+        ..color = const Color(0xFFAB78FF).withValues(alpha: 0.25 + pulse * 0.2)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+    // Tiny white core
+    canvas.drawCircle(
+      center,
+      1.5,
+      Paint()..color = Colors.white.withValues(alpha: 0.7 + pulse * 0.3),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_VortexPainter old) => old.t != t;
 }
 
 class _MarkerTapWrapper extends StatefulWidget {
@@ -1137,7 +1313,10 @@ class _MapHintBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: .45),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.accent.withValues(alpha: .35), width: 1.2),
+        border: Border.all(
+          color: theme.accent.withValues(alpha: .35),
+          width: 1.2,
+        ),
       ),
       child: Row(
         children: [
@@ -1170,61 +1349,57 @@ class _InfoDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Container(
         decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.accent, width: 1.4),
+          color: fc.bg2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: fc.borderAccent, width: 1.2),
+          boxShadow: [BoxShadow(color: fc.borderDim.withValues(alpha: .12), blurRadius: 12)],
         ),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.explore_rounded, color: theme.accent, size: 28),
-            const SizedBox(height: 12),
-            Text(
-              'Fusing Expeditions',
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .5,
-              ),
+            // Header row with small amber marker
+            Row(
+              children: [
+                Container(width: 4, height: 20, color: fc.amber, margin: const EdgeInsets.only(right: 10)),
+                Expanded(
+                  child: Text(
+                    'Fusing Expeditions',
+                    style: ft.heading.copyWith(fontSize: 14, color: fc.textPrimary),
+                  ),
+                ),
+                Icon(Icons.explore_rounded, color: fc.amberBright, size: 20),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
               'Wild areas will light up when a creature has been detected. Venture into diverse biomes to discover new creatures. Successful breeding or harvesting will create an offspring you can extract in the Incubator. Wild Alchemons are more powerful and have better stats.',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                height: 1.3,
-              ),
-              textAlign: TextAlign.center,
+              style: ft.body.copyWith(color: fc.textSecondary),
+              textAlign: TextAlign.left,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             GestureDetector(
               onTap: () => Navigator.pop(context),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: theme.accentSoft,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: theme.accent, width: 1.4),
+                  color: fc.bg3,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: fc.borderMid, width: 1),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   'OK',
-                  style: TextStyle(
-                    color: theme.text,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    letterSpacing: .5,
-                  ),
+                  style: ft.mono.copyWith(color: fc.amberBright, fontSize: 12),
                 ),
               ),
             ),
@@ -1234,4 +1409,3 @@ class _InfoDialog extends StatelessWidget {
     );
   }
 }
-

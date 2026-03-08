@@ -84,7 +84,10 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(radius),
-              border: Border.all(color: accent.withValues(alpha: 0.3), width: 1),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.3),
+                width: 1,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: accent.withValues(alpha: 0.1),
@@ -142,13 +145,17 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
       mainAxisSize: MainAxisSize.min,
       children: [
         _CurrencyPill(
-          icon: Icons.diamond_rounded,
+          icon: Icons.hexagon_rounded,
           amount: gold,
           color: const Color(0xFFFFD700),
           formatter: _formatCurrency,
         ),
         const SizedBox(width: 8),
-        Container(width: 1, height: 20, color: Colors.white.withValues(alpha: 0.2)),
+        Container(
+          width: 1,
+          height: 20,
+          color: Colors.white.withValues(alpha: 0.2),
+        ),
         const SizedBox(width: 8),
         _CurrencyPill(
           icon: Icons.monetization_on_rounded,
@@ -167,7 +174,7 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.diamond_rounded, size: 11, color: goldColor),
+        Icon(Icons.hexagon_rounded, size: 11, color: goldColor),
         const SizedBox(width: 3),
         Text(
           _formatCurrency(gold),
@@ -179,7 +186,11 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
           ),
         ),
         const SizedBox(width: 8),
-        Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.2)),
+        Container(
+          width: 1,
+          height: 14,
+          color: Colors.white.withValues(alpha: 0.2),
+        ),
         const SizedBox(width: 8),
         Icon(Icons.monetization_on_rounded, size: 11, color: silverColor),
         const SizedBox(width: 3),
@@ -242,7 +253,9 @@ class _CurrencyPill extends StatelessWidget {
             fontSize: 14,
             fontWeight: FontWeight.w900,
             letterSpacing: 0.4,
-            shadows: [Shadow(color: color.withValues(alpha: 0.5), blurRadius: 4)],
+            shadows: [
+              Shadow(color: color.withValues(alpha: 0.5), blurRadius: 4),
+            ],
           ),
         ),
       ],

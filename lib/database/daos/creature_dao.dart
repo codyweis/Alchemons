@@ -193,6 +193,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
       baseId: baseId,
       isPrismaticSkin: (payload['isPrismaticSkin'] as bool?) ?? false,
       natureId: payload['natureId'] as String?,
+      source: (payload['source'] as String?) ?? 'discovery',
       genetics: genetics,
       likelihoodAnalysisJson: payload['likelihoodAnalysis'] as String?,
 
@@ -330,6 +331,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     String? nickname,
     bool isPrismaticSkin = false,
     String? natureId,
+    String source = 'discovery',
     Map<String, dynamic>? parentage,
     Map<String, String>? genetics,
     String? likelihoodAnalysisJson,
@@ -367,6 +369,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         nickname: Value(nickname),
         isPrismaticSkin: Value(isPrismaticSkin),
         natureId: Value(natureId),
+        source: Value(source),
         parentageJson: Value(parentage == null ? null : jsonEncode(parentage)),
         geneticsJson: Value(genetics == null ? null : jsonEncode(genetics)),
         likelihoodAnalysisJson: Value(likelihoodAnalysisJson),

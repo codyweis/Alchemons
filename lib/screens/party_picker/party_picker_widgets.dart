@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'party_picker_dialogs.dart';
+import 'team_builder_dialog.dart';
 
 // ---------- Header ----------
 
@@ -19,9 +20,7 @@ class StageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final party = context.watch<SelectedPartyNotifier>();
-    final count = party.members.length;
-    final max = SelectedPartyNotifier.maxSize;
+    context.watch<SelectedPartyNotifier>();
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -73,30 +72,37 @@ class StageHeader extends StatelessWidget {
               ],
             ),
           ),
-          // Live count badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: count > 0
-                  ? Colors.greenAccent.shade400.withValues(alpha: 0.12)
-                  : theme.surfaceAlt,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(
-                color: count > 0
-                    ? Colors.greenAccent.shade400.withValues(alpha: 0.5)
-                    : theme.border,
+          // Build teams button (replaces live count badge)
+          GestureDetector(
+            onTap: () async {
+              HapticFeedback.lightImpact();
+              await showDialog<void>(
+                context: context,
+                builder: (_) => TeamBuilderDialog(theme: theme),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.surfaceAlt,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: theme.border),
               ),
-            ),
-            child: Text(
-              '$count / $max',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: count > 0
-                    ? Colors.greenAccent.shade400
-                    : theme.textMuted,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.0,
+              child: Row(
+                children: [
+                  Icon(Icons.folder_open, color: theme.text, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Teams',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: theme.text,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -429,7 +435,9 @@ class TeamSlotFilled extends StatelessWidget {
                       margin: const EdgeInsets.symmetric(horizontal: 1),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: filled ? pipColor : pipColor.withValues(alpha: 0.15),
+                        color: filled
+                            ? pipColor
+                            : pipColor.withValues(alpha: 0.15),
                         border: Border.all(
                           color: pipColor.withValues(alpha: filled ? 0.9 : 0.3),
                           width: 0.6,
@@ -560,7 +568,9 @@ class _DeployButtonState extends State<DeployButton>
                 boxShadow: canTap
                     ? [
                         BoxShadow(
-                          color: Colors.greenAccent.shade400.withValues(alpha: .4),
+                          color: Colors.greenAccent.shade400.withValues(
+                            alpha: .4,
+                          ),
                           blurRadius: 16,
                           spreadRadius: 1,
                         ),

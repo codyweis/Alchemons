@@ -277,6 +277,7 @@ class AlchemonsStory {
       type: StoryPageType.loading,
       mainText: 'INITIALIZING LABORATORY SYSTEMS',
       backgroundColor: Colors.black,
+      backgroundImagePath: 'assets/images/background_loading.png',
     ),
   ];
 }

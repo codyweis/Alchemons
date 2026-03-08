@@ -11,6 +11,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/boss/boss_model.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/providers/boss_provider.dart';
+import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/mystic_altar/boss_altar_detail_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
@@ -66,6 +67,10 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
   late final AnimationController _relicFlashCtrl;
   String? _relicFlashBossId;
 
+  // arcane portal discovery animation
+  late final AnimationController _portalCtrl; // 0→1 over ~3s
+  bool _portalDiscovered = false;
+
   // data
   Map<String, int> _keyItemQtys = {};
   Map<String, int> _placedCounts = {};
@@ -90,6 +95,10 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1100),
     );
+    _portalCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    );
     _snapAnim = AlwaysStoppedAnimation(_wheelOffset);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadState());
   }
@@ -99,6 +108,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
     _bgCtrl.dispose();
     _snapCtrl.dispose();
     _relicFlashCtrl.dispose();
+    _portalCtrl.dispose();
     super.dispose();
   }
 
@@ -248,8 +258,55 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
     });
     HapticFeedback.heavyImpact();
     _relicFlashCtrl.forward(from: 0);
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (mounted) _navigate(boss);
+
+    // ── Check if ALL relics are now placed → Arcane Portal Discovery ──
+    if (_relicPlaced.length >= _n) {
+      await _triggerArcanePortalDiscovery(db);
+    } else {
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (mounted) _navigate(boss);
+    }
+  }
+
+  /// Plays the full arcane-portal discovery animation sequence:
+  /// 1. Wheel spins faster
+  /// 2. Centre swirl grows, speeds up, then "explodes"
+  /// 3. Screen flashes white
+  /// 4. Popup: "ARCANE PORTAL DISCOVERED"
+  /// 5. Persists unlock flag
+  Future<void> _triggerArcanePortalDiscovery(AlchemonsDatabase db) async {
+    // Persist the unlock immediately
+    await db.settingsDao.setSetting('arcane_portal_unlocked', '1');
+
+    // Spin the wheel rapidly during the animation
+    void spinWheel() {
+      if (!mounted) return;
+      // Accelerate: slow at start, fast in middle, ease off near end
+      final p = _portalCtrl.value;
+      final speed = 0.05 + p * 0.25; // ramps up from 0.05 → 0.30 rad/frame
+      setState(() => _wheelOffset += speed);
+    }
+
+    _portalCtrl.addListener(spinWheel);
+
+    // Begin the portal animation (drives wheel spin-up + swirl expansion)
+    setState(() => _portalDiscovered = true);
+
+    // Wait for the animation to finish
+    await _portalCtrl.forward(from: 0).orCancel.catchError((_) {});
+    _portalCtrl.removeListener(spinWheel);
+    if (!mounted) return;
+
+    // Show the discovery popup
+    HapticFeedback.heavyImpact();
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black87,
+      builder: (ctx) => _ArcanePortalPopup(onDismiss: () => Navigator.pop(ctx)),
+    );
+
+    if (mounted) setState(() => _portalDiscovered = false);
   }
 
   void _navigate(Boss boss) {
@@ -311,7 +368,7 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
                     children: [
                       _Header(
                         bgCtrl: _bgCtrl,
-                        onBack: () => Navigator.pop(context),
+                        onBack: () => VoidPortal.pop(context),
                       ),
                       Expanded(
                         child: GestureDetector(
@@ -332,6 +389,8 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
                             relicFlashCtrl: _relicFlashCtrl,
                             relicFlashBossId: _relicFlashBossId,
                             onTap: _handleTap,
+                            portalCtrl: _portalCtrl,
+                            portalDiscovered: _portalDiscovered,
                           ),
                         ),
                       ),
@@ -371,7 +430,10 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 class _Header extends StatelessWidget {
   final AnimationController bgCtrl;
   final VoidCallback onBack;
-  const _Header({required this.bgCtrl, required this.onBack});
+  const _Header({
+    required this.bgCtrl,
+    required this.onBack,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -428,6 +490,7 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+
         ],
       ),
     );
@@ -449,6 +512,8 @@ class _SpinningWheel extends StatelessWidget {
   final AnimationController relicFlashCtrl;
   final String? relicFlashBossId;
   final void Function(Boss) onTap;
+  final AnimationController portalCtrl;
+  final bool portalDiscovered;
 
   const _SpinningWheel({
     required this.bosses,
@@ -464,6 +529,8 @@ class _SpinningWheel extends StatelessWidget {
     required this.relicFlashCtrl,
     required this.relicFlashBossId,
     required this.onTap,
+    required this.portalCtrl,
+    required this.portalDiscovered,
   });
 
   @override
@@ -495,15 +562,55 @@ class _SpinningWheel extends StatelessWidget {
               ),
             ),
             for (final i in sorted) _buildNode(i, cx, cy, rx, ry),
-            // Centre eye
+            // Centre eye — grows & spins faster during portal discovery
             Positioned(
               left: cx - 34,
               top: cy - 34,
               child: AnimatedBuilder(
-                animation: bgCtrl,
-                builder: (_, __) => _AltarEye(t: bgCtrl.value),
+                animation: Listenable.merge([bgCtrl, portalCtrl]),
+                builder: (_, __) {
+                  // During portal discovery, the swirl grows from 68→200px
+                  // and its rotation speed multiplier goes from 1× → 8×
+                  final p = portalCtrl.value;
+                  final growScale = 1.0 + p * 2.5; // 1× → 3.5×
+                  final speedMul = 1.0 + p * 7.0; // 1× → 8×
+                  final effectiveT = bgCtrl.value * speedMul;
+                  // Fade-out near the end of the portal anim (explosion)
+                  final opacity = p > 0.85
+                      ? (1.0 - ((p - 0.85) / 0.15)).clamp(0.0, 1.0)
+                      : 1.0;
+                  return Transform.scale(
+                    scale: growScale,
+                    child: Opacity(
+                      opacity: opacity,
+                      child: _AltarEye(t: effectiveT),
+                    ),
+                  );
+                },
               ),
             ),
+            // White flash overlay during explosion phase
+            if (portalDiscovered)
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: portalCtrl,
+                  builder: (_, __) {
+                    // Flash starts at 80% of animation and peaks at 90%
+                    final p = portalCtrl.value;
+                    final flashAlpha = p > 0.80
+                        ? (p > 0.90
+                                  ? (1.0 - ((p - 0.90) / 0.10))
+                                  : ((p - 0.80) / 0.10))
+                              .clamp(0.0, 1.0)
+                        : 0.0;
+                    return IgnorePointer(
+                      child: Container(
+                        color: Colors.white.withValues(alpha: flashAlpha * 0.9),
+                      ),
+                    );
+                  },
+                ),
+              ),
           ],
         );
       },
@@ -565,8 +672,8 @@ class _SpinningWheel extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: boss.elementColor.withValues(alpha: 
-                              ring1Op * 0.95,
+                            color: boss.elementColor.withValues(
+                              alpha: ring1Op * 0.95,
                             ),
                             width: 2.5,
                           ),
@@ -738,8 +845,8 @@ class _BossNode extends StatelessWidget {
                 : _C.surface.withValues(alpha: 0.45),
             border: Border.all(
               color: unlocked
-                  ? elColor.withValues(alpha: 
-                      isSelected ? (0.55 + pulse * 0.30) : 0.22,
+                  ? elColor.withValues(
+                      alpha: isSelected ? (0.55 + pulse * 0.30) : 0.22,
                     )
                   : _C.locked.withValues(alpha: 0.22),
               width: isSelected ? 2.0 : 0.8,
@@ -909,7 +1016,9 @@ class _InfoPanel extends StatelessWidget {
                       )
                     : Icon(
                         boss.elementIcon,
-                        color: unlocked ? elColor : _C.locked.withValues(alpha: 0.45),
+                        color: unlocked
+                            ? elColor
+                            : _C.locked.withValues(alpha: 0.45),
                         size: 22,
                       ),
               ),
@@ -1009,7 +1118,9 @@ class _InfoPanel extends StatelessWidget {
                         : 'LOCKED',
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      color: unlocked ? elColor : _C.muted.withValues(alpha: 0.35),
+                      color: unlocked
+                          ? elColor
+                          : _C.muted.withValues(alpha: 0.35),
                       fontSize: 9,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.5,
@@ -1282,8 +1393,8 @@ class _WheelTrackPainter extends CustomPainter {
       Offset(cx, cy),
       32,
       Paint()
-        ..color = _C.voidBright.withValues(alpha: 
-          0.04 + 0.03 * math.sin(t * math.pi * 2),
+        ..color = _C.voidBright.withValues(
+          alpha: 0.04 + 0.03 * math.sin(t * math.pi * 2),
         )
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
     );
@@ -1371,7 +1482,9 @@ class _SwirlPainter extends CustomPainter {
           pA,
           pB,
           Paint()
-            ..color = _C.voidGlow.withValues(alpha: opacity * (0.55 + pulse * 0.45))
+            ..color = _C.voidGlow.withValues(
+              alpha: opacity * (0.55 + pulse * 0.45),
+            )
             ..strokeWidth = strokeW
             ..strokeCap = StrokeCap.round,
         );
@@ -1440,6 +1553,168 @@ class _StarfieldPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_StarfieldPainter old) => old.t != t;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ARCANE PORTAL POPUP
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ArcanePortalPopup extends StatefulWidget {
+  final VoidCallback onDismiss;
+  const _ArcanePortalPopup({required this.onDismiss});
+
+  @override
+  State<_ArcanePortalPopup> createState() => _ArcanePortalPopupState();
+}
+
+class _ArcanePortalPopupState extends State<_ArcanePortalPopup>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _scale = Tween<double>(
+      begin: 0.5,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut));
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
+      ),
+    );
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Opacity(
+        opacity: _opacity.value,
+        child: Transform.scale(
+          scale: _scale.value,
+          child: Center(
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: 300,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 32,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A0420),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _C.voidBright, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _C.voidBright.withValues(alpha: 0.5),
+                      blurRadius: 40,
+                      spreadRadius: 4,
+                    ),
+                    BoxShadow(
+                      color: _C.voidGlow.withValues(alpha: 0.3),
+                      blurRadius: 80,
+                      spreadRadius: 8,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Swirl icon
+                    SizedBox(
+                      width: 80,
+                      height: 80,
+                      child: CustomPaint(
+                        painter: _SwirlPainter(t: _ctrl.value * 2, pulse: 0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'ARCANE PORTAL',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.cinzelDecorative(
+                        color: _C.voidGlow,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'DISCOVERED',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.cinzelDecorative(
+                        color: _C.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 4,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'A rift to the arcane realm has opened\non the expedition map.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: _C.sub,
+                        fontSize: 11,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        widget.onDismiss();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _C.voidBright.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _C.voidBright.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Text(
+                          'CONTINUE',
+                          style: GoogleFonts.cinzelDecorative(
+                            color: _C.voidGlow,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -132,13 +132,7 @@ class BreedingEngine {
     Random? random,
   }) : _random = random ?? Random();
 
-  static const _rarityOrder = [
-    "Common",
-    "Uncommon",
-    "Rare",
-    "Legendary",
-    "Mythic",
-  ];
+  static const _rarityOrder = ["Common", "Uncommon", "Rare", "Legendary"];
 
   // ── 2.2 Public entrypoints ────────────────────────────────
 
@@ -528,13 +522,23 @@ class BreedingEngine {
     final fam1 = _familyOf(p1);
     final fam2 = _familyOf(p2);
 
+    // Only allow Mystics to appear via recipes/mutations if BOTH parents
+    // are already from the Mystic family (and thus intentionally breeding
+    // mystics together). This prevents accidental generation of Mystics
+    // from non-mystic parents.
+    final parentsBothMystic = (fam1 == 'Mystic' && fam2 == 'Mystic');
+
     // Check for explicit recipe FIRST (handles both same-family and cross-family)
     final key = FamilyRecipeConfig.keyOf(fam1, fam2);
     final recipe = familyRecipes.recipes[key];
     if (recipe != null && recipe.isNotEmpty) {
-      return OutcomeDistribution<String>(
-        recipe.map((k, v) => MapEntry(k, v.toDouble())),
-      );
+      // If parents aren't both mystics, strip any Mystic outcomes
+      final filtered = <String, double>{};
+      recipe.forEach((k, v) {
+        if (!parentsBothMystic && k == 'Mystic') return;
+        filtered[k] = v.toDouble();
+      });
+      return OutcomeDistribution<String>(filtered);
     }
 
     // same-family with NO explicit recipe: mostly stick, tiny mutation chance
@@ -542,9 +546,20 @@ class BreedingEngine {
       final mutationPct = tuning.sameFamilyMutationChancePct.toDouble();
       final stickPct = 100.0 - mutationPct;
 
+      // Exclude families that should not be reachable via same-family
+      // mutation (e.g. special families like "Mystic"). We filter by
+      // creature rarity so families whose members are marked with the
+      // special "Mystic" rarity won't be included in the mutation pool.
       final otherFamilies = repository.creatures
+          .where((c) {
+            final fam = _familyOf(c);
+            if (fam == fam1) return false; // skip same family
+            if (fam == 'Unknown') return false; // skip unknown
+            // skip families whose creatures are flagged as Mystic rarity
+            if (c.rarity == 'Mystic') return false;
+            return true;
+          })
           .map((c) => _familyOf(c))
-          .where((f) => f != 'Unknown' && f != fam1)
           .toSet()
           .toList();
 
@@ -1285,12 +1300,11 @@ class BreedingEngine {
   Creature? _tryGlobalMutation(Creature p1, Creature p2) {
     // escalate rarity one tier above the higher parent, up to Legendary
     String nextRarity(String rarity) {
-      const tiers = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
+      const tiers = ['Common', 'Uncommon', 'Rare', 'Legendary'];
       final i = tiers.indexOf(rarity);
 
-      // If they're already near the top tier (Legendary/Mythic),
-      // don't escalate further.
-      if (i < 0 || i >= tiers.length - 2) return rarity;
+      // If they're already near the top tier (Legendary), don't escalate.
+      if (i < 0 || i >= tiers.length - 1) return rarity;
 
       return tiers[i + 1];
     }
@@ -1318,9 +1332,13 @@ class BreedingEngine {
     }
 
     // pick any catalog entry at that new rarity with an allowed element
+    // but don't produce Mystics unless both parents are Mystics.
+    final parentsBothMystic =
+        (_familyOf(p1) == 'Mystic' && _familyOf(p2) == 'Mystic');
     final candidates = repository.creatures.where((c) {
       final primary = c.types.isNotEmpty ? c.types.first : null;
       if (primary == null) return false;
+      if (!parentsBothMystic && c.mutationFamily == 'Mystic') return false;
       return elementSet.contains(primary) && c.rarity == targetRarity;
     }).toList();
 
@@ -1475,14 +1493,7 @@ class BreedingEngine {
   String _familyOf(Creature c) => (c.mutationFamily ?? 'Unknown');
 
   int _rarityRank(String rarity) {
-    const order = {
-      'Common': 0,
-      'Uncommon': 1,
-      'Rare': 2,
-      'Epic': 3,
-      'Legendary': 4,
-      'Mythic': 5,
-    };
+    const order = {'Common': 0, 'Uncommon': 1, 'Rare': 2, 'Legendary': 3};
     return order[rarity] ?? 0;
   }
 
@@ -1750,8 +1761,8 @@ class ParentSnapshotFactory {
         factionLineage: decodeLineage(inst.factionLineageJson),
         nativeFaction: 'Unknown',
         variantFaction: inst.variantFaction,
-        elementLineage: decodeLineage(inst.elementLineageJson), // NEW
-        familyLineage: decodeLineage(inst.familyLineageJson), // NEW
+        elementLineage: decodeLineage(inst.elementLineageJson),
+        familyLineage: decodeLineage(inst.familyLineageJson),
       );
     }
 

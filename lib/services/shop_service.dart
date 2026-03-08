@@ -10,6 +10,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
+import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
 import 'package:flutter/foundation.dart';
@@ -91,13 +92,14 @@ class ShopService extends ChangeNotifier {
   }) {
     switch (inventoryKey) {
       case InvKeys.alchemyGlow:
-        return AlchemyGlow(size: size / 2);
+        return AlchemyGlow(size: effectSizeFromWidgetSize(size));
 
       case InvKeys.alchemyElementalAura:
+        final widgetEff = effectSizeFromWidgetSize(size);
         return SizedBox.square(
           dimension: size,
           child: ElementalAura(
-            size: size,
+            size: widgetEff,
             element: 'Volcanic', // or whatever element you want as default
           ),
         );
@@ -105,19 +107,20 @@ class ShopService extends ChangeNotifier {
       case InvKeys.alchemyVolcanicAura:
         return SizedBox.square(
           dimension: size,
-          child: VolcanicAura(size: size),
+          child: VolcanicAura(size: effectSizeFromWidgetSize(size)),
         );
 
       case InvKeys.alchemyVoidRift:
+        final widgetEff = effectSizeFromWidgetSize(size);
         return SizedBox.square(
           dimension: size,
-          child: VoidRift(size: size * 0.8),
+          child: VoidRift(size: widgetEff * 0.8),
         );
 
       case InvKeys.alchemyPrismaticCascade:
         return SizedBox.square(
           dimension: size,
-          child: PrismaticCascade(size: size * 0.6),
+          child: PrismaticCascade(size: effectSizeFromWidgetSize(size)),
         );
 
       default:
@@ -209,12 +212,28 @@ class ShopService extends ChangeNotifier {
 
   // ==== Offers (existing + new) ====
   static final List<ShopOffer> allOffers = [
+    // ── Cosmic Alchemy ──
+    ShopOffer(
+      id: 'cosmic.ship',
+      name: 'Cosmic Ship',
+      description:
+          'Unlocks the Cosmic Alchemy Explorer. Pilot through space and summon creatures!',
+      icon: Icons.rocket_launch_rounded,
+      cost: const {'silver': 50},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+      inventoryKey: InvKeys.cosmicShip,
+      assetName: 'assets/images/ui/cosmicship.png',
+      iconColor: const Color(0xFF00E5FF),
+    ),
     ShopOffer(
       id: 'boost.instant_stamina_potion',
       name: 'Stamina Elixir',
-      description: 'Fully restores an Alchemon\'s stamina.',
+      description:
+          'Fully restores an Alchemon\'s stamina so it can battle, harvest, or breed again immediately.',
       icon: Icons.local_drink_rounded,
-      cost: const {'silver': 10000}, // tweak cost as desired
+      cost: const {'silver': 2500}, // tweak cost as desired
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -225,7 +244,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'boost.instant_boss_refresh',
       name: 'Boss Summon',
-      description: 'Resets your daily boss rematch limit for one boss.',
+      description:
+          'Resets your daily boss rematch limit for one boss, allowing you to challenge the Mystic Altar again.',
       icon: Icons.local_drink_rounded,
       cost: const {'gold': 10},
       reward: const {},
@@ -238,7 +258,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'device.harvest.std.volcanic',
       name: 'Wild Harvester – Volcanic',
-      description: 'Standard device. Chance-based.',
+      description:
+          'Capture wild Volcanic-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: Icons.local_fire_department_rounded,
       cost: const {'silver': 999, 'res_volcanic': 100},
       reward: const {},
@@ -250,7 +271,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'device.harvest.std.oceanic',
       name: 'Wild Harvester – Oceanic',
-      description: 'Standard device. Chance-based.',
+      description:
+          'Capture wild Oceanic-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: Icons.water_rounded,
       cost: const {'silver': 999, 'res_oceanic': 100},
       reward: const {},
@@ -262,7 +284,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'device.harvest.std.verdant',
       name: 'Wild Harvester – Verdant',
-      description: 'Standard device. Chance-based.',
+      description:
+          'Capture wild Verdant-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: Icons.eco_rounded,
       cost: const {'silver': 999, 'res_verdant': 100},
       reward: const {},
@@ -274,7 +297,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'device.harvest.std.earthen',
       name: 'Wild Harvester – Earthen',
-      description: 'Standard device. Chance-based.',
+      description:
+          'Capture wild Earthen-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: Icons.terrain_rounded,
       cost: const {'silver': 999, 'res_earthen': 100},
       reward: const {},
@@ -286,7 +310,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'device.harvest.std.arcane',
       name: 'Wild Harvester – Arcane',
-      description: 'Standard device. Chance-based.',
+      description:
+          'Capture wild Arcane-type Alchemons in the wilderness or cosmic rifts. Chance-based capture.',
       icon: Icons.auto_awesome_rounded,
       cost: const {'silver': 999, 'res_arcane': 500},
       reward: const {},
@@ -300,7 +325,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'device.harvest.guaranteed',
       name: 'Stabilized Harvester',
-      description: 'Guaranteed capture device.',
+      description:
+          'A premium harvester that guarantees capture of any wild Alchemon regardless of element. Works in the wilderness and cosmic rifts.',
       icon: Icons.shield_rounded,
       cost: const {'gold': 25},
       reward: const {},
@@ -314,7 +340,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'boost.instant_hatch',
       name: 'Instant Fusion Extractor',
-      description: 'Complete one active fusion vial instantly.',
+      description:
+          'Instantly completes one active cultivation in your Alchemy Chamber. Skip the wait and extract your Alchemon now.',
       assetName: 'assets/images/ui/instantbreedicon.png',
       icon: Icons.access_alarms,
       cost: const {'gold': 15},
@@ -328,7 +355,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'fx.silver_to_gold.unit',
       name: 'Silver → Gold (10g)',
-      description: 'Convert 50,000 silver to 10 gold.',
+      description:
+          'Exchange 50,000 silver for 10 gold. Use gold for premium items, portal keys, and rare cosmetics.',
       icon: Icons.currency_exchange_rounded,
       iconColor: const Color(0xFFF59E0B),
       cost: const {'silver': 50000},
@@ -339,7 +367,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'fx.gold_to_silver.unit',
       name: 'Gold → Silver (1,000s)',
-      description: 'Convert 1 gold to 1,000 silver.',
+      description:
+          'Exchange 1 gold for 1,000 silver. Stock up on silver for harvesters, elixirs, and daily essentials.',
       icon: Icons.currency_exchange_rounded,
       cost: const {'gold': 1},
       reward: const {'silver': 1000},
@@ -351,7 +380,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'unlock.fusion_slot.1',
       name: 'Fusion Slot',
-      description: 'Add another incubator slot.',
+      description:
+          'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
       icon: Icons.biotech_rounded,
       cost: const {'silver': 1000}, // 1st purchase: 1,000 silver
       reward: const {},
@@ -362,7 +392,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'unlock.fusion_slot.2',
       name: 'Fusion Slot (Step 2)',
-      description: 'Add another incubator slot.',
+      description:
+          'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
       icon: Icons.biotech_rounded,
       cost: const {'gold': 10}, // 2nd purchase: 10 gold
       reward: const {},
@@ -373,7 +404,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'unlock.fusion_slot.3',
       name: 'Fusion Slot (Step 3)',
-      description: 'Add another incubator slot.',
+      description:
+          'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
       icon: Icons.biotech_rounded,
       cost: const {'gold': 50}, // 3rd purchase: 50 gold
       reward: const {},
@@ -384,7 +416,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'unlock.fusion_slot.4',
       name: 'Fusion Slot (Step 4)',
-      description: 'Add another incubator slot.',
+      description:
+          'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
       icon: Icons.biotech_rounded,
       cost: const {'gold': 100}, // 4th purchase: 100 gold
       reward: const {},
@@ -395,7 +428,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'boost.faction_change',
       name: 'Change Faction',
-      description: 'Align with a new faction.',
+      description:
+          'Switch your allegiance to a different elemental faction. Affects harvester discounts and resource bonuses.',
       icon: Icons.flag_rounded,
       cost: const {'gold': 500},
       reward: const {},
@@ -408,7 +442,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'effects.alchemy_glow',
       name: 'Alchemical Resonance',
-      description: 'Ethereal glow effect for your Alchemon.',
+      description:
+          'Wraps your Alchemon in an ethereal glow. A subtle shimmer that pulses with alchemical energy.',
       icon: Icons.auto_awesome_rounded,
       cost: const {'gold': 10},
       reward: const {},
@@ -420,7 +455,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'effects.elemental_aura',
       name: 'Elemental Aura',
-      description: 'Orbiting particles matching your Alchemon\'s element.',
+      description:
+          'Surrounds your Alchemon with orbiting elemental particles that match its type. Apply from the creature detail screen.',
       icon: Icons.bubble_chart_rounded,
       cost: const {'gold': 10},
       reward: const {},
@@ -432,7 +468,8 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: 'effects.volcanic_aura',
       name: 'Volcanic Aura',
-      description: 'Fiery aura effect for your Alchemon.',
+      description:
+          'Engulfs your Alchemon in a blazing volcanic aura with rising embers and heat distortion.',
       icon: Icons.local_fire_department_rounded,
       cost: const {'gold': 10},
       reward: const {},
@@ -473,7 +510,7 @@ class ShopService extends ChangeNotifier {
       id: 'key.portal.volcanic',
       name: 'Volcanic Portal Key',
       description:
-          'Grants entry into a Volcanic Rift portal. Consumed on entry.',
+          'Opens a Volcanic Rift portal in cosmic space. Battle and capture rare Volcanic Alchemons inside. Consumed on entry.',
       icon: Icons.vpn_key_rounded,
       iconColor: const Color(0xFFFF5722),
       assetName: 'assets/images/ui/volcanickey.png',
@@ -487,7 +524,7 @@ class ShopService extends ChangeNotifier {
       id: 'key.portal.oceanic',
       name: 'Oceanic Portal Key',
       description:
-          'Grants entry into an Oceanic Rift portal. Consumed on entry.',
+          'Opens an Oceanic Rift portal in cosmic space. Battle and capture rare Oceanic Alchemons inside. Consumed on entry.',
       icon: Icons.vpn_key_rounded,
       iconColor: const Color(0xFF64B5F6),
       assetName: 'assets/images/ui/oceanickey.png',
@@ -501,7 +538,7 @@ class ShopService extends ChangeNotifier {
       id: 'key.portal.verdant',
       name: 'Verdant Portal Key',
       description:
-          'Grants entry into a Verdant Rift portal. Consumed on entry.',
+          'Opens a Verdant Rift portal in cosmic space. Battle and capture rare Verdant Alchemons inside. Consumed on entry.',
       icon: Icons.vpn_key_rounded,
       iconColor: const Color(0xFF66BB6A),
       assetName: 'assets/images/ui/verdantkey.png',
@@ -515,7 +552,7 @@ class ShopService extends ChangeNotifier {
       id: 'key.portal.earthen',
       name: 'Earthen Portal Key',
       description:
-          'Grants entry into an Earthen Rift portal. Consumed on entry.',
+          'Opens an Earthen Rift portal in cosmic space. Battle and capture rare Earthen Alchemons inside. Consumed on entry.',
       icon: Icons.vpn_key_rounded,
       iconColor: const Color(0xFF8D6E63),
       assetName: 'assets/images/ui/earthenkey.png',
@@ -529,7 +566,7 @@ class ShopService extends ChangeNotifier {
       id: 'key.portal.arcane',
       name: 'Arcane Portal Key',
       description:
-          'Grants entry into an Arcane Rift portal. Consumed on entry.',
+          'Opens an Arcane Rift portal in cosmic space. Battle and capture rare Arcane Alchemons inside. Consumed on entry.',
       icon: Icons.vpn_key_rounded,
       iconColor: const Color(0xFFCE93D8),
       assetName: 'assets/images/ui/arcanekey.png',
@@ -538,6 +575,86 @@ class ShopService extends ChangeNotifier {
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.portalKeyArcane,
+    ),
+
+    // ── Survival Orb Base Skins ──────────────────────────────────────────────
+    ShopOffer(
+      id: 'survival.orb.voidforge',
+      name: 'Voidforge Core',
+      description:
+          'Forged in the Void — an orb crackling with dark energy runes.',
+      icon: Icons.nightlight_round,
+      iconColor: const Color(0xFFBB00FF),
+      cost: const {'gold': 200},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+    ),
+    ShopOffer(
+      id: 'survival.orb.celestial',
+      name: 'Celestial Beacon',
+      description: 'A radiant sphere of starlight — pulsing with cosmic power.',
+      icon: Icons.auto_awesome_rounded,
+      iconColor: const Color(0xFFFFD700),
+      cost: const {'gold': 200},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+    ),
+    ShopOffer(
+      id: 'survival.orb.infernal',
+      name: 'Infernal Engine',
+      description: 'Molten iron and dragonfire — enemies burn near the orb.',
+      icon: Icons.local_fire_department_rounded,
+      iconColor: const Color(0xFFFF4500),
+      cost: const {'gold': 200},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+    ),
+    ShopOffer(
+      id: 'survival.orb.frozen',
+      name: 'Frozen Nexus',
+      description: 'An ancient ice crystal with jagged frost shards.',
+      icon: Icons.ac_unit_rounded,
+      iconColor: const Color(0xFF88DDFF),
+      cost: const {'gold': 300},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+    ),
+    ShopOffer(
+      id: 'survival.orb.phantom',
+      name: 'Phantom Wisp',
+      description: 'A ghostly sphere that phases between realms.',
+      icon: Icons.blur_on_rounded,
+      iconColor: const Color(0xFF7BFFCE),
+      cost: const {'gold': 300},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+    ),
+    ShopOffer(
+      id: 'survival.orb.prism',
+      name: 'Prism Heart',
+      description: 'A crystalline prism refracting all light.',
+      icon: Icons.diamond_rounded,
+      iconColor: const Color(0xFFFF69B4),
+      cost: const {'gold': 400},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+    ),
+    ShopOffer(
+      id: 'survival.orb.verdant',
+      name: 'Verdant Bloom',
+      description: 'A living orb of tangled vines and blossoms.',
+      icon: Icons.eco_rounded,
+      iconColor: const Color(0xFF32CD32),
+      cost: const {'gold': 300},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
     ),
   ];
 
@@ -927,6 +1044,64 @@ class ShopService extends ChangeNotifier {
         await _db.inventoryDao.addItemQty(InvKeys.bossRefresh, qty);
         return true;
 
+      // Survival Orb Skins → unlock via SurvivalUpgradeService
+      case 'survival.orb.voidforge':
+        await _db.settingsDao.setSetting(
+          'survival.owned_skins',
+          (await _db.settingsDao.getSetting('survival.owned_skins') ??
+                  'defaultOrb') +
+              ',voidforgeOrb',
+        );
+        return true;
+      case 'survival.orb.celestial':
+        await _db.settingsDao.setSetting(
+          'survival.owned_skins',
+          (await _db.settingsDao.getSetting('survival.owned_skins') ??
+                  'defaultOrb') +
+              ',celestialOrb',
+        );
+        return true;
+      case 'survival.orb.infernal':
+        await _db.settingsDao.setSetting(
+          'survival.owned_skins',
+          (await _db.settingsDao.getSetting('survival.owned_skins') ??
+                  'defaultOrb') +
+              ',infernalOrb',
+        );
+        return true;
+      case 'survival.orb.frozen':
+        await _db.settingsDao.setSetting(
+          'survival.owned_skins',
+          (await _db.settingsDao.getSetting('survival.owned_skins') ??
+                  'defaultOrb') +
+              ',frozenNexusOrb',
+        );
+        return true;
+      case 'survival.orb.phantom':
+        await _db.settingsDao.setSetting(
+          'survival.owned_skins',
+          (await _db.settingsDao.getSetting('survival.owned_skins') ??
+                  'defaultOrb') +
+              ',phantomWispOrb',
+        );
+        return true;
+      case 'survival.orb.prism':
+        await _db.settingsDao.setSetting(
+          'survival.owned_skins',
+          (await _db.settingsDao.getSetting('survival.owned_skins') ??
+                  'defaultOrb') +
+              ',prismHeartOrb',
+        );
+        return true;
+      case 'survival.orb.verdant':
+        await _db.settingsDao.setSetting(
+          'survival.owned_skins',
+          (await _db.settingsDao.getSetting('survival.owned_skins') ??
+                  'defaultOrb') +
+              ',verdantBloomOrb',
+        );
+        return true;
+
       // Portal Keys → inventory
       case 'key.portal.volcanic':
         await _db.inventoryDao.addItemQty(InvKeys.portalKeyVolcanic, qty);
@@ -944,6 +1119,11 @@ class ShopService extends ChangeNotifier {
         await _db.inventoryDao.addItemQty(InvKeys.portalKeyArcane, qty);
         return true;
 
+      // Cosmic Alchemy
+      case 'cosmic.ship':
+        await _db.inventoryDao.addItemQty(InvKeys.cosmicShip, qty);
+        await _db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
+        return true;
       default:
         return false;
     }
@@ -954,6 +1134,35 @@ class ShopService extends ChangeNotifier {
       instanceId: instanceId,
       effect: effect,
     );
+  }
+
+  /// After purchasing an alchemy effect (which adds it to inventory), apply
+  /// the purchased effect to a creature instance and consume one item.
+  Future<bool> applyEffectToInstance(String offerId, String instanceId) async {
+    final offer = _resolveOfferById(offerId);
+    if (offer == null) return false;
+
+    // Map offer id -> effect key (e.g. 'effects.alchemy_glow' -> 'alchemy_glow')
+    String? effectType;
+    if (offer.id.startsWith('effects.')) {
+      final parts = offer.id.split('.');
+      effectType = parts.isNotEmpty ? parts.last : null;
+    }
+
+    if (effectType == null) return false;
+
+    try {
+      await applyAlchemyEffect(instanceId, effectType);
+
+      // Consume one inventory item if this offer had an inventory key
+      if (offer.inventoryKey != null) {
+        await _db.inventoryDao.decrementItem(offer.inventoryKey!, by: 1);
+        await refreshInventoryForOffer(offerId);
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // Track current inventory for inventory-able offers

@@ -22,9 +22,11 @@ import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/screens/boss/battle_screen.dart';
+import 'package:alchemons/screens/boss/boss_base_command_screen.dart';
 import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
+import 'package:alchemons/services/boss_upgrade_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
@@ -150,8 +152,14 @@ class _PlateBox extends StatelessWidget {
               height: 8,
               decoration: BoxDecoration(
                 border: Border(
-                  top: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
-                  left: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
+                  top: BorderSide(
+                    color: accent.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
+                  left: BorderSide(
+                    color: accent.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -168,7 +176,10 @@ class _PlateBox extends StatelessWidget {
                     color: accent.withValues(alpha: 0.5),
                     width: 1.5,
                   ),
-                  right: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
+                  right: BorderSide(
+                    color: accent.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -1116,6 +1127,19 @@ class _BossBattleScreenState extends State<BossBattleScreen>
             ),
             const SizedBox(height: 10),
             _ForgeButton(
+              label: 'Boss Command',
+              icon: Icons.settings_rounded,
+              secondary: true,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const BossBaseCommandScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            _ForgeButton(
               label: !isUnlocked
                   ? 'Locked'
                   : rematchUsedToday
@@ -1299,6 +1323,27 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         })
         .whereType<BattleCombatant>()
         .toList();
+
+    // ── Apply Boss Command upgrade bonuses ────────────────────────────────
+    final bossUpgradeState = context.read<BossUpgradeService>().state;
+    for (final combatant in playerTeam) {
+      bossUpgradeState.applyTo(
+        getMaxHp: () => combatant.maxHp,
+        setMaxHp: (v) => combatant.maxHp = v,
+        getPhysAtk: () => combatant.physAtk,
+        setPhysAtk: (v) => combatant.physAtk = v,
+        getElemAtk: () => combatant.elemAtk,
+        setElemAtk: (v) => combatant.elemAtk = v,
+        getPhysDef: () => combatant.physDef,
+        setPhysDef: (v) => combatant.physDef = v,
+        getElemDef: () => combatant.elemDef,
+        setElemDef: (v) => combatant.elemDef = v,
+        getSpeed: () => combatant.speed,
+        setSpeed: (v) => combatant.speed = v,
+        getCurrentHp: () => combatant.currentHp,
+        setCurrentHp: (v) => combatant.currentHp = v,
+      );
+    }
 
     final bossKey = _bossProgressIdForOrder(boss.order);
     final wasAlreadyDefeated = progress.isBossDefeated(bossKey);
@@ -1525,7 +1570,9 @@ class _BossCarouselCard extends StatelessWidget {
         color: _C.bg2,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: isCurrent ? boss.elementColor.withValues(alpha: 0.6) : _C.borderDim,
+          color: isCurrent
+              ? boss.elementColor.withValues(alpha: 0.6)
+              : _C.borderDim,
           width: isCurrent ? 1.5 : 1,
         ),
         boxShadow: isCurrent
@@ -1597,9 +1644,13 @@ class _BossCarouselCard extends StatelessWidget {
                               height: 80,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: boss.elementColor.withValues(alpha: 0.12),
+                                color: boss.elementColor.withValues(
+                                  alpha: 0.12,
+                                ),
                                 border: Border.all(
-                                  color: boss.elementColor.withValues(alpha: 0.4),
+                                  color: boss.elementColor.withValues(
+                                    alpha: 0.4,
+                                  ),
                                 ),
                               ),
                               child: Icon(

@@ -9,9 +9,11 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/games/survival/components/debug_teams_picker.dart';
 import 'package:alchemons/games/survival/components/deployment_phase_overlay.dart';
+import 'package:alchemons/games/survival/survival_base_command_screen.dart';
 import 'package:alchemons/games/survival/survival_engine.dart';
 import 'package:alchemons/games/survival/survival_party_picker.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
@@ -62,7 +64,6 @@ class _C {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _T {
-
   static const TextStyle heading = TextStyle(
     fontFamily: 'monospace',
     color: _C.textPrimary,
@@ -168,8 +169,14 @@ class _PlateBox extends StatelessWidget {
               height: 8,
               decoration: BoxDecoration(
                 border: Border(
-                  top: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
-                  left: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
+                  top: BorderSide(
+                    color: accent.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
+                  left: BorderSide(
+                    color: accent.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -187,7 +194,10 @@ class _PlateBox extends StatelessWidget {
                     color: accent.withValues(alpha: 0.5),
                     width: 1.5,
                   ),
-                  right: BorderSide(color: accent.withValues(alpha: 0.5), width: 1.5),
+                  right: BorderSide(
+                    color: accent.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -447,47 +457,23 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
 
   void _onDeploymentConfirmed(DeploymentResult result) {
     if (_loadedParty == null) return;
-    final List<PartyMember> reorderedParty = [];
-    for (final deployed in result.deployedCreatures) {
-      final orig = _loadedParty!.firstWhere(
-        (m) => m.combatant.id == deployed.id,
-      );
-      reorderedParty.add(
-        PartyMember(
-          combatant: orig.combatant,
-          position: _slotToFormationPosition(deployed.assignedSlot!),
-        ),
-      );
+
+    // Build a map of creature ID → global slot index
+    final Map<String, int> slotMap = {};
+    for (final entry in result.slotAssignments.entries) {
+      slotMap[entry.value.id] = entry.key;
     }
-    for (final bench in result.benchCreatures) {
-      final orig = _loadedParty!.firstWhere((m) => m.combatant.id == bench.id);
-      reorderedParty.add(
-        PartyMember(
-          combatant: orig.combatant,
-          position: FormationPosition.backRight,
-        ),
-      );
-    }
+
     setState(() {
+      final upgradeSvc = context.read<SurvivalUpgradeService>();
       _game = SurvivalHoardGame(
-        party: reorderedParty,
+        party: _loadedParty!,
         onGameOver: _handleGameOver,
+        upgradeState: upgradeSvc.state,
+        slotAssignments: slotMap,
       )..setSimulationSpeed(_isSpeedUpEnabled ? 2.0 : 1.0);
       _screenState = _ScreenState.playing;
     });
-  }
-
-  FormationPosition _slotToFormationPosition(int slotIndex) {
-    switch (slotIndex % 4) {
-      case 0:
-        return FormationPosition.frontLeft;
-      case 1:
-        return FormationPosition.frontRight;
-      case 2:
-        return FormationPosition.backLeft;
-      default:
-        return FormationPosition.backRight;
-    }
   }
 
   void _onDeploymentCancelled() {
@@ -773,6 +759,21 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
                       loading: _isLoading,
                     ),
                     const SizedBox(height: 10),
+                    _ForgeButton(
+                      label: 'Base Command',
+                      icon: Icons.settings_rounded,
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SurvivalBaseCommandScreen(),
+                          ),
+                        );
+                      },
+                      secondary: true,
+                    ),
+                    const SizedBox(height: 18),
+                    const _EtchedDivider(label: 'COMMAND'),
+                    const SizedBox(height: 12),
                     _ForgeButton(
                       label: 'Test Squad',
                       icon: Icons.science_outlined,
@@ -1263,7 +1264,71 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
               ),
             ),
           ),
+          // Detonation button — bottom center
+          if (_game?.detonationComponent != null) _buildDetonationButton(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDetonationButton() {
+    final comp = _game!.detonationComponent!;
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 24),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: comp.readyNotifier,
+            builder: (context, isReady, _) {
+              return AnimatedOpacity(
+                opacity: isReady ? 1.0 : 0.3,
+                duration: const Duration(milliseconds: 300),
+                child: GestureDetector(
+                  onTap: isReady
+                      ? () {
+                          comp.detonate();
+                        }
+                      : null,
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isReady
+                          ? const Color(0xFFFF6B35)
+                          : const Color(0xFF2A1A10),
+                      border: Border.all(
+                        color: isReady
+                            ? const Color(0xFFFF6B35)
+                            : const Color(0xFF4A3020),
+                        width: 2,
+                      ),
+                      boxShadow: isReady
+                          ? [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFFFF6B35,
+                                ).withValues(alpha: 0.6),
+                                blurRadius: 20,
+                                spreadRadius: 4,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Icon(
+                      Icons.offline_bolt_rounded,
+                      color: isReady
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.3),
+                      size: 36,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -1516,7 +1581,9 @@ class _AlchemyOptionTileState extends State<_AlchemyOptionTile> {
           color: _pressed ? c.withValues(alpha: 0.15) : _C.bg2,
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
-            color: _pressed ? c.withValues(alpha: 0.8) : c.withValues(alpha: 0.35),
+            color: _pressed
+                ? c.withValues(alpha: 0.8)
+                : c.withValues(alpha: 0.35),
           ),
         ),
         child: Row(
@@ -2038,7 +2105,10 @@ class _StatCell extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: _T.label.copyWith(color: color.withValues(alpha: 0.7))),
+          Text(
+            label,
+            style: _T.label.copyWith(color: color.withValues(alpha: 0.7)),
+          ),
           const SizedBox(height: 4),
           Text(value, style: _T.stat.copyWith(color: color, fontSize: 18)),
         ],

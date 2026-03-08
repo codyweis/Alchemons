@@ -229,29 +229,53 @@ class EggPayloadFactory {
   EggPayloadFactory(this.repository, {Random? random})
     : _random = random ?? Random();
 
-  EggPayload createWildCapturePayload(Creature creature) {
+  EggPayload createWildCapturePayload(
+    Creature creature, {
+    String? sourceOverride,
+  }) {
     final rng = _random;
     final statRange = _getStatRangeForRarity(creature.rarity);
+    // If the creature already has stats set (e.g. nexus fixed-stat encounters),
+    // honour them instead of re-rolling from rarity ranges.
+    final hasFixedStats = creature.stats != null;
 
     return EggPayload(
       baseId: creature.id,
       rarity: creature.rarity,
-      source: 'wild',
-      natureId: creature.nature?.id, // keep wild’s nature if you have it
+      source: sourceOverride ?? 'wild_capture',
+      natureId: creature.nature?.id,
       isPrismaticSkin: creature.isPrismaticSkin,
       genetics: creature.genetics?.variants ?? {},
-      stats: CreatureStats(
-        speed: _rollInRange(rng, statRange.min, statRange.max),
-        intelligence: _rollInRange(rng, statRange.min, statRange.max),
-        strength: _rollInRange(rng, statRange.min, statRange.max),
-        beauty: _rollInRange(rng, statRange.min, statRange.max),
-      ),
-      potentials: CreatureStatPotentials(
-        speed: _rollInRange(rng, statRange.potMin, statRange.potMax),
-        intelligence: _rollInRange(rng, statRange.potMin, statRange.potMax),
-        strength: _rollInRange(rng, statRange.potMin, statRange.potMax),
-        beauty: _rollInRange(rng, statRange.potMin, statRange.potMax),
-      ),
+      stats: hasFixedStats
+          ? CreatureStats(
+              speed: creature.stats!.speed,
+              intelligence: creature.stats!.intelligence,
+              strength: creature.stats!.strength,
+              beauty: creature.stats!.beauty,
+            )
+          : CreatureStats(
+              speed: _rollInRange(rng, statRange.min, statRange.max),
+              intelligence: _rollInRange(rng, statRange.min, statRange.max),
+              strength: _rollInRange(rng, statRange.min, statRange.max),
+              beauty: _rollInRange(rng, statRange.min, statRange.max),
+            ),
+      potentials: hasFixedStats
+          ? CreatureStatPotentials(
+              speed: creature.stats!.speedPotential,
+              intelligence: creature.stats!.intelligencePotential,
+              strength: creature.stats!.strengthPotential,
+              beauty: creature.stats!.beautyPotential,
+            )
+          : CreatureStatPotentials(
+              speed: _rollInRange(rng, statRange.potMin, statRange.potMax),
+              intelligence: _rollInRange(
+                rng,
+                statRange.potMin,
+                statRange.potMax,
+              ),
+              strength: _rollInRange(rng, statRange.potMin, statRange.potMax),
+              beauty: _rollInRange(rng, statRange.potMin, statRange.potMax),
+            ),
       parentage: ParentageData(
         parentA: _createStarterParent(creature.types.first),
         parentB: _createStarterParent(creature.types.first),
@@ -276,7 +300,7 @@ class EggPayloadFactory {
     return EggPayload(
       baseId: offspring.id,
       rarity: offspring.rarity,
-      source: 'breeding',
+      source: 'standard_fusion',
       natureId: offspring.nature?.id,
       isPrismaticSkin: offspring.isPrismaticSkin,
       genetics: offspring.genetics?.variants ?? {},
@@ -377,6 +401,7 @@ class EggPayloadFactory {
     CreatureInstance ownedParent,
     Creature wildParent, {
     String? likelihoodAnalysisJson,
+    String? sourceOverride,
   }) {
     // Wild creatures get randomized attributes
 
@@ -388,7 +413,7 @@ class EggPayloadFactory {
     return EggPayload(
       baseId: offspring.id,
       rarity: offspring.rarity,
-      source: 'wild_breeding',
+      source: sourceOverride ?? 'wild_fusion',
       natureId: offspring.nature?.id,
       isPrismaticSkin: offspring.isPrismaticSkin,
       genetics: offspring.genetics?.variants ?? {},

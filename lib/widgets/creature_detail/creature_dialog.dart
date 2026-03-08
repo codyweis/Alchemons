@@ -984,9 +984,7 @@ class _HeaderBar extends StatelessWidget {
                           : c.bg3,
                       borderRadius: BorderRadius.circular(3),
                       border: Border.all(
-                        color: instance!.locked
-                            ? c.borderAccent
-                            : c.borderDim,
+                        color: instance!.locked ? c.borderAccent : c.borderDim,
                       ),
                     ),
                     child: Icon(
@@ -1280,7 +1278,10 @@ class _OverviewTab extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
-                      colors: [c.amber.withValues(alpha: 0.12), Colors.transparent],
+                      colors: [
+                        c.amber.withValues(alpha: 0.12),
+                        Colors.transparent,
+                      ],
                     ),
                   ),
                 ),
@@ -1462,7 +1463,10 @@ class _StaminaRestoreButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
                 border: Border.all(color: c.borderAccent, width: 1),
                 boxShadow: [
-                  BoxShadow(color: c.amber.withValues(alpha: 0.10), blurRadius: 10),
+                  BoxShadow(
+                    color: c.amber.withValues(alpha: 0.10),
+                    blurRadius: 10,
+                  ),
                 ],
               ),
               child: Row(
@@ -1603,7 +1607,10 @@ class _StatBar extends StatelessWidget {
                     color: color,
                     borderRadius: BorderRadius.circular(2),
                     boxShadow: [
-                      BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4),
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.4),
+                        blurRadius: 4,
+                      ),
                     ],
                   ),
                 ),
@@ -1739,10 +1746,13 @@ class _AnalysisTab extends StatelessWidget {
               onToggle: () => onToggleParent('parentB'),
             ),
             const SizedBox(height: 18),
-          ] else ...[
+          ] else if (isInstance && instance != null) ...[
             _AnalysisSection(
               title: 'Acquisition Method',
-              child: _DataRow(label: 'Source', value: 'Field Research'),
+              child: _DataRow(
+                label: 'Source',
+                value: _formatSource(instance!.source),
+              ),
             ),
             const SizedBox(height: 18),
           ],
@@ -2242,9 +2252,24 @@ String _formatSource(String source) {
   switch (source) {
     case 'wild_capture':
       return 'Wild Capture';
+    case 'wild_fusion':
+      return 'Wild Fusion';
     case 'wild_breeding':
-      return 'Wild Bred';
+      return 'Wild Fusion'; // legacy key
+    case 'wild':
+      return 'Wild Capture'; // legacy key
+    case 'standard_fusion':
+      return 'Standard Fusion';
+    case 'breeding':
+      return 'Standard Fusion'; // legacy key
+    case 'rift_portal':
+      return 'Rift Portal';
+    case 'planet_summon':
+      return 'Planet Summon';
+    case 'boss_summon':
+      return 'Boss Summon';
     case 'breeding_vial':
+    case 'vial':
       return 'Vial Bred';
     case 'starter':
       return 'Starter';

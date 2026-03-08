@@ -164,9 +164,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  widget.isUndiscovered
-                                      ? 'Unknown species — new discovery'
-                                      : 'Cultivation complete',
+                                  'Cultivation complete',
                                   style: TextStyle(
                                     color: theme.textMuted,
                                     fontSize: 11,

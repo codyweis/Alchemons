@@ -5,6 +5,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/harvest_biome.dart';
+import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
@@ -319,7 +320,9 @@ Future<bool> showItemDetailDialog({
                                     boxShadow: canAfford
                                         ? [
                                             BoxShadow(
-                                              color: t.amber.withValues(alpha: 0.15),
+                                              color: t.amber.withValues(
+                                                alpha: 0.15,
+                                              ),
                                               blurRadius: 12,
                                             ),
                                           ]
@@ -378,7 +381,9 @@ Future<bool> showItemDetailDialog({
                                     ),
                                     const SizedBox(width: 7),
                                     Text(
-                                      'BOUGHT TODAY',
+                                      offer.limit == PurchaseLimit.daily
+                                          ? 'BOUGHT TODAY'
+                                          : 'PURCHASED',
                                       style: TextStyle(
                                         fontFamily: 'monospace',
                                         color: t.success,
@@ -419,7 +424,7 @@ class _ForgeCostRow extends StatelessWidget {
   (IconData, String, Color) _info(String t) {
     switch (t) {
       case 'gold':
-        return (Icons.diamond_rounded, 'Gold', const Color(0xFFF59E0B));
+        return (Icons.hexagon_rounded, 'Gold', const Color(0xFFF59E0B));
       case 'silver':
         return (
           Icons.monetization_on_rounded,
@@ -427,7 +432,7 @@ class _ForgeCostRow extends StatelessWidget {
           const Color(0xFFB0BEC5),
         );
       case 'soft':
-        return (Icons.paid_rounded, 'Soft', const Color(0xFF4FC3F7));
+        return (Icons.diamond_rounded, 'Shards', const Color(0xFFB388FF));
       case 'res_volcanic':
         return (
           Icons.local_fire_department_rounded,
@@ -516,6 +521,38 @@ Widget _buildOfferPreview(
   double size = 64.0,
   required FactionTheme theme,
 }) {
+  // 0. Survival orb skin — render the radiant orb sphere
+  if (offer.id.startsWith('survival.orb.')) {
+    final orbDef = kOrbBases.where((d) => d.shopId == offer.id);
+    if (orbDef.isNotEmpty) {
+      final def = orbDef.first;
+      return Center(
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                def.glowColor.withValues(alpha: 0.7),
+                def.primaryColor,
+                def.secondaryColor,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: def.glowColor.withValues(alpha: 0.5),
+                blurRadius: 20,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
   // 1. Try animated preview for alchemy effects
   if (offer.inventoryKey != null) {
     final preview = ShopService.getAlchemyEffectPreview(
@@ -631,7 +668,12 @@ class GameShopCard extends StatelessWidget {
     if (!enabled) {
       overlayColor = Colors.transparent;
     } else if (!canAfford) {
-      overlayColor = const Color.fromARGB(86, 244, 67, 54).withValues(alpha: 0.3);
+      overlayColor = const Color.fromARGB(
+        86,
+        244,
+        67,
+        54,
+      ).withValues(alpha: 0.3);
     }
 
     return Container(
@@ -844,7 +886,9 @@ class TabButton extends StatelessWidget {
           color: isActive ? accent.withValues(alpha: 0.4) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isActive ? accent.withValues(alpha: 0.6) : Colors.transparent,
+            color: isActive
+                ? accent.withValues(alpha: 0.6)
+                : Colors.transparent,
             width: 1.5,
           ),
         ),
@@ -890,7 +934,9 @@ class CostChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: hasEnough ? Colors.transparent : Colors.red.withValues(alpha: 0.15),
+        color: hasEnough
+            ? Colors.transparent
+            : Colors.red.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: hasEnough
@@ -919,11 +965,11 @@ class CostChip extends StatelessWidget {
   (IconData, Color) _getCurrencyDisplay(String type, FactionTheme theme) {
     switch (type) {
       case 'gold':
-        return (Icons.diamond_rounded, const Color.fromARGB(255, 184, 138, 1));
+        return (Icons.hexagon_rounded, const Color.fromARGB(255, 184, 138, 1));
       case 'silver':
         return (Icons.monetization_on_rounded, theme.text);
       case 'soft':
-        return (Icons.paid_rounded, Colors.lightBlue);
+        return (Icons.diamond_rounded, const Color(0xFFB388FF));
       // resources (fall through to correct icons/colors)
       case 'res_volcanic':
         return (Icons.local_fire_department_rounded, Colors.orange.shade400);
@@ -1010,7 +1056,9 @@ class MarketplaceGrid extends StatelessWidget {
 
               // FIX: Use '?? 999' to provide a safe default value if the limit string
               // is unexpected. This pushes unknown limits to the end of the sort order.
-              return (order[aLimit] ?? 999).compareTo(order[bLimit] ?? 999);
+              return (order[aLimit.name] ?? 999).compareTo(
+                order[bLimit.name] ?? 999,
+              );
             }
             return a.name.compareTo(b.name);
           });
@@ -1340,7 +1388,10 @@ Future<bool> showBiomeUnlockConfirmationDialog({
           backgroundColor: const Color(0xFF1A1D23),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.accent.withValues(alpha: 0.5), width: 2),
+            side: BorderSide(
+              color: theme.accent.withValues(alpha: 0.5),
+              width: 2,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -1429,8 +1480,8 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
                         style: TextButton.styleFrom(
-                          backgroundColor: Colors.grey.shade800.withValues(alpha: 
-                            0.5,
+                          backgroundColor: Colors.grey.shade800.withValues(
+                            alpha: 0.5,
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -1755,7 +1806,9 @@ Future<int?> showPurchaseConfirmationDialog({
                                 width: 1,
                               ),
                               borderRadius: BorderRadius.circular(3),
-                              color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+                              color: const Color(
+                                0xFFD4AF37,
+                              ).withValues(alpha: 0.15),
                               boxShadow: [
                                 BoxShadow(
                                   color: const Color(
@@ -1802,7 +1855,9 @@ class _MonoSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.25))),
+        Expanded(
+          child: Container(height: 1, color: color.withValues(alpha: 0.25)),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
@@ -1816,7 +1871,9 @@ class _MonoSectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.25))),
+        Expanded(
+          child: Container(height: 1, color: color.withValues(alpha: 0.25)),
+        ),
       ],
     );
   }
@@ -1836,7 +1893,9 @@ class DialogSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.3))),
+        Expanded(
+          child: Container(height: 1, color: color.withValues(alpha: 0.3)),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Text(
@@ -1849,7 +1908,9 @@ class DialogSectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.3))),
+        Expanded(
+          child: Container(height: 1, color: color.withValues(alpha: 0.3)),
+        ),
       ],
     );
   }
@@ -1874,11 +1935,11 @@ class DialogResourceDisplay extends StatelessWidget {
     switch (type) {
       // Currencies
       case 'gold':
-        return (Icons.diamond_rounded, 'Gold', Colors.amber);
+        return (Icons.hexagon_rounded, 'Gold', Colors.amber);
       case 'silver':
         return (Icons.monetization_on_rounded, 'Silver', Colors.grey.shade300);
       case 'soft':
-        return (Icons.paid_rounded, 'Soft', Colors.lightBlue);
+        return (Icons.diamond_rounded, 'Shards', const Color(0xFFB388FF));
       // Resources
       case 'res_volcanic':
         return (

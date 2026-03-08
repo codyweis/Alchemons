@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
@@ -208,8 +209,14 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   @override
   Future<void> onLoad() async {
-    // Preload the layer art
-    await images.loadAll(scene.layers.map((l) => l.imagePath).toList());
+    // Preload the layer art (skip empty paths — e.g. arcane uses pure black)
+    final loadablePaths = scene.layers
+        .map((l) => l.imagePath)
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (loadablePaths.isNotEmpty) {
+      await images.loadAll(loadablePaths);
+    }
 
     final world = World()..priority = 0;
     add(world);
@@ -217,6 +224,7 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     // Build parallax layers
     for (final layerDef in scene.layers) {
+      if (layerDef.imagePath.isEmpty) continue; // skip empty (black backdrop)
       final sprite = Sprite(images.fromCache(layerDef.imagePath));
       final layer = _FiniteLayer(
         layersRoot,
@@ -252,6 +260,9 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     // Add spawn anchors
     _addSpawnPoints();
+
+    // Reposition spawns using _Vh (already set by _layoutLayersForScreen above)
+    _repositionSpawnPoints();
 
     // Center camera initially
     cam.viewfinder.position = Vector2(size.x / 2, size.y / 2);
@@ -353,9 +364,10 @@ class SceneGame extends FlameGame with ScaleDetector {
       _riftPortalComp = null;
     }
     if (_riftPortalComp != null) return; // already active
-    if (_rng.nextDouble() > 0.10) return; // 10% chance
+    if (_rng.nextDouble() > 0.05) return; // 5% chance
 
     final faction = RiftFactionExt.randomForScene(sceneId, _rng);
+    if (faction == null) return; // no eligible factions for this biome
 
     // Normalised screen fractions where the portal should appear.
     final normX = 0.55 + _rng.nextDouble() * 0.20;
@@ -386,8 +398,10 @@ class SceneGame extends FlameGame with ScaleDetector {
   void _addSpawnPoints() {
     for (final p in scene.spawnPoints) {
       if (!p.enabled) continue;
-      final layer = _layers[p.anchor];
-      if (layer == null) continue;
+
+      // Use the layer container if available, otherwise fall back to layersRoot
+      // (e.g. arcane scene has no image layers — pure black backdrop).
+      final parent = _layers[p.anchor]?.container ?? layersRoot;
 
       final baseW = scene.worldWidth.toDouble();
       final baseH = scene.worldHeight.toDouble(); // ✅ Use worldHeight, not _Vh
@@ -402,7 +416,7 @@ class SceneGame extends FlameGame with ScaleDetector {
         anchor: Anchor.center,
       );
 
-      layer.container.add(anchor);
+      parent.add(anchor);
       _spawnPointComps[p.id] = anchor;
     }
   }
@@ -499,8 +513,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     final sp = scene.spawnPoints.firstWhere(
       (s) => s.id == _currentEncounterSpawnId!,
     );
-    final layer = _layers[sp.anchor];
-    if (layer == null) return;
+    final parent = _layers[sp.anchor]?.container ?? layersRoot;
 
     final baseW = scene.worldWidth.toDouble();
     final battlePos = sp.getBattlePos();
@@ -520,7 +533,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       anchor: Anchor.center,
     );
 
-    layer.container.add(anchor);
+    parent.add(anchor);
 
     _partyCreature?.removeFromParent();
     _partyCreature =
@@ -914,9 +927,8 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   void _repositionSpawnPoints() {
     for (final p in scene.spawnPoints) {
-      final layer = _layers[p.anchor];
       final comp = _spawnPointComps[p.id];
-      if (layer == null || comp == null) continue;
+      if (comp == null) continue;
 
       // ✅ Same coordinate system as above
       final baseW = scene.worldWidth.toDouble();
@@ -973,6 +985,10 @@ class WildMonComponent extends PositionComponent
         _addTapPulse();
         return;
       }
+
+      // Add a soft backlight glow behind dark-type creatures so they're
+      // visible on dark backgrounds (e.g. arcane scene).
+      _maybeAddBacklight();
 
       add(
         CreatureSpriteComponent(
@@ -1089,11 +1105,66 @@ class WildMonComponent extends PositionComponent
     );
   }
 
+  /// Adds a soft radial backlight behind the creature when its primary
+  /// element is too dark to see — only in scenes with no backdrop imagery
+  /// (e.g. the arcane void).
+  void _maybeAddBacklight() {
+    if (hydrated == null) return;
+
+    // Only apply in dark-backdrop scenes (all layers have empty imagePath)
+    final hasDarkBackdrop = gameRef.scene.layers.every(
+      (l) => l.imagePath.isEmpty,
+    );
+    if (!hasDarkBackdrop) return;
+
+    final types = hydrated!.types;
+    if (types.isEmpty) return;
+
+    // Dark-themed elements that need a backlight
+    const darkElements = {'Dark', 'Spirit', 'Blood', 'Mud', 'Earth', 'Poison'};
+    if (!darkElements.contains(types.first)) return;
+
+    final radius = size.x * 0.6;
+    add(
+      _CreatureBacklightComponent(radius: radius, position: size / 2)
+        ..priority = -2, // behind sprite and effects
+    );
+  }
+
   @override
   void onTapDown(TapDownEvent event) => onTap();
 }
 
-// ------------------------------------------------------------
+/// Soft radial glow rendered behind dark creatures for visibility.
+class _CreatureBacklightComponent extends PositionComponent {
+  final double radius;
+  late final Paint _paint;
+
+  _CreatureBacklightComponent({required this.radius, super.position})
+    : super(anchor: Anchor.center);
+
+  @override
+  Future<void> onLoad() async {
+    size = Vector2.all(radius * 2);
+    _paint = Paint()
+      ..shader = ui.Gradient.radial(
+        Offset(radius, radius),
+        radius,
+        [
+          Colors.white.withValues(alpha: 0.25),
+          Colors.white.withValues(alpha: 0.08),
+          Colors.transparent,
+        ],
+        [0.0, 0.5, 1.0],
+      );
+  }
+
+  @override
+  void render(Canvas canvas) {
+    canvas.drawCircle(Offset(radius, radius), radius, _paint);
+  }
+}
+
 // Minimal finite parallax layer helper
 // ------------------------------------------------------------
 class _FiniteLayer {

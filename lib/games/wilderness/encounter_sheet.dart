@@ -561,7 +561,11 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           );
         }
 
-        return Icon(Icons.pets, color: Colors.white.withValues(alpha: .8), size: 64);
+        return Icon(
+          Icons.pets,
+          color: Colors.white.withValues(alpha: .8),
+          size: 64,
+        );
       }
 
       Color colorOf(Creature? c, Color fallback) =>
@@ -593,11 +597,13 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
       if (success) {
         HapticFeedback.heavyImpact();
-        setState(() => _status = 'Captured!');
+        setState(
+          () => _status = 'Specimen sent to Cultivations for extraction',
+        );
 
         await _placeWildEgg(ctx, wildCreature);
 
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 800));
         if (!mounted) return;
         _hide(true);
       } else {
@@ -643,6 +649,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       ownedParent,
       wildCreature,
       forcePrismatic: widget.encounter.voidBred,
+      sourceOverride: widget.encounter.source,
     );
 
     if (!result.success) {
@@ -653,11 +660,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     }
 
     if (mounted) {
-      final message = result.placement == EggPlacement.incubator
-          ? 'Wild breeding successful! Egg in incubator slot ${(result.slotId ?? 0) + 1}'
-          : 'Wild breeding successful! Egg stored in queue';
-
-      setState(() => _status = message);
+      setState(() => _status = 'Specimen sent to Cultivations for extraction');
     }
   }
 
@@ -686,7 +689,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final hatchAtUtc = DateTime.now().toUtc().add(adjustedDelay);
 
     final factory = EggPayloadFactory(repo);
-    final payload = factory.createWildCapturePayload(capturedCreature);
+    final payload = factory.createWildCapturePayload(
+      capturedCreature,
+      sourceOverride: widget.encounter.source,
+    );
     final payloadJson = payload.toJsonString();
 
     final eggId = 'egg_${DateTime.now().millisecondsSinceEpoch}';

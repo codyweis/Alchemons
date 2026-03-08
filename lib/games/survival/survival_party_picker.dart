@@ -13,6 +13,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
+import 'package:alchemons/screens/party_picker/team_builder_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -48,6 +49,83 @@ class _C {
   static Color get borderAccent => _t.borderAccent;
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _EtchedDivider extends StatelessWidget {
+  final String label;
+  const _EtchedDivider({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    _C.bind(context);
+    return Row(
+      children: [
+        Expanded(child: Container(height: 1, color: _C.borderDim)),
+        const SizedBox(width: 8),
+        Text(label, style: _T.heading),
+        const SizedBox(width: 8),
+        Expanded(child: Container(height: 1, color: _C.borderDim)),
+      ],
+    );
+  }
+}
+
+class _ForgeButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color? color;
+  final VoidCallback? onTap;
+
+  const _ForgeButton({
+    required this.label,
+    required this.icon,
+    this.color,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    _C.bind(context);
+    final enabled = onTap != null;
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: color ?? _C.bg2,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: _C.borderDim),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: enabled ? _C.textPrimary : _C.textMuted,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: enabled ? _C.textPrimary : _C.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _T {
   static TextStyle get heading => TextStyle(
     fontFamily: 'monospace',
@@ -67,99 +145,6 @@ class _T {
 
   static TextStyle get body =>
       TextStyle(color: _C.textSecondary, fontSize: 12, height: 1.5);
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// SHARED SMALL WIDGETS
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _EtchedDivider extends StatelessWidget {
-  final String? label;
-  const _EtchedDivider({this.label});
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(child: Container(height: 1, color: _C.borderMid)),
-      if (label != null) ...[
-        const SizedBox(width: 10),
-        Text(label!, style: _T.label),
-        const SizedBox(width: 10),
-      ],
-      Expanded(child: Container(height: 1, color: _C.borderMid)),
-    ],
-  );
-}
-
-class _ForgeButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback? onTap;
-  final bool secondary;
-  final Color? color;
-
-  const _ForgeButton({
-    required this.label,
-    required this.icon,
-    this.onTap,
-    this.secondary = false,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDisabled = onTap == null;
-    final c = color ?? _C.amber;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        height: secondary ? 42 : 52,
-        decoration: BoxDecoration(
-          color: secondary ? Colors.transparent : (isDisabled ? _C.bg3 : c),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: secondary
-                ? _C.borderAccent.withValues(alpha: 0.6)
-                : (isDisabled ? _C.borderDim : c),
-          ),
-          boxShadow: (!secondary && !isDisabled)
-              ? [
-                  BoxShadow(
-                    color: c.withValues(alpha: 0.28),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: secondary ? 15 : 17,
-              color: secondary
-                  ? _C.textSecondary
-                  : (isDisabled ? _C.textMuted : _C.bg0),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: secondary ? 11 : 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.8,
-                color: secondary
-                    ? _C.textSecondary
-                    : (isDisabled ? _C.textMuted : _C.bg0),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _ScanlinePainter extends CustomPainter {
@@ -456,37 +441,58 @@ class _SurvivalFormationSelectorScreenState
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'SELECT $minSquadSize–$maxSquadSize CREATURES',
+                  'SELECT $minSquadSize\u2013$maxSquadSize CREATURES',
                   style: _T.label.copyWith(color: _C.textMuted),
                 ),
               ],
             ),
           ),
-          if (_selectedCreatures.isNotEmpty)
-            GestureDetector(
-              onTap: () => setState(() => _selectedCreatures.clear()),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
+          // Teams button
+          GestureDetector(
+            onTap: () async {
+              await showDialog<void>(
+                context: context,
+                builder: (_) => TeamBuilderDialog(
+                  theme: context.read<FactionTheme>(),
+                  storageKey: 'saved_teams_survival',
+                  slotCount: maxSquadSize,
+                  activeMemberIds: List<String>.from(_selectedCreatures),
+                  onApply: (members) {
+                    setState(() {
+                      _selectedCreatures.clear();
+                      _selectedCreatures.addAll(members);
+                    });
+                  },
                 ),
-                decoration: BoxDecoration(
-                  color: _C.bg2,
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: _C.borderDim),
-                ),
-                child: Text(
-                  'CLEAR',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: _C.textSecondary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _C.bg2,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: _C.borderDim),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.folder_open, color: _C.textSecondary, size: 14),
+                  const SizedBox(width: 8),
+                  Text(
+                    'TEAMS',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: _C.textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
+          ),
+
+          // Clear button removed from header; now shown in squad panel.
         ],
       ),
     );
@@ -505,11 +511,18 @@ class _SurvivalFormationSelectorScreenState
         color: _C.bg2,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-          color: _hasMinimumSquad ? _C.success.withValues(alpha: 0.55) : _C.borderDim,
+          color: _hasMinimumSquad
+              ? _C.success.withValues(alpha: 0.55)
+              : _C.borderDim,
           width: _hasMinimumSquad ? 1.5 : 1,
         ),
         boxShadow: _hasMinimumSquad
-            ? [BoxShadow(color: _C.success.withValues(alpha: 0.10), blurRadius: 16)]
+            ? [
+                BoxShadow(
+                  color: _C.success.withValues(alpha: 0.10),
+                  blurRadius: 16,
+                ),
+              ]
             : null,
       ),
       child: ClipRRect(
@@ -545,6 +558,33 @@ class _SurvivalFormationSelectorScreenState
                                   : _C.textSecondary,
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          if (_selectedCreatures.isNotEmpty)
+                            GestureDetector(
+                              onTap: () =>
+                                  setState(() => _selectedCreatures.clear()),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _C.bg2,
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: Border.all(color: _C.borderDim),
+                                ),
+                                child: Text(
+                                  'CLEAR',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: _C.textSecondary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                              ),
+                            ),
                           const Spacer(),
                           AnimatedSwitcher(
                             duration: const Duration(milliseconds: 200),
@@ -704,7 +744,9 @@ class _SurvivalFormationSelectorScreenState
                         ? Icons.add_circle_outline_rounded
                         : Icons.add_rounded,
                     size: 16,
-                    color: isRequired ? _C.warn.withValues(alpha: 0.5) : _C.textMuted,
+                    color: isRequired
+                        ? _C.warn.withValues(alpha: 0.5)
+                        : _C.textMuted,
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -1059,7 +1101,9 @@ class _CreatureGridCardState extends State<_CreatureGridCard>
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             decoration: BoxDecoration(
-              color: widget.isSelected ? _C.success.withValues(alpha: 0.10) : _C.bg2,
+              color: widget.isSelected
+                  ? _C.success.withValues(alpha: 0.10)
+                  : _C.bg2,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
                 color: widget.isSelected

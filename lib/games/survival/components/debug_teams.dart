@@ -799,23 +799,8 @@ class DebugTeams {
   static List<_DebugTeamInfo> allTeams() => [
     _DebugTeamInfo(
       id: 'team1',
-      label: 'Team 1 (Nature/Physical)',
+      label: 'Test Squad (Nature/Physical)',
       party: makeTeamOne(),
-    ),
-    _DebugTeamInfo(
-      id: 'team2',
-      label: 'Team 2 (Energy/Volatile)',
-      party: makeTeamTwo(),
-    ),
-    _DebugTeamInfo(
-      id: 'team3',
-      label: 'Team 3 (Dark/Mystic)',
-      party: makeTeamThree(),
-    ),
-    _DebugTeamInfo(
-      id: 'team4',
-      label: 'Team 4 (Crystal/Chaos)',
-      party: makeTeamFour(),
     ),
   ];
 }

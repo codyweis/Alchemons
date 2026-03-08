@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/widgets/tutorial_step.dart';
 
 class ConstellationScreen extends StatefulWidget {
   const ConstellationScreen({super.key});
@@ -45,6 +47,10 @@ class _ConstellationScreenState extends State<ConstellationScreen>
         }
       }
     });
+    // Check and show constellation tutorial once after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowConstellationTutorial();
+    });
   }
 
   @override
@@ -64,6 +70,87 @@ class _ConstellationScreenState extends State<ConstellationScreen>
       default:
         return ConstellationTree.breeder;
     }
+  }
+
+  // Tutorial state
+  bool _constellationTutorialChecked = false;
+
+  Future<void> _maybeShowConstellationTutorial() async {
+    if (_constellationTutorialChecked) return;
+    _constellationTutorialChecked = true;
+
+    if (!mounted) return;
+
+    final db = context.read<AlchemonsDatabase>();
+    final settings = db.settingsDao;
+    final hasSeen = await settings.hasSeenConstellationTutorial();
+    if (hasSeen || !mounted) return;
+
+    final theme = context.read<FactionTheme>();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: theme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: theme.primary.withValues(alpha: 0.3)),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.auto_awesome, color: theme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Constellations 101',
+                style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Earn constellation points, spend them to unlock powerful skills, and explore three trees: Breeder, Combat and Extraction.',
+                style: TextStyle(color: theme.textMuted, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 10),
+              TutorialStep(
+                theme: theme,
+                icon: Icons.bolt, 
+                title: 'Earn Points',
+                body: 'Breed creatures and complete milestones to gain points.',
+              ),
+              const SizedBox(height: 6),
+              TutorialStep(
+                theme: theme,
+                icon: Icons.lock_open, 
+                title: 'Unlock Skills',
+                body: 'Spend points to unlock nodes that boost breeding, combat, or extraction.',
+              ),
+              const SizedBox(height: 6),
+              TutorialStep(
+                theme: theme,
+                icon: Icons.explore_rounded, 
+                title: 'Explore Trees',
+                body: 'Switch tabs to view each tree and plan your progression.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await settings.setConstellationTutorialSeen();
+                if (mounted) Navigator.of(context).pop();
+              },
+              child: Text('Got it', style: TextStyle(color: theme.primary, fontWeight: FontWeight.w900)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   String _getTreeName(ConstellationTree tree) {

@@ -457,6 +457,10 @@ class InvKeys {
   static const portalKeyEarthen = 'item.portal_key.earthen';
   static const portalKeyArcane = 'item.portal_key.arcane';
 
+  // ── Cosmic Alchemy ──────────────────────────────────────────────────────
+  static const cosmicShip = 'item.cosmic_ship';
+  static const homePlanetSlots = 'item.home_planet_slots';
+
   /// Returns the portal key InvKey for a given rift faction name (lowercase).
   static String portalKeyForFaction(String factionName) =>
       'item.portal_key.${factionName.toLowerCase()}';
@@ -641,6 +645,26 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       canUse: false,
     );
   }
+
+  // ── Cosmic Alchemy items ──
+  registry[InvKeys.cosmicShip] = InventoryItemDef(
+    key: InvKeys.cosmicShip,
+    name: 'Cosmic Ship',
+    description: 'Unlocks access to the Cosmic Alchemy Explorer.',
+    icon: Icons.rocket_launch_rounded,
+    stackable: false,
+    isKeyItem: true,
+    canDispose: false,
+    canUse: false,
+  );
+  registry[InvKeys.homePlanetSlots] = InventoryItemDef(
+    key: InvKeys.homePlanetSlots,
+    name: 'Home Planet Slots',
+    description: 'Additional Alchemon placement slots for your Home Planet.',
+    icon: Icons.add_circle_outline_rounded,
+    stackable: true,
+    canUse: false,
+  );
 
   return registry;
 }

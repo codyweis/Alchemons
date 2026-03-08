@@ -60,7 +60,7 @@ class _PrismaticCascadeState extends State<PrismaticCascade>
       animation: Listenable.merge([_main, _pulse]),
       builder: (context, _) {
         return CustomPaint(
-          size: Size(widget.size * 2.6, widget.size * 2.6),
+          size: Size(widget.size * 1.2, widget.size * 1.2),
           painter: _PrismaticPainter(
             t: _main.value, // 0..1
             breathe: _breathe.value,

@@ -599,9 +599,15 @@ class _BreedingTabState extends State<BreedingTab>
             height: 96,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: theme.border.withValues(alpha: .4), width: 2),
+              border: Border.all(
+                color: theme.border.withValues(alpha: .4),
+                width: 2,
+              ),
               gradient: RadialGradient(
-                colors: [theme.surfaceAlt.withValues(alpha: .2), Colors.transparent],
+                colors: [
+                  theme.surfaceAlt.withValues(alpha: .2),
+                  Colors.transparent,
+                ],
               ),
               boxShadow: [
                 BoxShadow(
@@ -654,7 +660,10 @@ class _BreedingTabState extends State<BreedingTab>
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: Colors.black.withValues(alpha: .3),
-        border: Border.all(color: Colors.white.withValues(alpha: .08), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: .08),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: .6),
@@ -773,7 +782,11 @@ class _BreedingTabState extends State<BreedingTab>
 
         Color ringColor;
         if (leftColor != null && rightColor != null) {
-          ringColor = Color.lerp(leftColor, rightColor, 0.5)!.withValues(alpha: .8);
+          ringColor = Color.lerp(
+            leftColor,
+            rightColor,
+            0.5,
+          )!.withValues(alpha: .8);
         } else if (leftColor != null) {
           ringColor = leftColor.withValues(alpha: .8);
         } else if (rightColor != null) {
@@ -955,7 +968,10 @@ class _BreedingTabState extends State<BreedingTab>
         decoration: BoxDecoration(
           color: theme.surfaceAlt.withValues(alpha: .5),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.accent.withValues(alpha: .5), width: 1),
+          border: Border.all(
+            color: theme.accent.withValues(alpha: .5),
+            width: 1,
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1015,7 +1031,10 @@ class _BreedingTabState extends State<BreedingTab>
         decoration: BoxDecoration(
           color: theme.surfaceAlt.withValues(alpha: .3),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: theme.border.withValues(alpha: .4), width: 1),
+          border: Border.all(
+            color: theme.border.withValues(alpha: .4),
+            width: 1,
+          ),
         ),
         child: Center(
           child: Text(
@@ -1374,6 +1393,18 @@ class _BreedingTabState extends State<BreedingTab>
                         if (tempPick2 != null) tempPick2!.instanceId,
                       ],
                       onPicked: (inst) {
+                        // Prevent selecting the same instance twice
+                        if (tempPick1?.instanceId == inst.instanceId ||
+                            tempPick2?.instanceId == inst.instanceId) {
+                          _showToast(
+                            'Already selected as a parent',
+                            icon: Icons.block_rounded,
+                            color: Colors.red,
+                            fromTop: true,
+                          );
+                          return;
+                        }
+
                         // Fill next empty slot
                         if (tempPick1 == null) {
                           tempPick1 = inst;
@@ -1428,6 +1459,18 @@ class _BreedingTabState extends State<BreedingTab>
             theme: theme,
             selectedInstanceIds: selectedIds,
             onTap: (CreatureInstance inst) async {
+              // --- Already-selected guard ---
+              if (selectedIds.contains(inst.instanceId)) {
+                if (!mounted) return;
+                _showToast(
+                  'Already selected as a parent',
+                  icon: Icons.block_rounded,
+                  color: Colors.red,
+                  fromTop: true,
+                );
+                return;
+              }
+
               // --- Stamina check ---
               final stamina = context.read<StaminaService>();
               final refreshed = await stamina.refreshAndGet(inst.instanceId);

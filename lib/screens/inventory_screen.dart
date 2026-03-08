@@ -18,6 +18,7 @@ import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/screens/shop/shop_widgets.dart';
 
 /// Helper to get images for inventory items from ShopService
 class InventoryImageHelper {
@@ -195,21 +196,69 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 
   Widget _buildHeader(FactionTheme theme) {
+    final db = context.read<AlchemonsDatabase>();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Text(
-              'INVENTORY',
-              style: TextStyle(
-                color: theme.text,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1,
-                fontSize: 20,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'INVENTORY',
+                  style: TextStyle(
+                    color: theme.text,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                    fontSize: 20,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Currency summary row
+          StreamBuilder<Map<String, int>>(
+            stream: db.currencyDao.watchAllCurrencies(),
+            builder: (context, snap) {
+              final c = snap.data ?? {'gold': 0, 'silver': 0, 'soft': 0};
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.surface.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.accentSoft.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    CurrencyPill(
+                      icon: Icons.hexagon_rounded,
+                      color: const Color(0xFFFFD700),
+                      amount: c['gold'] ?? 0,
+                    ),
+                    Container(width: 1, height: 14, color: theme.border),
+                    CurrencyPill(
+                      icon: Icons.monetization_on_rounded,
+                      color: theme.textMuted,
+                      amount: c['silver'] ?? 0,
+                    ),
+                    Container(width: 1, height: 14, color: theme.border),
+                    CurrencyPill(
+                      icon: Icons.diamond_rounded,
+                      color: const Color(0xFFB388FF),
+                      amount: c['soft'] ?? 0,
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -1273,7 +1322,10 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withValues(alpha: 0.5), width: 2),
+          side: BorderSide(
+            color: theme.accent.withValues(alpha: 0.5),
+            width: 2,
+          ),
         ),
         title: Text(
           'Remove Item',
@@ -1355,7 +1407,10 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withValues(alpha: 0.5), width: 2),
+          side: BorderSide(
+            color: theme.accent.withValues(alpha: 0.5),
+            width: 2,
+          ),
         ),
         title: Text(
           'Extract Vial?',
@@ -1419,7 +1474,10 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withValues(alpha: 0.5), width: 2),
+          side: BorderSide(
+            color: theme.accent.withValues(alpha: 0.5),
+            width: 2,
+          ),
         ),
         title: Text(
           'Remove Vial',

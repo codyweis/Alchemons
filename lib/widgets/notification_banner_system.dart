@@ -130,7 +130,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
   IconData _getBannerIcon() {
     switch (widget.notification.type) {
       case NotificationBannerType.eggReady:
-        return Icons.egg_rounded;
+        return Icons.science_rounded;
       case NotificationBannerType.harvestReady:
         return Icons.science_rounded;
       case NotificationBannerType.dailyReward:
@@ -195,7 +195,10 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
       decoration: BoxDecoration(
         color: _getBannerColor(),
         shape: BoxShape.circle,
-        border: Border.all(color: _getAccentColor().withValues(alpha: 0.6), width: 2),
+        border: Border.all(
+          color: _getAccentColor().withValues(alpha: 0.6),
+          width: 2,
+        ),
       ),
       child: Stack(
         children: [

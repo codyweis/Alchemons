@@ -124,7 +124,12 @@ class InstanceCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           border: Border.all(color: selColor, width: isSelected ? 1.5 : 1.0),
           boxShadow: isSelected
-              ? [BoxShadow(color: selColor.withValues(alpha: 0.15), blurRadius: 10)]
+              ? [
+                  BoxShadow(
+                    color: selColor.withValues(alpha: 0.15),
+                    blurRadius: 10,
+                  ),
+                ]
               : null,
         ),
         child: ClipRRect(
@@ -422,7 +427,7 @@ class _StatLine extends StatelessWidget {
         Icon(icon, size: 10, color: color),
         const SizedBox(width: 4),
         Text(
-          '$label  ${value.toStringAsFixed(0)}',
+          '$label  ${value.toStringAsFixed(2)}',
           style: TextStyle(
             fontFamily: 'monospace',
             color: color.withValues(alpha: 0.9),
@@ -690,7 +695,9 @@ class _PrismaticChip extends StatelessWidget {
     decoration: BoxDecoration(
       color: const Color(0xFFA855F7).withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(2),
-      border: Border.all(color: const Color(0xFFA855F7).withValues(alpha: 0.45)),
+      border: Border.all(
+        color: const Color(0xFFA855F7).withValues(alpha: 0.45),
+      ),
     ),
     child: const Text(
       'PRISMATIC',
@@ -733,7 +740,9 @@ class InstancesEmptyState extends StatelessWidget {
               decoration: BoxDecoration(
                 color: t.bg2,
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: t.borderAccent.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: t.borderAccent.withValues(alpha: 0.5),
+                ),
               ),
               child: Icon(
                 hasFilters ? Icons.search_off_rounded : Icons.science_outlined,
@@ -757,7 +766,7 @@ class InstancesEmptyState extends StatelessWidget {
             Text(
               hasFilters
                   ? 'Adjust filters or clear your search'
-                  : 'Acquire specimens through genetic synthesis\nor field research operations',
+                  : 'Acquire specimens through fusion,\nrift portals, or planet summons',
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: t.textSecondary,

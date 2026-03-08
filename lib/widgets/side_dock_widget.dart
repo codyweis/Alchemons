@@ -57,6 +57,20 @@ class SideDockFloating extends StatelessWidget {
 
         const SizedBox(height: 10),
 
+        // BATTLE
+        lockWrap(
+          locked: lockNonField,
+          child: _FloatingSideButton(
+            theme: theme,
+            size: 80,
+            label: 'Battle',
+            assetPath: 'assets/images/ui/trialsicon.png',
+            onTap: onBattle,
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
         // ENHANCE: lock when lockNonField == true
         lockWrap(
           locked: lockNonField,
@@ -92,17 +106,6 @@ class SideDockFloating extends StatelessWidget {
         //     onTap: onCompetitions,
         //   ),
         // ),
-        const SizedBox(height: 10),
-        lockWrap(
-          locked: lockNonField,
-          child: _FloatingSideButton(
-            theme: theme,
-            size: 80,
-            label: 'Battle',
-            assetPath: 'assets/images/ui/trialsicon.png',
-            onTap: onBattle,
-          ),
-        ),
       ],
     );
   }
@@ -279,7 +282,8 @@ class MysticSwirlButton extends StatefulWidget {
   final double size;
   final VoidCallback onTap;
 
-  const MysticSwirlButton({super.key, 
+  const MysticSwirlButton({
+    super.key,
     required this.theme,
     required this.onTap,
     this.size = 60,
@@ -345,7 +349,9 @@ class _MysticSwirlButtonState extends State<MysticSwirlButton>
                       spreadRadius: 4,
                     ),
                     BoxShadow(
-                      color: const Color(0xFF6366F1).withValues(alpha: glow * 0.5),
+                      color: const Color(
+                        0xFF6366F1,
+                      ).withValues(alpha: glow * 0.5),
                       blurRadius: 32,
                       spreadRadius: 8,
                     ),

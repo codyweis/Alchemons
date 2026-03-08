@@ -130,6 +130,7 @@ class BreedingServiceV2 {
     // kept for compat; ignored
     String? likelihoodAnalysisJson,
     bool forcePrismatic = false,
+    String? sourceOverride,
   }) async {
     // ---- Cross-species gate (owned vs wild) ----
     final allowed = await _canCrossBreed(ownedParent.baseId, wildCreature.id);
@@ -171,6 +172,7 @@ class BreedingServiceV2 {
       ownedParent,
       randomizedWild,
       likelihoodAnalysisJson: analysisJson,
+      sourceOverride: sourceOverride,
     );
 
     // Fire perk: owned parent + wild both Fire?

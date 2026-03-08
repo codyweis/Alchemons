@@ -156,6 +156,7 @@ class EggHatching {
       parentage: hp.parentage?.toJson(),
       isPrismaticSkin: hp.isPrismaticSkin,
       likelihoodAnalysisJson: hp.likelihoodAnalysisJson,
+      source: hp.source,
       statBeauty: hp.stats.beauty,
       statSpeed: hp.stats.speed,
       statIntelligence: hp.stats.intelligence,
@@ -872,11 +873,7 @@ class EggHatching {
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: fc.bg2,
-                          border: Border(
-                            top: BorderSide(
-                              color: fc.borderDim,
-                            ),
-                          ),
+                          border: Border(top: BorderSide(color: fc.borderDim)),
                         ),
                         child: AnimatedOpacity(
                           opacity: ctaVisible ? 1 : 0,

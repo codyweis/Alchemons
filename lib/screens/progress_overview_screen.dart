@@ -214,52 +214,54 @@ class _ConstellationProgressOverviewScreenState
     return SafeArea(
       child: Column(
         children: [
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Expanded(
             child: PageView.builder(
-              controller: _pageController,
-              onPageChanged: (index) {
-                HapticFeedback.selectionClick();
-                setState(() => _currentPage = index);
-              },
-              itemCount: species.length,
-              itemBuilder: (context, index) {
-                final creature = species[index];
-                return MyAnimatedBuilder(
-                  animation: _pageController,
-                  builder: (context, child) {
-                    double value = 1.0;
-                    if (_pageController.position.haveDimensions) {
-                      value = (_pageController.page! - index).abs();
-                      value = (1 - (value * 0.15)).clamp(0.85, 1.0);
-                    }
-                    return Transform.scale(
-                      scale: value,
-                      child: Opacity(
-                        opacity: value.clamp(0.8, 1.0),
-                        child: child,
+                  controller: _pageController,
+                  onPageChanged: (index) {
+                    HapticFeedback.selectionClick();
+                    setState(() => _currentPage = index);
+                  },
+                  itemCount: species.length,
+                  itemBuilder: (context, index) {
+                    final creature = species[index];
+                    return MyAnimatedBuilder(
+                      animation: _pageController,
+                      builder: (context, child) {
+                        double value = 1.0;
+                        if (_pageController.position.haveDimensions) {
+                          value = (_pageController.page! - index).abs();
+                          value = (1 - (value * 0.15)).clamp(0.85, 1.0);
+                        }
+                        return Transform.scale(
+                          scale: value,
+                          child: Opacity(
+                            opacity: value.clamp(0.8, 1.0),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 4,
+                        ),
+                        child: Center(
+                          child: _SpeciesCard(
+                            creature: creature,
+                            progressFuture: _progressFor(
+                              constellationService,
+                              creature.id,
+                            ),
+                          ),
+                        ),
                       ),
                     );
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    child: _SpeciesCard(
-                      creature: creature,
-                      progressFuture: _progressFor(
-                        constellationService,
-                        creature.id,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+                ),
           ),
           _buildPageIndicator(species.length, t),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -268,7 +270,7 @@ class _ConstellationProgressOverviewScreenState
   Widget _buildPageIndicator(int count, ForgeTokens t) {
     if (count <= 8) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
@@ -480,7 +482,8 @@ class _SpeciesCard extends StatelessWidget {
               ),
             );
           },
-          child: Container(
+          child: IntrinsicHeight(
+           child: Container(
             decoration: BoxDecoration(
               color: t.bg2,
               borderRadius: BorderRadius.circular(4),
@@ -517,8 +520,9 @@ class _SpeciesCard extends StatelessWidget {
                 ),
                 // Content
                 Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       // Top row — rarity badge + arrow
                       Row(
@@ -534,33 +538,30 @@ class _SpeciesCard extends StatelessWidget {
                       ),
 
                       // Sprite
-                      Expanded(
-                        flex: 3,
-                        child: Center(
-                          child: Hero(
-                            tag: 'constellation_sprite_${creature.id}',
-                            child: SizedBox(
-                              width: 140,
-                              height: 140,
-                              child: RepaintBoundary(
-                                child: CreatureSprite(
-                                  spritePath:
-                                      creature.spriteData!.spriteSheetPath,
-                                  totalFrames: creature.spriteData!.totalFrames,
-                                  rows: creature.spriteData!.rows,
-                                  frameSize: Vector2(
-                                    creature.spriteData!.frameWidth.toDouble(),
-                                    creature.spriteData!.frameHeight.toDouble(),
-                                  ),
-                                  stepTime:
-                                      creature.spriteData!.frameDurationMs /
-                                      1000.0,
-                                ),
+                      const SizedBox(height: 8),
+                      Hero(
+                        tag: 'constellation_sprite_${creature.id}',
+                        child: SizedBox(
+                          width: 120,
+                          height: 120,
+                          child: RepaintBoundary(
+                            child: CreatureSprite(
+                              spritePath:
+                                  creature.spriteData!.spriteSheetPath,
+                              totalFrames: creature.spriteData!.totalFrames,
+                              rows: creature.spriteData!.rows,
+                              frameSize: Vector2(
+                                creature.spriteData!.frameWidth.toDouble(),
+                                creature.spriteData!.frameHeight.toDouble(),
                               ),
+                              stepTime:
+                                  creature.spriteData!.frameDurationMs /
+                                  1000.0,
                             ),
                           ),
                         ),
                       ),
+                      const SizedBox(height: 8),
 
                       // Name
                       Text(
@@ -568,20 +569,18 @@ class _SpeciesCard extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: t.textPrimary,
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 2.5,
+                          letterSpacing: 2.0,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 8),
 
                       // Stats panel
-                      Expanded(
-                        flex: 2,
-                        child: Container(
+                      Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(14),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
                             color: t.bg3,
                             borderRadius: BorderRadius.circular(3),
@@ -601,7 +600,7 @@ class _SpeciesCard extends StatelessWidget {
                                     style: TextStyle(
                                       fontFamily: 'monospace',
                                       color: t.textPrimary,
-                                      fontSize: 36,
+                                      fontSize: 28,
                                       fontWeight: FontWeight.w900,
                                     ),
                                   ),
@@ -618,14 +617,14 @@ class _SpeciesCard extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
 
                               if (!isComplete) ...[
                                 _ProgressBar(
                                   progress: progress.progress,
                                   color: rColor,
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 6),
                                 Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
@@ -652,13 +651,13 @@ class _SpeciesCard extends StatelessWidget {
                                 _CompleteBadge(),
                             ],
                           ),
-                        ),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
+           ),
           ),
         );
       },

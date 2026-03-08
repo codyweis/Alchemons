@@ -135,25 +135,25 @@ class CatchService {
     double baseRate;
     switch (rarity.toLowerCase()) {
       case 'common':
-        baseRate = 0.95;
+        baseRate = 0.40;
         break;
       case 'uncommon':
-        baseRate = 0.75;
+        baseRate = 0.25;
         break;
       case 'rare':
-        baseRate = 0.50;
-        break;
-      case 'epic':
-        baseRate = 0.30;
-        break;
-      case 'legendary':
         baseRate = 0.15;
         break;
-      case 'mythic':
+      case 'epic':
         baseRate = 0.10;
         break;
+      case 'legendary':
+        baseRate = 0.05;
+        break;
+      case 'mythic':
+        baseRate = 0.02;
+        break;
       default:
-        baseRate = 0.50;
+        baseRate = 0.15;
     }
 
     // If faction doesn't match, device won't work (but this shouldn't happen

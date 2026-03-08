@@ -87,6 +87,9 @@ class CreaturesScreen extends StatefulWidget {
 class CreaturesScreenState extends State<CreaturesScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _searchCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
+  void unfocusSearch() => _searchFocus.unfocus();
   Timer? _debounce;
   StreamSubscription<Map<String, int>>? _instanceCountsSub;
   Map<String, int> _instanceCounts = const {};
@@ -313,6 +316,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
     _instanceCountsSub?.cancel();
     _saveTimer?.cancel();
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -369,6 +373,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                           theme: theme,
                           query: _query,
                           controller: _searchCtrl,
+                          focusNode: _searchFocus,
                           scope: _scope,
                           sort: _sort,
                           isGrid: _isGrid,
@@ -966,6 +971,7 @@ class _FilterBarSolid extends StatelessWidget {
   final FactionTheme theme;
   final String query;
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final String scope;
   final String sort;
   final bool isGrid;
@@ -982,6 +988,7 @@ class _FilterBarSolid extends StatelessWidget {
     required this.theme,
     required this.query,
     required this.controller,
+    this.focusNode,
     required this.scope,
     required this.sort,
     required this.isGrid,
@@ -1011,6 +1018,7 @@ class _FilterBarSolid extends StatelessWidget {
                 child: SearchFieldSolid(
                   theme: theme,
                   controller: controller,
+                  focusNode: focusNode,
                   hint: 'SEARCH ALCHEMONS...',
                   onChanged: onQueryChanged,
                 ),
@@ -1466,12 +1474,14 @@ class ProgressBar extends StatelessWidget {
 class SearchFieldSolid extends StatelessWidget {
   final FactionTheme theme;
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final String hint;
   final ValueChanged<String> onChanged;
   const SearchFieldSolid({
     super.key,
     required this.theme,
     required this.controller,
+    this.focusNode,
     required this.hint,
     required this.onChanged,
   });
@@ -1495,6 +1505,7 @@ class SearchFieldSolid extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              focusNode: focusNode,
               onChanged: onChanged,
               style: TextStyle(
                 fontFamily: 'monospace',
@@ -1841,7 +1852,11 @@ class _ArcPainter extends CustomPainter {
         ..shader = SweepGradient(
           startAngle: -math.pi / 2,
           endAngle: -math.pi / 2 + math.pi * 2,
-          colors: [color.withValues(alpha: 0.3), color, color.withValues(alpha: 0.9)],
+          colors: [
+            color.withValues(alpha: 0.3),
+            color,
+            color.withValues(alpha: 0.9),
+          ],
           stops: const [0, .7, 1],
         ).createShader(Rect.fromCircle(center: center, radius: r)),
     );
@@ -1874,7 +1889,9 @@ class _EmptyState extends StatelessWidget {
               decoration: BoxDecoration(
                 color: t.bg2,
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: t.borderAccent.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: t.borderAccent.withValues(alpha: 0.5),
+                ),
               ),
               child: Icon(
                 Icons.search_off_rounded,

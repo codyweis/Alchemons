@@ -8,6 +8,7 @@ import 'package:alchemons/games/boss/battle_game.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/utils/effect_size.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
@@ -110,28 +111,33 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
   void _addEffectComponent(String effectName) {
     Component effectComponent;
 
-    // The visual size of the creature is ~80x80. We need the effect to be larger.
-    const double baseSize = 80;
+    // The visual size of the creature is ~80x80. Compute a normalized effect
+    // base from this and use the centralized helper to get consistent sizes.
+    const double baseVisualSize = 80.0;
+    final displayBase = displayBaseFromVisuals(
+      baseBox: baseVisualSize,
+      visualsScale: visuals.scale,
+    );
+    final effectBase = effectSizeFromDisplayBase(displayBase, multiplier: 1.0);
 
     switch (effectName) {
       case 'alchemy_glow':
         // Replicates the pulsing radial glow
-        effectComponent = FlameAlchemyGlow(baseSize: baseSize);
+        effectComponent = FlameAlchemyGlow(baseSize: effectBase);
         break;
       case 'elemental_aura':
         // Replicates the orbiting particles
-        // NOTE: We're passing a placeholder color, replace with your FactionColors lookup
         final elementColor = _getElementColor('Aqua');
         effectComponent = FlameElementalAura(
-          baseSize: baseSize,
+          baseSize: effectBase,
           color: elementColor,
         );
         break;
       case 'void_rift':
-        effectComponent = _FlameVoidRift(baseSize: baseSize * 0.8);
+        effectComponent = _FlameVoidRift(baseSize: effectBase * 0.8);
         break;
       case 'prismatic_cascade':
-        effectComponent = _FlamePrismaticCascade(baseSize: baseSize * 0.6);
+        effectComponent = _FlamePrismaticCascade(baseSize: effectBase);
         break;
       default:
         return; // No known effect

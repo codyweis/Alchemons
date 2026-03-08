@@ -17,6 +17,10 @@ import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/screens/black_market_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/screens/shop/shop_widgets.dart';
+import 'package:alchemons/widgets/creature_selection_sheet.dart';
+import 'package:alchemons/widgets/creature_instances_sheet.dart';
+import 'package:alchemons/widgets/bottom_sheet_shell.dart';
+import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -44,10 +48,16 @@ class _ShopScreenState extends State<ShopScreen> {
   ForgeTokens get t => ForgeTokens(context.read<FactionTheme>());
 
   int _slotsUnlocked = 1;
+  int _cosmicPartySlots = 0;
   bool _showPurchased = false;
 
   late final Map<String, int> _slot2Cost;
   late final Map<String, int> _slot3Cost;
+
+  // Cosmic party slot costs (gold)
+  static const Map<String, int> _partySlot1Cost = {'silver': 100};
+  static const Map<String, int> _partySlot2Cost = {'silver': 100};
+  static const Map<String, int> _partySlot3Cost = {'silver': 100};
 
   @override
   void initState() {
@@ -66,10 +76,12 @@ class _ShopScreenState extends State<ShopScreen> {
   Future<void> _refreshAll() async {
     final db = context.read<AlchemonsDatabase>();
     final n = await db.settingsDao.getBlobSlotsUnlocked();
+    final cp = await db.settingsDao.getCosmicPartySlotsUnlocked();
     final show = await db.settingsDao.getShopShowPurchased();
     if (!mounted) return;
     setState(() {
       _slotsUnlocked = n;
+      _cosmicPartySlots = cp;
       _showPurchased = show;
     });
   }
@@ -229,7 +241,7 @@ class _ShopScreenState extends State<ShopScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 CurrencyPill(
-                  icon: Icons.diamond_rounded,
+                  icon: Icons.hexagon_rounded,
                   color: const Color(0xFFFFD700),
                   amount: allCurrencies['gold'] ?? 0,
                 ),
@@ -276,7 +288,9 @@ class _ShopScreenState extends State<ShopScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Container(height: 1, color: accent.withValues(alpha: 0.2))),
+          Expanded(
+            child: Container(height: 1, color: accent.withValues(alpha: 0.2)),
+          ),
         ],
       ),
     );
@@ -431,7 +445,7 @@ class _ShopScreenState extends State<ShopScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'PURCHASED TODAY',
+                              'PURCHASED',
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 color: Color(0xFF4ADE80),
@@ -547,18 +561,20 @@ class _ShopScreenState extends State<ShopScreen> {
                       ),
 
                       _buildSectionHeader(
+                        'SURVIVAL ORB SKINS',
+                        t.amberBright,
+                        Icons.blur_circular_rounded,
+                      ),
+                      _buildSurvivalOrbGrid(theme, allCurrencies),
+
+                      _buildSectionHeader(
                         'SPECIAL UNLOCKS',
                         t.amberBright,
                         Icons.auto_awesome_rounded,
                       ),
                       _buildSpecialUnlocksGrid(theme, allCurrencies),
 
-                      _buildSectionHeader(
-                        'ALCHEMY CHAMBERS',
-                        t.amberBright,
-                        Icons.bubble_chart_rounded,
-                      ),
-                      _buildUpgradesGrid(theme, resourceBalances),
+                      // 'COSMIC EXPLORATION' removed — discovery will occur in-world
                     ],
                   ),
                 );
@@ -727,6 +743,246 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
+  Widget _buildExplorationGrid(
+    FactionTheme theme,
+    Map<String, int> allCurrencies,
+    Map<String, int> inventory,
+    Map<String, int> resourceBalances,
+  ) {
+    return Consumer<ShopService>(
+      builder: (context, shopService, _) {
+        final offers = ShopService.allOffers
+            .where((o) => o.id.startsWith('cosmic.'))
+            .toList();
+
+        final cards = offers.map<Widget>((offer) {
+          final canPurchase = shopService.canPurchase(offer.id);
+          final effectiveCost = shopService.getEffectiveCost(offer);
+          final canAffordUnit = effectiveCost.entries.every(
+            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+          );
+          final invQty = offer.inventoryKey != null
+              ? (inventory[offer.inventoryKey] ?? 0)
+              : 0;
+          final status = invQty > 0 ? 'x$invQty' : null;
+          final costWidgets = <Widget>[
+            for (final entry in effectiveCost.entries)
+              CostChip(
+                currencyType: entry.key,
+                amount: entry.value,
+                available: allCurrencies[entry.key] ?? 0,
+              ),
+          ];
+          return GestureDetector(
+            onTap: () => canPurchase
+                ? _handlePurchase(context, offer, allCurrencies, canAffordUnit)
+                : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            child: GameShopCard(
+              key: ValueKey('exploration-${offer.id}'),
+              title: offer.name,
+              offer: offer,
+              theme: theme,
+              costWidgets: costWidgets,
+              statusText: status,
+              enabled: canPurchase,
+              canAfford: canAffordUnit,
+            ),
+          );
+        }).toList();
+
+        // ── Alchemy Chamber (bubble slot) upgrades ──
+        void addSlot(int slotNumber, Map<String, int> cost) {
+          if (_slotsUnlocked >= slotNumber && !_showPurchased) return;
+          final enabled = _slotsUnlocked < slotNumber;
+          final canAfford = cost.entries.every(
+            (e) => (resourceBalances[e.key] ?? 0) >= e.value,
+          );
+          final costWidgets = <Widget>[
+            for (final res in ElementResources.all)
+              if ((cost[res.settingsKey] ?? 0) > 0)
+                MiniCostChip(
+                  resource: res,
+                  required: cost[res.settingsKey]!,
+                  current: resourceBalances[res.settingsKey] ?? 0,
+                ),
+          ];
+          final slotOffer = ShopOffer(
+            rewardType: 'Upgrade',
+            reward: <String, dynamic>{},
+            limit: PurchaseLimit.once,
+            id: 'unlock.bubble_slot_$slotNumber',
+            name: 'Alchemy Chamber $slotNumber',
+            description: 'Unlock an additional floating alchemy chamber.',
+            icon: Icons.bubble_chart_rounded,
+            cost: cost,
+            inventoryKey: null,
+            assetName: null,
+          );
+          cards.add(
+            GestureDetector(
+              onTap: () => enabled
+                  ? _handleBubbleSlotPurchase(
+                      context,
+                      slotOffer,
+                      resourceBalances,
+                      canAfford,
+                      slotNumber,
+                    )
+                  : _showBubbleSlotDetails(
+                      context,
+                      slotOffer,
+                      resourceBalances,
+                      canAfford,
+                    ),
+              child: GameShopCard(
+                key: ValueKey('upgrade-slot-$slotNumber'),
+                title: 'Alchemy Chamber $slotNumber',
+                offer: slotOffer,
+                theme: theme,
+                costWidgets: costWidgets,
+                enabled: enabled,
+                canAfford: canAfford,
+              ),
+            ),
+          );
+        }
+
+        addSlot(2, _slot2Cost);
+        addSlot(3, _slot3Cost);
+
+        // ── Cosmic Party (patrol slot) upgrades ──
+        void addPartySlot(int slotNumber, Map<String, int> cost) {
+          if (_cosmicPartySlots >= slotNumber && !_showPurchased) return;
+          final enabled = _cosmicPartySlots < slotNumber;
+          final canAfford =
+              (allCurrencies['silver'] ?? 0) >= (cost['silver'] ?? 0);
+          final costWidgets = <Widget>[
+            CostChip(
+              currencyType: 'silver',
+              amount: cost['silver']!,
+              available: allCurrencies['silver'] ?? 0,
+            ),
+          ];
+          final slotOffer = ShopOffer(
+            rewardType: 'Upgrade',
+            reward: <String, dynamic>{},
+            limit: PurchaseLimit.once,
+            id: 'unlock.cosmic_party_slot_$slotNumber',
+            name: 'Patrol Slot $slotNumber',
+            description:
+                'Unlock patrol slot $slotNumber. Assign an Alchemon to patrol space with your ship.',
+            icon: Icons.groups_rounded,
+            cost: cost,
+            inventoryKey: null,
+            assetName: null,
+          );
+          cards.add(
+            GestureDetector(
+              onTap: () => enabled
+                  ? _handleCosmicPartySlotPurchase(
+                      context,
+                      slotOffer,
+                      allCurrencies,
+                      canAfford,
+                      slotNumber,
+                    )
+                  : _showBubbleSlotDetails(
+                      context,
+                      slotOffer,
+                      allCurrencies,
+                      canAfford,
+                    ),
+              child: GameShopCard(
+                key: ValueKey('cosmic-party-slot-$slotNumber'),
+                title: 'Patrol Slot $slotNumber',
+                offer: slotOffer,
+                theme: theme,
+                costWidgets: costWidgets,
+                enabled: enabled,
+                canAfford: canAfford,
+              ),
+            ),
+          );
+        }
+
+        addPartySlot(1, _partySlot1Cost);
+        addPartySlot(2, _partySlot2Cost);
+        addPartySlot(3, _partySlot3Cost);
+
+        if (cards.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: EmptySection(
+              message: 'No exploration items available',
+              icon: Icons.rocket_launch_outlined,
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.75,
+            children: cards,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleCosmicPartySlotPurchase(
+    BuildContext context,
+    ShopOffer offer,
+    Map<String, int> balances,
+    bool canAfford,
+    int slotNumber,
+  ) async {
+    final theme = context.read<FactionTheme>();
+    final shouldProceed = await showItemDetailDialog(
+      context: context,
+      offer: offer,
+      theme: theme,
+      currencies: balances,
+      inventoryQty: 0,
+      canPurchase: canAfford,
+      canAfford: canAfford,
+      effectiveCost: offer.cost,
+    );
+    if (!shouldProceed || !context.mounted) return;
+    await _purchaseCosmicPartySlot(slotNumber);
+  }
+
+  Future<void> _purchaseCosmicPartySlot(int target) async {
+    final db = context.read<AlchemonsDatabase>();
+    final costs = [_partySlot1Cost, _partySlot2Cost, _partySlot3Cost];
+    final cost = costs[target - 1];
+
+    if (_cosmicPartySlots >= target) {
+      _toast('Already unlocked');
+      return;
+    }
+
+    final ok = await db.currencyDao.spendSilver(cost['silver']!);
+    if (!ok) {
+      _toast('Not enough Silver', icon: Icons.lock_rounded, color: t.amber);
+      return;
+    }
+
+    await db.settingsDao.setCosmicPartySlotsUnlocked(target);
+    await _refreshAll();
+    _toast(
+      'Patrol slot $target unlocked!',
+      icon: Icons.groups_rounded,
+      color: t.teal,
+    );
+    HapticFeedback.lightImpact();
+  }
+
   Widget _buildPortalKeysGrid(
     FactionTheme theme,
     Map<String, int> allCurrencies,
@@ -772,6 +1028,75 @@ class _ShopScreenState extends State<ShopScreen> {
                 : _showDetails(context, offer, allCurrencies, canAffordUnit),
             child: GameShopCard(
               key: ValueKey('portalkey-${offer.id}'),
+              title: offer.name,
+              offer: offer,
+              theme: theme,
+              costWidgets: costWidgets,
+              statusText: status,
+              enabled: canPurchase,
+              canAfford: canAffordUnit,
+            ),
+          );
+        }).toList();
+
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.75,
+            children: cards,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSurvivalOrbGrid(
+    FactionTheme theme,
+    Map<String, int> allCurrencies,
+  ) {
+    return Consumer<ShopService>(
+      builder: (context, shopService, _) {
+        final orbOffers = ShopService.allOffers
+            .where((o) => o.id.startsWith('survival.orb'))
+            .toList();
+
+        if (orbOffers.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: EmptySection(
+              message: 'No orb skins available',
+              icon: Icons.blur_circular_outlined,
+            ),
+          );
+        }
+
+        final cards = orbOffers.map((offer) {
+          final canPurchase = shopService.canPurchase(offer.id);
+          final effectiveCost = shopService.getEffectiveCost(offer);
+          final canAffordUnit = effectiveCost.entries.every(
+            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+          );
+          final purchased = shopService.getPurchaseCount(offer.id) > 0;
+          final status = purchased ? 'OWNED' : null;
+          final costWidgets = <Widget>[
+            for (final entry in effectiveCost.entries)
+              CostChip(
+                currencyType: entry.key,
+                amount: entry.value,
+                available: allCurrencies[entry.key] ?? 0,
+              ),
+          ];
+          return GestureDetector(
+            onTap: () => canPurchase
+                ? _handlePurchase(context, offer, allCurrencies, canAffordUnit)
+                : _showDetails(context, offer, allCurrencies, canAffordUnit),
+            child: GameShopCard(
+              key: ValueKey('orb-${offer.id}'),
               title: offer.name,
               offer: offer,
               theme: theme,
@@ -1029,101 +1354,11 @@ class _ShopScreenState extends State<ShopScreen> {
             crossAxisCount: 2,
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
-            childAspectRatio: 0.6,
+            childAspectRatio: 0.75,
             children: cards,
           ),
         );
       },
-    );
-  }
-
-  Widget _buildUpgradesGrid(
-    FactionTheme theme,
-    Map<String, int> resourceBalances,
-  ) {
-    final items = <Widget>[];
-
-    void addSlot(int slotNumber, Map<String, int> cost) {
-      if (_slotsUnlocked >= slotNumber && !_showPurchased) return;
-      final enabled = _slotsUnlocked < slotNumber;
-      final canAfford = cost.entries.every(
-        (e) => (resourceBalances[e.key] ?? 0) >= e.value,
-      );
-      final costWidgets = <Widget>[
-        for (final res in ElementResources.all)
-          if ((cost[res.settingsKey] ?? 0) > 0)
-            MiniCostChip(
-              resource: res,
-              required: cost[res.settingsKey]!,
-              current: resourceBalances[res.settingsKey] ?? 0,
-            ),
-      ];
-      final slotOffer = ShopOffer(
-        rewardType: 'Upgrade',
-        reward: <String, dynamic>{},
-        limit: PurchaseLimit.once,
-        id: 'unlock.bubble_slot_$slotNumber',
-        name: 'Floating Alchemy Chamber',
-        description:
-            'Unlock a floating alchemy chamber to display chosen Alchemons on the homescreen.',
-        icon: Icons.bubble_chart_rounded,
-        cost: cost,
-        inventoryKey: null,
-        assetName: null,
-      );
-      items.add(
-        GestureDetector(
-          onTap: () => enabled
-              ? _handleBubbleSlotPurchase(
-                  context,
-                  slotOffer,
-                  resourceBalances,
-                  canAfford,
-                  slotNumber,
-                )
-              : _showBubbleSlotDetails(
-                  context,
-                  slotOffer,
-                  resourceBalances,
-                  canAfford,
-                ),
-          child: GameShopCard(
-            key: ValueKey('upgrade-slot-$slotNumber'),
-            title: 'Bubble Slot $slotNumber',
-            offer: slotOffer,
-            theme: theme,
-            costWidgets: costWidgets,
-            enabled: enabled,
-            canAfford: canAfford,
-          ),
-        ),
-      );
-    }
-
-    addSlot(2, _slot2Cost);
-    addSlot(3, _slot3Cost);
-
-    if (items.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(12),
-        child: EmptySection(
-          message: 'All upgrades unlocked',
-          icon: Icons.check_circle_outline_rounded,
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 0.8,
-        children: items,
-      ),
     );
   }
 
@@ -1238,6 +1473,62 @@ class _ShopScreenState extends State<ShopScreen> {
       icon: success ? Icons.check_rounded : Icons.error_rounded,
       color: success ? t.success : t.danger,
     );
+
+    // If this was an alchemy effect offer, prompt user to choose a creature
+    // and instance to apply the purchased effect immediately. If user
+    // cancels, the item remains in inventory for later application.
+    if (success && offer.id.startsWith('effects.')) {
+      // First, let user pick a species (CreatureSelectionSheet will return
+      // a creature id via onSelectCreature).
+      final gameData = context.read<GameDataService>();
+      final discovered = await gameData.watchDiscoveredEntries().first;
+      final creatureId = await CreatureSelectionSheet.show<String?>(
+        context: context,
+        discoveredCreatures: discovered,
+        onSelectCreature: (id) => Navigator.of(context).pop(id),
+        isScrollControlled: true,
+        title: 'Choose Species',
+      );
+      if (creatureId == null) return;
+
+      final creature = gameData.getCreatureById(creatureId);
+      if (creature == null) return;
+
+      final instanceId = await showModalBottomSheet<String?>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => BottomSheetShell(
+          title: 'Choose Instance',
+          theme: theme,
+          child: InstancesSheet(
+            species: creature,
+            theme: theme,
+            onTap: (inst) => Navigator.pop(context, inst.instanceId),
+          ),
+        ),
+      );
+
+      if (instanceId != null) {
+        final applied = await shopService.applyEffectToInstance(
+          offer.id,
+          instanceId,
+        );
+        if (applied) {
+          _toast(
+            '${offer.name} applied',
+            icon: Icons.check_rounded,
+            color: t.teal,
+          );
+        } else {
+          _toast(
+            'Failed to apply ${offer.name}',
+            icon: Icons.error_rounded,
+            color: t.danger,
+          );
+        }
+      }
+    }
 
     if (success && offer.id == 'boost.faction_change') {
       HapticFeedback.mediumImpact();

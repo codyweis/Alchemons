@@ -9,6 +9,7 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
+import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
 import 'package:flame/components.dart' show Vector2;
@@ -45,6 +46,12 @@ class CreatureSprite extends StatefulWidget {
   final bool isPrismatic; // animated hue cycle
   final Color? tint; // optional extra tint (usually null)
 
+  // New: Alchemy effect
+  final String? alchemyEffect;
+
+  // New: Variant faction
+  final String? variantFaction;
+
   const CreatureSprite({
     super.key,
     required this.spritePath,
@@ -58,6 +65,8 @@ class CreatureSprite extends StatefulWidget {
     this.hueShift = 0.0,
     this.isPrismatic = false,
     this.tint,
+    this.alchemyEffect,
+    this.variantFaction,
   });
 
   @override
@@ -200,12 +209,47 @@ class _CreatureSpriteState extends State<CreatureSprite>
       );
     }
 
-    return Transform.scale(
+    final scaled = Transform.scale(
       scale: widget.scale,
       child: RepaintBoundary(
         child: SizedBox.square(dimension: 69, child: sprite),
       ),
     );
+
+    // If an alchemy/visual effect is present, render the effect layer behind
+    // the sprite (match the behavior used by `InstanceSprite`).
+    if (widget.alchemyEffect != null) {
+      return Stack(
+        alignment: Alignment.center,
+        children: [
+          // effect may overflow bounds intentionally
+          _buildEffectLayer(widget.alchemyEffect!),
+          Padding(padding: const EdgeInsets.all(8.0), child: scaled),
+        ],
+      );
+    }
+
+    return scaled;
+  }
+
+  Widget _buildEffectLayer(String effect) {
+    // Use the canonical display base (69px box * genetics scale) for sizing.
+    final displayBase = displayBaseFromVisuals(visualsScale: widget.scale);
+    switch (effect) {
+      case 'alchemy_glow':
+        return AlchemyGlow(size: displayBase);
+      case 'elemental_aura':
+        return ElementalAura(size: displayBase, element: widget.variantFaction);
+      case 'volcanic_aura':
+        return VolcanicAura(size: displayBase);
+      case 'void_rift':
+        return VoidRift(size: displayBase * 0.8);
+      case 'prismatic_cascade':
+        final eff = effectSizeFromDisplayBase(displayBase);
+        return PrismaticCascade(size: eff);
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Future<void> _loadAnimation() async {
@@ -328,12 +372,12 @@ class InstanceSprite extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           // Background glow/particles - this child will overflow its bounds
-          _buildEffectLayer(instance.alchemyEffect!),
+          _buildEffectLayer(instance.alchemyEffect!, visuals),
           // Creature sprite on top (keep the padding to ensure the sprite
           // image itself isn't pushed to the edge and clipped by its own BoxShadow)
           Padding(
             padding: const EdgeInsets.all(
-              30.0,
+              8.0,
             ), // Keep this for internal glow space
             child: sprite,
           ),
@@ -360,18 +404,22 @@ class InstanceSprite extends StatelessWidget {
     );
   }
 
-  Widget _buildEffectLayer(String effect) {
+  Widget _buildEffectLayer(String effect, SpriteVisuals visuals) {
+    // For InstanceSprite (small UI slot), derive effect sizes from the
+    // widget slot `size` rather than the canonical 69px display base so
+    // previews remain visually balanced.
+    final widgetEff = effectSizeFromWidgetSize(size);
     switch (effect) {
       case 'alchemy_glow':
-        return AlchemyGlow(size: size);
+        return AlchemyGlow(size: widgetEff);
       case 'elemental_aura':
-        return ElementalAura(size: size, element: instance.variantFaction);
+        return ElementalAura(size: widgetEff, element: instance.variantFaction);
       case 'volcanic_aura':
-        return VolcanicAura(size: size);
+        return VolcanicAura(size: widgetEff);
       case 'void_rift':
-        return VoidRift(size: size * 0.8);
+        return VoidRift(size: widgetEff * 0.8);
       case 'prismatic_cascade':
-        return PrismaticCascade(size: size * 0.6);
+        return PrismaticCascade(size: widgetEff);
       default:
         return const SizedBox.shrink();
     }

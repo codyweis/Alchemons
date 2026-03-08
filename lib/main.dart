@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
+import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
 import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
@@ -24,6 +25,7 @@ import 'database/db_helper.dart';
 import 'services/game_data_service.dart';
 import 'providers/app_providers.dart';
 import 'screens/home_screen.dart';
+import 'package:alchemons/systems/effects/default_effects.dart';
 
 // >>> add these imports for scenes & pools
 import 'package:alchemons/services/wilderness_spawn_service.dart';
@@ -31,6 +33,7 @@ import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
+import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 
 void main() async {
@@ -57,6 +60,9 @@ void main() async {
 
   final gameData = GameDataService(db: db, catalog: catalog);
   await gameData.init();
+
+  // Register built-in effect factories so the registry is available globally.
+  registerDefaultEffects();
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
@@ -146,6 +152,8 @@ class _AppGateState extends State<AppGate> {
 
       // 2) Start spawns
       await _ensureSpawnsStarted();
+
+      // debug helpers removed
 
       // 3) Run first-launch story BEFORE we ever show the shell
       await _runFirstLaunchFlow();
@@ -372,10 +380,17 @@ class _AppGateState extends State<AppGate> {
             sceneWide: swampEncounterPools(swampScene).sceneWide,
             perSpawn: swampEncounterPools(swampScene).perSpawn,
           ),
+          'arcane': (
+            scene: arcaneScene,
+            sceneWide: arcaneEncounterPools(arcaneScene).sceneWide,
+            perSpawn: arcaneEncounterPools(arcaneScene).perSpawn,
+          ),
         };
 
     // Initialize from DB (loads active spawns & schedules; creates schedules if missing)
     await spawnService.initializeActiveSpawns(scenes: scenes);
+
+    // debug spawn forcing removed
 
     // Reset any existing long-wait timers and fire overdue scenes — independent, run in parallel
     await Future.wait([

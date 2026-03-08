@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:lottie/lottie.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
+import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/battle_mode_screen.dart';
 import 'package:alchemons/screens/boss/boss_intro_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
@@ -23,7 +24,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/avatar_widget.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
-import 'package:alchemons/widgets/blob_party/overlays/floating_bubble_overlay.dart';
+
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_showcase_widget.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
@@ -59,6 +60,8 @@ import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'breed/breed_screen.dart';
 
+const bool kEnableCosmicShip = true;
+
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -77,6 +80,11 @@ class _MainShellState extends State<MainShell> {
 
   void _goToSection(NavSection section, {int? breedInitialTab}) {
     if (section == _currentSection) return;
+
+    // Unfocus the creatures search field when leaving that tab
+    if (_currentSection == NavSection.creatures) {
+      _creaturesKey.currentState?.unfocusSearch();
+    }
 
     setState(() {
       _currentSection = section;
@@ -133,6 +141,87 @@ class _MainShellState extends State<MainShell> {
   }
 }
 
+// Wrapper that pulses the cosmic orb when the ship home-animation flag is pending.
+class _AnimatedCosmicOrb extends StatefulWidget {
+  final VoidCallback? onPulse;
+  const _AnimatedCosmicOrb({super.key, this.onPulse});
+
+  @override
+  State<_AnimatedCosmicOrb> createState() => _AnimatedCosmicOrbState();
+}
+
+class _AnimatedCosmicOrbState extends State<_AnimatedCosmicOrb>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _ctrl;
+  Animation<double>? _scale;
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.25), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.25, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(parent: _ctrl!, curve: Curves.easeOutBack));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final db = context.read<AlchemonsDatabase>();
+      final unlocked =
+          (await db.settingsDao.getSetting('cosmic_ship_unlocked')) == '1';
+
+      if (!mounted) return;
+      setState(() {
+        _visible = unlocked;
+      });
+
+      if (!_visible) return;
+
+      final pending = await db.settingsDao.getSetting(
+        'cosmic_ship_home_anim_pending',
+      );
+      if (pending == '1') {
+        // notify parent to play screen shake
+        widget.onPulse?.call();
+
+        // Play pulse twice
+        await _ctrl!.forward();
+        await Future.delayed(const Duration(milliseconds: 150));
+        _ctrl!.reset();
+        await _ctrl!.forward();
+
+        // Clear the pending flag so this only runs once
+        try {
+          await db.settingsDao.deleteSetting('cosmic_ship_home_anim_pending');
+        } catch (_) {}
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_visible) return const SizedBox.shrink();
+
+    return AnimatedBuilder(
+      animation: _ctrl!,
+      builder: (context, child) {
+        final s = _scale?.value ?? 1.0;
+        return Transform.scale(scale: s, child: child);
+      },
+      child: const CosmicOrbWidget(),
+    );
+  }
+}
+
 class HomeScreen extends StatefulWidget {
   final bool isActive;
   final void Function(NavSection section, {int? breedInitialTab})
@@ -154,6 +243,7 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _rotationController;
   late AnimationController _particleController;
   late AnimationController _waveController;
+  late AnimationController _shakeController;
 
   final PushNotificationService _pushNotifications = PushNotificationService();
   String? _lastEggStateKey;
@@ -216,6 +306,11 @@ class _HomeScreenState extends State<HomeScreen>
       vsync: this,
     )..repeat();
 
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _initializeApp();
       if (mounted) {
@@ -269,6 +364,7 @@ class _HomeScreenState extends State<HomeScreen>
     _rotationController.dispose();
     _particleController.dispose();
     _waveController.dispose();
+    _shakeController.dispose();
     _slotsSubscription?.cancel();
     _biomesSubscription?.cancel();
 
@@ -368,6 +464,7 @@ class _HomeScreenState extends State<HomeScreen>
           await spawnService.scheduleNextSpawnTime(
             'valley',
             windowMax: const Duration(seconds: 3),
+            force: true,
           );
         }
 
@@ -1033,8 +1130,20 @@ class _HomeScreenState extends State<HomeScreen>
             final currentFaction = factionSvc.current ?? FactionId.oceanic;
             final speeds = _speedFor(currentFaction);
 
-            return Stack(
-              children: [
+            return AnimatedBuilder(
+              animation: _shakeController,
+              builder: (ctx, child) {
+                final t = _shakeController.value;
+                final damp = (1.0 - t);
+                final dx = sin(t * pi * 12) * 18.0 * damp;
+                final dy = cos(t * pi * 10) * 8.0 * damp;
+                return Transform.translate(
+                  offset: Offset(dx, dy),
+                  child: child,
+                );
+              },
+              child: Stack(
+                children: [
                 // Background is always the home background here
                 TickerMode(
                   enabled: _animationsEnabled,
@@ -1218,35 +1327,28 @@ class _HomeScreenState extends State<HomeScreen>
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              GestureDetector(
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const BossBattleScreen(),
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [ConstellationPointsWidget()],
-                                ),
-                              ),
+                              _AnimatedCosmicOrb(onPulse: _playHomeShake),
+                              const SizedBox(height: 10),
+                              ConstellationPointsWidget(),
                               if (context
                                       .watch<BossProgressNotifier>()
                                       .totalBossesDefeated >
                                   0) ...[
                                 const SizedBox(height: 10),
-                                MysticSwirlButton(
-                                  theme: theme,
-                                  size: 60,
+                                GestureDetector(
                                   onTap: () {
                                     HapticFeedback.heavyImpact();
-                                    Navigator.push(
+                                    VoidPortal.push(
                                       context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const MysticAltarScreen(),
-                                      ),
+                                      page: const MysticAltarScreen(),
                                     );
                                   },
+                                  child: Image.asset(
+                                    'assets/images/ui/relicicon.png',
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                               ],
                             ],
@@ -1266,16 +1368,6 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
 
-                // Side dock etc. (static, doesn’t need TickerMode)
-                TickerMode(
-                  enabled: _animationsEnabled,
-                  child: FloatingBubblesOverlay(
-                    regionPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-                    discoveredCreatures: discovered,
-                    theme: theme,
-                  ),
-                ),
-
                 if (_activeNotifications.isNotEmpty)
                   NotificationBannerStack(
                     key: ValueKey(
@@ -1286,13 +1378,20 @@ class _HomeScreenState extends State<HomeScreen>
                     notifications: _activeNotifications,
                   ),
               ],
-            );
+            ),
+          );
           },
     );
   }
 
   Widget _buildHomeContent(FactionTheme theme) {
     return const SizedBox.shrink();
+  }
+
+  void _playHomeShake() {
+    try {
+      _shakeController.forward(from: 0.0);
+    } catch (_) {}
   }
 
   /// One-time migration: grant trait keys for bosses already beaten before
@@ -1352,6 +1451,7 @@ class _HomeScreenState extends State<HomeScreen>
       await spawnService.scheduleNextSpawnTime(
         'valley',
         windowMax: Duration(seconds: 10),
+        force: true,
       );
 
       if (!mounted) return;

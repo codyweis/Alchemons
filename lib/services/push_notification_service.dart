@@ -155,14 +155,14 @@ class PushNotificationService {
       // Only one egg in this time window -> schedule per-egg notification.
       await _notifications.zonedSchedule(
         eggHatchingBaseId + safeSlotIndex,
-        'Alchemon ready to extract!',
+        'Cultivation Ready!',
         'Your specimen is ready for extraction',
         scheduledDate,
         _notificationDetails(
           channelId: 'egg_hatching',
-          channelName: 'Egg Hatching',
+          channelName: 'Cultivation',
           channelDescription:
-              'Notifications when specimens are ready to extract',
+              'Notifications when specimens are ready for extraction',
           importance: Importance.high,
           priority: Priority.high,
           payload: 'egg_ready:$eggId',
@@ -212,8 +212,8 @@ class PushNotificationService {
 
       final eggCount = windowSlots.length;
       final title = eggCount > 1
-          ? '$eggCount Eggs Ready!'
-          : 'Egg Ready!'; // fallback
+          ? '$eggCount Cultivations Ready!'
+          : 'Cultivation Ready!';
       final body = eggCount > 1
           ? 'You have $eggCount specimens ready for extraction'
           : 'Your specimen is ready for extraction';
@@ -225,8 +225,9 @@ class PushNotificationService {
         scheduledDate,
         _notificationDetails(
           channelId: 'egg_hatching',
-          channelName: 'Egg Hatching',
-          channelDescription: 'Notifications when eggs are ready to hatch',
+          channelName: 'Cultivation',
+          channelDescription:
+              'Notifications when specimens are ready for extraction',
           importance: Importance.high,
           priority: Priority.high,
           payload: 'eggs_window_ready:$eggCount',
@@ -247,14 +248,15 @@ class PushNotificationService {
 
     await _notifications.show(
       eggReadyConsolidatedId,
-      '${count > 1 ? '$count Eggs' : 'Egg'} Ready!',
+      '${count > 1 ? '$count Cultivations' : 'Cultivation'} Ready!',
       count > 1
           ? 'You have $count specimens ready for extraction'
-          : 'Your creature specimen is ready for extraction',
+          : 'Your specimen is ready for extraction',
       _notificationDetails(
         channelId: 'egg_hatching',
-        channelName: 'Egg Hatching',
-        channelDescription: 'Notifications when eggs are ready to hatch',
+        channelName: 'Cultivation',
+        channelDescription:
+            'Notifications when specimens are ready for extraction',
         importance: Importance.high,
         priority: Priority.high,
         payload: 'eggs_ready:$count',

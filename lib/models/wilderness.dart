@@ -19,12 +19,17 @@ class WildEncounter {
   /// guaranteed to be prismatic regardless of the normal RNG roll.
   final bool voidBred;
 
+  /// Acquisition source tag written to the creature instance on capture/breed.
+  /// Defaults to null (encounter_sheet falls back to 'wild_capture' / 'wild_fusion').
+  final String? source;
+
   const WildEncounter({
     required this.wildBaseId,
     required this.baseBreedChance,
     required this.rarity,
     this.onPartyCreatureSelected,
     this.voidBred = false,
+    this.source,
   });
 }
 

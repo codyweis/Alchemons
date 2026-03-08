@@ -294,7 +294,9 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   decoration: BoxDecoration(
                     color: Colors.orange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: Colors.orange.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -367,7 +369,9 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                                     color: Colors.green.withValues(alpha: 0.3),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: Colors.green.withValues(alpha: 0.6),
+                                      color: Colors.green.withValues(
+                                        alpha: 0.6,
+                                      ),
                                     ),
                                   ),
                                   child: Row(
@@ -521,7 +525,10 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         backgroundColor: const Color(0xFF1A1D23),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: widget.accent.withValues(alpha: 0.5), width: 2),
+          side: BorderSide(
+            color: widget.accent.withValues(alpha: 0.5),
+            width: 2,
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -713,7 +720,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         _CurrencyPill(
-                          icon: Icons.diamond_rounded,
+                          icon: Icons.hexagon_rounded,
                           color: const Color(0xFFFFD700),
                           amount: curr['gold'] ?? 0,
                         ),
@@ -811,7 +818,9 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                 decoration: BoxDecoration(
                   color: Colors.green.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: Colors.green.withValues(alpha: 0.5),
+                  ),
                 ),
                 child: Text(
                   '+${((marketService.premiumBonus - 1) * 100).toStringAsFixed(0)}%',
@@ -1498,10 +1507,14 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                                   width: 40,
                                   height: 40,
                                   decoration: BoxDecoration(
-                                    color: resource.color.withValues(alpha: 0.2),
+                                    color: resource.color.withValues(
+                                      alpha: 0.2,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: resource.color.withValues(alpha: 0.5),
+                                      color: resource.color.withValues(
+                                        alpha: 0.5,
+                                      ),
                                     ),
                                   ),
                                   child: Center(
@@ -2120,7 +2133,9 @@ class _CompactResourceRow extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: resource.color.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: resource.color.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: resource.color.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Center(
                     child: Icon(resource.icon, color: resource.color, size: 16),
@@ -2187,7 +2202,9 @@ class _CompactResourceRow extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.red.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: Colors.red.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: const Icon(Icons.close, size: 14, color: Colors.red),
                   ),
@@ -2763,7 +2780,7 @@ class _CostBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final isGold = currencyType == 'gold';
     final color = isGold ? const Color(0xFFFFD700) : const Color(0xFFC0C0C0);
-    final icon = isGold ? Icons.diamond_rounded : Icons.monetization_on_rounded;
+    final icon = isGold ? Icons.hexagon_rounded : Icons.monetization_on_rounded;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

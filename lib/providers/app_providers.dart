@@ -16,6 +16,8 @@ import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/services/boss_upgrade_service.dart';
+import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
@@ -167,6 +169,22 @@ class AppProviders extends StatelessWidget {
             ctx.read<ConstellationEffectsService>(),
             ctx.read<FactionService>(),
           ),
+        ),
+
+        ChangeNotifierProvider<SurvivalUpgradeService>(
+          create: (ctx) {
+            final svc = SurvivalUpgradeService(ctx.read<AlchemonsDatabase>());
+            svc.load();
+            return svc;
+          },
+        ),
+
+        ChangeNotifierProvider<BossUpgradeService>(
+          create: (ctx) {
+            final svc = BossUpgradeService(ctx.read<AlchemonsDatabase>());
+            svc.load();
+            return svc;
+          },
         ),
 
         ChangeNotifierProvider<SelectedPartyNotifier>(

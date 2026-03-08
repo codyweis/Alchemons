@@ -28,6 +28,17 @@ class WildernessSpawnService extends ChangeNotifier {
   // Track which scenes are currently being visited (should not auto-spawn)
   final Set<String> _activeScenes = {};
 
+  // Stored scenes config for on-demand spawn generation
+  Map<
+    String,
+    ({
+      SceneDefinition scene,
+      EncounterPool sceneWide,
+      Map<String, EncounterPool> perSpawn,
+    })
+  >?
+  _scenes;
+
   int? getNextSpawnTime(String sceneId) {
     return _nextDueUtcMs[sceneId];
   }
@@ -84,6 +95,7 @@ class WildernessSpawnService extends ChangeNotifier {
     >
     scenes,
   }) {
+    _scenes = scenes;
     _tick?.cancel();
     _tick = async.Timer.periodic(interval, (_) async {
       try {
@@ -178,7 +190,11 @@ class WildernessSpawnService extends ChangeNotifier {
       final hasSpawns = hasAnySpawnsInScene(sceneId);
       final due = _nextDueUtcMs[sceneId];
 
-      if (!hasSpawns && (due == null || due <= now)) {
+      // Only schedule a next time if the scene has no spawns and there is
+      // currently no scheduled time. If there's an existing due time that
+      // has already passed (due <= now) leave it alone so `processDueScenes`
+      // can immediately create the spawns instead of resetting the timer.
+      if (!hasSpawns && due == null) {
         await scheduleNextSpawnTime(sceneId);
       }
     }
@@ -196,8 +212,19 @@ class WildernessSpawnService extends ChangeNotifier {
     String sceneId, {
     Duration? windowMin,
     Duration? windowMax,
+    bool force = false,
   }) async {
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+
+    // If there's already a scheduled time in the future, don't overwrite it
+    // unless the caller explicitly requests a force-reschedule.
+    final existing = _nextDueUtcMs[sceneId];
+    if (!force && existing != null && existing > now) {
+      debugPrint(
+        '⏱ Keeping existing spawn for $sceneId at ${DateTime.fromMillisecondsSinceEpoch(existing, isUtc: true)}',
+      );
+      return;
+    }
 
     final maxMs = (windowMax ?? this.windowMax).inMilliseconds;
     final minMs = (windowMin ?? this.windowMin).inMilliseconds;
@@ -285,6 +312,34 @@ class WildernessSpawnService extends ChangeNotifier {
   void markSceneInactive(String sceneId) {
     _activeScenes.remove(sceneId);
     debugPrint('🎯 Scene $sceneId marked INACTIVE');
+  }
+
+  /// Immediately generate spawns for [sceneId] if it has none.
+  /// Called when the player enters a scene that is empty (e.g. first visit).
+  /// Bypasses the active-scene guard because we *want* spawns right now.
+  Future<void> ensureSpawnsForScene(String sceneId) async {
+    if (hasAnySpawnsInScene(sceneId)) return; // already populated
+
+    final config = _scenes?[sceneId];
+    if (config == null) {
+      debugPrint('⚠️ ensureSpawnsForScene: no config for $sceneId');
+      return;
+    }
+
+    debugPrint('🌀 ensureSpawnsForScene: force-spawning for empty $sceneId');
+
+    // Temporarily remove "active" flag so _spawnBatchAtRandomFreePoints works
+    final wasActive = _activeScenes.remove(sceneId);
+
+    await _spawnBatchAtRandomFreePoints(
+      sceneId,
+      config.scene,
+      config.sceneWide,
+      config.perSpawn,
+    );
+
+    // Re-mark active if it was before
+    if (wasActive) _activeScenes.add(sceneId);
   }
 
   Future<bool> _spawnBatchAtRandomFreePoints(

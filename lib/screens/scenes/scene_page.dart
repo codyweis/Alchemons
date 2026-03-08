@@ -5,7 +5,11 @@ import 'package:alchemons/games/wilderness/encounter_sheet.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
+import 'package:alchemons/models/encounters/pools/sky_pool.dart';
+import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
+import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
@@ -30,6 +34,21 @@ import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
+
+SceneEncounterTables Function(SceneDefinition) _tableBuilderForScene(
+  String sceneId,
+) {
+  return switch (sceneId) {
+    'sky' => skyEncounterPools,
+    'volcano' => volcanoEncounterPools,
+    'swamp' => swampEncounterPools,
+    'arcane' => arcaneEncounterPools,
+    _ => valleyEncounterPools,
+  };
+}
+
+// Feature toggle for cosmic ship (temporary testing disable)
+const bool kEnableCosmicShip = true;
 
 class ScenePage extends StatefulWidget {
   final SceneDefinition scene;
@@ -71,6 +90,10 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   bool _riftSpawned = false;
 
   String? _usedSpawnPointId;
+  // Ship discovery state
+  bool _shipPresent = false;
+  String? _shipSceneId;
+  bool _shipClaimed = false;
 
   @override
   void initState() {
@@ -86,7 +109,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     _encounters = EncounterService(
       scene: widget.scene,
       party: widget.party,
-      tableBuilder: valleyEncounterPools,
+      tableBuilder: _tableBuilderForScene(widget.sceneId),
     );
 
     _game.attachEncounters(_encounters);
@@ -120,7 +143,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       _spawnService.markSceneActive(widget.sceneId);
       _spawnService.addListener(_onSpawnServiceChanged);
 
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
         await _db
             .into(_db.activeSceneEntry)
             .insertOnConflictUpdate(
@@ -130,6 +153,18 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
               ),
             );
 
+        // Track visited biomes and possibly create the cosmic ship in-world
+        await _registerVisitedBiome();
+
+        // Ensure spawns exist (first visit or empty scene)
+        if (!widget.isTutorial) {
+          await _spawnService.ensureSpawnsForScene(widget.sceneId);
+          if (mounted) _syncSpawnsFromService();
+        }
+
+        // Load ship state for rendering
+        await _loadShipState();
+
         // 🆕 Guarantee tutorial spawn BEFORE showing dialog
         if (widget.isTutorial) {
           await _ensureTutorialSpawn();
@@ -137,6 +172,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
         if (widget.isTutorial && !_tutorialDialogShown && mounted) {
           _tutorialDialogShown = true;
+          if (mounted) {
+            await _showPortalDialog();
+          }
           await Future.delayed(const Duration(milliseconds: 500));
           if (mounted) {
             await _showWelcomeDialog();
@@ -210,6 +248,20 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     );
   }
 
+  Future<void> _showPortalDialog() async {
+    await LandscapeDialog.show(
+      context,
+      title: 'Ancient Portal',
+      message:
+          'This portal was created eons ago. Is this false perception? Beauty obstructs reality.',
+      typewriter: true,
+      kind: LandscapeDialogKind.info,
+      icon: Icons.auto_awesome,
+      primaryLabel: 'Continue',
+      barrierDismissible: false,
+    );
+  }
+
   Future<void> _showSuccessDialog() async {
     await LandscapeDialog.show(
       context,
@@ -261,6 +313,97 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
     _game.attachEncounters(_encounters);
     _game.syncWildFromEncounters();
+  }
+
+  // Track which biomes the player has visited and spawn the cosmic ship
+  Future<void> _registerVisitedBiome() async {
+    // feature flag check — proceed only if enabled
+    if (!kEnableCosmicShip) return;
+    try {
+      final settings = _db.settingsDao;
+      final raw = await settings.getSetting('visited_biomes') ?? '';
+      final parts = raw.isEmpty ? <String>[] : raw.split(',').where((s) => s.isNotEmpty).toList();
+      final set = parts.toSet();
+      const allowed = {'volcano', 'valley', 'sky', 'swamp'};
+      if (!allowed.contains(widget.sceneId)) return;
+      if (!set.contains(widget.sceneId)) {
+        set.add(widget.sceneId);
+        await settings.setSetting('visited_biomes', set.join(','));
+      }
+
+      // If we've now visited all four, and the ship hasn't been placed or claimed,
+      // place it in this scene (the 4th visited).
+      final visitedCount = set.where((s) => allowed.contains(s)).length;
+      final existingShip = await settings.getSetting('cosmic_ship_scene');
+      final claimed = (await settings.getSetting('cosmic_ship_claimed')) == '1';
+      if (visitedCount >= 4 && existingShip == null && !claimed) {
+        await settings.setSetting('cosmic_ship_scene', widget.sceneId);
+        // Update local state so UI shows it immediately
+        if (mounted) {
+          setState(() {
+            _shipSceneId = widget.sceneId;
+            _shipPresent = true;
+            _shipClaimed = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error registering visited biome: $e');
+    }
+  }
+
+  Future<void> _loadShipState() async {
+    try {
+      final settings = _db.settingsDao;
+      final scene = await settings.getSetting('cosmic_ship_scene');
+      final claimed = (await settings.getSetting('cosmic_ship_claimed')) == '1';
+      if (mounted) {
+        setState(() {
+          _shipSceneId = scene;
+          _shipClaimed = claimed;
+          _shipPresent = (scene != null && !claimed);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading ship state: $e');
+    }
+  }
+
+  Future<void> _onShipTapped() async {
+    if (!mounted) return;
+    HapticFeedback.heavyImpact();
+    _game.shake(duration: const Duration(milliseconds: 900), amplitude: 18);
+
+    await LandscapeDialog.show(
+      context,
+      title: 'The Cosmic Ship',
+      message:
+          '"Recognizing that the world is but an illusion, does not act as if it were real, so he escapes suffering."',
+      typewriter: true,
+      kind: LandscapeDialogKind.success,
+      icon: Icons.rocket_launch_rounded,
+      primaryLabel: 'Claim',
+      barrierDismissible: true,
+    );
+
+    try {
+      final settings = _db.settingsDao;
+      await settings.setSetting('cosmic_ship_claimed', '1');
+      await settings.setSetting('cosmic_ship_unlocked', '1');
+      await settings.setSetting('cosmic_ship_home_anim_pending', '1');
+      // remove scene placement
+      await settings.deleteSetting('cosmic_ship_scene');
+    } catch (e) {
+      debugPrint('Error claiming ship: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        _shipPresent = false;
+        _shipClaimed = true;
+        _shipSceneId = null;
+      });
+    }
   }
 
   Future<void> _maybeRestoreWaterParty() async {
@@ -399,6 +542,39 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     backgroundColor: Colors.transparent,
                   ),
                 ),
+                // In-world ship (appears when discovered in wilderness)
+                if (_shipPresent && _shipSceneId == widget.sceneId)
+                  Positioned(
+                    right: 40,
+                    bottom: 110,
+                    child: GestureDetector(
+                      onTap: () => _onShipTapped(),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.rocket_launch_rounded,
+                                size: 38, color: Colors.white),
+                            const SizedBox(height: 6),
+                            Text(
+                              'SHIP',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 if (_inEncounter && _wildCreature != null)
                   EncounterOverlay(
                     encounter: WildEncounter(
@@ -730,7 +906,9 @@ class _RiftVoidPageState extends State<_RiftVoidPage>
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: keyQty > 0 ? color.withValues(alpha: 0.6) : Colors.white24,
+                  color: keyQty > 0
+                      ? color.withValues(alpha: 0.6)
+                      : Colors.white24,
                 ),
                 borderRadius: BorderRadius.circular(2),
                 color: keyQty > 0
