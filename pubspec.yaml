@@ -38,6 +38,9 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/images/appicon.png"
 
+  adaptive_icon_foreground: "assets/images/appicon.png"
+  adaptive_icon_background: "#FFFFFF"
+  
 flutter:
   uses-material-design: true
   assets:
