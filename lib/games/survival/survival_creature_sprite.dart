@@ -15,7 +15,7 @@ enum TargetPriority { closest, furthest, boss }
 const bool _debugGuardianDamageLogs = false;
 
 class HoardGuardian extends PositionComponent
-    with HasGameRef<SurvivalHoardGame>, TapCallbacks {
+    with HasGameReference<SurvivalHoardGame>, TapCallbacks {
   final SurvivalUnit unit;
   bool isDead = false;
 
@@ -126,8 +126,8 @@ class HoardGuardian extends PositionComponent
     _addNameLabel();
 
     // When selected, add a range indicator as a child
-    gameRef.selectedGuardianNotifier.addListener(() {
-      final selected = gameRef.selectedGuardianNotifier.value;
+    game.selectedGuardianNotifier.addListener(() {
+      final selected = game.selectedGuardianNotifier.value;
       if (selected == this) {
         // Add indicator (as child so it follows position)
         if (children.whereType<GuardianRangeIndicator>().isEmpty) {
@@ -147,10 +147,10 @@ class HoardGuardian extends PositionComponent
     super.onTapDown(event);
 
     // Toggle selection: tap again to deselect
-    if (gameRef.selectedGuardianNotifier.value == this) {
-      gameRef.selectGuardian(null);
+    if (game.selectedGuardianNotifier.value == this) {
+      game.selectGuardian(null);
     } else {
-      gameRef.selectGuardian(this);
+      game.selectGuardian(this);
     }
   }
 
@@ -191,19 +191,18 @@ class HoardGuardian extends PositionComponent
   HoardEnemy? _pickTarget(double range) {
     switch (targetPriority) {
       case TargetPriority.closest:
-        return gameRef.getNearestEnemy(position, range);
+        return game.getNearestEnemy(position, range);
 
       case TargetPriority.furthest:
         return _getFurthestEnemyInRange(range);
 
       case TargetPriority.boss:
-        return _getBossInRange(range) ??
-            gameRef.getNearestEnemy(position, range);
+        return _getBossInRange(range) ?? game.getNearestEnemy(position, range);
     }
   }
 
   HoardEnemy? _getFurthestEnemyInRange(double range) {
-    final enemies = gameRef.enemies;
+    final enemies = game.enemies;
     HoardEnemy? furthest;
     double maxDstSq = 0;
     final rangeSq = range * range;
@@ -220,7 +219,7 @@ class HoardGuardian extends PositionComponent
   }
 
   HoardEnemy? _getBossInRange(double range) {
-    final enemies = gameRef.enemies;
+    final enemies = game.enemies;
     HoardEnemy? best;
     double minDstSq = range * range;
 
@@ -260,7 +259,7 @@ class HoardGuardian extends PositionComponent
     );
 
     SurvivalAttackManager.performBasic(
-      game: gameRef,
+      game: game,
       attacker: this,
       target: target,
     );
@@ -268,7 +267,7 @@ class HoardGuardian extends PositionComponent
     final color = _getElementColor(unit.types.firstOrNull ?? 'Normal');
     final (shape, speed) = _getBasicAttackProperties(unit.family);
 
-    gameRef.spawnAlchemyProjectile(
+    game.spawnAlchemyProjectile(
       start: position,
       target: target,
       damage: damage,
@@ -289,7 +288,7 @@ class HoardGuardian extends PositionComponent
     );
 
     SurvivalAttackManager.performSpecial(
-      game: gameRef,
+      game: game,
       attacker: this,
       target: mainTarget,
     );
@@ -337,23 +336,23 @@ class HoardGuardian extends PositionComponent
     if (isDead) return;
 
     if (_debugGuardianDamageLogs) {
-      print('═══════════════════════════════════════════════════');
-      print('🛡️ GUARDIAN TAKING DAMAGE: ${unit.name}');
-      print('───────────────────────────────────────────────────');
-      print('   Source: ${source ?? "unknown"}');
-      print('   Incoming Damage: $amount');
-      print('   HP Before: ${unit.currentHp}/${unit.maxHp}');
-      print('   Shield: ${unit.shieldHp ?? 0}');
+      debugPrint('═══════════════════════════════════════════════════');
+      debugPrint('🛡️ GUARDIAN TAKING DAMAGE: ${unit.name}');
+      debugPrint('───────────────────────────────────────────────────');
+      debugPrint('   Source: ${source ?? "unknown"}');
+      debugPrint('   Incoming Damage: $amount');
+      debugPrint('   HP Before: ${unit.currentHp}/${unit.maxHp}');
+      debugPrint('   Shield: ${unit.shieldHp ?? 0}');
     }
 
     unit.takeDamage(amount);
 
     if (_debugGuardianDamageLogs) {
-      print('   HP After: ${unit.currentHp}/${unit.maxHp}');
+      debugPrint('   HP After: ${unit.currentHp}/${unit.maxHp}');
       if (unit.isDead) {
-        print('   💀 GUARDIAN KILLED!');
+        debugPrint('   💀 GUARDIAN KILLED!');
       }
-      print('═══════════════════════════════════════════════════');
+      debugPrint('═══════════════════════════════════════════════════');
     }
 
     _flashDamage();
@@ -371,7 +370,7 @@ class HoardGuardian extends PositionComponent
 
   void _playBossHitEffect(int damage) {
     // 1. Screen shake
-    gameRef.camera.viewfinder.add(
+    game.camera.viewfinder.add(
       MoveEffect.by(
         Vector2(8, 0),
         EffectController(duration: 0.03, reverseDuration: 0.03, repeatCount: 3),
@@ -487,7 +486,7 @@ class HoardGuardian extends PositionComponent
     );
 
     add(MoveEffect.by(Vector2(0, 30), EffectController(duration: 0.4)));
-    gameRef.onGuardianDied(this);
+    game.onGuardianDied(this);
   }
 
   void _faceTarget(Vector2 targetPos) {

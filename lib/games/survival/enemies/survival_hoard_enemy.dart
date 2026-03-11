@@ -17,7 +17,8 @@ import 'survival_enemy_types.dart';
 //                                HOARD ENEMY
 // ============================================================================
 
-class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
+class HoardEnemy extends PositionComponent
+    with HasGameReference<SurvivalHoardGame> {
   static final Random _rng = Random();
   static const double _enemyGuardianCrashMult = 1.25;
   static const double _enemyOrbCrashMult = 6.15;
@@ -77,7 +78,6 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   bool get isAnyBoss => isBoss || isMiniBoss || isMegaBoss;
   bool _isInvulnerable = false;
   double _bossAttackCooldown = 0.0;
-
 
   HoardGuardian? _focusGuardian;
   double _focusGuardianRetargetTimer = 0.0;
@@ -222,7 +222,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     _maxSpeed *= speedMultiplier;
 
     if (isAnyBoss) {
-      print(
+      debugPrint(
         '[BOSS-SPAWN] id=${template.id} '
         'role=$role '
         'tier=${template.tier} '
@@ -236,7 +236,9 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       );
     }
 
-    print('[ENEMY] ${template.id} role=$role contactDamage=$_contactDamage');
+    debugPrint(
+      '[ENEMY] ${template.id} role=$role contactDamage=$_contactDamage',
+    );
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -265,8 +267,8 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
         maxParticles = 3;
       }
 
-      final enemyCount = gameRef.enemyCount;
-      final wave = gameRef.currentWave;
+      final enemyCount = game.enemyCount;
+      final wave = game.currentWave;
       final allowTrail = enemyCount < 60 && wave < 50;
 
       if (allowTrail) {
@@ -333,7 +335,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     final riseAmount = _logicalRadius * 0.8;
     position.y += riseAmount;
 
-    gameRef.world.add(
+    game.world.add(
       BossSpawnPortal(
         position: position.clone() + Vector2(0, riseAmount * 0.5),
         color: color,
@@ -388,7 +390,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       Future.delayed(Duration(milliseconds: i * 600), () {
         if (!isMounted) return;
 
-        gameRef.world.add(
+        game.world.add(
           CircleComponent(
             radius: 20,
             position: position.clone(),
@@ -427,7 +429,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
         _triggerScreenShake(isMegaBoss ? 12.0 : 8.0);
 
-        gameRef.world.add(
+        game.world.add(
           CircleComponent(
             radius: _logicalRadius * 1.1,
             position: position.clone(),
@@ -546,7 +548,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
           _focusGuardian!.isDead ||
           _focusGuardianRetargetTimer <= 0 ||
           _focusGuardian!.position.distanceTo(targetOrb.position) > 2200) {
-        _focusGuardian = gameRef.getRandomGuardianInRange(
+        _focusGuardian = game.getRandomGuardianInRange(
           center: targetOrb.position,
           range: 2000,
         );
@@ -685,7 +687,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     position = _chargeStart! + (_chargeEnd! - _chargeStart!) * t;
 
     final chargeDmg = (contactDamage * 1.45).round();
-    final guardians = gameRef.getGuardiansInRange(center: position, range: 70);
+    final guardians = game.getGuardiansInRange(center: position, range: 70);
     for (final g in guardians) {
       if (!g.isDead && !_chargeHitGuardians.contains(g)) {
         _chargeHitGuardians.add(g);
@@ -717,10 +719,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
     final HoardGuardian? focus =
         _focusGuardian ??
-        gameRef.getRandomGuardianInRange(
-          center: targetOrb.position,
-          range: 2000,
-        );
+        game.getRandomGuardianInRange(center: targetOrb.position, range: 2000);
 
     final Vector2 center = focus?.position ?? targetOrb.position;
     final Vector2 dir = (center - position).normalized();
@@ -734,7 +733,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   }
 
   void _empowerMinionsPulse() {
-    final minions = gameRef.getRandomEnemies(isMegaBoss ? 6 : 4);
+    final minions = game.getRandomEnemies(isMegaBoss ? 6 : 4);
     for (final m in minions) {
       if (m == this || m.isAnyBoss) continue;
       m._applySummonerBuff(
@@ -743,7 +742,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
         damageMult: 1.2,
       );
 
-      gameRef.world.add(
+      game.world.add(
         CircleComponent(
           radius: m._logicalRadius * 1.1,
           position: m.position.clone(),
@@ -769,7 +768,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       final radius = 380.0 + _rng.nextDouble() * 220.0;
       final pos = targetOrb.position + Vector2(cos(angle), sin(angle)) * radius;
 
-      gameRef.world.add(
+      game.world.add(
         ArtilleryMine(
           position: pos,
           triggerRadius: 80,
@@ -864,7 +863,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
       final childUnit = SurvivalEnemyCatalog.buildHydraBoss(
         template: template,
-        wave: gameRef.currentWave,
+        wave: game.currentWave,
         generation: childGen,
       );
 
@@ -886,7 +885,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
         child.isBoss = false;
       }
 
-      gameRef.addHoardEnemy(child);
+      game.addHoardEnemy(child);
       _spawnSplitEffect(spawnPos);
     }
 
@@ -906,7 +905,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       final angle = (i / 8) * 2 * pi;
       final speed = 100 + _rng.nextDouble() * 80;
 
-      gameRef.world.add(
+      game.world.add(
         CircleComponent(
           radius: 6,
           position: pos.clone(),
@@ -925,7 +924,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       );
     }
 
-    gameRef.world.add(
+    game.world.add(
       CircleComponent(
         radius: 20,
         position: pos.clone(),
@@ -951,7 +950,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       final angle = (i / 16) * pi * 2;
       final speed = 150 + _rng.nextDouble() * 100;
 
-      gameRef.world.add(
+      game.world.add(
         CircleComponent(
           radius: 10,
           position: position.clone(),
@@ -979,7 +978,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       ]),
     );
 
-    gameRef.removeEnemyWithoutReward(this);
+    game.removeEnemyWithoutReward(this);
   }
 
   void _performHydraAttack(double rng) {
@@ -1031,7 +1030,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     final warningRadius = _logicalRadius * (1.5 + (3 - hydraGeneration) * 0.5);
     final warningPos = position.clone() + Vector2(0, _logicalRadius * 0.5);
 
-    gameRef.world.add(
+    game.world.add(
       CircleComponent(
         radius: warningRadius,
         position: warningPos,
@@ -1047,7 +1046,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       ),
     );
 
-    gameRef.world.add(
+    game.world.add(
       CircleComponent(
         radius: warningRadius,
         position: warningPos,
@@ -1091,7 +1090,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
     _triggerScreenShake(10.0 + (4 - hydraGeneration) * 5.0);
 
-    final guardians = gameRef.getGuardiansInRange(
+    final guardians = game.getGuardiansInRange(
       center: position,
       range: slamRadius,
     );
@@ -1115,7 +1114,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
         final baseRadius = 28.0;
 
-        gameRef.world.add(
+        game.world.add(
           CircleComponent(
             radius: baseRadius,
             position: position.clone(),
@@ -1135,7 +1134,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
           ),
         );
 
-        gameRef.world.add(
+        game.world.add(
           CircleComponent(
             radius: baseRadius,
             position: position.clone(),
@@ -1162,7 +1161,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       final angle = (i / 12) * 2 * pi + _rng.nextDouble() * 0.3;
       final speed = 150 + _rng.nextDouble() * 100;
 
-      gameRef.world.add(
+      game.world.add(
         RectangleComponent(
           size: Vector2(8, 8),
           position: position.clone(),
@@ -1196,15 +1195,12 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
         final dir = Vector2(cos(spreadAngle), sin(spreadAngle));
         final end = position + dir * 700;
 
-        gameRef.spawnEnemyProjectile(
+        game.spawnEnemyProjectile(
           start: position.clone() + dir * _logicalRadius,
           targetPosition: end,
           color: color,
           onHit: () {
-            final guardians = gameRef.getGuardiansInRange(
-              center: end,
-              range: 60,
-            );
+            final guardians = game.getGuardiansInRange(center: end, range: 60);
             for (final g in guardians) {
               g.takeDamage(damage, source: 'Hydra Volley');
             }
@@ -1227,7 +1223,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       return;
     }
 
-    final targetGuardian = gameRef.getRandomGuardianInRange(
+    final targetGuardian = game.getRandomGuardianInRange(
       center: position,
       range: 800,
     );
@@ -1274,7 +1270,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     Vector2 force = Vector2.zero();
     int count = 0;
 
-    final neighbors = gameRef.getEnemiesInRange(position, radius);
+    final neighbors = game.getEnemiesInRange(position, radius);
     for (final other in neighbors) {
       if (other == this) continue;
       if (isAnyBoss && !other.isAnyBoss) continue;
@@ -1494,7 +1490,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
     final PositionComponent target = _attachedTarget as PositionComponent;
     final drainColor = const Color(0xFFB71C1C);
-    gameRef.world.add(
+    game.world.add(
       CircleComponent(
         radius: 4,
         position: target.position.clone(),
@@ -1527,7 +1523,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       target.takeDamage((contactDamage * _enemyOrbCrashMult).round());
     }
 
-    final nearbyGuardians = gameRef.getGuardiansInRange(
+    final nearbyGuardians = game.getGuardiansInRange(
       center: position,
       range: explosionRadius,
     );
@@ -1542,7 +1538,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       targetOrb.takeDamage((contactDamage * 3.6).round());
     }
 
-    gameRef.world.add(
+    game.world.add(
       CircleComponent(
         radius: 20,
         position: position.clone(),
@@ -1572,7 +1568,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     final isBoss = isAnyBoss;
 
     if (guardian != null && !guardian.isDead) {
-      gameRef.spawnEnemyProjectile(
+      game.spawnEnemyProjectile(
         start: position.clone(),
         targetPosition: guardian.position.clone(),
         color: projectileColor,
@@ -1583,7 +1579,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
         ),
       );
     } else {
-      gameRef.spawnEnemyProjectile(
+      game.spawnEnemyProjectile(
         start: position.clone(),
         targetPosition: targetOrb.position.clone(),
         color: projectileColor,
@@ -1595,7 +1591,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
   }
 
   void _summonMinions(int count) {
-    gameRef.spawnBossMinions(
+    game.spawnBossMinions(
       boss: this,
       element: template.element,
       tier: template.tier.tier.clamp(1, 3),
@@ -1688,8 +1684,8 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     final color = _elementColor(template.element);
 
     // Register with cascade manager if available
-    if (gameRef.deathCascade != null) {
-      gameRef.deathCascade!.registerDeath(
+    if (game.deathCascade != null) {
+      game.deathCascade!.registerDeath(
         position.clone(),
         color,
         _logicalRadius,
@@ -1698,9 +1694,9 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     }
 
     // CHANGED: Use DeathExplosion for satisfying visual feedback
-    final chainMult = gameRef.deathCascade?.currentChainCount ?? 1;
+    final chainMult = game.deathCascade?.currentChainCount ?? 1;
 
-    gameRef.world.add(
+    game.world.add(
       DeathExplosion(
         position: position.clone(),
         color: color,
@@ -1714,7 +1710,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
     if (isAnyBoss) {
       _triggerScreenShake(20.0);
 
-      gameRef.world.add(
+      game.world.add(
         CircleComponent(
           radius: _logicalRadius,
           position: position.clone(),
@@ -1745,7 +1741,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       ]),
     );
 
-    gameRef.removeEnemy(this);
+    game.removeEnemy(this);
   }
 
   void _triggerScreenShake(double intensity) {
@@ -1753,8 +1749,8 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       (_rng.nextDouble() - 0.5) * intensity,
       (_rng.nextDouble() - 0.5) * intensity,
     );
-    gameRef.cameraComponent.viewfinder.position += offset;
-    gameRef.cameraComponent.viewfinder.add(
+    game.cameraComponent.viewfinder.position += offset;
+    game.cameraComponent.viewfinder.add(
       MoveEffect.by(-offset, EffectController(duration: 0.1)),
     );
   }
@@ -1769,12 +1765,12 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
       final dir = Vector2(cos(theta), sin(theta));
       final end = position + dir * 800;
 
-      gameRef.spawnEnemyProjectile(
+      game.spawnEnemyProjectile(
         start: position.clone(),
         targetPosition: end,
         color: col,
         onHit: () {
-          final guardians = gameRef.getGuardiansInRange(center: end, range: 70);
+          final guardians = game.getGuardiansInRange(center: end, range: 70);
           for (final g in guardians) {
             g.takeDamage(damage);
           }
@@ -1830,7 +1826,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 
     textComponent.add(OpacityEffect.fadeOut(EffectController(duration: 0.5)));
 
-    gameRef.world.add(textComponent);
+    game.world.add(textComponent);
   }
 
   Color _elementColor(String element) {
@@ -1880,7 +1876,7 @@ class HoardEnemy extends PositionComponent with HasGameRef<SurvivalHoardGame> {
 // ============================================================================
 
 class ArtilleryMine extends PositionComponent
-    with HasGameRef<SurvivalHoardGame> {
+    with HasGameReference<SurvivalHoardGame> {
   final double triggerRadius;
   final double blastRadius;
   final int damage;
@@ -1909,7 +1905,7 @@ class ArtilleryMine extends PositionComponent
     _timer += dt;
 
     if (_timer >= armTime) {
-      final guardians = gameRef.getGuardiansInRange(
+      final guardians = game.getGuardiansInRange(
         center: position,
         range: triggerRadius,
       );
@@ -1941,7 +1937,7 @@ class ArtilleryMine extends PositionComponent
   }
 
   void _explode() {
-    final guardians = gameRef.getGuardiansInRange(
+    final guardians = game.getGuardiansInRange(
       center: position,
       range: blastRadius,
     );
@@ -1949,11 +1945,11 @@ class ArtilleryMine extends PositionComponent
       g.takeDamage(damage);
     }
 
-    if (position.distanceTo(gameRef.orb.position) <= blastRadius) {
-      gameRef.orb.takeDamage((damage * 3).round());
+    if (position.distanceTo(game.orb.position) <= blastRadius) {
+      game.orb.takeDamage((damage * 3).round());
     }
 
-    gameRef.world.add(
+    game.world.add(
       CircleComponent(
         radius: blastRadius * 0.3,
         position: position.clone(),

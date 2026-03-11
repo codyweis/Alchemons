@@ -2,10 +2,10 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-typedef InsideBuilder = Widget Function(_BubblePublic b);
+typedef InsideBuilder = Widget Function(BubblePublic b);
 
-class _BubblePublic {
-  _BubblePublic({required this.expanded});
+class BubblePublic {
+  BubblePublic({required this.expanded});
   final bool expanded;
 }
 
@@ -127,7 +127,7 @@ class BubbleWidgetState extends State<BubbleWidget>
                         height: r * 2,
                         child: Center(
                           child: widget.builderInside(
-                            _BubblePublic(expanded: widget.bubble.expanded),
+                            BubblePublic(expanded: widget.bubble.expanded),
                           ),
                         ),
                       ),
@@ -235,20 +235,14 @@ class AlchemicalOrb extends StatelessWidget {
 
   // Helper functions to adjust color
   Color _lighten(Color c, double amount) {
-    return Color.fromARGB(
-      c.alpha,
-      (c.red + (255 - c.red) * amount).round().clamp(0, 255),
-      (c.green + (255 - c.green) * amount).round().clamp(0, 255),
-      (c.blue + (255 - c.blue) * amount).round().clamp(0, 255),
-    );
+    final hsl = HSLColor.fromColor(c);
+    final lightness = (hsl.lightness + amount).clamp(0.0, 1.0);
+    return hsl.withLightness(lightness).toColor().withValues(alpha: c.a);
   }
 
   Color _darken(Color c, double amount) {
-    return Color.fromARGB(
-      c.alpha,
-      (c.red * (1 - amount)).round().clamp(0, 255),
-      (c.green * (1 - amount)).round().clamp(0, 255),
-      (c.blue * (1 - amount)).round().clamp(0, 255),
-    );
+    final hsl = HSLColor.fromColor(c);
+    final lightness = (hsl.lightness - amount).clamp(0.0, 1.0);
+    return hsl.withLightness(lightness).toColor().withValues(alpha: c.a);
   }
 }

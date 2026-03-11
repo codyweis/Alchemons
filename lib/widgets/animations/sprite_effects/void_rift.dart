@@ -99,15 +99,15 @@ class _VoidRiftState extends State<VoidRift> with TickerProviderStateMixin {
                       const Color(
                         0xFF6A0DAD,
                       ).withValues(alpha: 0.45 * _outerGlow.value), // violet
-                      const Color(
-                        0xFF000000,
-                      ).withValues(alpha: 0.55 * _outerGlow.value), // void black
-                      const Color(
-                        0xFF9400D3,
-                      ).withValues(alpha: 0.35 * _outerGlow.value), // dark violet
-                      const Color(
-                        0xFF000000,
-                      ).withValues(alpha: 0.45 * _outerGlow.value), // void black
+                      const Color(0xFF000000).withValues(
+                        alpha: 0.55 * _outerGlow.value,
+                      ), // void black
+                      const Color(0xFF9400D3).withValues(
+                        alpha: 0.35 * _outerGlow.value,
+                      ), // dark violet
+                      const Color(0xFF000000).withValues(
+                        alpha: 0.45 * _outerGlow.value,
+                      ), // void black
                       const Color(0xFF4B0082).withValues(alpha: 0.0),
                     ],
                     stops: const [0.0, 0.18, 0.38, 0.56, 0.76, 1.0],
@@ -263,7 +263,7 @@ class _VoidCrackPainter extends CustomPainter {
           math.sin(branchAngle) * branchLen;
 
       // Fade from center outward
-      final gradient = ui_gradient(center, Offset(endX, endY), opacity);
+      final gradient = uiGradient(center, Offset(endX, endY), opacity);
 
       paint.shader = gradient;
       canvas.drawLine(center, Offset(endX, endY), paint);
@@ -278,7 +278,7 @@ class _VoidCrackPainter extends CustomPainter {
   }
 
   @pragma('vm:never-inline')
-  Shader ui_gradient(Offset from, Offset to, double opacity) {
+  Shader uiGradient(Offset from, Offset to, double opacity) {
     return LinearGradient(
       colors: [
         const Color(0xFFBB00FF).withValues(alpha: opacity),

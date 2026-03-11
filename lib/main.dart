@@ -48,8 +48,8 @@ void main() async {
     FlutterError.dumpErrorToConsole(details);
   };
   PlatformDispatcher.instance.onError = (error, stack) {
-    print('Caught error: $error');
-    print(stack);
+    debugPrint('Caught error: $error');
+    debugPrintStack(stackTrace: stack);
     return true; // prevent silent crash
   };
 

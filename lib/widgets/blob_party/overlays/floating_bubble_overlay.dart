@@ -284,6 +284,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
     );
 
     // 1) pick species first
+    if (!mounted) return;
     final pickedSpeciesId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -313,6 +314,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
 
     // 2) pick instance
     // 2) pick instance  (in _pickInstanceFor)
+    if (!mounted) return;
     final inst = await showModalBottomSheet<CreatureInstance>(
       context: context,
       isScrollControlled: true,
@@ -540,6 +542,7 @@ class _FloatingBubblesOverlayState extends State<FloatingBubblesOverlay>
                           await _pickInstanceFor(b, i);
                         } else if (choice == 'clear') {
                           setState(() => b.instance = null);
+                          if (!context.mounted) return;
                           await context
                               .read<AlchemonsDatabase>()
                               .settingsDao

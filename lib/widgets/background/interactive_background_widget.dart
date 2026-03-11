@@ -516,7 +516,9 @@ class InteractiveParticlePainter extends CustomPainter {
 
       particleOpacity *= _edgeFade(pos, size, 40);
 
-      paint.color = primaryColor.withValues(alpha: particleOpacity.clamp(0.0, 1.0));
+      paint.color = primaryColor.withValues(
+        alpha: particleOpacity.clamp(0.0, 1.0),
+      );
       canvas.drawCircle(pos, radius, paint);
     }
 
@@ -625,8 +627,8 @@ class FirePainter extends CustomPainter {
         final opacity = fadeOpacity * 0.8 * flicker;
 
         final paint = Paint()
-          ..color = (i % 2 == 0 ? primaryColor : secondaryColor).withValues(alpha: 
-            opacity,
+          ..color = (i % 2 == 0 ? primaryColor : secondaryColor).withValues(
+            alpha: opacity,
           )
           ..style = PaintingStyle.fill;
 
@@ -723,8 +725,8 @@ class RainSplashPainter extends CustomPainter {
     }
 
     // ----- Traveling surface waves (same k/ω, but velocity is integrated)
-    final A1 = 6.0 + 4.0 * easedTiltX.abs();
-    final A2 = 3.5 + 2.0 * easedTiltX.abs();
+    final a1 = 6.0 + 4.0 * easedTiltX.abs();
+    final a2 = 3.5 + 2.0 * easedTiltX.abs();
     final k1 = 2 * math.pi / 140.0;
     final k2 = 2 * math.pi / 70.0;
     final w1 = 2 * math.pi * 0.55;
@@ -740,8 +742,8 @@ class RainSplashPainter extends CustomPainter {
 
     double ySurface(double x) {
       final base = yLinear(x);
-      final a = A1 * math.sin(k1 * (x + _adv1Acc) + w1 * t);
-      final b = A2 * math.sin(k2 * (x - _adv2Acc) - w2 * t);
+      final a = a1 * math.sin(k1 * (x + _adv1Acc) + w1 * t);
+      final b = a2 * math.sin(k2 * (x - _adv2Acc) - w2 * t);
       return base + 0.6 * a + 0.4 * b;
     }
 
@@ -1038,8 +1040,8 @@ class AirPainter extends CustomPainter {
 
           final opacity = (0.18 - j * 0.03) * fadeOpacity;
           final cloudPaint = Paint()
-            ..color = (j % 2 == 0 ? primaryColor : secondaryColor).withValues(alpha: 
-              opacity,
+            ..color = (j % 2 == 0 ? primaryColor : secondaryColor).withValues(
+              alpha: opacity,
             )
             ..style = PaintingStyle.fill
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
@@ -1235,7 +1237,8 @@ class EarthPlantsPainter extends CustomPainter {
         canvas.drawCircle(pos, budSize, budPaint);
       }
 
-      final baseGlow = Paint()..color = primaryColor.withValues(alpha: 0.06 * alpha);
+      final baseGlow = Paint()
+        ..color = primaryColor.withValues(alpha: 0.06 * alpha);
       canvas.drawCircle(stemBase, 6.0, baseGlow);
     }
 
@@ -1243,7 +1246,10 @@ class EarthPlantsPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [primaryColor.withValues(alpha: 0.12), primaryColor.withValues(alpha: 0.0)],
+        colors: [
+          primaryColor.withValues(alpha: 0.12),
+          primaryColor.withValues(alpha: 0.0),
+        ],
       ).createShader(Rect.fromLTWH(0, bandTopY - 8, size.width, 16));
     canvas.drawRect(Rect.fromLTWH(0, bandTopY - 8, size.width, 16), soilPaint);
   }

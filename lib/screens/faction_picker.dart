@@ -172,8 +172,8 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false, // Prevent back button
+    return PopScope(
+      canPop: false, // Prevent back button
       child: Scaffold(
         body: Stack(
           children: [

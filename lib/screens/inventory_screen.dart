@@ -1067,6 +1067,7 @@ class _InventoryScreenState extends State<InventoryScreen>
     final eligibleSpeciesIds = allInstances.map((inst) => inst.baseId).toSet();
 
     // STEP 1: pick species
+    if (!mounted) return;
     final selectedSpeciesId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -1197,6 +1198,7 @@ class _InventoryScreenState extends State<InventoryScreen>
     final eligibleSpeciesIds = allInstances.map((inst) => inst.baseId).toSet();
 
     // STEP 1: Show species picker
+    if (!mounted) return;
     final selectedSpeciesId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -1412,6 +1414,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       return;
     }
 
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

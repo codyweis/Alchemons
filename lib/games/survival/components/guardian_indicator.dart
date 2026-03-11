@@ -5,7 +5,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 class GuardianRangeIndicator extends PositionComponent
-    with HasGameRef<SurvivalHoardGame> {
+    with HasGameReference<SurvivalHoardGame> {
   final HoardGuardian guardian;
 
   GuardianRangeIndicator({required this.guardian})
@@ -20,7 +20,7 @@ class GuardianRangeIndicator extends PositionComponent
     super.update(dt);
 
     // No more "force to zero" – that was anchoring it at top-left
-    if (gameRef.selectedGuardianNotifier.value != guardian) {
+    if (game.selectedGuardianNotifier.value != guardian) {
       removeFromParent();
     }
   }

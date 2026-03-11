@@ -1,13 +1,10 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/inventory.dart';
-import 'package:provider/provider.dart';
-import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'cosmic_screen_styles.dart';
 
 class ShipInventoryOverlay extends StatefulWidget {
   const ShipInventoryOverlay({
+    super.key,
     required this.inventory,
     required this.loading,
     required this.onClose,

@@ -62,6 +62,20 @@ class AttackAnimations {
   }
 
   static AttackAnimation _getSpecialAnimation(String family, String element) {
+    final familyCore = _getFamilySpecialAnimation(family, element);
+    // Each family gets its own element infusion choreography so the same
+    // element reads differently across families.
+    return FamilyElementInfusedSpecialAnimation(
+      family: family,
+      element: element,
+      familyCore: familyCore,
+    );
+  }
+
+  static AttackAnimation _getFamilySpecialAnimation(
+    String family,
+    String element,
+  ) {
     switch (family) {
       case 'Let':
         return SpritestrikAnimation(element);
@@ -88,6 +102,271 @@ class AttackAnimations {
 /// Base class for attack animations
 abstract class AttackAnimation {
   Component createEffect(Vector2 targetPosition);
+}
+
+/// Combines family core animation with family-specific elemental choreography.
+class FamilyElementInfusedSpecialAnimation extends AttackAnimation {
+  final String family;
+  final String element;
+  final AttackAnimation familyCore;
+
+  FamilyElementInfusedSpecialAnimation({
+    required this.family,
+    required this.element,
+    required this.familyCore,
+  });
+
+  @override
+  Component createEffect(Vector2 targetPosition) {
+    final container = Component();
+    container.add(familyCore.createEffect(targetPosition));
+    container.add(_familyElementLayer(targetPosition));
+    return container;
+  }
+
+  Component _familyElementLayer(Vector2 targetPosition) {
+    switch (family) {
+      case 'Let':
+        return _letMeteorInfusion(targetPosition);
+      case 'Pip':
+        return _pipRicochetInfusion(targetPosition);
+      case 'Mane':
+        return _maneBarrageInfusion(targetPosition);
+      case 'Horn':
+        return _hornFortressInfusion(targetPosition);
+      case 'Mask':
+        return _maskHexInfusion(targetPosition);
+      case 'Wing':
+        return _wingLanceInfusion(targetPosition);
+      case 'Kin':
+        return _kinSanctuaryInfusion(targetPosition);
+      case 'Mystic':
+        return _mysticArcaneInfusion(targetPosition);
+      default:
+        return AttackAnimations._getElementalAnimation(
+          element,
+          MoveType.elemental,
+        ).createEffect(targetPosition);
+    }
+  }
+
+  Component _letMeteorInfusion(Vector2 p) {
+    final c = Component();
+    c.add(
+      AttackAnimations._getElementalAnimation(
+        element,
+        MoveType.elemental,
+      ).createEffect(p + Vector2(0, -16)),
+    );
+    c.add(
+      AttackAnimations._getElementalAnimation(
+        element,
+        MoveType.elemental,
+      ).createEffect(p + Vector2(14, -6)),
+    );
+    return c;
+  }
+
+  Component _pipRicochetInfusion(Vector2 p) {
+    final c = Component();
+    final offsets = [Vector2(-24, -10), Vector2(0, 0), Vector2(24, -10)];
+    for (final offset in offsets) {
+      c.add(
+        AttackAnimations._getElementalAnimation(
+          element,
+          MoveType.elemental,
+        ).createEffect(p + offset),
+      );
+    }
+    return c;
+  }
+
+  Component _maneBarrageInfusion(Vector2 p) {
+    final c = Component();
+    final offsets = [Vector2(-26, -18), Vector2(26, -18), Vector2(0, 10)];
+    for (final offset in offsets) {
+      c.add(
+        AttackAnimations._getElementalAnimation(
+          element,
+          MoveType.elemental,
+        ).createEffect(p + offset),
+      );
+    }
+    return c;
+  }
+
+  Component _hornFortressInfusion(Vector2 p) {
+    final c = Component();
+    final color = _specialElementColor(element);
+
+    for (int r = 0; r < 2; r++) {
+      final ring = CircleComponent(
+        radius: 16 + r * 10,
+        position: p,
+        anchor: Anchor.center,
+        paint: Paint()
+          ..color = color.withValues(alpha: 0.45 - r * 0.12)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3 - r * 0.7,
+      );
+      ring.add(
+        ScaleEffect.to(
+          Vector2.all(1.9 + r * 0.3),
+          EffectController(duration: 0.32 + r * 0.08, curve: Curves.easeOut),
+        ),
+      );
+      ring.add(RemoveEffect(delay: 0.45 + r * 0.08));
+      c.add(ring);
+    }
+
+    c.add(
+      AttackAnimations._getElementalAnimation(
+        element,
+        MoveType.elemental,
+      ).createEffect(p),
+    );
+    return c;
+  }
+
+  Component _maskHexInfusion(Vector2 p) {
+    final c = Component();
+    final color = _specialElementColor(element);
+
+    c.add(
+      AttackAnimations._getElementalAnimation(
+        element,
+        MoveType.elemental,
+      ).createEffect(p),
+    );
+
+    for (int i = 0; i < 6; i++) {
+      final angle = (i / 6) * 2 * pi;
+      final rune = RectangleComponent(
+        size: Vector2(12, 2),
+        position: p + Vector2(cos(angle) * 34, sin(angle) * 34),
+        angle: angle,
+        anchor: Anchor.center,
+        paint: Paint()..color = color.withValues(alpha: 0.75),
+      );
+      rune.add(
+        MoveEffect.to(
+          p + Vector2(cos(angle) * 10, sin(angle) * 10),
+          EffectController(duration: 0.28, curve: Curves.easeInOut),
+        ),
+      );
+      rune.add(RemoveEffect(delay: 0.3));
+      c.add(rune);
+    }
+    return c;
+  }
+
+  Component _wingLanceInfusion(Vector2 p) {
+    final c = Component();
+    final color = _specialElementColor(element);
+
+    final lance = RectangleComponent(
+      size: Vector2(140, 5),
+      position: p + Vector2(-70, 0),
+      anchor: Anchor.centerLeft,
+      paint: Paint()..color = color.withValues(alpha: 0.8),
+    );
+    lance.add(
+      MoveEffect.by(
+        Vector2(140, 0),
+        EffectController(duration: 0.22, curve: Curves.easeOut),
+      ),
+    );
+    lance.add(RemoveEffect(delay: 0.24));
+    c.add(lance);
+
+    c.add(
+      AttackAnimations._getElementalAnimation(
+        element,
+        MoveType.elemental,
+      ).createEffect(p + Vector2(18, 0)),
+    );
+    return c;
+  }
+
+  Component _kinSanctuaryInfusion(Vector2 p) {
+    final c = Component();
+    final color = _specialElementColor(element);
+
+    c.add(
+      AttackAnimations._getElementalAnimation(
+        element,
+        MoveType.elemental,
+      ).createEffect(p),
+    );
+
+    final rng = Random();
+    for (int i = 0; i < 12; i++) {
+      final mote = CircleComponent(
+        radius: 2 + rng.nextDouble() * 1.8,
+        position:
+            p + Vector2(-30 + rng.nextDouble() * 60, rng.nextDouble() * 8),
+        anchor: Anchor.center,
+        paint: Paint()..color = color.withValues(alpha: 0.7),
+      );
+      mote.add(
+        MoveEffect.by(
+          Vector2(0, -45 - rng.nextDouble() * 25),
+          EffectController(duration: 0.5 + rng.nextDouble() * 0.2),
+        ),
+      );
+      mote.add(RemoveEffect(delay: 0.72));
+      c.add(mote);
+    }
+    return c;
+  }
+
+  Component _mysticArcaneInfusion(Vector2 p) {
+    return AttackAnimations._getElementalAnimation(
+      element,
+      MoveType.elemental,
+    ).createEffect(p);
+  }
+}
+
+Color _specialElementColor(String element) {
+  switch (element) {
+    case 'Fire':
+      return Colors.deepOrange;
+    case 'Water':
+      return Colors.cyanAccent;
+    case 'Earth':
+      return Colors.brown.shade400;
+    case 'Air':
+      return Colors.white;
+    case 'Ice':
+      return Colors.lightBlueAccent;
+    case 'Lightning':
+      return Colors.yellowAccent;
+    case 'Plant':
+      return Colors.lightGreenAccent;
+    case 'Poison':
+      return Colors.purpleAccent;
+    case 'Steam':
+      return Colors.blueGrey.shade200;
+    case 'Lava':
+      return Colors.deepOrangeAccent;
+    case 'Mud':
+      return Colors.brown;
+    case 'Dust':
+      return Colors.amber.shade300;
+    case 'Crystal':
+      return Colors.tealAccent;
+    case 'Spirit':
+      return Colors.indigoAccent;
+    case 'Dark':
+      return Colors.deepPurpleAccent;
+    case 'Light':
+      return Colors.amber.shade100;
+    case 'Blood':
+      return Colors.redAccent;
+    default:
+      return Colors.white;
+  }
 }
 
 // Helper to create circular particles
@@ -1346,8 +1625,9 @@ class LightAnimation extends AttackAnimation {
         angle: angle,
         anchor: Anchor.bottomCenter,
         paint: Paint()
-          ..color = (isDiag ? Colors.yellow.shade300 : Colors.white)
-              .withValues(alpha: 0.85),
+          ..color = (isDiag ? Colors.yellow.shade300 : Colors.white).withValues(
+            alpha: 0.85,
+          ),
       );
       beam.add(
         SequenceEffect([

@@ -396,6 +396,7 @@ class _FeedingScreenState extends State<FeedingScreen>
     final preFeedXp = currentInstance?.xp ?? 0;
 
     try {
+      if (!mounted) return;
       final repo = context.read<CreatureCatalog>();
       final feedService = CreatureInstanceService(db);
       final constellationEffects = context.read<ConstellationEffectsService>();

@@ -35,6 +35,6 @@ int computeHarvestRatePerMinute(
   };
   rate *= sizeMult;
 
-  // final rounding
-  return (rate * 0.5).round().clamp(0, 5000);
+  // final rounding: biome extraction should never yield 0 per minute
+  return (rate * 0.5).round().clamp(1, 5000);
 }

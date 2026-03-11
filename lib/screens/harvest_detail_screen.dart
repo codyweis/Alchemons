@@ -294,6 +294,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     );
 
     // Show species picker
+    if (!mounted) return;
     final selectedSpeciesId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -331,6 +332,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     if (selectedSpecies == null) return;
 
     // Show instance picker with harvest stats
+    if (!mounted) return;
     final instanceId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -352,6 +354,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
     if (instanceId == null) return;
 
+    if (!mounted) return;
     final stamina = context.read<StaminaService>();
     final inst = await stamina.refreshAndGet(instanceId);
     if (inst == null) return;
@@ -421,12 +424,15 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     if (previousJob == null) return;
 
     // 🔹 Check constellation skill
+    if (!mounted) return;
     final constellations = context.read<ConstellationEffectsService>();
     if (!constellations.hasInstantReload()) return;
 
+    if (!mounted) return;
     final theme = context.read<FactionTheme>();
 
     // 🔹 Ask player if they want to reload the same creature
+    if (!mounted) return;
     final shouldReload = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1141,8 +1147,6 @@ extension _RRectBorderRadius on RRect {
   );
 }
 
-
-
 // =================== UI Panels ===================
 
 class _PrimaryBtn extends StatelessWidget {
@@ -1471,7 +1475,10 @@ class _ChamberBackgroundPainter extends CustomPainter {
     // 1) Dim backplate
     final back = Paint()
       ..shader = RadialGradient(
-        colors: [Colors.black.withValues(alpha: .45), Colors.black.withValues(alpha: .70)],
+        colors: [
+          Colors.black.withValues(alpha: .45),
+          Colors.black.withValues(alpha: .70),
+        ],
       ).createShader(inner.outerRect);
     canvas.drawRect(inner.outerRect, back);
 
@@ -1835,7 +1842,10 @@ class _AlchemyStatusPainter extends CustomPainter {
           letterSpacing: 2,
           color: Colors.white.withValues(alpha: .95),
           shadows: [
-            Shadow(blurRadius: 6 + 10 * glow, color: color.withValues(alpha: .8)),
+            Shadow(
+              blurRadius: 6 + 10 * glow,
+              color: color.withValues(alpha: .8),
+            ),
           ],
         ),
       ),

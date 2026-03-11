@@ -475,7 +475,9 @@ class AlchemyBrewingPainter extends CustomPainter {
 
   void _drawParticle(Canvas canvas, AlchemyParticle particle) {
     final paint = Paint()
-      ..color = particle.color.withValues(alpha: particle.opacity * particle.life)
+      ..color = particle.color.withValues(
+        alpha: particle.opacity * particle.life,
+      )
       ..style = PaintingStyle.fill;
 
     canvas.save();
@@ -706,7 +708,9 @@ class AlchemyBrewingPainter extends CustomPainter {
       final flowerPaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8
-        ..color = baseColor.withValues(alpha: 0.3 * progress * (isIdle ? pulse : 1.0))
+        ..color = baseColor.withValues(
+          alpha: 0.3 * progress * (isIdle ? pulse : 1.0),
+        )
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1);
 
       // Draw overlapping circles for flower of life
@@ -725,8 +729,8 @@ class AlchemyBrewingPainter extends CustomPainter {
     final cubePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5
-      ..color = baseColor.withValues(alpha: 
-        0.25 * progress * (isIdle ? breathe : 1.0),
+      ..color = baseColor.withValues(
+        alpha: 0.25 * progress * (isIdle ? breathe : 1.0),
       );
 
     // Draw interconnected lines
@@ -877,9 +881,9 @@ class AlchemyBrewingPainter extends CustomPainter {
   Color _blendColors(Color c1, Color c2) {
     return Color.fromARGB(
       255,
-      ((c1.red + c2.red) / 2).round(),
-      ((c1.green + c2.green) / 2).round(),
-      ((c1.blue + c2.blue) / 2).round(),
+      ((c1.r + c2.r) * 127.5).round(),
+      ((c1.g + c2.g) * 127.5).round(),
+      ((c1.b + c2.b) * 127.5).round(),
     );
   }
 
@@ -1494,9 +1498,9 @@ class _AlchemyBrewingParticleSystemState
 
     final blendedColor = Color.fromARGB(
       255,
-      ((color1.red + color2.red) / 2).round(),
-      ((color1.green + color2.green) / 2).round(),
-      ((color1.blue + color2.blue) / 2).round(),
+      ((color1.r + color2.r) * 127.5).round(),
+      ((color1.g + color2.g) * 127.5).round(),
+      ((color1.b + color2.b) * 127.5).round(),
     );
 
     for (int i = 0; i < 3; i++) {

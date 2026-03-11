@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 
@@ -15,6 +13,7 @@ String _fmt(num n) {
 
 class ElementsCapturedPopup extends StatelessWidget {
   const ElementsCapturedPopup({
+    super.key,
     required this.breakdown,
     required this.onDismiss,
   });

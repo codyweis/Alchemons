@@ -126,7 +126,7 @@ class HarvestService extends ChangeNotifier {
       activeElementId: farm.activeElementId,
       activeJob: job,
     );
-    print(
+    debugPrint(
       'HarvestService: refreshing ${biome.id}, hasActive=${job != null}',
     ); // DEBUG
     notifyListeners();

@@ -3,6 +3,7 @@
 import 'dart:math';
 
 import 'package:alchemons/models/creature.dart';
+import 'package:flutter/foundation.dart';
 
 class CreatureStats {
   final double speed;
@@ -329,7 +330,7 @@ class CreatureStats {
       orElse: () => 'beauty',
     );
 
-    print('=== WILDCARD STAT: $wildcardStat ===');
+    debugPrint('=== WILDCARD STAT: $wildcardStat ===');
 
     // Generate base stats normally
     final newStats = [
@@ -365,7 +366,7 @@ class CreatureStats {
         if (roll < 0.02) {
           // 2% chance (1/50): JACKPOT!!! (4.5 to 5.0)
           potential = 4.5 + (rng.nextDouble() * 0.5);
-          print(
+          debugPrint(
             '  $statName: 🎰 JACKPOT WILDCARD = ${potential.toStringAsFixed(2)}',
           );
         } else if (roll < 0.12) {
@@ -382,7 +383,9 @@ class CreatureStats {
           potential = 4.0 + (rng.nextDouble() * 0.5);
         }
 
-        print('  $statName: WILDCARD ROLL = ${potential.toStringAsFixed(2)}');
+        debugPrint(
+          '  $statName: WILDCARD ROLL = ${potential.toStringAsFixed(2)}',
+        );
       } else if (stableStats.contains(statName)) {
         // STABLE: Top 2-3 stats blend normally
         potential = blendPotentialStable(p1Val, p2Val, statName);

@@ -473,6 +473,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     }
 
     // Confirm
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => _PurchaseConfirmationDialog(
@@ -595,6 +596,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     }
 
     // Confirm purchase
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) =>
@@ -1708,6 +1710,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
     final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
     final allInstances = await db.creatureDao.listAllInstances();
 
     final Map<String, List<CreatureInstance>> grouped = {};
@@ -1728,19 +1731,15 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         builder: (context, scrollController) {
           return Container(
             decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(0, 0),
-                radius: 1.2,
-                colors: [
-                  theme.surface,
-                  theme.surface,
-                  theme.surfaceAlt.withValues(alpha: .6),
-                ],
-                stops: const [0.0, 0.6, 1.0],
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [t.bg2, t.bg1, t.bg0],
               ),
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
+                top: Radius.circular(14),
               ),
+              border: Border.all(color: t.borderDim),
             ),
             child: Column(
               children: [
@@ -1750,7 +1749,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.textMuted.withValues(alpha: 0.3),
+                    color: t.borderMid,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1762,28 +1761,36 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: theme.surface,
-                    border: Border(bottom: BorderSide(color: theme.border)),
+                    color: t.bg3,
+                    border: Border(bottom: BorderSide(color: t.borderDim)),
                   ),
                   child: Row(
                     children: [
+                      Container(
+                        width: 3,
+                        height: 22,
+                        margin: const EdgeInsets.only(right: 10),
+                        color: t.amber,
+                      ),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Select Species',
+                              'SELECT SPECIES',
                               style: TextStyle(
-                                color: theme.text,
-                                fontSize: 14,
+                                fontFamily: 'monospace',
+                                color: t.amberBright,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w800,
+                                letterSpacing: 1.4,
                               ),
                             ),
                             Text(
                               'Choose which creatures to sell',
                               style: TextStyle(
-                                color: theme.textMuted,
-                                fontSize: 11,
+                                color: t.textSecondary,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -1795,11 +1802,15 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: theme.surfaceAlt,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: theme.border),
+                            color: t.bg2,
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(color: t.borderDim),
                           ),
-                          child: Icon(Icons.close, color: theme.text, size: 18),
+                          child: Icon(
+                            Icons.close,
+                            color: t.textSecondary,
+                            size: 18,
+                          ),
                         ),
                       ),
                     ],

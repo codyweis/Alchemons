@@ -123,7 +123,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   // Ship discovery state
   bool _shipPresent = false;
   String? _shipSceneId;
-  bool _shipClaimed = false;
   late final AnimationController _biomeAmbienceCtrl;
   bool get _isCosmicPlanetMode => widget.isCosmicPlanetEntry;
 
@@ -657,7 +656,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           setState(() {
             _shipSceneId = 'valley';
             _shipPresent = widget.sceneId == 'valley';
-            _shipClaimed = false;
           });
           await _syncShipBeaconPlacement();
         }
@@ -679,7 +677,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       if (mounted) {
         setState(() {
           _shipSceneId = scene;
-          _shipClaimed = claimed;
           _shipPresent = (scene != null && !claimed);
         });
         await _syncShipBeaconPlacement();
@@ -720,7 +717,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     if (mounted) {
       setState(() {
         _shipPresent = false;
-        _shipClaimed = true;
         _shipSceneId = null;
         _shipSpawnId = null;
       });
@@ -1144,7 +1140,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                         await settingsDao.setNavLocked(false);
 
                         // Pop back with a result indicating tutorial completion
-                        if (!mounted) return;
+                        if (!context.mounted) return;
                         Navigator.of(
                           context,
                         ).popUntil((route) => route.isFirst);
@@ -1195,7 +1191,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                               );
                             }
 
-                            if (!mounted) return;
+                            if (!context.mounted) return;
 
                             VoidPortal.pop(context);
                           },

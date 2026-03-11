@@ -87,7 +87,7 @@ class WingPierceMechanic {
       );
     }
 
-    print(
+    debugPrint(
       'Wing Pierce: element=$element rank=$rank victims=${pathVictims.length} damage=$damage ultimate=$hasUltimate',
     );
   }

@@ -79,7 +79,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
     if (_constellationTutorialChecked) return;
     _constellationTutorialChecked = true;
 
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     final db = context.read<AlchemonsDatabase>();
     final settings = db.settingsDao;
@@ -104,7 +104,10 @@ class _ConstellationScreenState extends State<ConstellationScreen>
               const SizedBox(width: 8),
               Text(
                 'Constellations 101',
-                style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
+                style: TextStyle(
+                  color: theme.text,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ],
           ),
@@ -114,28 +117,34 @@ class _ConstellationScreenState extends State<ConstellationScreen>
             children: [
               Text(
                 'Earn constellation points, spend them to unlock powerful skills, and explore three trees: Breeder, Combat and Extraction.',
-                style: TextStyle(color: theme.textMuted, fontSize: 12, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 10),
               TutorialStep(
                 theme: theme,
-                icon: Icons.bolt, 
+                icon: Icons.bolt,
                 title: 'Earn Points',
                 body: 'Breed creatures and complete milestones to gain points.',
               ),
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.lock_open, 
+                icon: Icons.lock_open,
                 title: 'Unlock Skills',
-                body: 'Spend points to unlock nodes that boost breeding, combat, or extraction.',
+                body:
+                    'Spend points to unlock nodes that boost breeding, combat, or extraction.',
               ),
               const SizedBox(height: 6),
               TutorialStep(
                 theme: theme,
-                icon: Icons.explore_rounded, 
+                icon: Icons.explore_rounded,
                 title: 'Explore Trees',
-                body: 'Switch tabs to view each tree and plan your progression.',
+                body:
+                    'Switch tabs to view each tree and plan your progression.',
               ),
             ],
           ),
@@ -143,9 +152,15 @@ class _ConstellationScreenState extends State<ConstellationScreen>
             TextButton(
               onPressed: () async {
                 await settings.setConstellationTutorialSeen();
-                if (mounted) Navigator.of(context).pop();
+                if (context.mounted) Navigator.of(context).pop();
               },
-              child: Text('Got it', style: TextStyle(color: theme.primary, fontWeight: FontWeight.w900)),
+              child: Text(
+                'Got it',
+                style: TextStyle(
+                  color: theme.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
           ],
         );
@@ -324,7 +339,10 @@ class _ConstellationScreenState extends State<ConstellationScreen>
           stops: const [0.0, 0.65, 1.0],
         ),
         border: Border(
-          bottom: BorderSide(color: theme.primary.withValues(alpha: 0.15), width: 1),
+          bottom: BorderSide(
+            color: theme.primary.withValues(alpha: 0.15),
+            width: 1,
+          ),
         ),
       ),
       child: Row(
@@ -378,7 +396,9 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                         borderRadius: BorderRadius.circular(2),
                         child: LinearProgressIndicator(
                           value: progress,
-                          backgroundColor: theme.primary.withValues(alpha: 0.12),
+                          backgroundColor: theme.primary.withValues(
+                            alpha: 0.12,
+                          ),
                           valueColor: AlwaysStoppedAnimation(
                             theme.primary.withValues(alpha: 0.7),
                           ),
@@ -512,7 +532,10 @@ class _ConstellationScreenState extends State<ConstellationScreen>
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.border.withValues(alpha: 0.4), width: 1),
+        border: Border.all(
+          color: theme.border.withValues(alpha: 0.4),
+          width: 1,
+        ),
       ),
       child: TabBar(
         controller: _tabController,
@@ -566,7 +589,10 @@ class _ConstellationScreenState extends State<ConstellationScreen>
           ],
         ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.primary.withValues(alpha: 0.2), width: 1),
+        border: Border.all(
+          color: theme.primary.withValues(alpha: 0.2),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: theme.primary.withValues(alpha: 0.08),
@@ -583,14 +609,20 @@ class _ConstellationScreenState extends State<ConstellationScreen>
             // Thin top accent bar that looks like an energy meter
             Stack(
               children: [
-                Container(height: 3, color: theme.primary.withValues(alpha: 0.1)),
+                Container(
+                  height: 3,
+                  color: theme.primary.withValues(alpha: 0.1),
+                ),
                 FractionallySizedBox(
                   widthFactor: treeProgress,
                   child: Container(
                     height: 3,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [theme.primary.withValues(alpha: 0.4), theme.primary],
+                        colors: [
+                          theme.primary.withValues(alpha: 0.4),
+                          theme.primary,
+                        ],
                       ),
                     ),
                   ),
@@ -708,7 +740,10 @@ class _ConstellationScreenState extends State<ConstellationScreen>
           decoration: BoxDecoration(
             color: theme.isDark ? const Color(0xFF0E1118) : theme.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.primary.withValues(alpha: 0.5), width: 2),
+            border: Border.all(
+              color: theme.primary.withValues(alpha: 0.5),
+              width: 2,
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1068,6 +1103,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
     final theme = context.read<FactionTheme>();
     final isUnlocked = await service.isSkillUnlocked(skill.id);
     final canUnlock = await service.canUnlockSkill(skill.id);
+    if (!context.mounted) return;
 
     if (isUnlocked) {
       // Show info about unlocked skill
@@ -1235,7 +1271,9 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: theme.primary.withValues(alpha: 0.3)),
+                      side: BorderSide(
+                        color: theme.primary.withValues(alpha: 0.3),
+                      ),
                     ),
                   ),
                   child: Text(
@@ -1340,7 +1378,9 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                     ],
                   ),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: theme.primary.withValues(alpha: 0.35)),
+                  border: Border.all(
+                    color: theme.primary.withValues(alpha: 0.35),
+                  ),
                 ),
                 child: Row(
                   children: [

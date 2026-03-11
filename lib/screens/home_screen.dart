@@ -145,7 +145,7 @@ class _MainShellState extends State<MainShell> {
 // Wrapper that pulses the cosmic orb when the ship home-animation flag is pending.
 class _AnimatedCosmicOrb extends StatefulWidget {
   final VoidCallback? onPulse;
-  const _AnimatedCosmicOrb({super.key, this.onPulse});
+  const _AnimatedCosmicOrb({this.onPulse});
 
   @override
   State<_AnimatedCosmicOrb> createState() => _AnimatedCosmicOrbState();
@@ -569,6 +569,7 @@ class _HomeScreenState extends State<HomeScreen>
       debugPrint('🎯 Featured baseId: ${featuredInstance?.baseId}');
 
       if (featuredInstance != null) {
+        if (!mounted) return;
         final repo = context.read<CreatureCatalog>();
         final base = repo.getCreatureById(featuredInstance.baseId);
 
@@ -831,6 +832,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+    if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
 
     // Build futures for unlocked biomes
@@ -1118,6 +1120,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     // Step 1: pick species
+    if (!mounted) return;
     final pickedSpeciesId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -1147,6 +1150,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (species == null) return;
 
     // Step 2: pick instance of that species
+    if (!mounted) return;
     final pickedInstance = await showModalBottomSheet<CreatureInstance>(
       context: context,
       isScrollControlled: true,
@@ -1195,6 +1199,7 @@ class _HomeScreenState extends State<HomeScreen>
     final base = repo.getCreatureById(inst.baseId);
     if (base == null) return;
 
+    if (!mounted) return;
     CreatureDetailsDialog.show(
       context,
       base,

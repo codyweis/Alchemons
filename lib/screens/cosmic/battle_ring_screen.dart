@@ -155,16 +155,16 @@ class _BattleRingScreenState extends State<BattleRingScreen>
     final endBase = maxCap / 1.4; // ~3.39
     final statBase = startBase + (widget.level * (endBase - startBase) / 9.0);
     final rng = Random();
-    double _randStat() {
+    double randStat() {
       return statBase + rng.nextDouble() * (statBase * 0.4);
     }
 
     hydrated = hydrated.copyWith(
       stats: CreatureStats(
-        speed: _randStat(),
-        intelligence: _randStat(),
-        strength: _randStat(),
-        beauty: _randStat(),
+        speed: randStat(),
+        intelligence: randStat(),
+        strength: randStat(),
+        beauty: randStat(),
         speedPotential: maxCap,
         intelligencePotential: maxCap,
         strengthPotential: maxCap,

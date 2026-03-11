@@ -741,7 +741,7 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  Widget _buildExplorationGrid(
+  Widget buildExplorationGrid(
     FactionTheme theme,
     Map<String, int> allCurrencies,
     Map<String, int> inventory,
@@ -1508,6 +1508,7 @@ class _ShopScreenState extends State<ShopScreen> {
       // a creature id via onSelectCreature).
       final gameData = context.read<GameDataService>();
       final discovered = await gameData.watchDiscoveredEntries().first;
+      if (!context.mounted) return;
       final creatureId = await CreatureSelectionSheet.show<String?>(
         context: context,
         discoveredCreatures: discovered,
@@ -1520,6 +1521,7 @@ class _ShopScreenState extends State<ShopScreen> {
       final creature = gameData.getCreatureById(creatureId);
       if (creature == null) return;
 
+      if (!context.mounted) return;
       final instanceId = await showModalBottomSheet<String?>(
         context: context,
         isScrollControlled: true,
@@ -1563,6 +1565,7 @@ class _ShopScreenState extends State<ShopScreen> {
         icon: Icons.flag_rounded,
         color: const Color(0xFF7C3AED),
       );
+      if (!context.mounted) return;
       await Navigator.of(context).push(
         CupertinoPageRoute(
           fullscreenDialog: true,

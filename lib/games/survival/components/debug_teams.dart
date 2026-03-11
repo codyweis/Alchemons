@@ -796,8 +796,8 @@ class DebugTeams {
   }
 
   /// Convenience to enumerate all debug parties with labels.
-  static List<_DebugTeamInfo> allTeams() => [
-    _DebugTeamInfo(
+  static List<DebugTeamInfo> allTeams() => [
+    DebugTeamInfo(
       id: 'team1',
       label: 'Test Squad (Nature/Physical)',
       party: makeTeamOne(),
@@ -805,12 +805,12 @@ class DebugTeams {
   ];
 }
 
-class _DebugTeamInfo {
+class DebugTeamInfo {
   final String id;
   final String label;
   final List<PartyMember> party;
 
-  const _DebugTeamInfo({
+  const DebugTeamInfo({
     required this.id,
     required this.label,
     required this.party,

@@ -19,14 +19,14 @@ import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 
 /// Animation + FX knobs mapped by rarity.
 /// Higher rarity => stronger particles, faster swirl, shinier frame.
-class _RarityFX {
+class RarityFX {
   final double particleMult; // scales particleCount
   final double speedMult; // scales particle system speed
   final double frameGlow; // 0..1 halo strength
   final bool shimmer; // animated gradient frame
   final bool twinkle; // subtle sparkles overlay
   final bool pulse; // slow radial pulsing
-  const _RarityFX({
+  const RarityFX({
     required this.particleMult,
     required this.speedMult,
     required this.frameGlow,
@@ -40,31 +40,31 @@ class _RarityFX {
 extension VialRarityFx on VialRarity {
   String get label => kRarityOrder[index];
 
-  _RarityFX get fx {
+  RarityFX get fx {
     switch (this) {
       case VialRarity.common:
-        return const _RarityFX(
+        return const RarityFX(
           particleMult: 0.60,
           speedMult: 0.50,
           frameGlow: 0.10,
           shimmer: false,
         );
       case VialRarity.uncommon:
-        return const _RarityFX(
+        return const RarityFX(
           particleMult: 0.80,
           speedMult: 0.80,
           frameGlow: 0.18,
           shimmer: false,
         );
       case VialRarity.rare:
-        return const _RarityFX(
+        return const RarityFX(
           particleMult: 1.00,
           speedMult: 1.10,
           frameGlow: 0.24,
           shimmer: true,
         );
       case VialRarity.legendary:
-        return const _RarityFX(
+        return const RarityFX(
           particleMult: 1.25,
           speedMult: 1.40,
           frameGlow: 0.32,
@@ -72,7 +72,7 @@ extension VialRarityFx on VialRarity {
           twinkle: true,
         );
       case VialRarity.mythic:
-        return const _RarityFX(
+        return const RarityFX(
           particleMult: 1.50,
           speedMult: 1.75,
           frameGlow: 0.40,

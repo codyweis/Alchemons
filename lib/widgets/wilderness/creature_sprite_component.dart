@@ -17,7 +17,7 @@ import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 
 class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
-    with HasGameRef<G> {
+    with HasGameReference<G> {
   final SpriteSheetDef sheet;
   final SpriteVisuals visuals;
   final Vector2 desiredSize;
@@ -55,7 +55,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
 
     Image image;
     try {
-      image = await gameRef.images.load(sheet.path);
+      image = await game.images.load(sheet.path);
     } catch (e) {
       image = await _loadFallbackImage();
     }
@@ -94,7 +94,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   Future<Image> _loadFallbackImage() async {
     // Fallback logic: load a default image or handle the error gracefully
     // For now, just load a placeholder image
-    return await gameRef.images.load('backgrounds/scenes/swamp/sky.png');
+    return await game.images.load('backgrounds/scenes/swamp/sky.png');
   }
 
   PositionComponent? _buildEffectComponent(String effect) {
@@ -186,9 +186,9 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
     final tintColor = visuals.tint ?? _deriveVariantTint();
 
     if (tintColor != null && !(_isAlbino && !visuals.isPrismatic)) {
-      final tr = tintColor.red / 255.0;
-      final tg = tintColor.green / 255.0;
-      final tb = tintColor.blue / 255.0;
+      final tr = tintColor.r;
+      final tg = tintColor.g;
+      final tb = tintColor.b;
 
       // Modulate RGB channels by tint; keep alpha.
       final tintMatrix = <double>[

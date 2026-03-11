@@ -109,11 +109,12 @@ class _AlchemyFusionCinematicPageState<T>
       await _flashCtrl.forward(from: 0);
       await Future.delayed(const Duration(milliseconds: 80));
     } finally {
-      if (!mounted) return;
-      if (_err != null) {
-        Navigator.of(context).pop<T>(null); // let caller handle error
-      } else {
-        Navigator.of(context).pop<T>(_result);
+      if (mounted) {
+        if (_err != null) {
+          Navigator.of(context).pop<T>(null); // let caller handle error
+        } else {
+          Navigator.of(context).pop<T>(_result);
+        }
       }
     }
   }
@@ -494,7 +495,10 @@ class _BeamPulse extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  colors: [mix.withValues(alpha: .15 * opacity), mix.withValues(alpha: .0)],
+                  colors: [
+                    mix.withValues(alpha: .15 * opacity),
+                    mix.withValues(alpha: .0),
+                  ],
                   stops: const [0.0, 1.0],
                 ),
               ),

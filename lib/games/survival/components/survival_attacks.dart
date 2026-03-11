@@ -83,13 +83,13 @@ double calcDmg(HoardGuardian att, HoardEnemy? def) {
 
   // 🧪 DAMAGE DEBUG
   if (_debugAttackLogs) {
-    print('''
+    debugPrint('''
 [DMG DEBUG]
   Wave: ${att.game.currentWave}
   Attacker: ${att.unit.id} (${att.unit.family})
     HP: ${att.unit.currentHp}/${att.unit.maxHp}
     physAtk: ${att.unit.physAtk}, elemAtk: ${att.unit.elemAtk}
-  Target: ${defUnit.name} (tier: ${def?.template.tier.tier ?? '-'} wave: ${def?.gameRef.currentWave ?? '-'})
+  Target: ${defUnit.name} (tier: ${def?.template.tier.tier ?? '-'} wave: ${def?.game.currentWave ?? '-'})
     HP: ${defUnit.currentHp}/${defUnit.maxHp}
   BaseHit: $dmg
 ''');
@@ -302,7 +302,7 @@ class SurvivalAttackManager {
 
     // 🔥 BASIC ATTACK DEBUG
     if (_debugAttackLogs) {
-      print('''
+      debugPrint('''
 [BASIC ATTACK]
   Wave: ${game.currentWave}
   Attacker: ${attacker.unit.id} (${attacker.unit.family})

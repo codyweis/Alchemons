@@ -128,7 +128,7 @@ class SceneGame extends FlameGame with ScaleDetector {
   double scrollSensitivity = 0.3;
 
   // Viewport height in root space (used for spawnPoint world coords)
-  double _Vh = 0;
+  double _viewportH = 0;
 
   // Scene mode
   SceneMode _mode = SceneMode.exploration;
@@ -193,16 +193,16 @@ class SceneGame extends FlameGame with ScaleDetector {
     // Where we THINK it is
     final calculatedWild = Vector2(
       sp.normalizedPos.dx * baseW,
-      sp.normalizedPos.dy * _Vh,
+      sp.normalizedPos.dy * _viewportH,
     );
 
-    final calculatedParty = Vector2(bp.dx * baseW, bp.dy * _Vh);
+    final calculatedParty = Vector2(bp.dx * baseW, bp.dy * _viewportH);
 
     debugPrint('\n🐛 ENCOUNTER FRAME DEBUG for $spawnId:');
     debugPrint(
       '├─ Layer: ${sp.anchor} (parallax: ${scene.layers.firstWhere((l) => l.id == sp.anchor).parallaxFactor})',
     );
-    debugPrint('├─ World size: ${baseW.toInt()} x ${_Vh.toInt()}');
+    debugPrint('├─ World size: ${baseW.toInt()} x ${_viewportH.toInt()}');
     debugPrint('├─ Viewport: ${size.x.toInt()} x ${size.y.toInt()}');
     debugPrint('├─ Root scale: ${layersRoot.scale.x}');
     debugPrint('│');
@@ -278,7 +278,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     // Add spawn anchors
     _addSpawnPoints();
 
-    // Reposition spawns using _Vh (already set by _layoutLayersForScreen above)
+    // Reposition spawns using _viewportH (already set by _layoutLayersForScreen above)
     _repositionSpawnPoints();
 
     // Ship placement may be requested before spawn anchors are ready.
@@ -457,7 +457,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       final parent = _layers[p.anchor]?.container ?? layersRoot;
 
       final baseW = scene.worldWidth.toDouble();
-      final baseH = _Vh;
+      final baseH = _viewportH;
 
       final x = p.normalizedPos.dx * baseW;
       final y = p.normalizedPos.dy * baseH;
@@ -525,7 +525,7 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     const encounterZoom = 1.3; // Gentle zoom
     final root = layersRoot.scale.x;
-    final worldHeight = _Vh;
+    final worldHeight = _viewportH;
 
     final halfW = size.x / (2 * encounterZoom * root);
     final halfH = size.y / (2 * encounterZoom * root);
@@ -578,7 +578,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     final baseW = scene.worldWidth.toDouble();
     final battlePos = sp.getBattlePos();
     final rawX = battlePos.dx * baseW;
-    final rawY = battlePos.dy * _Vh;
+    final rawY = battlePos.dy * _viewportH;
     var x = rawX;
     var y = rawY;
 
@@ -603,7 +603,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     } else if (dx < minPairGap) {
       x = (wildX + signed * minPairGap).clamp(minX, maxX);
     }
-    y = y.clamp(90.0, _Vh - 90.0);
+    y = y.clamp(90.0, _viewportH - 90.0);
 
     debugPrint('🎮 Spawning party at ($x, $y)');
 
@@ -695,7 +695,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     final focusBiased = Vector2(focusX, focusY + groundBias);
 
     final maxCamX = math.max(0.0, scene.worldWidth.toDouble() - 2 * halfW);
-    final maxCamY = math.max(0.0, _Vh - 2 * halfH);
+    final maxCamY = math.max(0.0, _viewportH - 2 * halfH);
 
     // Parallax offsets layer X only; Y remains unscaled world camera.
     double camX = ((focusBiased.x - halfW) / (1.0 + parallaxFactor)).clamp(
@@ -735,7 +735,7 @@ class SceneGame extends FlameGame with ScaleDetector {
         0.0,
         scene.worldWidth.toDouble() - 2 * loopHalfW,
       );
-      final loopMaxCamY = math.max(0.0, _Vh - 2 * loopHalfH);
+      final loopMaxCamY = math.max(0.0, _viewportH - 2 * loopHalfH);
 
       camX = ((focusBiased.x - loopHalfW) / (1.0 + parallaxFactor)).clamp(
         0.0,
@@ -951,18 +951,18 @@ class SceneGame extends FlameGame with ScaleDetector {
   void _layoutLayersForScreen() {
     // Convert the current Flame game size into "root space"
     final invRootScale = 1.0 / layersRoot.scale.x;
-    final Vr = size.x * invRootScale;
-    final Vh = size.y * invRootScale;
+    final viewportW = size.x * invRootScale;
+    final viewportH = size.y * invRootScale;
     // Image-backed scenes use rendered visual height to prevent panning/spawns
     // below the map art. Void-style scenes keep configured world height.
-    _Vh = _hasImageLayers ? Vh : scene.worldHeight.toDouble();
+    _viewportH = _hasImageLayers ? viewportH : scene.worldHeight.toDouble();
 
     final worldMaxCamX = max(0.0, scene.worldWidth - size.x);
 
     Vector2 heightFitTile(Sprite s) {
       final imgW = s.image.width.toDouble();
       final imgH = s.image.height.toDouble();
-      final scale = Vh / imgH;
+      final scale = viewportH / imgH;
       return Vector2(imgW * scale, imgH * scale);
     }
 
@@ -971,7 +971,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       final tileW = t.x * layer.widthMul;
 
       // How wide this layer needs to be so we can't scroll past empty space
-      final requiredW = Vr + layer.parallaxFactor * worldMaxCamX;
+      final requiredW = viewportW + layer.parallaxFactor * worldMaxCamX;
 
       // +2 tiles for safety so there aren't seams at edges
       final tiles = max(3, (requiredW / max(1e-6, tileW)).ceil() + 2);
@@ -988,11 +988,11 @@ class SceneGame extends FlameGame with ScaleDetector {
   void _recomputeMaxCamBounds() {
     // How much world fits on screen at current zoom
     final inv = 1.0 / (layersRoot.scale.x * cam.viewfinder.zoom);
-    final Vr = size.x * inv;
-    final Vh = size.y * inv;
+    final viewportW = size.x * inv;
+    final viewportH = size.y * inv;
 
     double layerMaxCamX(_FiniteLayer layer, double pf) {
-      final exposed = layer.totalWidth - Vr;
+      final exposed = layer.totalWidth - viewportW;
       if (pf == 0.0) {
         // Background layers with pf=0 should just never create gaps
         return exposed >= -1e-3 ? double.infinity : 0.0;
@@ -1020,8 +1020,8 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
 
     // Vertical clamp range is based on total visible content height.
-    final contentHeight = _Vh;
-    _maxCamY = max(0.0, contentHeight - Vh);
+    final contentHeight = _viewportH;
+    _maxCamY = max(0.0, contentHeight - viewportH);
   }
 
   void _applyCamera() {
@@ -1037,10 +1037,10 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   void _updateParallaxLayers() {
     final invRootAndZoom = 1.0 / (layersRoot.scale.x * cam.viewfinder.zoom);
-    final Vr = size.x * invRootAndZoom;
+    final viewportW = size.x * invRootAndZoom;
 
     for (final l in _layers.values) {
-      l.updateOffsetClamped(_cameraX, Vr);
+      l.updateOffsetClamped(_cameraX, viewportW);
     }
   }
 
@@ -1052,7 +1052,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       // ✅ Same coordinate system as above
       final baseW = scene.worldWidth.toDouble();
       final x = p.normalizedPos.dx * baseW;
-      final y = p.normalizedPos.dy * _Vh;
+      final y = p.normalizedPos.dy * _viewportH;
       comp.position.setValues(x, y);
     }
   }
@@ -1062,7 +1062,7 @@ class SceneGame extends FlameGame with ScaleDetector {
 // WildMonComponent: shows a single creature at a spawn point.
 // ------------------------------------------------------------
 class WildMonComponent extends PositionComponent
-    with TapCallbacks, HasGameRef<SceneGame> {
+    with TapCallbacks, HasGameReference<SceneGame> {
   final String speciesId;
   final String rarityLabel;
   final VoidCallback onTap;
@@ -1097,7 +1097,7 @@ class WildMonComponent extends PositionComponent
 
       final imagePath = sheet.path;
       try {
-        await gameRef.images.load(imagePath);
+        await game.images.load(imagePath);
       } catch (e) {
         debugPrint('Failed to load sprite: $imagePath - $e');
         _addFallbackBlob();
@@ -1126,7 +1126,7 @@ class WildMonComponent extends PositionComponent
 
       // 🆕 ADD THIS BLOCK AFTER _addTapPulse():
       // Add tutorial highlight if in tutorial mode
-      if (gameRef.isTutorialMode) {
+      if (game.isTutorialMode) {
         final highlight = TutorialCreatureHighlight(
           radius: size.x * 0.5,
           glowColor: Colors.amber,
@@ -1229,12 +1229,10 @@ class WildMonComponent extends PositionComponent
   /// (e.g. the arcane void).
   void _maybeAddBacklight() {
     if (hydrated == null) return;
-    if (gameRef.transparentBackground) return;
+    if (game.transparentBackground) return;
 
     // Only apply in dark-backdrop scenes (all layers have empty imagePath)
-    final hasDarkBackdrop = gameRef.scene.layers.every(
-      (l) => l.imagePath.isEmpty,
-    );
+    final hasDarkBackdrop = game.scene.layers.every((l) => l.imagePath.isEmpty);
     if (!hasDarkBackdrop) return;
 
     final types = hydrated!.types;

@@ -78,7 +78,7 @@ class HornNovaMechanic {
     SurvivalAttackManager.triggerScreenShake(game, isCataclysmic ? 10.0 : 5.0);
 
     final victims = game.getEnemiesInRange(attacker.position, radius);
-    print('[HORN] victims in radius=$radius -> ${victims.length}');
+    debugPrint('[HORN] victims in radius=$radius -> ${victims.length}');
     for (final v in victims) {
       final dist = v.position
           .distanceTo(attacker.position)

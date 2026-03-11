@@ -136,6 +136,7 @@ class EggHatching {
         );
       }
 
+      if (!context.mounted) return HatchingResult.success();
       await _afterHatchCommon(
         context: context,
         slot: slot,
@@ -200,6 +201,7 @@ class EggHatching {
       );
     }
 
+    if (!context.mounted) return HatchingResult.success();
     await _afterHatchCommon(
       context: context,
       slot: slot,
@@ -270,6 +272,9 @@ class EggHatching {
     final payloadJson = payload.toJsonString();
 
     final eggId = db.creatureDao.makeInstanceId('EGG');
+    if (!context.mounted) {
+      return HatchingResult(success: false, message: 'Screen was closed');
+    }
     final adjustedHatchDelay = _calculateHatchTime(
       context,
       offspring,
@@ -420,6 +425,7 @@ class EggHatching {
     }
 
     // 👇 Capture a stable, root-level context up front
+    if (!context.mounted) return;
     final NavigatorState nav = Navigator.of(context, rootNavigator: true);
     final BuildContext safeContext = nav.context;
 
@@ -501,6 +507,7 @@ class EggHatching {
         quality: cinematicQuality,
       );
     } catch (e) {
+      if (!context.mounted) return;
       final factionSvc = context.read<FactionService>();
       final faction = factionSvc.current;
       await playHatchCinematic(
@@ -513,6 +520,7 @@ class EggHatching {
 
     if (!nav.mounted) return;
 
+    if (!safeContext.mounted) return;
     await _showExtractionResult(
       safeContext,
       instanceId,
@@ -523,6 +531,7 @@ class EggHatching {
     final recipeDiscovery = await recipeDiscoveryFuture.catchError(
       (_) => EncyclopediaDiscoveryResult.none,
     );
+    if (!safeContext.mounted) return;
     if (recipeDiscovery.hasAny) {
       _showScorchedDiscoveryOverlay(
         safeContext,
@@ -649,6 +658,7 @@ class EggHatching {
   }) async {
     final offspring = await _effectiveFromInstance(context, instanceId);
 
+    if (!context.mounted) return;
     final factionSvc = context.read<FactionService>();
     final currentFaction = factionSvc.current;
     final factionColors = getFactionColors(currentFaction);
@@ -674,6 +684,7 @@ class EggHatching {
         .creatureDao
         .getInstance(instanceId);
 
+    if (!context.mounted) return;
     final media = MediaQuery.of(context);
     final shortestSide = media.size.shortestSide;
     final lowFxDevice = media.disableAnimations || shortestSide < 430;
@@ -693,6 +704,7 @@ class EggHatching {
       );
     }
 
+    if (!context.mounted) return;
     await showDialog(
       context: context,
       barrierDismissible: false,

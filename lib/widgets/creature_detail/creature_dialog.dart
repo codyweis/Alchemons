@@ -397,9 +397,10 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     } catch (_) {
       // fall back to base creature
     } finally {
-      if (!mounted) return;
-      _hydratingInstance = false;
-      setState(() {});
+      if (mounted) {
+        _hydratingInstance = false;
+        setState(() {});
+      }
     }
   }
 
@@ -511,6 +512,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     );
 
     if (newName == null) return;
+    if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
     final normalized = newName.isEmpty ? null : newName;
     await db.creatureDao.setNickname(i.instanceId, normalized);

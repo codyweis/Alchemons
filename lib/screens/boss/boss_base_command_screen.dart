@@ -492,6 +492,7 @@ class _UpgradeCard extends StatelessWidget {
                 _ForgeButton(
                   label: '${nextCost ?? 0}',
                   icon: Icons.paid_rounded,
+                  loading: purchasing,
                   onTap: (canAfford && !purchasing) ? onUpgrade : null,
                 ),
             ],

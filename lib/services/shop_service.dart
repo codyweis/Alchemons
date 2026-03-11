@@ -1127,7 +1127,7 @@ class ShopService extends ChangeNotifier {
         return true;
       } catch (e, s) {
         if (kDebugMode) {
-          print('Error applying daily vial boost: $e\n$s');
+          debugPrint('Error applying daily vial boost: $e\n$s');
         }
         return false;
       }
@@ -1221,57 +1221,43 @@ class ShopService extends ChangeNotifier {
       case 'survival.orb.voidforge':
         await _db.settingsDao.setSetting(
           'survival.owned_skins',
-          (await _db.settingsDao.getSetting('survival.owned_skins') ??
-                  'defaultOrb') +
-              ',voidforgeOrb',
+          '${await _db.settingsDao.getSetting('survival.owned_skins') ?? 'defaultOrb'},voidforgeOrb',
         );
         return true;
       case 'survival.orb.celestial':
         await _db.settingsDao.setSetting(
           'survival.owned_skins',
-          (await _db.settingsDao.getSetting('survival.owned_skins') ??
-                  'defaultOrb') +
-              ',celestialOrb',
+          '${await _db.settingsDao.getSetting('survival.owned_skins') ?? 'defaultOrb'},celestialOrb',
         );
         return true;
       case 'survival.orb.infernal':
         await _db.settingsDao.setSetting(
           'survival.owned_skins',
-          (await _db.settingsDao.getSetting('survival.owned_skins') ??
-                  'defaultOrb') +
-              ',infernalOrb',
+          '${await _db.settingsDao.getSetting('survival.owned_skins') ?? 'defaultOrb'},infernalOrb',
         );
         return true;
       case 'survival.orb.frozen':
         await _db.settingsDao.setSetting(
           'survival.owned_skins',
-          (await _db.settingsDao.getSetting('survival.owned_skins') ??
-                  'defaultOrb') +
-              ',frozenNexusOrb',
+          '${await _db.settingsDao.getSetting('survival.owned_skins') ?? 'defaultOrb'},frozenNexusOrb',
         );
         return true;
       case 'survival.orb.phantom':
         await _db.settingsDao.setSetting(
           'survival.owned_skins',
-          (await _db.settingsDao.getSetting('survival.owned_skins') ??
-                  'defaultOrb') +
-              ',phantomWispOrb',
+          '${await _db.settingsDao.getSetting('survival.owned_skins') ?? 'defaultOrb'},phantomWispOrb',
         );
         return true;
       case 'survival.orb.prism':
         await _db.settingsDao.setSetting(
           'survival.owned_skins',
-          (await _db.settingsDao.getSetting('survival.owned_skins') ??
-                  'defaultOrb') +
-              ',prismHeartOrb',
+          '${await _db.settingsDao.getSetting('survival.owned_skins') ?? 'defaultOrb'},prismHeartOrb',
         );
         return true;
       case 'survival.orb.verdant':
         await _db.settingsDao.setSetting(
           'survival.owned_skins',
-          (await _db.settingsDao.getSetting('survival.owned_skins') ??
-                  'defaultOrb') +
-              ',verdantBloomOrb',
+          '${await _db.settingsDao.getSetting('survival.owned_skins') ?? 'defaultOrb'},verdantBloomOrb',
         );
         return true;
 

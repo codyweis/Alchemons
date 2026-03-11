@@ -7,7 +7,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 
 /// Push this screen and it will return the chosen instanceId (String)
-/// via Navigator.pop<String>(instanceId).
+/// via `Navigator.pop<String>(instanceId)`.
 class CompetitionPickerScreen extends StatefulWidget {
   const CompetitionPickerScreen({super.key, required this.biome});
 
@@ -194,7 +194,9 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: .05),
                             borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: accent.withValues(alpha: .45)),
+                            border: Border.all(
+                              color: accent.withValues(alpha: .45),
+                            ),
                           ),
                           child: Text(
                             t.toUpperCase(),

@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 
 class MapMarker {
@@ -19,7 +17,7 @@ class MapMarker {
   Color get color => _colors[colorIndex.clamp(0, 2)];
 
   String serialise() =>
-      '${worldPos.dx.toStringAsFixed(1)},${worldPos.dy.toStringAsFixed(1)},${colorIndex}';
+      '${worldPos.dx.toStringAsFixed(1)},${worldPos.dy.toStringAsFixed(1)},$colorIndex';
 
   factory MapMarker.deserialise(String raw) {
     final p = raw.split(',');

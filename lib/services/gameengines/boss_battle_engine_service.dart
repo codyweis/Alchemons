@@ -41,6 +41,7 @@ class BattleCombatant {
   int actionCooldown = 0; // Turns until this creature can act again
   String? tauntTargetId; // If set (on boss), must target this creature
   int? shieldHp;
+  int totalDamageDealt = 0; // Runtime telemetry for tactical boss targeting
 
   /// Backward compat: true when special is on cooldown
   bool get needsRecharge => specialCooldown > 0;
@@ -291,8 +292,11 @@ class BattleCombatant {
     }
   }
 
+  bool get isBanished => statusEffects.containsKey('banished');
+  bool get canBeTargeted => isAlive && !isBanished;
+
   /// Whether this creature can be selected to act this turn.
-  bool get canAct => isAlive && actionCooldown <= 0;
+  bool get canAct => isAlive && !isBanished && actionCooldown <= 0;
 }
 
 class StatusEffect {
@@ -421,13 +425,13 @@ class BattleMove {
       case 'Horn':
         return 3;
       case 'Mask':
-        return 3;
+        return 4;
       case 'Wing':
-        return 2;
+        return 4;
       case 'Kin':
         return 3;
       case 'Mystic':
-        return 2;
+        return 3;
       default:
         return 2;
     }
@@ -441,6 +445,128 @@ class BattleMove {
           battleSpecialName: 'Special Attack',
           summary: 'Family special move.',
         );
+  }
+
+  /// Human-readable boss-mode summary that matches implemented behavior.
+  static String specialSummaryForCombatant(BattleCombatant combatant) {
+    final family = combatant.family;
+    final element = combatant.types.isNotEmpty
+        ? combatant.types.first
+        : 'Normal';
+
+    switch (family) {
+      case 'Let':
+        return 'Heavy burst (1.4x) with $element rider effects from elemental status logic.';
+      case 'Pip':
+        return 'Frenzy combo: 2-4 rapid hits with escalating critical chance per hit.';
+      case 'Mane':
+        return 'Entangle: applies Speed/Defense debuffs to target and grants team regen for 2 turns.';
+      case 'Horn':
+        return 'Fortress: grants all allies shields (15% max HP) and taunts the boss for 2 turns.';
+      case 'Mask':
+        return 'Hex Field: applies curse/debuffs, and detonates existing curse for burst damage.';
+      case 'Wing':
+        switch (element) {
+          case 'Ice':
+            return 'Glacial Lance: focused beam with higher defense retention and freeze/slow rider.';
+          case 'Dust':
+            return 'Sandstorm Beam: deeper defense pierce plus blind-style attack/speed debuffs.';
+          case 'Lightning':
+            return 'Stormrail Beam: charged beam with bonus overcharge crit chance and speed jolt.';
+          default:
+            return 'Piercing Beam: high single-target damage that partially ignores defense with elemental rider.';
+        }
+      case 'Kin':
+        return 'Sanctuary: heals team (20%), cleanses negative effects, and grants defense-up.';
+      case 'Mystic':
+        return 'Arcane Orbitals: 3-hit burst plus a random elemental rider effect.';
+      default:
+        return styleForFamily(family).summary;
+    }
+  }
+
+  /// Boss-only gimmick summary keyed to the current implemented mechanics.
+  static String bossGimmickSummaryForCombatant(BattleCombatant combatant) {
+    switch (combatant.id) {
+      case 'boss_001':
+        return 'Inferno Execution: attacks deal double damage to burned targets.';
+      case 'boss_002':
+        return 'Undertow Control: slows targets, then Aqua-jet punishes slowed enemies.';
+      case 'boss_003':
+        return 'Stone Bastion: repeatedly stacks defense and temporary shielding.';
+      case 'boss_004':
+        return 'Jetstream Evasion: speed buffs grant a dodge window against attacks.';
+      case 'boss_005':
+        return 'Overgrowth Sustain: regeneration pressure with teamwide slows.';
+      case 'boss_006':
+        return 'Shatter Pattern: frozen targets take bonus burst damage.';
+      case 'boss_007':
+        return 'Charge Engine: Charge-up stores a doubled next damaging strike.';
+      case 'boss_008':
+        return 'Toxic Execution: poisoned targets take heavy bonus damage.';
+      case 'boss_009':
+        return 'Scalding Tempo: steam attacks spread burns and keep offensive pace.';
+      case 'boss_010':
+        return 'Molten Armor: attackers are burned while lava debuffs shred defenses.';
+      case 'boss_011':
+        return 'Sink Cycle: submerges for a turn, then returns with a boosted ambush.';
+      case 'boss_012':
+        return 'Mirage Screen: creates copies that absorb incoming hits.';
+      case 'boss_013':
+        return 'Prism Retaliation: elemental hits are reflected while shielded.';
+      case 'boss_014':
+        return 'Ethereal Purge: curses enemies and periodically self-cleanses.';
+      case 'boss_015':
+        return 'Void Banish: Eclipse banishes the highest damage dealer for 5 turns.';
+      case 'boss_016':
+        return 'Radiant Aegis: on first drop below 50% HP, gains a holy barrier.';
+      case 'boss_017':
+        return 'Blood Frenzy: damage scales up as HP drops, with bleed pressure.';
+      default:
+        return 'No unique boss special configured.';
+    }
+  }
+
+  static String _formatElementalSpecialName(
+    String family,
+    String element,
+    String baseName,
+  ) {
+    switch (family) {
+      case 'Wing':
+        switch (element) {
+          case 'Ice':
+            return 'Glacial Lance';
+          case 'Dust':
+            return 'Sandstorm Beam';
+          case 'Lightning':
+            return 'Stormrail Beam';
+          case 'Fire':
+            return 'Flare Lance';
+          default:
+            return '$element $baseName';
+        }
+      case 'Mask':
+        return '$element Hex Field';
+      case 'Mystic':
+        return '$element Orbitals';
+      default:
+        return '$element $baseName';
+    }
+  }
+
+  /// Element-aware special move (used for both move labels and behavior routing).
+  static BattleMove getSpecialMoveForCombatant(BattleCombatant combatant) {
+    final base = getSpecialMove(combatant.family);
+    final element = combatant.types.isNotEmpty ? combatant.types.first : '';
+    if (element.isEmpty) return base;
+    return BattleMove(
+      name: _formatElementalSpecialName(combatant.family, element, base.name),
+      type: base.type,
+      scalingStat: base.scalingStat,
+      isSpecial: base.isSpecial,
+      family: base.family,
+    );
   }
 
   // Basic moves from BasicAtks.csv
@@ -685,17 +811,30 @@ class BattleEngine {
     BattleAction action, {
     List<BattleCombatant>? allyTeam,
   }) {
-    final blocked = resolveTurnBlock(action.actor, action.move);
+    final attacker = action.actor;
+    final defender = action.target;
+    final move = action.move;
+
+    final blocked = resolveTurnBlock(attacker, move);
     if (blocked != null) return blocked;
+
+    if (!defender.canBeTargeted) {
+      return BattleResult(
+        damage: 0,
+        isCritical: false,
+        typeMultiplier: 1.0,
+        messages: [
+          '${attacker.name} used ${move.name}!',
+          '${defender.name} cannot be targeted right now.',
+        ],
+        targetDefeated: false,
+      );
+    }
 
     final messages = <String>[];
     int damage = 0;
     bool isCritical = false;
     double typeMultiplier = 1.0;
-
-    final attacker = action.actor;
-    final defender = action.target;
-    final move = action.move;
 
     messages.add('${attacker.name} used ${move.name}!');
 
@@ -787,6 +926,19 @@ class BattleEngine {
     BattleCombatant actor,
     BattleMove move,
   ) {
+    if (actor.isBanished) {
+      return BattleResult(
+        damage: 0,
+        isCritical: false,
+        typeMultiplier: 1.0,
+        messages: [
+          '${actor.name} used ${move.name}!',
+          '${actor.name} is trapped in the void and cannot act!',
+        ],
+        targetDefeated: false,
+      );
+    }
+
     // Frozen: 30% chance to lose turn
     if (actor.statusEffects.containsKey('freeze')) {
       if (_random.nextDouble() < 0.3) {
@@ -997,24 +1149,56 @@ class BattleEngine {
         }
 
       case 'Wing': // Piercing Beam — Massive damage, partially ignores defense
-        // Calculate damage ignoring 50% of defense
+        final element = attacker.types.isNotEmpty ? attacker.types.first : '';
+        var defenseRetained = 0.50;
+        var beamMultiplier = 1.60;
+        var bonusCritChance = 0.0;
+
+        switch (element) {
+          case 'Ice':
+            defenseRetained = 0.55;
+            beamMultiplier = 1.45;
+            messages.add('Glacial lance pins the target in place!');
+            break;
+          case 'Dust':
+            defenseRetained = 0.42;
+            beamMultiplier = 1.35;
+            messages.add('Sandstorm beam blots out vision!');
+            break;
+          case 'Lightning':
+            defenseRetained = 0.50;
+            beamMultiplier = 1.50;
+            bonusCritChance = 0.22;
+            messages.add('Stormrail beam crackles with charged force!');
+            break;
+          default:
+            break;
+        }
+
+        // Calculate damage with element-specific defense piercing profile.
         final attackStat = action.move.type == MoveType.physical
             ? attacker.getEffectivePhysAtk()
             : attacker.getEffectiveElemAtk();
         final defStat = action.move.type == MoveType.physical
             ? defender.getEffectivePhysDef()
             : defender.getEffectiveElemDef();
-        final reducedDef = (defStat * 0.5).toInt();
+        final reducedDef = (defStat * defenseRetained).toInt();
         var beamDamage = max(1, (attackStat * 2) - reducedDef);
-        beamDamage = (beamDamage * 1.6).toInt();
+        beamDamage = (beamDamage * beamMultiplier).toInt();
 
         // Variance
         final variance = 0.9 + (_random.nextDouble() * 0.2);
         beamDamage = (beamDamage * variance).toInt();
 
+        if (bonusCritChance > 0 && _random.nextDouble() < bonusCritChance) {
+          beamDamage = (beamDamage * 1.35).toInt();
+          messages.add('Overcharge critical!');
+        }
+
         defender.takeDamage(beamDamage);
         messages.add('Piercing Beam tears through defenses!');
         messages.add('${defender.name} took $beamDamage damage!');
+        _applyElementalEffect(attacker, defender, messages);
 
         return BattleResult(
           damage: beamDamage,
@@ -1197,12 +1381,70 @@ class BattleEngine {
         );
         messages.add("${attacker.name}'s Attack rose!");
         break;
+
+      case 'Lightning':
+        defender.applyStatModifier(
+          StatModifier(type: 'speed_down', duration: 1),
+        );
+        messages.add('${defender.name} was jolted!');
+        break;
+
+      case 'Air':
+        defender.applyStatModifier(
+          StatModifier(type: 'speed_down', duration: 2),
+        );
+        messages.add('${defender.name} was battered by gale force!');
+        break;
+
+      case 'Steam':
+        defender.applyStatusEffect(
+          StatusEffect(
+            type: 'burn',
+            damagePerTurn: (defender.maxHp * 0.04 * statusScale).toInt(),
+            duration: 2,
+          ),
+        );
+        defender.applyStatModifier(
+          StatModifier(type: 'attack_down', duration: 1),
+        );
+        messages.add('${defender.name} was scalded by steam!');
+        break;
+
+      case 'Dust':
+        defender.applyStatModifier(
+          StatModifier(type: 'attack_down', duration: 2),
+        );
+        defender.applyStatModifier(
+          StatModifier(type: 'speed_down', duration: 1),
+        );
+        messages.add('${defender.name} was blinded by dust!');
+        break;
+
+      case 'Spirit':
+        defender.applyStatusEffect(
+          StatusEffect(
+            type: 'curse',
+            damagePerTurn: (defender.maxHp * 0.07 * statusScale).toInt(),
+            duration: 2,
+          ),
+        );
+        messages.add('${defender.name} was haunted!');
+        break;
     }
   }
 
   /// Process end-of-turn effects (DoT, regen, etc.)
   static List<String> processEndOfTurnEffects(BattleCombatant combatant) {
     final messages = <String>[];
+
+    // Banished units are out of phase: do not process incoming/outgoing
+    // periodic damage while in the void, but timers still tick below.
+    if (combatant.isBanished) {
+      combatant.tickStatusEffects();
+      combatant.tickStatModifiers();
+      combatant.tickTaunt();
+      return messages;
+    }
 
     // Process status effects
     for (final effect in combatant.statusEffects.values) {

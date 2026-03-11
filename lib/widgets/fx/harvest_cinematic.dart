@@ -115,8 +115,9 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
         await _flashCtrl.forward(from: 0);
         await Future.delayed(const Duration(milliseconds: 100));
       } finally {
-        if (!mounted) return;
-        Navigator.of(context).pop<bool>(true);
+        if (mounted) {
+          Navigator.of(context).pop<bool>(true);
+        }
       }
     } else {
       // Failure: error shake + light haptic
@@ -125,8 +126,9 @@ class _HarvestCinematicPageState extends State<_HarvestCinematicPage>
         await _failShakeCtrl.forward(from: 0);
         await Future.delayed(const Duration(milliseconds: 600));
       } finally {
-        if (!mounted) return;
-        Navigator.of(context).pop<bool>(false);
+        if (mounted) {
+          Navigator.of(context).pop<bool>(false);
+        }
       }
     }
   }
@@ -461,7 +463,10 @@ class _HarvestRingsPainter extends CustomPainter {
     final coreR = baseR * (0.15 + corePulse * 0.08);
     final corePaint = Paint()
       ..shader = RadialGradient(
-        colors: [color.withValues(alpha: .6), Colors.white.withValues(alpha: .0)],
+        colors: [
+          color.withValues(alpha: .6),
+          Colors.white.withValues(alpha: .0),
+        ],
       ).createShader(Rect.fromCircle(center: c, radius: coreR * 2));
     canvas.drawCircle(c, coreR * 2, corePaint);
   }

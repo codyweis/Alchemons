@@ -15,8 +15,9 @@ class EffectRegistry {
     final id = json['id'] as String?;
     if (id == null) throw StateError('Effect JSON missing id');
     final factory = _factories[id];
-    if (factory == null)
+    if (factory == null) {
       throw StateError('No factory registered for effect $id');
+    }
     return factory(json);
   }
 

@@ -16,6 +16,12 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
   // Create instance per DAO instance instead of global
   final PushNotificationService _pushNotifications = PushNotificationService();
 
+  int _normalizeRatePerMinute(int ratePerMinute) {
+    if (ratePerMinute < 1) return 1;
+    if (ratePerMinute > 5000) return 5000;
+    return ratePerMinute;
+  }
+
   // =================== BIOME HARVEST ===================
 
   Stream<List<BiomeFarm>> watchBiomes() =>
@@ -68,7 +74,7 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
       creatureInstanceId: job.creatureInstanceId,
       startUtcMs: job.startUtcMs,
       durationMs: job.durationMs,
-      ratePerMinute: job.ratePerMinute,
+      ratePerMinute: _normalizeRatePerMinute(job.ratePerMinute),
     );
   }
 
@@ -101,6 +107,7 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
 
     final startTime = DateTime.now().toUtc();
     final startMs = startTime.millisecondsSinceEpoch;
+    final normalizedRatePerMinute = _normalizeRatePerMinute(ratePerMinute);
 
     await into(biomeJobs).insert(
       BiomeJobsCompanion(
@@ -109,7 +116,7 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
         creatureInstanceId: Value(creatureInstanceId),
         startUtcMs: Value(startMs),
         durationMs: Value(duration.inMilliseconds),
-        ratePerMinute: Value(ratePerMinute),
+        ratePerMinute: Value(normalizedRatePerMinute),
       ),
     );
 

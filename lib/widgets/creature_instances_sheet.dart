@@ -443,7 +443,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                                         .difference(now)
                                         .inMinutes
                                         .clamp(0, 999);
-                                    if (!mounted) return;
+                                    if (!context.mounted) return;
                                     ScaffoldMessenger.of(
                                       context,
                                     ).showSnackBar(_staminaSnackBar(mins));

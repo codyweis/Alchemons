@@ -28,13 +28,13 @@ class InventoryItemDef {
   });
 }
 
-class _BossRewardMeta {
+class BossRewardMeta {
   final String traitName;
   final String traitDescription;
   final IconData traitIcon;
   final IconData lootboxIcon;
 
-  const _BossRewardMeta({
+  const BossRewardMeta({
     required this.traitName,
     required this.traitDescription,
     required this.traitIcon,
@@ -75,120 +75,120 @@ class BossLootKeys {
 
   static bool isKeyItemKey(String key) => key.startsWith('key.');
 
-  static final Map<String, _BossRewardMeta> elementRewards = {
-    'fire': const _BossRewardMeta(
+  static final Map<String, BossRewardMeta> elementRewards = {
+    'fire': const BossRewardMeta(
       traitName: 'Flame Feather',
       traitDescription:
           'A blazing relic from the Fire Mystic. Unlocks future fire-aligned secrets.',
       traitIcon: Icons.local_fire_department_rounded,
       lootboxIcon: Icons.whatshot_rounded,
     ),
-    'water': const _BossRewardMeta(
+    'water': const BossRewardMeta(
       traitName: 'Leviathan Scale',
       traitDescription:
           'A tide-forged scale from the Water Mystic. Unlocks future oceanic paths.',
       traitIcon: Icons.water_drop_rounded,
       lootboxIcon: Icons.waves_rounded,
     ),
-    'earth': const _BossRewardMeta(
+    'earth': const BossRewardMeta(
       traitName: 'Terra Core',
       traitDescription:
           'A dense earth core from the Earth Mystic. Unlocks future terrestrial paths.',
       traitIcon: Icons.terrain_rounded,
       lootboxIcon: Icons.landscape_rounded,
     ),
-    'air': const _BossRewardMeta(
+    'air': const BossRewardMeta(
       traitName: 'Gale Plume',
       traitDescription:
           'A wind-touched plume from the Air Mystic. Unlocks future aerial paths.',
       traitIcon: Icons.air_rounded,
       lootboxIcon: Icons.cloud_rounded,
     ),
-    'plant': const _BossRewardMeta(
+    'plant': const BossRewardMeta(
       traitName: 'Verdant Seed',
       traitDescription:
           'A primal seed from the Plant Mystic. Unlocks future growth-aligned paths.',
       traitIcon: Icons.eco_rounded,
       lootboxIcon: Icons.grass_rounded,
     ),
-    'ice': const _BossRewardMeta(
+    'ice': const BossRewardMeta(
       traitName: 'Frost Shard',
       traitDescription:
           'A frozen crystal from the Ice Mystic. Unlocks future glacial paths.',
       traitIcon: Icons.ac_unit_rounded,
       lootboxIcon: Icons.severe_cold_rounded,
     ),
-    'lightning': const _BossRewardMeta(
+    'lightning': const BossRewardMeta(
       traitName: 'Storm Sigil',
       traitDescription:
           'A charged sigil from the Lightning Mystic. Unlocks future storm paths.',
       traitIcon: Icons.flash_on_rounded,
       lootboxIcon: Icons.bolt_rounded,
     ),
-    'poison': const _BossRewardMeta(
+    'poison': const BossRewardMeta(
       traitName: 'Venom Fang',
       traitDescription:
           'A toxin-laced fang from the Poison Mystic. Unlocks future venom paths.',
       traitIcon: Icons.science_rounded,
       lootboxIcon: Icons.bug_report_rounded,
     ),
-    'steam': const _BossRewardMeta(
+    'steam': const BossRewardMeta(
       traitName: 'Steam Stone',
       traitDescription:
           'A pressurized valve from the Steam Mystic. Unlocks future pressure paths.',
       traitIcon: Icons.device_thermostat_rounded,
       lootboxIcon: Icons.blur_on_rounded,
     ),
-    'lava': const _BossRewardMeta(
+    'lava': const BossRewardMeta(
       traitName: 'Magma Heart',
       traitDescription:
           'A molten core from the Lava Mystic. Unlocks future volcanic paths.',
       traitIcon: Icons.public_rounded,
       lootboxIcon: Icons.local_fire_department_rounded,
     ),
-    'mud': const _BossRewardMeta(
+    'mud': const BossRewardMeta(
       traitName: 'Mire Totem',
       traitDescription:
           'A swamp-carved totem from the Mud Mystic. Unlocks future mire paths.',
       traitIcon: Icons.forest_rounded,
       lootboxIcon: Icons.terrain_rounded,
     ),
-    'dust': const _BossRewardMeta(
+    'dust': const BossRewardMeta(
       traitName: 'Dune Relic',
       traitDescription:
           'A weathered relic from the Dust Mystic. Unlocks future desert paths.',
       traitIcon: Icons.grain_rounded,
       lootboxIcon: Icons.air_rounded,
     ),
-    'crystal': const _BossRewardMeta(
+    'crystal': const BossRewardMeta(
       traitName: 'Prism Fragment',
       traitDescription:
           'A radiant shard from the Crystal Mystic. Unlocks future prism paths.',
       traitIcon: Icons.diamond_rounded,
       lootboxIcon: Icons.auto_awesome_rounded,
     ),
-    'spirit': const _BossRewardMeta(
+    'spirit': const BossRewardMeta(
       traitName: 'Wisp Lantern',
       traitDescription:
           'An echo-lit lantern from the Spirit Mystic. Unlocks future spectral paths.',
       traitIcon: Icons.nightlight_round_rounded,
       lootboxIcon: Icons.dark_mode_rounded,
     ),
-    'dark': const _BossRewardMeta(
+    'dark': const BossRewardMeta(
       traitName: 'Umbral Crown',
       traitDescription:
           'A shadow crown from the Dark Mystic. Unlocks future umbral paths.',
       traitIcon: Icons.brightness_2_rounded,
       lootboxIcon: Icons.nights_stay_rounded,
     ),
-    'light': const _BossRewardMeta(
+    'light': const BossRewardMeta(
       traitName: 'Radiant Halo',
       traitDescription:
           'A holy halo from the Light Mystic. Unlocks future radiant paths.',
       traitIcon: Icons.wb_sunny_rounded,
       lootboxIcon: Icons.light_mode_rounded,
     ),
-    'blood': const _BossRewardMeta(
+    'blood': const BossRewardMeta(
       traitName: 'Crimson Seal',
       traitDescription:
           'A sealed crest from the Blood Mystic. Unlocks future crimson paths.',

@@ -1,9 +1,7 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 
 class VirtualJoystick extends StatefulWidget {
-  const VirtualJoystick({required this.onDirectionChanged});
+  const VirtualJoystick({super.key, required this.onDirectionChanged});
 
   /// Called with a normalised direction (magnitude 0-1), or null when released.
   final ValueChanged<Offset?> onDirectionChanged;

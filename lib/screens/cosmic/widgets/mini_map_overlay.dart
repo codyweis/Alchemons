@@ -92,7 +92,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay>
     Offset? bestPos;
     double bestDist = double.infinity;
 
-    void _tryUpdate(Offset pos, double dist) {
+    void tryUpdate(Offset pos, double dist) {
       if (dist < bestDist) {
         bestDist = dist;
         bestPos = pos;
@@ -102,22 +102,23 @@ class MiniMapOverlayState extends State<MiniMapOverlay>
     for (final p in widget.world.planets) {
       if (!p.discovered) continue;
       final d = (p.position - tapPos).distance;
-      if (d < p.radius * 7) _tryUpdate(p.position, d);
+      if (d < p.radius * 7) tryUpdate(p.position, d);
     }
 
     if (widget.game.homePlanet case final hp?) {
       final d = (hp.position - tapPos).distance;
-      if (d < hp.visualRadius * 7) _tryUpdate(hp.position, d);
+      if (d < hp.visualRadius * 7) tryUpdate(hp.position, d);
     }
 
     for (final poi in widget.game.spacePOIs) {
       if (!poi.discovered) continue;
       if (poi.type != POIType.harvesterMarket &&
           poi.type != POIType.riftKeyMarket &&
-          poi.type != POIType.cosmicMarket)
+          poi.type != POIType.cosmicMarket) {
         continue;
+      }
       final d = (poi.position - tapPos).distance;
-      if (d < 620) _tryUpdate(poi.position, d);
+      if (d < 620) tryUpdate(poi.position, d);
     }
 
     if (widget.debugEnableContestArenaTeleport) {
@@ -126,7 +127,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay>
           continue;
         }
         final d = (arena.position - tapPos).distance;
-        if (d < 760) _tryUpdate(arena.position, d);
+        if (d < 760) tryUpdate(arena.position, d);
       }
     }
 
@@ -426,7 +427,6 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
 
   static const double _centerSize = 125.0;
   static const double _sideSize = 55.0;
-  static const double _rowHeight = 130.0;
 
   @override
   void initState() {
@@ -1193,10 +1193,11 @@ class _MiniMapPainter extends CustomPainter {
     for (int i = 0; i < 6; i++) {
       final a = pi / 3 * i - pi / 6;
       final pt = Offset(pos.dx + 5.0 * cos(a), pos.dy + 5.0 * sin(a));
-      if (i == 0)
+      if (i == 0) {
         hexPath.moveTo(pt.dx, pt.dy);
-      else
+      } else {
         hexPath.lineTo(pt.dx, pt.dy);
+      }
     }
     hexPath.close();
     canvas
@@ -1397,8 +1398,9 @@ class _MiniMapPainter extends CustomPainter {
 
     // Space POIs
     for (final poi in game.spacePOIs) {
-      if (poi.type == POIType.comet || poi.type == POIType.stardustScanner)
+      if (poi.type == POIType.comet || poi.type == POIType.stardustScanner) {
         continue;
+      }
 
       final isMarket =
           poi.type == POIType.harvesterMarket ||
@@ -1590,10 +1592,11 @@ class _MiniMapPainter extends CustomPainter {
       for (var i = 0; i < 8; i++) {
         final a = i * pi / 4 - pi / 8;
         final pt = Offset(brPos.dx + cos(a) * 8, brPos.dy + sin(a) * 8);
-        if (i == 0)
+        if (i == 0) {
           octPath.moveTo(pt.dx, pt.dy);
-        else
+        } else {
           octPath.lineTo(pt.dx, pt.dy);
+        }
       }
       octPath.close();
       canvas

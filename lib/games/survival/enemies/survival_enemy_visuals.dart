@@ -229,14 +229,16 @@ class ImprovedBlobBody extends PositionComponent {
     if (hitFlash > 0) {
       finalColor = Color.lerp(finalColor, Colors.white, hitFlash) ?? finalColor;
     }
-    if (phaseTintStrength > 0 && phaseTint.opacity > 0) {
+    if (phaseTintStrength > 0 && phaseTint.a > 0) {
       finalColor =
           Color.lerp(finalColor, phaseTint, phaseTintStrength) ?? finalColor;
     }
 
     _corePaint.color = finalColor.withValues(alpha: _currentOpacity);
     _shellPaint.color = finalColor.withValues(alpha: _currentOpacity * 0.25);
-    _outlinePaint.color = Colors.white.withValues(alpha: _currentOpacity * 0.85);
+    _outlinePaint.color = Colors.white.withValues(
+      alpha: _currentOpacity * 0.85,
+    );
     _glowPaint.color = finalColor.withValues(alpha: _currentOpacity * 0.3);
 
     // Pulse animation
@@ -510,7 +512,8 @@ class ImprovedBlobBody extends PositionComponent {
       canvas.drawCircle(
         Offset(sin(_time * 2 + layer) * 3, cos(_time * 1.5 + layer) * 3),
         layerR,
-        Paint()..color = color.withValues(alpha: layerOpacity * _currentOpacity),
+        Paint()
+          ..color = color.withValues(alpha: layerOpacity * _currentOpacity),
       );
     }
 
@@ -520,7 +523,8 @@ class ImprovedBlobBody extends PositionComponent {
     canvas.drawCircle(
       Offset.zero,
       coreR,
-      Paint()..color = Colors.white.withValues(alpha: sparkle * _currentOpacity),
+      Paint()
+        ..color = Colors.white.withValues(alpha: sparkle * _currentOpacity),
     );
 
     // Orbiting particles
@@ -662,7 +666,9 @@ class ImprovedBlobBody extends PositionComponent {
         blobOffset,
         blobR,
         Paint()
-          ..color = color.withValues(alpha: (0.3 - blob * 0.05) * _currentOpacity),
+          ..color = color.withValues(
+            alpha: (0.3 - blob * 0.05) * _currentOpacity,
+          ),
       );
     }
 
@@ -700,7 +706,9 @@ class ImprovedBlobBody extends PositionComponent {
         Offset.zero,
         radius * (1.0 + ring * 0.15),
         Paint()
-          ..color = color.withValues(alpha: (0.1 - ring * 0.02) * _currentOpacity),
+          ..color = color.withValues(
+            alpha: (0.1 - ring * 0.02) * _currentOpacity,
+          ),
       );
     }
 
@@ -741,7 +749,8 @@ class ImprovedBlobBody extends PositionComponent {
     canvas.drawCircle(
       Offset.zero,
       radius * 0.35,
-      Paint()..color = Colors.white.withValues(alpha: eyePulse * _currentOpacity),
+      Paint()
+        ..color = Colors.white.withValues(alpha: eyePulse * _currentOpacity),
     );
     canvas.drawCircle(Offset.zero, radius * 0.2, _corePaint);
   }
@@ -772,8 +781,8 @@ class ImprovedBlobBody extends PositionComponent {
         // Warning pulse
         final warningPulse = (sin(_time * 8) + 1) / 2;
         final warningPaint = Paint()
-          ..color = Colors.orange.withValues(alpha: 
-            warningPulse * 0.5 * _currentOpacity,
+          ..color = Colors.orange.withValues(
+            alpha: warningPulse * 0.5 * _currentOpacity,
           );
         canvas.drawCircle(Offset.zero, radius * 1.2, warningPaint);
 
@@ -783,7 +792,9 @@ class ImprovedBlobBody extends PositionComponent {
           sparkPos,
           radius * 0.12,
           Paint()
-            ..color = Colors.yellow.withValues(alpha: warningPulse * _currentOpacity),
+            ..color = Colors.yellow.withValues(
+              alpha: warningPulse * _currentOpacity,
+            ),
         );
         break;
 
@@ -812,8 +823,8 @@ class ImprovedBlobBody extends PositionComponent {
         // Forward momentum glow + trailing speed lines
         final chargePulse = (sin(_time * 6) + 1) / 2;
         final chargeGlow = Paint()
-          ..color = color.withValues(alpha: 
-            (0.2 + chargePulse * 0.25) * _currentOpacity,
+          ..color = color.withValues(
+            alpha: (0.2 + chargePulse * 0.25) * _currentOpacity,
           );
 
         // Forward emphasis wedge (points in movement direction)
@@ -826,8 +837,8 @@ class ImprovedBlobBody extends PositionComponent {
 
         // Speed lines trailing behind
         final linesPaint = Paint()
-          ..color = Colors.white.withValues(alpha: 
-            0.3 * chargePulse * _currentOpacity,
+          ..color = Colors.white.withValues(
+            alpha: 0.3 * chargePulse * _currentOpacity,
           )
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5
@@ -873,7 +884,9 @@ class ImprovedBlobBody extends PositionComponent {
         Offset.zero,
         radius * (1.3 + glow * 0.2),
         Paint()
-          ..color = color.withValues(alpha: (0.15 - glow * 0.04) * _currentOpacity),
+          ..color = color.withValues(
+            alpha: (0.15 - glow * 0.04) * _currentOpacity,
+          ),
       );
     }
 
@@ -1245,7 +1258,6 @@ class ImprovedTrail extends PositionComponent {
   void update(double dt) {
     super.update(dt);
     if (parent is! PositionComponent) return;
-
 
     // Spawn new particles
     _spawnTimer += dt;

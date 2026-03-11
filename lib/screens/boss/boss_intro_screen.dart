@@ -640,6 +640,10 @@ class _BossBattleScreenState extends State<BossBattleScreen>
   Widget _buildBossDetails(Boss boss, BossProgressNotifier progress) {
     final bossKey = _bossProgressIdForOrder(boss.order);
     final isEnraged = progress.isBossDefeated(bossKey);
+    final bossProfile = BattleCombatant.fromBoss(boss);
+    final gimmickSummary = BattleMove.bossGimmickSummaryForCombatant(
+      bossProfile,
+    );
     final dispHp = isEnraged
         ? (boss.hp * 1.7).round() + (boss.order * 40)
         : boss.hp;
@@ -787,6 +791,38 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                 ),
               );
             }).toList(),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Icon(
+              Icons.auto_awesome_rounded,
+              color: boss.elementColor.withValues(alpha: 0.8),
+              size: 12,
+            ),
+            const SizedBox(width: 6),
+            Text('BOSS SPECIAL', style: _T.label),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: boss.elementColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(
+              color: boss.elementColor.withValues(alpha: 0.32),
+            ),
+          ),
+          child: Text(
+            gimmickSummary,
+            style: const TextStyle(
+              color: _C.textPrimary,
+              fontSize: 11,
+              height: 1.35,
+            ),
           ),
         ),
       ],
@@ -1115,6 +1151,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               icon: hasTeam
                   ? Icons.swap_horiz_rounded
                   : Icons.group_add_rounded,
+              loading: false,
               secondary: true,
               onTap: () async {
                 await Navigator.push<List<PartyMember>>(
@@ -1258,6 +1295,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       }
     }
 
+    if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
     final staminaService = StaminaService(db);
@@ -1337,6 +1375,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         .whereType<BattleCombatant>()
         .toList();
 
+    if (!mounted) return;
     // ── Apply Boss Command upgrade bonuses ────────────────────────────────
     final bossUpgradeState = context.read<BossUpgradeService>().state;
     for (final combatant in playerTeam) {
@@ -1386,6 +1425,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       bossForBattle,
       mysticSpecies: bossMystic,
     );
+    if (!mounted) return;
     final theme = context.read<FactionTheme>();
 
     final victory = await Navigator.push<bool>(
@@ -1487,6 +1527,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
               color: _C.amberBright,
             ),
         ];
+        if (!mounted) return;
         await showLootOpeningDialog(context: context, entries: popupEntries);
       }
 

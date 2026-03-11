@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -10,11 +8,10 @@ import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
-import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:alchemons/utils/sprite_sheet_def.dart';
 
 class ChamberPickerOverlay extends StatefulWidget {
   const ChamberPickerOverlay({
+    super.key,
     required this.chambers,
     required this.onAssign,
     required this.onClear,

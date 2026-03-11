@@ -1,12 +1,11 @@
-import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'forge_bar.dart';
 import 'cosmic_screen_styles.dart';
 
 class CustomizationMenuOverlay extends StatefulWidget {
   const CustomizationMenuOverlay({
+    super.key,
     required this.customizationState,
     required this.elementStorage,
     required this.homePlanet,

@@ -6950,14 +6950,14 @@ class CosmicCompanion with HasEffects {
   int currentHp;
 
   /// Derived combat stats (from SurvivalUnit formulas).
-  int _basePhysAtk;
-  int _baseElemAtk;
-  int _basePhysDef;
-  int _baseElemDef;
-  double _baseCooldownReduction;
-  double _baseCritChance;
-  double _baseAttackRange;
-  double _baseSpecialAbilityRange;
+  final int _basePhysAtk;
+  final int _baseElemAtk;
+  final int _basePhysDef;
+  final int _baseElemDef;
+  final double _baseCooldownReduction;
+  final double _baseCritChance;
+  final double _baseAttackRange;
+  final double _baseSpecialAbilityRange;
 
   // Effects mixin provides dynamic modifiers (powered by systems/effects/has_effects.dart).
   // Use getters below to return modified values.
@@ -7065,13 +7065,13 @@ class CosmicCompanion with HasEffects {
   /// and damage/strength so stronger alchemons get different timings).
   double get effectiveBasicCooldown {
     final base = CosmicCompanion.baseBasicCooldown / cooldownReduction;
-    final factor = (1.0 + (physAtk - 1) * 0.05).clamp(0.5, 3.0) as double;
+    final factor = (1.0 + (physAtk - 1) * 0.05).clamp(0.5, 3.0);
     return base / factor;
   }
 
   double get effectiveSpecialCooldown {
     final base = CosmicCompanion.baseSpecialCooldown / cooldownReduction;
-    final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, 6.0) as double;
+    final factor = (1.0 + (elemAtk / 6.0) * 0.2).clamp(0.5, 6.0);
     return base / factor;
   }
 
@@ -7080,7 +7080,7 @@ class CosmicCompanion with HasEffects {
       // Lazy import to avoid circular import at file top-level.
       // If the HasEffects mixin is applied and provides `modifyStat`, call it.
       final self = this;
-      if (self is dynamic && (self as dynamic).modifyStat is Function) {
+      if ((self as dynamic).modifyStat is Function) {
         return (self as dynamic).modifyStat(name, base.toDouble());
       }
     } catch (_) {}

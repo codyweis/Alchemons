@@ -1,5 +1,6 @@
 // lib/games/survival/survival_combat.dart
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 
 class SurvivalRangeProfile {
@@ -361,35 +362,35 @@ class SurvivalCombat {
 
     // DEBUG OUTPUT
     if (debug) {
-      print('═══════════════════════════════════════════════════');
-      print('⚔️  DAMAGE CALC: ${atkUnit.name} → ${defUnit.name}');
-      print('───────────────────────────────────────────────────');
-      print(
+      debugPrint('═══════════════════════════════════════════════════');
+      debugPrint('⚔️  DAMAGE CALC: ${atkUnit.name} → ${defUnit.name}');
+      debugPrint('───────────────────────────────────────────────────');
+      debugPrint(
         '   Attacker: Lv${atkUnit.level} ${atkUnit.family} | Types: ${atkUnit.types}',
       );
-      print(
+      debugPrint(
         '   Defender: Lv${defUnit.level} ${defUnit.family} | Types: ${defUnit.types}',
       );
-      print('   Defender HP: ${defUnit.currentHp}/${defUnit.maxHp}');
-      print('───────────────────────────────────────────────────');
-      print(
+      debugPrint('   Defender HP: ${defUnit.currentHp}/${defUnit.maxHp}');
+      debugPrint('───────────────────────────────────────────────────');
+      debugPrint(
         '   Damage Kind: ${ctx.damageKind.name} | isSpecial: ${ctx.isSpecial}',
       );
-      print('   Raw Atk: $rawAtk | Raw Def: $rawDef');
-      print(
+      debugPrint('   Raw Atk: $rawAtk | Raw Def: $rawDef');
+      debugPrint(
         '   Base Damage (after mitigation): ${baseDamage.toStringAsFixed(1)}',
       );
-      print('   Type Multiplier: ${typeMult}x');
-      print('   Special Bonus: ${ctx.isSpecial ? "1.5x" : "none"}');
-      print(
+      debugPrint('   Type Multiplier: ${typeMult}x');
+      debugPrint('   Special Bonus: ${ctx.isSpecial ? "1.5x" : "none"}');
+      debugPrint(
         '   Crit: ${isCrit ? "YES 1.5x" : "no"} (${(atkUnit.critChance * 100).toStringAsFixed(1)}% chance)',
       );
-      print('   Variance: ${varianceMult.toStringAsFixed(2)}x');
-      print('   ▶ FINAL DAMAGE: $finalDamage');
+      debugPrint('   Variance: ${varianceMult.toStringAsFixed(2)}x');
+      debugPrint('   ▶ FINAL DAMAGE: $finalDamage');
       if (finalDamage >= defUnit.currentHp) {
-        print('   💀 THIS WILL KILL THE DEFENDER!');
+        debugPrint('   💀 THIS WILL KILL THE DEFENDER!');
       }
-      print('═══════════════════════════════════════════════════');
+      debugPrint('═══════════════════════════════════════════════════');
     }
 
     return finalDamage;

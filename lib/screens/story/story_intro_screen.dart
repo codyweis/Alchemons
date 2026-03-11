@@ -444,6 +444,7 @@ class _LoadingScreenState extends State<_LoadingScreen> {
       final provider = AssetImage(path);
       try {
         await precacheImage(provider, context, size: inactive);
+        if (!mounted) return;
         await precacheImage(provider, context, size: expanded);
       } catch (e) {
         debugPrint('Failed to precache $path: $e');
@@ -603,7 +604,9 @@ class _LoadingScreenState extends State<_LoadingScreen> {
           Positioned.fill(child: Container(color: const Color(0xFF0A0A0A))),
 
         // Dark overlay
-        Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.4))),
+        Positioned.fill(
+          child: Container(color: Colors.black.withValues(alpha: 0.4)),
+        ),
 
         // Loading UI
         SafeArea(

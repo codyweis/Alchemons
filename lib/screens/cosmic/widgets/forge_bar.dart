@@ -1,10 +1,9 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'cosmic_screen_styles.dart';
 
 class ForgeBar extends StatelessWidget {
   const ForgeBar({
+    super.key,
     required this.label,
     required this.value,
     required this.pct,

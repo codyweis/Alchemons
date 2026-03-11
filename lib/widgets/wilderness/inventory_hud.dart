@@ -450,6 +450,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 
     final eligibleSpeciesIds = allInstances.map((inst) => inst.baseId).toSet();
 
+    if (!mounted) return;
     final selectedSpeciesId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -574,6 +575,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 
     final eligibleSpeciesIds = allInstances.map((inst) => inst.baseId).toSet();
 
+    if (!mounted) return;
     final selectedSpeciesId = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,

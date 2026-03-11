@@ -660,7 +660,9 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
       currencyRewardLabel = '+$pitySilver silver';
     }
 
+    if (!mounted) return;
     await showLootOpeningDialog(context: context, entries: popupEntries);
+    if (!mounted) return;
 
     showDialog(
       context: context,
@@ -863,6 +865,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
                   vertical: 8,
                 ),
                 accentColor: _C.danger,
+                highlight: true,
                 child: const Column(
                   children: [
                     Text(

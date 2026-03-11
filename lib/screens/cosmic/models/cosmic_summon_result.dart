@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:math';
-
 class CosmicSummonResult {
   final String resolvedElement;
   final String sceneKey; // volcano, swamp, valley, sky, arcane
@@ -20,4 +17,3 @@ class CosmicSummonResult {
 // ─────────────────────────────────────────────────────────
 // SCREEN
 // ─────────────────────────────────────────────────────────
-

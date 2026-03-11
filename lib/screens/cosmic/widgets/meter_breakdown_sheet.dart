@@ -1,11 +1,12 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/utils/faction_util.dart';
 
 class MeterBreakdownSheet extends StatefulWidget {
-  const MeterBreakdownSheet({required this.meter, required this.onRemove});
+  const MeterBreakdownSheet({
+    super.key,
+    required this.meter,
+    required this.onRemove,
+  });
 
   final ElementMeter meter;
   final ValueChanged<String> onRemove;

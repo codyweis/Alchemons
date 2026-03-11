@@ -3,6 +3,7 @@
 
 import 'package:alchemons/models/boss/boss_model.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -28,10 +29,10 @@ void main() {
       expect(combatant.elemDef, (70 * 0.4 + (5 * 2)).round()); // 38
       expect(combatant.speed, (80 * 0.4).round()); // 32
 
-      print('✅ Stat calculations correct!');
-      print('   Max HP: ${combatant.maxHp}');
-      print('   Phys Atk: ${combatant.physAtk}');
-      print('   Elem Atk: ${combatant.elemAtk}');
+      debugPrint('✅ Stat calculations correct!');
+      debugPrint('   Max HP: ${combatant.maxHp}');
+      debugPrint('   Phys Atk: ${combatant.physAtk}');
+      debugPrint('   Elem Atk: ${combatant.elemAtk}');
     });
 
     test('Type effectiveness works correctly', () {
@@ -53,9 +54,9 @@ void main() {
       // Light beats Dark (×2)
       expect(BattleEngine.getTypeMultiplier('Light', ['Dark']), 2.0);
 
-      print('✅ Type effectiveness working!');
-      print('   Fire vs Plant: 2.0×');
-      print('   Fire vs Water: 0.5×');
+      debugPrint('✅ Type effectiveness working!');
+      debugPrint('   Fire vs Plant: 2.0×');
+      debugPrint('   Fire vs Water: 0.5×');
     });
 
     test('Damage calculation formula correct', () {
@@ -97,8 +98,8 @@ void main() {
       // Base = (60 × 2) - 30 = 90
 
       expect(damage, 90);
-      print('✅ Damage formula correct!');
-      print('   Base damage: $damage');
+      debugPrint('✅ Damage formula correct!');
+      debugPrint('   Base damage: $damage');
     });
 
     test('Basic moves are correct for each family', () {
@@ -111,7 +112,7 @@ void main() {
       expect(BattleMove.getBasicMove('Kin').name, 'Kin-stomp');
       expect(BattleMove.getBasicMove('Mystic').name, 'Mystic-pulse');
 
-      print('✅ All basic moves correct!');
+      debugPrint('✅ All basic moves correct!');
     });
 
     test('Special moves are correct for each family', () {
@@ -124,7 +125,7 @@ void main() {
       expect(BattleMove.getSpecialMove('Kin').name, 'Sanctuary');
       expect(BattleMove.getSpecialMove('Mystic').name, 'Arcane Orbitals');
 
-      print('✅ All special moves correct!');
+      debugPrint('✅ All special moves correct!');
     });
 
     test('Full battle action with type advantage', () {
@@ -171,11 +172,11 @@ void main() {
       expect(result.messages.isNotEmpty, true);
       expect(plantBoss.currentHp, lessThan(1500));
 
-      print('✅ Full battle action works!');
-      print('   Type multiplier: ${result.typeMultiplier}');
-      print('   Damage dealt: ${result.damage}');
-      print('   Boss HP: ${plantBoss.currentHp}/1500');
-      print('   Messages: ${result.messages}');
+      debugPrint('✅ Full battle action works!');
+      debugPrint('   Type multiplier: ${result.typeMultiplier}');
+      debugPrint('   Damage dealt: ${result.damage}');
+      debugPrint('   Boss HP: ${plantBoss.currentHp}/1500');
+      debugPrint('   Messages: ${result.messages}');
     });
 
     test('Status effects work', () {
@@ -208,7 +209,7 @@ void main() {
       combatant.tickStatusEffects();
       expect(combatant.statusEffects.containsKey('burn'), false);
 
-      print('✅ Status effects working!');
+      debugPrint('✅ Status effects working!');
     });
 
     test('Stat modifiers work', () {
@@ -232,9 +233,9 @@ void main() {
       final boostedAtk = combatant.getEffectivePhysAtk();
       expect(boostedAtk, (baseAtk * 1.5).toInt());
 
-      print('✅ Stat modifiers working!');
-      print('   Base Atk: $baseAtk');
-      print('   Boosted Atk: $boostedAtk');
+      debugPrint('✅ Stat modifiers working!');
+      debugPrint('   Base Atk: $baseAtk');
+      debugPrint('   Boosted Atk: $boostedAtk');
     });
 
     test('Turn order determined by speed', () {
@@ -280,8 +281,8 @@ void main() {
       expect(order[1].name, 'Medium'); // Speed 10
       expect(order[2].name, 'Slow'); // Speed 5
 
-      print('✅ Turn order correct!');
-      print('   Order: ${order.map((c) => c.name).join(' → ')}');
+      debugPrint('✅ Turn order correct!');
+      debugPrint('   Order: ${order.map((c) => c.name).join(' → ')}');
     });
   });
 
@@ -310,16 +311,16 @@ void main() {
       expect(combatant.speed, 40);
       expect(combatant.types, ['Fire']);
 
-      print('✅ Boss conversion works!');
-      print('   Boss: ${combatant.name}');
-      print('   HP: ${combatant.maxHp}');
-      print('   Atk: ${combatant.physAtk}');
+      debugPrint('✅ Boss conversion works!');
+      debugPrint('   Boss: ${combatant.name}');
+      debugPrint('   HP: ${combatant.maxHp}');
+      debugPrint('   Atk: ${combatant.physAtk}');
     });
   });
 }
 
 // Run this test with: flutter test test/battle_engine_test.dart
-// 
+//
 // Expected output:
 //   ✅ All 10+ tests pass
 //   ✅ Combat formulas verified

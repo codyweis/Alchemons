@@ -36,9 +36,6 @@ class ImprovedBattleScrollArea extends StatelessWidget {
       statBeauty: instance.statBeauty,
     );
 
-    final moveStyle = BattleMove.styleForFamily(unit.family);
-    final battleSpecialMove = BattleMove.getSpecialMove(unit.family);
-    final battleBasicMove = BattleMove.getBasicMove(unit.family);
     final bossProfile = BattleCombatant(
       id: 'view_boss',
       name: creature.name,
@@ -50,6 +47,10 @@ class ImprovedBattleScrollArea extends StatelessWidget {
       statBeauty: instance.statBeauty,
       level: instance.level,
     );
+    final battleSpecialMove = BattleMove.getSpecialMoveForCombatant(
+      bossProfile,
+    );
+    final battleBasicMove = BattleMove.getBasicMove(unit.family);
 
     return DefaultTabController(
       length: 3,
@@ -89,12 +90,7 @@ class ImprovedBattleScrollArea extends StatelessWidget {
             child: TabBarView(
               children: [
                 _buildSurvivalTab(unit, fc),
-                _buildBossTab(
-                  moveStyle,
-                  bossProfile,
-                  battleBasicMove,
-                  battleSpecialMove,
-                ),
+                _buildBossTab(bossProfile, battleBasicMove, battleSpecialMove),
                 _buildExploreTab(unit, fc),
               ],
             ),
@@ -140,7 +136,6 @@ class ImprovedBattleScrollArea extends StatelessWidget {
   }
 
   Widget _buildBossTab(
-    FamilyMoveStyle moveStyle,
     BattleCombatant bossProfile,
     BattleMove battleBasicMove,
     BattleMove battleSpecialMove,
@@ -158,7 +153,12 @@ class ImprovedBattleScrollArea extends StatelessWidget {
               profile: bossProfile,
               basicMoveName: battleBasicMove.name,
               specialMoveName: battleSpecialMove.name,
-              specialMoveSummary: moveStyle.summary,
+              specialMoveSummary: BattleMove.specialSummaryForCombatant(
+                bossProfile,
+              ),
+              bossGimmickSummary: BattleMove.bossGimmickSummaryForCombatant(
+                bossProfile,
+              ),
             ),
           ),
         ],
@@ -542,12 +542,14 @@ class _BossCombatProfileCard extends StatelessWidget {
   final String basicMoveName;
   final String specialMoveName;
   final String specialMoveSummary;
+  final String bossGimmickSummary;
 
   const _BossCombatProfileCard({
     required this.profile,
     required this.basicMoveName,
     required this.specialMoveName,
     required this.specialMoveSummary,
+    required this.bossGimmickSummary,
   });
 
   @override
@@ -580,6 +582,19 @@ class _BossCombatProfileCard extends StatelessWidget {
           padding: const EdgeInsets.only(left: 90),
           child: Text(
             specialMoveSummary,
+            style: TextStyle(
+              color: fc.textSecondary,
+              fontSize: 11,
+              height: 1.3,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _moveLine('Boss Special', '', fc),
+        Padding(
+          padding: const EdgeInsets.only(left: 90),
+          child: Text(
+            bossGimmickSummary,
             style: TextStyle(
               color: fc.textSecondary,
               fontSize: 11,

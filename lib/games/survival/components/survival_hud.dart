@@ -6,7 +6,7 @@ import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 
 class SurvivalHud extends PositionComponent
-    with HasGameRef<SurvivalHoardGame>, TapCallbacks {
+    with HasGameReference<SurvivalHoardGame>, TapCallbacks {
   SurvivalHud() : super(priority: 100);
 
   // Collapse state
@@ -100,7 +100,8 @@ class SurvivalHud extends PositionComponent
     _orbFillGoodPaint = Paint()..color = const Color(0xFF10B981);
     _orbFillMidPaint = Paint()..color = const Color(0xFFF59E0B);
     _orbFillLowPaint = Paint()..color = const Color(0xFFEF4444);
-    _orbGlowPaint = Paint()..color = const Color(0xFFFFD700).withValues(alpha: 0.3);
+    _orbGlowPaint = Paint()
+      ..color = const Color(0xFFFFD700).withValues(alpha: 0.3);
     _orbBorderPaint = Paint()
       ..color = const Color(0xFFFFD700).withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
@@ -133,7 +134,7 @@ class SurvivalHud extends PositionComponent
   }
 
   void _calculateExpandedSize() {
-    final guardians = gameRef.guardians;
+    final guardians = game.guardians;
     final rows = (guardians.length / 2).ceil().clamp(1, 4);
 
     _expandedHeight =
@@ -190,14 +191,14 @@ class SurvivalHud extends PositionComponent
       for (final tapArea in _guardianTapAreas) {
         if (tapArea.rect.contains(offset)) {
           // Select this guardian
-          final guardians = gameRef.guardians;
+          final guardians = game.guardians;
           if (tapArea.index < guardians.length) {
             final guardian = guardians[tapArea.index];
             // Toggle selection - if already selected, deselect
-            if (gameRef.selectedGuardianNotifier.value == guardian) {
-              gameRef.selectGuardian(null);
+            if (game.selectedGuardianNotifier.value == guardian) {
+              game.selectGuardian(null);
             } else {
-              gameRef.selectGuardian(guardian);
+              game.selectGuardian(guardian);
             }
           }
           return;
@@ -242,7 +243,7 @@ class SurvivalHud extends PositionComponent
 
   @override
   void render(Canvas canvas) {
-    final stats = gameRef.statsNotifier.value;
+    final stats = game.statsNotifier.value;
 
     // Main panel background
     _drawPanel(canvas);
@@ -271,13 +272,13 @@ class SurvivalHud extends PositionComponent
   }
 
   void _drawCollapsedView(Canvas canvas) {
-    final orb = gameRef.orb;
+    final orb = game.orb;
     final currentHp = orb.currentHp;
     final maxHp = orb.maxHp;
     final orbRatio = maxHp > 0 ? (currentHp / maxHp).clamp(0.0, 1.0) : 0.0;
 
-    final killsNeeded = gameRef.killsRequiredForNextLevel;
-    final killsCurrent = gameRef.killsSinceLastChoice;
+    final killsNeeded = game.killsRequiredForNextLevel;
+    final killsCurrent = game.killsSinceLastChoice;
     final transmuteRatio = killsNeeded > 0
         ? (killsCurrent / killsNeeded).clamp(0.0, 1.0)
         : 0.0;
@@ -506,7 +507,7 @@ class SurvivalHud extends PositionComponent
   }
 
   void _drawOrbSection(Canvas canvas) {
-    final orb = gameRef.orb;
+    final orb = game.orb;
     final currentHp = orb.currentHp;
     final maxHp = orb.maxHp;
     final ratio = maxHp > 0 ? (currentHp / maxHp).clamp(0.0, 1.0) : 0.0;
@@ -667,7 +668,7 @@ class SurvivalHud extends PositionComponent
   }
 
   void _drawGuardianSection(Canvas canvas) {
-    final guardians = gameRef.guardians;
+    final guardians = game.guardians;
     if (guardians.isEmpty) return;
 
     // Clear old tap areas and rebuild
@@ -707,9 +708,9 @@ class SurvivalHud extends PositionComponent
         maxHp: g.unit.maxHp,
         level: g.unit.level,
         isDead: g.unit.isDead,
-        isSelected: gameRef.selectedGuardianNotifier.value == g,
-        transmuteRank: gameRef.getTransmuteRank(g.unit.id),
-        specialRank: gameRef.getSpecialRankForUnit(g.unit),
+        isSelected: game.selectedGuardianNotifier.value == g,
+        transmuteRank: game.getTransmuteRank(g.unit.id),
+        specialRank: game.getSpecialRankForUnit(g.unit),
         x: x,
         y: y,
         width: columnWidth,
@@ -843,8 +844,8 @@ class SurvivalHud extends PositionComponent
   }
 
   void _drawTransmutationProgress(Canvas canvas) {
-    final killsNeeded = gameRef.killsRequiredForNextLevel;
-    final killsCurrent = gameRef.killsSinceLastChoice;
+    final killsNeeded = game.killsRequiredForNextLevel;
+    final killsCurrent = game.killsSinceLastChoice;
     final ratio = killsNeeded > 0
         ? (killsCurrent / killsNeeded).clamp(0.0, 1.0)
         : 0.0;

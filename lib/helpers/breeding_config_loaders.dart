@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:alchemons/services/breeding_config.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 Future<ElementRecipeConfig> loadElementRecipes() async {
@@ -33,8 +34,8 @@ Future<ElementRecipeConfig> loadElementRecipes() async {
   }
 
   // quick sanity logs (remove in prod)
-  print('[Recipes] has Fire? ${out.containsKey("Fire")}');
-  print('[Recipes] has Fire+Water? ${out.containsKey("Fire+Water")}');
+  debugPrint('[Recipes] has Fire? ${out.containsKey("Fire")}');
+  debugPrint('[Recipes] has Fire+Water? ${out.containsKey("Fire+Water")}');
 
   return ElementRecipeConfig(recipes: out);
 }

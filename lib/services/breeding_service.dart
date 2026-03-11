@@ -16,6 +16,7 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:alchemons/utils/nature_utils.dart';
+import 'package:flutter/foundation.dart';
 
 class BreedingServiceV2 {
   final GameDataService gameData;
@@ -227,7 +228,7 @@ class BreedingServiceV2 {
     } catch (e, st) {
       // Don't break breeding if analyzer dies – just log & skip analysis.
       // ignore: avoid_print
-      print('⚠️ BreedingServiceV2: instance analysis failed: $e\n$st');
+      debugPrint('⚠️ BreedingServiceV2: instance analysis failed: $e\n$st');
       return null;
     }
   }
@@ -255,7 +256,7 @@ class BreedingServiceV2 {
       return jsonEncode(report.toJson());
     } catch (e, st) {
       // ignore: avoid_print
-      print('⚠️ BreedingServiceV2: wild analysis failed: $e\n$st');
+      debugPrint('⚠️ BreedingServiceV2: wild analysis failed: $e\n$st');
       return null;
     }
   }

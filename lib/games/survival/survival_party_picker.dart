@@ -30,7 +30,6 @@ class _C {
   static Color get bg0 => _t.bg0;
   static Color get bg1 => _t.bg1;
   static Color get bg2 => _t.bg2;
-  static Color get bg3 => _t.bg3;
 
   static Color get amber => _t.amber;
   static Color get amberBright => _t.amberBright;
@@ -45,7 +44,6 @@ class _C {
   static Color get textMuted => _t.textMuted;
 
   static Color get borderDim => _t.borderDim;
-  static Color get borderMid => _t.borderMid;
   static Color get borderAccent => _t.borderAccent;
 }
 

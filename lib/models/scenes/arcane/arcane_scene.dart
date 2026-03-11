@@ -24,24 +24,24 @@ final arcaneScene = SceneDefinition(
   spawnPoints: [
     SpawnPoint(
       id: 'SP_arcane_01',
-      normalizedPos: const Offset(0.30, 0.35),
+      normalizedPos: const Offset(0.28, 0.58),
       anchor: SceneLayer.layer1,
       size: Vector2(80, 80),
-      battlePos: const Offset(0.56, 0.35),
+      battlePos: const Offset(0.54, 0.58),
     ),
     SpawnPoint(
       id: 'SP_arcane_02',
-      normalizedPos: const Offset(0.70, 0.55),
+      normalizedPos: const Offset(0.50, 0.58),
       anchor: SceneLayer.layer1,
       size: Vector2(80, 80),
-      battlePos: const Offset(0.44, 0.55),
+      battlePos: const Offset(0.30, 0.58),
     ),
     SpawnPoint(
       id: 'SP_arcane_03',
-      normalizedPos: const Offset(0.50, 0.80),
+      normalizedPos: const Offset(0.72, 0.58),
       anchor: SceneLayer.layer1,
       size: Vector2(80, 80),
-      battlePos: const Offset(0.26, 0.80),
+      battlePos: const Offset(0.46, 0.58),
     ),
   ],
 );

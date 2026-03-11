@@ -237,6 +237,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
       return;
     }
 
+    if (!mounted) return;
     final picked = await showModalBottomSheet<CreatureInstance>(
       context: context,
       isScrollControlled: true,

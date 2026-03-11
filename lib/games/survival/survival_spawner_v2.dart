@@ -53,7 +53,10 @@ class WaveTelegraph extends PositionComponent {
       ..lineTo(-120, 45)
       ..close();
 
-    canvas.drawPath(path, Paint()..color = color.withValues(alpha: alpha * 0.6));
+    canvas.drawPath(
+      path,
+      Paint()..color = color.withValues(alpha: alpha * 0.6),
+    );
     canvas.drawPath(
       path,
       Paint()
@@ -308,7 +311,7 @@ class WaveSurgeConfig {
 // ════════════════════════════════════════════════════════════════════════════
 
 class ImprovedSurvivalSpawner extends Component
-    with HasGameRef<SurvivalHoardGame> {
+    with HasGameReference<SurvivalHoardGame> {
   static const bool debugSpawns = false;
   static const double _spawnDistance = 2000.0;
 
@@ -333,9 +336,9 @@ class ImprovedSurvivalSpawner extends Component
 
   @override
   void update(double dt) {
-    if (gameRef.isGameOver || gameRef.isInAlchemyPause) return;
+    if (game.isGameOver || game.isInAlchemyPause) return;
 
-    final wave = gameRef.currentWave;
+    final wave = game.currentWave;
 
     if (wave != _lastWave) _onWaveChange(wave);
 
@@ -350,7 +353,7 @@ class ImprovedSurvivalSpawner extends Component
   }
 
   void _onWaveChange(int wave) {
-    if (debugSpawns) print('==== WAVE $wave ====');
+    if (debugSpawns) debugPrint('==== WAVE $wave ====');
 
     _lastWave = wave;
     _spawnedThisWave = 0;
@@ -426,7 +429,7 @@ class ImprovedSurvivalSpawner extends Component
     _surgeSpawnCounter = 0;
     _surgeDirections = _getSurgeDirections(surgeType);
 
-    if (debugSpawns) print('  >> SURGE: ${surgeType.name} x$surgeSize');
+    if (debugSpawns) debugPrint('  >> SURGE: ${surgeType.name} x$surgeSize');
 
     _showTelegraphs(wave);
   }
@@ -539,7 +542,7 @@ class ImprovedSurvivalSpawner extends Component
   void _showTelegraphs(int wave) {
     for (final dir in _surgeDirections) {
       final element = allElements[_rng.nextInt(allElements.length)];
-      gameRef.world.add(
+      game.world.add(
         WaveTelegraph(
           position: dir * (_spawnDistance - 300),
           direction: dir,
@@ -601,7 +604,7 @@ class ImprovedSurvivalSpawner extends Component
 
     if (_surgeSpawnCounter == 0 && count >= 5) {
       final element = allElements[_rng.nextInt(allElements.length)];
-      gameRef.world.add(
+      game.world.add(
         RiftSpawner(
           position: basePos,
           color: BreedConstants.getTypeColor(element),
@@ -728,7 +731,7 @@ class ImprovedSurvivalSpawner extends Component
     _currentSurge = null;
     _surgeSpawnCounter = 0;
     _timeSinceLastSurge = 0;
-    final wave = gameRef.currentWave;
+    final wave = game.currentWave;
     if (wave <= 5) {
       // Very early: long gap so waves feel like distinct events
       _nextSurgeDelay = 4.0 + _rng.nextDouble() * 2.0;
@@ -765,10 +768,10 @@ class ImprovedSurvivalSpawner extends Component
       isShooter: role == EnemyRole.shooter,
     );
 
-    gameRef.addHoardEnemy(
+    game.addHoardEnemy(
       HoardEnemy(
         position: position,
-        targetOrb: gameRef.orb,
+        targetOrb: game.orb,
         unit: unit,
         template: template,
         role: role,
@@ -870,7 +873,7 @@ class ImprovedSurvivalSpawner extends Component
 
     final enemy = HoardEnemy(
       position: pos,
-      targetOrb: gameRef.orb,
+      targetOrb: game.orb,
       unit: unit,
       template: template,
       role: EnemyRole.charger,
@@ -878,7 +881,7 @@ class ImprovedSurvivalSpawner extends Component
       speedMultiplier: 0.6,
     );
     enemy.isMiniBoss = true;
-    gameRef.addHoardEnemy(enemy);
+    game.addHoardEnemy(enemy);
 
     // Escort wave
     Future.delayed(const Duration(milliseconds: 2200), () {
@@ -917,7 +920,7 @@ class ImprovedSurvivalSpawner extends Component
       );
       final enemy = HoardEnemy(
         position: pos,
-        targetOrb: gameRef.orb,
+        targetOrb: game.orb,
         unit: unit,
         template: template,
         role: EnemyRole.charger,
@@ -928,7 +931,7 @@ class ImprovedSurvivalSpawner extends Component
         hydraGeneration: 0,
       );
       enemy.isBoss = true;
-      gameRef.addHoardEnemy(enemy);
+      game.addHoardEnemy(enemy);
     } else {
       final unit = SurvivalEnemyCatalog.buildMegaBoss(
         template: template,
@@ -936,7 +939,7 @@ class ImprovedSurvivalSpawner extends Component
       );
       final enemy = HoardEnemy(
         position: pos,
-        targetOrb: gameRef.orb,
+        targetOrb: game.orb,
         unit: unit,
         template: template,
         role: archetype == BossArchetype.artillery
@@ -948,7 +951,7 @@ class ImprovedSurvivalSpawner extends Component
         speedMultiplier: 0.4,
       );
       enemy.isBoss = true;
-      gameRef.addHoardEnemy(enemy);
+      game.addHoardEnemy(enemy);
 
       _spawnBossMinionWaves(pos, wave, tier);
     }

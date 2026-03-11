@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -7,6 +5,7 @@ import '../models/cosmic_summon_result.dart';
 
 class SummonPopup extends StatelessWidget {
   const SummonPopup({
+    super.key,
     required this.result,
     required this.theme,
     required this.onReset,

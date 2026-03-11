@@ -3,6 +3,8 @@
 // REDESIGNED CONSTELLATION PROGRESS OVERVIEW
 // Aesthetic: Scorched Forge — dark metal, amber reagent accents, monospace
 // All logic, routing, FutureBuilder caching, and view-toggle preserved.
+// PERF: ForgeTokens hoisted above FutureBuilder, RepaintBoundary on cards,
+//       const scanline singleton, LinearProgressIndicator, cacheExtent added.
 //
 
 import 'package:alchemons/screens/breeding_milestones_screen.dart';
@@ -22,7 +24,6 @@ import 'package:flame/image_composition.dart';
 // DESIGN TOKENS
 // ──────────────────────────────────────────────────────────────────────────────
 
-// Rarity → forge-palette color (replaces Colors.xxx.shade500)
 Color _rarityColor(String rarity) => switch (rarity.toLowerCase()) {
   'common' => const Color(0xFF6B7280),
   'uncommon' => const Color(0xFF34D399),
@@ -32,7 +33,10 @@ Color _rarityColor(String rarity) => switch (rarity.toLowerCase()) {
   _ => const Color(0xFF6B7280),
 };
 
+// PERF: const constructor + singleton instance — never re-instantiated.
 class _ScanlinePainter extends CustomPainter {
+  const _ScanlinePainter();
+
   @override
   void paint(Canvas canvas, Size size) {
     final p = Paint()..color = Colors.black.withValues(alpha: 0.07);
@@ -44,6 +48,9 @@ class _ScanlinePainter extends CustomPainter {
   @override
   bool shouldRepaint(_) => false;
 }
+
+// PERF: Single const instance shared across all cards — zero allocations.
+const _kScanlines = CustomPaint(painter: _ScanlinePainter());
 
 // ──────────────────────────────────────────────────────────────────────────────
 // SCREEN
@@ -93,7 +100,9 @@ class _ConstellationProgressOverviewScreenState
     final constellationService = context.watch<ConstellationService>();
     final db = context.read<AlchemonsDatabase>();
 
+    // PERF: Read theme once at top level — not inside child builders.
     final t = ForgeTokens(context.read<FactionTheme>());
+
     return Scaffold(
       backgroundColor: t.bg0,
       appBar: _buildAppBar(t),
@@ -217,48 +226,54 @@ class _ConstellationProgressOverviewScreenState
           const SizedBox(height: 8),
           Expanded(
             child: PageView.builder(
-                  controller: _pageController,
-                  onPageChanged: (index) {
-                    HapticFeedback.selectionClick();
-                    setState(() => _currentPage = index);
-                  },
-                  itemCount: species.length,
-                  itemBuilder: (context, index) {
-                    final creature = species[index];
-                    return MyAnimatedBuilder(
-                      animation: _pageController,
-                      builder: (context, child) {
-                        double value = 1.0;
-                        if (_pageController.position.haveDimensions) {
-                          value = (_pageController.page! - index).abs();
-                          value = (1 - (value * 0.15)).clamp(0.85, 1.0);
-                        }
-                        return Transform.scale(
-                          scale: value,
-                          child: Opacity(
-                            opacity: value.clamp(0.8, 1.0),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 4,
-                        ),
-                        child: Center(
-                          child: _SpeciesCard(
-                            creature: creature,
-                            progressFuture: _progressFor(
-                              constellationService,
-                              creature.id,
-                            ),
-                          ),
-                        ),
+              controller: _pageController,
+              onPageChanged: (index) {
+                HapticFeedback.selectionClick();
+                setState(() => _currentPage = index);
+              },
+              itemCount: species.length,
+              itemBuilder: (context, index) {
+                final creature = species[index];
+                // PERF: RepaintBoundary is the `child` of MyAnimatedBuilder so
+                // the card subtree is isolated from scroll-driven rebuilds.
+                // Only the Transform.scale wrapper repaints on page drag.
+                return MyAnimatedBuilder(
+                  animation: _pageController,
+                  builder: (context, child) {
+                    double value = 1.0;
+                    if (_pageController.position.haveDimensions) {
+                      value = (_pageController.page! - index).abs();
+                      value = (1 - (value * 0.15)).clamp(0.85, 1.0);
+                    }
+                    return Transform.scale(
+                      scale: value,
+                      child: Opacity(
+                        opacity: value.clamp(0.8, 1.0),
+                        child: child,
                       ),
                     );
                   },
-                ),
+                  // PERF: child is built once, not on every animation tick.
+                  child: RepaintBoundary(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 4,
+                      ),
+                      child: Center(
+                        child: _SpeciesCard(
+                          creature: creature,
+                          progressFuture: _progressFor(
+                            constellationService,
+                            creature.id,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
           _buildPageIndicator(species.length, t),
           const SizedBox(height: 8),
@@ -326,7 +341,6 @@ class _ConstellationProgressOverviewScreenState
               ],
             ),
             const SizedBox(height: 8),
-            // Progress scrubber
             Container(
               height: 3,
               decoration: BoxDecoration(
@@ -367,6 +381,8 @@ class _ConstellationProgressOverviewScreenState
     ForgeTokens t,
   ) {
     return ListView.builder(
+      // PERF: Pre-render ~4 items off-screen for smoother fling scrolling.
+      cacheExtent: 400,
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
@@ -374,9 +390,15 @@ class _ConstellationProgressOverviewScreenState
       itemCount: species.length,
       itemBuilder: (context, index) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: _ListItem(
-          creature: species[index],
-          progressFuture: _progressFor(constellationService, species[index].id),
+        // PERF: RepaintBoundary isolates each row from its neighbours.
+        child: RepaintBoundary(
+          child: _ListItem(
+            creature: species[index],
+            progressFuture: _progressFor(
+              constellationService,
+              species[index].id,
+            ),
+          ),
         ),
       ),
     );
@@ -396,7 +418,9 @@ class _ConstellationProgressOverviewScreenState
               decoration: BoxDecoration(
                 color: t.bg2,
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: t.borderAccent.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: t.borderAccent.withValues(alpha: 0.5),
+                ),
               ),
               child: Icon(
                 Icons.auto_awesome_outlined,
@@ -446,13 +470,22 @@ class _SpeciesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // PERF: Resolved once per card build — not inside FutureBuilder.
+    final t = ForgeTokens(context.read<FactionTheme>());
     final rColor = _rarityColor(creature.rarity);
+
+    // PERF: Glow decoration depends only on rColor (static per creature).
+    // Built here instead of inside FutureBuilder to avoid repeated allocation.
+    final glowDecoration = BoxDecoration(
+      shape: BoxShape.circle,
+      gradient: RadialGradient(
+        colors: [rColor.withValues(alpha: 0.10), Colors.transparent],
+      ),
+    );
 
     return FutureBuilder<BreedingProgress>(
       future: progressFuture,
       builder: (context, snapshot) {
-        final t = ForgeTokens(context.read<FactionTheme>());
-        // Loading skeleton
         if (!snapshot.hasData) {
           return Container(
             decoration: BoxDecoration(
@@ -483,104 +516,103 @@ class _SpeciesCard extends StatelessWidget {
             );
           },
           child: IntrinsicHeight(
-           child: Container(
-            decoration: BoxDecoration(
-              color: t.bg2,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: rColor.withValues(alpha: 0.35), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: rColor.withValues(alpha: 0.08),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
+            child: Container(
+              decoration: BoxDecoration(
+                color: t.bg2,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: rColor.withValues(alpha: 0.35),
+                  width: 1.5,
                 ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              children: [
-                // Scanlines
-                Positioned.fill(
-                  child: CustomPaint(painter: _ScanlinePainter()),
-                ),
-                // Radial glow
-                Positioned(
-                  top: -60,
-                  right: -60,
-                  child: Container(
-                    width: 200,
-                    height: 200,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [rColor.withValues(alpha: 0.10), Colors.transparent],
-                      ),
+                boxShadow: [
+                  BoxShadow(
+                    color: rColor.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  // PERF: Const singleton — never allocates a new painter.
+                  Positioned.fill(child: _kScanlines),
+
+                  // PERF: Glow container built from cached decoration above.
+                  Positioned(
+                    top: -60,
+                    right: -60,
+                    child: Container(
+                      width: 200,
+                      height: 200,
+                      decoration: glowDecoration,
                     ),
                   ),
-                ),
-                // Content
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Top row — rarity badge + arrow
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _RarityBadge(rarity: creature.rarity, color: rColor),
-                          Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            color: t.textMuted,
-                            size: 14,
-                          ),
-                        ],
-                      ),
 
-                      // Sprite
-                      const SizedBox(height: 8),
-                      Hero(
-                        tag: 'constellation_sprite_${creature.id}',
-                        child: SizedBox(
-                          width: 120,
-                          height: 120,
-                          child: RepaintBoundary(
-                            child: CreatureSprite(
-                              spritePath:
-                                  creature.spriteData!.spriteSheetPath,
-                              totalFrames: creature.spriteData!.totalFrames,
-                              rows: creature.spriteData!.rows,
-                              frameSize: Vector2(
-                                creature.spriteData!.frameWidth.toDouble(),
-                                creature.spriteData!.frameHeight.toDouble(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _RarityBadge(
+                              rarity: creature.rarity,
+                              color: rColor,
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              color: t.textMuted,
+                              size: 14,
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 8),
+                        Hero(
+                          tag: 'constellation_sprite_${creature.id}',
+                          child: SizedBox(
+                            width: 120,
+                            height: 120,
+                            child: RepaintBoundary(
+                              child: CreatureSprite(
+                                spritePath:
+                                    creature.spriteData!.spriteSheetPath,
+                                totalFrames: creature.spriteData!.totalFrames,
+                                rows: creature.spriteData!.rows,
+                                frameSize: Vector2(
+                                  creature.spriteData!.frameWidth.toDouble(),
+                                  creature.spriteData!.frameHeight.toDouble(),
+                                ),
+                                stepTime:
+                                    creature.spriteData!.frameDurationMs /
+                                    1000.0,
                               ),
-                              stepTime:
-                                  creature.spriteData!.frameDurationMs /
-                                  1000.0,
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
+                        const SizedBox(height: 8),
 
-                      // Name
-                      Text(
-                        creature.name.toUpperCase(),
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2.0,
+                        Text(
+                          creature.name.toUpperCase(),
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2.0,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
+                        const SizedBox(height: 8),
 
-                      // Stats panel
-                      Container(
+                        Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: t.bg3,
                             borderRadius: BorderRadius.circular(3),
@@ -589,7 +621,6 @@ class _SpeciesCard extends StatelessWidget {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // Bred count
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -651,13 +682,13 @@ class _SpeciesCard extends StatelessWidget {
                                 _CompleteBadge(),
                             ],
                           ),
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-           ),
           ),
         );
       },
@@ -677,13 +708,13 @@ class _ListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // PERF: Resolved once per item build — not inside FutureBuilder.
+    final t = ForgeTokens(context.read<FactionTheme>());
     final rColor = _rarityColor(creature.rarity);
 
     return FutureBuilder<BreedingProgress>(
       future: progressFuture,
       builder: (context, snapshot) {
-        final t = ForgeTokens(context.read<FactionTheme>());
-        // Stable-height loading skeleton
         if (!snapshot.hasData) {
           return Container(
             height: 92,
@@ -727,7 +758,6 @@ class _ListItem extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // Sprite plate
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -754,12 +784,10 @@ class _ListItem extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
 
-                // Info column
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Name + rarity badge
                       Row(
                         children: [
                           Expanded(
@@ -785,7 +813,6 @@ class _ListItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 5),
 
-                      // Bred count
                       Row(
                         children: [
                           Text(
@@ -880,6 +907,7 @@ class _ProgressBar extends StatelessWidget {
   final double progress;
   final Color color;
   final double height;
+
   const _ProgressBar({
     required this.progress,
     required this.color,
@@ -889,25 +917,17 @@ class _ProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
-    return Container(
+    // PERF: LinearProgressIndicator is platform-optimized and avoids the
+    // FractionallySizedBox + ClipRRect layout pass from before.
+    return SizedBox(
       height: height,
-      decoration: BoxDecoration(
-        color: t.borderMid,
-        borderRadius: BorderRadius.circular(height / 2),
-      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(height / 2),
-        child: FractionallySizedBox(
-          alignment: Alignment.centerLeft,
-          widthFactor: progress.clamp(0.0, 1.0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: color,
-              boxShadow: [
-                BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4),
-              ],
-            ),
-          ),
+        child: LinearProgressIndicator(
+          value: progress.clamp(0.0, 1.0),
+          backgroundColor: t.borderMid,
+          valueColor: AlwaysStoppedAnimation<Color>(color),
+          minHeight: height,
         ),
       ),
     );
@@ -918,6 +938,7 @@ class _RarityBadge extends StatelessWidget {
   final String rarity;
   final Color color;
   final bool small;
+
   const _RarityBadge({
     required this.rarity,
     required this.color,
@@ -952,6 +973,7 @@ class _RewardBadge extends StatelessWidget {
   final int points;
   final Color color;
   final bool small;
+
   const _RewardBadge({
     required this.points,
     required this.color,

@@ -41,7 +41,6 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen>
     with SingleTickerProviderStateMixin {
-  bool _showDebugInfo = false; // Add this state variable
   bool _arcaneUnlocked = false;
   late final AnimationController _mapController;
   late final Animation<double> _mapScale;
@@ -320,22 +319,14 @@ class _MapScreenState extends State<MapScreen>
     final theme = context.watch<FactionTheme>();
     final spawnService = context.watch<WildernessSpawnService>();
 
-    final anySpawns = const [
-      'valley',
-      'sky',
-      'volcano',
-      'swamp',
-    ].any((biomeId) => spawnService.getSceneSpawnCount(biomeId) > 0);
-
     return ParticleBackgroundScaffold(
       whiteBackground: theme.brightness == Brightness.light,
-      body: WillPopScope(
-        onWillPop: () async {
-          if (widget.isTutorial) {
+      body: PopScope(
+        canPop: !widget.isTutorial,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop && widget.isTutorial) {
             _showTutorialBlockedDialog();
-            return false;
           }
-          return true;
         },
         child: Scaffold(
           backgroundColor: Colors.transparent,
@@ -750,8 +741,12 @@ class _HeaderBar extends StatelessWidget {
 // =====================================================
 // SPAWN DEBUG PANEL
 // =====================================================
-class _SpawnDebugPanel extends StatelessWidget {
-  const _SpawnDebugPanel({required this.theme, required this.spawnService});
+class SpawnDebugPanel extends StatelessWidget {
+  const SpawnDebugPanel({
+    super.key,
+    required this.theme,
+    required this.spawnService,
+  });
 
   final FactionTheme theme;
   final WildernessSpawnService spawnService;
@@ -1027,8 +1022,6 @@ class _ScorchedSpawnBox extends StatelessWidget {
     final fc = FC.of(context);
     final ft = FT(fc);
     final nextDue = spawnService.getNextSpawnTime(biomeId);
-    final count = spawnService.getSceneSpawnCount(biomeId);
-
     final boxWidth = compact ? 140.0 : 180.0;
     final titleSize = compact ? 10.0 : 11.0;
     final timeSize = compact ? 9.0 : 12.0;

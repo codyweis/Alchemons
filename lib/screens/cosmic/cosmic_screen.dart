@@ -6,9 +6,7 @@ import 'dart:async';
 
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/screens/cosmic/cosmic_summon_screen.dart';
 import 'package:alchemons/screens/cosmic/space_market_sheet.dart';
 import 'package:alchemons/screens/cosmic/cosmic_sell_sheet.dart';
@@ -21,10 +19,6 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
-import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
-import 'package:alchemons/models/scenes/sky/sky_scene.dart';
-import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
-import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/poison/poison_scene.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/services/breeding_config.dart';
@@ -33,14 +27,10 @@ import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
-import 'package:alchemons/models/creature_stats.dart';
 import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
 import 'package:alchemons/screens/cosmic/elemental_nexus_screen.dart';
-import 'package:alchemons/screens/cosmic/battle_ring_screen.dart';
 import 'package:alchemons/screens/cosmic/blood_ring_ending_screen.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
-import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -56,19 +46,8 @@ import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 // Local widget imports
 import 'models/map_marker.dart';
 import 'models/cosmic_summon_result.dart';
-import 'widgets/top_hud.dart';
 import 'widgets/widgets.dart';
-import 'widgets/mini_map_overlay.dart';
 import 'widgets/mini_map_circle.dart';
-import 'widgets/summon_popup.dart';
-import 'widgets/planet_recipe_hud.dart';
-import 'widgets/home_planet_menu_overlay.dart';
-import 'widgets/chamber_picker_overlay.dart';
-import 'widgets/elements_captured_popup.dart';
-import 'widgets/customization_menu_overlay.dart';
-import 'widgets/ship_menu_overlay.dart';
-import 'widgets/virtual_joystick.dart';
-import 'widgets/cosmic_party_picker_overlay.dart';
 import 'widgets/contest_arena_overlays.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 
@@ -439,6 +418,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     final missileAmmo = prefs.getInt('cosmic_missile_ammo') ?? 0;
 
     // Load prismatic field reward flag
+    if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
     final prismaticClaimed = await db.settingsDao
         .getCosmicPrismaticRewardClaimed();
@@ -1228,10 +1208,11 @@ class _CosmicScreenState extends State<CosmicScreen>
         if (mounted) {
           setState(() => _nearPlanet = planet);
           // animate planet-meter in/out
-          if (planet != null)
+          if (planet != null) {
             _planetMeterCtrl.forward(from: 0.0);
-          else
+          } else {
             _planetMeterCtrl.reverse();
+          }
         }
       });
     }
@@ -1306,6 +1287,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     await db.inventoryDao.consumeItem(keyInvKey);
 
     // Navigate to RiftPortalScreen with empty party (harvester-only capture)
+    if (!mounted) return;
     final success = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => RiftPortalScreen(
@@ -2596,7 +2578,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       }
 
       setState(() {});
-      _showQuote('Practice Arena — ${displayName} enters the ring!');
+      _showQuote('Practice Arena — $displayName enters the ring!');
       return;
     }
 
@@ -2717,7 +2699,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
 
     setState(() {});
-    _showQuote('Level ${level + 1} — ${displayName} enters the ring!');
+    _showQuote('Level ${level + 1} — $displayName enters the ring!');
   }
 
   void _onBattleRingWon() {
@@ -3445,7 +3427,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   Widget _buildPartySlotButton(int i) {
     final member = i < _partyMembers.length ? _partyMembers[i] : null;
     final isActive = _activeCompanionSlot == i;
-    final hasActive = _activeCompanionSlot != null;
     final hpFrac = isActive
         ? (_game?.activeCompanion?.hpPercent ??
               (_companionHpFraction[i] ?? 1.0))
@@ -4202,7 +4183,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     HapticFeedback.mediumImpact();
   }
 
-  void _handleFreeRefuel() {
+  void handleFreeRefuel() {
     if (_game == null || !_isNearHome) return;
     if (!_customizationState.hasBooster) {
       _showQuote('You need the Ion Booster first!');
@@ -4221,7 +4202,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {});
   }
 
-  void _handleFreeMissiles() {
+  void handleFreeMissiles() {
     if (_game == null || !_isNearHome) return;
     if (!_customizationState.hasMissiles) {
       _showQuote('You need the Seeker Missiles first!');
@@ -6659,9 +6640,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                         // Small health bar above each companion slot
                         Builder(
                           builder: (_) {
-                            final member = i < _partyMembers.length
-                                ? _partyMembers[i]
-                                : null;
                             final isActive = _activeCompanionSlot == i;
                             final hpFrac = isActive
                                 ? (_game?.activeCompanion?.hpPercent ??
@@ -6705,8 +6683,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                                                         : const Color(
                                                             0xFFE53935,
                                                           ))
-                                                    .withOpacity(
-                                                      isActive ? 1.0 : 0.35,
+                                                    .withValues(
+                                                      alpha: isActive
+                                                          ? 1.0
+                                                          : 0.35,
                                                     ),
                                             borderRadius: BorderRadius.circular(
                                               3,

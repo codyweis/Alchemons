@@ -6,7 +6,7 @@ import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 
 class GuardianSlotIndicator extends PositionComponent
-    with TapCallbacks, HasGameRef<SurvivalHoardGame> {
+    with TapCallbacks, HasGameReference<SurvivalHoardGame> {
   final int slotIndex;
   double _timer = 0;
 
@@ -85,7 +85,7 @@ class GuardianSlotIndicator extends PositionComponent
   @override
   void onTapDown(TapDownEvent event) {
     super.onTapDown(event);
-    gameRef.confirmDeployAtSlot(slotIndex);
-    // No need to remove manually here, gameRef handles cleanup of all indicators
+    game.confirmDeployAtSlot(slotIndex);
+    // No need to remove manually here, game handles cleanup of all indicators
   }
 }

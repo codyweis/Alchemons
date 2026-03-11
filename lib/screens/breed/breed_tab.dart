@@ -1093,6 +1093,7 @@ class _BreedingTabState extends State<BreedingTab>
     final hasCrossSpecies = skills.contains('breeder_cross_species');
 
     if (!sameFamily && !hasCrossSpecies) {
+      if (!mounted) return;
       await _showCrossSpeciesLockedDialog(context, famA, famB);
       setState(() => _isBreeding = false);
       // Do NOT start fade / cinematic; we just bail out cleanly.
@@ -1107,6 +1108,7 @@ class _BreedingTabState extends State<BreedingTab>
     await Future.delayed(const Duration(milliseconds: 400));
 
     // now jump to cinematic + actual breeding
+    if (!mounted) return;
     await _performBreeding();
 
     if (mounted) setState(() => _isBreeding = false);
@@ -1137,6 +1139,7 @@ class _BreedingTabState extends State<BreedingTab>
     }
 
     try {
+      if (!mounted) return;
       final repo = context.read<CreatureCatalog>();
       final breedingService = context.read<BreedingServiceV2>();
 
@@ -1169,6 +1172,7 @@ class _BreedingTabState extends State<BreedingTab>
       final leftSprite = spriteFor(selectedParent1!, speciesA);
       final rightSprite = spriteFor(selectedParent2!, speciesB);
 
+      if (!mounted) return;
       await showAlchemyFusionCinematic<void>(
         context: context,
         leftSprite: leftSprite,
@@ -1290,11 +1294,10 @@ class _BreedingTabState extends State<BreedingTab>
     CreatureInstance? tempPick1 = selectedParent1;
     CreatureInstance? tempPick2 = selectedParent2;
 
-    // We need a reference to the outer context for Navigator.pop on the main sheet
-    final outerContext = context;
+    if (!context.mounted) return;
 
     showModalBottomSheet(
-      context: outerContext,
+      context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) {
@@ -1336,7 +1339,7 @@ class _BreedingTabState extends State<BreedingTab>
                     }
 
                     // --- Stamina check ---
-                    final stamina = outerContext.read<StaminaService>();
+                    final stamina = context.read<StaminaService>();
                     final refreshed = await stamina.refreshAndGet(
                       instance.instanceId,
                     );
@@ -1368,6 +1371,7 @@ class _BreedingTabState extends State<BreedingTab>
 
                     // --- Both filled? Apply and close ---
                     if (tempPick1 != null && tempPick2 != null) {
+                      if (!sheetCtx.mounted) return;
                       Navigator.pop(sheetCtx);
                       setState(() {
                         selectedParent1 = tempPick1;
@@ -1382,7 +1386,7 @@ class _BreedingTabState extends State<BreedingTab>
                   },
                   onSelectCreature: (creatureId) async {
                     // Species-grid tap → open instance picker ON TOP (stacked)
-                    final repo = outerContext.read<CreatureCatalog>();
+                    final repo = context.read<CreatureCatalog>();
                     final species = repo.getCreatureById(creatureId);
                     if (species == null) return;
 

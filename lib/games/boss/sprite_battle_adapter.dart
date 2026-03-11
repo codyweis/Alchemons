@@ -42,7 +42,7 @@ final _rng = math.Random();
 /// Enhanced CreatureBattleSprite that uses your actual CreatureSpriteComponent
 /// Replace the placeholder CircleComponent in battle_game.dart with this
 class CreatureBattleSpriteWithVisuals extends PositionComponent
-    with HasGameRef<BattleGame>, TapCallbacks {
+    with HasGameReference<BattleGame>, TapCallbacks {
   final BattleCombatant combatant;
   final int index;
   final SpriteSheetDef sheet;
@@ -101,8 +101,11 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       _addEffectComponent(alchemyEffect!);
     }
 
-    // Status icon container - just above the creature sprite's head
-    statusIconContainer = PositionComponent(position: Vector2(0, 10));
+    // Status/debuff badges live beneath the creature sprite.
+    statusIconContainer = PositionComponent(
+      anchor: Anchor.center,
+      position: Vector2(size.x / 2, size.y - 6),
+    );
     add(statusIconContainer);
 
     // Selection indicator (behind creature)
@@ -145,11 +148,13 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
         effectComponent = VolcanicAuraComponent(baseSize: effectBase);
         break;
       case 'void_rift':
-        effectComponent = VoidRiftComponent(baseSize: effectBase * 0.8);
+        // Boss-battle readability: keep void effect tighter around the unit.
+        effectComponent = VoidRiftComponent(baseSize: effectBase * 0.62);
         break;
       case 'prismatic_cascade':
+        // Prismatic looked oversized in battle scale; reduce footprint.
         effectComponent = PrismaticCascadeComponent(
-          baseSize: prismaticBase * 0.62,
+          baseSize: prismaticBase * 0.5,
         );
         break;
       case 'beauty_radiance':
@@ -380,7 +385,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
   @override
   void onTapDown(TapDownEvent event) {
     if (!combatant.isDead) {
-      gameRef.selectCreature(index);
+      game.selectCreature(index);
     }
   }
 
@@ -389,7 +394,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
     setSelectionIndicator(false);
 
     // Calculate the target Y position to be completely off-screen
-    final offScreenY = gameRef.size.y + size.y;
+    final offScreenY = game.size.y + size.y;
 
     const double duration = 1.5;
 
@@ -430,7 +435,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       move,
       combatant.types.first,
     ).createEffect(target.position);
-    gameRef.post(() => gameRef.add(effect));
+    game.post(() => game.add(effect));
 
     // Sequence: forward -> back
     final completer = Completer<void>();
@@ -623,7 +628,7 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
 
 /// Adapted version of your CreatureSpriteComponent for battle use
 class CreatureSpriteComponentBattle extends PositionComponent
-    with HasGameRef<BattleGame> {
+    with HasGameReference<BattleGame> {
   final SpriteSheetDef sheet;
   final SpriteVisuals visuals;
   final Vector2 desiredSize;
@@ -644,9 +649,9 @@ class CreatureSpriteComponentBattle extends PositionComponent
 
     try {
       // Try loading the actual sprite sheet
-      await gameRef.images.load(sheet.path);
+      await game.images.load(sheet.path);
 
-      final image = gameRef.images.fromCache(sheet.path);
+      final image = game.images.fromCache(sheet.path);
       final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
 
       final anim = SpriteAnimation.fromFrameData(
@@ -753,9 +758,9 @@ class CreatureSpriteComponentBattle extends PositionComponent
     }
 
     if (tint != null) {
-      final tr = tint.red / 255.0;
-      final tg = tint.green / 255.0;
-      final tb = tint.blue / 255.0;
+      final tr = tint.r;
+      final tg = tint.g;
+      final tb = tint.b;
       final tintMat = <double>[
         tr,
         0,
@@ -806,7 +811,7 @@ class CreatureSpriteComponentBattle extends PositionComponent
 // ── FLAME EFFECT IMPLEMENTATIONS ────────────────────────────────────
 
 /// Flame implementation of AlchemyGlow (Pulsing Radial Glow)
-class FlameAlchemyGlow extends PositionComponent with HasGameRef {
+class FlameAlchemyGlow extends PositionComponent with HasGameReference {
   final double baseSize;
   double _time = 0;
 
@@ -854,7 +859,7 @@ class FlameAlchemyGlow extends PositionComponent with HasGameRef {
 }
 
 /// Flame implementation of ElementalAura (Orbiting Particles)
-class FlameElementalAura extends PositionComponent with HasGameRef {
+class FlameElementalAura extends PositionComponent with HasGameReference {
   final double baseSize;
   final Color color;
   double _time = 0;
@@ -893,11 +898,11 @@ class FlameElementalAura extends PositionComponent with HasGameRef {
 }
 
 /// Flame implementation of VoidRift (swirling dark void energy)
-class _FlameVoidRift extends PositionComponent with HasGameRef {
+class FlameVoidRift extends PositionComponent with HasGameReference {
   final double baseSize;
   double _time = 0;
 
-  _FlameVoidRift({required this.baseSize})
+  FlameVoidRift({required this.baseSize})
     : super(
         size: Vector2.all(baseSize * 4),
         anchor: Anchor.center,
@@ -1021,7 +1026,7 @@ class _FlameVoidRift extends PositionComponent with HasGameRef {
   }
 }
 
-// ── _FlamePrismaticCascade ───────────────────────────────────────────────────
+// ── FlamePrismaticCascade ───────────────────────────────────────────────────
 
 Color _prismaticHsl(
   double hue, {
@@ -1031,11 +1036,11 @@ Color _prismaticHsl(
 }) => HSLColor.fromAHSL(a.clamp(0, 1), hue % 360, s, l).toColor();
 
 /// Flame implementation of PrismaticCascade — five-layer full-spectrum effect.
-class _FlamePrismaticCascade extends PositionComponent with HasGameRef {
+class FlamePrismaticCascade extends PositionComponent with HasGameReference {
   final double baseSize;
   double _time = 0;
 
-  _FlamePrismaticCascade({required this.baseSize})
+  FlamePrismaticCascade({required this.baseSize})
     : super(
         size: Vector2.all(baseSize * 2.6),
         anchor: Anchor.center,

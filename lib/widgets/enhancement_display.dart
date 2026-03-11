@@ -61,7 +61,7 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
   @override
   void initState() {
     super.initState();
-    print('EnhancementDisplay.initState() called');
+    debugPrint('EnhancementDisplay.initState() called');
 
     _xpController =
         AnimationController(
@@ -96,7 +96,7 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
   void didUpdateWidget(EnhancementDisplay oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    print(
+    debugPrint(
       'didUpdateWidget: shouldAnimate=${widget.shouldAnimate}, oldShouldAnimate=${oldWidget.shouldAnimate}, isAnimating=$_isAnimating',
     );
 
@@ -121,7 +121,7 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
 
     // Trigger ONLY on rising edge
     if (widget.shouldAnimate && !oldWidget.shouldAnimate) {
-      print('TRIGGERING ANIMATION');
+      debugPrint('TRIGGERING ANIMATION');
       _startAnimation();
     }
   }
@@ -134,7 +134,7 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
     // 1. SNAPSHOT START ("from")
     // ---------
     if (widget.preFeedLevel == null || widget.preFeedXp == null) {
-      print('ERROR: preFeedLevel or preFeedXp is null, cannot animate');
+      debugPrint('ERROR: preFeedLevel or preFeedXp is null, cannot animate');
       _ignoreStatusListener = false;
       return;
     }
@@ -147,7 +147,7 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
         ? (startXp / startMaxXp).clamp(0.0, 1.0)
         : 0.0;
 
-    print(
+    debugPrint(
       'Animation FROM: level=$startLevel, xp=$startXp, progress=$startProgress',
     );
 
@@ -169,10 +169,10 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
       }
     })();
 
-    print('Animation TO: level=$endLevel, progress=$endProgress');
+    debugPrint('Animation TO: level=$endLevel, progress=$endProgress');
 
     final isLevelingUp = endLevel > startLevel;
-    print('Is leveling up: $isLevelingUp');
+    debugPrint('Is leveling up: $isLevelingUp');
 
     // ---------
     // 3. UPDATE STATE AND START ANIMATION
@@ -217,7 +217,7 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
 
   @override
   Widget build(BuildContext context) {
-    print('EnhancementDisplay.build() called - isAnimating=$_isAnimating');
+    debugPrint('EnhancementDisplay.build() called - isAnimating=$_isAnimating');
     final repo = context.read<CreatureCatalog>();
     final creature = repo.getCreatureById(widget.instance.baseId);
     if (creature == null) return const SizedBox.shrink();
@@ -327,7 +327,7 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
               final showActualValues =
                   _hasCompletedFeed && !_isAnimating && !widget.shouldAnimate;
 
-              print(
+              debugPrint(
                 'Stats display: _hasCompletedFeed=$_hasCompletedFeed, _isAnimating=$_isAnimating, shouldAnimate=${widget.shouldAnimate}, showActualValues=$showActualValues',
               );
 
@@ -447,8 +447,8 @@ class _LevelDisplay extends StatefulWidget {
   const _LevelDisplay({
     required this.theme,
     required this.currentLevel,
-    this.targetLevel,
-    this.isAnimating = false,
+    required this.targetLevel,
+    required this.isAnimating,
   });
 
   @override
@@ -491,7 +491,9 @@ class _LevelDisplayState extends State<_LevelDisplay>
           decoration: BoxDecoration(
             color: widget.theme.primary.withValues(alpha: .2),
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: widget.theme.primary.withValues(alpha: .4)),
+            border: Border.all(
+              color: widget.theme.primary.withValues(alpha: .4),
+            ),
           ),
           child: Text(
             'Level ${widget.currentLevel}',
@@ -714,12 +716,12 @@ class _StatGainsDisplay extends StatelessWidget {
     int index,
     int total,
   ) {
-    print(
+    debugPrint(
       '_buildChipAnimated: isAnimating=$isAnimating, showActualValues=$showActualValues',
     );
 
     if (showActualValues) {
-      print('  -> Showing _StatValueChip (actual values)');
+      debugPrint('  -> Showing _StatValueChip (actual values)');
       // Show actual stat values (before → after)
       return _StatValueChip(
         statName: entry.key,
@@ -731,7 +733,7 @@ class _StatGainsDisplay extends StatelessWidget {
     }
 
     // Always show gain chips without animation
-    print('  -> Showing _StatGainChip (gain values)');
+    debugPrint('  -> Showing _StatGainChip (gain values)');
     return _StatGainChip(statName: entry.key, gain: entry.value, theme: theme);
   }
 }
@@ -870,7 +872,11 @@ class _StatValueChip extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 3),
-          Icon(Icons.arrow_forward, size: 10, color: color.withValues(alpha: 0.7)),
+          Icon(
+            Icons.arrow_forward,
+            size: 10,
+            color: color.withValues(alpha: 0.7),
+          ),
           const SizedBox(width: 3),
           // New value SECOND (after arrow)
           Text(

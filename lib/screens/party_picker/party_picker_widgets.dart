@@ -221,6 +221,7 @@ class PartyFooter extends StatelessWidget {
                             if (!proceed) return;
 
                             if (showDeployConfirm) {
+                              if (!context.mounted) return;
                               final confirmed = await showDialog<bool>(
                                 context: context,
                                 barrierDismissible: false,

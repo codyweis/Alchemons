@@ -323,6 +323,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   Future<void> _onSelectPartyCreature(String instanceId) async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
+    final staminaService = context.read<StaminaService>();
 
     final instRow = await db.creatureDao.getInstance(instanceId);
     if (instRow == null) return;
@@ -338,7 +339,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       isPrismaticSkin: instRow.isPrismaticSkin || baseCreature.isPrismaticSkin,
     );
 
-    final wilderness = WildernessService(db, context.read<StaminaService>());
+    final wilderness = WildernessService(db, staminaService);
 
     final totalLuck = instRow.statBeauty / 100.0;
     final p = wilderness.computeBreedChance(
@@ -393,6 +394,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       final hasCrossSpecies = skills.contains('breeder_cross_species');
 
       if (!sameFamily && !hasCrossSpecies) {
+        if (!ctx.mounted) return;
         await _showCrossSpeciesLockedDialog(ctx, famA, famB);
         setState(() {
           _status = 'Further research required for cross-species fusion.';
@@ -400,7 +402,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         return;
       }
       // --------------------------------------------------------------
-      final constellation = context.read<ConstellationEffectsService>();
+      if (!ctx.mounted) return;
+      final constellation = ctx.read<ConstellationEffectsService>();
       final harvestBonus = constellation.getWildernessHarvestBonus();
       final totalLuck = instance.statBeauty / 100.0;
 
@@ -432,6 +435,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
             ? BreedConstants.getTypeColor(c.types.first)
             : fallback;
 
+        if (!ctx.mounted) return;
         final colorA = colorOf(speciesA, Theme.of(ctx).colorScheme.primary);
         final colorB = colorOf(speciesB, Theme.of(ctx).colorScheme.secondary);
 
@@ -494,6 +498,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         }
 
         // 🆕 Show cinematic FIRST, then hide overlay
+        if (!ctx.mounted) return;
         await showAlchemyFusionCinematic<void>(
           context: ctx,
           leftSprite: partySprite(),
@@ -529,7 +534,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         rarity: widget.encounter.rarity,
       );
 
-      if (selectedDevice == null || !mounted) {
+      if (selectedDevice == null || !ctx.mounted) {
         setState(() => _busy = false);
         return;
       }
@@ -578,6 +583,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       // Trigger screen shake before cinematic
       widget.onPreRollShake?.call();
 
+      if (!ctx.mounted) return;
       final success = await showHarvestCinematic(
         context: ctx,
         targetSprite: wildSprite(),
@@ -601,6 +607,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           () => _status = 'Specimen sent to Cultivations for extraction',
         );
 
+        if (!ctx.mounted) return;
         await _placeWildEgg(ctx, wildCreature);
 
         await Future.delayed(const Duration(milliseconds: 800));
@@ -808,6 +815,7 @@ class _WildCreatureTitle extends StatelessWidget {
         _DigitalAnimatedText(
           // <--- NEW WIDGET
           text: creature.name.toUpperCase(),
+          duration: const Duration(milliseconds: 900),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 34,
@@ -838,7 +846,7 @@ class _DigitalAnimatedText extends StatefulWidget {
   const _DigitalAnimatedText({
     required this.text,
     required this.style,
-    this.duration = const Duration(milliseconds: 600),
+    this.duration = const Duration(milliseconds: 900),
   });
 
   @override
@@ -1089,6 +1097,7 @@ class _ActionPanel extends StatelessWidget {
               disabled: !isPartySelected,
               label: 'FUSION',
               sublabel: 'ATTEMPT ALCHEMICAL',
+              icon: Icons.science_rounded,
               accentColor: t.success,
               onPressed: canAct ? onBreed : null,
             ),
@@ -1125,8 +1134,8 @@ class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.label,
     required this.sublabel,
-    this.icon,
     required this.accentColor,
+    this.icon,
     this.onPressed,
     this.disabled = false,
   });

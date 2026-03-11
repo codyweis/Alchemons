@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +10,7 @@ import 'forge_bar.dart';
 
 class ShipMenuOverlay extends StatefulWidget {
   const ShipMenuOverlay({
+    super.key,
     required this.hasHomePlanet,
     required this.meterFill,
     required this.walletShards,
@@ -243,7 +243,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
                 Column(
                   mainAxisSize: MainAxisSize.max,
                   children: [
-                      const SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     _dockedHeader(),
                     const SizedBox(height: 6),
                     _etchedDivider(),

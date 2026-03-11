@@ -7,7 +7,7 @@ import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 
 class GuardianInspectHud extends PositionComponent
-    with HasGameRef<SurvivalHoardGame>, TapCallbacks {
+    with HasGameReference<SurvivalHoardGame>, TapCallbacks {
   GuardianInspectHud()
     : super(position: Vector2.zero(), anchor: Anchor.topLeft);
 
@@ -30,7 +30,7 @@ class GuardianInspectHud extends PositionComponent
   void update(double dt) {
     super.update(dt);
 
-    final hasSelection = gameRef.selectedGuardianNotifier.value != null;
+    final hasSelection = game.selectedGuardianNotifier.value != null;
 
     // Animate slide in/out
     if (hasSelection && !_isVisible) {
@@ -52,8 +52,8 @@ class GuardianInspectHud extends PositionComponent
   }
 
   @override
-  void onGameResize(Vector2 gameSize) {
-    super.onGameResize(gameSize);
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
     // Position at top-left of screen
     position = Vector2(10, 60);
   }
@@ -67,12 +67,12 @@ class GuardianInspectHud extends PositionComponent
 
     if (_slideProgress < 0.01) return;
 
-    final guardian = gameRef.selectedGuardianNotifier.value;
+    final guardian = game.selectedGuardianNotifier.value;
     if (guardian == null) return;
 
     final unit = guardian.unit;
-    final transmuteRank = gameRef.getTransmuteRank(unit.id);
-    final specialRank = gameRef.getSpecialRankForUnit(unit);
+    final transmuteRank = game.getTransmuteRank(unit.id);
+    final specialRank = game.getSpecialRankForUnit(unit);
     final element = unit.types.firstOrNull ?? 'Normal';
     final familyColor = _getFamilyColor(unit.family);
 
@@ -135,7 +135,10 @@ class GuardianInspectHud extends PositionComponent
       const Radius.circular(4),
     );
     _closeButtonRect = closeRect;
-    canvas.drawRRect(closeRect, Paint()..color = Colors.white.withValues(alpha: 0.1));
+    canvas.drawRRect(
+      closeRect,
+      Paint()..color = Colors.white.withValues(alpha: 0.1),
+    );
     _drawText(
       canvas,
       '✕',
@@ -232,7 +235,10 @@ class GuardianInspectHud extends PositionComponent
       Rect.fromLTWH(leftPad, y, panelWidth - 28, 6),
       const Radius.circular(3),
     );
-    canvas.drawRRect(hpBarBg, Paint()..color = Colors.white.withValues(alpha: 0.1));
+    canvas.drawRRect(
+      hpBarBg,
+      Paint()..color = Colors.white.withValues(alpha: 0.1),
+    );
 
     if (hpPercent > 0) {
       final hpBarFill = RRect.fromRectAndRadius(
@@ -372,7 +378,10 @@ class GuardianInspectHud extends PositionComponent
     final pulse = 0.5 + 0.5 * math.sin(_pulseTimer * 3);
     canvas.drawRRect(
       targetRect,
-      Paint()..color = const Color(0xFF8B5CF6).withValues(alpha: 0.15 + pulse * 0.05),
+      Paint()
+        ..color = const Color(
+          0xFF8B5CF6,
+        ).withValues(alpha: 0.15 + pulse * 0.05),
     );
     canvas.drawRRect(
       targetRect,
@@ -487,7 +496,7 @@ class GuardianInspectHud extends PositionComponent
   void onTapDown(TapDownEvent event) {
     super.onTapDown(event);
 
-    final guardian = gameRef.selectedGuardianNotifier.value;
+    final guardian = game.selectedGuardianNotifier.value;
     if (guardian == null) return;
 
     final local = event.localPosition;
@@ -495,7 +504,7 @@ class GuardianInspectHud extends PositionComponent
 
     // Check close button
     if (_closeButtonRect != null && _closeButtonRect!.contains(pos)) {
-      gameRef.selectGuardian(null);
+      game.selectGuardian(null);
       return;
     }
 
