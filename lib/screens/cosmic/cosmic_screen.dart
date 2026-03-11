@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/screens/cosmic/cosmic_summon_screen.dart';
 import 'package:alchemons/screens/cosmic/space_market_sheet.dart';
 import 'package:alchemons/screens/cosmic/cosmic_sell_sheet.dart';
@@ -144,8 +145,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   // Slow-mode toggle
   bool _slowMode = false;
 
-  // Joystick toggle (off by default)
-  bool _showJoystick = false;
+  // Joystick toggle (on by default)
+  bool _showJoystick = true;
 
   // Tap-to-shoot toggle (off by default)
   bool _tapToShoot = false;
@@ -238,6 +239,11 @@ class _CosmicScreenState extends State<CosmicScreen>
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(context.read<AudioController>().playCosmicExplorationMusic());
+    });
 
     _meterPulse = AnimationController(
       vsync: this,
@@ -395,7 +401,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _cargoLevel = prefs.getInt('cosmic_cargo_level') ?? 0;
 
     // Load joystick preference
-    _showJoystick = prefs.getBool('cosmic_joystick_enabled') ?? false;
+    _showJoystick = prefs.getBool('cosmic_joystick_enabled') ?? true;
 
     // Load tap-to-shoot preference
     _tapToShoot = prefs.getBool('cosmic_tap_to_shoot') ?? false;
@@ -1288,6 +1294,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Navigate to RiftPortalScreen with empty party (harvester-only capture)
     if (!mounted) return;
+    unawaited(context.read<AudioController>().playPortalMusic());
     final success = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => RiftPortalScreen(
@@ -1296,6 +1303,13 @@ class _CosmicScreenState extends State<CosmicScreen>
         ),
       ),
     );
+    if (mounted) {
+      unawaited(
+        context.read<AudioController>().playCosmicExplorationMusic(
+          cycle: false,
+        ),
+      );
+    }
 
     if (success == true && mounted) {
       _game?.relocateRift(rift);
@@ -1407,6 +1421,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   void _openNexusEncounter(String element) async {
     final nexus = _game!.elementalNexus;
+    unawaited(context.read<AudioController>().playPortalMusic());
     final result = await Navigator.of(context).push<NexusResult>(
       MaterialPageRoute(
         builder: (_) => ElementalNexusScreen(
@@ -1418,6 +1433,9 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
 
     if (!mounted || _game == null) return;
+    unawaited(
+      context.read<AudioController>().playCosmicExplorationMusic(cycle: false),
+    );
 
     if (result != null && result.caught) {
       // Encounter completed — exit pocket, return to normal world
@@ -4719,6 +4737,9 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   @override
   void dispose() {
+    try {
+      unawaited(context.read<AudioController>().playHomeMusic());
+    } catch (_) {}
     _miniMapRefreshTimer?.cancel();
     _meterPulse.dispose();
     _quoteFade.dispose();

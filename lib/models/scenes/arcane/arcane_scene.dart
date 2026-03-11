@@ -9,7 +9,11 @@ import 'package:flame/components.dart';
 /// provided by the AlchemicalParticleBackground widget in the scene page.
 final arcaneScene = SceneDefinition(
   worldWidth: 1000,
-  worldHeight: 1500,
+  worldHeight: 1000,
+  allowVerticalPan: false,
+  encounterGroundBias: 0,
+  encounterMinZoom: 0.9,
+  encounterMaxZoom: 1.3,
   layers: [
     // No layer images — pure black background.
     // The ScenePage background colour (black) handles the backdrop,
@@ -24,24 +28,24 @@ final arcaneScene = SceneDefinition(
   spawnPoints: [
     SpawnPoint(
       id: 'SP_arcane_01',
-      normalizedPos: const Offset(0.28, 0.58),
+      normalizedPos: const Offset(0.30, 0.28),
       anchor: SceneLayer.layer1,
       size: Vector2(80, 80),
-      battlePos: const Offset(0.54, 0.58),
+      battlePos: const Offset(0.52, 0.28),
     ),
     SpawnPoint(
       id: 'SP_arcane_02',
-      normalizedPos: const Offset(0.50, 0.58),
+      normalizedPos: const Offset(0.50, 0.31),
       anchor: SceneLayer.layer1,
       size: Vector2(80, 80),
-      battlePos: const Offset(0.30, 0.58),
+      battlePos: const Offset(0.32, 0.31),
     ),
     SpawnPoint(
       id: 'SP_arcane_03',
-      normalizedPos: const Offset(0.72, 0.58),
+      normalizedPos: const Offset(0.70, 0.34),
       anchor: SceneLayer.layer1,
       size: Vector2(80, 80),
-      battlePos: const Offset(0.46, 0.58),
+      battlePos: const Offset(0.48, 0.34),
     ),
   ],
 );

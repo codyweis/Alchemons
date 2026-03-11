@@ -244,36 +244,13 @@ class ExtractionDialogState extends State<ExtractionDialog>
                           ),
                           if (!widget.isTutorial) ...[
                             const SizedBox(width: 10),
-                            Tooltip(
-                              message: 'Discard specimen',
-                              child: Material(
-                                color: Colors.transparent,
-                                borderRadius: BorderRadius.circular(4),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(4),
-                                  onTap: widget.onDiscard,
-                                  splashColor: t.danger.withValues(alpha: .18),
-                                  highlightColor: t.danger.withValues(
-                                    alpha: .08,
-                                  ),
-                                  child: Ink(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(4),
-                                      color: t.danger.withValues(alpha: .08),
-                                      border: Border.all(
-                                        color: t.danger.withValues(alpha: .35),
-                                      ),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(13),
-                                      child: Icon(
-                                        Icons.delete_forever_rounded,
-                                        size: 18,
-                                        color: t.danger,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                            Expanded(
+                              child: _ActionButton(
+                                label: 'DISCARD',
+                                icon: Icons.delete_forever_rounded,
+                                accentColor: t.danger,
+                                filled: false,
+                                onTap: widget.onDiscard,
                               ),
                             ),
                           ],
@@ -421,6 +398,9 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(4);
+    final textColor = filled ? const Color(0xFFE8DCC8) : accentColor;
+    final iconColor = filled ? const Color(0xFFE8DCC8) : accentColor;
+
     return Material(
       color: Colors.transparent,
       borderRadius: radius,
@@ -432,33 +412,56 @@ class _ActionButton extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: radius,
+            gradient: filled
+                ? LinearGradient(
+                    colors: [
+                      accentColor.withValues(alpha: .85),
+                      Color.lerp(accentColor, const Color(0xFF0E1117), .45)!,
+                    ],
+                  )
+                : null,
             color: filled
-                ? accentColor.withValues(alpha: .9)
-                : accentColor.withValues(alpha: .08),
+                ? null
+                : const Color(0xFF141820).withValues(alpha: .8),
             border: Border.all(
               color: filled
-                  ? accentColor.withValues(alpha: .3)
+                  ? accentColor.withValues(alpha: .45)
                   : accentColor.withValues(alpha: .35),
             ),
+            boxShadow: filled
+                ? [
+                    BoxShadow(
+                      color: accentColor.withValues(alpha: .2),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: .28),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  icon,
-                  size: 16,
-                  color: filled ? Colors.white : accentColor,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: filled ? Colors.white : accentColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.0,
+                Icon(icon, size: 15, color: iconColor),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: textColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.9,
+                    ),
                   ),
                 ),
               ],

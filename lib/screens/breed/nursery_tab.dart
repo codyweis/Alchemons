@@ -977,7 +977,7 @@ class _NurseryTabState extends State<NurseryTab> {
     if (slot.eggId == null || slot.hatchAtUtcMs == null) return;
 
     final confirmed = await _showConfirmDialog(
-      'Return to Storage',
+      'Store',
       'Transfer this specimen back to storage? Development will continue there.',
     );
 

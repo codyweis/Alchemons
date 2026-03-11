@@ -23,6 +23,7 @@ dependencies:
   timezone: ^0.10.1
   shared_preferences: ^2.5.3
   sensors_plus: ^7.0.0
+  just_audio: ^0.9.36
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4
@@ -61,6 +62,8 @@ flutter:
     - assets/images/creatures/mystic/
     - assets/images/ui/
     - assets/data/
+    - assets/audio/music/
+    - assets/audio/sounds/
 
   shaders:
   - assets/shaders/fire.frag

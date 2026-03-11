@@ -1,12 +1,15 @@
 // lib/screens/battle_screen_flame.dart
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:alchemons/games/boss/battle_game.dart';
+import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
+import 'package:provider/provider.dart';
 
 /// Main battle screen that integrates Flame game with Flutter UI
 class BattleScreenFlame extends StatefulWidget {
@@ -51,6 +54,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      unawaited(context.read<AudioController>().playBossBattleMusic());
       _selectFirstReadyCreature();
     });
   }

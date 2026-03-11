@@ -3,6 +3,7 @@ import 'package:alchemons/helpers/breeding_config_loaders.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
+import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
@@ -88,6 +89,10 @@ class AppProviders extends StatelessWidget {
       providers: [
         // Database provider
         Provider<AlchemonsDatabase>.value(value: db),
+
+        ChangeNotifierProvider<AudioController>(
+          create: (ctx) => AudioController(ctx.read<AlchemonsDatabase>()),
+        ),
 
         // Theme (light/dark/system)
         ChangeNotifierProvider<ThemeNotifier>(

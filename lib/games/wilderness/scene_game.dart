@@ -119,7 +119,7 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   // Zoom state
   double _targetZoom = 1.0;
-  final double minZoom = 0.6;
+  double get minZoom => _hasImageLayers ? 1.0 : 0.9;
   final double maxZoom = 2.0;
   final double zoomEase = 20.0; // higher = snappier
   double? _pinchStartZoom;

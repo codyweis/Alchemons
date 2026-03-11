@@ -1,4 +1,5 @@
 // lib/screens/scenes/scene_page.dart
+import 'dart:async';
 import 'dart:math';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/wilderness/encounter_sheet.dart';
@@ -6,7 +7,6 @@ import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/pools/arcane_pool.dart';
-import 'package:alchemons/models/encounters/pools/poison_pool.dart';
 import 'package:alchemons/models/encounters/pools/sky_pool.dart';
 import 'package:alchemons/models/encounters/pools/swamp_pool.dart';
 import 'package:alchemons/models/encounters/pools/valley_pool.dart';
@@ -29,6 +29,7 @@ import 'package:flame/game.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:alchemons/models/inventory.dart' show InvKeys;
+import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/models/wilderness.dart'
     show PartyMember, WildEncounter;
 import 'package:alchemons/models/scenes/scene_definition.dart';
@@ -47,10 +48,9 @@ SceneEncounterTables Function(SceneDefinition) _tableBuilderForScene(
     final element = cosmicElementName.trim().toLowerCase();
     final mappedSceneId = switch (element) {
       'fire' || 'lava' => 'volcano',
-      'water' || 'ice' || 'steam' || 'mud' => 'swamp',
-      'air' || 'lightning' || 'light' => 'sky',
-      'spirit' || 'dark' || 'blood' => 'arcane',
-      'poison' => 'poison',
+      'water' || 'ice' || 'steam' || 'mud' || 'poison' => 'swamp',
+      'air' || 'lightning' => 'sky',
+      'spirit' || 'dark' || 'blood' || 'light' => 'arcane',
       _ => 'valley',
     };
     return _tableBuilderForScene(mappedSceneId);
@@ -61,7 +61,6 @@ SceneEncounterTables Function(SceneDefinition) _tableBuilderForScene(
     'volcano' => volcanoEncounterPools,
     'swamp' => swampEncounterPools,
     'arcane' => arcaneEncounterPools,
-    'poison' => poisonEncounterPools,
     _ => valleyEncounterPools,
   };
 }
@@ -118,6 +117,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   bool _riftSpawned = false;
   String? _shipSpawnId;
   bool _cosmicDesolationDialogShown = false;
+  bool _usingSessionSceneSpawns = false;
+  bool _consumingSceneBatch = false;
+  final Map<String, EncounterRoll> _sessionSceneSpawns = {};
 
   String? _usedSpawnPointId;
   // Ship discovery state
@@ -129,6 +131,17 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_isCosmicPlanetMode) {
+        unawaited(context.read<AudioController>().playPlanetMusic());
+      } else {
+        unawaited(
+          context.read<AudioController>().playWildMusicForScene(widget.sceneId),
+        );
+      }
+    });
 
     _biomeAmbienceCtrl = AnimationController(
       vsync: this,
@@ -216,6 +229,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           if (!widget.isTutorial) {
             await _loadShipState();
             await _syncShipBeaconPlacement();
+            await _consumeSceneBatchOnEntry();
           }
 
           // 🆕 Guarantee tutorial spawn BEFORE showing dialog
@@ -390,6 +404,18 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    try {
+      if (_isCosmicPlanetMode) {
+        unawaited(
+          context.read<AudioController>().playCosmicExplorationMusic(
+            cycle: false,
+          ),
+        );
+      } else {
+        unawaited(context.read<AudioController>().playHomeMusic());
+      }
+    } catch (_) {}
+
     if (_isCosmicPlanetMode) {
       _biomeAmbienceCtrl.dispose();
       super.dispose();
@@ -405,7 +431,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       try {
         await _db.delete(_db.activeSceneEntry).go();
       } catch (_) {}
-      await _spawnService.clearSceneSpawns(widget.sceneId);
     });
 
     super.dispose();
@@ -413,6 +438,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
   void _onSpawnServiceChanged() {
     if (_isCosmicPlanetMode) return;
+    if (_usingSessionSceneSpawns || _consumingSceneBatch) return;
     _syncSpawnsFromService();
   }
 
@@ -422,7 +448,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
     for (final sp in widget.scene.spawnPoints) {
       if (_shipSpawnId != null && sp.id == _shipSpawnId) continue;
-      final enc = _spawnService.getSpawnAt(widget.sceneId, sp.id);
+      final enc = _usingSessionSceneSpawns
+          ? _sessionSceneSpawns[sp.id]
+          : _spawnService.getSpawnAt(widget.sceneId, sp.id);
       if (enc == null) continue;
 
       final asWild = WildEncounter(
@@ -436,6 +464,32 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
     _game.attachEncounters(_encounters);
     _game.syncWildFromEncounters();
+  }
+
+  Future<void> _consumeSceneBatchOnEntry() async {
+    if (_isCosmicPlanetMode || widget.isTutorial || _usingSessionSceneSpawns) {
+      return;
+    }
+
+    _sessionSceneSpawns.clear();
+    for (final sp in widget.scene.spawnPoints) {
+      if (_shipSpawnId != null && sp.id == _shipSpawnId) continue;
+      final enc = _spawnService.getSpawnAt(widget.sceneId, sp.id);
+      if (enc != null) {
+        _sessionSceneSpawns[sp.id] = enc;
+      }
+    }
+
+    // Scene uses local transient batch after entry. Persisted batch is consumed.
+    _usingSessionSceneSpawns = true;
+    _syncSpawnsFromService();
+
+    _consumingSceneBatch = true;
+    try {
+      await _spawnService.clearSceneSpawns(widget.sceneId);
+    } finally {
+      _consumingSceneBatch = false;
+    }
   }
 
   void _seedTransientEncounterSpawns() {
@@ -586,6 +640,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   }
 
   void _removeTransientSpawn(String spawnId) {
+    _sessionSceneSpawns.remove(spawnId);
     final remaining = _encounters.spawns
         .where((s) => s.spawnPointId != spawnId)
         .toList();
@@ -757,7 +812,11 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     _shipSpawnId = spawnId;
 
     // Reserve this spawn point for the ship beacon.
-    await _spawnService.removeSpawn(widget.sceneId, spawnId);
+    if (_usingSessionSceneSpawns) {
+      _sessionSceneSpawns.remove(spawnId);
+    } else {
+      await _spawnService.removeSpawn(widget.sceneId, spawnId);
+    }
     _syncSpawnsFromService();
     _game.placeShipBeaconAt(spawnId, onTap: _onShipTapped);
   }
@@ -821,6 +880,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           party: widget.party,
           onEnter: () async {
             Navigator.of(ctx).pop();
+            unawaited(context.read<AudioController>().playPortalMusic());
             // Don't clear the rift yet — only clear it if the player
             // successfully breeds or catches inside the void.
             final success = await Navigator.of(context).push<bool>(
@@ -831,6 +891,16 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
             );
             if (success == true) {
               _game.clearRift();
+            }
+            if (!mounted) return;
+            if (_isCosmicPlanetMode) {
+              unawaited(context.read<AudioController>().playPlanetMusic());
+            } else {
+              unawaited(
+                context.read<AudioController>().playWildMusicForScene(
+                  widget.sceneId,
+                ),
+              );
             }
           },
         ),
@@ -1120,12 +1190,13 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
                       if (success && id != null) {
                         _game.clearWildAt(id);
-                        if (_isCosmicPlanetMode) {
-                          _removeTransientSpawn(id);
-                        } else {
+                        _removeTransientSpawn(id);
+                        if (!_isCosmicPlanetMode &&
+                            !_usingSessionSceneSpawns &&
+                            !widget.isTutorial) {
                           await _spawnService.removeSpawn(widget.sceneId, id);
-                          _syncSpawnsFromService();
                         }
+                        _syncSpawnsFromService();
 
                         _usedSpawnPointId = null;
 
@@ -1186,9 +1257,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                           onLeave: () async {
                             if (!_isCosmicPlanetMode) {
                               await _db.delete(_db.activeSceneEntry).go();
-                              await _spawnService.clearSceneSpawns(
-                                widget.sceneId,
-                              );
                             }
 
                             if (!context.mounted) return;

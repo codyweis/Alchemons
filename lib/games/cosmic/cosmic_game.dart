@@ -3410,6 +3410,7 @@ class CosmicGame extends FlameGame with PanDetector {
       Offset? target;
       double bestDist2 = double.infinity;
       for (final e in enemies) {
+        if (e.dead) continue;
         final edx = e.position.dx - m.position.dx;
         final edy = e.position.dy - m.position.dy;
         final d2 = edx * edx + edy * edy;
@@ -3460,11 +3461,23 @@ class CosmicGame extends FlameGame with PanDetector {
       );
       bool missileHit = false;
       for (final e in enemies) {
+        if (e.dead) continue;
         final edx = m.position.dx - e.position.dx;
         final edy = m.position.dy - e.position.dy;
         if (edx * edx + edy * edy < (e.radius + 6) * (e.radius + 6)) {
           e.health -= 5.0 * missileMult; // missiles do heavy damage
           _spawnHitSpark(m.position, const Color(0xFFFF6F00));
+          if (!e.provoked &&
+              (e.behavior == EnemyBehavior.feeding ||
+                  e.behavior == EnemyBehavior.territorial ||
+                  e.behavior == EnemyBehavior.drifting)) {
+            _provokePackOf(e);
+          }
+          if (e.health <= 0) {
+            e.dead = true;
+            _spawnKillVfx(e.position, elementColor(e.element), e.radius, false);
+            _spawnLootDrops(e.position, e.element, e.shardDrop, e.particleDrop);
+          }
           missileHit = true;
           break;
         }
@@ -3505,6 +3518,7 @@ class CosmicGame extends FlameGame with PanDetector {
       if (!orbitals[i].invulnerable) {
         // Check collision with enemies
         for (final e in enemies) {
+          if (e.dead) continue;
           final edx = oPos.dx - e.position.dx;
           final edy = oPos.dy - e.position.dy;
           if (edx * edx + edy * edy <
@@ -3515,6 +3529,27 @@ class CosmicGame extends FlameGame with PanDetector {
                 0.2; // sentinel takes a hit but survives several
             e.health -= 3.5; // orbitals deal heavy damage
             _spawnHitSpark(oPos, const Color(0xFF42A5F5));
+            if (!e.provoked &&
+                (e.behavior == EnemyBehavior.feeding ||
+                    e.behavior == EnemyBehavior.territorial ||
+                    e.behavior == EnemyBehavior.drifting)) {
+              _provokePackOf(e);
+            }
+            if (e.health <= 0) {
+              e.dead = true;
+              _spawnKillVfx(
+                e.position,
+                elementColor(e.element),
+                e.radius,
+                false,
+              );
+              _spawnLootDrops(
+                e.position,
+                e.element,
+                e.shardDrop,
+                e.particleDrop,
+              );
+            }
             break;
           }
         }

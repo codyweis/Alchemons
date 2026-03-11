@@ -134,11 +134,19 @@ class ExtractionVialCard extends StatelessWidget {
     }
   }
 
+  Color _scorchedAccent(Color base) {
+    return Color.lerp(base, const Color(0xFFF59E0B), 0.45) ?? base;
+  }
+
   @override
   Widget build(BuildContext context) {
     final skin = vial.group.skin;
     final fx = vial.rarity.fx;
     final (aType, bType) = vial.group.particleTypes;
+    final nameTag = vial.group.displayName.trim();
+    final rarityTag = vial.rarity.name.trim().toUpperCase();
+    final hasNameTag = nameTag.isNotEmpty;
+    final hasRarityTag = rarityTag.isNotEmpty;
 
     // particle dial — rarity scales both count and speed.
     final particleCount = (_baseParticles(vial.group) * fx.particleMult)
@@ -215,34 +223,27 @@ class ExtractionVialCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: compact ? 8 : 10,
-                              vertical: compact ? 4 : 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: skin.badge.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: skin.badge.withValues(alpha: 0.7),
-                                width: 1,
+                      if (hasNameTag || hasRarityTag)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (hasNameTag)
+                              _ScorchedVialTag(
+                                text: nameTag,
+                                compact: compact,
+                                accent: _scorchedAccent(skin.badge),
                               ),
-                            ),
-                            child: Text(
-                              vial.name,
-                              style: TextStyle(
-                                color: skin.badge,
-                                fontWeight: FontWeight.w600,
-                                fontSize: compact ? 10 : 12,
-                                letterSpacing: 0.3,
+                            if (hasNameTag && hasRarityTag)
+                              const SizedBox(height: 6),
+                            if (hasRarityTag)
+                              _ScorchedVialTag(
+                                text: rarityTag,
+                                compact: compact,
+                                accent: _scorchedAccent(skin.frameEnd),
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
+                          ],
+                        ),
+                      if (hasNameTag || hasRarityTag) const SizedBox(height: 8),
                       Text(
                         '',
                         maxLines: 1,
@@ -296,6 +297,74 @@ class ExtractionVialCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ScorchedVialTag extends StatelessWidget {
+  final String? text;
+  final bool compact;
+  final Color accent;
+
+  const _ScorchedVialTag({
+    required this.text,
+    required this.compact,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = text?.trim();
+    if (label == null || label.isEmpty) return const SizedBox.shrink();
+
+    final textColor = const Color(0xFFE8DCC8);
+    final borderColor = accent.withValues(alpha: 0.75);
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 4 : 6,
+      ),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF0E1117), Color(0xFF151A23)],
+        ),
+        borderRadius: BorderRadius.circular(compact ? 9 : 11),
+        border: Border.all(color: borderColor, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.34),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: compact ? 2 : 3,
+            height: compact ? 11 : 13,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          SizedBox(width: compact ? 5 : 6),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: textColor,
+              fontWeight: FontWeight.w700,
+              fontSize: compact ? 8 : 9,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -471,7 +471,7 @@ class _BreedingTabState extends State<BreedingTab>
         return Transform.scale(
           scale: scale,
           child: GestureDetector(
-            onTap: () => _showBreedingPicker(),
+            onTap: () => _showBreedingPicker(targetSlot: slotIndex),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOut,
@@ -1057,64 +1057,65 @@ class _BreedingTabState extends State<BreedingTab>
     if (selectedParent1 == null || selectedParent2 == null) return;
     if (_isBreeding) return;
 
-    // --- Cross-species check runs BEFORE any cinematic / fade ---
-    final repo = context.read<CreatureCatalog>();
-    final speciesA = repo.getCreatureById(selectedParent1!.baseId);
-    final speciesB = repo.getCreatureById(selectedParent2!.baseId);
+    setState(() => _isBreeding = true);
+    try {
+      // --- Cross-species check runs BEFORE any cinematic / fade ---
+      final repo = context.read<CreatureCatalog>();
+      final speciesA = repo.getCreatureById(selectedParent1!.baseId);
+      final speciesB = repo.getCreatureById(selectedParent2!.baseId);
 
-    if (speciesA == null || speciesB == null) {
-      _showToast('Error loading species data', color: Colors.red);
-      return;
-    }
-
-    final famA = _familyKeyForCreature(speciesA);
-    final famB = _familyKeyForCreature(speciesB);
-    final sameFamily = famA == famB;
-
-    // Mystic-only rule: Mystics can only breed with the EXACT same species.
-    final isMysticA = speciesA.mutationFamily == 'Mystic';
-    final isMysticB = speciesB.mutationFamily == 'Mystic';
-    if (isMysticA || isMysticB) {
-      final sameMysticSpecies =
-          isMysticA && isMysticB && speciesA.id == speciesB.id;
-      if (!sameMysticSpecies) {
-        await _showMysticBreedingLockedDialog(
-          context,
-          speciesA.name,
-          speciesB.name,
-        );
-        setState(() => _isBreeding = false);
+      if (speciesA == null || speciesB == null) {
+        _showToast('Error loading species data', color: Colors.red);
         return;
       }
-    }
 
-    final db = context.read<AlchemonsDatabase>();
-    final skills = await db.constellationDao.getUnlockedSkillIds();
-    final hasCrossSpecies = skills.contains('breeder_cross_species');
+      final famA = _familyKeyForCreature(speciesA);
+      final famB = _familyKeyForCreature(speciesB);
+      final sameFamily = famA == famB;
 
-    if (!sameFamily && !hasCrossSpecies) {
+      // Mystic-only rule: Mystics can only breed with the EXACT same species.
+      final isMysticA = speciesA.mutationFamily == 'Mystic';
+      final isMysticB = speciesB.mutationFamily == 'Mystic';
+      if (isMysticA || isMysticB) {
+        final sameMysticSpecies =
+            isMysticA && isMysticB && speciesA.id == speciesB.id;
+        if (!sameMysticSpecies) {
+          await _showMysticBreedingLockedDialog(
+            context,
+            speciesA.name,
+            speciesB.name,
+          );
+          return;
+        }
+      }
+
+      final db = context.read<AlchemonsDatabase>();
+      final skills = await db.constellationDao.getUnlockedSkillIds();
+      final hasCrossSpecies = skills.contains('breeder_cross_species');
+
+      if (!sameFamily && !hasCrossSpecies) {
+        if (!mounted) return;
+        await _showCrossSpeciesLockedDialog(context, famA, famB);
+        // Do NOT start fade / cinematic; we just bail out cleanly.
+        return;
+      }
+      // -------------------------------------------------------------
+
+      // play fade from 1 -> 0, orb ramps up
+      await _preCinematicFadeController.forward();
+
+      // let that max-charged orb hang briefly
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      // now jump to cinematic + actual breeding
       if (!mounted) return;
-      await _showCrossSpeciesLockedDialog(context, famA, famB);
-      setState(() => _isBreeding = false);
-      // Do NOT start fade / cinematic; we just bail out cleanly.
-      return;
+      await _performBreeding();
+    } finally {
+      if (mounted) {
+        _preCinematicFadeController.reset();
+        setState(() => _isBreeding = false);
+      }
     }
-    // -------------------------------------------------------------
-
-    // play fade from 1 -> 0, orb ramps up
-    await _preCinematicFadeController.forward();
-
-    // let that max-charged orb hang briefly
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    // now jump to cinematic + actual breeding
-    if (!mounted) return;
-    await _performBreeding();
-
-    if (mounted) setState(() => _isBreeding = false);
-
-    // reset fade for next time
-    _preCinematicFadeController.reset();
   }
 
   // ================== BREED HANDLER ==================
@@ -1204,7 +1205,7 @@ class _BreedingTabState extends State<BreedingTab>
             );
           } else if (result.placement == EggPlacement.incubator) {
             _showToast(
-              'Embryo placed in incubation chamber ${(result.slotId ?? 0) + 1}',
+              'Specimen placed in incubation chamber ${(result.slotId ?? 0) + 1}',
               icon: Icons.science_rounded,
               color: const Color.fromARGB(255, 239, 255, 92),
             );
@@ -1276,10 +1277,23 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
+  void _applyBreedingPicks(
+    CreatureInstance? parent1,
+    CreatureInstance? parent2,
+  ) {
+    if (!mounted) return;
+    setState(() {
+      selectedParent1 = parent1;
+      selectedParent2 = parent2;
+      _updateAnimations();
+    });
+  }
+
   // ================== PERSISTENT BREEDING PICKER ==================
-  // Single sheet that stays open while user picks both parents.
-  // Highlights selections in real-time, auto-closes when 2 are chosen.
-  void _showBreedingPicker() async {
+  // targetSlot == null => pick both (quick-select flow)
+  // targetSlot != null => pick only that slot and close.
+  void _showBreedingPicker({int? targetSlot}) async {
+    final pickBoth = targetSlot == null;
     final db = context.read<AlchemonsDatabase>();
     final available = await db.creatureDao.getSpeciesWithInstances();
 
@@ -1303,14 +1317,61 @@ class _BreedingTabState extends State<BreedingTab>
       builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (_, setSheetState) {
-            // Determine which slot we need next
-            final needsA = tempPick1 == null;
-            final needsB = tempPick1 != null && tempPick2 == null;
-            final title = needsA
-                ? 'Select Specimen A'
-                : needsB
-                ? 'Now Select Specimen B'
-                : 'Both Selected';
+            String sheetTitle() {
+              if (!pickBoth) {
+                return targetSlot == 1
+                    ? 'Select Specimen A'
+                    : 'Select Specimen B';
+              }
+              final needsA = tempPick1 == null;
+              final needsB = tempPick1 != null && tempPick2 == null;
+              if (needsA) return 'Select Specimen A';
+              if (needsB) return 'Specimen A Selected • Select Specimen B';
+              return 'Both Selected';
+            }
+
+            List<String> blockedIds() {
+              if (pickBoth) {
+                return [
+                  if (tempPick1 != null) tempPick1!.instanceId,
+                  if (tempPick2 != null) tempPick2!.instanceId,
+                ];
+              }
+              if (targetSlot == 1) {
+                return [if (tempPick2 != null) tempPick2!.instanceId];
+              }
+              return [if (tempPick1 != null) tempPick1!.instanceId];
+            }
+
+            bool applyPickedInstance(CreatureInstance instance) {
+              if (!pickBoth) {
+                if (targetSlot == 1) {
+                  tempPick1 = instance;
+                } else {
+                  tempPick2 = instance;
+                }
+                _applyBreedingPicks(tempPick1, tempPick2);
+                if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                return true;
+              }
+
+              if (tempPick1 == null) {
+                tempPick1 = instance;
+                setSheetState(() {});
+                return false;
+              } else {
+                tempPick2 ??= instance;
+              }
+
+              if (tempPick1 != null && tempPick2 != null) {
+                _applyBreedingPicks(tempPick1, tempPick2);
+                if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                return true;
+              }
+
+              setSheetState(() {});
+              return false;
+            }
 
             return DraggableScrollableSheet(
               initialChildSize: 0.7,
@@ -1322,20 +1383,24 @@ class _BreedingTabState extends State<BreedingTab>
                   scrollController: scrollController,
                   discoveredCreatures: filteredDiscovered,
                   showOnlyAvailableTypes: true,
-                  title: title,
+                  title: sheetTitle(),
                   selectedInstanceIds: [
                     if (tempPick1 != null) tempPick1!.instanceId,
                     if (tempPick2 != null) tempPick2!.instanceId,
                   ],
                   onSelectInstance: (instance) async {
-                    // --- Toggle off if already selected ---
-                    if (tempPick1?.instanceId == instance.instanceId) {
-                      setSheetState(() => tempPick1 = null);
-                      return;
-                    }
-                    if (tempPick2?.instanceId == instance.instanceId) {
-                      setSheetState(() => tempPick2 = null);
-                      return;
+                    // --- Toggle off if already selected (dual-pick only) ---
+                    if (pickBoth) {
+                      if (tempPick1?.instanceId == instance.instanceId) {
+                        tempPick1 = null;
+                        setSheetState(() {});
+                        return;
+                      }
+                      if (tempPick2?.instanceId == instance.instanceId) {
+                        tempPick2 = null;
+                        setSheetState(() {});
+                        return;
+                      }
                     }
 
                     // --- Stamina check ---
@@ -1362,27 +1427,12 @@ class _BreedingTabState extends State<BreedingTab>
                       return;
                     }
 
-                    // --- Fill next empty slot ---
-                    if (tempPick1 == null) {
-                      tempPick1 = instance;
-                    } else {
-                      tempPick2 ??= instance;
-                    }
-
-                    // --- Both filled? Apply and close ---
-                    if (tempPick1 != null && tempPick2 != null) {
-                      if (!sheetCtx.mounted) return;
-                      Navigator.pop(sheetCtx);
-                      setState(() {
-                        selectedParent1 = tempPick1;
-                        selectedParent2 = tempPick2;
-                        _updateAnimations();
-                      });
+                    final blocked = blockedIds();
+                    if (blocked.contains(instance.instanceId)) {
                       return;
                     }
 
-                    // Otherwise refresh highlights, stay open
-                    setSheetState(() {});
+                    applyPickedInstance(instance);
                   },
                   onSelectCreature: (creatureId) async {
                     // Species-grid tap → open instance picker ON TOP (stacked)
@@ -1392,43 +1442,13 @@ class _BreedingTabState extends State<BreedingTab>
 
                     _showInstancePickerStacked(
                       species: species,
+                      blockedIds: blockedIds(),
                       selectedIds: [
                         if (tempPick1 != null) tempPick1!.instanceId,
                         if (tempPick2 != null) tempPick2!.instanceId,
                       ],
                       onPicked: (inst) {
-                        // Prevent selecting the same instance twice
-                        if (tempPick1?.instanceId == inst.instanceId ||
-                            tempPick2?.instanceId == inst.instanceId) {
-                          _showToast(
-                            'Already selected as a parent',
-                            icon: Icons.block_rounded,
-                            color: Colors.red,
-                            fromTop: true,
-                          );
-                          return;
-                        }
-
-                        // Fill next empty slot
-                        if (tempPick1 == null) {
-                          tempPick1 = inst;
-                        } else {
-                          tempPick2 ??= inst;
-                        }
-
-                        // Both filled? Close main sheet too
-                        if (tempPick1 != null && tempPick2 != null) {
-                          Navigator.pop(sheetCtx);
-                          setState(() {
-                            selectedParent1 = tempPick1;
-                            selectedParent2 = tempPick2;
-                            _updateAnimations();
-                          });
-                          return;
-                        }
-
-                        // Stay open, refresh highlights
-                        setSheetState(() {});
+                        return applyPickedInstance(inst);
                       },
                     );
                   },
@@ -1445,62 +1465,78 @@ class _BreedingTabState extends State<BreedingTab>
   /// When the user picks one, it pops itself and calls [onPicked].
   void _showInstancePickerStacked({
     required Creature species,
+    required List<String> blockedIds,
     required List<String> selectedIds,
-    required void Function(CreatureInstance inst) onPicked,
+    required bool Function(CreatureInstance inst) onPicked,
   }) {
     final theme = context.read<FactionTheme>();
+    var liveSelectedIds = List<String>.from(selectedIds);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) {
-        return BottomSheetShell(
-          theme: theme,
-          title: '${species.name} Specimens',
-          child: InstancesSheet(
-            species: species,
-            theme: theme,
-            selectedInstanceIds: selectedIds,
-            onTap: (CreatureInstance inst) async {
-              // --- Already-selected guard ---
-              if (selectedIds.contains(inst.instanceId)) {
-                if (!mounted) return;
-                _showToast(
-                  'Already selected as a parent',
-                  icon: Icons.block_rounded,
-                  color: Colors.red,
-                  fromTop: true,
-                );
-                return;
-              }
+      builder: (pickerCtx) {
+        return StatefulBuilder(
+          builder: (context, setPickerState) {
+            return BottomSheetShell(
+              theme: theme,
+              title: '${species.name} Specimens',
+              child: InstancesSheet(
+                species: species,
+                theme: theme,
+                selectedInstanceIds: liveSelectedIds,
+                onTap: (CreatureInstance inst) async {
+                  // --- Already-selected guard ---
+                  if (blockedIds.contains(inst.instanceId)) {
+                    return;
+                  }
+                  if (liveSelectedIds.contains(inst.instanceId)) {
+                    return;
+                  }
 
-              // --- Stamina check ---
-              final stamina = context.read<StaminaService>();
-              final refreshed = await stamina.refreshAndGet(inst.instanceId);
-              if ((refreshed?.staminaBars ?? 0) < 1) {
-                final perBar = stamina.regenPerBar;
-                final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-                final last = refreshed?.staminaLastUtcMs ?? now;
-                final elapsed = now - last;
-                final remMs =
-                    perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
-                final mins = (remMs / 60000).ceil();
-                if (!mounted) return;
-                _showToast(
-                  'Specimen is resting — next stamina in ~${mins}m',
-                  icon: Icons.hourglass_bottom_rounded,
-                  color: Colors.orange,
-                  fromTop: true,
-                );
-                return;
-              }
+                  // --- Stamina check ---
+                  final stamina = context.read<StaminaService>();
+                  final refreshed = await stamina.refreshAndGet(
+                    inst.instanceId,
+                  );
+                  if ((refreshed?.staminaBars ?? 0) < 1) {
+                    final perBar = stamina.regenPerBar;
+                    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+                    final last = refreshed?.staminaLastUtcMs ?? now;
+                    final elapsed = now - last;
+                    final remMs =
+                        perBar.inMilliseconds -
+                        (elapsed % perBar.inMilliseconds);
+                    final mins = (remMs / 60000).ceil();
+                    if (!mounted) return;
+                    _showToast(
+                      'Specimen is resting — next stamina in ~${mins}m',
+                      icon: Icons.hourglass_bottom_rounded,
+                      color: Colors.orange,
+                      fromTop: true,
+                    );
+                    return;
+                  }
 
-              if (!mounted) return;
-              Navigator.of(context).pop(); // pop ONLY the instance picker
-              onPicked(inst);
-            },
-          ),
+                  if (!mounted) return;
+                  final shouldClose = onPicked(inst);
+                  if (shouldClose) {
+                    if (pickerCtx.mounted) {
+                      Navigator.of(pickerCtx).pop();
+                    }
+                    return;
+                  }
+
+                  if (!liveSelectedIds.contains(inst.instanceId)) {
+                    setPickerState(() {
+                      liveSelectedIds = [...liveSelectedIds, inst.instanceId];
+                    });
+                  }
+                },
+              ),
+            );
+          },
         );
       },
     );
@@ -1513,28 +1549,57 @@ class _BreedingTabState extends State<BreedingTab>
     bool fromTop = false,
   }) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    final theme = context.read<FactionTheme>();
+    final accent = color ?? theme.accent;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.removeCurrentSnackBar();
+    messenger.showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                theme.surface.withValues(alpha: .98),
+                theme.surfaceAlt.withValues(alpha: .96),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: accent.withValues(alpha: .8), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: .2),
+                blurRadius: 14,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: accent, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: theme.text,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        elevation: 100,
-        backgroundColor: color ?? Colors.grey.shade700,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
+        padding: EdgeInsets.zero,
         margin: fromTop
             ? const EdgeInsets.only(top: 24, left: 16, right: 16)
             : const EdgeInsets.all(16),

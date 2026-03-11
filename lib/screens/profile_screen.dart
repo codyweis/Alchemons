@@ -5,6 +5,7 @@
 // Dark metal panels, amber reagent accents, monospace tactical typography.
 
 import 'package:alchemons/providers/theme_provider.dart';
+import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
@@ -287,6 +288,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final factionTheme = context.watch<FactionTheme>();
+    final audio = context.watch<AudioController>();
     final t = ForgeTokens(factionTheme);
     final brightness = Theme.of(context).brightness;
 
@@ -568,6 +570,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           value: _cinematicQuality,
                           enabled: _cinematicQualityLoaded,
                           onChanged: _setCinematicQuality,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  const _EtchedDivider(label: 'AUDIO'),
+                  const SizedBox(height: 14),
+
+                  _ForgePanel(
+                    accentBar: t.amber,
+                    child: Column(
+                      children: [
+                        _NotificationToggleRow(
+                          icon: Icons.volume_up_rounded,
+                          title: 'ALL AUDIO',
+                          subtitle: 'Master toggle for all music and sound FX',
+                          value: audio.masterEnabled,
+                          enabled: audio.isLoaded,
+                          onChanged: (v) => audio.setMasterEnabled(v),
+                          accent: t.amberBright,
+                        ),
+                        const SizedBox(height: 8),
+                        _NotificationToggleRow(
+                          icon: Icons.music_note_rounded,
+                          title: 'MUSIC',
+                          subtitle: 'Looped background tracks',
+                          value: audio.musicEnabled,
+                          enabled: audio.isLoaded,
+                          onChanged: (v) => audio.setMusicEnabled(v),
+                          accent: t.amberBright,
+                        ),
+                        const SizedBox(height: 8),
+                        _NotificationToggleRow(
+                          icon: Icons.graphic_eq_rounded,
+                          title: 'SOUND FX',
+                          subtitle: 'Future UI and gameplay sounds',
+                          value: audio.soundsEnabled,
+                          enabled: audio.isLoaded,
+                          onChanged: (v) => audio.setSoundsEnabled(v),
+                          accent: t.amberBright,
                         ),
                       ],
                     ),

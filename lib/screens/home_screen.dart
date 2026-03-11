@@ -44,6 +44,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/screens/feeding/feeding_screen.dart';
 import 'package:alchemons/screens/harvest_screen.dart';
@@ -123,14 +124,29 @@ class _MainShellState extends State<MainShell> {
       body: IndexedStack(
         index: _navIndex,
         children: [
-          HomeScreen(
-            isActive: _currentSection == NavSection.home,
-            onNavigateSection: _goToSection,
+          TickerMode(
+            enabled: _currentSection == NavSection.home,
+            child: HomeScreen(
+              isActive: _currentSection == NavSection.home,
+              onNavigateSection: _goToSection,
+            ),
           ),
-          CreaturesScreen(key: _creaturesKey),
-          const ShopScreen(),
-          BreedScreen(onGoToSection: _goToSection),
-          const InventoryScreen(),
+          TickerMode(
+            enabled: _currentSection == NavSection.creatures,
+            child: CreaturesScreen(key: _creaturesKey),
+          ),
+          TickerMode(
+            enabled: _currentSection == NavSection.shop,
+            child: const ShopScreen(),
+          ),
+          TickerMode(
+            enabled: _currentSection == NavSection.breed,
+            child: BreedScreen(onGoToSection: _goToSection),
+          ),
+          TickerMode(
+            enabled: _currentSection == NavSection.inventory,
+            child: const InventoryScreen(),
+          ),
         ],
       ),
       bottomNavigationBar: BottomNav(
@@ -279,6 +295,7 @@ class _HomeScreenState extends State<HomeScreen>
   String? _lastHarvestStateKey;
   String? _lastWildernessStateKey;
   final Map<int, int> _lastScheduledEggHatchMsBySlot = {};
+  Set<int> _lastReadyEggSlotIds = <int>{};
 
   bool _isFieldTutorialActive = false;
   bool _tutorialCheckInProgress =
@@ -311,6 +328,10 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       _animationsEnabled = shouldEnable;
     });
+
+    if (shouldEnable) {
+      async.unawaited(context.read<AudioController>().playHomeMusic());
+    }
   }
 
   @override
@@ -717,7 +738,8 @@ class _HomeScreenState extends State<HomeScreen>
     return [..._coreWildernessBiomes, if (arcaneUnlocked) 'arcane'];
   }
 
-  // Eggs (per-egg scheduling only; no consolidated push)
+  // Eggs: keep per-egg schedules current and emit summary push only when
+  // new slots become ready.
   Future<void> _checkEggNotifications(List<IncubatorSlot> slots) async {
     if (!mounted) return;
     final enabled = await NotificationPreferencesService()
@@ -725,6 +747,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (!enabled) {
       _lastEggStateKey = null;
       _lastScheduledEggHatchMsBySlot.clear();
+      _lastReadyEggSlotIds.clear();
       await _pushNotifications.cancelEggNotification();
       await _pushNotifications.cancelEggReadySummaryNotification();
       _clearNotification(NotificationBannerType.eggReady);
@@ -794,12 +817,31 @@ class _HomeScreenState extends State<HomeScreen>
 
     if (readyEggs > 0) {
       readySlotIds.sort();
+      final readySlotIdSet = readySlotIds.toSet();
+      final hasNewReadyEggs = readySlotIdSet.any(
+        (slotId) => !_lastReadyEggSlotIds.contains(slotId),
+      );
+      final hasRemovedReadyEggs = _lastReadyEggSlotIds.any(
+        (slotId) => !readySlotIdSet.contains(slotId),
+      );
       final stateKey = 'slots:${readySlotIds.join(",")}';
 
       // De-dupe: if same stateKey as last emission, do nothing.
-      if (_lastEggStateKey == stateKey) return;
+      if (_lastEggStateKey == stateKey) {
+        _lastReadyEggSlotIds = readySlotIdSet;
+        return;
+      }
       _lastEggStateKey = stateKey;
-      await _pushNotifications.showEggReadyNotification(count: readyEggs);
+
+      // Only send a local push when NEW eggs become ready.
+      // Avoid re-alerting while the user extracts from an already-ready set.
+      if (hasNewReadyEggs) {
+        await _pushNotifications.showEggReadyNotification(count: readyEggs);
+      } else if (hasRemovedReadyEggs) {
+        // Ready count decreased (e.g., extraction). Clear stale summary instead
+        // of re-alerting with a new count.
+        await _pushNotifications.cancelEggReadySummaryNotification();
+      }
 
       _showNotification(
         NotificationBanner(
@@ -813,8 +855,10 @@ class _HomeScreenState extends State<HomeScreen>
           },
         ),
       );
+      _lastReadyEggSlotIds = readySlotIdSet;
     } else {
       _lastEggStateKey = null; // reset de-dupe
+      _lastReadyEggSlotIds.clear();
       await _pushNotifications.cancelEggReadySummaryNotification();
       _clearNotification(NotificationBannerType.eggReady);
     }

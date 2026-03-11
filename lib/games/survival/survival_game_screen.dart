@@ -5,10 +5,12 @@
 // Replaced: Cheesy purple gradient cards → tactical deployment UI with game feel
 //
 
+import 'dart:async';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/games/survival/components/debug_teams_picker.dart';
 import 'package:alchemons/games/survival/components/deployment_phase_overlay.dart';
+import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/games/survival/survival_base_command_screen.dart';
 import 'package:alchemons/games/survival/survival_engine.dart';
 import 'package:alchemons/games/survival/survival_party_picker.dart';
@@ -341,7 +343,10 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
       end: 1.0,
     ).animate(CurvedAnimation(parent: _flickerCtrl, curve: Curves.easeInOut));
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadHighScore());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadHighScore();
+    });
   }
 
   Future<void> _loadHighScore() async {
@@ -353,6 +358,9 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
 
   @override
   void dispose() {
+    try {
+      unawaited(context.read<AudioController>().playHomeMusic());
+    } catch (_) {}
     _familyPageController.dispose();
     _flickerCtrl.dispose();
     super.dispose();
@@ -477,6 +485,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
       )..setSimulationSpeed(_isSpeedUpEnabled ? 2.0 : 1.0);
       _screenState = _ScreenState.playing;
     });
+    unawaited(context.read<AudioController>().playSurvivalMusic());
   }
 
   void _onDeploymentCancelled() {
@@ -685,6 +694,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
             _game = null;
             _screenState = _ScreenState.deployment;
           });
+          unawaited(context.read<AudioController>().playHomeMusic());
         },
         onNewTeam: () {
           Navigator.pop(dialogContext);
@@ -693,6 +703,7 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
             _loadedParty = null;
             _screenState = _ScreenState.menu;
           });
+          unawaited(context.read<AudioController>().playHomeMusic());
         },
         onExit: () {
           Navigator.pop(dialogContext);

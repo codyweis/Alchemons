@@ -417,6 +417,12 @@ class PushNotificationService {
     debugPrint('🔕 Cancelled all wilderness notifications');
   }
 
+  Future<void> cancelWildernessSummaryNotification() async {
+    if (!_initialized) await initialize();
+    await _notifications.cancel(wildernessConsolidatedId);
+    debugPrint('🔕 Cancelled wilderness summary notification');
+  }
+
   // ============================================================================
   // HARVEST NOTIFICATIONS
   // ============================================================================

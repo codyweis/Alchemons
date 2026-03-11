@@ -5,12 +5,12 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/harvest_biome.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/background/interactive_background_widget.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 class FactionPickerDialog extends StatefulWidget {
@@ -162,8 +162,6 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
     await svc.setId(selected.id);
 
     await db.settingsDao.setMustPickFaction(false);
-    // Trigger any side-effects tied to faction selection.
-    await svc.ensureAirExtraSlotUnlocked(); // harmless no-op unless Air + perk1
 
     if (mounted) {
       Navigator.of(context).pop(selected.id);
@@ -172,11 +170,25 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.watch<FactionTheme>());
+
     return PopScope(
       canPop: false, // Prevent back button
       child: Scaffold(
+        backgroundColor: t.bg0,
         body: Stack(
           children: [
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [t.bg0, t.bg1, t.bg2.withValues(alpha: 0.9)],
+                  ),
+                ),
+              ),
+            ),
             // Page view with faction cards
             PageView.builder(
               controller: _pageController,
@@ -196,10 +208,11 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
             // Top orb navigation
             SafeArea(
               child: Padding(
-                padding: const EdgeInsets.only(top: 40),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                 child: _OrbNavigation(
                   factions: _factions,
                   currentIndex: _currentIndex,
+                  tokens: t,
                   onTap: (index) {
                     _pageController.animateToPage(
                       index,
@@ -216,10 +229,11 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
               child: Align(
                 alignment: Alignment.bottomCenter,
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 40),
+                  padding: const EdgeInsets.only(bottom: 22),
                   child: _ConfirmButton(
                     factionName: _factions[_currentIndex].name,
                     color: _factions[_currentIndex].primaryColor,
+                    tokens: t,
                     onPressed: _selectFaction,
                   ),
                 ),
@@ -292,6 +306,8 @@ class _FactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.watch<FactionTheme>());
+
     return Stack(
       children: [
         // Interactive background
@@ -309,52 +325,44 @@ class _FactionCard extends StatelessWidget {
             elementalSpeed: 0.5,
           ),
         ),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  t.bg0.withValues(alpha: 0.6),
+                  t.bg1.withValues(alpha: 0.55),
+                  t.bg0.withValues(alpha: 0.75),
+                ],
+              ),
+            ),
+          ),
+        ),
 
         // Content
         SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.fromLTRB(20, 110, 20, 95),
             child: Column(
               children: [
-                const SizedBox(height: 120), // Space for orb navigation
-                // Faction title
                 Text(
                   data.title.toUpperCase(),
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: 2,
-                    shadows: [
-                      Shadow(
-                        color: data.primaryColor.withValues(alpha: 0.5),
-                        blurRadius: 20,
-                      ),
-                    ],
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: data.primaryColor,
+                    letterSpacing: 1.6,
                   ),
                   textAlign: TextAlign.center,
                 ),
-
-                const SizedBox(height: 12),
-
-                // Divider line
-                Container(
-                  width: 100,
-                  height: 2,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        data.primaryColor.withValues(alpha: 0),
-                        data.primaryColor,
-                        data.primaryColor.withValues(alpha: 0),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Vial display
+                const SizedBox(height: 10),
+                Container(height: 1, width: 120, color: t.borderMid),
+                const SizedBox(height: 8),
                 SizedBox(
-                  height: 280,
+                  height: 140,
                   child: Center(
                     child: _VialDisplay(
                       elementalGroup: data.elementalGroup,
@@ -363,56 +371,41 @@ class _FactionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 10),
-
-                // 🔽 Scrollable section starts here
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 100.0),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          // Philosophy text
-                          Text(
-                            data.philosophy,
-                            style: GoogleFonts.crimsonText(
-                              fontSize: 18,
-                              fontStyle: FontStyle.italic,
-                              color: Colors.white.withValues(alpha: 0.95),
-                              height: 1.6,
-                            ),
-                            textAlign: TextAlign.center,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 14),
+                    child: Column(
+                      children: [
+                        Text(
+                          data.philosophy,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontStyle: FontStyle.italic,
+                            color: t.textPrimary.withValues(alpha: 0.96),
+                            height: 1.45,
                           ),
-
-                          const SizedBox(height: 25),
-
-                          // Description
-                          Text(
-                            data.description,
-                            style: GoogleFonts.roboto(
-                              fontSize: 14,
-                              color: Colors.white.withValues(alpha: 0.8),
-                              height: 1.5,
-                            ),
-                            textAlign: TextAlign.center,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          data.description,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: t.textSecondary,
+                            height: 1.45,
                           ),
-
-                          const SizedBox(height: 32),
-
-                          // Perks section
-                          _PerksSection(
-                            perks: data.perks,
-                            color: data.primaryColor,
-                          ),
-
-                          const SizedBox(height: 24),
-                        ],
-                      ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        _PerksSection(
+                          perks: data.perks,
+                          color: data.primaryColor,
+                          tokens: t,
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                // 🔼 Scrollable section ends here
               ],
             ),
           ),
@@ -453,13 +446,13 @@ class _VialDisplay extends StatelessWidget {
       animation: pulseController,
       builder: (context, child) {
         final pulse = pulseController.value;
-        final scale = 1.0 + (pulse * 0.05);
+        final scale = 0.72 + (pulse * 0.03);
 
         return Transform.scale(
           scale: scale,
           child: SizedBox(
-            width: 200,
-            height: 240,
+            width: 130,
+            height: 150,
             child: ExtractionVialCard(vial: vial, compact: false),
           ),
         );
@@ -475,8 +468,13 @@ class _VialDisplay extends StatelessWidget {
 class _PerksSection extends StatelessWidget {
   final List<_Perk> perks;
   final Color color;
+  final ForgeTokens tokens;
 
-  const _PerksSection({required this.perks, required this.color});
+  const _PerksSection({
+    required this.perks,
+    required this.color,
+    required this.tokens,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -487,27 +485,20 @@ class _PerksSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 4,
-              height: 4,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
+            Expanded(child: Container(height: 1, color: tokens.borderMid)),
             const SizedBox(width: 8),
             Text(
               'DIVISION PERKS',
-              style: GoogleFonts.robotoMono(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                color: color,
-                letterSpacing: 2,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: color.withValues(alpha: 0.95),
+                letterSpacing: 1.8,
               ),
             ),
             const SizedBox(width: 8),
-            Container(
-              width: 4,
-              height: 4,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
+            Expanded(child: Container(height: 1, color: tokens.borderMid)),
           ],
         ),
         const SizedBox(height: 16),
@@ -516,7 +507,12 @@ class _PerksSection extends StatelessWidget {
         ...perks.asMap().entries.map((entry) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: _PerkCard(perk: entry.value, color: color, index: entry.key),
+            child: _PerkCard(
+              perk: entry.value,
+              color: color,
+              index: entry.key,
+              tokens: tokens,
+            ),
           );
         }),
       ],
@@ -528,22 +524,19 @@ class _PerkCard extends StatelessWidget {
   final _Perk perk;
   final Color color;
   final int index;
+  final ForgeTokens tokens;
 
   const _PerkCard({
     required this.perk,
     required this.color,
     required this.index,
+    required this.tokens,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -565,14 +558,26 @@ class _PerkCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+              Text(
+                '[${index + 1}]',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: tokens.textMuted,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   perk.title,
-                  style: GoogleFonts.roboto(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
                     color: color,
-                    letterSpacing: 0.4,
+                    letterSpacing: 1.0,
                   ),
                 ),
               ),
@@ -585,13 +590,15 @@ class _PerkCard extends StatelessWidget {
             padding: const EdgeInsets.only(left: 14),
             child: Text(
               perk.description,
-              style: GoogleFonts.roboto(
-                fontSize: 12,
-                color: Colors.white.withValues(alpha: 0.85),
-                height: 1.3,
+              style: TextStyle(
+                fontSize: 11,
+                color: tokens.textSecondary,
+                height: 1.4,
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          Divider(height: 1, color: tokens.borderDim.withValues(alpha: 0.55)),
         ],
       ),
     );
@@ -605,11 +612,13 @@ class _PerkCard extends StatelessWidget {
 class _OrbNavigation extends StatelessWidget {
   final List<_FactionCardData> factions;
   final int currentIndex;
+  final ForgeTokens tokens;
   final ValueChanged<int> onTap;
 
   const _OrbNavigation({
     required this.factions,
     required this.currentIndex,
+    required this.tokens,
     required this.onTap,
   });
 
@@ -625,23 +634,22 @@ class _OrbNavigation extends StatelessWidget {
           onTap: () => onTap(index),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            width: isActive ? 70 : 50,
-            height: isActive ? 70 : 50,
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            width: isActive ? 62 : 46,
+            height: isActive ? 62 : 46,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
+              color: tokens.bg2,
               border: Border.all(
-                color: isActive
-                    ? faction.primaryColor
-                    : Colors.white.withValues(alpha: 0.3),
-                width: isActive ? 3 : 2,
+                color: isActive ? faction.primaryColor : tokens.borderDim,
+                width: isActive ? 2 : 1.2,
               ),
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: faction.primaryColor.withValues(alpha: 0.5),
-                        blurRadius: 20,
-                        spreadRadius: 2,
+                        color: faction.primaryColor.withValues(alpha: 0.35),
+                        blurRadius: 16,
+                        spreadRadius: 1,
                       ),
                     ]
                   : null,
@@ -652,11 +660,11 @@ class _OrbNavigation extends StatelessWidget {
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
-                    color: faction.primaryColor.withValues(alpha: 0.3),
+                    color: faction.primaryColor.withValues(alpha: 0.2),
                     child: Icon(
                       Icons.circle,
                       color: faction.primaryColor,
-                      size: isActive ? 35 : 25,
+                      size: isActive ? 30 : 22,
                     ),
                   );
                 },
@@ -676,11 +684,13 @@ class _OrbNavigation extends StatelessWidget {
 class _ConfirmButton extends StatelessWidget {
   final String factionName;
   final Color color;
+  final ForgeTokens tokens;
   final VoidCallback onPressed;
 
   const _ConfirmButton({
     required this.factionName,
     required this.color,
+    required this.tokens,
     required this.onPressed,
   });
 
@@ -689,21 +699,18 @@ class _ConfirmButton extends StatelessWidget {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [color, color.withValues(alpha: 0.8)],
+            colors: [tokens.bg2.withValues(alpha: 0.88), tokens.bg1],
           ),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.3),
-            width: 2,
-          ),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.55), width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.5),
-              blurRadius: 20,
-              spreadRadius: 2,
+              color: tokens.bg0.withValues(alpha: 0.5),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -712,18 +719,19 @@ class _ConfirmButton extends StatelessWidget {
           children: [
             Text(
               'SELECT $factionName',
-              style: GoogleFonts.robotoMono(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: 2,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+                letterSpacing: 1.8,
               ),
             ),
-            const SizedBox(width: 12),
-            const Icon(
+            const SizedBox(width: 8),
+            Icon(
               Icons.arrow_forward_rounded,
-              color: Colors.white,
-              size: 24,
+              color: tokens.amberBright,
+              size: 18,
             ),
           ],
         ),

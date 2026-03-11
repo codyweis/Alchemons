@@ -1147,6 +1147,25 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         return Column(
           children: [
             _ForgeButton(
+              label: !isUnlocked
+                  ? 'Locked'
+                  : rematchUsedToday
+                  ? 'Reset in $countdownLabel'
+                  : isDefeated
+                  ? 'Rematch for Loot'
+                  : 'Engage Boss',
+              icon: !isUnlocked
+                  ? Icons.lock_rounded
+                  : isDefeated
+                  ? null
+                  : null,
+              color: canBattle ? boss.elementColor : null,
+              onTap: canBattle
+                  ? () => _startBattle(boss, party, progress)
+                  : null,
+            ),
+            const SizedBox(height: 10),
+            _ForgeButton(
               label: hasTeam ? 'Change Squad' : 'Assign Squad',
               icon: hasTeam
                   ? Icons.swap_horiz_rounded
@@ -1175,25 +1194,6 @@ class _BossBattleScreenState extends State<BossBattleScreen>
                   ),
                 );
               },
-            ),
-            const SizedBox(height: 10),
-            _ForgeButton(
-              label: !isUnlocked
-                  ? 'Locked'
-                  : rematchUsedToday
-                  ? 'Reset in $countdownLabel'
-                  : isDefeated
-                  ? 'Rematch for Loot'
-                  : 'Engage Boss',
-              icon: !isUnlocked
-                  ? Icons.lock_rounded
-                  : isDefeated
-                  ? null
-                  : null,
-              color: canBattle ? boss.elementColor : null,
-              onTap: canBattle
-                  ? () => _startBattle(boss, party, progress)
-                  : null,
             ),
             // Use Recall Token button (shown only when rematch used & token available)
             // Boss Summon — fight again even when cooldown is active

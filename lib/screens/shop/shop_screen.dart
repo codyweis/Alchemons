@@ -22,6 +22,7 @@ import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/black_market_service.dart';
+import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
@@ -86,9 +87,13 @@ class _ShopScreenState extends State<ShopScreen> {
     });
   }
 
-  Future<void> _purchaseSlot(int target) async {
+  Map<String, int> _bubbleSlotCostFor(int slotNumber) {
+    final baseCost = slotNumber == 2 ? _slot2Cost : _slot3Cost;
+    return context.read<FactionService>().discountedBubbleSlotCost(baseCost);
+  }
+
+  Future<void> _purchaseSlot(int target, Map<String, int> cost) async {
     final db = context.read<AlchemonsDatabase>();
-    final cost = target == 2 ? _slot2Cost : _slot3Cost;
 
     if (_slotsUnlocked >= target) {
       _toast('Already unlocked');
@@ -789,7 +794,8 @@ class _ShopScreenState extends State<ShopScreen> {
         }).toList();
 
         // ── Alchemy Chamber (bubble slot) upgrades ──
-        void addSlot(int slotNumber, Map<String, int> cost) {
+        void addSlot(int slotNumber) {
+          final cost = _bubbleSlotCostFor(slotNumber);
           if (_slotsUnlocked >= slotNumber && !_showPurchased) return;
           final enabled = _slotsUnlocked < slotNumber;
           final canAfford = cost.entries.every(
@@ -845,8 +851,8 @@ class _ShopScreenState extends State<ShopScreen> {
           );
         }
 
-        addSlot(2, _slot2Cost);
-        addSlot(3, _slot3Cost);
+        addSlot(2);
+        addSlot(3);
 
         // ── Cosmic Party (patrol slot) upgrades ──
         void addPartySlot(int slotNumber, Map<String, int> cost) {
@@ -1427,7 +1433,7 @@ class _ShopScreenState extends State<ShopScreen> {
       effectiveCost: offer.cost,
     );
     if (!shouldProceed || !context.mounted) return;
-    await _purchaseSlot(slotNumber);
+    await _purchaseSlot(slotNumber, offer.cost);
   }
 
   Future<void> _showDetails(

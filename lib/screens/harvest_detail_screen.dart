@@ -430,58 +430,136 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
     if (!mounted) return;
     final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
 
     // 🔹 Ask player if they want to reload the same creature
     if (!mounted) return;
     final shouldReload = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Row(
-          children: [
-            const Icon(Icons.refresh_rounded, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(
-              'Reload creature?',
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: Container(
+            decoration: BoxDecoration(
+              color: t.bg1,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: t.borderAccent, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ],
-        ),
-        content: Text(
-          'Send this Alchemon straight back into the extractor with the same settings?',
-          style: TextStyle(
-            color: theme.textMuted,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: t.amber,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Icon(Icons.refresh_rounded, color: t.amberBright, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'EXTRACTION COMPLETE',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: t.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(height: 1, color: t.borderMid),
+                const SizedBox(height: 14),
+                Text(
+                  'Reload the same specimen with the same settings?',
+                  style: TextStyle(
+                    color: t.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(ctx, false),
+                        child: Container(
+                          height: 42,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: t.bg2,
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(color: t.borderDim),
+                          ),
+                          child: Text(
+                            'NOT NOW',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: t.textSecondary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(ctx, true),
+                        child: Container(
+                          height: 42,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                t.amberDim.withValues(alpha: 0.45),
+                                t.amber.withValues(alpha: 0.35),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(
+                              color: t.amber.withValues(alpha: 0.7),
+                            ),
+                          ),
+                          child: Text(
+                            'RELOAD',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: t.amberBright,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'Not now',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'Reload',
-              style: TextStyle(
-                color: theme.primary,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
       ),
     );
 

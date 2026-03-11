@@ -15,6 +15,13 @@ import 'package:drift/drift.dart';
 /// Service that manages active wild creature spawns across all scenes.
 /// Spawns are persisted to the database so they survive app restarts.
 class WildernessSpawnService extends ChangeNotifier {
+  static const Set<String> _coreSceneIds = {
+    'valley',
+    'sky',
+    'volcano',
+    'swamp',
+  };
+
   final PushNotificationService _pushNotifications = PushNotificationService();
   final AlchemonsDatabase _db;
   final Random _rng = Random();
@@ -55,6 +62,81 @@ class WildernessSpawnService extends ChangeNotifier {
 
   /// Check if a scene is currently being visited
   bool isSceneActive(String sceneId) => _activeScenes.contains(sceneId);
+
+  Future<bool> _isSceneEligible(String sceneId) async {
+    if (_coreSceneIds.contains(sceneId)) return true;
+    if (sceneId == 'arcane') {
+      return (await _db.settingsDao.getSetting('arcane_portal_unlocked')) ==
+          '1';
+    }
+    return false;
+  }
+
+  Future<Set<String>> _eligibleSceneIds(Iterable<String> sceneIds) async {
+    final eligible = <String>{};
+    for (final sceneId in sceneIds) {
+      if (await _isSceneEligible(sceneId)) {
+        eligible.add(sceneId);
+      }
+    }
+    return eligible;
+  }
+
+  Future<bool> _purgeIneligibleSceneData(Set<String> eligibleSceneIds) async {
+    var changed = false;
+
+    final staleSpawnSceneIds = _activeSpawns.keys
+        .where((sceneId) => !eligibleSceneIds.contains(sceneId))
+        .toList();
+    for (final sceneId in staleSpawnSceneIds) {
+      changed = true;
+      _activeSpawns.remove(sceneId);
+      await (_db.delete(
+        _db.activeSpawns,
+      )..where((t) => t.sceneId.equals(sceneId))).go();
+      debugPrint('🧹 Removed stale active spawns for scene $sceneId');
+    }
+
+    final staleScheduleSceneIds = _nextDueUtcMs.keys
+        .where((sceneId) => !eligibleSceneIds.contains(sceneId))
+        .toList();
+    for (final sceneId in staleScheduleSceneIds) {
+      changed = true;
+      _nextDueUtcMs.remove(sceneId);
+      await (_db.delete(
+        _db.spawnSchedule,
+      )..where((t) => t.sceneId.equals(sceneId))).go();
+      debugPrint('🧹 Removed stale spawn schedule for scene $sceneId');
+    }
+
+    final activeSceneCount = _activeScenes.length;
+    _activeScenes.removeWhere((sceneId) => !eligibleSceneIds.contains(sceneId));
+    if (_activeScenes.length != activeSceneCount) {
+      changed = true;
+    }
+
+    return changed;
+  }
+
+  Future<void> _refreshScheduledNotifications(
+    Set<String> eligibleSceneIds,
+  ) async {
+    await _pushNotifications.cancelWildernessNotifications();
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+
+    for (final entry in _nextDueUtcMs.entries) {
+      final sceneId = entry.key;
+      final dueAt = entry.value;
+      if (!eligibleSceneIds.contains(sceneId) || dueAt <= now) continue;
+      await _pushNotifications.scheduleWildernessSpawnNotification(
+        spawnTime: DateTime.fromMillisecondsSinceEpoch(
+          dueAt,
+          isUtc: true,
+        ).toLocal(),
+        biomeId: sceneId,
+      );
+    }
+  }
 
   // ------------------------------------------------------------
   // GLOBAL CONFIG (for testing and customization)
@@ -130,7 +212,19 @@ class WildernessSpawnService extends ChangeNotifier {
 
   /// Re-schedule every known scene using the current global window.
   Future<void> rescheduleAllScenes() async {
-    for (final sceneId in _nextDueUtcMs.keys) {
+    final knownSceneIds = _nextDueUtcMs.keys.toList(growable: false);
+    final eligibleSceneIds = await _eligibleSceneIds(knownSceneIds);
+    final stale = knownSceneIds
+        .where((sceneId) => !eligibleSceneIds.contains(sceneId))
+        .toList();
+    for (final sceneId in stale) {
+      _nextDueUtcMs.remove(sceneId);
+      await (_db.delete(
+        _db.spawnSchedule,
+      )..where((t) => t.sceneId.equals(sceneId))).go();
+    }
+
+    for (final sceneId in eligibleSceneIds) {
       await scheduleNextSpawnTime(sceneId);
     }
     notifyListeners();
@@ -155,13 +249,22 @@ class WildernessSpawnService extends ChangeNotifier {
         .select(_db.activeSceneEntry)
         .getSingleOrNull();
     if (activeEntry != null) {
-      await clearSceneSpawns(activeEntry.sceneId);
+      // Preserve persisted wilderness spawns across app interruption.
+      // We only clear the "currently active scene" marker.
       await _db.delete(_db.activeSceneEntry).go();
     }
+
+    final eligibleSceneIds = await _eligibleSceneIds(scenes.keys);
 
     // 2) Load active spawns
     final stored = await _db.select(_db.activeSpawns).get();
     for (final s in stored) {
+      if (!eligibleSceneIds.contains(s.sceneId)) {
+        await (_db.delete(
+          _db.activeSpawns,
+        )..where((t) => t.id.equals(s.id))).go();
+        continue;
+      }
       final rarity = EncounterRarity.values.firstWhere(
         (r) => r.name == s.rarity,
         orElse: () => EncounterRarity.common,
@@ -179,14 +282,25 @@ class WildernessSpawnService extends ChangeNotifier {
     // 3) Load schedules
     final scheduled = await _db.select(_db.spawnSchedule).get();
     for (final row in scheduled) {
+      if (!eligibleSceneIds.contains(row.sceneId)) {
+        await (_db.delete(
+          _db.spawnSchedule,
+        )..where((t) => t.sceneId.equals(row.sceneId))).go();
+        continue;
+      }
       _nextDueUtcMs[row.sceneId] = row.dueAtUtcMs;
     }
+
+    // 3b) Drop stale data left from removed/locked scenes (e.g. poison).
+    await _purgeIneligibleSceneData(eligibleSceneIds);
+    await _refreshScheduledNotifications(eligibleSceneIds);
 
     // 4) Ensure every known scene has either:
     //    - at least one active spawn, OR
     //    - a scheduled time in the future
     for (final entry in scenes.entries) {
       final sceneId = entry.key;
+      if (!eligibleSceneIds.contains(sceneId)) continue;
       final hasSpawns = hasAnySpawnsInScene(sceneId);
       final due = _nextDueUtcMs[sceneId];
 
@@ -214,6 +328,14 @@ class WildernessSpawnService extends ChangeNotifier {
     Duration? windowMax,
     bool force = false,
   }) async {
+    if (!await _isSceneEligible(sceneId)) {
+      _nextDueUtcMs.remove(sceneId);
+      await (_db.delete(
+        _db.spawnSchedule,
+      )..where((t) => t.sceneId.equals(sceneId))).go();
+      return;
+    }
+
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
 
     // If there's already a scheduled time in the future, don't overwrite it
@@ -269,10 +391,13 @@ class WildernessSpawnService extends ChangeNotifier {
     >
     scenes,
   ) async {
+    final eligibleSceneIds = await _eligibleSceneIds(scenes.keys);
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    var spawnedAnyScene = false;
 
     for (final entry in scenes.entries) {
       final sceneId = entry.key;
+      if (!eligibleSceneIds.contains(sceneId)) continue;
 
       // Skip scenes that are currently being visited
       if (isSceneActive(sceneId)) {
@@ -280,6 +405,13 @@ class WildernessSpawnService extends ChangeNotifier {
       }
 
       final due = _nextDueUtcMs[sceneId];
+
+      // If this scene has no schedule yet (e.g. Arcane was just unlocked),
+      // create one now.
+      if (due == null && !hasAnySpawnsInScene(sceneId)) {
+        await scheduleNextSpawnTime(sceneId);
+        continue;
+      }
 
       // Only start a new spawn event when the scene is empty.
       if (due != null && due <= now && !hasAnySpawnsInScene(sceneId)) {
@@ -292,15 +424,21 @@ class WildernessSpawnService extends ChangeNotifier {
           scene,
           sceneWide,
           perSpawn,
+          emitSummaryNotification: false,
         );
 
         // Schedule the next event time using the global window
         if (spawned) {
+          spawnedAnyScene = true;
           await scheduleNextSpawnTime(sceneId);
         } else {
           debugPrint('⏱️ Skipping reschedule for $sceneId; no spawns created.');
         }
       }
+    }
+
+    if (spawnedAnyScene) {
+      await _showActiveWildernessSummaryNotification();
     }
   }
 
@@ -318,6 +456,7 @@ class WildernessSpawnService extends ChangeNotifier {
   /// Called when the player enters a scene that is empty (e.g. first visit).
   /// Bypasses the active-scene guard because we *want* spawns right now.
   Future<void> ensureSpawnsForScene(String sceneId) async {
+    if (!await _isSceneEligible(sceneId)) return;
     if (hasAnySpawnsInScene(sceneId)) return; // already populated
 
     final config = _scenes?[sceneId];
@@ -336,6 +475,7 @@ class WildernessSpawnService extends ChangeNotifier {
       config.scene,
       config.sceneWide,
       config.perSpawn,
+      emitSummaryNotification: false,
     );
 
     // Re-mark active if it was before
@@ -346,8 +486,14 @@ class WildernessSpawnService extends ChangeNotifier {
     String sceneId,
     SceneDefinition scene,
     EncounterPool sceneWide,
-    Map<String, EncounterPool> perSpawn,
-  ) async {
+    Map<String, EncounterPool> perSpawn, {
+    bool emitSummaryNotification = true,
+  }) async {
+    if (!await _isSceneEligible(sceneId)) {
+      debugPrint('⚠️ Skipping spawn for $sceneId - scene is not eligible');
+      return false;
+    }
+
     // Double-check: don't spawn if scene is active
     if (isSceneActive(sceneId)) {
       debugPrint('⚠️ Skipping spawn for $sceneId - scene is currently active');
@@ -424,17 +570,9 @@ class WildernessSpawnService extends ChangeNotifier {
     }
 
     // After spawning, show consolidated notification of active wilderness state.
-    if (hasAnySpawnsInScene(sceneId)) {
-      final totalSpawns = _activeSpawns.values.fold<int>(
-        0,
-        (sum, spawns) => sum + spawns.length,
-      );
-      final scenesWithSpawns = _activeSpawns.keys.length;
-
-      await _pushNotifications.showWildernessSpawnNotification(
-        spawnCount: totalSpawns,
-        locationCount: scenesWithSpawns,
-      );
+    // Callers can disable this to batch multiple spawn operations into one push.
+    if (emitSummaryNotification && hasAnySpawnsInScene(sceneId)) {
+      await _showActiveWildernessSummaryNotification();
     }
 
     notifyListeners();
@@ -476,6 +614,27 @@ class WildernessSpawnService extends ChangeNotifier {
   // ------------------------------------------------------------
   // REMOVE / CLEAR
   // ------------------------------------------------------------
+  Future<void> _showActiveWildernessSummaryNotification() async {
+    final eligibleSceneIds = await _eligibleSceneIds(_activeSpawns.keys);
+    final totalSpawns = eligibleSceneIds.fold<int>(
+      0,
+      (sum, sceneId) => sum + (_activeSpawns[sceneId]?.length ?? 0),
+    );
+    final scenesWithSpawns = eligibleSceneIds.where((sceneId) {
+      return (_activeSpawns[sceneId]?.isNotEmpty ?? false);
+    }).length;
+
+    if (totalSpawns <= 0 || scenesWithSpawns <= 0) {
+      await _pushNotifications.cancelWildernessSummaryNotification();
+      return;
+    }
+
+    await _pushNotifications.showWildernessSpawnNotification(
+      spawnCount: totalSpawns,
+      locationCount: scenesWithSpawns,
+    );
+  }
+
   Future<void> removeSpawn(String sceneId, String spawnPointId) async {
     final removed = _activeSpawns[sceneId]?.remove(spawnPointId);
     if (removed == null) return;
@@ -487,7 +646,7 @@ class WildernessSpawnService extends ChangeNotifier {
     if (!hasAnySpawnsInScene(sceneId)) {
       // Cancel notification if no spawns anywhere
       if (!hasAnyActiveSpawns) {
-        await _pushNotifications.cancelWildernessNotifications();
+        await _pushNotifications.cancelWildernessSummaryNotification();
       }
     }
 
@@ -502,9 +661,17 @@ class WildernessSpawnService extends ChangeNotifier {
 
     debugPrint('🧹 Cleared spawns from $sceneId');
 
-    // Only schedule next spawn if scene is NOT currently active
-    if (!isSceneActive(sceneId)) {
+    // Only schedule next spawn if scene is active in the current wilderness set.
+    if (!isSceneActive(sceneId) && await _isSceneEligible(sceneId)) {
       await scheduleNextSpawnTime(sceneId);
+    } else {
+      _nextDueUtcMs.remove(sceneId);
+      await (_db.delete(
+        _db.spawnSchedule,
+      )..where((t) => t.sceneId.equals(sceneId))).go();
+    }
+    if (!hasAnyActiveSpawns) {
+      await _pushNotifications.cancelWildernessSummaryNotification();
     }
     notifyListeners();
   }

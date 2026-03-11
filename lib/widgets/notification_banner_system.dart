@@ -1,7 +1,9 @@
+import 'dart:math' as math;
+
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:math' as math;
-import 'package:alchemons/database/alchemons_db.dart';
 import 'package:provider/provider.dart';
 
 // ============================================================================
@@ -93,37 +95,29 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
 
   // --- Helpers ----------------------------------------------------------------
 
-  Color _getBannerColor() {
-    switch (widget.notification.type) {
-      case NotificationBannerType.eggReady:
-        return const Color(0xFF8B4513);
-      case NotificationBannerType.harvestReady:
-        return const Color(0xFF2E7D32);
-      case NotificationBannerType.dailyReward:
-        return const Color(0xFF6A1B9A);
-      case NotificationBannerType.bossAvailable:
-        return const Color(0xFFB71C1C);
-      case NotificationBannerType.eventActive:
-        return const Color(0xFF1565C0);
-      case NotificationBannerType.wildernessSpawn:
-        return const Color(0xFF1B5E20);
+  ForgeTokens get _t {
+    try {
+      return ForgeTokens(context.read<FactionTheme>());
+    } catch (_) {
+      return ForgeTokens(FactionTheme.scorchForge());
     }
   }
 
   Color _getAccentColor() {
+    final t = _t;
     switch (widget.notification.type) {
       case NotificationBannerType.eggReady:
-        return const Color(0xFFFFD700);
+        return t.amberBright;
       case NotificationBannerType.harvestReady:
-        return const Color(0xFF4CAF50);
+        return t.success;
       case NotificationBannerType.dailyReward:
-        return const Color(0xFFAB47BC);
+        return const Color(0xFFB089FF);
       case NotificationBannerType.bossAvailable:
-        return const Color(0xFFFF5252);
+        return t.danger;
       case NotificationBannerType.eventActive:
-        return const Color(0xFF42A5F5);
+        return t.teal;
       case NotificationBannerType.wildernessSpawn:
-        return const Color(0xFF66BB6A);
+        return const Color(0xFFA3E635);
     }
   }
 
@@ -178,7 +172,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
         _dragOffset = 0.0;
       });
     } else {
-      // Just snap back – much cheaper than a custom spring animation
+      // Just snap back - much cheaper than a custom spring animation
       HapticFeedback.selectionClick();
       setState(() {
         _dragOffset = 0.0;
@@ -189,20 +183,50 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
   // --- UI pieces --------------------------------------------------------------
 
   Widget _buildCollapsedView() {
+    final t = _t;
+    final accent = _getAccentColor();
     return Container(
       width: 56,
       height: 56,
       decoration: BoxDecoration(
-        color: _getBannerColor(),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: _getAccentColor().withValues(alpha: 0.6),
-          width: 2,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [t.bg3, t.bg2],
         ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: accent.withValues(alpha: 0.55), width: 1.6),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Stack(
         children: [
-          Center(child: Icon(_getBannerIcon(), color: Colors.white, size: 28)),
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: CustomPaint(
+                painter: _ForgeScanlinePainter(
+                  lineColor: Colors.black.withValues(alpha: 0.08),
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(9),
+              child: CustomPaint(
+                painter: AlchemicalPatternPainter(
+                  color: accent.withValues(alpha: 0.16),
+                ),
+              ),
+            ),
+          ),
+          Center(child: Icon(_getBannerIcon(), color: accent, size: 24)),
           if (widget.notification.count > 1 &&
               widget.notification.type !=
                   NotificationBannerType.wildernessSpawn)
@@ -212,18 +236,19 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: _getAccentColor(),
+                  color: accent,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 1.5),
+                  border: Border.all(color: t.bg0, width: 1.5),
                 ),
                 constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
                 child: Center(
                   child: Text(
                     '${widget.notification.count}',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: t.bg0,
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
+                      fontFamily: 'monospace',
                     ),
                   ),
                 ),
@@ -235,125 +260,185 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
   }
 
   Widget _buildExpandedView() {
+    final t = _t;
+    final accent = _getAccentColor();
     return Container(
-      constraints: const BoxConstraints(maxWidth: 280),
+      constraints: const BoxConstraints(maxWidth: 300),
       decoration: BoxDecoration(
-        color: _getBannerColor(),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [t.bg1, t.bg2],
+        ),
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(12),
-          bottomLeft: Radius.circular(12),
+          topLeft: Radius.circular(8),
+          bottomLeft: Radius.circular(8),
         ),
-        border: Border.all(
-          color: _getAccentColor().withValues(alpha: 0.4),
-          width: 1.5,
-        ),
+        border: Border.all(color: t.borderDim, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 14,
+            offset: const Offset(0, 7),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _getAccentColor().withValues(alpha: 0.3),
-                  width: 1,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(8),
+                bottomLeft: Radius.circular(8),
+              ),
+              child: CustomPaint(
+                painter: _ForgeScanlinePainter(
+                  lineColor: Colors.black.withValues(alpha: 0.07),
                 ),
               ),
-              child: Icon(_getBannerIcon(), color: _getAccentColor(), size: 24),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
+          ),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.85),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  bottomLeft: Radius.circular(8),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 10,
+            top: 8,
+            child: SizedBox(
+              width: 36,
+              height: 36,
+              child: CustomPaint(
+                painter: AlchemicalPatternPainter(
+                  color: accent.withValues(alpha: 0.14),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: t.bg3.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: accent.withValues(alpha: 0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(_getBannerIcon(), color: accent, size: 21),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Flexible(
-                        child: Text(
-                          widget.notification.title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.8,
-                            shadows: [
-                              Shadow(color: Colors.black45, blurRadius: 2),
-                            ],
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.notification.title.toUpperCase(),
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.textPrimary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.1,
+                                shadows: const [
+                                  Shadow(color: Colors.black54, blurRadius: 2),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
+                          if (widget.notification.count > 1 &&
+                              widget.notification.type !=
+                                  NotificationBannerType.wildernessSpawn) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: accent.withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(3),
+                                border: Border.all(
+                                  color: accent.withValues(alpha: 0.65),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                '${widget.notification.count}',
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                      if (widget.notification.count > 1 &&
-                          widget.notification.type !=
-                              NotificationBannerType.wildernessSpawn) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _getAccentColor(),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            '${widget.notification.count}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                            ),
+                      if (widget.notification.subtitle != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          widget.notification.subtitle!,
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.7,
                           ),
                         ),
                       ],
                     ],
                   ),
-                  if (widget.notification.subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.notification.subtitle!,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        shadows: const [
-                          Shadow(color: Colors.black45, blurRadius: 2),
-                        ],
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    widget.onDismiss();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: t.bg3.withValues(alpha: 0.75),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: t.borderDim.withValues(alpha: 0.9),
+                        width: 1,
                       ),
                     ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                widget.onDismiss();
-              },
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: t.textSecondary,
+                      size: 22,
+                    ),
+                  ),
                 ),
-                child: Icon(
-                  Icons.close_rounded,
-                  color: Colors.white.withValues(alpha: 0.7),
-                  size: 25,
-                ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -408,6 +493,27 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
   }
 }
 
+class _ForgeScanlinePainter extends CustomPainter {
+  final Color lineColor;
+
+  const _ForgeScanlinePainter({required this.lineColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 1;
+    for (double y = 1; y < size.height; y += 3) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ForgeScanlinePainter oldDelegate) {
+    return oldDelegate.lineColor != lineColor;
+  }
+}
+
 // ============================================================================
 // ALCHEMICAL PATTERN PAINTER
 // ============================================================================
@@ -440,7 +546,9 @@ class AlchemicalPatternPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant AlchemicalPatternPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
 }
 
 // ============================================================================

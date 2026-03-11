@@ -440,8 +440,6 @@ class _InventoryScreenState extends State<InventoryScreen>
             final vial = vials[index];
             return _CleanVialCard(
               vial: vial,
-              theme: theme,
-              accent: theme.accent,
               onTap: () => _showVialDetailsDialog(vial, theme),
             );
           },
@@ -600,37 +598,43 @@ class _InventoryScreenState extends State<InventoryScreen>
               ),
 
               // ── Quantity badge ───────────────────────────────────────────
-              const SizedBox(height: 12),
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: t.amberDim.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: t.borderAccent, width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.inventory_2_rounded, color: t.amber, size: 12),
-                      const SizedBox(width: 6),
-                      Text(
-                        'QTY: ${item.qty}',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
+              if (!def.isKeyItem) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: t.amberDim.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(2),
+                      border: Border.all(color: t.borderAccent, width: 1),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_rounded,
                           color: t.amber,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.4,
+                          size: 12,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Text(
+                          'QTY: ${item.qty}',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.amber,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
 
               // ── Description ──────────────────────────────────────────────
               const SizedBox(height: 14),
@@ -650,110 +654,105 @@ class _InventoryScreenState extends State<InventoryScreen>
               ),
 
               // ── Buttons ──────────────────────────────────────────────────
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Row(
-                  children: [
-                    // DELETE
-                    GestureDetector(
-                      onTap: canDelete
-                          ? () async {
-                              Navigator.pop(ctx);
-                              await _deleteItem(item, def);
-                            }
-                          : null,
-                      child: Container(
-                        height: 44,
-                        width: 72,
-                        decoration: BoxDecoration(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(2),
-                          border: Border.all(
-                            color: canDelete
-                                ? t.danger.withValues(alpha: 0.6)
-                                : t.borderDim,
-                            width: 1,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.delete_outline_rounded,
-                              size: 13,
-                              color: canDelete
-                                  ? t.danger.withValues(alpha: 0.8)
-                                  : t.textMuted,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              canDelete ? 'DEL' : 'LOCK',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: canDelete
-                                    ? t.danger.withValues(alpha: 0.8)
-                                    : t.textMuted,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // USE ITEM
-                    if (canUse)
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
+              if (canDelete || canUse) ...[
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Row(
+                    children: [
+                      if (canDelete) ...[
+                        GestureDetector(
+                          onTap: () async {
                             Navigator.pop(ctx);
-                            _useItem(item, def);
+                            await _deleteItem(item, def);
                           },
                           child: Container(
                             height: 44,
+                            width: 72,
                             decoration: BoxDecoration(
-                              color: t.amberDim.withValues(alpha: 0.35),
+                              color: Colors.transparent,
                               borderRadius: BorderRadius.circular(2),
-                              border: Border.all(color: t.amber, width: 1),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: t.amber.withValues(alpha: 0.15),
-                                  blurRadius: 12,
-                                ),
-                              ],
+                              border: Border.all(
+                                color: t.danger.withValues(alpha: 0.6),
+                                width: 1,
+                              ),
                             ),
                             alignment: Alignment.center,
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
-                                  Icons.play_arrow_rounded,
-                                  size: 15,
-                                  color: t.amberBright,
+                                  Icons.delete_outline_rounded,
+                                  size: 13,
+                                  color: t.danger.withValues(alpha: 0.8),
                                 ),
-                                const SizedBox(width: 7),
+                                const SizedBox(width: 4),
                                 Text(
-                                  'USE ITEM',
+                                  'DEL',
                                   style: TextStyle(
                                     fontFamily: 'monospace',
-                                    color: t.amberBright,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.4,
+                                    color: t.danger.withValues(alpha: 0.8),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.0,
                                   ),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                        const SizedBox(width: 10),
+                      ],
+                      if (canUse)
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _useItem(item, def);
+                            },
+                            child: Container(
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: t.amberDim.withValues(alpha: 0.35),
+                                borderRadius: BorderRadius.circular(2),
+                                border: Border.all(color: t.amber, width: 1),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: t.amber.withValues(alpha: 0.15),
+                                    blurRadius: 12,
+                                  ),
+                                ],
+                              ),
+                              alignment: Alignment.center,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.play_arrow_rounded,
+                                    size: 15,
+                                    color: t.amberBright,
+                                  ),
+                                  const SizedBox(width: 7),
+                                  Text(
+                                    'USE ITEM',
+                                    style: TextStyle(
+                                      fontFamily: 'monospace',
+                                      color: t.amberBright,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
+              if (!canDelete && !canUse) const SizedBox(height: 18),
             ],
           ),
         ),
@@ -859,39 +858,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                     letterSpacing: 1.6,
                   ),
                   textAlign: TextAlign.center,
-                ),
-              ),
-
-              // ── Qty badge ────────────────────────────────────────────────
-              const SizedBox(height: 12),
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: t.amberDim.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: t.borderAccent, width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.science_rounded, color: t.amber, size: 12),
-                      const SizedBox(width: 6),
-                      Text(
-                        'AVAILABLE: ${vial.quantity}',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.amber,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
 
@@ -1498,7 +1464,7 @@ class _InventoryScreenState extends State<InventoryScreen>
           style: TextStyle(color: theme.text, fontWeight: FontWeight.w900),
         ),
         content: Text(
-          'How would you like to remove ${vial.name}?\n\nYou currently have ${vial.quantity}.',
+          'How would you like to remove ${vial.name}?',
           style: TextStyle(color: theme.textMuted, fontWeight: FontWeight.w600),
         ),
         actions: [
@@ -1604,6 +1570,7 @@ class _CleanItemCard extends StatelessWidget {
       icon: def.icon,
       size: 48,
     );
+    final showQuantity = !def.isKeyItem;
 
     return GestureDetector(
       onTap: onTap,
@@ -1622,26 +1589,27 @@ class _CleanItemCard extends StatelessWidget {
                 // Image/Icon Area
                 Expanded(child: Center(child: visualWidget)),
 
-                // Quantity Badge at bottom
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.3),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'x${item.qty}',
-                      style: TextStyle(
-                        color: theme.text,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
+                // Quantity Badge at bottom (non-special items only)
+                if (showQuantity)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.3),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'x${item.qty}',
+                        style: TextStyle(
+                          color: theme.text,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ],
@@ -1654,54 +1622,15 @@ class _CleanItemCard extends StatelessWidget {
 // ===== CLEAN VIAL CARD =====
 class _CleanVialCard extends StatelessWidget {
   final ExtractionVial vial;
-  final FactionTheme theme;
-  final Color accent;
   final VoidCallback onTap;
 
-  const _CleanVialCard({
-    required this.vial,
-    required this.theme,
-    required this.accent,
-    required this.onTap,
-  });
+  const _CleanVialCard({required this.vial, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
     return GestureDetector(
       onTap: onTap,
-      child: Stack(
-        children: [
-          // Existing vial card
-          ExtractionVialCard(vial: vial, compact: true),
-
-          // Quantity badge
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  width: 1.5,
-                ),
-              ),
-              child: Text(
-                'x${vial.quantity}',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: ExtractionVialCard(vial: vial, compact: true),
     );
   }
 }

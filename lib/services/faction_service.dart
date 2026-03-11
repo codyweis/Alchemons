@@ -115,7 +115,7 @@ class FactionService extends ChangeNotifier {
         PerkInfo(
           code: "AirDrop",
           title: "AirDrop",
-          description: "Unlock an extra extraction chamber",
+          description: "50% discount on additional extraction chambers",
         ),
         PerkInfo(
           code: "VerdantHarvester",
@@ -317,15 +317,19 @@ class FactionService extends ChangeNotifier {
   // AIR FACTION PERKS
   // ---------------------------------------------------------------------------
 
-  /// AirDrop (Perk 1): Unlock an extra extraction chamber.
-  Future<bool> ensureAirExtraSlotUnlocked() async {
-    if (!isAir() || !perk1Active) return false;
+  /// AirDrop (Perk 1): 50% discount on additional extraction chambers.
+  double get airBubbleSlotCostMultiplier {
+    if (!isAir() || !perk1Active) return 1.0;
+    return 0.5;
+  }
 
-    final flag = await db.settingsDao.getSetting('air_slot_applied_v1');
-    if (flag == '1') return false;
+  Map<String, int> discountedBubbleSlotCost(Map<String, int> baseCost) {
+    final mult = airBubbleSlotCostMultiplier;
+    if (mult >= 1.0) return Map<String, int>.from(baseCost);
 
-    await db.incubatorDao.unlockSlot(2); // unlock 3rd slot (id=2 in your seed)
-    await db.settingsDao.setSetting('air_slot_applied_v1', '1');
-    return true;
+    return {
+      for (final entry in baseCost.entries)
+        entry.key: (entry.value * mult).round(),
+    };
   }
 }

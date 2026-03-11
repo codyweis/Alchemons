@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:alchemons/providers/audio_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
 class BloodRitualFlashPage extends StatefulWidget {
   const BloodRitualFlashPage({
@@ -405,6 +407,10 @@ class _BloodRingValleyCreditsPageState extends State<BloodRingValleyCreditsPage>
         DeviceOrientation.landscapeRight,
       ]),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(context.read<AudioController>().playEndCreditsMusic());
+    });
     _ticker = createTicker(_onTick)..start();
   }
 

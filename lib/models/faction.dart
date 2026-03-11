@@ -44,7 +44,11 @@ class Factions {
   ]);
 
   static const verdant = FactionDef(FactionId.verdant, 'Verdant', '💨', [
-    FactionPerk('AirDrop', 'AirDrop', 'Unlock an extra extraction chamber'),
+    FactionPerk(
+      'AirDrop',
+      'AirDrop',
+      '50% discount on additional extraction chambers',
+    ),
     FactionPerk(
       'VerdantHarvester',
       'Verdant Harvester',

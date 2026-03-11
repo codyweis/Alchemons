@@ -295,7 +295,7 @@ class EggHatching {
 
       return HatchingResult(
         success: true,
-        message: 'Incubator full — embryo transferred to storage',
+        message: 'Incubator full — specimen transferred to storage',
         icon: Icons.inventory_2_rounded,
         color: FC.orange,
       );
@@ -313,7 +313,7 @@ class EggHatching {
 
       return HatchingResult(
         success: true,
-        message: 'Embryo placed in incubation chamber ${free.id + 1}',
+        message: 'Specimen placed in incubation chamber ${free.id + 1}',
         icon: Icons.science_rounded,
         color: const Color.fromARGB(255, 239, 255, 92),
       );
@@ -535,7 +535,7 @@ class EggHatching {
     if (recipeDiscovery.hasAny) {
       _showScorchedDiscoveryOverlay(
         safeContext,
-        count: recipeDiscovery.unlocked.length,
+        unlocked: recipeDiscovery.unlocked,
       );
     }
   }
@@ -1052,7 +1052,7 @@ class EggHatching {
                                       ),
                                     ),
                                     child: Icon(
-                                      Icons.pets_rounded,
+                                      Icons.info_outline_rounded,
                                       color: fc.textSecondary,
                                       size: 22,
                                     ),
@@ -1080,12 +1080,14 @@ class EggHatching {
 
   static void _showScorchedDiscoveryOverlay(
     BuildContext context, {
-    required int count,
+    required List<EncyclopediaRecipeEntry> unlocked,
   }) {
     final rootNav = Navigator.of(context, rootNavigator: true);
     final overlay = rootNav.overlay;
     if (overlay == null) return;
 
+    final unlockQueue = List<EncyclopediaRecipeEntry>.unmodifiable(unlocked);
+    final count = unlockQueue.length;
     final title = count == 1
         ? 'New discovery added'
         : '$count new discoveries added';
@@ -1098,7 +1100,10 @@ class EggHatching {
     void openEncyclopedia() {
       dismissOverlay();
       rootNav.push(
-        MaterialPageRoute(builder: (_) => const AlchemicalEncyclopediaScreen()),
+        MaterialPageRoute(
+          builder: (_) =>
+              AlchemicalEncyclopediaScreen(unlockShowcase: unlockQueue),
+        ),
       );
     }
 

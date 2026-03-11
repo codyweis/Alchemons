@@ -366,9 +366,13 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                         height: 72,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: Colors.black.withValues(alpha: .45),
+                                          color: Colors.black.withValues(
+                                            alpha: .45,
+                                          ),
                                           border: Border.all(
-                                            color: rarityColor.withValues(alpha: .3),
+                                            color: rarityColor.withValues(
+                                              alpha: .3,
+                                            ),
                                             width: 1,
                                           ),
                                         ),
@@ -508,36 +512,36 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                               final canUseInstant = !isReady && qty > 0;
                               return Column(
                                 children: [
+                                  _SlotActionButton(
+                                    label: 'ACCELERATE CULTIVATION',
+                                    icon: Icons.speed_rounded,
+                                    accentColor: const Color(0xFFF97316),
+                                    filled: true,
+                                    onTap: widget.onAccelerate,
+                                  ),
+                                  if (canUseInstant) ...[
+                                    const SizedBox(height: 10),
+                                    _SlotActionButton(
+                                      label: 'USE INSTANT HATCH ×$qty',
+                                      icon: Icons.flash_on_rounded,
+                                      accentColor: const Color(0xFF22C55E),
+                                      filled: true,
+                                      onTap: widget.onInstantHatch,
+                                    ),
+                                  ],
+                                  const SizedBox(height: 12),
                                   Row(
                                     children: [
                                       Expanded(
                                         child: _SlotActionButton(
-                                          label: 'ACCELERATE',
-                                          icon: Icons.speed_rounded,
-                                          accentColor: const Color(0xFFF97316),
-                                          filled: true,
-                                          onTap: widget.onAccelerate,
+                                          label: 'STORE',
+                                          icon: Icons.inventory_2_rounded,
+                                          accentColor: const Color(0xFF3B82F6),
+                                          filled: false,
+                                          onTap: widget.onReturn,
                                         ),
                                       ),
-                                      if (canUseInstant) ...[
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: _SlotActionButton(
-                                            label: 'INSTANT ×$qty',
-                                            icon: Icons.flash_on_rounded,
-                                            accentColor: const Color(
-                                              0xFF22C55E,
-                                            ),
-                                            filled: true,
-                                            onTap: widget.onInstantHatch,
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    children: [
+                                      const SizedBox(width: 10),
                                       Expanded(
                                         child: _SlotActionButton(
                                           label: 'CLOSE',
@@ -545,50 +549,6 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                           accentColor: theme.textMuted,
                                           filled: false,
                                           onTap: widget.onClose,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Tooltip(
-                                        message: 'Return to storage',
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                          child: InkWell(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            onTap: widget.onReturn,
-                                            splashColor: const Color(
-                                              0xFF3B82F6,
-                                            ).withValues(alpha: .18),
-                                            highlightColor: const Color(
-                                              0xFF3B82F6,
-                                            ).withValues(alpha: .08),
-                                            child: Ink(
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                                color: const Color(
-                                                  0xFF3B82F6,
-                                                ).withValues(alpha: .08),
-                                                border: Border.all(
-                                                  color: const Color(
-                                                    0xFF3B82F6,
-                                                  ).withValues(alpha: .35),
-                                                ),
-                                              ),
-                                              child: const Padding(
-                                                padding: EdgeInsets.all(13),
-                                                child: Icon(
-                                                  Icons.inventory_2_rounded,
-                                                  size: 18,
-                                                  color: Color(0xFF3B82F6),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
                                         ),
                                       ),
                                     ],
@@ -664,6 +624,9 @@ class _SlotActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(4);
+    final textColor = filled ? const Color(0xFFE8DCC8) : accentColor;
+    final iconColor = filled ? const Color(0xFFE8DCC8) : accentColor;
+
     return Material(
       color: Colors.transparent,
       borderRadius: radius,
@@ -675,34 +638,54 @@ class _SlotActionButton extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: radius,
+            gradient: filled
+                ? LinearGradient(
+                    colors: [
+                      accentColor.withValues(alpha: .85),
+                      Color.lerp(accentColor, const Color(0xFF0E1117), .45)!,
+                    ],
+                  )
+                : null,
             color: filled
-                ? accentColor.withValues(alpha: .9)
-                : accentColor.withValues(alpha: .08),
+                ? null
+                : const Color(0xFF141820).withValues(alpha: .8),
             border: Border.all(
               color: filled
-                  ? accentColor.withValues(alpha: .3)
+                  ? accentColor.withValues(alpha: .45)
                   : accentColor.withValues(alpha: .35),
             ),
+            boxShadow: filled
+                ? [
+                    BoxShadow(
+                      color: accentColor.withValues(alpha: .2),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: .28),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  icon,
-                  size: 15,
-                  color: filled ? Colors.white : accentColor,
-                ),
+                Icon(icon, size: 15, color: iconColor),
                 const SizedBox(width: 7),
                 Flexible(
                   child: Text(
                     label,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: filled ? Colors.white : accentColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
+                      fontFamily: 'monospace',
+                      color: textColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
                       letterSpacing: 0.9,
                     ),
                   ),
