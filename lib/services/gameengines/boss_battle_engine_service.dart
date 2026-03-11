@@ -11,6 +11,7 @@ class BattleCombatant {
   final String name;
   final List<String> types; // Element types
   final String family; // Let, Pip, Mane, etc.
+  final List<BossMove> bossMoveset;
 
   /// Optional references used for rendering
   final CreatureInstance? instanceRef;
@@ -36,14 +37,21 @@ class BattleCombatant {
   Map<String, StatusEffect> statusEffects = {};
   Map<String, StatModifier> statModifiers = {};
   bool isCharging = false;
-  bool needsRecharge = false;
+  int specialCooldown = 0; // Turns until special can be used again
+  int actionCooldown = 0; // Turns until this creature can act again
+  String? tauntTargetId; // If set (on boss), must target this creature
   int? shieldHp;
+
+  /// Backward compat: true when special is on cooldown
+  bool get needsRecharge => specialCooldown > 0;
+  set needsRecharge(bool v) => specialCooldown = v ? 1 : 0;
 
   BattleCombatant({
     required this.id,
     required this.name,
     required this.types,
     required this.family,
+    this.bossMoveset = const [],
     required this.statSpeed,
     required this.statIntelligence,
     required this.statStrength,
@@ -71,7 +79,7 @@ class BattleCombatant {
   dynamic get spriteVisuals {
     final species = speciesRef;
     final inst = instanceRef;
-    if (species == null || inst == null) return null;
+    if (species == null) return null;
     return visualsFromInstance(species, inst);
   }
 
@@ -100,6 +108,7 @@ class BattleCombatant {
       name: instance.nickname ?? creature.name,
       types: creature.types,
       family: creature.mutationFamily!,
+      bossMoveset: const [],
       statSpeed: instance.statSpeed,
       statIntelligence: instance.statIntelligence,
       statStrength: instance.statStrength,
@@ -110,20 +119,21 @@ class BattleCombatant {
     );
   }
 
-  factory BattleCombatant.fromBoss(Boss boss) {
+  factory BattleCombatant.fromBoss(Boss boss, {Creature? mysticSpecies}) {
     // Bosses don’t use the same sprite pipeline, so instance/species refs are null.
     final bc = BattleCombatant(
       id: boss.id,
-      name: boss.name,
-      types: [boss.element],
-      family: 'Boss',
+      name: mysticSpecies?.name ?? boss.name,
+      types: mysticSpecies?.types ?? [boss.element],
+      family: mysticSpecies?.mutationFamily ?? 'Mystic',
+      bossMoveset: boss.moveset,
       statSpeed: boss.spd.toDouble(),
       statIntelligence: 50.0,
       statStrength: 50.0,
       statBeauty: 50.0,
       level: boss.recommendedLevel,
       instanceRef: null,
-      speciesRef: null,
+      speciesRef: mysticSpecies,
     );
 
     // Override calculated stats with boss-defined stats
@@ -260,6 +270,29 @@ class BattleCombatant {
       statModifiers.remove(key);
     }
   }
+
+  /// Tick down action cooldown (called at start of each player turn phase).
+  void tickActionCooldown() {
+    if (actionCooldown > 0) actionCooldown--;
+  }
+
+  /// Tick down special cooldown (called at start of each player turn phase).
+  void tickSpecialCooldown() {
+    if (specialCooldown > 0) specialCooldown--;
+  }
+
+  /// Tick down taunt duration (called at end of each turn cycle).
+  void tickTaunt() {
+    if (tauntTargetId != null) {
+      final taunt = statusEffects['taunt'];
+      if (taunt == null || taunt.isExpired) {
+        tauntTargetId = null;
+      }
+    }
+  }
+
+  /// Whether this creature can be selected to act this turn.
+  bool get canAct => isAlive && actionCooldown <= 0;
 }
 
 class StatusEffect {
@@ -289,6 +322,20 @@ class StatModifier {
 
 enum MoveType { physical, elemental }
 
+class FamilyMoveStyle {
+  final String family;
+  final String survivalArchetype;
+  final String battleSpecialName;
+  final String summary;
+
+  const FamilyMoveStyle({
+    required this.family,
+    required this.survivalArchetype,
+    required this.battleSpecialName,
+    required this.summary,
+  });
+}
+
 class BattleMove {
   final String name;
   final MoveType type;
@@ -303,6 +350,98 @@ class BattleMove {
     this.isSpecial = false,
     this.family,
   });
+
+  static const Map<String, FamilyMoveStyle> _familyStyles = {
+    'Let': FamilyMoveStyle(
+      family: 'Let',
+      survivalArchetype: 'Meteor',
+      battleSpecialName: 'Meteor Strike',
+      summary:
+          'Heavy elemental burst that scorches a single target with lingering damage.',
+    ),
+    'Pip': FamilyMoveStyle(
+      family: 'Pip',
+      survivalArchetype: 'Frenzy',
+      battleSpecialName: 'Frenzy',
+      summary:
+          'Relentless multi-hit assault with escalating critical strike chance.',
+    ),
+    'Mane': FamilyMoveStyle(
+      family: 'Mane',
+      survivalArchetype: 'Entangle',
+      battleSpecialName: 'Entangle',
+      summary:
+          'Ensnares the enemy, weakening them while nourishing allies with regen.',
+    ),
+    'Mask': FamilyMoveStyle(
+      family: 'Mask',
+      survivalArchetype: 'Hex Field',
+      battleSpecialName: 'Hex Field',
+      summary:
+          'Curses and debilitates the enemy; detonates existing curses for burst damage.',
+    ),
+    'Horn': FamilyMoveStyle(
+      family: 'Horn',
+      survivalArchetype: 'Fortress',
+      battleSpecialName: 'Fortress',
+      summary:
+          'Raises protective shields for the team and taunts the enemy to draw fire.',
+    ),
+    'Wing': FamilyMoveStyle(
+      family: 'Wing',
+      survivalArchetype: 'Piercing Beam',
+      battleSpecialName: 'Piercing Beam',
+      summary: 'Devastating focused beam that tears through defenses.',
+    ),
+    'Kin': FamilyMoveStyle(
+      family: 'Kin',
+      survivalArchetype: 'Sanctuary',
+      battleSpecialName: 'Sanctuary',
+      summary:
+          'Restores health to all allies, cleanses ailments, and bolsters defenses.',
+    ),
+    'Mystic': FamilyMoveStyle(
+      family: 'Mystic',
+      survivalArchetype: 'Arcane Orbitals',
+      battleSpecialName: 'Arcane Orbitals',
+      summary:
+          'Summons arcane projectiles that strike repeatedly with unpredictable elemental effects.',
+    ),
+  };
+
+  /// Cooldown turns for each family's special ability.
+  static int specialCooldownForFamily(String? family) {
+    switch (family) {
+      case 'Let':
+        return 2;
+      case 'Pip':
+        return 2;
+      case 'Mane':
+        return 3;
+      case 'Horn':
+        return 3;
+      case 'Mask':
+        return 3;
+      case 'Wing':
+        return 2;
+      case 'Kin':
+        return 3;
+      case 'Mystic':
+        return 2;
+      default:
+        return 2;
+    }
+  }
+
+  static FamilyMoveStyle styleForFamily(String family) {
+    return _familyStyles[family] ??
+        const FamilyMoveStyle(
+          family: 'Unknown',
+          survivalArchetype: 'Special',
+          battleSpecialName: 'Special Attack',
+          summary: 'Family special move.',
+        );
+  }
 
   // Basic moves from BasicAtks.csv
   static BattleMove getBasicMove(String family) {
@@ -366,66 +505,67 @@ class BattleMove {
 
   // Special abilities from SpecialAbilities.csv
   static BattleMove getSpecialMove(String family) {
+    final style = styleForFamily(family);
     switch (family) {
       case 'Let':
-        return const BattleMove(
-          name: 'Sprite-strike',
+        return BattleMove(
+          name: style.battleSpecialName,
           type: MoveType.physical,
           scalingStat: 'statSpeed',
           isSpecial: true,
           family: 'Let',
         );
       case 'Pip':
-        return const BattleMove(
-          name: 'Pip-fury',
+        return BattleMove(
+          name: style.battleSpecialName,
           type: MoveType.physical,
           scalingStat: 'statStrength',
           isSpecial: true,
           family: 'Pip',
         );
       case 'Mane':
-        return const BattleMove(
-          name: "Mane's-trick",
+        return BattleMove(
+          name: style.battleSpecialName,
           type: MoveType.elemental,
           scalingStat: 'statIntelligence',
           isSpecial: true,
           family: 'Mane',
         );
       case 'Horn':
-        return const BattleMove(
-          name: 'Horn-guard',
+        return BattleMove(
+          name: style.battleSpecialName,
           type: MoveType.physical,
           scalingStat: 'statStrength',
           isSpecial: true,
           family: 'Horn',
         );
       case 'Mask':
-        return const BattleMove(
-          name: "Mask's-curse",
+        return BattleMove(
+          name: style.battleSpecialName,
           type: MoveType.elemental,
           scalingStat: 'statIntelligence',
           isSpecial: true,
           family: 'Mask',
         );
       case 'Wing':
-        return const BattleMove(
-          name: 'Wing-assault',
+        return BattleMove(
+          name: style.battleSpecialName,
           type: MoveType.physical,
           scalingStat: 'statSpeed',
           isSpecial: true,
           family: 'Wing',
         );
       case 'Kin':
-        return const BattleMove(
-          name: "Kin's-blessing",
+        return BattleMove(
+          name: style.battleSpecialName,
           type: MoveType.elemental,
           scalingStat: 'statIntelligence',
           isSpecial: true,
           family: 'Kin',
         );
       case 'Mystic':
-        return const BattleMove(
-          name: 'Mystic-power',
+        return BattleMove(
+          name: style.battleSpecialName,
           type: MoveType.elemental,
           scalingStat: 'statIntelligence',
           isSpecial: true,
@@ -541,7 +681,13 @@ class BattleEngine {
   }
 
   /// Execute a battle action and return results
-  static BattleResult executeAction(BattleAction action) {
+  static BattleResult executeAction(
+    BattleAction action, {
+    List<BattleCombatant>? allyTeam,
+  }) {
+    final blocked = resolveTurnBlock(action.actor, action.move);
+    if (blocked != null) return blocked;
+
     final messages = <String>[];
     int damage = 0;
     bool isCritical = false;
@@ -553,23 +699,18 @@ class BattleEngine {
 
     messages.add('${attacker.name} used ${move.name}!');
 
-    // Check if frozen (30% chance to skip turn)
-    if (attacker.statusEffects.containsKey('freeze')) {
-      if (_random.nextDouble() < 0.3) {
-        messages.add('${attacker.name} is frozen solid!');
-        return BattleResult(
-          damage: 0,
-          isCritical: false,
-          typeMultiplier: 1.0,
-          messages: messages,
-          targetDefeated: false,
-        );
-      }
-    }
-
     // Special move mechanics
     if (move.isSpecial) {
-      final specialResult = _handleSpecialMove(action, messages);
+      // Set cooldown for all specials
+      attacker.specialCooldown = BattleMove.specialCooldownForFamily(
+        move.family,
+      );
+
+      final specialResult = _handleSpecialMove(
+        action,
+        messages,
+        allyTeam: allyTeam,
+      );
       if (specialResult != null) return specialResult;
     }
 
@@ -640,37 +781,322 @@ class BattleEngine {
     );
   }
 
+  /// Resolves effects that prevent taking a turn (for now: freeze).
+  /// Returns a prebuilt result when action is blocked, else null.
+  static BattleResult? resolveTurnBlock(
+    BattleCombatant actor,
+    BattleMove move,
+  ) {
+    // Frozen: 30% chance to lose turn
+    if (actor.statusEffects.containsKey('freeze')) {
+      if (_random.nextDouble() < 0.3) {
+        return BattleResult(
+          damage: 0,
+          isCritical: false,
+          typeMultiplier: 1.0,
+          messages: [
+            '${actor.name} used ${move.name}!',
+            '${actor.name} is frozen solid!',
+          ],
+          targetDefeated: false,
+        );
+      }
+    }
+
+    return null;
+  }
+
   static BattleResult? _handleSpecialMove(
     BattleAction action,
-    List<String> messages,
-  ) {
+    List<String> messages, {
+    List<BattleCombatant>? allyTeam,
+  }) {
     final family = action.move.family;
     final attacker = action.actor;
     final defender = action.target;
 
     switch (family) {
-      case 'Let': // Sprite-strike: Priority move (handled in turn order)
-        return null;
+      case 'Let': // Meteor Strike — Heavy burst + element-flavored DOT
+        final meteorDamage =
+            (calculateBaseDamage(
+                      move: action.move,
+                      attacker: attacker,
+                      defender: defender,
+                    ) *
+                    1.4)
+                .round();
+        defender.takeDamage(meteorDamage);
+        messages.add('Meteor Strike!');
+        messages.add('${defender.name} took $meteorDamage damage!');
+        // Apply element-specific lingering effect
+        if (attacker.types.isNotEmpty) {
+          _applyElementalEffect(attacker, defender, messages);
+        }
+        return BattleResult(
+          damage: meteorDamage,
+          isCritical: false,
+          typeMultiplier: 1.0,
+          messages: messages,
+          targetDefeated: defender.isDead,
+        );
 
-      case 'Pip': // Pip-fury: Multi-hit 2-3 times
-        final hits = 2 + _random.nextInt(2); // 2-3 hits
+      case 'Pip': // Frenzy — Multi-hit 2-4 times with escalating crit chance
+        final hits = 2 + _random.nextInt(3); // 2-4 hits
         int totalDamage = 0;
+        bool anyCrit = false;
 
         for (int i = 0; i < hits; i++) {
-          final hitDamage =
+          var hitDamage =
               (calculateBaseDamage(
                         move: action.move,
                         attacker: attacker,
                         defender: defender,
                       ) *
-                      0.4)
+                      0.35)
                   .toInt();
+
+          // Each subsequent hit has higher crit chance: 10%, 20%, 30%, 40%
+          final critChance = 0.10 + (i * 0.10);
+          if (_random.nextDouble() < critChance) {
+            hitDamage = (hitDamage * 1.5).toInt();
+            anyCrit = true;
+          }
+
           defender.takeDamage(hitDamage);
           totalDamage += hitDamage;
         }
 
         messages.add('Hit $hits time${hits > 1 ? 's' : ''}!');
+        if (anyCrit) messages.add('Critical strikes landed!');
         messages.add('${defender.name} took $totalDamage total damage!');
+
+        return BattleResult(
+          damage: totalDamage,
+          isCritical: anyCrit,
+          typeMultiplier: 1.0,
+          messages: messages,
+          targetDefeated: defender.isDead,
+        );
+
+      case 'Mane': // Entangle — Debuff boss + give allies regen
+        // Slow and weaken the boss
+        defender.applyStatModifier(
+          StatModifier(type: 'speed_down', duration: 3),
+        );
+        defender.applyStatModifier(
+          StatModifier(type: 'defense_down', duration: 2),
+        );
+        messages.add('${defender.name} is entangled!');
+        messages.add("${defender.name}'s Speed and Defense fell!");
+
+        // Give all alive allies regen
+        final allies = allyTeam ?? [attacker];
+        for (final ally in allies) {
+          if (ally.isAlive) {
+            ally.applyStatusEffect(
+              StatusEffect(
+                type: 'regen',
+                damagePerTurn: -(ally.maxHp * 0.08).toInt(),
+                duration: 2,
+              ),
+            );
+          }
+        }
+        messages.add('Allies are nourished — HP will regenerate!');
+
+        return BattleResult(
+          damage: 0,
+          isCritical: false,
+          typeMultiplier: 1.0,
+          messages: messages,
+          targetDefeated: false,
+        );
+
+      case 'Horn': // Fortress — Team shield + taunt
+        // Shield all alive allies
+        final allies = allyTeam ?? [attacker];
+        final shieldAmount = (attacker.maxHp * 0.15).toInt();
+        for (final ally in allies) {
+          if (ally.isAlive) {
+            ally.shieldHp = (ally.shieldHp ?? 0) + shieldAmount;
+          }
+        }
+        messages.add('${attacker.name} raised Fortress!');
+        messages.add('All allies gained $shieldAmount shield!');
+
+        // Apply taunt: boss must target this creature
+        defender.tauntTargetId = attacker.id;
+        defender.applyStatusEffect(
+          StatusEffect(type: 'taunt', damagePerTurn: 0, duration: 2),
+        );
+        messages.add('${attacker.name} taunted ${defender.name}!');
+
+        return BattleResult(
+          damage: 0,
+          isCritical: false,
+          typeMultiplier: 1.0,
+          messages: messages,
+          targetDefeated: false,
+        );
+
+      case 'Mask': // Hex Field — curse/debuff; detonates existing curse
+        final alreadyCursed = defender.statusEffects.containsKey('curse');
+
+        if (alreadyCursed) {
+          // Detonate: deal burst damage based on remaining curse DOT
+          final curseEffect = defender.statusEffects['curse']!;
+          final burstDamage =
+              (curseEffect.damagePerTurn * curseEffect.duration * 1.5).toInt();
+          defender.statusEffects.remove('curse');
+          defender.takeDamage(burstDamage);
+          messages.add('Hex Field detonated the curse!');
+          messages.add('${defender.name} took $burstDamage burst damage!');
+
+          // Re-apply fresh curse
+          defender.applyStatusEffect(
+            StatusEffect(
+              type: 'curse',
+              damagePerTurn: (defender.maxHp * 0.08).toInt(),
+              duration: 3,
+            ),
+          );
+          messages.add('A new curse grips ${defender.name}!');
+
+          return BattleResult(
+            damage: burstDamage,
+            isCritical: false,
+            typeMultiplier: 1.0,
+            messages: messages,
+            targetDefeated: defender.isDead,
+          );
+        } else {
+          // Fresh curse + attack down + speed down
+          defender.applyStatusEffect(
+            StatusEffect(
+              type: 'curse',
+              damagePerTurn: (defender.maxHp * 0.10).toInt(),
+              duration: 3,
+            ),
+          );
+          defender.applyStatModifier(
+            StatModifier(type: 'attack_down', duration: 2),
+          );
+          defender.applyStatModifier(
+            StatModifier(type: 'speed_down', duration: 2),
+          );
+          messages.add('Hex Field curses ${defender.name}!');
+          messages.add("${defender.name}'s Attack and Speed fell!");
+
+          return BattleResult(
+            damage: 0,
+            isCritical: false,
+            typeMultiplier: 1.0,
+            messages: messages,
+            targetDefeated: false,
+          );
+        }
+
+      case 'Wing': // Piercing Beam — Massive damage, partially ignores defense
+        // Calculate damage ignoring 50% of defense
+        final attackStat = action.move.type == MoveType.physical
+            ? attacker.getEffectivePhysAtk()
+            : attacker.getEffectiveElemAtk();
+        final defStat = action.move.type == MoveType.physical
+            ? defender.getEffectivePhysDef()
+            : defender.getEffectiveElemDef();
+        final reducedDef = (defStat * 0.5).toInt();
+        var beamDamage = max(1, (attackStat * 2) - reducedDef);
+        beamDamage = (beamDamage * 1.6).toInt();
+
+        // Variance
+        final variance = 0.9 + (_random.nextDouble() * 0.2);
+        beamDamage = (beamDamage * variance).toInt();
+
+        defender.takeDamage(beamDamage);
+        messages.add('Piercing Beam tears through defenses!');
+        messages.add('${defender.name} took $beamDamage damage!');
+
+        return BattleResult(
+          damage: beamDamage,
+          isCritical: false,
+          typeMultiplier: 1.0,
+          messages: messages,
+          targetDefeated: defender.isDead,
+        );
+
+      case 'Kin': // Sanctuary — Team heal + cleanse negative effects + defense up
+        final allies = allyTeam ?? [attacker];
+        for (final ally in allies) {
+          if (ally.isAlive) {
+            final healAmount = (ally.maxHp * 0.20).toInt();
+            ally.heal(healAmount);
+
+            // Cleanse negative status effects
+            final toRemove = <String>[];
+            for (final e in ally.statusEffects.entries) {
+              if (e.value.damagePerTurn > 0) toRemove.add(e.key); // DOTs
+              if (e.key == 'freeze') toRemove.add(e.key);
+            }
+            for (final key in toRemove) {
+              ally.statusEffects.remove(key);
+            }
+
+            // Remove negative stat modifiers
+            ally.statModifiers.remove('attack_down');
+            ally.statModifiers.remove('defense_down');
+            ally.statModifiers.remove('speed_down');
+
+            // Grant defense up
+            ally.applyStatModifier(
+              StatModifier(type: 'defense_up', duration: 2),
+            );
+          }
+        }
+        messages.add('${attacker.name} invoked Sanctuary!');
+        messages.add('All allies healed and cleansed!');
+        messages.add("Team defense rose!");
+
+        return BattleResult(
+          damage: 0,
+          isCritical: false,
+          typeMultiplier: 1.0,
+          messages: messages,
+          targetDefeated: false,
+        );
+
+      case 'Mystic': // Arcane Orbitals — 3 hits + random elemental effect
+        attacker.isCharging = false;
+        final hits = 3;
+        int totalDamage = 0;
+        for (int i = 0; i < hits; i++) {
+          final hit =
+              (calculateBaseDamage(
+                        move: action.move,
+                        attacker: attacker,
+                        defender: defender,
+                      ) *
+                      0.45)
+                  .toInt();
+          defender.takeDamage(hit);
+          totalDamage += hit;
+        }
+        messages.add('Arcane Orbitals struck $hits times!');
+        messages.add('${defender.name} took $totalDamage total damage!');
+
+        // Apply a random elemental effect
+        final randomElements = ['Fire', 'Ice', 'Poison', 'Lightning', 'Earth'];
+        final fakeAttacker = BattleCombatant(
+          id: 'arcane_effect',
+          name: attacker.name,
+          types: [randomElements[_random.nextInt(randomElements.length)]],
+          family: attacker.family,
+          statSpeed: attacker.statSpeed,
+          statIntelligence: attacker.statIntelligence,
+          statStrength: attacker.statStrength,
+          statBeauty: attacker.statBeauty,
+          level: attacker.level,
+        );
+        _applyElementalEffect(fakeAttacker, defender, messages);
 
         return BattleResult(
           damage: totalDamage,
@@ -679,93 +1105,6 @@ class BattleEngine {
           messages: messages,
           targetDefeated: defender.isDead,
         );
-
-      case 'Mane': // Mane's-trick: Lower stat
-        defender.applyStatModifier(
-          StatModifier(type: 'attack_down', duration: 3),
-        );
-        messages.add("${defender.name}'s Attack fell!");
-        return BattleResult(
-          damage: 0,
-          isCritical: false,
-          typeMultiplier: 1.0,
-          messages: messages,
-          targetDefeated: false,
-        );
-
-      case 'Horn': // Horn-guard: Team shield
-        // TODO: Apply to all team members
-        attacker.shieldHp = (attacker.maxHp * 0.3).toInt();
-        messages.add('${attacker.name} created a protective shield!');
-        return BattleResult(
-          damage: 0,
-          isCritical: false,
-          typeMultiplier: 1.0,
-          messages: messages,
-          targetDefeated: false,
-        );
-
-      case 'Mask': // Mask's-curse: DoT
-        defender.applyStatusEffect(
-          StatusEffect(
-            type: 'curse',
-            damagePerTurn: (defender.maxHp * 0.1).toInt(),
-            duration: 3,
-          ),
-        );
-        messages.add("${defender.name} was cursed!");
-        return BattleResult(
-          damage: 0,
-          isCritical: false,
-          typeMultiplier: 1.0,
-          messages: messages,
-          targetDefeated: false,
-        );
-
-      case 'Wing': // Wing-assault: High damage + recharge
-        if (attacker.needsRecharge) {
-          messages.clear();
-          messages.add('${attacker.name} is recharging...');
-          attacker.needsRecharge = false;
-          return BattleResult(
-            damage: 0,
-            isCritical: false,
-            typeMultiplier: 1.0,
-            messages: messages,
-            targetDefeated: false,
-          );
-        }
-
-        attacker.needsRecharge = true;
-        return null; // Continue with normal attack logic (you can add a damage multiplier there if desired)
-
-      case 'Kin': // Kin's-blessing: Self-heal
-        final healAmount = (attacker.statIntelligence * 3).toInt();
-        attacker.heal(healAmount);
-        messages.add('${attacker.name} healed $healAmount HP!');
-        return BattleResult(
-          damage: 0,
-          isCritical: false,
-          typeMultiplier: 1.0,
-          messages: messages,
-          targetDefeated: false,
-        );
-
-      case 'Mystic': // Mystic-power: Charge then unleash
-        if (!attacker.isCharging) {
-          attacker.isCharging = true;
-          messages.add('${attacker.name} is charging power!');
-          return BattleResult(
-            damage: 0,
-            isCritical: false,
-            typeMultiplier: 1.0,
-            messages: messages,
-            targetDefeated: false,
-          );
-        } else {
-          attacker.isCharging = false;
-          return null; // Continue with big damage in normal flow
-        }
     }
 
     return null;
@@ -867,6 +1206,7 @@ class BattleEngine {
 
     // Process status effects
     for (final effect in combatant.statusEffects.values) {
+      if (effect.type == 'taunt') continue; // Taunt is not DoT
       if (effect.damagePerTurn > 0) {
         combatant.takeDamage(effect.damagePerTurn);
         messages.add(
@@ -881,6 +1221,7 @@ class BattleEngine {
 
     combatant.tickStatusEffects();
     combatant.tickStatModifiers();
+    combatant.tickTaunt();
 
     return messages;
   }

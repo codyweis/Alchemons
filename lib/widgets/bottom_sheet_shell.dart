@@ -49,7 +49,7 @@ class BottomSheetShell extends StatelessWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: theme.text.withOpacity(.25),
+                      color: theme.text.withValues(alpha: .25),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -122,9 +122,9 @@ class SheetBodyWrapper extends InheritedWidget {
   final ScrollController scrollController;
   const SheetBodyWrapper({
     required this.scrollController,
-    required Widget child,
+    required super.child,
     super.key,
-  }) : super(child: child);
+  });
 
   static ScrollController? maybeOf(BuildContext context) {
     final scope = context

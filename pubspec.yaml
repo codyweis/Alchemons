@@ -4,7 +4,7 @@ publish_to: "none"
 version: 0.1.0
 
 environment:
-  sdk: ^3.9.0-138.0.dev
+  sdk: ">=3.8.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -22,20 +22,30 @@ dependencies:
   flutter_local_notifications: ^19.5.0
   timezone: ^0.10.1
   shared_preferences: ^2.5.3
+  sensors_plus: ^7.0.0
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
   drift_dev: ^2.28.1
   build_runner: ^2.6.0
   json_serializable: ^6.10.0
-  sensors_plus: ^7.0.0
 
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/appicon.png"
+
+  adaptive_icon_foreground: "assets/images/appicon.png"
+  adaptive_icon_background: "#FFFFFF"
+  
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/images/relics/
     - assets/animations/
     - assets/images/backgrounds/
     - assets/images/backgrounds/scenes/
@@ -48,6 +58,7 @@ flutter:
     - assets/images/creatures/uncommon/
     - assets/images/creatures/rare/
     - assets/images/creatures/legendary/
+    - assets/images/creatures/mystic/
     - assets/images/ui/
     - assets/data/
 

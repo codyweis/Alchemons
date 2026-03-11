@@ -18,9 +18,9 @@ class TypeBadges extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: c.withOpacity(0.2),
+            color: c.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: c.withOpacity(0.5)),
+            border: Border.all(color: c.withValues(alpha: 0.5)),
           ),
           child: Text(
             type,
@@ -47,9 +47,9 @@ class RarityBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: c.withOpacity(0.2),
+        color: c.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: c.withOpacity(0.5)),
+        border: Border.all(color: c.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

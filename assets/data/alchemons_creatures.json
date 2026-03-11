@@ -156,7 +156,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 90
       }
     },
     {
@@ -174,7 +174,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 110
       }
     },
     {
@@ -192,7 +192,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -203,14 +203,14 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its crest curves like a swift gale, and it moves with sudden bursts of speed.",
+      "description": "Its crest curves like a swift gale, and it moves with sudden bursts of speed, unusual for its large body. An unusual symbol swirls on its chest.",
       "image": "creatures/rare/HOR04_airhorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 80
       }
     },
     {
@@ -228,7 +228,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 95
       }
     },
     {
@@ -246,7 +246,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 110
       }
     },
     {
@@ -264,7 +264,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -282,7 +282,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 105
       }
     },
     {
@@ -419,7 +419,7 @@
       ],
       "variant": [],
       "rarity": "Rare",
-      "description": "Its radiant horn glows softly, guiding allies through the dark.",
+      "description": "Its radiant spikes glow softly, guiding allies through the dark.",
       "image": "creatures/rare/HOR16_lighthorn.png",
       "mutationFamily": "Horn",
       "spriteData": {
@@ -704,12 +704,12 @@
       "name": "Darkkin",
       "mutationFamily": "Kin",
       "rarity": "Legendary",
-      "description": "A candle-swallowing silhouette with a violet pupil; fears grow quiet, then speak truths near it.",
+      "description": "A candle-swallowing silhouette with a glowing pupil; fears grow quiet, then speak truths near it.",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 150
       },
       "types": [
         "Dark"
@@ -767,9 +767,9 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 16,
-        "rows": 4,
-        "frameDurationMs": 120
+        "totalFrames": 4,
+        "rows": 1,
+        "frameDurationMs": 100
       }
     },
     {
@@ -787,7 +787,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -823,7 +823,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -841,7 +841,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -859,7 +859,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -877,7 +877,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -895,7 +895,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -913,7 +913,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -931,7 +931,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -946,11 +946,11 @@
       "image": "creatures/uncommon/MAN11_crystalmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 500,
-        "frameHeight": 500,
-        "totalFrames": 5,
-        "rows": 3,
-        "frameDurationMs": 120
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "rows": 1,
+        "frameDurationMs": 100
       }
     },
     {
@@ -968,7 +968,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -986,7 +986,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -1004,7 +1004,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -1014,15 +1014,15 @@
         "Dark"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Its crimson eyes gleam from the shadows, a playful silhouette in the night.",
-      "image": "creatures/uncommon/MAN15_darkmane.png",
+      "image": "creatures/rare/MAN15_darkmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 6,
-        "frameDurationMs": 120
+        "totalFrames": 4,
+        "frameDurationMs": 100
       }
     },
     {
@@ -1032,15 +1032,15 @@
         "Light"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Radiant and pure, it illuminates the paths it wanders with gentle warmth.",
-      "image": "creatures/uncommon/MAN16_lightmane.png",
+      "image": "creatures/rare/MAN16_lightmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -1050,15 +1050,15 @@
         "Blood"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Its form pulses with a crimson rhythm, echoing the primal heartbeat of life itself.",
-      "image": "creatures/uncommon/MAN17_bloodmane.png",
+      "image": "creatures/rare/MAN17_bloodmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 100
       }
     },
     {
@@ -1367,6 +1367,24 @@
       "image": "creatures/rare/MSK17_bloodmask.png",
       "variant": []
     },
+     {
+      "id": "MSK18",
+      "name": "Bloodmask",
+      "mutationFamily": "Mask",
+      "rarity": "Legendary",
+      "description": "An alternate version of a Bloodmask, its rigid mask pulsing. Rumors of its existence circulate among collectors, few lucky enough to have seen it.",
+      "spriteData": {
+        "frameWidth": 512,
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "frameDurationMs": 120
+      },
+      "types": [
+        "Blood"
+      ],
+      "image": "creatures/legendary/MSK18_bloodmask.png",
+      "variant": []
+    },
     {
       "id": "PIP01",
       "name": "Firepip",
@@ -1626,9 +1644,9 @@
         "Dark"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Its eyes glow faintly crimson, and shadows coil tightly around its scales.",
-      "image": "creatures/uncommon/PIP15_darkpip.png",
+      "image": "creatures/rare/PIP15_darkpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
         "frameWidth": 512,
@@ -1644,9 +1662,9 @@
         "Light"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Radiant patterns gleam across its body, shining brightest when it plays.",
-      "image": "creatures/uncommon/PIP16_lightpip.png",
+      "image": "creatures/rare/PIP16_lightpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
         "frameWidth": 512,
@@ -1662,9 +1680,9 @@
         "Blood"
       ],
       "variant": [],
-      "rarity": "Uncommon",
+      "rarity": "Rare",
       "description": "Its scales glisten with a crimson sheen, and a primal rhythm beats in its chest.",
-      "image": "creatures/uncommon/PIP17_bloodpip.png",
+      "image": "creatures/rare/PIP17_bloodpip.png",
       "mutationFamily": "Pip",
       "spriteData": {
         "frameWidth": 512,
@@ -1688,10 +1706,10 @@
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
-        "frameHeight": 500,
-        "totalFrames": 16,
-        "rows": 4,
-        "frameDurationMs": 120
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "rows": 1,
+        "frameDurationMs": 150
       }
     },
     {
@@ -1707,10 +1725,10 @@
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
-        "frameHeight": 500,
-        "rows": 3,
-        "totalFrames": 8,
-        "frameDurationMs": 160
+        "frameHeight": 512,
+        "rows": 1,
+        "totalFrames": 4,
+        "frameDurationMs": 150
       }
     },
     {
@@ -1727,9 +1745,9 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 3,
-        "frameDurationMs": 120,
-        "rows": 2
+        "totalFrames": 4,
+        "frameDurationMs": 130,
+        "rows": 1
       }
     },
     {
@@ -1764,10 +1782,10 @@
       "mutationFamily": "Wing",
       "spriteData": {
         "frameWidth": 512,
-        "frameHeight": 650,
-        "totalFrames": 6,
-        "rows": 2,
-        "frameDurationMs": 120
+        "frameHeight": 512,
+        "totalFrames": 4,
+        "rows": 1,
+        "frameDurationMs": 160
       }
     },
     {
@@ -1785,7 +1803,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 150
       }
     },
     {
@@ -1803,7 +1821,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 140
       }
     },
     {
@@ -1821,7 +1839,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 170
       }
     },
     {
@@ -1839,7 +1857,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 160
       }
     },
     {
@@ -1857,7 +1875,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 150
       }
     },
     {
@@ -1875,7 +1893,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 150
       }
     },
     {
@@ -1893,7 +1911,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 150
       }
     },
     {
@@ -1911,7 +1929,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 180
       }
     },
     {
@@ -1929,7 +1947,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 160
       }
     },
     {
@@ -1965,7 +1983,7 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 140
       }
     },
     {
@@ -1983,12 +2001,12 @@
         "frameWidth": 512,
         "frameHeight": 512,
         "totalFrames": 4,
-        "frameDurationMs": 120
+        "frameDurationMs": 150
       }
     },
     {
       "id": "MYS01",
-      "name": "Firemystic",
+      "name": "Simurgh",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to fire. Born of flame; passionate and volatile.",
@@ -2006,7 +2024,7 @@
     },
     {
       "id": "MYS02",
-      "name": "Watermystic",
+      "name": "Leviathan",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to water. Fluid and adaptive; calm or crushing.",
@@ -2024,7 +2042,7 @@
     },
     {
       "id": "MYS03",
-      "name": "Earthmystic",
+      "name": "Terradon",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to earth. Sturdy and grounded; unyielding.",
@@ -2042,7 +2060,7 @@
     },
     {
       "id": "MYS04",
-      "name": "Airmystic",
+      "name": "Roc",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to air. Swift and elusive; ever-moving.",
@@ -2060,7 +2078,7 @@
     },
     {
       "id": "MYS05",
-      "name": "Steammystic",
+      "name": "Boilrog",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to steam. Vapor between fire and water; shifting.",
@@ -2078,7 +2096,7 @@
     },
     {
       "id": "MYS06",
-      "name": "Lavamystic",
+      "name": "Magmara",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to lava. Molten rock; searing and heavy.",
@@ -2096,7 +2114,7 @@
     },
     {
       "id": "MYS07",
-      "name": "Lightningmystic",
+      "name": "Raikuma",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to lightning. Charged and sudden; crackling power.",
@@ -2114,7 +2132,7 @@
     },
     {
       "id": "MYS08",
-      "name": "Mudmystic",
+      "name": "Bogdrya",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to mud. Thick and stubborn mix of earth and water.",
@@ -2132,7 +2150,7 @@
     },
     {
       "id": "MYS09",
-      "name": "Icemystic",
+      "name": "Frowyrm",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to ice. Cold precision; frozen beauty.",
@@ -2150,7 +2168,7 @@
     },
     {
       "id": "MYS10",
-      "name": "Dustmystic",
+      "name": "Ashdjinn",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to dust. Ancient grit; whisper of ruins.",
@@ -2168,7 +2186,7 @@
     },
     {
       "id": "MYS11",
-      "name": "Crystalmystic",
+      "name": "Prismalith",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to crystal. Faceted and arcane; refractive.",
@@ -2186,7 +2204,7 @@
     },
     {
       "id": "MYS12",
-      "name": "Plantmystic",
+      "name": "Botanica",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to plant. Living growth; verdant and resilient.",
@@ -2204,7 +2222,7 @@
     },
     {
       "id": "MYS13",
-      "name": "Poisonmystic",
+      "name": "Blightfang",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to poison. Toxic and corrosive; silent threat.",
@@ -2222,7 +2240,7 @@
     },
     {
       "id": "MYS14",
-      "name": "Spiritmystic",
+      "name": "Wraithord",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to spirit. Ethereal and liminal; otherworldly.",
@@ -2240,7 +2258,7 @@
     },
     {
       "id": "MYS15",
-      "name": "Darkmystic",
+      "name": "Noctryos",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to dark. Veiled and secret; devours light.",
@@ -2258,7 +2276,7 @@
     },
     {
       "id": "MYS16",
-      "name": "Lightmystic",
+      "name": "Solarin",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to light. Radiant and pure; revealing.",
@@ -2276,7 +2294,7 @@
     },
     {
       "id": "MYS17",
-      "name": "Bloodmystic",
+      "name": "Sanguorath",
       "mutationFamily": "Mystic",
       "rarity": "Mystic",
       "description": "A mystic attuned to blood. Vital and primal; life-bound myth.",

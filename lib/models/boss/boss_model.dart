@@ -186,4 +186,8 @@ class Boss {
         return Icons.help_outline;
     }
   }
+
+  /// Path to the relic image awarded for first-time defeat of this boss.
+  String get relicImagePath =>
+      'assets/images/relics/${element.toLowerCase()}relic.png';
 }

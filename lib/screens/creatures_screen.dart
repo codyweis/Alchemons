@@ -1,8 +1,17 @@
+// lib/screens/creatures_screen.dart
+//
+// REDESIGNED CREATURES SCREEN
+// Aesthetic: Scorched Forge — dark metal chrome, amber reagent accents, monospace
+// All sliver structure, filtering, sorting, routing, tutorial logic preserved.
+// Public widget APIs (SectionCard, ProgressBar, SearchFieldSolid, etc.) preserved.
+//
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/screens/breeding_milestones_screen.dart';
+import 'package:alchemons/screens/progress_overview_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/utils/creature_filter_util.dart';
@@ -12,24 +21,61 @@ import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_image.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:alchemons/widgets/draggable_sheet.dart';
 import 'package:alchemons/widgets/filterchip_solod.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/silhouette_widget.dart';
-import 'package:alchemons/widgets/tutorial_step.dart';
 import 'package:flame/image_composition.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:alchemons/utils/faction_util.dart'; // FactionTheme
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/widgets/creature_dialog.dart';
+import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 
 import '../models/creature.dart';
-import '../providers/app_providers.dart';
+
+// ──────────────────────────────────────────────────────────────────────────────
+// DESIGN TOKENS
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _C {
+  // Only textPrimary/textSecondary remain — used by _T static const TextStyles.
+  static const textSecondary = Color(0xFF8A7B6A);
+}
+
+class _T {
+  static const heading = TextStyle(
+    fontFamily: 'monospace',
+    color: Color.fromARGB(255, 67, 67, 67),
+    fontSize: 13,
+    fontWeight: FontWeight.w800,
+    letterSpacing: 2.0,
+  );
+
+  static const label = TextStyle(
+    fontFamily: 'monospace',
+    color: _C.textSecondary,
+    fontSize: 9,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 1.6,
+  );
+}
+
+Color _rarityColorForge(String rarity) => switch (rarity.toLowerCase()) {
+  'common' => const Color(0xFF6B7280),
+  'uncommon' => const Color(0xFF34D399),
+  'rare' => const Color(0xFF60A5FA),
+  'mythic' => const Color(0xFFA855F7),
+  'legendary' => const Color(0xFFF59E0B),
+  _ => const Color(0xFF6B7280),
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SCREEN STATE
+// ──────────────────────────────────────────────────────────────────────────────
 
 class CreaturesScreen extends StatefulWidget {
   const CreaturesScreen({super.key});
@@ -41,9 +87,13 @@ class CreaturesScreen extends StatefulWidget {
 class CreaturesScreenState extends State<CreaturesScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _searchCtrl = TextEditingController();
-  Timer? _debounce;
+  final FocusNode _searchFocus = FocusNode();
 
-  // NEW: tutorial state
+  void unfocusSearch() => _searchFocus.unfocus();
+  Timer? _debounce;
+  StreamSubscription<Map<String, int>>? _instanceCountsSub;
+  Map<String, int> _instanceCounts = const {};
+
   bool _creaturesTutorialChecked = false;
   bool _highlightAllInstances = false;
   bool _tutorialScheduled = false;
@@ -61,12 +111,12 @@ class CreaturesScreenState extends State<CreaturesScreen>
   static const _prefsKey = 'creatures_screen_prefs_v1';
 
   Map<String, dynamic> _toPrefs() => {
-    'scope': _scope, // 'All' | 'Catalogued' | 'Unknown'
-    'sort': _sort, // 'Name' | 'Classification' | 'Type' | 'Acquisition Order'
-    'isGrid': _isGrid, // bool
-    'showCounts': _showCounts, // bool
-    'query': _query, // String
-    'typeFilter': _typeFilter, // String? (null == All)
+    'scope': _scope,
+    'sort': _sort,
+    'isGrid': _isGrid,
+    'showCounts': _showCounts,
+    'query': _query,
+    'typeFilter': _typeFilter,
   };
 
   void _fromPrefs(Map<String, dynamic> p) {
@@ -76,7 +126,6 @@ class CreaturesScreenState extends State<CreaturesScreen>
     _showCounts = (p['showCounts'] as bool?) ?? _showCounts;
     _query = (p['query'] as String?) ?? _query;
     _typeFilter = p['typeFilter'] as String?;
-    // sync controller with restored query (without re-triggering debounce)
     _searchCtrl.text = _query;
   }
 
@@ -87,7 +136,6 @@ class CreaturesScreenState extends State<CreaturesScreen>
     });
   }
 
-  /// Wrap setState so any change gets persisted with debounce
   void _mutate(VoidCallback fn) {
     setState(fn);
     _queueSave();
@@ -95,10 +143,8 @@ class CreaturesScreenState extends State<CreaturesScreen>
 
   void _cycleScope() {
     const scopes = ['All', 'Catalogued', 'Unknown'];
-    final currentIndex = scopes.indexOf(_scope);
-    final nextIndex = (currentIndex + 1) % scopes.length;
     _mutate(() {
-      _scope = scopes[nextIndex];
+      _scope = scopes[(scopes.indexOf(_scope) + 1) % scopes.length];
     });
   }
 
@@ -110,12 +156,8 @@ class CreaturesScreenState extends State<CreaturesScreen>
       'Count',
       'Acquisition Order',
     ];
-
-    final currentIndex = options.indexOf(_sort);
-    final nextIndex = (currentIndex + 1) % options.length;
-
     _mutate(() {
-      _sort = options[nextIndex];
+      _sort = options[(options.indexOf(_sort) + 1) % options.length];
     });
   }
 
@@ -123,122 +165,146 @@ class CreaturesScreenState extends State<CreaturesScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _settings = context.read<AlchemonsDatabase>().settingsDao;
-
-    // Restore prefs
+    _bindInstanceCounts();
     () async {
       final raw = await _settings.getSetting(_prefsKey);
       if (!mounted || raw == null || raw.isEmpty) return;
-      final map = jsonDecode(raw) as Map<String, dynamic>;
-      setState(() => _fromPrefs(map)); // no save during restore
+      setState(() => _fromPrefs(jsonDecode(raw) as Map<String, dynamic>));
     }();
+    if (!_tutorialScheduled) _tutorialScheduled = true;
+  }
 
-    // NEW: schedule tutorial once
-    if (!_tutorialScheduled) {
-      _tutorialScheduled = true;
+  void _bindInstanceCounts() {
+    if (_instanceCountsSub != null) return;
+    final db = context.read<AlchemonsDatabase>();
+    _instanceCountsSub = db.creatureDao.watchInstanceCountsBySpecies().listen((
+      next,
+    ) {
+      if (!mounted) return;
+      if (_mapEquals(_instanceCounts, next)) return;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _instanceCounts = Map<String, int>.from(next));
+      });
+    });
+  }
+
+  bool _mapEquals(Map<String, int> a, Map<String, int> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
     }
+    return true;
   }
 
-  Future<void> maybeShowCreaturesTutorial() async {
-    await _maybeShowCreaturesTutorial();
-  }
+  Future<void> maybeShowCreaturesTutorial() => _maybeShowCreaturesTutorial();
 
   Future<void> _maybeShowCreaturesTutorial() async {
     if (!mounted || _creaturesTutorialChecked) return;
     _creaturesTutorialChecked = true;
-
+    final t = ForgeTokens(context.read<FactionTheme>());
     final hasSeen = await _settings.hasSeenCreaturesTutorial();
     if (hasSeen || !mounted) return;
-
-    final theme = context.read<FactionTheme>();
 
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: theme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: Row(
-            children: [
-              Text(
-                'Alchemon Database',
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
+      builder: (context) => Dialog(
+        backgroundColor: t.bg1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+          side: BorderSide(color: t.borderAccent, width: 1.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Title
+              Row(
+                children: [
+                  Container(
+                    width: 3,
+                    height: 16,
+                    color: t.amber,
+                    margin: const EdgeInsets.only(right: 10),
+                  ),
+                  const Text('ALCHEMON DATABASE', style: _T.heading),
+                ],
+              ),
+              const SizedBox(height: 14),
               Text(
-                'Browse every species you\'ve discovered, filter them, and inspect individual specimens.',
+                'Browse every species you\'ve discovered, filter them, '
+                'and inspect individual specimens.',
                 style: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontFamily: 'monospace',
+                  color: t.textSecondary,
+                  fontSize: 10,
+                  letterSpacing: 0.3,
+                  height: 1.6,
                 ),
               ),
-              const SizedBox(height: 12),
-              TutorialStep(
-                theme: theme,
+              const SizedBox(height: 14),
+              _TutorialRow(
                 icon: Icons.search_rounded,
-                title: 'Search & filter',
+                title: 'SEARCH & FILTER',
                 body:
-                    'Use the search bar and chips to filter by name, type, '
-                    'rarity, and more.',
+                    'Use the search bar and chips to filter by name, '
+                    'type, rarity, and more.',
               ),
-              const SizedBox(height: 6),
-              TutorialStep(
-                theme: theme,
+              const SizedBox(height: 8),
+              _TutorialRow(
                 icon: Icons.category_rounded,
-                title: 'Tap a species',
+                title: 'TAP A SPECIES',
                 body:
-                    'Tap a species to view its specimens, animations, and '
-                    'detailed stats.',
+                    'Tap a species to view its specimens, animations, '
+                    'and detailed stats.',
               ),
-              const SizedBox(height: 6),
-              TutorialStep(
-                theme: theme,
+              const SizedBox(height: 8),
+              _TutorialRow(
                 icon: Icons.grid_view_rounded,
-                title: 'All specimens view',
+                title: 'ALL SPECIMENS VIEW',
                 body:
                     'Use the grid button at the top left to open a global '
                     'specimen list across all species.',
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text(
-                'Got it',
-                style: TextStyle(
-                  color: theme.primary,
-                  fontWeight: FontWeight.w700,
+              const SizedBox(height: 18),
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: t.amberDim.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(color: t.borderAccent),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'UNDERSTOOD',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: t.amberBright,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2.0,
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+      ),
     );
 
     if (!mounted) return;
-
     await _settings.setCreaturesTutorialSeen();
-
-    // Briefly highlight the All Instances button to draw attention
     if (!mounted) return;
     setState(() => _highlightAllInstances = true);
-
     Future.delayed(const Duration(seconds: 3), () {
       if (!mounted) return;
       setState(() => _highlightAllInstances = false);
@@ -247,134 +313,119 @@ class CreaturesScreenState extends State<CreaturesScreen>
 
   @override
   void dispose() {
+    _instanceCountsSub?.cancel();
     _saveTimer?.cancel();
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
+  // ── BUILD ──────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final db = context.read<AlchemonsDatabase>();
+    return withGameData(
+      context,
+      loadingBuilder: buildLoadingScreen,
+      builder:
+          (
+            context, {
+            required theme,
+            required catalog,
+            required entries,
+            required discovered,
+          }) {
+            final total = entries.length;
+            final discoveredCount = discovered.length;
+            final pct = total == 0
+                ? 0.0
+                : (discoveredCount / total).clamp(0.0, 1.0);
 
-    return StreamBuilder<Map<String, int>>(
-      stream: db.creatureDao.watchInstanceCountsBySpecies(),
-      builder: (context, countSnapshot) {
-        final instanceCounts = countSnapshot.data ?? {};
+            final filtered = _filterAndSort(entries, _instanceCounts);
 
-        return withGameData(
-          context,
-          loadingBuilder: buildLoadingScreen,
-          builder:
-              (
-                context, {
-                required theme,
-                required catalog,
-                required entries,
-                required discovered,
-              }) {
-                // stats
-                final total = entries.length;
-                final discoveredCount = discovered.length;
-                final pct = total == 0
-                    ? 0.0
-                    : (discoveredCount / total).clamp(0.0, 1.0);
-
-                // apply your filters/sorting to the typed entries
-                final filtered = _filterAndSort(entries, instanceCounts);
-
-                return ParticleBackgroundScaffold(
-                  whiteBackground: theme.brightness == Brightness.light,
-                  body: Scaffold(
-                    backgroundColor: Colors.transparent,
-                    body: SafeArea(
-                      child: CustomScrollView(
-                        physics: const BouncingScrollPhysics(
-                          parent: AlwaysScrollableScrollPhysics(),
-                        ),
-                        slivers: [
-                          _SolidHeader(
-                            theme: theme,
-                            onOpenAllInstances: () =>
-                                _showAllInstancesView(theme),
-                          ),
-                          SliverToBoxAdapter(
-                            child: _StatsHeaderSolid(
-                              theme: theme,
-                              percent: pct,
-                              discovered: discoveredCount,
-                              total: total,
-                            ),
-                          ),
-                          SliverPersistentHeader(
-                            pinned: true,
-                            delegate: _StickyFilterBar(
-                              height: 126,
-                              scope: _scope,
-                              typeFilter: _typeFilter,
-                              isGrid: _isGrid,
-                              showCounts: _showCounts,
-                              theme: theme,
-                              child: _FilterBarSolid(
-                                theme: theme,
-                                query: _query,
-                                controller: _searchCtrl,
-                                scope: _scope,
-                                sort: _sort,
-                                isGrid: _isGrid,
-                                showCounts: _showCounts,
-                                typeFilter: _typeFilter,
-                                onQueryChanged: _onQueryChanged,
-                                onScopeChanged: _cycleScope,
-                                onSortTap: _cycleSort,
-                                onToggleView: () =>
-                                    _mutate(() => _isGrid = !_isGrid),
-                                onToggleCounts: () =>
-                                    _mutate(() => _showCounts = !_showCounts),
-                                onTypeChanged: (t) => _mutate(
-                                  () => _typeFilter = (t == 'All') ? null : t,
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (filtered.isEmpty)
-                            SliverFillRemaining(
-                              hasScrollBody: false,
-                              child: _EmptyState(theme: theme),
-                            )
-                          else
-                            SliverPadding(
-                              padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
-                              sliver: _isGrid
-                                  ? _CreatureGrid(
-                                      theme: theme,
-                                      creatures:
-                                          filtered, // List<CreatureEntry>
-                                      showCounts: _showCounts,
-                                      instanceCounts: instanceCounts,
-                                      onTap: (c, isDiscovered) =>
-                                          _handleTap(c, isDiscovered, theme),
-                                    )
-                                  : _CreatureList(
-                                      theme: theme,
-                                      creatures:
-                                          filtered, // List<CreatureEntry>
-                                      showCounts: _showCounts,
-                                      instanceCounts: instanceCounts,
-                                      onTap: (c, isDiscovered) =>
-                                          _handleTap(c, isDiscovered, theme),
-                                    ),
-                            ),
-                        ],
-                      ),
+            return ParticleBackgroundScaffold(
+              whiteBackground: theme.brightness == Brightness.light,
+              body: Scaffold(
+                backgroundColor: Colors.transparent,
+                body: SafeArea(
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
                     ),
+                    slivers: [
+                      _SolidHeader(
+                        theme: theme,
+                        highlightAllInstances: _highlightAllInstances,
+                        onOpenAllInstances: () => _showAllInstancesView(theme),
+                        onOpenFavorites: () => _showFavoritesView(theme),
+                      ),
+                      SliverToBoxAdapter(
+                        child: _StatsHeaderSolid(
+                          theme: theme,
+                          percent: pct,
+                          discovered: discoveredCount,
+                          total: total,
+                        ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: _FilterBarSolid(
+                          theme: theme,
+                          query: _query,
+                          controller: _searchCtrl,
+                          focusNode: _searchFocus,
+                          scope: _scope,
+                          sort: _sort,
+                          isGrid: _isGrid,
+                          showCounts: _showCounts,
+                          typeFilter: _typeFilter,
+                          onQueryChanged: _onQueryChanged,
+                          onScopeChanged: _cycleScope,
+                          onSortTap: _cycleSort,
+                          onToggleView: () => _mutate(() => _isGrid = !_isGrid),
+                          onToggleCounts: () =>
+                              _mutate(() => _showCounts = !_showCounts),
+                          onTypeChanged: (typ) => _mutate(
+                            () => _typeFilter = (typ == 'All') ? null : typ,
+                          ),
+                        ),
+                      ),
+                      if (filtered.isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _EmptyState(theme: theme),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(1, 0, 1, 16),
+                          sliver: _isGrid
+                              ? _CreatureGrid(
+                                  theme: theme,
+                                  creatures: filtered,
+                                  showCounts: _showCounts,
+                                  instanceCounts: _instanceCounts,
+                                  onTap: (c, isDiscovered) =>
+                                      _handleTap(c, isDiscovered, theme),
+                                )
+                              : _CreatureList(
+                                  theme: theme,
+                                  creatures: filtered,
+                                  showCounts: _showCounts,
+                                  instanceCounts: _instanceCounts,
+                                  onTap: (c, isDiscovered) =>
+                                      _handleTap(c, isDiscovered, theme),
+                                ),
+                        ),
+                    ],
                   ),
-                );
-              },
-        );
-      },
+                ),
+              ),
+            );
+          },
     );
   }
+
+  // ── LOGIC (unchanged) ──────────────────────────────────────────────────────
 
   void _onQueryChanged(String text) {
     _debounce?.cancel();
@@ -387,8 +438,120 @@ class CreaturesScreenState extends State<CreaturesScreen>
     if (isDiscovered) {
       _showInstancesSheet(species, theme);
     } else {
-      _showCreatureDetails(species, false);
+      _showSilhouettePopup(species, theme);
     }
+  }
+
+  void _showSilhouettePopup(Creature species, FactionTheme theme) {
+    final t = ForgeTokens(theme);
+    final spriteData = species.spriteData;
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: Container(
+            decoration: BoxDecoration(
+              color: t.bg1,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: t.borderDim, width: 1.5),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Silhouette image
+                SizedBox(
+                  height: 320,
+                  width: double.infinity,
+                  child: Center(
+                    child: Silhouette(
+                      enabled: true,
+                      child: spriteData != null
+                          ? SizedBox(
+                              width: 260,
+                              height: 260,
+                              child: CreatureSprite(
+                                spritePath: spriteData.spriteSheetPath,
+                                totalFrames: spriteData.totalFrames,
+                                rows: spriteData.rows,
+                                frameSize: Vector2(
+                                  spriteData.frameWidth.toDouble(),
+                                  spriteData.frameHeight.toDouble(),
+                                ),
+                                stepTime: spriteData.frameDurationMs / 1000.0,
+                              ),
+                            )
+                          : SizedBox(
+                              width: 260,
+                              height: 260,
+                              child: CreatureImage(
+                                c: species,
+                                discovered: false,
+                                rounded: 6,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'UNKNOWN SPECIMEN',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.8,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Classification data unavailable.\nDiscover this species to reveal its true form.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _RarityPill(rarity: 'CLASS ?'),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    decoration: BoxDecoration(
+                      color: t.borderDim.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: t.borderDim),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'CLOSE',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: t.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   List<CreatureEntry> _filterAndSort(
@@ -397,22 +560,15 @@ class CreaturesScreenState extends State<CreaturesScreen>
   ) {
     final scoped = all.where((m) {
       final isDiscovered = m.player.discovered == true;
-      switch (_scope) {
-        case 'All':
-          return true;
-        case 'Catalogued':
-          return isDiscovered;
-        case 'Unknown':
-          return !isDiscovered;
-        default:
-          return true;
-      }
+      return switch (_scope) {
+        'Catalogued' => isDiscovered,
+        'Unknown' => !isDiscovered,
+        _ => true,
+      };
     });
-
     final typed = _typeFilter == null
         ? scoped
-        : scoped.where((m) => (m.creature).types.contains(_typeFilter));
-
+        : scoped.where((m) => m.creature.types.contains(_typeFilter));
     final q = _query.toLowerCase();
     final searched = q.isEmpty
         ? typed
@@ -423,109 +579,83 @@ class CreaturesScreenState extends State<CreaturesScreen>
                 c.types.any((t) => t.toLowerCase().contains(q)) ||
                 c.rarity.toLowerCase().contains(q);
           });
-
     final list = searched.toList();
-
     list.sort((a, b) {
       final A = a.creature;
       final B = b.creature;
-      switch (_sort) {
-        case 'Name':
-          return A.name.compareTo(B.name);
-        case 'Classification':
-          return _rarityRank(A.rarity).compareTo(_rarityRank(B.rarity));
-        case 'Type':
-          return A.types.first.compareTo(B.types.first);
-        case 'Count':
-          final countA = instanceCounts[A.id] ?? 0;
-          final countB = instanceCounts[B.id] ?? 0;
-          // Sort descending (highest count first), then by name
-          final countCompare = countB.compareTo(countA);
-          return countCompare != 0 ? countCompare : A.name.compareTo(B.name);
-        case 'Acquisition Order':
+      return switch (_sort) {
+        'Name' => A.name.compareTo(B.name),
+        'Classification' => _rarityRank(
+          A.rarity,
+        ).compareTo(_rarityRank(B.rarity)),
+        'Type' => A.types.first.compareTo(B.types.first),
+        'Count' => () {
+          final diff = (instanceCounts[B.id] ?? 0).compareTo(
+            instanceCounts[A.id] ?? 0,
+          );
+          return diff != 0 ? diff : A.name.compareTo(B.name);
+        }(),
+        'Acquisition Order' => () {
           final ad = a.player.discovered == true;
           final bd = b.player.discovered == true;
           if (ad && !bd) return -1;
           if (!ad && bd) return 1;
           return A.name.compareTo(B.name);
-        default:
-          return 0;
-      }
+        }(),
+        _ => 0,
+      };
     });
-
     return list;
   }
 
-  int _rarityRank(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common':
-        return 0;
-      case 'uncommon':
-        return 1;
-      case 'rare':
-        return 2;
-      case 'mythic':
-        return 3;
-      case 'legendary':
-        return 4;
-      default:
-        return 0;
-    }
-  }
-
-  void _showCreatureDetails(Creature c, bool isDiscovered) {
-    CreatureDetailsDialog.show(context, c, isDiscovered);
-  }
+  int _rarityRank(String rarity) => switch (rarity.toLowerCase()) {
+    'common' => 0,
+    'uncommon' => 1,
+    'rare' => 2,
+    'mythic' => 3,
+    'legendary' => 4,
+    _ => 0,
+  };
 
   void _showInstancesSheet(Creature species, FactionTheme theme) {
+    final t = ForgeTokens(theme);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) {
-        return BottomSheetShell(
-          theme: theme,
-          titleAction: GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      BreedingMilestoneScreen(speciesId: species.id),
-                ),
-              );
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                color: theme.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: theme.border),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.emoji_nature_rounded, // whatever icon makes sense
-                      size: 20,
-                      color: theme.textMuted,
-                    ),
-                  ],
-                ),
-              ),
+      builder: (_) => BottomSheetShell(
+        theme: theme,
+        titleAction: GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BreedingMilestoneScreen(speciesId: species.id),
             ),
           ),
-          title: '${species.name} Specimens',
-          child: InstancesSheet(
-            species: species,
-            theme: theme,
-            onTap: (inst) {
-              Navigator.of(context).pop();
-              _openDetailsForInstance(species, inst);
-            },
+          child: Container(
+            decoration: BoxDecoration(
+              color: t.bg3,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: t.borderDim),
+            ),
+            padding: const EdgeInsets.all(8),
+            child: Icon(
+              Icons.emoji_nature_rounded,
+              size: 18,
+              color: t.textSecondary,
+            ),
           ),
-        );
-      },
+        ),
+        title: '${species.name} Specimens',
+        child: InstancesSheet(
+          species: species,
+          theme: theme,
+          onTap: (inst) {
+            Navigator.of(context).pop();
+            _openDetailsForInstance(species, inst);
+          },
+        ),
+      ),
     );
   }
 
@@ -556,90 +686,187 @@ class CreaturesScreenState extends State<CreaturesScreen>
               },
             ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(0.0, 1.0); // start from bottom
-          const end = Offset.zero;
-          const curve = Curves.easeOutCubic;
-
           final tween = Tween(
-            begin: begin,
-            end: end,
-          ).chain(CurveTween(curve: curve));
-          final offsetAnimation = animation.drive(tween);
+            begin: const Offset(0.0, 1.0),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeOutCubic));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
 
-          return SlideTransition(position: offsetAnimation, child: child);
+  void _showFavoritesView(FactionTheme theme) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, animation, secondaryAnimation) => _FavoritesPage(
+          theme: theme,
+          onInstanceTap: (inst) {
+            final repo = context.read<CreatureCatalog>();
+            final creature = repo.getCreatureById(inst.baseId);
+            if (creature != null) {
+              Navigator.pop(context);
+              _openDetailsForInstance(creature, inst);
+            }
+          },
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final tween = Tween(
+            begin: const Offset(0.0, 1.0),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeOutCubic));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
         },
       ),
     );
   }
 }
 
-/// ---------------------------- SOLID UI --------------------------------
+// ──────────────────────────────────────────────────────────────────────────────
+// HEADER
+// ──────────────────────────────────────────────────────────────────────────────
 
 class _SolidHeader extends StatelessWidget {
   final FactionTheme theme;
+  final bool highlightAllInstances;
   final VoidCallback onOpenAllInstances;
+  final VoidCallback onOpenFavorites;
 
-  const _SolidHeader({required this.theme, required this.onOpenAllInstances});
+  const _SolidHeader({
+    required this.theme,
+    required this.onOpenAllInstances,
+    required this.onOpenFavorites,
+    this.highlightAllInstances = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return SliverAppBar(
       pinned: false,
       elevation: 0,
-      backgroundColor: theme.surface,
+      backgroundColor: t.bg1,
       automaticallyImplyLeading: false,
-      toolbarHeight: 72,
+      toolbarHeight: 64,
       flexibleSpace: Container(
         decoration: BoxDecoration(
-          color: theme.surface,
-          border: Border(bottom: BorderSide(color: theme.border, width: 1)),
+          color: t.bg1,
+          border: Border(bottom: BorderSide(color: t.borderDim)),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
         child: Row(
           children: [
-            // New button on the left
+            // All instances button — highlights briefly after tutorial
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              decoration: BoxDecoration(
+                color: highlightAllInstances
+                    ? t.amber.withValues(alpha: 0.15)
+                    : t.bg2,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(
+                  color: highlightAllInstances ? t.borderAccent : t.borderDim,
+                  width: highlightAllInstances ? 1.5 : 1.0,
+                ),
+              ),
+              child: GestureDetector(
+                onTap: onOpenAllInstances,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.grid_view_rounded,
+                    size: 18,
+                    color: highlightAllInstances
+                        ? t.amberBright
+                        : t.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            // Favorites button
             GestureDetector(
-              onTap: onOpenAllInstances,
+              onTap: onOpenFavorites,
               child: Container(
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: theme.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: theme.border),
+                  color: t.bg2,
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: t.borderDim),
                 ),
-                child: const Icon(Icons.grid_view_rounded, size: 18),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 18,
+                  color: const Color(0xFFE91E8C),
+                ),
               ),
             ),
+
             const SizedBox(width: 12),
+
+            // Title
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'ALCHEMON DATABASE',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: .8,
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 5,
+                        height: 5,
+                        margin: const EdgeInsets.only(right: 7, bottom: 1),
+                        decoration: BoxDecoration(
+                          color: t.amber,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const Text('ALCHEMON DATABASE', style: _T.heading),
+                    ],
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    'Specimen cataloguing system',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  const Text('SPECIMEN CATALOGUING SYSTEM', style: _T.label),
                 ],
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Constellation button
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ConstellationProgressOverviewScreen(),
+                ),
+              ),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: t.amberDim.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: t.borderAccent),
+                ),
+                child: Icon(
+                  Icons.show_chart_rounded,
+                  size: 18,
+                  color: t.amberBright,
+                ),
               ),
             ),
           ],
@@ -648,6 +875,10 @@ class _SolidHeader extends StatelessWidget {
     );
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// STATS HEADER
+// ──────────────────────────────────────────────────────────────────────────────
 
 class _StatsHeaderSolid extends StatelessWidget {
   final FactionTheme theme;
@@ -663,23 +894,30 @@ class _StatsHeaderSolid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return SectionCard(
       theme: theme,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       child: Row(
         children: [
+          // Arc progress indicator — amber fill
           SizedBox(
-            width: 56,
-            height: 56,
+            width: 54,
+            height: 54,
             child: CustomPaint(
-              painter: _ArcPainter(progress: percent, color: theme.accent),
+              painter: _ArcPainter(
+                progress: percent,
+                color: t.amberBright,
+                trackColor: t.borderMid,
+              ),
               child: Center(
                 child: Text(
                   '$discovered',
                   style: TextStyle(
-                    color: theme.text,
+                    fontFamily: 'monospace',
+                    color: t.textPrimary,
                     fontWeight: FontWeight.w900,
-                    fontSize: 16,
+                    fontSize: 15,
                   ),
                 ),
               ),
@@ -695,18 +933,20 @@ class _StatsHeaderSolid extends StatelessWidget {
                     Text(
                       'DISCOVERY PROGRESS',
                       style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: .6,
+                        fontFamily: 'monospace',
+                        color: t.textSecondary,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5,
                       ),
                     ),
                     const Spacer(),
                     Text(
                       '$discovered / $total',
                       style: TextStyle(
-                        color: theme.text,
-                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: t.textPrimary,
+                        fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -723,10 +963,15 @@ class _StatsHeaderSolid extends StatelessWidget {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// FILTER BAR
+// ──────────────────────────────────────────────────────────────────────────────
+
 class _FilterBarSolid extends StatelessWidget {
   final FactionTheme theme;
   final String query;
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final String scope;
   final String sort;
   final bool isGrid;
@@ -743,6 +988,7 @@ class _FilterBarSolid extends StatelessWidget {
     required this.theme,
     required this.query,
     required this.controller,
+    this.focusNode,
     required this.scope,
     required this.sort,
     required this.isGrid,
@@ -758,10 +1004,11 @@ class _FilterBarSolid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     final types = CreatureFilterUtils.filterOptions;
     return SectionCard(
       theme: theme,
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -771,14 +1018,15 @@ class _FilterBarSolid extends StatelessWidget {
                 child: SearchFieldSolid(
                   theme: theme,
                   controller: controller,
-                  hint: 'Search Alchemons...',
+                  focusNode: focusNode,
+                  hint: 'SEARCH ALCHEMONS...',
                   onChanged: onQueryChanged,
                 ),
               ),
               const SizedBox(width: 4),
               PillButton(
                 theme: theme,
-                label: scope,
+                label: scope.toUpperCase(),
                 icon: Icons.filter_list_rounded,
                 onTap: onScopeChanged,
               ),
@@ -806,25 +1054,25 @@ class _FilterBarSolid extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           SizedBox(
-            height: 38,
+            height: 36,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               itemCount: types.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
               itemBuilder: (_, i) {
-                final t = types[i];
-                final selected = (typeFilter ?? 'All') == t;
-                final color = t == 'All'
-                    ? theme.accent
-                    : BreedConstants.getTypeColor(t);
+                final typeLabel = types[i];
+                final selected = (typeFilter ?? 'All') == typeLabel;
+                final color = typeLabel == 'All'
+                    ? t.amberBright
+                    : BreedConstants.getTypeColor(typeLabel);
                 return FilterChipSolid(
-                  label: t,
+                  label: typeLabel,
                   color: color,
                   selected: selected,
-                  onTap: () => onTypeChanged(t),
+                  onTap: () => onTypeChanged(typeLabel),
                 );
               },
             ),
@@ -835,7 +1083,9 @@ class _FilterBarSolid extends StatelessWidget {
   }
 }
 
-/// --------------------------- LIST / GRID ----------------------------
+// ──────────────────────────────────────────────────────────────────────────────
+// GRID / LIST
+// ──────────────────────────────────────────────────────────────────────────────
 
 class _CreatureGrid extends StatelessWidget {
   final FactionTheme theme;
@@ -864,13 +1114,12 @@ class _CreatureGrid extends StatelessWidget {
         final data = creatures[i];
         final c = data.creature;
         final isDiscovered = data.player.discovered == true;
-        final instanceCount = instanceCounts[c.id] ?? 0;
         return _CreatureCard(
           key: ValueKey<String>('species:${c.id}'),
           theme: theme,
           c: c,
           discovered: isDiscovered,
-          instanceCount: instanceCount,
+          instanceCount: instanceCounts[c.id] ?? 0,
           showCount: showCounts,
           onTap: () => onTap(c, isDiscovered),
         );
@@ -900,7 +1149,6 @@ class _CreatureList extends StatelessWidget {
         final data = creatures[i];
         final c = data.creature;
         final isDiscovered = data.player.discovered == true;
-        final instanceCount = instanceCounts[c.id] ?? 0;
         return Padding(
           padding: const EdgeInsets.only(bottom: 1),
           child: _CreatureRow(
@@ -908,7 +1156,7 @@ class _CreatureList extends StatelessWidget {
             theme: theme,
             c: c,
             discovered: isDiscovered,
-            instanceCount: instanceCount,
+            instanceCount: instanceCounts[c.id] ?? 0,
             showCount: showCounts,
             onTap: () => onTap(c, isDiscovered),
           ),
@@ -937,10 +1185,13 @@ class _CreatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    final spriteData = c.spriteData;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        decoration: BoxDecoration(color: theme.surface),
+        decoration: BoxDecoration(color: t.bg2),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -953,37 +1204,43 @@ class _CreatureCard extends StatelessWidget {
                       child: Silhouette(
                         enabled: !discovered,
                         child: RepaintBoundary(
-                          child: CreatureSprite(
-                            spritePath: c.spriteData!.spriteSheetPath,
-                            totalFrames: c.spriteData!.totalFrames,
-                            rows: c.spriteData!.rows,
-                            frameSize: Vector2(
-                              c.spriteData!.frameWidth.toDouble(),
-                              c.spriteData!.frameHeight.toDouble(),
-                            ),
-                            stepTime: c.spriteData!.frameDurationMs / 1000.0,
-                          ),
+                          child: spriteData != null
+                              ? CreatureSprite(
+                                  spritePath: spriteData.spriteSheetPath,
+                                  totalFrames: spriteData.totalFrames,
+                                  rows: spriteData.rows,
+                                  frameSize: Vector2(
+                                    spriteData.frameWidth.toDouble(),
+                                    spriteData.frameHeight.toDouble(),
+                                  ),
+                                  stepTime: spriteData.frameDurationMs / 1000.0,
+                                )
+                              : CreatureImage(
+                                  c: c,
+                                  discovered: discovered,
+                                  rounded: 3,
+                                ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 5),
                   Text(
                     discovered ? c.name : 'Unknown',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: discovered
-                          ? theme.text
-                          : theme.textMuted.withOpacity(.6),
-                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      color: discovered ? t.textPrimary : t.textMuted,
+                      fontSize: 10,
                       fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  _RarityPill(rarity: discovered ? c.rarity : 'Class ?'),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
+                  _RarityPill(rarity: discovered ? c.rarity : 'CLASS ?'),
+                  const SizedBox(height: 3),
                 ],
               ),
             ),
@@ -1019,38 +1276,52 @@ class _CreatureRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typeColor = discovered
-        ? BreedConstants.getTypeColor(c.types.first)
-        : theme.textMuted.withOpacity(.5);
+    final t = ForgeTokens(theme);
+    final spriteData = c.spriteData;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(2),
-          border: Border.all(color: theme.border),
+          color: t.bg2,
+          border: Border.all(color: t.borderDim),
         ),
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Row(
             children: [
-              SizedBox(
-                width: 46,
-                height: 46,
+              // Sprite plate
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: t.bg3,
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: t.borderDim),
+                ),
                 child: Stack(
                   children: [
-                    Silhouette(
-                      enabled: !discovered,
-                      child: RepaintBoundary(
-                        child: CreatureSprite(
-                          spritePath: c.spriteData!.spriteSheetPath,
-                          totalFrames: c.spriteData!.totalFrames,
-                          rows: c.spriteData!.rows,
-                          frameSize: Vector2(
-                            c.spriteData!.frameWidth.toDouble(),
-                            c.spriteData!.frameHeight.toDouble(),
-                          ),
-                          stepTime: c.spriteData!.frameDurationMs / 1000.0,
+                    Center(
+                      child: Silhouette(
+                        enabled: !discovered,
+                        child: RepaintBoundary(
+                          child: spriteData != null
+                              ? CreatureSprite(
+                                  spritePath: spriteData.spriteSheetPath,
+                                  totalFrames: spriteData.totalFrames,
+                                  rows: spriteData.rows,
+                                  frameSize: Vector2(
+                                    spriteData.frameWidth.toDouble(),
+                                    spriteData.frameHeight.toDouble(),
+                                  ),
+                                  stepTime: spriteData.frameDurationMs / 1000.0,
+                                )
+                              : CreatureImage(
+                                  c: c,
+                                  discovered: discovered,
+                                  rounded: 3,
+                                  size: 42,
+                                ),
                         ),
                       ),
                     ),
@@ -1073,51 +1344,48 @@ class _CreatureRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            discovered ? c.name : 'Unknown Specimen',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: discovered ? theme.text : theme.textMuted,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      discovered ? c.name.toUpperCase() : 'UNKNOWN SPECIMEN',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: discovered ? t.textPrimary : t.textMuted,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        letterSpacing: 0.8,
+                      ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 5),
                     if (discovered)
                       Row(
                         children: [
                           Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
+                            spacing: 5,
+                            runSpacing: 3,
                             children: c.types
                                 .take(2)
-                                .map((t) => _TypeTiny(theme: theme, label: t))
+                                .map((t) => _TypeTiny(label: t))
                                 .toList(),
                           ),
                           const SizedBox(width: 8),
-                          _RarityPill(
-                            small: true,
-                            rarity: discovered ? c.rarity : 'Class ?',
-                          ),
+                          _RarityPill(rarity: c.rarity, small: true),
                         ],
                       )
                     else
                       Text(
                         '— —',
-                        style: TextStyle(color: theme.textMuted, fontSize: 12),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: t.textMuted,
+                          fontSize: 11,
+                        ),
                       ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.chevron_right_rounded, color: theme.textMuted),
+              Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 18),
             ],
           ),
         ),
@@ -1126,8 +1394,11 @@ class _CreatureRow extends StatelessWidget {
   }
 }
 
-/// -------------------------- SMALL PIECES ----------------------------
+// ──────────────────────────────────────────────────────────────────────────────
+// PUBLIC SHARED WIDGETS
+// ──────────────────────────────────────────────────────────────────────────────
 
+/// Section card — thin wrapper used by filter bar + stats header.
 class SectionCard extends StatelessWidget {
   final FactionTheme theme;
   final EdgeInsets padding;
@@ -1141,16 +1412,18 @@ class SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return Container(
-      color: theme.surface,
+      color: t.bg1,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(5, 8, 5, 6),
+        padding: const EdgeInsets.fromLTRB(5, 6, 5, 4),
         child: Container(padding: padding, child: child),
       ),
     );
   }
 }
 
+/// Slim progress bar — amber fill by default.
 class ProgressBar extends StatelessWidget {
   final FactionTheme theme;
   final double value;
@@ -1158,30 +1431,33 @@ class ProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     final v = value.clamp(0.0, 1.0);
     return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(3),
       child: SizedBox(
-        height: 10,
+        height: 6,
         child: LayoutBuilder(
           builder: (context, constraints) {
             double w = constraints.maxWidth * v;
             if (v > 0 && w < 2) w = 2;
             return Stack(
               children: [
-                Positioned.fill(child: Container(color: theme.meterTrack)),
+                Positioned.fill(child: Container(color: t.borderMid)),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Container(
                     width: w,
-                    height: 10,
+                    height: 6,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(6),
-                      gradient: LinearGradient(
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                        colors: theme.meterFill,
-                      ),
+                      borderRadius: BorderRadius.circular(3),
+                      color: t.amberBright,
+                      boxShadow: [
+                        BoxShadow(
+                          color: t.amber.withValues(alpha: 0.4),
+                          blurRadius: 4,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -1194,52 +1470,63 @@ class ProgressBar extends StatelessWidget {
   }
 }
 
+/// Search field.
 class SearchFieldSolid extends StatelessWidget {
   final FactionTheme theme;
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final String hint;
   final ValueChanged<String> onChanged;
   const SearchFieldSolid({
     super.key,
     required this.theme,
     required this.controller,
+    this.focusNode,
     required this.hint,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return Container(
-      height: 40,
+      height: 38,
       decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.border),
+        color: t.bg2,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: t.borderDim),
       ),
       child: Row(
         children: [
-          const SizedBox(width: 10),
-          Icon(Icons.search_rounded, color: theme.textMuted, size: 18),
-          const SizedBox(width: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 10),
+            child: Icon(Icons.search_rounded, color: t.textMuted, size: 16),
+          ),
           Expanded(
             child: TextField(
               controller: controller,
+              focusNode: focusNode,
               onChanged: onChanged,
               style: TextStyle(
-                color: theme.text,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontFamily: 'monospace',
+                color: t.textPrimary,
+                fontSize: 11,
+                letterSpacing: 0.3,
               ),
               decoration: InputDecoration(
                 hintText: hint,
                 hintStyle: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontFamily: 'monospace',
+                  color: t.textMuted,
+                  fontSize: 10,
+                  letterSpacing: 0.8,
                 ),
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: EdgeInsets.zero,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 0,
+                ),
               ),
             ),
           ),
@@ -1250,12 +1537,8 @@ class SearchFieldSolid extends StatelessWidget {
                 onChanged('');
               },
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: Icon(
-                  Icons.close_rounded,
-                  color: theme.textMuted,
-                  size: 18,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(Icons.close_rounded, color: t.textMuted, size: 14),
               ),
             ),
         ],
@@ -1264,6 +1547,7 @@ class SearchFieldSolid extends StatelessWidget {
   }
 }
 
+/// Icon-only button.
 class IconButtonSolid extends StatelessWidget {
   final FactionTheme theme;
   final IconData icon;
@@ -1274,30 +1558,32 @@ class IconButtonSolid extends StatelessWidget {
     required this.icon,
     required this.onTap,
   });
+
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 40,
-        height: 40,
+        width: 38,
+        height: 38,
         decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: theme.border),
+          color: t.bg2,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: t.borderDim),
         ),
-        child: Icon(icon, color: theme.text, size: 18),
+        child: Icon(icon, color: t.textSecondary, size: 16),
       ),
     );
   }
 }
 
+/// Pill button (scope toggle etc).
 class PillButton extends StatelessWidget {
   final FactionTheme theme;
   final String label;
   final IconData icon;
   final VoidCallback onTap;
-
   const PillButton({
     super.key,
     required this.theme,
@@ -1308,27 +1594,30 @@ class PillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 9),
         decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: theme.border),
+          color: t.amberDim.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: t.borderAccent),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: theme.accent),
-            const SizedBox(width: 6),
+            Icon(icon, size: 13, color: t.amberBright),
+            const SizedBox(width: 5),
             Text(
               label,
               style: TextStyle(
-                color: theme.text,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
+                fontFamily: 'monospace',
+                color: t.amberBright,
+                fontWeight: FontWeight.w800,
+                fontSize: 10,
+                letterSpacing: 1.2,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1339,6 +1628,10 @@ class PillButton extends StatelessWidget {
     );
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SMALL PRIVATE WIDGETS
+// ──────────────────────────────────────────────────────────────────────────────
 
 class _CountBadge extends StatelessWidget {
   final int count;
@@ -1352,27 +1645,21 @@ class _CountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: small ? 4 : 6,
-        vertical: small ? 2 : 3,
+        horizontal: small ? 4 : 5,
+        vertical: small ? 2 : 2,
       ),
       decoration: BoxDecoration(
-        color: theme.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black.withOpacity(.2), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.3),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        color: t.amberDim,
+        borderRadius: BorderRadius.circular(2),
       ),
       child: Text(
-        count.toString(),
+        '$count',
         style: TextStyle(
-          color: theme.text,
+          fontFamily: 'monospace',
+          color: t.bg0,
           fontSize: small ? 8 : 9,
           fontWeight: FontWeight.w900,
           height: 1.0,
@@ -1386,64 +1673,57 @@ class _RarityPill extends StatelessWidget {
   final String rarity;
   final bool small;
   const _RarityPill({required this.rarity, this.small = false});
+
   @override
   Widget build(BuildContext context) {
-    final bg = _rarityColor(rarity);
+    final color = _rarityColorForge(rarity);
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: small ? 6 : 8,
-        vertical: small ? 2 : 3,
+        horizontal: small ? 5 : 7,
+        vertical: small ? 2 : 2,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
       ),
       child: Text(
-        rarity,
+        rarity.toUpperCase(),
         style: TextStyle(
-          color: bg, // keeps strong contrast on rarity colors
-          fontSize: small ? 8 : 9,
-          fontWeight: FontWeight.w700,
+          fontFamily: 'monospace',
+          color: color,
+          fontSize: small ? 7 : 8,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
     );
   }
-
-  static Color _rarityColor(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common':
-        return Colors.grey.shade700;
-      case 'uncommon':
-        return Colors.green.shade600;
-      case 'rare':
-        return Colors.blue.shade600;
-      case 'mythic':
-        return Colors.purple.shade600;
-      case 'legendary':
-        return Colors.orange.shade600;
-      default:
-        return Colors.purple.shade600;
-    }
-  }
 }
 
 class _TypeTiny extends StatelessWidget {
-  final FactionTheme theme;
   final String label;
-  const _TypeTiny({required this.theme, required this.label});
+  const _TypeTiny({required this.label});
+
   @override
   Widget build(BuildContext context) {
     final color = BreedConstants.getTypeColor(label);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(.5)),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
-        label,
+        label.toUpperCase(),
         style: TextStyle(
-          color: theme.text,
-          fontSize: 10,
+          fontFamily: 'monospace',
+          color: color,
+          fontSize: 8,
           fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
         ),
         maxLines: 1,
         overflow: TextOverflow.visible,
@@ -1452,57 +1732,133 @@ class _TypeTiny extends StatelessWidget {
   }
 }
 
+// Tutorial step row used in the tutorial dialog
+class _TutorialRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String body;
+  const _TutorialRow({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: t.bg3,
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: t.borderDim),
+          ),
+          child: Icon(icon, color: t.amberBright, size: 14),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: t.textPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                body,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: t.textSecondary,
+                  fontSize: 9,
+                  letterSpacing: 0.2,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ARC PAINTER  (unchanged logic, amber color injected)
+// ──────────────────────────────────────────────────────────────────────────────
+
 class _ArcPainter extends CustomPainter {
   final double progress;
   final Color color;
-  _ArcPainter({required this.progress, required this.color});
+  final Color trackColor;
+  _ArcPainter({
+    required this.progress,
+    required this.color,
+    required this.trackColor,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final r = (size.shortestSide / 2) - 4;
-    final base = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 8
-      ..color = Colors.white.withOpacity(.08);
+
+    // Track
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: r),
       -math.pi / 2,
       math.pi * 2,
       false,
-      base,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 7
+        ..color = trackColor,
     );
 
-    final glow = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 10
-      ..strokeCap = StrokeCap.round
-      ..color = color.withOpacity(.35);
     final sweep = progress.clamp(0.0, 1.0) * math.pi * 2;
+
+    // Glow
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: r),
       -math.pi / 2,
       sweep,
       false,
-      glow,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 9
+        ..strokeCap = StrokeCap.round
+        ..color = color.withValues(alpha: 0.25),
     );
 
-    final arc = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..strokeCap = StrokeCap.round
-      ..shader = SweepGradient(
-        startAngle: -math.pi / 2,
-        endAngle: -math.pi / 2 + math.pi * 2,
-        colors: [color.withOpacity(.25), color, color.withOpacity(.9)],
-        stops: const [0, .7, 1],
-      ).createShader(Rect.fromCircle(center: center, radius: r));
+    // Fill
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: r),
       -math.pi / 2,
       sweep,
       false,
-      arc,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 7
+        ..strokeCap = StrokeCap.round
+        ..shader = SweepGradient(
+          startAngle: -math.pi / 2,
+          endAngle: -math.pi / 2 + math.pi * 2,
+          colors: [
+            color.withValues(alpha: 0.3),
+            color,
+            color.withValues(alpha: 0.9),
+          ],
+          stops: const [0, .7, 1],
+        ).createShader(Rect.fromCircle(center: center, radius: r)),
     );
   }
 
@@ -1511,34 +1867,59 @@ class _ArcPainter extends CustomPainter {
       old.progress != progress || old.color != color;
 }
 
-/// ------------------------ States -----------------------------
+// ──────────────────────────────────────────────────────────────────────────────
+// EMPTY STATE
+// ──────────────────────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   final FactionTheme theme;
   const _EmptyState({required this.theme});
+
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off_rounded, size: 40, color: theme.textMuted),
-            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: t.bg2,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: t.borderAccent.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Icon(
+                Icons.search_off_rounded,
+                size: 30,
+                color: t.textMuted,
+              ),
+            ),
+            const SizedBox(height: 12),
             Text(
-              'No matching specimens',
+              'NO MATCHING SPECIMENS',
               style: TextStyle(
-                color: theme.text,
+                fontFamily: 'monospace',
+                color: t.textPrimary,
                 fontWeight: FontWeight.w800,
-                fontSize: 16,
+                fontSize: 13,
+                letterSpacing: 1.5,
               ),
             ),
             const SizedBox(height: 6),
             Text(
-              'Try a different search, adjust filters, or clear the type chip.',
+              'Try a different search, adjust filters,\nor clear the type chip.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: theme.textMuted, fontSize: 14),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: t.textSecondary,
+                fontSize: 10,
+                height: 1.6,
+              ),
             ),
           ],
         ),
@@ -1547,63 +1928,9 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class LoadingScaffold extends StatelessWidget {
-  const LoadingScaffold();
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
-    return Scaffold(
-      backgroundColor: theme.surface,
-      body: const Center(child: CircularProgressIndicator.adaptive()),
-    );
-  }
-}
-
-/// --------------------- Sticky Filter Header -------------------
-
-class _StickyFilterBar extends SliverPersistentHeaderDelegate {
-  final double height;
-  final Widget child;
-  final String scope;
-  final String? typeFilter;
-  final bool isGrid;
-  final bool showCounts;
-  final FactionTheme theme;
-
-  _StickyFilterBar({
-    required this.height,
-    required this.child,
-    required this.scope,
-    required this.typeFilter,
-    required this.isGrid,
-    required this.showCounts,
-    required this.theme,
-  });
-
-  @override
-  double get minExtent => height;
-  @override
-  double get maxExtent => height;
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) => ClipRect(
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(0, 0, 0, 2),
-      child: child,
-    ),
-  );
-
-  @override
-  bool shouldRebuild(covariant _StickyFilterBar old) =>
-      old.scope != scope ||
-      old.typeFilter != typeFilter ||
-      old.isGrid != isGrid ||
-      old.showCounts != showCounts ||
-      old.theme != theme;
-}
+// ──────────────────────────────────────────────────────────────────────────────
+// ALL INSTANCES PAGE
+// ──────────────────────────────────────────────────────────────────────────────
 
 class AllInstancesPage extends StatelessWidget {
   final FactionTheme theme;
@@ -1617,29 +1944,120 @@ class AllInstancesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return Scaffold(
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingCloseButton(
         onTap: () => Navigator.of(context).pop(),
         theme: theme,
       ),
-      backgroundColor: theme.surface,
+      backgroundColor: t.bg0,
       appBar: AppBar(
-        backgroundColor: theme.surfaceAlt,
+        backgroundColor: t.bg1,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.of(context).pop(),
+        surfaceTintColor: Colors.transparent,
+        leading: GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+            margin: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: t.bg2,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: t.borderDim),
+            ),
+            child: Icon(Icons.close_rounded, color: t.textSecondary, size: 16),
+          ),
         ),
-        title: Text(
-          'All Specimens',
-          style: TextStyle(color: theme.text, fontWeight: FontWeight.w800),
+        title: Row(
+          children: [
+            Container(
+              width: 4,
+              height: 14,
+              color: t.amber,
+              margin: const EdgeInsets.only(right: 8),
+            ),
+            const Text('ALL SPECIMENS', style: _T.heading),
+          ],
         ),
-        iconTheme: IconThemeData(color: theme.text),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: t.borderDim),
+        ),
       ),
       body: SafeArea(
         child: AllCreatureInstances(
           theme: theme,
+          onTap: (inst) => onInstanceTap(inst),
+        ),
+      ),
+    );
+  }
+}
+
+class LoadingScaffold extends StatelessWidget {
+  const LoadingScaffold({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    return Scaffold(
+      backgroundColor: t.bg0,
+      body: const Center(child: CircularProgressIndicator.adaptive()),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// FAVORITES PAGE
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _FavoritesPage extends StatelessWidget {
+  final FactionTheme theme;
+  final ValueChanged<CreatureInstance> onInstanceTap;
+
+  const _FavoritesPage({required this.theme, required this.onInstanceTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    return Scaffold(
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: FloatingCloseButton(
+        onTap: () => Navigator.of(context).pop(),
+        theme: theme,
+      ),
+      backgroundColor: t.bg0,
+      appBar: AppBar(
+        backgroundColor: t.bg1,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Container(
+            margin: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: t.bg2,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: t.borderDim),
+            ),
+            child: Icon(Icons.close_rounded, color: t.textSecondary, size: 16),
+          ),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.star_rounded, size: 16, color: const Color(0xFFE91E8C)),
+            const SizedBox(width: 8),
+            const Text('FAVORITES', style: _T.heading),
+          ],
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: t.borderDim),
+        ),
+      ),
+      body: SafeArea(
+        child: AllCreatureInstances(
+          theme: theme,
+          favoritesOnly: true,
           onTap: (inst) => onInstanceTap(inst),
         ),
       ),

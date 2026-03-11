@@ -8,11 +8,9 @@ import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
-import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -30,6 +28,9 @@ class AllCreatureInstances extends StatefulWidget {
   final int maxSelections; // 0 = unlimited, positive = max
   final void Function(List<CreatureInstance>)? onConfirmSelection;
 
+  /// When true, only show favorited instances.
+  final bool favoritesOnly;
+
   const AllCreatureInstances({
     super.key,
     required this.theme,
@@ -39,6 +40,7 @@ class AllCreatureInstances extends StatefulWidget {
     this.selectionMode = false,
     this.maxSelections = 0,
     this.onConfirmSelection,
+    this.favoritesOnly = false,
   });
 
   @override
@@ -57,6 +59,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   String? _filterTint;
   String? _filterNature;
   bool _filterPrismatic = false;
+  bool _filterFavorites = false;
   String? _filterVariant;
 
   // Selection state (when in selection mode)
@@ -272,6 +275,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
         filterNature: _filterNature,
         filterPrismatic: _filterPrismatic,
         filterVariant: _filterVariant,
+        filterFavoritesOnly: widget.favoritesOnly || _filterFavorites,
         sortBy: _sortBy,
       ),
       initialData: const [],
@@ -284,6 +288,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
 
         final hasFiltersActive =
             _filterPrismatic ||
+            _filterFavorites ||
             _filterVariant != null ||
             _filterSize != null ||
             _filterTint != null ||
@@ -377,7 +382,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                         color: widget.theme.surfaceAlt,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: widget.theme.text.withOpacity(.35),
+                          color: widget.theme.text.withValues(alpha: .35),
                           width: 1,
                         ),
                       ),
@@ -403,7 +408,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                                 border: InputBorder.none,
                                 hintText: 'Search all specimens...',
                                 hintStyle: TextStyle(
-                                  color: widget.theme.textMuted.withOpacity(.6),
+                                  color: widget.theme.textMuted.withValues(alpha: .6),
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -437,10 +442,10 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       height: 34,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       decoration: BoxDecoration(
-                        color: widget.theme.primary.withOpacity(.18),
+                        color: widget.theme.primary.withValues(alpha: .18),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: widget.theme.primary.withOpacity(.5),
+                          color: widget.theme.primary.withValues(alpha: .5),
                           width: 1,
                         ),
                       ),
@@ -474,13 +479,13 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       decoration: BoxDecoration(
                         color: hasFiltersActive
-                            ? widget.theme.primary.withOpacity(.18)
+                            ? widget.theme.primary.withValues(alpha: .18)
                             : widget.theme.surfaceAlt,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: hasFiltersActive
-                              ? widget.theme.primary.withOpacity(.5)
-                              : widget.theme.text.withOpacity(.35),
+                              ? widget.theme.primary.withValues(alpha: .5)
+                              : widget.theme.text.withValues(alpha: .35),
                           width: 1,
                         ),
                       ),
@@ -557,8 +562,12 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                 filterNature: _filterNature,
                 onPickNature: (val) => _mutate(() => _filterNature = val),
                 natureOptions: _buildNatureOptions(),
+                filterFavorites: _filterFavorites,
+                onToggleFavorites: () =>
+                    _mutate(() => _filterFavorites = !_filterFavorites),
                 onClearAll: () => _mutate(() {
                   _filterPrismatic = false;
+                  _filterFavorites = false;
                   _filterVariant = null;
                   _filterSize = null;
                   _filterTint = null;

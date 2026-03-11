@@ -81,6 +81,7 @@ class _AlchemicalParticleBackgroundState
   final List<_Particle> _particles = [];
   final Random _random = Random();
   bool _isInitialized = false;
+  Size? _lastSize;
 
   static const List<Color> _particleColors = [
     Colors.cyanAccent,
@@ -157,9 +158,15 @@ class _AlchemicalParticleBackgroundState
     _isInitialized = true;
   }
 
+  void _resetForSize(Size size) {
+    _particles.clear();
+    _isInitialized = false;
+    _initializeParticles(size);
+  }
+
   void _updateParticles() {
     if (!_isInitialized) return;
-    final size = context.size;
+    final size = _lastSize;
     if (size == null) return;
 
     setState(() {
@@ -189,14 +196,31 @@ class _AlchemicalParticleBackgroundState
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        _initializeParticles(Size(constraints.maxWidth, constraints.maxHeight));
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        final last = _lastSize;
+        final sizeChanged =
+            last != null &&
+            ((last.width - size.width).abs() > 1.0 ||
+                (last.height - size.height).abs() > 1.0);
+        if (sizeChanged) {
+          _resetForSize(size);
+        }
+        _lastSize = size;
+        _initializeParticles(size);
 
         final painter = _ParticlePainter(
           particles: _particles,
           globalOpacity: widget.opacity,
         );
 
-        Widget layer = CustomPaint(size: Size.infinite, painter: painter);
+        Widget layer = SizedBox(
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          child: CustomPaint(
+            size: Size(constraints.maxWidth, constraints.maxHeight),
+            painter: painter,
+          ),
+        );
 
         // Prefer explicit backgroundColor; otherwise whiteBackground if true
         final Color? effectiveBg =
@@ -225,7 +249,7 @@ class _ParticlePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.saveLayer(Rect.largest, Paint());
     for (final p in particles) {
-      _paint.color = p.color.withOpacity(p.opacity * globalOpacity);
+      _paint.color = p.color.withValues(alpha: p.opacity * globalOpacity);
       canvas.drawCircle(Offset(p.x, p.y), p.radius, _paint);
     }
     canvas.restore();

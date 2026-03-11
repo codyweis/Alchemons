@@ -80,12 +80,12 @@ class _VolcanicAuraState extends State<VolcanicAura>
                     shape: BoxShape.circle,
                     gradient: SweepGradient(
                       colors: [
-                        Colors.deepOrange.withOpacity(
+                        Colors.deepOrange.withValues(alpha: 
                           0.4 * _glowAnimation.value,
                         ),
-                        Colors.red.withOpacity(0.3 * _glowAnimation.value),
-                        Colors.purple.withOpacity(0.35 * _glowAnimation.value),
-                        Colors.deepOrange.withOpacity(
+                        Colors.red.withValues(alpha: 0.3 * _glowAnimation.value),
+                        Colors.purple.withValues(alpha: 0.35 * _glowAnimation.value),
+                        Colors.deepOrange.withValues(alpha: 
                           0.4 * _glowAnimation.value,
                         ),
                       ],
@@ -115,10 +115,10 @@ class _VolcanicAuraState extends State<VolcanicAura>
                   height: 6,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.amber.withOpacity(0.8 * opacity),
+                    color: Colors.amber.withValues(alpha: 0.8 * opacity),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.orange.withOpacity(0.6 * opacity),
+                        color: Colors.orange.withValues(alpha: 0.6 * opacity),
                         blurRadius: 8,
                         spreadRadius: 2,
                       ),
@@ -139,13 +139,13 @@ class _VolcanicAuraState extends State<VolcanicAura>
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        Colors.white.withOpacity(0.6 * _glowAnimation.value),
-                        Colors.amber.withOpacity(0.5 * _glowAnimation.value),
-                        Colors.deepOrange.withOpacity(
+                        Colors.white.withValues(alpha: 0.6 * _glowAnimation.value),
+                        Colors.amber.withValues(alpha: 0.5 * _glowAnimation.value),
+                        Colors.deepOrange.withValues(alpha: 
                           0.4 * _glowAnimation.value,
                         ),
-                        Colors.red.withOpacity(0.25 * _glowAnimation.value),
-                        Colors.purple.withOpacity(0.15 * _glowAnimation.value),
+                        Colors.red.withValues(alpha: 0.25 * _glowAnimation.value),
+                        Colors.purple.withValues(alpha: 0.15 * _glowAnimation.value),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
@@ -164,9 +164,9 @@ class _VolcanicAuraState extends State<VolcanicAura>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      Colors.white.withOpacity(0.7 * _glowAnimation.value),
-                      Colors.yellow.withOpacity(0.6 * _glowAnimation.value),
-                      Colors.orange.withOpacity(0.3 * _glowAnimation.value),
+                      Colors.white.withValues(alpha: 0.7 * _glowAnimation.value),
+                      Colors.yellow.withValues(alpha: 0.6 * _glowAnimation.value),
+                      Colors.orange.withValues(alpha: 0.3 * _glowAnimation.value),
                       Colors.transparent,
                     ],
                     stops: const [0.0, 0.3, 0.6, 1.0],

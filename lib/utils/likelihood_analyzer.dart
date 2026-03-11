@@ -12,15 +12,12 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart' as db;
-import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/genetics.dart';
-import 'package:alchemons/models/nature.dart';
+import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/breeding_config.dart';
-import 'package:alchemons/utils/nature_utils.dart';
 import 'package:flutter/material.dart';
 
 enum Likelihood {
@@ -116,14 +113,36 @@ class BreedingLikelihoodAnalyzer {
     Creature p2,
     Creature offspring,
   ) {
+    return _analyzeBreedingResultWithSnapshots(p1, p2, offspring);
+  }
+
+  BreedingAnalysisReport _analyzeBreedingResultWithSnapshots(
+    Creature p1,
+    Creature p2,
+    Creature offspring, {
+    ParentSnapshot? parentA,
+    ParentSnapshot? parentB,
+  }) {
     final breedingType = (p1.id == p2.id)
         ? BreedingType.sameSpecies
         : BreedingType.crossSpecies;
 
     if (breedingType == BreedingType.sameSpecies) {
-      return _analyzeSameSpeciesBreeding(p1, p2, offspring);
+      return _analyzeSameSpeciesBreeding(
+        p1,
+        p2,
+        offspring,
+        parentA: parentA,
+        parentB: parentB,
+      );
     } else {
-      return _analyzeCrossSpeciesBreeding(p1, p2, offspring);
+      return _analyzeCrossSpeciesBreeding(
+        p1,
+        p2,
+        offspring,
+        parentA: parentA,
+        parentB: parentB,
+      );
     }
   }
 
@@ -141,7 +160,39 @@ class BreedingLikelihoodAnalyzer {
 
     final p1 = _buildCreatureFromInstance(a, baseA);
     final p2 = _buildCreatureFromInstance(b, baseB);
-    return analyzeBreedingResult(p1, p2, offspring);
+    final snapA = ParentSnapshotFactory.fromDbInstance(a, repository);
+    final snapB = ParentSnapshotFactory.fromDbInstance(b, repository);
+
+    return _analyzeBreedingResultWithSnapshots(
+      p1,
+      p2,
+      offspring,
+      parentA: snapA,
+      parentB: snapB,
+    );
+  }
+
+  /// Analyze owned-instance x wild-catalog breeding using lineage snapshots.
+  BreedingAnalysisReport analyzeWildBreedingResult(
+    db.CreatureInstance owned,
+    Creature wild,
+    Creature offspring,
+  ) {
+    final ownedBase = repository.getCreatureById(owned.baseId);
+    if (ownedBase == null) return _emptyReport(offspring);
+
+    final p1 = _buildCreatureFromInstance(owned, ownedBase);
+    final p2 = wild;
+    final snapA = ParentSnapshotFactory.fromDbInstance(owned, repository);
+    final snapB = ParentSnapshot.fromCreatureWithStats(wild, null);
+
+    return _analyzeBreedingResultWithSnapshots(
+      p1,
+      p2,
+      offspring,
+      parentA: snapA,
+      parentB: snapB,
+    );
   }
 
   // ───────────────────────────────────────────────────────────
@@ -151,25 +202,37 @@ class BreedingLikelihoodAnalyzer {
   BreedingAnalysisReport _analyzeSameSpeciesBreeding(
     Creature p1,
     Creature p2,
-    Creature baby,
-  ) {
+    Creature baby, {
+    ParentSnapshot? parentA,
+    ParentSnapshot? parentB,
+  }) {
     final mechanics = <InheritanceMechanic>[];
     final specials = <InheritanceMechanic>[];
     final surprises = <String>[];
 
-    final normalPathPct = (100.0 - tuning.globalMutationChance.toDouble())
-        .clamp(0.0, 100.0);
+    final speciesPct = _sameSpeciesSpeciesOutcomePct(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+    );
+    final sameSpeciesClone = baby.id == p1.id;
 
     // Species lock consistency
     mechanics.add(
       InheritanceMechanic(
         category: 'Species',
         result: baby.name,
-        mechanism: 'Same-species breeding tends to reproduce the same species',
-        percentage: normalPathPct,
-        likelihood: Likelihood.probable,
+        mechanism: sameSpeciesClone
+            ? 'Same-species breeding stayed on the parent species path'
+            : 'Global mutation overrode the normal same-species clone path',
+        percentage: speciesPct,
+        likelihood: _likelihoodFor(speciesPct),
       ),
     );
+
+    if (speciesPct < 25.0) {
+      surprises.add('Rare species mutation outcome');
+    }
 
     // GENETICS (tint, size, pattern/etc)
     _appendGeneticMechanics(
@@ -187,6 +250,8 @@ class BreedingLikelihoodAnalyzer {
       baby: baby,
       mechanicsOut: mechanics,
       surprisesOut: surprises,
+      parentA: parentA,
+      parentB: parentB,
     );
 
     // NATURE
@@ -221,7 +286,8 @@ class BreedingLikelihoodAnalyzer {
     return BreedingAnalysisReport(
       breedingType: BreedingType.sameSpecies,
       summaryLine:
-          '${p1.name} × ${p2.name} → ${baby.name}: Pure lineage breeding',
+          '${p1.name} × ${p2.name} → ${baby.name}: '
+          '${sameSpeciesClone ? "Pure lineage breeding" : "Global mutation event"}',
       inheritanceMechanics: mechanics,
       specialEvents: specials,
       outcomeCategory: outcomeCategory,
@@ -237,15 +303,24 @@ class BreedingLikelihoodAnalyzer {
   BreedingAnalysisReport _analyzeCrossSpeciesBreeding(
     Creature p1,
     Creature p2,
-    Creature baby,
-  ) {
+    Creature baby, {
+    ParentSnapshot? parentA,
+    ParentSnapshot? parentB,
+  }) {
     final mechanics = <InheritanceMechanic>[];
     final specials = <InheritanceMechanic>[];
     final surprises = <String>[];
 
     _maybeAppendCrossVariant(p1: p1, p2: p2, baby: baby, specialsOut: specials);
 
-    _maybeAppendParentRepeat(p1: p1, p2: p2, baby: baby, specialsOut: specials);
+    _maybeAppendParentRepeat(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      specialsOut: specials,
+      parentA: parentA,
+      parentB: parentB,
+    );
 
     // FAMILY LINEAGE
     _appendFamilyMechanic(
@@ -254,6 +329,8 @@ class BreedingLikelihoodAnalyzer {
       baby: baby,
       mechanicsOut: mechanics,
       surprisesOut: surprises,
+      parentA: parentA,
+      parentB: parentB,
     );
 
     // ELEMENTAL TYPE
@@ -263,6 +340,8 @@ class BreedingLikelihoodAnalyzer {
       baby: baby,
       mechanicsOut: mechanics,
       surprisesOut: surprises,
+      parentA: parentA,
+      parentB: parentB,
     );
 
     // GENETICS (tint, size, pattern/etc)
@@ -285,6 +364,12 @@ class BreedingLikelihoodAnalyzer {
 
     // PRISMATIC
     _maybeAppendPrismatic(
+      baby: baby,
+      specialsOut: specials,
+      surprisesOut: surprises,
+    );
+
+    _maybeAppendVariantFaction(
       baby: baby,
       specialsOut: specials,
       surprisesOut: surprises,
@@ -327,11 +412,14 @@ class BreedingLikelihoodAnalyzer {
     required Creature baby,
     required List<InheritanceMechanic> mechanicsOut,
     required List<String> surprisesOut,
+    ParentSnapshot? parentA,
+    ParentSnapshot? parentB,
   }) {
     final babyFamily = baby.mutationFamily ?? 'Unknown';
 
-    // ask engine for distribution
-    final familyDist = engine.getBiasedFamilyDistribution(p1, p2);
+    final familyDist = (parentA != null && parentB != null)
+        ? engine.getLineageAwareFamilyDistribution(p1, p2, parentA, parentB)
+        : engine.getBiasedFamilyDistribution(p1, p2);
 
     // normalize to 0-100
     final familyPctMap = familyDist.asPercentages();
@@ -358,10 +446,14 @@ class BreedingLikelihoodAnalyzer {
     required Creature baby,
     required List<InheritanceMechanic> mechanicsOut,
     required List<String> surprisesOut,
+    ParentSnapshot? parentA,
+    ParentSnapshot? parentB,
   }) {
     final babyElem = baby.types.isNotEmpty ? baby.types.first : 'Unknown';
 
-    final elemDist = engine.getBiasedElementDistribution(p1, p2);
+    final elemDist = (parentA != null && parentB != null)
+        ? engine.getLineageAwareElementDistribution(p1, p2, parentA, parentB)
+        : engine.getBiasedElementDistribution(p1, p2);
     final elemPctMap = elemDist.asPercentages();
 
     debugPrint(
@@ -581,24 +673,29 @@ class BreedingLikelihoodAnalyzer {
     required Creature p2,
     required Creature baby,
     required List<InheritanceMechanic> specialsOut,
+    ParentSnapshot? parentA,
+    ParentSnapshot? parentB,
   }) {
     // engine logic: sometimes we just "return one of the parents"
     final isParentRepeat = (baby.id == p1.id || baby.id == p2.id);
     if (!isParentRepeat) return;
 
-    // replicate the math the engine uses so analyzer doesn't get out of sync:
-    final basePr = tuning.parentRepeatChance;
-    final prMult = combinedNatureMult(p1, p2, 'breed_same_species_chance_mult');
-    final pr = (basePr * prMult).clamp(0, 100);
+    final pct = _crossSpeciesOutcomePct(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      parentA: parentA,
+      parentB: parentB,
+    );
 
     specialsOut.add(
       InheritanceMechanic(
         category: 'Parent Species Repeat',
         result: baby.name,
         mechanism:
-            'Offspring reverted to parent species (${pr.toStringAsFixed(1)}% chance, nature-modified)',
-        percentage: pr.toDouble(),
-        likelihood: _likelihoodFor(pr.toDouble()),
+            'Offspring matched a parent species via hybrid selection or fallback (${pct.toStringAsFixed(1)}% chance)',
+        percentage: pct,
+        likelihood: _likelihoodFor(pct),
       ),
     );
   }
@@ -659,8 +756,9 @@ class BreedingLikelihoodAnalyzer {
     final s2 = p2.genetics?.get('size') ?? 'normal';
 
     if (s1 == 'giant' && s2 == 'giant') {
-      if (size == 'giant')
+      if (size == 'giant') {
         return 'Extreme size lock-in from both giant parents';
+      }
       return 'Size drifted toward midpoint despite both parents being giant';
     }
     if (s1 == 'tiny' && s2 == 'tiny') {
@@ -742,10 +840,6 @@ class BreedingLikelihoodAnalyzer {
     List<InheritanceMechanic> mechanics,
     List<InheritanceMechanic> specials,
   ) {
-    // guaranteed pair always "Expected" regardless of rarity
-    final hasGuaranteed = specials.any((s) => s.category == 'Guaranteed Pair');
-    if (hasGuaranteed) return 'Expected';
-
     // any special with <20% chance pushes us toward "Rare"
     final hasVeryLowSpecial = specials.any((s) => s.percentage < 20.0);
     if (hasVeryLowSpecial) return 'Rare';
@@ -764,11 +858,6 @@ class BreedingLikelihoodAnalyzer {
     List<InheritanceMechanic> mechanics,
     List<InheritanceMechanic> specials,
   ) {
-    final hasGuaranteed = specials.any((s) => s.category == 'Guaranteed Pair');
-    if (hasGuaranteed) {
-      return 'Special breeding pair produced a predetermined result.';
-    }
-
     final lowChanceMechanics = _lessLikelyMechanics(mechanics);
 
     if (lowChanceMechanics.isEmpty && surprises.isEmpty && specials.isEmpty) {
@@ -831,6 +920,183 @@ class BreedingLikelihoodAnalyzer {
       (acc, m) => acc * (m.percentage / 100.0),
     );
     return (math.pow(product, 1.0 / core.length) * 100).toDouble();
+  }
+
+  double _sameSpeciesSpeciesOutcomePct({
+    required Creature p1,
+    required Creature p2,
+    required Creature baby,
+  }) {
+    final mutationPct = tuning.globalMutationChance.toDouble().clamp(
+      0.0,
+      100.0,
+    );
+    final mutationCandidates = _globalMutationCandidatesFor(p1, p2);
+
+    // If mutation path cannot produce anything, species is always the same.
+    if (mutationCandidates.isEmpty) {
+      return (baby.id == p1.id) ? 100.0 : 0.0;
+    }
+
+    final nonMutationPct = 100.0 - mutationPct;
+    final nonMutationShare = (baby.id == p1.id) ? 1.0 : 0.0;
+
+    final mutationMatches = mutationCandidates
+        .where((c) => c.id == baby.id)
+        .length;
+    final mutationShare = mutationMatches / mutationCandidates.length;
+
+    final pct =
+        (nonMutationPct * nonMutationShare) + (mutationPct * mutationShare);
+    return pct.clamp(0.0, 100.0);
+  }
+
+  double _crossSpeciesOutcomePct({
+    required Creature p1,
+    required Creature p2,
+    required Creature baby,
+    ParentSnapshot? parentA,
+    ParentSnapshot? parentB,
+  }) {
+    final mutationChance =
+        tuning.globalMutationChance.toDouble().clamp(0.0, 100.0) / 100.0;
+    final mutationCandidates = _globalMutationCandidatesFor(p1, p2);
+    final mutationMatches = mutationCandidates
+        .where((c) => c.id == baby.id)
+        .length;
+
+    final mutationShare = mutationCandidates.isEmpty
+        ? 0.0
+        : (mutationMatches / mutationCandidates.length);
+
+    final famDist = (parentA != null && parentB != null)
+        ? engine.getLineageAwareFamilyDistribution(p1, p2, parentA, parentB)
+        : engine.getBiasedFamilyDistribution(p1, p2);
+    final elemDist = (parentA != null && parentB != null)
+        ? engine.getLineageAwareElementDistribution(p1, p2, parentA, parentB)
+        : engine.getBiasedElementDistribution(p1, p2);
+
+    final familyProb = famDist.asPercentages().map(
+      (k, v) => MapEntry(k, (v / 100.0).clamp(0.0, 1.0)),
+    );
+    final elemProb = elemDist.asPercentages().map(
+      (k, v) => MapEntry(k, (v / 100.0).clamp(0.0, 1.0)),
+    );
+
+    final fam1 = p1.mutationFamily ?? 'Unknown';
+    final fam2 = p2.mutationFamily ?? 'Unknown';
+    final higherParentRarity = _higherRarityLabel(p1.rarity, p2.rarity);
+
+    double nonMutationShare = 0.0;
+
+    for (final fe in familyProb.entries) {
+      if (fe.value <= 0.0) continue;
+      for (final ee in elemProb.entries) {
+        if (ee.value <= 0.0) continue;
+
+        final branchShare = fe.value * ee.value;
+
+        final pool = repository.creatures
+            .where((c) {
+              if ((c.mutationFamily ?? 'Unknown') != fe.key) return false;
+              if (c.types.isEmpty || c.types.first != ee.key) return false;
+              return true;
+            })
+            .toList(growable: false);
+
+        if (pool.isEmpty) {
+          if (baby.id == p1.id || baby.id == p2.id) {
+            nonMutationShare += branchShare * 0.5;
+          }
+          continue;
+        }
+
+        final pref = pool
+            .where((c) => _withinOneRarityLabel(higherParentRarity, c.rarity))
+            .toList(growable: false);
+        final sel = pref.isNotEmpty ? pref : pool;
+
+        double totalWeight = 0.0;
+        double matchWeight = 0.0;
+
+        for (final c in sel) {
+          final w =
+              ((c.mutationFamily ?? 'Unknown') == fam1 ||
+                  (c.mutationFamily ?? 'Unknown') == fam2)
+              ? 3.0
+              : 1.0;
+          totalWeight += w;
+          if (c.id == baby.id) {
+            matchWeight += w;
+          }
+        }
+
+        if (totalWeight > 0.0 && matchWeight > 0.0) {
+          nonMutationShare += branchShare * (matchWeight / totalWeight);
+        }
+      }
+    }
+
+    final totalShare =
+        (mutationChance * mutationShare) +
+        ((1.0 - mutationChance) * nonMutationShare);
+    return (totalShare * 100.0).clamp(0.0, 100.0);
+  }
+
+  List<Creature> _globalMutationCandidatesFor(Creature p1, Creature p2) {
+    String nextRarity(String rarity) {
+      const tiers = ['Common', 'Uncommon', 'Rare', 'Legendary'];
+      final i = tiers.indexOf(rarity);
+      if (i < 0 || i >= tiers.length - 1) return rarity;
+      return tiers[i + 1];
+    }
+
+    final parentTopRarity = (_rarityRank(p1.rarity) >= _rarityRank(p2.rarity))
+        ? p1.rarity
+        : p2.rarity;
+    final targetRarity = nextRarity(parentTopRarity);
+
+    final elem1 = p1.types.isNotEmpty ? p1.types.first : null;
+    final elem2 = p2.types.isNotEmpty ? p2.types.first : null;
+    if (elem1 == null && elem2 == null) return const [];
+
+    final elementSet = <String>{};
+    if (elem1 != null) elementSet.add(elem1);
+    if (elem2 != null) elementSet.add(elem2);
+
+    final fusionKey = ElementRecipeConfig.keyOf(elem1 ?? '', elem2 ?? '');
+    final fusionRecipe = elementRecipes.recipes[fusionKey];
+    if (fusionRecipe != null) {
+      elementSet.addAll(fusionRecipe.keys);
+    }
+
+    final parentsBothMystic =
+        ((p1.mutationFamily ?? 'Unknown') == 'Mystic' &&
+        (p2.mutationFamily ?? 'Unknown') == 'Mystic');
+
+    return repository.creatures
+        .where((c) {
+          final primary = c.types.isNotEmpty ? c.types.first : null;
+          if (primary == null) return false;
+          if (!parentsBothMystic && c.mutationFamily == 'Mystic') return false;
+          return elementSet.contains(primary) && c.rarity == targetRarity;
+        })
+        .toList(growable: false);
+  }
+
+  int _rarityRank(String rarity) {
+    const order = {'Common': 0, 'Uncommon': 1, 'Rare': 2, 'Legendary': 3};
+    return order[rarity] ?? 0;
+  }
+
+  String _higherRarityLabel(String a, String b) =>
+      (_rarityRank(a) >= _rarityRank(b)) ? a : b;
+
+  bool _withinOneRarityLabel(String base, String candidate) {
+    final i = _rarityRank(base);
+    final j = _rarityRank(candidate);
+    if (i < 0 || j < 0) return true;
+    return (j - i).abs() <= 1;
   }
 
   List<InheritanceMechanic> _lessLikelyMechanics(
@@ -900,7 +1166,7 @@ class BreedingLikelihoodAnalyzer {
     return base.copyWith(
       genetics: genetics ?? base.genetics,
       nature: nature,
-      isPrismaticSkin: row.isPrismaticSkin || (base.isPrismaticSkin ?? false),
+      isPrismaticSkin: row.isPrismaticSkin || base.isPrismaticSkin,
     );
   }
 

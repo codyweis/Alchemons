@@ -8,28 +8,27 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
-import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
-import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/screens/breed/utils/breed_utils.dart';
-import 'package:alchemons/screens/creatures_screen.dart';
-import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
+import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
+import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
+import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/widgets/animations/breed_result_animation.dart';
 import 'package:alchemons/widgets/animations/database_typing_animation.dart';
 import 'package:alchemons/widgets/animations/hatching_cinematic.dart';
-import 'package:alchemons/widgets/creature_dialog.dart';
+import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/delay_type_widget.dart';
-import 'package:flame/extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -68,6 +67,8 @@ class HatchingResult {
 /// Service class for handling egg hatching and extraction
 class EggHatching {
   EggHatching._();
+  static OverlayEntry? _activeDiscoveryOverlay;
+  static int _overlayVersion = 0;
 
   // ============================================================================
   // PUBLIC API
@@ -94,6 +95,7 @@ class EggHatching {
     final repo = context.read<CreatureCatalog>();
     final gameData = context.read<GameDataService>();
     final db = context.read<AlchemonsDatabase>();
+    final fc = FC.of(context);
 
     if (slot.resultCreatureId == null) {
       return HatchingResult.failure('Could not load specimen data');
@@ -112,7 +114,7 @@ class EggHatching {
     final hp = _parsePayload(slot.payloadJson, offspring);
 
     // Starter branch: exact DB write, no rerolls
-    if ((hp.source ?? '') == 'starter') {
+    if (hp.source == 'starter') {
       final fb = _fallbackLineageFor(offspring);
 
       final createdId = await db.creatureDao.insertInstanceFromHatchPayload(
@@ -141,6 +143,8 @@ class EggHatching {
         offspring: offspring,
         isNewDiscovery: isNewDiscovery,
         undiscoveredCache: undiscoveredCache,
+        isPrismatic: hp.isPrismaticSkin,
+        variantFaction: hp.lineage.variantFaction,
       );
       return HatchingResult.success();
     }
@@ -157,6 +161,7 @@ class EggHatching {
       parentage: hp.parentage?.toJson(),
       isPrismaticSkin: hp.isPrismaticSkin,
       likelihoodAnalysisJson: hp.likelihoodAnalysisJson,
+      source: hp.source,
       statBeauty: hp.stats.beauty,
       statSpeed: hp.stats.speed,
       statIntelligence: hp.stats.intelligence,
@@ -183,7 +188,7 @@ class EggHatching {
       return HatchingResult.failure(
         'Specimen containment full. Clear space to complete extraction.',
         icon: Icons.warning_amber_rounded,
-        color: Colors.orange.shade600,
+        color: FC.orange,
       );
     }
 
@@ -191,7 +196,7 @@ class EggHatching {
     if (instanceId == null || instanceId.isEmpty) {
       return HatchingResult.failure(
         'Extraction failed: system error',
-        color: Colors.red.shade600,
+        color: fc.danger,
       );
     }
 
@@ -202,6 +207,8 @@ class EggHatching {
       offspring: offspring,
       isNewDiscovery: isNewDiscovery,
       undiscoveredCache: undiscoveredCache,
+      isPrismatic: hp.isPrismaticSkin,
+      variantFaction: hp.lineage.variantFaction,
     );
     return HatchingResult.success();
   }
@@ -285,7 +292,7 @@ class EggHatching {
         success: true,
         message: 'Incubator full — embryo transferred to storage',
         icon: Icons.inventory_2_rounded,
-        color: Colors.orange,
+        color: FC.orange,
       );
     } else {
       // Place directly
@@ -342,33 +349,6 @@ class EggHatching {
   // ============================================================================
 
   /// Pick a random creature from the elemental group
-  static Creature? _pickRandomCreatureFromGroup(
-    CreatureCatalog repo,
-    ElementalGroup group,
-    String? fixedRarity,
-  ) {
-    final allCreatures = repo.creatures;
-
-    // Filter by group
-    final inGroup = allCreatures.where((c) {
-      return c.types.any((type) => elementalGroupOf(c) == group);
-    }).toList();
-
-    if (inGroup.isEmpty) return null;
-
-    // Filter by rarity if specified
-    final candidates = fixedRarity != null
-        ? inGroup
-              .where((c) => c.rarity.toLowerCase() == fixedRarity.toLowerCase())
-              .toList()
-        : inGroup;
-
-    if (candidates.isEmpty) return null;
-
-    // Pick random
-    final rng = Random();
-    return candidates[rng.nextInt(candidates.length)];
-  }
 
   /// Parse payload from JSON
   static EggPayload _parsePayload(String? payloadJson, Creature offspring) {
@@ -399,6 +379,22 @@ class EggHatching {
     return EggPayload.fromJson(json);
   }
 
+  /// Get the color for a variant faction
+  static Color? _getVariantColor(String? variantFaction) {
+    if (variantFaction == null || variantFaction.isEmpty) return null;
+
+    // Map faction names to their signature colors
+    final factionColors = <String, Color>{
+      'Volcanic': const Color(0xFFFF5722), // Orange-red / Fire
+      'Oceanic': const Color(0xFF2196F3), // Blue / Water
+      'Earthen': const Color(0xFF795548), // Brown / Earth
+      'Verdant': const Color(0xFF4CAF50), // Green / Nature
+      'Arcane': const Color(0xFF9C27B0), // Purple / Magic
+    };
+
+    return factionColors[variantFaction];
+  }
+
   static Future<void> _afterHatchCommon({
     required BuildContext context,
     required IncubatorSlot slot,
@@ -406,6 +402,8 @@ class EggHatching {
     required Creature offspring,
     required bool isNewDiscovery,
     required Map<String, bool> undiscoveredCache,
+    bool isPrismatic = false,
+    String? variantFaction,
   }) async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
@@ -451,14 +449,42 @@ class EggHatching {
     final p2Types = parent2?['types'] as List<dynamic>?;
 
     final types = <String>[];
-    if (p1Types != null && p1Types.isNotEmpty)
+    if (p1Types != null && p1Types.isNotEmpty) {
       types.add(p1Types.first.toString());
-    if (p2Types != null && p2Types.isNotEmpty)
+    }
+    if (p2Types != null && p2Types.isNotEmpty) {
       types.add(p2Types.first.toString());
+    }
 
     final instancePath = creature!.image;
     final Color primaryHue = BreedConstants.getRarityColor(offspring.rarity);
     ImageProvider? silhouette = AssetImage('assets/images/$instancePath');
+
+    // Determine hint type for special hatches
+    // Check instance data as fallback (in case payload didn't have it)
+    final actualIsPrismatic =
+        isPrismatic || (instance?.isPrismaticSkin == true);
+    final actualVariantFaction = variantFaction ?? instance?.variantFaction;
+
+    HatchHintType hintType = HatchHintType.normal;
+    Color? variantColor;
+
+    if (actualIsPrismatic) {
+      hintType = HatchHintType.prismatic;
+    } else if (actualVariantFaction != null &&
+        actualVariantFaction.isNotEmpty) {
+      hintType = HatchHintType.variant;
+      variantColor = _getVariantColor(actualVariantFaction);
+    }
+
+    final recipeDiscoveryFuture =
+        AlchemicalEncyclopediaService.registerBreedingDiscovery(
+          db: db,
+          repo: repo,
+          offspring: offspring,
+          parentageJson: instance?.parentageJson,
+        );
+    final cinematicQuality = await CinematicQualityService().getQuality();
 
     try {
       // ✅ still use the original context for the cinematic if you want
@@ -469,7 +495,10 @@ class EggHatching {
         parentBTypeId: types.length > 1 ? types[1] : offspring.types.last,
         paletteMain: primaryHue,
         creatureSilhouette: silhouette,
-        totalDuration: const Duration(milliseconds: 8000),
+        totalDuration: const Duration(milliseconds: 4200), // Faster!
+        hintType: hintType,
+        variantColor: variantColor,
+        quality: cinematicQuality,
       );
     } catch (e) {
       final factionSvc = context.read<FactionService>();
@@ -484,94 +513,20 @@ class EggHatching {
 
     if (!nav.mounted) return;
 
-    await _showExtractionResult(safeContext, instanceId, isNewDiscovery);
-  }
-
-  /// Extract and normalize lineage data from payload
-  static ({
-    int generationDepth,
-    Map<String, int> factionLineage,
-    Map<String, int> elementLineage,
-    Map<String, int> familyLineage,
-    String? variantFaction,
-    bool isPure,
-  })
-  _extractLineage(Map<String, dynamic>? payload, Creature offspring) {
-    // Support both nested payload['lineage'] and flat form
-    Map<String, dynamic>? lineageBlock;
-    final rawLineage = payload?['lineage'];
-    if (rawLineage is Map) {
-      lineageBlock = rawLineage.cast<String, dynamic>();
-    } else {
-      lineageBlock = payload;
-    }
-
-    // Helper to convert values to int
-    int? _asInt(dynamic v) => (v is num) ? v.toInt() : null;
-
-    // Helper to normalize lineage maps
-    Map<String, int>? _normalizeLineageMap(dynamic raw) {
-      if (raw is! Map) return null;
-      final m = <String, int>{};
-      raw.forEach((k, v) {
-        var key = k.toString();
-
-        // Legacy enum-style keys like "CreatureFamily.let" -> "Let"
-        if (key.startsWith('CreatureFamily.')) {
-          final tail = key.split('.').last;
-          key = tail.isEmpty
-              ? 'Unknown'
-              : (tail[0].toUpperCase() + tail.substring(1));
-        }
-
-        final vv = (v is num)
-            ? v.toInt()
-            : (v is String ? int.tryParse(v) ?? 0 : 0);
-
-        if (vv > 0) m[key] = vv;
-      });
-      return m;
-    }
-
-    final payloadDepth = _asInt(lineageBlock?['generationDepth']);
-    final payloadVariantFaction = (lineageBlock?['variantFaction'] as String?);
-    final payloadIsPure = (lineageBlock?['isPure'] as bool?);
-
-    final payloadFactionLineage = _normalizeLineageMap(
-      lineageBlock?['factionLineage'],
-    );
-    final payloadElementLineage = _normalizeLineageMap(
-      lineageBlock?['elementLineage'],
-    );
-    final payloadFamilyLineage = _normalizeLineageMap(
-      lineageBlock?['familyLineage'],
+    await _showExtractionResult(
+      safeContext,
+      instanceId,
+      isNewDiscovery,
+      cinematicQuality: cinematicQuality,
     );
 
-    // Choose lineage: trust payload when present; otherwise synthesize fallback
-    if (payloadDepth != null && (payloadFactionLineage?.isNotEmpty ?? false)) {
-      // TRUST PAYLOAD
-      return (
-        generationDepth: payloadDepth,
-        factionLineage: payloadFactionLineage!,
-        variantFaction: payloadVariantFaction,
-        isPure: payloadIsPure ?? false,
-        elementLineage: payloadElementLineage?.isNotEmpty ?? false
-            ? payloadElementLineage!
-            : _fallbackLineageFor(offspring).elementLineage,
-        familyLineage: payloadFamilyLineage?.isNotEmpty ?? false
-            ? payloadFamilyLineage!
-            : _fallbackLineageFor(offspring).familyLineage,
-      );
-    } else {
-      // FALLBACK (wild/legacy eggs)
-      final fb = _fallbackLineageFor(offspring);
-      return (
-        generationDepth: fb.generationDepth,
-        factionLineage: fb.factionLineage,
-        variantFaction: fb.variantFaction,
-        isPure: fb.isPure,
-        elementLineage: fb.elementLineage,
-        familyLineage: fb.familyLineage,
+    final recipeDiscovery = await recipeDiscoveryFuture.catchError(
+      (_) => EncyclopediaDiscoveryResult.none,
+    );
+    if (recipeDiscovery.hasAny) {
+      _showScorchedDiscoveryOverlay(
+        safeContext,
+        count: recipeDiscovery.unlocked.length,
       );
     }
   }
@@ -598,7 +553,6 @@ class EggHatching {
     String? familyId() {
       try {
         final f = familyOf(offspring);
-        if (f == null) return null;
         return f.toString();
       } catch (_) {
         return null;
@@ -690,8 +644,9 @@ class EggHatching {
   static Future<void> _showExtractionResult(
     BuildContext context,
     String instanceId,
-    bool isNewDiscovery,
-  ) async {
+    bool isNewDiscovery, {
+    required CinematicQuality cinematicQuality,
+  }) async {
     final offspring = await _effectiveFromInstance(context, instanceId);
 
     final factionSvc = context.read<FactionService>();
@@ -719,49 +674,59 @@ class EggHatching {
         .creatureDao
         .getInstance(instanceId);
 
+    final media = MediaQuery.of(context);
+    final shortestSide = media.size.shortestSide;
+    final lowFxDevice = media.disableAnimations || shortestSide < 430;
+    final dialogBlurSigma = switch (cinematicQuality) {
+      CinematicQuality.high => lowFxDevice ? 0.0 : 14.0,
+      CinematicQuality.balanced => lowFxDevice ? 0.0 : 8.0,
+    };
+
+    Widget dialogShell(Widget child) {
+      if (dialogBlurSigma <= 0) return child;
+      return BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: dialogBlurSigma,
+          sigmaY: dialogBlurSigma,
+        ),
+        child: child,
+      );
+    }
+
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
+          final fc = FC.of(context);
           return Dialog(
             backgroundColor: Colors.transparent,
             insetPadding: const EdgeInsets.all(12),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
+              child: dialogShell(
+                Container(
                   width: MediaQuery.of(context).size.width * 0.95,
                   height: MediaQuery.of(context).size.height * 0.82,
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(.25),
+                    color: fc.bg0.withValues(alpha: .7),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: primaryColor.withOpacity(.45),
+                      color: primaryColor.withValues(alpha: .45),
                       width: 2,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(.18),
-                        blurRadius: 20,
-                        spreadRadius: 1,
-                      ),
-                    ],
                   ),
                   child: Column(
                     children: [
-                      _buildExtractionHeader(offspring, primaryColor),
+                      _buildExtractionHeader(offspring, primaryColor, fc),
 
                       // Sprite dock
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.03),
+                          color: fc.bg2,
                           border: Border(
-                            bottom: BorderSide(
-                              color: Colors.white.withOpacity(.08),
-                            ),
+                            bottom: BorderSide(color: fc.borderDim),
                           ),
                         ),
                         child: Row(
@@ -774,24 +739,27 @@ class EggHatching {
                                   width: 200,
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(.02),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(.12),
-                                    ),
+                                    color: fc.bg1,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: fc.borderDim),
                                   ),
                                   child: CreatureScanAnimation(
                                     key: scanAnimationKey,
                                     isNewDiscovery: isNewDiscovery,
-                                    scanDuration: const Duration(
-                                      milliseconds: 2000,
-                                    ),
+                                    scanDuration: switch (cinematicQuality) {
+                                      CinematicQuality.high => const Duration(
+                                        milliseconds: 1400,
+                                      ),
+                                      CinematicQuality.balanced =>
+                                        const Duration(milliseconds: 1800),
+                                    },
                                     onReadyChanged: (ready) {
                                       if (ready) {
-                                        safeSetDialogState(
-                                          setDialogState,
-                                          () => scanComplete = true,
-                                        );
+                                        safeSetDialogState(setDialogState, () {
+                                          scanComplete = true;
+                                          ctaVisible =
+                                              true; // Show button right away
+                                        });
                                       }
                                     },
                                     child: InstanceSprite(
@@ -812,7 +780,7 @@ class EggHatching {
                                       ),
                                       child: _buildBadge(
                                         'NEW DISCOVERY',
-                                        Colors.tealAccent,
+                                        fc.teal,
                                       ),
                                     ),
                                   ),
@@ -827,8 +795,20 @@ class EggHatching {
                                       ),
                                       child: _buildBadge(
                                         'VARIANT DISCOVERY',
-                                        Colors.purpleAccent,
+                                        FC.purple,
                                       ),
+                                    ),
+                                  ),
+                                if (instance.isPrismaticSkin == true)
+                                  Positioned(
+                                    bottom: 8,
+                                    left: 8,
+                                    child: AnimatedOpacity(
+                                      opacity: scanComplete ? 1 : 0,
+                                      duration: const Duration(
+                                        milliseconds: 300,
+                                      ),
+                                      child: _buildPrismaticBadge(),
                                     ),
                                   ),
                               ],
@@ -852,10 +832,7 @@ class EggHatching {
                                     milliseconds: 100,
                                   ),
                                   onComplete: () {
-                                    safeSetDialogState(setDialogState, () {
-                                      ctaVisible = true;
-                                      ctaTouchable = false;
-                                    });
+                                    // Typing done - button already visible
                                   },
                                   children: [
                                     _buildAnalysisSection(
@@ -867,6 +844,7 @@ class EggHatching {
                                           offspring.rarity,
                                           scanComplete,
                                           primaryColor,
+                                          fc: fc,
                                         ),
                                         _buildTypingAnalysisRow(
                                           'TYPE CATEGORIES',
@@ -876,6 +854,7 @@ class EggHatching {
                                           delay: const Duration(
                                             milliseconds: 300,
                                           ),
+                                          fc: fc,
                                         ),
                                         if (offspring.description.isNotEmpty)
                                           _buildTypingAnalysisRow(
@@ -886,8 +865,10 @@ class EggHatching {
                                             delay: const Duration(
                                               milliseconds: 600,
                                             ),
+                                            fc: fc,
                                           ),
                                       ],
+                                      fc,
                                     ),
                                     const SizedBox(height: 15),
                                     _buildAnalysisSection(
@@ -899,6 +880,7 @@ class EggHatching {
                                           _getSizeName(offspring),
                                           scanComplete,
                                           primaryColor,
+                                          fc: fc,
                                         ),
                                         _buildTypingAnalysisRow(
                                           'PIGMENTATION',
@@ -908,6 +890,7 @@ class EggHatching {
                                           delay: const Duration(
                                             milliseconds: 300,
                                           ),
+                                          fc: fc,
                                         ),
                                         if (offspring.nature != null)
                                           _buildTypingAnalysisRow(
@@ -918,24 +901,16 @@ class EggHatching {
                                             delay: const Duration(
                                               milliseconds: 600,
                                             ),
-                                          ),
-                                        if (offspring.isPrismaticSkin == true)
-                                          _buildTypingAnalysisRow(
-                                            'SPECIAL TRAIT',
-                                            'PRISMATIC PHENOTYPE',
-                                            scanComplete,
-                                            primaryColor,
-                                            delay: const Duration(
-                                              milliseconds: 900,
-                                            ),
+                                            fc: fc,
                                           ),
                                         _buildVariantTypingRow(
-                                          context,
-                                          instanceId,
+                                          instance,
                                           scanComplete,
                                           primaryColor,
+                                          fc,
                                         ),
                                       ],
+                                      fc,
                                     ),
                                   ],
                                 ),
@@ -950,16 +925,12 @@ class EggHatching {
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(.2),
-                          border: Border(
-                            top: BorderSide(
-                              color: Colors.white.withOpacity(.08),
-                            ),
-                          ),
+                          color: fc.bg2,
+                          border: Border(top: BorderSide(color: fc.borderDim)),
                         ),
                         child: AnimatedOpacity(
                           opacity: ctaVisible ? 1 : 0,
-                          duration: const Duration(milliseconds: 450),
+                          duration: const Duration(milliseconds: 300),
                           onEnd: () {
                             if (ctaVisible && !closing) {
                               safeSetDialogState(
@@ -1014,23 +985,12 @@ class EggHatching {
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: [
-                                            primaryColor.withOpacity(.95),
-                                            primaryColor.withOpacity(.8),
+                                            primaryColor.withValues(alpha: .95),
+                                            primaryColor.withValues(alpha: .8),
                                           ],
                                         ),
                                         borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: Colors.white.withOpacity(.18),
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: primaryColor.withOpacity(
-                                              .25,
-                                            ),
-                                            blurRadius: 12,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
+                                        border: Border.all(color: fc.borderDim),
                                       ),
                                       child: const Row(
                                         mainAxisAlignment:
@@ -1072,16 +1032,16 @@ class EggHatching {
                                     width: 50,
                                     height: 50,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(.08),
-                                      borderRadius: BorderRadius.circular(10),
+                                      color: fc.bg2,
+                                      borderRadius: BorderRadius.circular(6),
                                       border: Border.all(
-                                        color: Colors.white.withOpacity(.25),
+                                        color: fc.borderDim,
                                         width: 1.5,
                                       ),
                                     ),
                                     child: Icon(
                                       Icons.pets_rounded,
-                                      color: Colors.white.withOpacity(.9),
+                                      color: fc.textSecondary,
                                       size: 22,
                                     ),
                                   ),
@@ -1106,13 +1066,121 @@ class EggHatching {
   // DIALOG UI COMPONENTS
   // ============================================================================
 
+  static void _showScorchedDiscoveryOverlay(
+    BuildContext context, {
+    required int count,
+  }) {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    final overlay = rootNav.overlay;
+    if (overlay == null) return;
+
+    final title = count == 1
+        ? 'New discovery added'
+        : '$count new discoveries added';
+
+    void dismissOverlay() {
+      _activeDiscoveryOverlay?.remove();
+      _activeDiscoveryOverlay = null;
+    }
+
+    void openEncyclopedia() {
+      dismissOverlay();
+      rootNav.push(
+        MaterialPageRoute(builder: (_) => const AlchemicalEncyclopediaScreen()),
+      );
+    }
+
+    dismissOverlay();
+    final int version = ++_overlayVersion;
+
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (overlayContext) {
+        final top = MediaQuery.of(overlayContext).padding.top + 10;
+        return Positioned(
+          top: top,
+          left: 14,
+          right: 14,
+          child: Material(
+            color: Colors.transparent,
+            child: GestureDetector(
+              onTap: openEncyclopedia,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF2B1711), Color(0xFF4B2317)],
+                  ),
+                  border: Border.all(
+                    color: const Color(0xFFE26A3D).withValues(alpha: .7),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFE26A3D).withValues(alpha: .2),
+                      blurRadius: 16,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFE26A3D).withValues(alpha: .2),
+                        border: Border.all(
+                          color: const Color(0xFFE26A3D).withValues(alpha: .6),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.menu_book_rounded,
+                        color: Color(0xFFFFB188),
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '$title • Tap to open encyclopedia',
+                        style: const TextStyle(
+                          color: Color(0xFFFFD4C1),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    _activeDiscoveryOverlay = entry;
+    overlay.insert(entry);
+
+    Future<void>.delayed(const Duration(seconds: 4), () {
+      if (_overlayVersion == version) {
+        dismissOverlay();
+      }
+    });
+  }
+
   static Widget _buildBadge(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(.18),
+        color: color.withValues(alpha: .18),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(.45)),
+        border: Border.all(color: color.withValues(alpha: .45)),
       ),
       child: Text(
         text,
@@ -1126,18 +1194,55 @@ class EggHatching {
     );
   }
 
-  static Widget _buildExtractionHeader(Creature offspring, Color primaryColor) {
+  static Widget _buildPrismaticBadge() {
+    const prismaticColors = [
+      Colors.red,
+      Colors.orange,
+      Colors.yellow,
+      Colors.green,
+      Colors.cyan,
+      Colors.blue,
+      Colors.purple,
+    ];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: prismaticColors.map((c) => c.withValues(alpha: .15)).toList(),
+        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: .4)),
+      ),
+      child: ShaderMask(
+        shaderCallback: (bounds) =>
+            LinearGradient(colors: prismaticColors).createShader(bounds),
+        child: const Text(
+          'PRISMATIC',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 7,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildExtractionHeader(
+    Creature offspring,
+    Color primaryColor,
+    FC fc,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.03),
-        borderRadius: const BorderRadius.only(
+        color: fc.bg2,
+        borderRadius: BorderRadius.only(
           topLeft: Radius.circular(16),
           topRight: Radius.circular(16),
         ),
-        border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(.08)),
-        ),
+        border: Border(bottom: BorderSide(color: fc.borderDim)),
       ),
       child: Column(
         children: [
@@ -1161,8 +1266,8 @@ class EggHatching {
           const SizedBox(height: 6),
           Text(
             offspring.name,
-            style: const TextStyle(
-              color: Color(0xFFE8EAED),
+            style: TextStyle(
+              color: fc.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 13,
               letterSpacing: .3,
@@ -1178,6 +1283,7 @@ class EggHatching {
     String title,
     Color primaryColor,
     List<Widget> children,
+    FC fc,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1188,8 +1294,8 @@ class EggHatching {
             const SizedBox(width: 8),
             Text(
               title,
-              style: const TextStyle(
-                color: Color(0xFFE8EAED),
+              style: TextStyle(
+                color: fc.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
                 letterSpacing: .6,
@@ -1202,9 +1308,9 @@ class EggHatching {
           width: double.infinity,
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(.25),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white.withOpacity(.12)),
+            color: fc.bg1,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: fc.borderDim),
           ),
           child: Column(children: children),
         ),
@@ -1218,6 +1324,7 @@ class EggHatching {
     bool startTyping,
     Color primaryColor, {
     Duration delay = Duration.zero,
+    required FC fc,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -1229,7 +1336,7 @@ class EggHatching {
             child: Text(
               label,
               style: TextStyle(
-                color: Colors.white.withOpacity(.6),
+                color: fc.textSecondary,
                 fontSize: 10.5,
                 fontWeight: FontWeight.w800,
                 letterSpacing: .4,
@@ -1241,8 +1348,8 @@ class EggHatching {
                 ? DelayedTypingText(
                     text: value,
                     delay: delay,
-                    style: const TextStyle(
-                      color: Color(0xFFE8EAED),
+                    style: TextStyle(
+                      color: fc.textPrimary,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1255,35 +1362,24 @@ class EggHatching {
   }
 
   static Widget _buildVariantTypingRow(
-    BuildContext context,
-    String instanceId,
+    CreatureInstance? instance,
     bool startTyping,
     Color primaryColor,
+    FC fc,
   ) {
-    return FutureBuilder<CreatureInstance?>(
-      future: context.read<AlchemonsDatabase>().creatureDao.getInstance(
-        instanceId,
-      ),
-      builder: (context, snap) {
-        if (!snap.hasData || snap.data == null) {
-          return const SizedBox.shrink();
-        }
+    if (instance == null) return const SizedBox.shrink();
+    final variantType = instance.variantFaction;
+    if (variantType == null || variantType.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-        final inst = snap.data!;
-        final isVariant =
-            inst.variantFaction != null && inst.variantFaction!.isNotEmpty;
-        if (!isVariant) return const SizedBox.shrink();
-
-        final variantType = inst.variantFaction!;
-
-        return _buildTypingAnalysisRow(
-          'VARIANT FACTION',
-          variantType,
-          startTyping,
-          primaryColor,
-          delay: const Duration(milliseconds: 900),
-        );
-      },
+    return _buildTypingAnalysisRow(
+      'VARIANT FACTION',
+      variantType,
+      startTyping,
+      primaryColor,
+      delay: const Duration(milliseconds: 900),
+      fc: fc,
     );
   }
 

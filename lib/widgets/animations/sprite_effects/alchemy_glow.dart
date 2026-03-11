@@ -49,8 +49,8 @@ class _AlchemyGlowState extends State<AlchemyGlow>
               shape: BoxShape.circle,
               gradient: RadialGradient(
                 colors: [
-                  Colors.cyan.withOpacity(0.3),
-                  Colors.purple.withOpacity(0.2),
+                  Colors.cyan.withValues(alpha: 0.3),
+                  Colors.purple.withValues(alpha: 0.2),
                   Colors.transparent,
                 ],
               ),

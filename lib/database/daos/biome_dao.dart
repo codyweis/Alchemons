@@ -113,8 +113,10 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
       ),
     );
 
-    // Schedule harvest ready notification
-    final completionTime = startTime.add(duration);
+    final completionTime = startTime
+        .add(duration)
+        .toLocal(); // <-- Add .toLocal()
+
     await _pushNotifications.scheduleHarvestReadyNotification(
       readyTime: completionTime,
       biomeId: biomeId,
@@ -160,7 +162,8 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
       final newCompletionTime = DateTime.fromMillisecondsSinceEpoch(
         newStart + job.durationMs,
         isUtc: true,
-      );
+      ).toLocal();
+
       await _pushNotifications.scheduleHarvestReadyNotification(
         readyTime: newCompletionTime,
         biomeId: biomeId,

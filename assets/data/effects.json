@@ -1,0 +1,4 @@
+[
+  {"id": "flame_aura", "dmgMult": 1.25},
+  {"id": "slow_field", "speedMult": 0.75, "duration": 6}
+]

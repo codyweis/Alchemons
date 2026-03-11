@@ -5,6 +5,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/detail_helper_widgets.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 
 // If you created CreatureFamily/ElementalGroup helpers, import them too:
@@ -12,20 +13,23 @@ import 'package:flutter/material.dart';
 // import 'package:alchemons/models/family.dart';
 
 class LineageBlock extends StatelessWidget {
-  final FactionTheme theme;
+  // ignore: unused_field
+  final FactionTheme? theme;
   final CreatureInstance instance;
 
-  const LineageBlock({super.key, required this.theme, required this.instance});
+  const LineageBlock({super.key, this.theme, required this.instance});
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     final genDepth = instance.generationDepth;
     final isPure = instance.isPure == true;
 
     if (genDepth == 0) {
       return Text(
-        'This is a first generation Alchemon.',
-        style: TextStyle(color: theme.textMuted, fontSize: 11, height: 1.3),
+        'This is a first generation and elementally pure Alchemon.',
+        style: ft.body.copyWith(fontSize: 11, height: 1.3),
       );
     }
 
@@ -37,9 +41,6 @@ class LineageBlock extends StatelessWidget {
 
     // Decode maps from the instance (new columns, may be null for old saves)
     // Decode maps from the instance (new columns, may be null for old saves)
-    final Map<String, int> factionMap = _decodeLineageMapGeneric(
-      instance.factionLineageJson,
-    );
     final Map<String, int> elementMap = _decodeLineageMapGeneric(
       _tryGet(instance, 'elementLineageJson'),
     );
@@ -56,7 +57,7 @@ class LineageBlock extends StatelessWidget {
         LabeledInlineValue(
           label: 'Generation',
           valueText: genDepth.toString(),
-          valueColor: theme.text,
+          valueColor: theme?.text ?? fc.textPrimary,
         ),
 
         // Purity descriptor
@@ -65,17 +66,7 @@ class LineageBlock extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 100,
-                child: Text(
-                  'Lineage',
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
+              SizedBox(width: 100, child: Text('LINEAGE', style: ft.label)),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,9 +85,11 @@ class LineageBlock extends StatelessWidget {
                         Text(
                           purityLabel,
                           style: TextStyle(
+                            fontFamily: 'monospace',
                             color: purityColor,
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
@@ -104,11 +97,7 @@ class LineageBlock extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       purityDesc,
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 10,
-                        height: 1.3,
-                      ),
+                      style: ft.body.copyWith(fontSize: 10, height: 1.3),
                     ),
                   ],
                 ),
@@ -120,7 +109,7 @@ class LineageBlock extends StatelessWidget {
         const SizedBox(height: 8),
 
         if (elementMap.isNotEmpty) ...[
-          _SectionHeader('Element Ancestry', theme.text),
+          _SectionHeader('Element Ancestry'),
           const SizedBox(height: 6),
           _LineageRow(
             data: elementMap,
@@ -131,12 +120,12 @@ class LineageBlock extends StatelessWidget {
         ],
 
         if (familyMap.isNotEmpty) ...[
-          _SectionHeader('Family Ancestry', theme.text),
+          _SectionHeader('Family Ancestry'),
           const SizedBox(height: 6),
           _LineageRow(
             data: familyMap,
-            colorOf: FamilyColors.of, // ← colors for families
-            labelOf: FamilyColors.label, // ← pretty labels ('Let', 'Wing', …)
+            colorOf: FamilyColors.of,
+            labelOf: FamilyColors.label,
             subtitleHint:
                 'Let / Horn / Kin / Mane / Mask / Pip / Wing / Mystic',
           ),
@@ -189,24 +178,6 @@ class LineageBlock extends StatelessWidget {
       return {};
     }
   }
-
-  static Map<String, int> _decodeLineageMap(String? raw) {
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final mm = (jsonDecode(raw) as Map).map(
-        (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-      )..removeWhere((_, v) => v <= 0);
-
-      final out = <String, int>{};
-      mm.forEach((k, v) {
-        final code = FamilyColors.code(k); // ← normalize to 'LET','WNG',…
-        out[code] = (out[code] ?? 0) + v;
-      });
-      return out;
-    } catch (_) {
-      return {};
-    }
-  }
 }
 
 /// ─────────────────────────────────────────────────────────
@@ -231,7 +202,7 @@ class _LineageRow extends StatelessWidget {
     if (total <= 0) return const SizedBox.shrink();
     final items = data.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    String _label(String k) => labelOf?.call(k) ?? k;
+    String label(String k) => labelOf?.call(k) ?? k;
 
     return Row(
       children: [
@@ -242,7 +213,7 @@ class _LineageRow extends StatelessWidget {
             slices: [
               for (final e in items)
                 _Slice(
-                  label: _label(e.key),
+                  label: label(e.key),
                   value: e.value.toDouble(),
                   color: colorOf(e.key),
                 ),
@@ -259,7 +230,7 @@ class _LineageRow extends StatelessWidget {
               for (final e in items)
                 _LegendItem(
                   color: colorOf(e.key),
-                  label: _label(e.key),
+                  label: label(e.key),
                   pct: (e.value / total) * 100.0,
                 ),
             ],
@@ -311,7 +282,7 @@ class _DonutPainter extends CustomPainter {
     final bgPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
-      ..color = Colors.black.withOpacity(0.06)
+      ..color = Colors.black.withValues(alpha: 0.06)
       ..strokeCap = StrokeCap.butt;
     canvas.drawCircle(center, radius - strokeWidth / 2, bgPaint);
 
@@ -358,21 +329,27 @@ class _LegendItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final pctText = '${pct.toStringAsFixed(pct >= 10 ? 0 : 1)}%';
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(1),
+          ),
         ),
         const SizedBox(width: 6),
         Text(
           '$label · $pctText',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            fontSize: 11,
-            color: Theme.of(context).colorScheme.onSurface,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: fc.textSecondary,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
@@ -382,27 +359,21 @@ class _LegendItem extends StatelessWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String text;
-  final Color color;
 
-  const _SectionHeader(this.text, this.color, {super.key});
+  const _SectionHeader(this.text);
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     return Padding(
       padding: const EdgeInsets.only(top: 6.0, bottom: 2.0),
-      child: Text(
-        text.toUpperCase(),
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.4,
-        ),
-      ),
+      child: Text(text.toUpperCase(), style: ft.sectionTitle),
     );
   }
 }
 
+// ignore: unused_element
 class _FactionTile extends StatelessWidget {
   final String name;
   final int count;
@@ -416,36 +387,43 @@ class _FactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.4), width: 1),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: color.withValues(alpha: 0.45), width: 0.8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(1),
+            ),
           ),
           const SizedBox(width: 6),
           Text(
             name,
             style: TextStyle(
+              fontFamily: 'monospace',
               color: color,
               fontWeight: FontWeight.w700,
-              fontSize: 11,
+              fontSize: 10,
+              letterSpacing: 0.5,
             ),
           ),
           const SizedBox(width: 6),
           Text(
             count.toString(),
             style: TextStyle(
-              color: Colors.white.withOpacity(.85),
-              fontSize: 11,
+              fontFamily: 'monospace',
+              color: fc.textPrimary,
+              fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
           ),

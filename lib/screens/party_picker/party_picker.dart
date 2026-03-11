@@ -1,100 +1,43 @@
 // lib/games/survival/party_picker_screen.dart
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'party_picker_empty_state.dart';
 import 'party_picker_widgets.dart';
-import 'party_picker_dialogs.dart';
-// import your SurvivalGameScreen / route as needed
 
 class PartyPickerScreen extends StatefulWidget {
-  const PartyPickerScreen({super.key});
+  const PartyPickerScreen({
+    super.key,
+    this.showDeployConfirm = true,
+    this.enforceUniqueSpecies = true,
+  });
+
+  /// When false the "Deploy Team?" confirmation dialog is skipped.
+  /// Set to false when opening from contexts that don't deploy to the wild
+  /// (e.g. boss squad selection).
+  final bool showDeployConfirm;
+
+  /// When true, prevents selecting two instances of the same species.
+  /// Disable this for wild deployment where duplicate species are allowed.
+  final bool enforceUniqueSpecies;
 
   @override
   State<PartyPickerScreen> createState() => _PartyPickerScreenState();
 }
 
 class _PartyPickerScreenState extends State<PartyPickerScreen> {
-  // Selection state
-  String? _selectedSpeciesId;
-
-  // Search state
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  late final ScrollController _speciesScrollCtrl;
-
-  bool _showAllInstances = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _speciesScrollCtrl = ScrollController();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _speciesScrollCtrl.dispose();
-    super.dispose();
-  }
-
-  // Helper to build species summary list
-  List<Map<String, dynamic>> buildSpeciesListData({
-    required List<CreatureInstance> instances,
-    required CreatureCatalog repo,
-  }) {
-    final countBySpecies = <String, int>{};
-    for (final inst in instances) {
-      countBySpecies[inst.baseId] = (countBySpecies[inst.baseId] ?? 0) + 1;
-    }
-
-    final result = <Map<String, dynamic>>[];
-    for (final speciesId in countBySpecies.keys) {
-      final creature = repo.getCreatureById(speciesId);
-      if (creature == null) continue;
-      result.add({'creature': creature, 'count': countBySpecies[speciesId]});
-    }
-    return result;
-  }
-
-  bool get _isPickingSpecies => _selectedSpeciesId == null;
-  bool get _isPickingInstance => _selectedSpeciesId != null;
-
-  String get _currentStage {
-    if (_showAllInstances) return 'all_instances';
-    if (_isPickingSpecies) return 'species';
-    return 'instance';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
     final db = context.watch<AlchemonsDatabase>();
-    final party = context.watch<SelectedPartyNotifier>();
-
-    final maxSize = SelectedPartyNotifier.maxSize;
-    final currentSize = party.members.length;
-    final canStartSurvival = currentSize == maxSize;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: canStartSurvival
-            ? () => _startSurvivalRun(context, party)
-            : null,
-        label: Text('Start Survival ($currentSize/$maxSize)'),
-        icon: const Icon(Icons.play_arrow_rounded),
-      ),
       body: Stack(
         children: [
           Container(
@@ -105,7 +48,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                 colors: [
                   theme.surface,
                   theme.surface,
-                  theme.surfaceAlt.withOpacity(.6),
+                  theme.surfaceAlt.withValues(alpha: .6),
                 ],
                 stops: const [0.0, 0.6, 1.0],
               ),
@@ -114,20 +57,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
               bottom: false,
               child: Column(
                 children: [
-                  StageHeader(
-                    theme: theme,
-                    stage: _currentStage,
-                    onBack: _handleBack,
-                    onOpenAllInstances: () {
-                      HapticFeedback.lightImpact();
-                      setState(() {
-                        _showAllInstances = true;
-                        _selectedSpeciesId = null;
-                        _searchController.clear();
-                        _searchQuery = '';
-                      });
-                    },
-                  ),
+                  StageHeader(theme: theme),
                   const SizedBox(height: 10),
 
                   // Main content
@@ -136,14 +66,16 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                       stream: db.creatureDao.watchAllInstances(),
                       builder: (context, snap) {
                         final instances = snap.data ?? [];
-                        return _buildStageContent(theme, instances);
+                        return _buildAllInstancesView(theme, instances);
                       },
                     ),
                   ),
 
                   // Footer with party info
-                  PartyFooter(theme: theme),
-                  const SizedBox(height: 72), // padding so FAB doesn't overlay
+                  PartyFooter(
+                    theme: theme,
+                    showDeployConfirm: widget.showDeployConfirm,
+                  ),
                 ],
               ),
             ),
@@ -153,242 +85,75 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     );
   }
 
-  // ---------- Stage Content Builders ----------
-
-  Widget _buildStageContent(
+  Widget _buildAllInstancesView(
     FactionTheme theme,
     List<CreatureInstance> instances,
-  ) {
-    final repo = context.read<CreatureCatalog>();
-
-    if (_showAllInstances) {
-      return _buildAllInstancesStage(theme, instances, repo);
-    }
-
-    if (_isPickingSpecies) {
-      return _buildSpeciesStage(theme, instances, repo);
-    }
-
-    // Instance selection for specific species
-    return _buildInstanceStage(theme, repo);
-  }
-
-  // Stage 1: Choose species
-  Widget _buildSpeciesStage(
-    FactionTheme theme,
-    List<CreatureInstance> instances,
-    CreatureCatalog repo,
-  ) {
-    final speciesData = buildSpeciesListData(instances: instances, repo: repo);
-
-    // Nothing owned
-    if (speciesData.isEmpty) {
-      return const NoSpeciesOwnedWrapper();
-    }
-
-    // Filter species based on search query
-    final filteredSpeciesData = _searchQuery.isEmpty
-        ? speciesData
-        : speciesData.where((data) {
-            final creature = data['creature'] as Creature;
-            final name = creature.name.toLowerCase();
-            final types = creature.types.join(' ').toLowerCase();
-            final query = _searchQuery.toLowerCase();
-            return name.contains(query) || types.contains(query);
-          }).toList();
-
-    return Column(
-      children: [
-        // Search bar
-        Padding(
-          padding: const EdgeInsets.fromLTRB(5, 0, 5, 5),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.surfaceAlt,
-                    borderRadius: BorderRadius.circular(5),
-                    border: Border.all(
-                      color: theme.border.withOpacity(.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search species...',
-                      hintStyle: TextStyle(
-                        color: theme.textMuted.withOpacity(.5),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.search_rounded,
-                        color: theme.textMuted,
-                        size: 20,
-                      ),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: Icon(
-                                Icons.clear_rounded,
-                                color: theme.textMuted,
-                                size: 20,
-                              ),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {
-                                  _searchQuery = '';
-                                });
-                              },
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Results count if searching
-        if (_searchQuery.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Row(
-              children: [
-                Text(
-                  '${filteredSpeciesData.length} result${filteredSpeciesData.length == 1 ? '' : 's'}',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-        // Either empty "no matches" or list of species
-        Expanded(
-          child: filteredSpeciesData.isEmpty
-              ? NoResultsFound(theme: theme)
-              : ListView.builder(
-                  controller: _speciesScrollCtrl,
-                  padding: const EdgeInsets.fromLTRB(5, 0, 5, 24),
-                  itemCount: filteredSpeciesData.length,
-                  itemBuilder: (context, i) {
-                    final creature =
-                        filteredSpeciesData[i]['creature'] as Creature;
-                    final count = filteredSpeciesData[i]['count'] as int;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 5),
-                      child: SpeciesRow(
-                        theme: theme,
-                        creature: creature,
-                        count: count,
-                        onTap: () {
-                          setState(() {
-                            _selectedSpeciesId = creature.id;
-                            _searchController.clear();
-                            _searchQuery = '';
-                          });
-                        },
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAllInstancesStage(
-    FactionTheme theme,
-    List<CreatureInstance> instances,
-    CreatureCatalog repo,
   ) {
     if (instances.isEmpty) {
       return const NoSpeciesOwnedWrapper();
     }
 
     final party = context.watch<SelectedPartyNotifier>();
+    final repo = context.read<CreatureCatalog>();
 
     return AllCreatureInstances(
       theme: theme,
       selectedInstanceIds: party.members.map((m) => m.instanceId).toList(),
       onTap: (inst) {
+        // Already selected → deselect, no checks needed
+        if (party.contains(inst.instanceId)) {
+          context.read<SelectedPartyNotifier>().toggle(inst.instanceId);
+          return;
+        }
+
+        final species = repo.getCreatureById(inst.baseId);
+
+        // Block duplicate species (same baseId already in squad)
+        final hasSameSpecies = party.members.any((m) {
+          final sel = instances.firstWhere(
+            (i) => i.instanceId == m.instanceId,
+            orElse: () => inst,
+          );
+          return sel.baseId == inst.baseId && sel.instanceId != inst.instanceId;
+        });
+
+        // Block second Mystic
+        final isThisMystic = species?.mutationFamily == 'Mystic';
+        final hasMysticAlready =
+            isThisMystic &&
+            party.members.any((m) {
+              final sel = instances.firstWhere(
+                (i) => i.instanceId == m.instanceId,
+                orElse: () => inst,
+              );
+              final selSp = repo.getCreatureById(sel.baseId);
+              return selSp?.mutationFamily == 'Mystic';
+            });
+
+        if (widget.enforceUniqueSpecies && hasSameSpecies) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '${species?.name ?? 'That creature'} is already in your squad.',
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          return;
+        }
+
+        if (hasMysticAlready) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Only one Mystic is allowed per squad.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          return;
+        }
+
         context.read<SelectedPartyNotifier>().toggle(inst.instanceId);
       },
     );
-  }
-
-  // Stage 2: Choose which specific instances to add to party
-  Widget _buildInstanceStage(FactionTheme theme, CreatureCatalog repo) {
-    final species = repo.getCreatureById(_selectedSpeciesId!);
-    if (species == null) {
-      return Center(
-        child: Text('Species missing', style: TextStyle(color: theme.text)),
-      );
-    }
-
-    final party = context.watch<SelectedPartyNotifier>();
-    final selectedIds = party.members.map((m) => m.instanceId).toList();
-
-    return InstancesSheet(
-      species: species,
-      theme: theme,
-      selectionMode: true,
-      initialDetailMode: InstanceDetailMode.stats,
-      selectedInstanceIds: selectedIds,
-      onTap: (inst) {
-        context.read<SelectedPartyNotifier>().toggle(inst.instanceId);
-      },
-    );
-  }
-
-  // ---------- Actions ----------
-
-  void _handleBack() {
-    setState(() {
-      if (_showAllInstances) {
-        _showAllInstances = false;
-        _searchController.clear();
-        _searchQuery = '';
-      } else if (_isPickingInstance) {
-        _selectedSpeciesId = null;
-      }
-    });
-  }
-
-  void _startSurvivalRun(BuildContext context, SelectedPartyNotifier party) {
-    // You have party.members (List<PartyMember> with instanceId).
-    // Here you can navigate to your SurvivalGameScreen and resolve these IDs there.
-    //
-    // Example (adjust to your actual screen/route):
-    //
-    // Navigator.of(context).push(
-    //   MaterialPageRoute(
-    //     builder: (_) => SurvivalGameScreen(
-    //       partyInstanceIds: party.members.map((m) => m.instanceId).toList(),
-    //     ),
-    //   ),
-    // );
   }
 }

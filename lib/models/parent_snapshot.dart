@@ -64,7 +64,7 @@ class ParentSnapshot {
     final genetics = decodeGenetics(inst.geneticsJson);
 
     // decode lineage JSON from DB
-    Map<String, int> _decodeLineage(String? raw) {
+    Map<String, int> decodeLineage(String? raw) {
       if (raw == null || raw.isEmpty) return {};
       try {
         final map = (jsonDecode(raw) as Map<String, dynamic>);
@@ -95,7 +95,7 @@ class ParentSnapshot {
       types: base.types,
       rarity: base.rarity,
       image: base.image,
-      isPrismaticSkin: inst.isPrismaticSkin || (base.isPrismaticSkin ?? false),
+      isPrismaticSkin: inst.isPrismaticSkin || base.isPrismaticSkin,
       genetics: genetics ?? base.genetics,
       nature: inst.natureId != null
           ? NatureCatalog.byId(inst.natureId!)
@@ -113,12 +113,12 @@ class ParentSnapshot {
       ),
 
       // NEW pulls from DB (these cols must exist in CreatureInstances table)
-      generationDepth: inst.generationDepth ?? 0,
-      factionLineage: _decodeLineage(inst.factionLineageJson),
+      generationDepth: inst.generationDepth,
+      factionLineage: decodeLineage(inst.factionLineageJson),
       nativeFaction: nativeFaction,
       variantFaction: inst.variantFaction,
-      elementLineage: _decodeLineage(inst.elementLineageJson),
-      familyLineage: _decodeLineage(inst.familyLineageJson),
+      elementLineage: decodeLineage(inst.elementLineageJson),
+      familyLineage: decodeLineage(inst.familyLineageJson),
     );
   }
 
@@ -133,8 +133,9 @@ class ParentSnapshot {
     final seedElem = <String, int>{};
     if (c.types.isNotEmpty) seedElem[c.types.first] = 1;
     final seedFamily = <String, int>{};
-    if (nf != 'Unknown')
+    if (nf != 'Unknown') {
       seedFamily[nf] = 1; // using mutationFamily as family id
+    }
 
     return ParentSnapshot(
       instanceId: null,
@@ -216,15 +217,15 @@ class ParentSnapshot {
     final nativeFaction = (j['nativeFaction'] as String?) ?? 'Unknown';
     final genDepth = (j['generationDepth'] as num?)?.toInt() ?? 0;
     final variantFaction = j['variantFaction'] as String?;
-    Map<String, int> _coerceIntMap(dynamic raw) {
+    Map<String, int> coerceIntMap(dynamic raw) {
       if (raw is Map) {
         return raw.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
       }
       return {};
     }
 
-    final elemLineage = _coerceIntMap(j['elementLineage']);
-    final famLineage = _coerceIntMap(j['familyLineage']);
+    final elemLineage = coerceIntMap(j['elementLineage']);
+    final famLineage = coerceIntMap(j['familyLineage']);
 
     return ParentSnapshot(
       instanceId: instanceId,

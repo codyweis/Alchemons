@@ -69,7 +69,6 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
   double playerSpd = 6.0;
 
   // sprite hookup
-  String? _playerInstanceId;
   Future<_SpriteMeta>? _playerSpriteFuture;
 
   // Master RNG for this race (ensures deterministic divergence per actor)
@@ -111,7 +110,6 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
     }
 
     setState(() {
-      _playerInstanceId = pickedId;
       _playerSpriteFuture = _loadSpriteMeta(context, pickedId);
     });
 
@@ -354,12 +352,12 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: color.withOpacity(.3),
+                                    color: color.withValues(alpha: .3),
                                     width: 2,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: color.withOpacity(.2),
+                                      color: color.withValues(alpha: .2),
                                       blurRadius: 24,
                                       spreadRadius: 2,
                                     ),
@@ -448,7 +446,7 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
               (!_started && !_awaitingSelection))
             Positioned.fill(
               child: Container(
-                color: Colors.black.withOpacity(.65),
+                color: Colors.black.withValues(alpha: .65),
                 alignment: Alignment.center,
                 child: _awaitingSelection
                     ? _ModernOverlayPill(
@@ -470,10 +468,10 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(.3),
+          color: Colors.black.withValues(alpha: .3),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(.3)),
-          boxShadow: [BoxShadow(color: color.withOpacity(.15), blurRadius: 16)],
+          border: Border.all(color: color.withValues(alpha: .3)),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: .15), blurRadius: 16)],
         ),
         child: Row(
           children: [
@@ -483,9 +481,9 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [color.withOpacity(.5), color.withOpacity(.1)],
+                  colors: [color.withValues(alpha: .5), color.withValues(alpha: .1)],
                 ),
-                border: Border.all(color: color.withOpacity(.6), width: 2),
+                border: Border.all(color: color.withValues(alpha: .6), width: 2),
               ),
               child: Icon(Icons.psychology_rounded, color: color, size: 24),
             ),
@@ -502,7 +500,7 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1.0,
                       shadows: [
-                        Shadow(color: color.withOpacity(.5), blurRadius: 8),
+                        Shadow(color: color.withValues(alpha: .5), blurRadius: 8),
                       ],
                     ),
                   ),
@@ -510,7 +508,7 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
                   Text(
                     'Level ${widget.level} • Maze Trial',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(.7),
+                      color: Colors.white.withValues(alpha: .7),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -521,9 +519,9 @@ class _EarthenMazeGameScreenState extends State<EarthenMazeGameScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: color.withOpacity(.2),
+                color: color.withValues(alpha: .2),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: color.withOpacity(.4)),
+                border: Border.all(color: color.withValues(alpha: .4)),
               ),
               child: Row(
                 children: [
@@ -575,15 +573,15 @@ class _ResultsDialog extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isVictory
-                ? Colors.amber.withOpacity(.5)
-                : color.withOpacity(.3),
+                ? Colors.amber.withValues(alpha: .5)
+                : color.withValues(alpha: .3),
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
               color: isVictory
-                  ? Colors.amber.withOpacity(.3)
-                  : color.withOpacity(.2),
+                  ? Colors.amber.withValues(alpha: .3)
+                  : color.withValues(alpha: .2),
               blurRadius: 32,
               spreadRadius: 4,
             ),
@@ -601,10 +599,10 @@ class _ResultsDialog extends StatelessWidget {
                   end: Alignment.bottomRight,
                   colors: isVictory
                       ? [
-                          Colors.amber.withOpacity(.2),
-                          Colors.orange.withOpacity(.1),
+                          Colors.amber.withValues(alpha: .2),
+                          Colors.orange.withValues(alpha: .1),
                         ]
-                      : [color.withOpacity(.15), Colors.transparent],
+                      : [color.withValues(alpha: .15), Colors.transparent],
                 ),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(22),
@@ -631,8 +629,8 @@ class _ResultsDialog extends StatelessWidget {
                       shadows: [
                         Shadow(
                           color: isVictory
-                              ? Colors.amber.withOpacity(.6)
-                              : color.withOpacity(.5),
+                              ? Colors.amber.withValues(alpha: .6)
+                              : color.withValues(alpha: .5),
                           blurRadius: 12,
                         ),
                       ],
@@ -644,7 +642,7 @@ class _ResultsDialog extends StatelessWidget {
                         ? 'You navigated the maze first!'
                         : '${ranked.first.name} reached the exit first',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(.8),
+                      color: Colors.white.withValues(alpha: .8),
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -666,9 +664,9 @@ class _ResultsDialog extends StatelessWidget {
                 margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(.1),
+                  color: Colors.amber.withValues(alpha: .1),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.amber.withOpacity(.3)),
+                  border: Border.all(color: Colors.amber.withValues(alpha: .3)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -713,12 +711,12 @@ class _ResultsDialog extends StatelessWidget {
                     gradient: LinearGradient(
                       colors: isVictory
                           ? [Colors.amber, Colors.orange.shade700]
-                          : [color, color.withOpacity(.8)],
+                          : [color, color.withValues(alpha: .8)],
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: (isVictory ? Colors.amber : color).withOpacity(
+                        color: (isVictory ? Colors.amber : color).withValues(alpha: 
                           .4,
                         ),
                         blurRadius: 16,
@@ -789,7 +787,7 @@ class _ModernPodium extends StatelessWidget {
               height: 32,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: medalColor.withOpacity(.2),
+                color: medalColor.withValues(alpha: .2),
                 border: Border.all(color: medalColor, width: 2),
               ),
               child: Center(
@@ -813,14 +811,14 @@ class _ModernPodium extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    medalColor.withOpacity(.25),
-                    medalColor.withOpacity(.1),
+                    medalColor.withValues(alpha: .25),
+                    medalColor.withValues(alpha: .1),
                   ],
                 ),
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(12),
                 ),
-                border: Border.all(color: medalColor.withOpacity(.4), width: 2),
+                border: Border.all(color: medalColor.withValues(alpha: .4), width: 2),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -906,7 +904,7 @@ class _MazeBackdropPainter extends CustomPainter {
     // Subtle vignette
     final vignette =
         RadialGradient(
-          colors: [Colors.white.withOpacity(.02), Colors.transparent],
+          colors: [Colors.white.withValues(alpha: .02), Colors.transparent],
         ).createShader(
           Rect.fromCircle(
             center: size.center(Offset.zero),
@@ -936,10 +934,10 @@ class _ModernCountdown extends StatelessWidget {
         key: ValueKey(text),
         padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(.7),
+          color: Colors.black.withValues(alpha: .7),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(.5), width: 2),
-          boxShadow: [BoxShadow(color: color.withOpacity(.3), blurRadius: 24)],
+          border: Border.all(color: color.withValues(alpha: .5), width: 2),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: .3), blurRadius: 24)],
         ),
         child: Text(
           text,
@@ -974,10 +972,10 @@ class _ModernOverlayPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.75),
+        color: Colors.black.withValues(alpha: .75),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(.4), width: 2),
-        boxShadow: [BoxShadow(color: color.withOpacity(.25), blurRadius: 20)],
+        border: Border.all(color: color.withValues(alpha: .4), width: 2),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: .25), blurRadius: 20)],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1027,13 +1025,13 @@ class _ModernHudBar extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: isPlayer
-              ? color.withOpacity(.15)
-              : Colors.white.withOpacity(.05),
+              ? color.withValues(alpha: .15)
+              : Colors.white.withValues(alpha: .05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isPlayer
-                ? color.withOpacity(.4)
-                : Colors.white.withOpacity(.1),
+                ? color.withValues(alpha: .4)
+                : Colors.white.withValues(alpha: .1),
           ),
         ),
         child: Row(
@@ -1044,13 +1042,13 @@ class _ModernHudBar extends StatelessWidget {
               height: 28,
               decoration: BoxDecoration(
                 color: isPlayer
-                    ? color.withOpacity(.3)
-                    : Colors.white.withOpacity(.08),
+                    ? color.withValues(alpha: .3)
+                    : Colors.white.withValues(alpha: .08),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isPlayer
-                      ? color.withOpacity(.6)
-                      : Colors.white.withOpacity(.2),
+                      ? color.withValues(alpha: .6)
+                      : Colors.white.withValues(alpha: .2),
                 ),
               ),
               child: Center(
@@ -1072,7 +1070,7 @@ class _ModernHudBar extends StatelessWidget {
               child: Text(
                 a.name,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(.95),
+                  color: Colors.white.withValues(alpha: .95),
                   fontWeight: FontWeight.w800,
                   fontSize: 13,
                 ),
@@ -1089,7 +1087,7 @@ class _ModernHudBar extends StatelessWidget {
                   Container(
                     height: 6,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.08),
+                      color: Colors.white.withValues(alpha: .08),
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -1101,14 +1099,14 @@ class _ModernHudBar extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: isPlayer
-                              ? [color, color.withOpacity(.7)]
+                              ? [color, color.withValues(alpha: .7)]
                               : [Colors.orange, Colors.deepOrange],
                         ),
                         borderRadius: BorderRadius.circular(999),
                         boxShadow: [
                           BoxShadow(
                             color: (isPlayer ? color : Colors.orange)
-                                .withOpacity(.4),
+                                .withValues(alpha: .4),
                             blurRadius: 8,
                           ),
                         ],
@@ -1163,11 +1161,11 @@ class _ModernHudBar extends StatelessWidget {
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.4),
+        color: Colors.black.withValues(alpha: .4),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(.3)),
+        border: Border.all(color: color.withValues(alpha: .3)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(.3), blurRadius: 16),
+          BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 16),
         ],
       ),
       child: Column(
@@ -1180,7 +1178,7 @@ class _ModernHudBar extends StatelessWidget {
               Text(
                 'Race Progress',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(.95),
+                  color: Colors.white.withValues(alpha: .95),
                   fontWeight: FontWeight.w900,
                   fontSize: 14,
                   letterSpacing: 0.5,
@@ -1214,12 +1212,12 @@ class _SpeedButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [color, color.withOpacity(.8)]),
+          gradient: LinearGradient(colors: [color, color.withValues(alpha: .8)]),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(.3), width: 1.5),
+          border: Border.all(color: Colors.white.withValues(alpha: .3), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(.4),
+              color: color.withValues(alpha: .4),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -1566,7 +1564,6 @@ class _Actor {
 
   // runtime helpers
   int _cooldown = 1;
-  final int _stuckFor = 0;
 
   _Actor(this.name, this.pos, {required this.iq, required this.spd});
 }
@@ -1898,20 +1895,6 @@ class _Brain {
   }
 }
 
-List<Offset> _neighborsWalkable(Maze maze, Offset p) {
-  final nbs = <Offset>[];
-  for (final d in const [
-    Offset(1, 0),
-    Offset(-1, 0),
-    Offset(0, 1),
-    Offset(0, -1),
-  ]) {
-    final nb = p + d;
-    if (maze.isWalkable(nb)) nbs.add(nb);
-  }
-  return nbs;
-}
-
 /// ======= Rendering =======
 
 class _MazePainter extends CustomPainter {
@@ -1928,7 +1911,6 @@ class _MazePainter extends CustomPainter {
     canvas.drawRect(Offset.zero & size, bg);
 
     // Floor with subtle pattern
-    final floor = Paint()..color = const Color(0xFF1A1F24);
     for (int y = 0; y < maze.h; y++) {
       for (int x = 0; x < maze.w; x++) {
         if (!maze.walls[y][x]) {
@@ -1971,7 +1953,7 @@ class _MazePainter extends CustomPainter {
             RRect.fromRectAndRadius(rect, const Radius.circular(4)),
             Paint()
               ..style = PaintingStyle.stroke
-              ..color = const Color(0xFF000000).withOpacity(.4)
+              ..color = const Color(0xFF000000).withValues(alpha: .4)
               ..strokeWidth = 1.5,
           );
         }
@@ -1990,7 +1972,7 @@ class _MazePainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(exitRect.inflate(4), const Radius.circular(8)),
       Paint()
-        ..color = Colors.amber.withOpacity(.4)
+        ..color = Colors.amber.withValues(alpha: .4)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
     );
 
@@ -2025,250 +2007,3 @@ class _MazePainter extends CustomPainter {
 }
 
 /// ======= HUD & Overlays =======
-
-class _HudBarRace extends StatelessWidget {
-  final Color color;
-  final List<_Actor> racers;
-  final Offset exit;
-
-  const _HudBarRace({
-    required this.color,
-    required this.racers,
-    required this.exit,
-  });
-
-  double _dist(Offset a, Offset b) => (a.dx - b.dx).abs() + (a.dy - b.dy).abs();
-
-  @override
-  Widget build(BuildContext context) {
-    final maxD =
-        racers.map((r) => _dist(r.pos, exit)).fold<double>(0, math.max) + 1;
-
-    Widget row(_Actor a, Color c) {
-      final d = _dist(a.pos, exit);
-      final progress = (1 - (d / maxD)).clamp(0.0, 1.0);
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 88,
-              child: Text(
-                a.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Container(
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(.06),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: progress,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [c, c.withOpacity(.75)]),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'INT ${a.iq.toStringAsFixed(1)} • SPD ${a.spd.toStringAsFixed(1)}',
-              style: TextStyle(
-                color: Colors.white.withOpacity(.85),
-                fontWeight: FontWeight.w800,
-                fontSize: 11,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(.25),
-          border: Border.all(color: color.withOpacity(.25)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: const [
-                Icon(Icons.psychology_rounded, color: Colors.white70, size: 18),
-                SizedBox(width: 8),
-                Text(
-                  'Race to the Exit',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            row(racers[0], Colors.lightGreenAccent),
-            for (final n in racers.skip(1)) row(n, Colors.orangeAccent),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CountdownView extends StatelessWidget {
-  final int count; // 3..2..1..0 (0 = GO!)
-  const _CountdownView({required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final text = count == 0 ? 'GO!' : '$count';
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 250),
-      child: Container(
-        key: ValueKey(text),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(.45),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(.2)),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            fontSize: count == 0 ? 40 : 48,
-            letterSpacing: 2,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OverlayPill extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  const _OverlayPill({required this.text, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.5),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white70),
-          const SizedBox(width: 8),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Podium extends StatelessWidget {
-  final List<_Actor> ranked;
-  final Color accent;
-  const _Podium({required this.ranked, required this.accent});
-
-  @override
-  Widget build(BuildContext context) {
-    Widget step(_Actor a, int place, {double h = 56}) {
-      final label = switch (place) {
-        1 => '1st',
-        2 => '2nd',
-        3 => '3rd',
-        _ => '4th',
-      };
-      final crown = place == 1
-          ? Icons.emoji_events_rounded
-          : Icons.military_tech;
-
-      return Expanded(
-        child: Column(
-          children: [
-            Icon(
-              crown,
-              color: place == 1 ? Colors.amberAccent : Colors.white70,
-              size: place == 1 ? 28 : 22,
-            ),
-            const SizedBox(height: 6),
-            Container(
-              height: h,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.06),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: accent.withOpacity(.35)),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    a.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  Text(
-                    '$label • INT ${a.iq.toStringAsFixed(1)} • SPD ${a.spd.toStringAsFixed(1)}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(.85),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: 380,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          step(ranked.length > 1 ? ranked[1] : ranked[0], 2, h: 52),
-          const SizedBox(width: 8),
-          step(ranked[0], 1, h: 68),
-          const SizedBox(width: 8),
-          step(ranked.length > 2 ? ranked[2] : ranked[0], 3, h: 48),
-          const SizedBox(width: 8),
-          step(ranked.length > 3 ? ranked[3] : ranked.last, 4, h: 40),
-        ],
-      ),
-    );
-  }
-}

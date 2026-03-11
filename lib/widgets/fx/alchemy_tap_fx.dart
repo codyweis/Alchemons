@@ -39,14 +39,14 @@ class _AlchemyTapFXPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0 * inv
       ..blendMode = BlendMode.plus
-      ..color = color.withOpacity(0.35 * inv);
+      ..color = color.withValues(alpha: 0.35 * inv);
 
     for (int i = 0; i < 3; i++) {
       final r = 18.0 + (40.0 + i * 12.0) * t;
       canvas.drawCircle(
         center,
         r,
-        ringBase..color = ringBase.color.withOpacity((0.35 - i * 0.08) * inv),
+        ringBase..color = ringBase.color.withValues(alpha: (0.35 - i * 0.08) * inv),
       );
     }
 
@@ -55,7 +55,7 @@ class _AlchemyTapFXPainter extends CustomPainter {
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
-      ..color = Colors.white.withOpacity(0.35 * inv)
+      ..color = Colors.white.withValues(alpha: 0.35 * inv)
       ..blendMode = BlendMode.plus;
 
     // Outer rotating hexagon
@@ -75,7 +75,7 @@ class _AlchemyTapFXPainter extends CustomPainter {
     // Small inner runes (little ticks)
     final runePaint = Paint()
       ..strokeWidth = 1.1
-      ..color = Colors.white.withOpacity(0.5 * inv)
+      ..color = Colors.white.withValues(alpha: 0.5 * inv)
       ..blendMode = BlendMode.plus;
     for (int i = 0; i < 8; i++) {
       final a = (i / 8.0) * math.pi * 2 - t * 4.0;
@@ -89,7 +89,7 @@ class _AlchemyTapFXPainter extends CustomPainter {
     // ---- 3) Sparks shooting outward ----
     final sparks = Paint()
       ..style = PaintingStyle.fill
-      ..color = Colors.white.withOpacity(0.9 * inv)
+      ..color = Colors.white.withValues(alpha: 0.9 * inv)
       ..blendMode = BlendMode.plus;
     const sparkCount = 10;
     for (int i = 0; i < sparkCount; i++) {
@@ -102,7 +102,7 @@ class _AlchemyTapFXPainter extends CustomPainter {
 
     // ---- 4) Upward alchemical bubbles (tiny) ----
     final bubblePaint = Paint()
-      ..color = Colors.white.withOpacity(0.35 * inv)
+      ..color = Colors.white.withValues(alpha: 0.35 * inv)
       ..blendMode = BlendMode.plus;
     for (int i = 0; i < 8; i++) {
       final a = (i / 8.0) * math.pi * 2;

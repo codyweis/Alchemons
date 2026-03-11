@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 
 class StaminaBar extends StatelessWidget {
@@ -38,7 +41,7 @@ class StaminaBar extends StatelessWidget {
             borderRadius: radius,
             border: Border.all(
               color: filled
-                  ? fillColor.withOpacity(0.8)
+                  ? fillColor.withValues(alpha: 0.8)
                   : const Color(0xFFD1D5DB),
               width: 1,
             ),
@@ -64,38 +67,81 @@ class StaminaBadge extends StatefulWidget {
 }
 
 class _StaminaBadgeState extends State<StaminaBadge> {
-  late final Stream<DateTime> _ticker;
+  StreamSubscription<CreatureInstance?>? _instanceSub;
+  Timer? _ticker;
+  CreatureInstance? _instance;
+  bool _rebuildQueued = false;
 
   @override
   void initState() {
     super.initState();
-    // Tick once per second
-    _ticker = Stream.periodic(
-      const Duration(seconds: 1),
-      (_) => DateTime.now(),
-    );
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      _scheduleRebuild();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _bindInstanceStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant StaminaBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.instanceId != widget.instanceId) {
+      _bindInstanceStream();
+    }
+  }
+
+  void _bindInstanceStream() {
+    _instanceSub?.cancel();
+    final db = context.read<AlchemonsDatabase>();
+    _instanceSub = db.creatureDao.watchInstanceById(widget.instanceId).listen((
+      row,
+    ) {
+      _instance = row;
+      _scheduleRebuild();
+    });
+  }
+
+  void _scheduleRebuild() {
+    if (!mounted) return;
+
+    final phase = WidgetsBinding.instance.schedulerPhase;
+    final canSetStateNow =
+        phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks;
+
+    if (canSetStateNow) {
+      setState(() {});
+      return;
+    }
+
+    if (_rebuildQueued) return;
+    _rebuildQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _rebuildQueued = false;
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _instanceSub?.cancel();
+    _ticker?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final db = context.read<AlchemonsDatabase>();
     final stamina = context.read<StaminaService>();
+    final row = _instance;
+    if (row == null) return _empty;
 
-    return StreamBuilder<CreatureInstance?>(
-      stream: db.creatureDao.watchInstanceById(widget.instanceId),
-      builder: (context, instSnap) {
-        final row = instSnap.data;
-        if (row == null) return _empty;
-
-        return StreamBuilder<DateTime>(
-          stream: _ticker,
-          builder: (_, __) {
-            final state = stamina.computeState(row);
-            return _buildUi(state);
-          },
-        );
-      },
-    );
+    final state = stamina.computeState(row);
+    return _buildUi(state);
   }
 
   Widget get _empty => const SizedBox(width: 60, height: 16);

@@ -99,7 +99,7 @@ class _CompetitionHubScreenState extends State<CompetitionHubScreen>
                         letterSpacing: 1.2,
                         shadows: [
                           Shadow(
-                            color: accentColor.withOpacity(0.5),
+                            color: accentColor.withValues(alpha: 0.5),
                             blurRadius: 8,
                           ),
                         ],
@@ -109,7 +109,7 @@ class _CompetitionHubScreenState extends State<CompetitionHubScreen>
                     Text(
                       'Compete in elemental arenas to test your Alchemons',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
+                        color: Colors.white.withValues(alpha: 0.6),
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -120,9 +120,9 @@ class _CompetitionHubScreenState extends State<CompetitionHubScreen>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: accentColor.withOpacity(.15),
+                  color: accentColor.withValues(alpha: .15),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: accentColor.withOpacity(.3)),
+                  border: Border.all(color: accentColor.withValues(alpha: .3)),
                 ),
                 child: Icon(
                   Icons.emoji_events_rounded,
@@ -232,14 +232,14 @@ class _ArenaCardState extends State<_ArenaCard>
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    color.withOpacity(.12),
-                    Colors.black.withOpacity(.25),
+                    color.withValues(alpha: .12),
+                    Colors.black.withValues(alpha: .25),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: color.withOpacity(.3), width: 1.5),
+                border: Border.all(color: color.withValues(alpha: .3), width: 1.5),
                 boxShadow: [
-                  BoxShadow(color: color.withOpacity(.25), blurRadius: 20),
+                  BoxShadow(color: color.withValues(alpha: .25), blurRadius: 20),
                 ],
               ),
               child: Stack(
@@ -258,7 +258,7 @@ class _ArenaCardState extends State<_ArenaCard>
                               end: Alignment.centerRight,
                               colors: [
                                 Colors.transparent,
-                                color.withOpacity(.2),
+                                color.withValues(alpha: .2),
                                 Colors.transparent,
                               ],
                               stops: const [0.3, 0.5, 0.7],
@@ -292,12 +292,12 @@ class _ArenaCardState extends State<_ArenaCard>
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    color.withOpacity(.5),
-                                    color.withOpacity(.08),
+                                    color.withValues(alpha: .5),
+                                    color.withValues(alpha: .08),
                                   ],
                                 ),
                                 border: Border.all(
-                                  color: color.withOpacity(.6),
+                                  color: color.withValues(alpha: .6),
                                   width: 1.6,
                                 ),
                               ),
@@ -330,9 +330,9 @@ class _ArenaCardState extends State<_ArenaCard>
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: color.withOpacity(.2),
+                            color: color.withValues(alpha: .2),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: color.withOpacity(.4)),
+                            border: Border.all(color: color.withValues(alpha: .4)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -359,7 +359,7 @@ class _ArenaCardState extends State<_ArenaCard>
                         Text(
                           widget.biome.description,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(.7),
+                            color: Colors.white.withValues(alpha: .7),
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
@@ -378,10 +378,10 @@ class _ArenaCardState extends State<_ArenaCard>
                                   vertical: 3,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(.08),
+                                  color: Colors.white.withValues(alpha: .08),
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(
-                                    color: Colors.white.withOpacity(.15),
+                                    color: Colors.white.withValues(alpha: .15),
                                   ),
                                 ),
                                 child: Text(
@@ -404,13 +404,13 @@ class _ArenaCardState extends State<_ArenaCard>
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  Colors.purple.shade400.withOpacity(.2),
-                                  Colors.pink.shade400.withOpacity(.2),
+                                  Colors.purple.shade400.withValues(alpha: .2),
+                                  Colors.pink.shade400.withValues(alpha: .2),
                                 ],
                               ),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: Colors.purple.withOpacity(.4),
+                                color: Colors.purple.withValues(alpha: .4),
                               ),
                             ),
                             child: const Text(
@@ -464,15 +464,15 @@ class _GlassContainer extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    accentColor.withOpacity(0.08),
-                    Colors.black.withOpacity(0.25),
+                    accentColor.withValues(alpha: 0.08),
+                    Colors.black.withValues(alpha: 0.25),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: accentColor.withOpacity(0.25)),
+                border: Border.all(color: accentColor.withValues(alpha: 0.25)),
                 boxShadow: [
                   BoxShadow(
-                    color: accentColor.withOpacity(glow),
+                    color: accentColor.withValues(alpha: glow),
                     blurRadius: 20,
                     spreadRadius: 2,
                   ),
@@ -521,16 +521,16 @@ class _IconButtonState extends State<_IconButton> {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: widget.accentColor.withOpacity(0.15),
+            color: widget.accentColor.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: widget.accentColor.withOpacity(0.3),
+              color: widget.accentColor.withValues(alpha: 0.3),
               width: 1.5,
             ),
           ),
           child: Icon(
             widget.icon,
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: 0.9),
             size: 20,
           ),
         ),
@@ -552,7 +552,7 @@ class _CompetitionBackdropPainter extends CustomPainter {
 
     // Curved lines
     final pathPaint = Paint()
-      ..color = Colors.white.withOpacity(.04)
+      ..color = Colors.white.withValues(alpha: .04)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
@@ -574,7 +574,7 @@ class _CompetitionBackdropPainter extends CustomPainter {
     }
 
     // Particles
-    final dot = Paint()..color = Colors.white.withOpacity(.06);
+    final dot = Paint()..color = Colors.white.withValues(alpha: .06);
     for (int i = 0; i < 45; i++) {
       final px = (i * 40 + t * size.width) % size.width;
       final py = (size.height * (0.1 + (i % 6) * .16)) % size.height;

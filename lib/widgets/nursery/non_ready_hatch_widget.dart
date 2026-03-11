@@ -5,7 +5,6 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -63,19 +62,14 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
 
     // Intro animations
     _introCtrl = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 380),
       vsync: this,
     );
     _scaleAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _introCtrl, curve: Curves.elasticOut));
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _introCtrl,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
-      ),
-    );
+      begin: 28,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _introCtrl, curve: Curves.easeOutCubic));
+    _fadeAnimation = CurvedAnimation(parent: _introCtrl, curve: Curves.easeOut);
     _introCtrl.forward();
 
     // Progress animation controller
@@ -209,10 +203,12 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
       final p1Types = parent1?['types'] as List<dynamic>?;
       final p2Types = parent2?['types'] as List<dynamic>?;
 
-      if (p1Types != null && p1Types.isNotEmpty)
+      if (p1Types != null && p1Types.isNotEmpty) {
         types.add(p1Types.first.toString());
-      if (p2Types != null && p2Types.isNotEmpty)
+      }
+      if (p2Types != null && p2Types.isNotEmpty) {
         types.add(p2Types.first.toString());
+      }
 
       return types.isEmpty ? null : types;
     } catch (_) {
@@ -223,267 +219,285 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
-
     final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+
     return AnimatedBuilder(
       animation: _introCtrl,
-      builder: (context, child) => Dialog(
+      builder: (context, child) => FadeTransition(
+        opacity: _fadeAnimation,
+        child: Transform.translate(
+          offset: Offset(0, _scaleAnimation.value),
+          child: child,
+        ),
+      ),
+      child: Dialog(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: StreamBuilder<List<IncubatorSlot>>(
-                stream: db.incubatorDao.watchSlots(),
-                builder: (context, snapshot) {
-                  // Latest slot from DB or fallback
-                  _slot =
-                      snapshot.data?.firstWhere(
-                        (s) => s.id == widget.slot.id,
-                        orElse: () => _slot ?? widget.slot,
-                      ) ??
-                      _slot ??
-                      widget.slot;
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: StreamBuilder<List<IncubatorSlot>>(
+              stream: db.incubatorDao.watchSlots(),
+              builder: (context, snapshot) {
+                _slot =
+                    snapshot.data?.firstWhere(
+                      (s) => s.id == widget.slot.id,
+                      orElse: () => _slot ?? widget.slot,
+                    ) ??
+                    _slot ??
+                    widget.slot;
 
-                  final slot = _slot!;
-                  // Sync animation if DB changed key timing fields
-                  WidgetsBinding.instance.addPostFrameCallback(
-                    (_) => _maybeResync(slot),
-                  );
+                final slot = _slot!;
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _maybeResync(slot),
+                );
 
-                  final parentTypes = _extractParentTypes(slot);
-                  final chamberLabel = 'CHAMBER ${slot.id + 1}';
+                final parentTypes = _extractParentTypes(slot);
+                final rarity = (slot.rarity ?? 'common').toLowerCase();
+                final rarityColor = BreedConstants.getRarityColor(rarity);
+                final chamberLabel = 'CHAMBER ${slot.id + 1}';
+                final hatchDelay = _hatchDelayFor(slot);
+                final isReady =
+                    _progressCtrl.value >= 0.999 ||
+                    (_remainingFor(slot) <= Duration.zero);
 
-                  final hatchDelay = _hatchDelayFor(slot);
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── PROGRESS BANNER ──────────────────────────────────
+                    SizedBox(
+                      height: 190,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Particle background
+                          if (parentTypes != null && parentTypes.isNotEmpty)
+                            RepaintBoundary(
+                              child: AlchemyBrewingParticleSystem(
+                                parentATypeId: parentTypes[0],
+                                parentBTypeId: parentTypes.length > 1
+                                    ? parentTypes[1]
+                                    : null,
+                                particleCount: 50,
+                                speedMultiplier: 0.12,
+                                fusion: false,
+                                theme: theme,
+                              ),
+                            )
+                          else
+                            Container(color: theme.surface),
 
-                  final isReady =
-                      _progressCtrl.value >= 0.999 ||
-                      (_remainingFor(slot) <= Duration.zero);
-
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Header pill (no rarity badge)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.06),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(.12),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              (slot.rarity ?? 'common').toUpperCase(),
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(.85),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: .8,
+                          // Vignette
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                center: Alignment.center,
+                                radius: 0.85,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: .5),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 18),
-
-                      // Sacred circle + particle background + circular progress (smooth via controller)
-                      Container(
-                        width: 280,
-                        height: 280,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: widget.primaryColor.withOpacity(0.28),
-                            width: 2,
                           ),
-                        ),
-                        child: ClipOval(
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              if (parentTypes != null && parentTypes.isNotEmpty)
-                                Positioned.fill(
-                                  child: AlchemyBrewingParticleSystem(
-                                    parentATypeId: parentTypes[0],
-                                    parentBTypeId: parentTypes.length > 1
-                                        ? parentTypes[1]
-                                        : null,
-                                    particleCount: 60,
-                                    speedMultiplier: 0.18,
-                                    fusion: false,
-                                  ),
-                                ),
-                              Positioned.fill(
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: RadialGradient(
-                                      colors: [
-                                        Colors.transparent,
-                                        Colors.black.withOpacity(.35),
-                                      ],
-                                    ),
-                                  ),
+
+                          // Bottom fade
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            height: 56,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withValues(alpha: .65),
+                                  ],
                                 ),
                               ),
-                              SizedBox(
-                                width: 220,
-                                height: 220,
-                                child: AnimatedBuilder(
-                                  animation: _progressCtrl,
-                                  builder: (context, _) {
-                                    final v = _progressCtrl.value.clamp(
-                                      0.0,
-                                      1.0,
-                                    );
-                                    return Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        SizedBox(
-                                          width: 220,
-                                          height: 220,
-                                          child: CircularProgressIndicator(
-                                            value: v,
-                                            strokeWidth: 10,
-                                            backgroundColor: Colors.white
-                                                .withOpacity(.10),
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  widget.primaryColor,
-                                                ),
+                            ),
+                          ),
+
+                          // Top-left chamber pill
+                          Positioned(
+                            top: 14,
+                            left: 14,
+                            child: _InProgressPill(
+                              label: chamberLabel,
+                              color: rarityColor,
+                            ),
+                          ),
+
+                          // Circular progress in center
+                          Center(
+                            child: AnimatedBuilder(
+                              animation: _progressCtrl,
+                              builder: (context, _) {
+                                final v = _progressCtrl.value.clamp(0.0, 1.0);
+                                return SizedBox(
+                                  width: 92,
+                                  height: 92,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: 92,
+                                        height: 92,
+                                        child: CircularProgressIndicator(
+                                          value: v,
+                                          strokeWidth: 5,
+                                          backgroundColor: Colors.white
+                                              .withValues(alpha: .10),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                rarityColor,
+                                              ),
+                                        ),
+                                      ),
+                                      Container(
+                                        width: 72,
+                                        height: 72,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.black.withValues(alpha: .45),
+                                          border: Border.all(
+                                            color: rarityColor.withValues(alpha: .3),
+                                            width: 1,
                                           ),
                                         ),
-                                        Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              '${(v * 100).toStringAsFixed(0)}%',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 28,
-                                                fontWeight: FontWeight.w900,
-                                                letterSpacing: .5,
-                                              ),
+                                        child: Center(
+                                          child: Text(
+                                            '${(v * 100).toStringAsFixed(0)}%',
+                                            style: TextStyle(
+                                              color: rarityColor,
+                                              fontSize: 17,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: .5,
                                             ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Cultivating Specimen',
-                                              style: TextStyle(
-                                                color: Colors.white.withOpacity(
-                                                  .75,
-                                                ),
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
+                                          ),
                                         ),
-                                      ],
-                                    );
-                                  },
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ── INFO + ACTIONS PANEL ──────────────────────────────
+                    Container(
+                      decoration: BoxDecoration(
+                        color: t.bg1,
+                        border: Border(
+                          left: BorderSide(color: t.borderMid, width: 1),
+                          right: BorderSide(color: t.borderMid, width: 1),
+                          bottom: BorderSide(color: t.borderMid, width: 1),
+                        ),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Heading row
+                          Row(
+                            children: [
+                              Container(
+                                width: 3,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: rarityColor,
+                                  borderRadius: BorderRadius.circular(2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: rarityColor.withValues(alpha: .5),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'IN CULTIVATION',
+                                      style: TextStyle(
+                                        color: theme.text,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    AnimatedBuilder(
+                                      animation: _progressCtrl,
+                                      builder: (context, _) {
+                                        Duration remaining;
+                                        if (hatchDelay != null) {
+                                          final v = _progressCtrl.value.clamp(
+                                            0.0,
+                                            1.0,
+                                          );
+                                          final leftMs =
+                                              ((1.0 - v) *
+                                                      hatchDelay.inMilliseconds)
+                                                  .clamp(
+                                                    0.0,
+                                                    hatchDelay.inMilliseconds
+                                                        .toDouble(),
+                                                  )
+                                                  .round();
+                                          remaining = Duration(
+                                            milliseconds: leftMs,
+                                          );
+                                        } else {
+                                          remaining = _remainingFor(_slot!);
+                                        }
+                                        return Text(
+                                          BreedConstants.formatRemaining(
+                                            remaining,
+                                          ),
+                                          style: TextStyle(
+                                            color: rarityColor,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: .4,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ),
 
-                      const SizedBox(height: 18),
-
-                      // Status card (live time remaining, computed INSIDE the AnimatedBuilder so it changes)
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: theme.surface.withOpacity(.7),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(.10),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.schedule_rounded,
-                              color: widget.primaryColor,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: AnimatedBuilder(
-                                animation: _progressCtrl,
-                                builder: (context, _) {
-                                  Duration remaining;
-                                  if (hatchDelay != null) {
-                                    final v = _progressCtrl.value.clamp(
-                                      0.0,
-                                      1.0,
-                                    );
-                                    final leftMs =
-                                        ((1.0 - v) * hatchDelay.inMilliseconds)
-                                            .clamp(
-                                              0.0,
-                                              hatchDelay.inMilliseconds
-                                                  .toDouble(),
-                                            )
-                                            .round();
-                                    remaining = Duration(milliseconds: leftMs);
-                                  } else {
-                                    // Fallback to wall clock when hatch time is unknown
-                                    final current = _slot!;
-                                    remaining = _remainingFor(current);
-                                  }
-
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Time Remaining',
-                                        style: TextStyle(
-                                          color: theme.text,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        BreedConstants.formatRemaining(
-                                          remaining,
-                                        ),
-                                        style: TextStyle(
-                                          color: theme.text,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: .5,
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
+                          const SizedBox(height: 18),
+                          Container(
+                            height: 1,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  rarityColor.withValues(alpha: .35),
+                                  Colors.transparent,
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
+                          ),
+                          const SizedBox(height: 18),
 
-                      const SizedBox(height: 20),
-
-                      // === UPDATED BUTTON LAYOUT ===
-                      // This Column splits primary and secondary actions
-                      // to improve readability and prevent truncation.
-                      Column(
-                        children: [
-                          // Primary Actions (Accelerate / Instant)
+                          // Action buttons
                           FutureBuilder<int>(
                             future: context
                                 .read<AlchemonsDatabase>()
@@ -492,116 +506,208 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                             builder: (context, snap) {
                               final qty = snap.data ?? 0;
                               final canUseInstant = !isReady && qty > 0;
-
-                              return Row(
+                              return Column(
                                 children: [
-                                  _ctaButton(
-                                    label: 'ACCELERATE',
-                                    icon: Icons.speed_rounded,
-                                    color: Colors.orange,
-                                    filled: true, // primary
-                                    onTap: widget.onAccelerate,
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _SlotActionButton(
+                                          label: 'ACCELERATE',
+                                          icon: Icons.speed_rounded,
+                                          accentColor: const Color(0xFFF97316),
+                                          filled: true,
+                                          onTap: widget.onAccelerate,
+                                        ),
+                                      ),
+                                      if (canUseInstant) ...[
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: _SlotActionButton(
+                                            label: 'INSTANT ×$qty',
+                                            icon: Icons.flash_on_rounded,
+                                            accentColor: const Color(
+                                              0xFF22C55E,
+                                            ),
+                                            filled: true,
+                                            onTap: widget.onInstantHatch,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                  // Conditionally show Instant Hatch button
-                                  if (canUseInstant) ...[
-                                    const SizedBox(width: 10),
-                                    _ctaButton(
-                                      label: 'INSTANT (x$qty)', // Shorter label
-                                      icon: Icons.flash_on_rounded,
-                                      color: Colors.green, // Theme color
-                                      filled: true, // primary
-                                      onTap: widget.onInstantHatch,
-                                    ),
-                                  ],
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _SlotActionButton(
+                                          label: 'CLOSE',
+                                          icon: Icons.close_rounded,
+                                          accentColor: theme.textMuted,
+                                          filled: false,
+                                          onTap: widget.onClose,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Tooltip(
+                                        message: 'Return to storage',
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            onTap: widget.onReturn,
+                                            splashColor: const Color(
+                                              0xFF3B82F6,
+                                            ).withValues(alpha: .18),
+                                            highlightColor: const Color(
+                                              0xFF3B82F6,
+                                            ).withValues(alpha: .08),
+                                            child: Ink(
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                                color: const Color(
+                                                  0xFF3B82F6,
+                                                ).withValues(alpha: .08),
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFF3B82F6,
+                                                  ).withValues(alpha: .35),
+                                                ),
+                                              ),
+                                              child: const Padding(
+                                                padding: EdgeInsets.all(13),
+                                                child: Icon(
+                                                  Icons.inventory_2_rounded,
+                                                  size: 18,
+                                                  color: Color(0xFF3B82F6),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ],
                               );
                             },
                           ),
-
-                          const SizedBox(height: 10),
-
-                          // Secondary Actions (Return / Close)
-                          Row(
-                            children: [
-                              _ctaButton(
-                                label: 'RETURN',
-                                icon: Icons.inventory_2_rounded,
-                                color: Colors.blue,
-                                filled: false, // secondary
-                                onTap: widget.onReturn,
-                              ),
-                              const SizedBox(width: 10),
-                              _ctaButton(
-                                label: 'CLOSE',
-                                icon: Icons.close_rounded,
-                                color: Colors.grey,
-                                filled: false, // secondary
-                                onTap: widget.onClose,
-                              ),
-                            ],
-                          ),
                         ],
                       ),
-                      // === END OF UPDATED LAYOUT ===
-                    ],
-                  );
-                },
-              ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
       ),
     );
   }
+}
 
-  // New pill-style button with ripple + consistent sizing
-  Widget _ctaButton({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    required bool filled,
-  }) {
-    final radius = BorderRadius.circular(14);
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: radius,
-          side: BorderSide(
-            color: filled ? color.withOpacity(.0) : color.withOpacity(.45),
-            width: 2,
-          ),
+// ─────────────────────────────────────────────────────────────────────────────
+// PILL
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _InProgressPill extends StatelessWidget {
+  const _InProgressPill({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: color.withValues(alpha: .45)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.3,
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTION BUTTON
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SlotActionButton extends StatelessWidget {
+  const _SlotActionButton({
+    required this.label,
+    required this.icon,
+    required this.accentColor,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color accentColor;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(4);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: radius,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: onTap,
+        splashColor: accentColor.withValues(alpha: .18),
+        highlightColor: accentColor.withValues(alpha: .08),
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: radius,
-            color: filled ? color.withOpacity(.85) : color.withOpacity(.18),
+            color: filled
+                ? accentColor.withValues(alpha: .9)
+                : accentColor.withValues(alpha: .08),
+            border: Border.all(
+              color: filled
+                  ? accentColor.withValues(alpha: .3)
+                  : accentColor.withValues(alpha: .35),
+            ),
           ),
-          child: InkWell(
-            borderRadius: radius,
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 18, color: filled ? Colors.white : color),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      label,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: filled ? Colors.white : color,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .8,
-                      ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 15,
+                  color: filled ? Colors.white : accentColor,
+                ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: filled ? Colors.white : accentColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.9,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

@@ -16,13 +16,14 @@ import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/services/boss_upgrade_service.dart';
+import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -149,8 +150,11 @@ class AppProviders extends StatelessWidget {
           create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
         ),
         ChangeNotifierProvider(
-          create: (context) =>
-              WildernessSpawnService(context.read<AlchemonsDatabase>()),
+          create: (context) => WildernessSpawnService(
+            context.read<AlchemonsDatabase>(),
+            defaultWindowMin: const Duration(minutes: 1),
+            defaultWindowMax: const Duration(hours: 4),
+          ),
         ),
 
         Provider(
@@ -165,6 +169,22 @@ class AppProviders extends StatelessWidget {
             ctx.read<ConstellationEffectsService>(),
             ctx.read<FactionService>(),
           ),
+        ),
+
+        ChangeNotifierProvider<SurvivalUpgradeService>(
+          create: (ctx) {
+            final svc = SurvivalUpgradeService(ctx.read<AlchemonsDatabase>());
+            svc.load();
+            return svc;
+          },
+        ),
+
+        ChangeNotifierProvider<BossUpgradeService>(
+          create: (ctx) {
+            final svc = BossUpgradeService(ctx.read<AlchemonsDatabase>());
+            svc.load();
+            return svc;
+          },
         ),
 
         ChangeNotifierProvider<SelectedPartyNotifier>(

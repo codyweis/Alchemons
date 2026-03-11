@@ -5,7 +5,6 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/harvest_biome.dart';
-import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/background/interactive_background_widget.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -148,6 +147,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
   Future<void> _selectFaction() async {
     HapticFeedback.heavyImpact();
     final selected = _factions[_currentIndex];
+    final svc = context.read<FactionService>();
     // final elementalGroup = selected.elementalGroup;
     // final biome = Biome.values.firstWhere(
     //   (b) => b.name == elementalGroup.name,
@@ -159,7 +159,6 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
     await db.biomeDao.unlockBiome(biomeId: Biome.oceanic.id, free: true);
     await db.biomeDao.unlockBiome(biomeId: Biome.volcanic.id, free: true);
     // Persist through the service (single source of truth).
-    final svc = context.read<FactionService>();
     await svc.setId(selected.id);
 
     await db.settingsDao.setMustPickFaction(false);
@@ -328,7 +327,7 @@ class _FactionCard extends StatelessWidget {
                     letterSpacing: 2,
                     shadows: [
                       Shadow(
-                        color: data.primaryColor.withOpacity(0.5),
+                        color: data.primaryColor.withValues(alpha: 0.5),
                         blurRadius: 20,
                       ),
                     ],
@@ -345,9 +344,9 @@ class _FactionCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        data.primaryColor.withOpacity(0),
+                        data.primaryColor.withValues(alpha: 0),
                         data.primaryColor,
-                        data.primaryColor.withOpacity(0),
+                        data.primaryColor.withValues(alpha: 0),
                       ],
                     ),
                   ),
@@ -380,7 +379,7 @@ class _FactionCard extends StatelessWidget {
                             style: GoogleFonts.crimsonText(
                               fontSize: 18,
                               fontStyle: FontStyle.italic,
-                              color: Colors.white.withOpacity(0.95),
+                              color: Colors.white.withValues(alpha: 0.95),
                               height: 1.6,
                             ),
                             textAlign: TextAlign.center,
@@ -393,7 +392,7 @@ class _FactionCard extends StatelessWidget {
                             data.description,
                             style: GoogleFonts.roboto(
                               fontSize: 14,
-                              color: Colors.white.withOpacity(0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                               height: 1.5,
                             ),
                             textAlign: TextAlign.center,
@@ -519,7 +518,7 @@ class _PerksSection extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 12),
             child: _PerkCard(perk: entry.value, color: color, index: entry.key),
           );
-        }).toList(),
+        }),
       ],
     );
   }
@@ -541,9 +540,9 @@ class _PerkCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -558,7 +557,10 @@ class _PerkCard extends StatelessWidget {
                   color: color,
                   shape: BoxShape.circle,
                   boxShadow: [
-                    BoxShadow(color: color.withOpacity(0.5), blurRadius: 4),
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.5),
+                      blurRadius: 4,
+                    ),
                   ],
                 ),
               ),
@@ -585,7 +587,7 @@ class _PerkCard extends StatelessWidget {
               perk.description,
               style: GoogleFonts.roboto(
                 fontSize: 12,
-                color: Colors.white.withOpacity(0.85),
+                color: Colors.white.withValues(alpha: 0.85),
                 height: 1.3,
               ),
             ),
@@ -631,13 +633,13 @@ class _OrbNavigation extends StatelessWidget {
               border: Border.all(
                 color: isActive
                     ? faction.primaryColor
-                    : Colors.white.withOpacity(0.3),
+                    : Colors.white.withValues(alpha: 0.3),
                 width: isActive ? 3 : 2,
               ),
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: faction.primaryColor.withOpacity(0.5),
+                        color: faction.primaryColor.withValues(alpha: 0.5),
                         blurRadius: 20,
                         spreadRadius: 2,
                       ),
@@ -650,7 +652,7 @@ class _OrbNavigation extends StatelessWidget {
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
-                    color: faction.primaryColor.withOpacity(0.3),
+                    color: faction.primaryColor.withValues(alpha: 0.3),
                     child: Icon(
                       Icons.circle,
                       color: faction.primaryColor,
@@ -689,12 +691,17 @@ class _ConfirmButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 18),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [color, color.withOpacity(0.8)]),
+          gradient: LinearGradient(
+            colors: [color, color.withValues(alpha: 0.8)],
+          ),
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.3),
+            width: 2,
+          ),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.5),
+              color: color.withValues(alpha: 0.5),
               blurRadius: 20,
               spreadRadius: 2,
             ),

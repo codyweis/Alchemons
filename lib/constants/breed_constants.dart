@@ -57,7 +57,7 @@ class BreedConstants {
   }
 
   // Type icons
-  static IconData getTypeIcon(String type) {
+  static IconData? getTypeIcon(String type) {
     switch (type) {
       case 'Fire':
         return Icons.local_fire_department_rounded;
@@ -96,7 +96,7 @@ class BreedConstants {
       case 'Blood':
         return Icons.bloodtype_rounded;
       default:
-        return Icons.pets_rounded;
+        return null;
     }
   }
 
@@ -139,8 +139,8 @@ class BreedConstants {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          Colors.white.withOpacity(0.9),
-          Colors.purple.shade50.withOpacity(0.9),
+          Colors.white.withValues(alpha: 0.9),
+          Colors.purple.shade50.withValues(alpha: 0.9),
         ],
       ),
       borderRadius: BorderRadius.circular(10),
@@ -174,7 +174,7 @@ class BreedConstants {
         gradient: LinearGradient(colors: colors),
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: colors.last.withOpacity(0.35), blurRadius: 6),
+          BoxShadow(color: colors.last.withValues(alpha: 0.35), blurRadius: 6),
         ],
       ),
       child: Row(

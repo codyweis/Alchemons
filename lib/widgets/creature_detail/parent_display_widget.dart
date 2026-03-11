@@ -8,20 +8,21 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_detail/detail_helper_widgets.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class ParentCard extends StatelessWidget {
-  final FactionTheme theme;
+  // ignore: unused_field
+  final FactionTheme? theme;
   final ParentSnapshot snap;
   final String parentKey;
   final bool isExpanded;
   final VoidCallback onToggle;
 
-  const ParentCard({
-    required this.theme,
+  const ParentCard({super.key, 
+    this.theme,
     required this.snap,
     required this.parentKey,
     required this.isExpanded,
@@ -30,6 +31,7 @@ class ParentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
     final creature = repo.getCreatureById(snap.baseId);
@@ -38,30 +40,30 @@ class ParentCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.border),
+        color: fc.bg2,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: fc.borderDim),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(3),
             onTap: onToggle,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               child: Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.04),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withOpacity(.12)),
+                      color: fc.bg3,
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(color: fc.borderAccent, width: 0.8),
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(7),
+                      borderRadius: BorderRadius.circular(2),
                       child: snap.spriteData != null
                           ? FutureBuilder<CreatureInstance?>(
                               future: instance,
@@ -72,7 +74,7 @@ class ParentCard extends StatelessWidget {
                                   return InstanceSprite(
                                     creature: creature!,
                                     instance: snapshotInstance.data!,
-                                    size: 48,
+                                    size: 44,
                                   );
                                 }
                                 return Image.asset(
@@ -87,7 +89,7 @@ class ParentCard extends StatelessWidget {
                             ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
 
                   Expanded(
                     child: Column(
@@ -98,25 +100,31 @@ class ParentCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: theme.text,
-                            fontSize: 13,
+                            fontFamily: 'monospace',
+                            color: fc.textPrimary,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           snap.types.join(' • '),
                           style: TextStyle(
-                            color: theme.text.withOpacity(0.7),
-                            fontSize: 10,
+                            fontFamily: 'monospace',
+                            color: fc.textSecondary,
+                            fontSize: 9,
                             fontWeight: FontWeight.w600,
+                            letterSpacing: 0.8,
                           ),
                         ),
                         Text(
-                          snap.rarity,
+                          snap.rarity.toUpperCase(),
                           style: TextStyle(
-                            color: theme.text.withOpacity(0.6),
-                            fontSize: 9,
+                            fontFamily: 'monospace',
+                            color: fc.textMuted,
+                            fontSize: 8,
+                            letterSpacing: 1.0,
                           ),
                         ),
                       ],
@@ -132,23 +140,21 @@ class ParentCard extends StatelessWidget {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.purple.shade400.withOpacity(.3),
-                                Colors.purple.shade600.withOpacity(.3),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(4),
+                            color: FC.purple.withValues(alpha: .15),
+                            borderRadius: BorderRadius.circular(2),
                             border: Border.all(
-                              color: Colors.purple.withOpacity(.4),
+                              color: FC.purple.withValues(alpha: .5),
+                              width: 0.8,
                             ),
                           ),
-                          child: const Text(
-                            'P',
+                          child: Text(
+                            'PRISM',
                             style: TextStyle(
-                              color: Colors.purple,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
+                              fontFamily: 'monospace',
+                              color: FC.purple,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
                             ),
                           ),
                         ),
@@ -158,8 +164,8 @@ class ParentCard extends StatelessWidget {
                         duration: const Duration(milliseconds: 200),
                         child: Icon(
                           Icons.expand_more,
-                          color: theme.primary.withOpacity(.6),
-                          size: 18,
+                          color: fc.amber,
+                          size: 16,
                         ),
                       ),
                     ],
@@ -179,19 +185,18 @@ class ParentCard extends StatelessWidget {
               firstChild: const SizedBox(width: double.infinity, height: 0),
               secondChild: Column(
                 children: [
-                  Divider(color: theme.border, height: 1),
+                  Divider(color: fc.borderDim, height: 1),
                   Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     child: Column(
                       children: [
                         _ParentSubSection(
-                          theme: theme,
                           title: 'Genetic Profile',
                           children: [
                             if (snap.genetics?.get('size') != null)
                               LabeledInlineValue(
                                 label: 'Size Variant',
-                                valueColor: theme.text,
+                                valueColor: fc.textPrimary,
                                 valueText:
                                     sizeLabels[snap.genetics!.get('size')] ??
                                     'Standard',
@@ -199,14 +204,14 @@ class ParentCard extends StatelessWidget {
                             if (snap.genetics?.get('tinting') != null)
                               LabeledInlineValue(
                                 label: 'Pigmentation',
-                                valueColor: theme.text,
+                                valueColor: fc.textPrimary,
                                 valueText:
                                     tintLabels[snap.genetics!.get('tinting')] ??
                                     'Standard',
                               ),
                             if (snap.nature != null)
                               LabeledInlineValue(
-                                valueColor: theme.text,
+                                valueColor: fc.textPrimary,
                                 label: 'Behavior',
                                 valueText: snap.nature!.id,
                               ),
@@ -230,37 +235,37 @@ class ParentCard extends StatelessWidget {
 // ============================================================================
 
 class _ParentSubSection extends StatelessWidget {
-  final FactionTheme theme;
   final String title;
   final List<Widget> children;
 
-  const _ParentSubSection({
-    required this.theme,
-    required this.title,
-    required this.children,
-  });
+  const _ParentSubSection({required this.title, required this.children});
 
   @override
   Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final ft = FT(fc);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            color: theme.primary,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: .6,
-          ),
+        Row(
+          children: [
+            Container(
+              width: 3,
+              height: 10,
+              color: fc.amber,
+              margin: const EdgeInsets.only(right: 8),
+            ),
+            Text(title.toUpperCase(), style: ft.sectionTitle),
+          ],
         ),
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(.02),
-            borderRadius: BorderRadius.circular(8),
+            color: fc.bg3,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: fc.borderDim),
           ),
           child: Column(children: children),
         ),

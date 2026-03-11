@@ -33,7 +33,6 @@ class FireFX extends StatefulWidget {
 
 class _FireFXState extends State<FireFX> with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  ui.FragmentProgram? _program;
   ui.FragmentShader? _shader;
 
   // Reused paints to avoid per-frame allocs
@@ -55,7 +54,6 @@ class _FireFXState extends State<FireFX> with SingleTickerProviderStateMixin {
       'assets/shaders/fire.frag',
     );
     setState(() {
-      _program = program;
       _shader = program.fragmentShader();
     });
   }
@@ -233,13 +231,13 @@ class FireEmbersPainter extends CustomPainter {
         final flicker = 0.85 + math.sin(phase * 8 * math.pi) * 0.15;
         final opacity = fadeOpacity * 0.85 * flicker;
 
-        final color = (i % 2 == 0 ? primaryColor : secondaryColor).withOpacity(
+        final color = (i % 2 == 0 ? primaryColor : secondaryColor).withValues(alpha: 
           opacity,
         );
         emberPaint.color = color;
         canvas.drawCircle(Offset(x, y), emberSize, emberPaint);
 
-        glowPaint.color = primaryColor.withOpacity(opacity * 0.35);
+        glowPaint.color = primaryColor.withValues(alpha: opacity * 0.35);
         canvas.drawCircle(Offset(x, y), emberSize * 2.3, glowPaint);
       }
     }

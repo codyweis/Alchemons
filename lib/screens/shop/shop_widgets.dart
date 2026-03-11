@@ -5,6 +5,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/harvest_biome.dart';
+import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
@@ -14,64 +15,6 @@ import 'package:provider/provider.dart';
 
 // ============= SUPPORTING WIDGETS =============
 // ShowPurchasedToggle and CurrencyPill are unchanged...
-
-class ShowPurchasedToggle extends StatelessWidget {
-  final bool value;
-  final Color accent;
-  final ValueChanged<bool> onChanged;
-
-  const ShowPurchasedToggle({
-    super.key,
-    required this.value,
-    required this.accent,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => onChanged(!value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: value
-              ? accent.withOpacity(0.2)
-              : Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(8),
-          // Changed border to a shadow for a softer look
-          boxShadow: [
-            BoxShadow(
-              color: value
-                  ? accent.withOpacity(0.3)
-                  : Colors.black.withOpacity(0.3),
-              blurRadius: 2,
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              value ? Icons.visibility_rounded : Icons.visibility_off_rounded,
-              size: 12,
-              color: value ? accent : Colors.white70,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              value ? 'ALL' : 'NEW',
-              style: TextStyle(
-                color: value ? accent : Colors.white70,
-                fontSize: 9,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class CurrencyPill extends StatelessWidget {
   final IconData icon;
@@ -115,6 +58,8 @@ class CurrencyPill extends StatelessWidget {
 // Enhanced Item Detail Dialog
 // Add this to your shop_widgets.dart or create a new file for dialogs
 
+// ── Forge color tokens are provided by ForgeTokens(theme) ──────────────────────
+
 Future<bool> showItemDetailDialog({
   required BuildContext context,
   required ShopOffer offer,
@@ -126,31 +71,40 @@ Future<bool> showItemDetailDialog({
   Map<String, int>? effectiveCost,
 }) async {
   final displayCost = effectiveCost ?? offer.cost;
+  final t = ForgeTokens(theme);
   return await showDialog<bool>(
         context: context,
         builder: (ctx) => Dialog(
           backgroundColor: Colors.transparent,
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 400),
+            constraints: const BoxConstraints(maxWidth: 380),
             decoration: BoxDecoration(
-              color: theme.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: theme.accent.withOpacity(0.5),
-                width: 2,
-              ),
+              color: t.bg1,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: t.borderAccent, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: t.amber.withValues(alpha: 0.08),
+                  blurRadius: 32,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header with close button
+                // ── Header ──────────────────────────────────────────────────
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
                   decoration: BoxDecoration(
-                    color: theme.surface,
+                    color: t.bg0,
                     borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(18),
+                      topLeft: Radius.circular(2),
+                      topRight: Radius.circular(2),
+                    ),
+                    border: Border(
+                      bottom: BorderSide(color: t.borderAccent, width: 1),
                     ),
                   ),
                   child: Row(
@@ -159,115 +113,139 @@ Future<bool> showItemDetailDialog({
                         child: Text(
                           'ITEM DETAILS',
                           style: TextStyle(
-                            color: theme.text,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
+                            fontFamily: 'monospace',
+                            color: t.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 2.4,
                           ),
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        icon: const Icon(Icons.close_rounded),
-                        color: Colors.white.withOpacity(0.7),
-                        iconSize: 20,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx, false),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: t.bg2,
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(color: t.borderDim, width: 1),
+                          ),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: t.textSecondary,
+                            size: 16,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
 
-                // Image Section - SIMPLIFIED with special handling for daily vials
+                // ── Preview area ─────────────────────────────────────────────
                 Container(
-                  height: 160,
-                  width: double.infinity,
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.accent.withOpacity(0.2)),
-                  ),
+                  height: 140,
+                  color: t.bg0,
                   child: _buildOfferPreviewForDialog(
                     offer,
-                    size: 120.0,
+                    size: 100.0,
                     theme: theme,
                   ),
                 ),
 
-                // Title
+                // ── Name + description ────────────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: Text(
-                    offer.name,
+                    offer.name.toUpperCase(),
                     style: TextStyle(
-                      color: theme.text,
-                      fontSize: 18,
+                      fontFamily: 'monospace',
+                      color: t.textPrimary,
+                      fontSize: 15,
                       fontWeight: FontWeight.w800,
+                      letterSpacing: 1.6,
                     ),
                     textAlign: TextAlign.center,
                   ),
                 ),
-
-                const SizedBox(height: 8),
-
-                // Description
+                const SizedBox(height: 6),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
                     offer.description,
                     style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      height: 1.4,
+                      color: t.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      height: 1.5,
+                      letterSpacing: 0.3,
                     ),
                     textAlign: TextAlign.center,
                   ),
                 ),
 
-                const SizedBox(height: 16),
-
-                // Inventory Count
-                if (inventoryQty > 0)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.surface,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: theme.accent.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.inventory_2_rounded,
-                          color: theme.accent,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'You own: $inventoryQty',
-                          style: TextStyle(
-                            color: theme.accent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                // ── Owned badge ──────────────────────────────────────────────
+                if (inventoryQty > 0) ...[
+                  const SizedBox(height: 14),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: t.amberDim.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(color: t.borderAccent, width: 1),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.inventory_2_rounded,
+                            color: t.amber,
+                            size: 13,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 6),
+                          Text(
+                            'IN INVENTORY: $inventoryQty',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: t.amber,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
+                ],
 
+                // ── Cost section ─────────────────────────────────────────────
                 const SizedBox(height: 20),
-
-                // Cost Section
-                DialogSectionHeader(
-                  title: 'COST',
-                  color: Colors.amber.shade300,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Expanded(child: Container(height: 1, color: t.borderMid)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Text(
+                          'COST',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.textMuted,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 2.0,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: Container(height: 1, color: t.borderMid)),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Padding(
@@ -275,114 +253,149 @@ Future<bool> showItemDetailDialog({
                   child: Column(
                     children: [
                       for (final entry in displayCost.entries)
-                        DialogResourceDisplay(
+                        _ForgeCostRow(
                           type: entry.key,
                           amount: entry.value,
                           current: currencies[entry.key] ?? 0,
-                          isSpending: true,
+                          theme: theme,
                         ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 24),
-
-                // Action Buttons
+                // ── Buttons ──────────────────────────────────────────────────
+                const SizedBox(height: 20),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          style: TextButton.styleFrom(
-                            backgroundColor: theme.surface,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                      // CANCEL
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx, false),
+                        child: Container(
+                          height: 44,
+                          width: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(
+                              color: t.borderAccent.withValues(alpha: 0.6),
+                              width: 1,
                             ),
                           ),
+                          alignment: Alignment.center,
                           child: Text(
                             'BACK',
                             style: TextStyle(
-                              color: theme.text,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13,
-                              letterSpacing: 0.6,
+                              fontFamily: 'monospace',
+                              color: t.textSecondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.4,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      if (canPurchase)
-                        Expanded(
-                          flex: 2,
-                          child: TextButton(
-                            onPressed: canAfford
-                                ? () => Navigator.pop(ctx, true)
-                                : null,
-                            style: TextButton.styleFrom(
-                              backgroundColor: canAfford
-                                  ? theme.accent.withOpacity(0.2)
-                                  : theme.surface,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: canAfford
-                                      ? theme.accent.withOpacity(0.5)
-                                      : Colors.red.withOpacity(0.5),
-                                  width: 1.5,
-                                ),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.shopping_cart_rounded,
-                                  color: theme.text,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  canAfford ? 'PURCHASE' : 'CAN\'T AFFORD',
-                                  style: TextStyle(
-                                    color: theme.text,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 13,
-                                    letterSpacing: 0.6,
+                      const SizedBox(width: 10),
+                      // PURCHASE / state button
+                      Expanded(
+                        child: canPurchase
+                            ? GestureDetector(
+                                onTap: canAfford
+                                    ? () => Navigator.pop(ctx, true)
+                                    : null,
+                                child: Container(
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: canAfford
+                                        ? t.amberDim.withValues(alpha: 0.35)
+                                        : t.bg3,
+                                    borderRadius: BorderRadius.circular(2),
+                                    border: Border.all(
+                                      color: canAfford
+                                          ? t.amber
+                                          : t.danger.withValues(alpha: 0.5),
+                                      width: 1,
+                                    ),
+                                    boxShadow: canAfford
+                                        ? [
+                                            BoxShadow(
+                                              color: t.amber.withValues(
+                                                alpha: 0.15,
+                                              ),
+                                              blurRadius: 12,
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        canAfford
+                                            ? Icons.shopping_bag_outlined
+                                            : Icons.block_rounded,
+                                        color: canAfford
+                                            ? t.amberBright
+                                            : t.danger.withValues(alpha: 0.7),
+                                        size: 15,
+                                      ),
+                                      const SizedBox(width: 7),
+                                      Text(
+                                        canAfford
+                                            ? 'PURCHASE'
+                                            : 'CAN\'T AFFORD',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: canAfford
+                                              ? t.amberBright
+                                              : t.danger.withValues(alpha: 0.7),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1.4,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        )
-                      else
-                        Expanded(
-                          flex: 2,
-                          child: Container(
-                            alignment: Alignment.center,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            decoration: BoxDecoration(
-                              color: theme.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.greenAccent.withOpacity(0.5),
-                                width: 1.5,
+                              )
+                            : Container(
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: t.successDim.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(2),
+                                  border: Border.all(
+                                    color: t.success.withValues(alpha: 0.5),
+                                    width: 1,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle_outline_rounded,
+                                      color: t.success,
+                                      size: 14,
+                                    ),
+                                    const SizedBox(width: 7),
+                                    Text(
+                                      offer.limit == PurchaseLimit.daily
+                                          ? 'BOUGHT TODAY'
+                                          : 'PURCHASED',
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        color: t.success,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 1.4,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            child: const Text(
-                              'BOUGHT TODAY',
-                              style: TextStyle(
-                                color: Colors.greenAccent,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                          ),
-                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -394,12 +407,152 @@ Future<bool> showItemDetailDialog({
       false;
 }
 
+/// Single cost row — icon, label, amount, "Have: N" suffix.
+class _ForgeCostRow extends StatelessWidget {
+  final String type;
+  final int amount;
+  final int current;
+  final FactionTheme theme;
+
+  const _ForgeCostRow({
+    required this.type,
+    required this.amount,
+    required this.current,
+    required this.theme,
+  });
+
+  (IconData, String, Color) _info(String t) {
+    switch (t) {
+      case 'gold':
+        return (Icons.hexagon_rounded, 'Gold', const Color(0xFFF59E0B));
+      case 'silver':
+        return (
+          Icons.monetization_on_rounded,
+          'Silver',
+          const Color(0xFFB0BEC5),
+        );
+      case 'soft':
+        return (Icons.diamond_rounded, 'Shards', const Color(0xFFB388FF));
+      case 'res_volcanic':
+        return (
+          Icons.local_fire_department_rounded,
+          'Volcanic',
+          const Color(0xFFF97316),
+        );
+      case 'res_oceanic':
+        return (Icons.water_drop_rounded, 'Oceanic', const Color(0xFF38BDF8));
+      case 'res_verdant':
+        return (Icons.eco_rounded, 'Verdant', const Color(0xFF4ADE80));
+      case 'res_earthen':
+        return (Icons.terrain_rounded, 'Earthen', const Color(0xFFA8996E));
+      case 'res_arcane':
+        return (Icons.auto_awesome_rounded, 'Arcane', const Color(0xFFA78BFA));
+      default:
+        return (Icons.circle, t, Colors.white);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
+    final (icon, label, color) = _info(type);
+    final hasEnough = current >= amount;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: t.bg2,
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(
+          color: hasEnough ? t.borderDim : t.danger.withValues(alpha: 0.4),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: t.textSecondary,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          Text(
+            '-$amount',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: hasEnough
+                  ? color.withValues(alpha: 0.9)
+                  : const Color(0xFFEF4444),
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'have $current',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: hasEnough
+                  ? t.textMuted
+                  : const Color(0xFFEF4444).withValues(alpha: 0.7),
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ============= CENTRALIZED PREVIEW BUILDER =============
 Widget _buildOfferPreview(
   ShopOffer offer, {
   double size = 64.0,
   required FactionTheme theme,
 }) {
+  // 0. Survival orb skin — render the radiant orb sphere
+  if (offer.id.startsWith('survival.orb.')) {
+    final orbDef = kOrbBases.where((d) => d.shopId == offer.id);
+    if (orbDef.isNotEmpty) {
+      final def = orbDef.first;
+      return Center(
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                def.glowColor.withValues(alpha: 0.7),
+                def.primaryColor,
+                def.secondaryColor,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: def.glowColor.withValues(alpha: 0.5),
+                blurRadius: 20,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
   // 1. Try animated preview for alchemy effects
   if (offer.inventoryKey != null) {
     final preview = ShopService.getAlchemyEffectPreview(
@@ -424,8 +577,13 @@ Widget _buildOfferPreview(
         child: Image.asset(
           offer.assetName!,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) =>
-              Icon(offer.icon, size: size * 0.8, color: theme.text),
+          color: offer.imageColor,
+          colorBlendMode: offer.imageColor != null ? BlendMode.multiply : null,
+          errorBuilder: (_, __, ___) => Icon(
+            offer.icon,
+            size: size * 0.8,
+            color: offer.iconColor ?? theme.text,
+          ),
         ),
       ),
     );
@@ -433,7 +591,11 @@ Widget _buildOfferPreview(
 
   // 3. Fallback to icon
   return Center(
-    child: Icon(offer.icon, size: size * 0.8, color: theme.text),
+    child: Icon(
+      offer.icon,
+      size: size * 0.8,
+      color: offer.iconColor ?? theme.text,
+    ),
   );
 }
 
@@ -506,20 +668,25 @@ class GameShopCard extends StatelessWidget {
     if (!enabled) {
       overlayColor = Colors.transparent;
     } else if (!canAfford) {
-      overlayColor = const Color.fromARGB(86, 244, 67, 54).withOpacity(0.3);
+      overlayColor = const Color.fromARGB(
+        86,
+        244,
+        67,
+        54,
+      ).withValues(alpha: 0.3);
     }
 
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: theme.surface.withOpacity(0.1),
+        color: theme.surface.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
           color: !enabled
-              ? theme.text.withOpacity(0.3)
+              ? theme.text.withValues(alpha: 0.3)
               : !canAfford
-              ? Colors.red.withOpacity(0.5)
-              : theme.accent.withOpacity(0.3),
+              ? Colors.red.withValues(alpha: 0.5)
+              : theme.accent.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -531,7 +698,7 @@ class GameShopCard extends StatelessWidget {
               // Image / Preview area - SIMPLIFIED
               Expanded(
                 child: Container(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   child: _buildOfferPreview(offer, size: 64.0, theme: theme),
                 ),
               ),
@@ -557,7 +724,7 @@ class GameShopCard extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Icon(
                   !enabled ? Icons.check_circle : Icons.lock,
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                   size: 32,
                 ),
               ),
@@ -571,10 +738,10 @@ class GameShopCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(
-                  color: theme.accent.withOpacity(0.9),
+                  color: theme.accent.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     width: 1,
                   ),
                 ),
@@ -616,7 +783,7 @@ class SectionHeader extends StatelessWidget {
         color: backgroundColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 1,
             offset: const Offset(0, 1),
           ),
@@ -659,13 +826,13 @@ class MiniCostChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: hasEnough
-            ? resource.color.withOpacity(0.15)
-            : Colors.red.withOpacity(0.15),
+            ? resource.color.withValues(alpha: 0.15)
+            : Colors.red.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: hasEnough
-              ? resource.color.withOpacity(0.4)
-              : Colors.red.withOpacity(0.4),
+              ? resource.color.withValues(alpha: 0.4)
+              : Colors.red.withValues(alpha: 0.4),
         ),
       ),
       child: Row(
@@ -716,10 +883,12 @@ class TabButton extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isActive ? accent.withOpacity(0.4) : Colors.transparent,
+          color: isActive ? accent.withValues(alpha: 0.4) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isActive ? accent.withOpacity(0.6) : Colors.transparent,
+            color: isActive
+                ? accent.withValues(alpha: 0.6)
+                : Colors.transparent,
             width: 1.5,
           ),
         ),
@@ -765,12 +934,14 @@ class CostChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: hasEnough ? Colors.transparent : Colors.red.withOpacity(0.15),
+        color: hasEnough
+            ? Colors.transparent
+            : Colors.red.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: hasEnough
-              ? color.withOpacity(0.4)
-              : Colors.red.withOpacity(0.4),
+              ? color.withValues(alpha: 0.4)
+              : Colors.red.withValues(alpha: 0.4),
         ),
       ),
       child: Row(
@@ -794,11 +965,11 @@ class CostChip extends StatelessWidget {
   (IconData, Color) _getCurrencyDisplay(String type, FactionTheme theme) {
     switch (type) {
       case 'gold':
-        return (Icons.diamond_rounded, const Color.fromARGB(255, 184, 138, 1));
+        return (Icons.hexagon_rounded, const Color.fromARGB(255, 184, 138, 1));
       case 'silver':
         return (Icons.monetization_on_rounded, theme.text);
       case 'soft':
-        return (Icons.paid_rounded, Colors.lightBlue);
+        return (Icons.diamond_rounded, const Color(0xFFB388FF));
       // resources (fall through to correct icons/colors)
       case 'res_volcanic':
         return (Icons.local_fire_department_rounded, Colors.orange.shade400);
@@ -829,19 +1000,19 @@ class EmptySection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3), // Already transparent, good
+        color: Colors.black.withValues(alpha: 0.3), // Already transparent, good
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Center(
         child: Column(
           children: [
-            Icon(icon, size: 32, color: Colors.white.withOpacity(0.3)),
+            Icon(icon, size: 32, color: Colors.white.withValues(alpha: 0.3)),
             const SizedBox(height: 8),
             Text(
               message,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
@@ -885,7 +1056,9 @@ class MarketplaceGrid extends StatelessWidget {
 
               // FIX: Use '?? 999' to provide a safe default value if the limit string
               // is unexpected. This pushes unknown limits to the end of the sort order.
-              return (order[aLimit] ?? 999).compareTo(order[bLimit] ?? 999);
+              return (order[aLimit.name] ?? 999).compareTo(
+                order[bLimit.name] ?? 999,
+              );
             }
             return a.name.compareTo(b.name);
           });
@@ -1106,8 +1279,6 @@ class FarmUnlockSection extends StatelessWidget {
       case Biome.arcane:
         icon = Icons.auto_awesome_outlined;
         break;
-      default:
-        icon = Icons.terrain_outlined;
     }
 
     // Create a pseudo-offer for consistent handling
@@ -1217,7 +1388,10 @@ Future<bool> showBiomeUnlockConfirmationDialog({
           backgroundColor: const Color(0xFF1A1D23),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
+            side: BorderSide(
+              color: theme.accent.withValues(alpha: 0.5),
+              width: 2,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -1229,7 +1403,7 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                 Text(
                   '$biomeName Farm',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                   ),
@@ -1306,8 +1480,8 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
                         style: TextButton.styleFrom(
-                          backgroundColor: Colors.grey.shade800.withOpacity(
-                            0.5,
+                          backgroundColor: Colors.grey.shade800.withValues(
+                            alpha: 0.5,
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -1317,7 +1491,7 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                         child: Text(
                           'CANCEL',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
+                            color: Colors.white.withValues(alpha: 0.7),
                             fontWeight: FontWeight.w900,
                             fontSize: 13,
                             letterSpacing: 0.6,
@@ -1330,7 +1504,7 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx, true),
                         style: TextButton.styleFrom(
-                          backgroundColor: theme.accent.withOpacity(0.2),
+                          backgroundColor: theme.accent.withValues(alpha: 0.2),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
@@ -1448,146 +1622,212 @@ Future<int?> showPurchaseConfirmationDialog({
     builder: (ctx) {
       return StatefulBuilder(
         builder: (ctx, setState) => Dialog(
-          backgroundColor: const Color(0xFF1A1D23),
+          backgroundColor: const Color(0xFF0D0D1A),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
+            borderRadius: BorderRadius.circular(4),
+            side: const BorderSide(color: Color(0xFFD4AF37), width: 1),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
             child: SingleChildScrollView(
-              // Added SingleChildScrollView for small screens
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(offer.icon, color: theme.accent, size: 36),
-                  const SizedBox(height: 12),
+                  // ── Header ──────────────────────────────────────────────
                   Text(
-                    offer.name + (canQty && qty > 1 ? '  x$qty' : ''),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    'CONFIRM PURCHASE',
                     textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: Color(0xFFD4AF37),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // ── Item icon + name ─────────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        offer.icon,
+                        color: offer.iconColor ?? theme.accent,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          offer.name + (canQty && qty > 1 ? '  ×$qty' : ''),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Text(
                     offer.description,
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
                     textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: Colors.white38,
+                      fontSize: 10,
+                      height: 1.6,
+                      letterSpacing: 0.3,
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  // ── Quantity picker ──────────────────────────────────────
                   if (canQty) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            if (qty > 1) setState(() => qty--);
-                          },
-                          icon: const Icon(
-                            Icons.remove_circle_outline_rounded,
-                            size: 22,
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white12),
+                        borderRadius: BorderRadius.circular(3),
+                        color: Colors.white.withValues(alpha: 0.03),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              if (qty > 1) setState(() => qty--);
+                            },
+                            child: Icon(
+                              Icons.remove_rounded,
+                              size: 18,
+                              color: qty > 1 ? Colors.white70 : Colors.white24,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'x$qty',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 14,
+                          const SizedBox(width: 20),
+                          Text(
+                            'x$qty',
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                              letterSpacing: 1,
+                            ),
                           ),
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            if (qty < 999) setState(() => qty++);
-                          },
-                          icon: const Icon(
-                            Icons.add_circle_outline_rounded,
-                            size: 22,
+                          const SizedBox(width: 20),
+                          GestureDetector(
+                            onTap: () {
+                              if (qty < 999) setState(() => qty++);
+                            },
+                            child: const Icon(
+                              Icons.add_rounded,
+                              size: 18,
+                              color: Colors.white70,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
                   ],
-                  DialogSectionHeader(
-                    title: 'COST',
-                    color: Colors.red.shade300,
+                  const SizedBox(height: 16),
+                  // ── Cost ────────────────────────────────────────────────
+                  _MonoSectionHeader(
+                    label: 'COST',
+                    color: const Color(0xFFE06060),
                   ),
                   const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Column(
-                      children: [
-                        for (final entry in previewCost().entries)
-                          DialogResourceDisplay(
-                            type: entry.key,
-                            amount: entry.value,
-                            current: currencies[entry.key] ?? 0,
-                            isSpending: true,
-                          ),
-                      ],
+                  for (final entry in previewCost().entries)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: DialogResourceDisplay(
+                        type: entry.key,
+                        amount: entry.value,
+                        current: currencies[entry.key] ?? 0,
+                        isSpending: true,
+                      ),
+                    ),
+                  const SizedBox(height: 14),
+                  // ── Reward ───────────────────────────────────────────────
+                  _MonoSectionHeader(
+                    label: 'REWARD',
+                    color: const Color(0xFF88EE88),
+                  ),
+                  const SizedBox(height: 8),
+                  ...buildRewardWidgets().map(
+                    (w) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: w,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  DialogSectionHeader(
-                    title: 'REWARD',
-                    color: Colors.green.shade300,
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Column(children: buildRewardWidgets()),
-                  ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
+                  // ── Buttons ──────────────────────────────────────────────
                   Row(
                     children: [
                       Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(ctx, null),
-                          style: TextButton.styleFrom(
-                            backgroundColor: Colors.grey.shade800.withOpacity(
-                              0.5,
-                            ),
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(ctx, null),
+                          child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.white24),
+                              borderRadius: BorderRadius.circular(3),
+                              color: Colors.white.withValues(alpha: 0.04),
                             ),
-                          ),
-                          child: Text(
-                            'CANCEL',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13,
-                              letterSpacing: 0.6,
+                            child: const Text(
+                              'CANCEL',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: Colors.white38,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                                letterSpacing: 2,
+                              ),
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(ctx, qty),
-                          style: TextButton.styleFrom(
-                            backgroundColor: theme.accent.withOpacity(0.2),
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(ctx, qty),
+                          child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: const Color(0xFFD4AF37),
+                                width: 1,
+                              ),
+                              borderRadius: BorderRadius.circular(3),
+                              color: const Color(
+                                0xFFD4AF37,
+                              ).withValues(alpha: 0.15),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFFD4AF37,
+                                  ).withValues(alpha: 0.2),
+                                  blurRadius: 10,
+                                ),
+                              ],
                             ),
-                          ),
-                          child: Text(
-                            'CONFIRM',
-                            style: TextStyle(
-                              color: theme.accent,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13,
-                              letterSpacing: 0.6,
+                            child: const Text(
+                              'CONFIRM',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: Color(0xFFD4AF37),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                                letterSpacing: 2,
+                              ),
                             ),
                           ),
                         ),
@@ -1604,6 +1844,41 @@ Future<int?> showPurchaseConfirmationDialog({
   );
 }
 
+// ── Monospace section divider used in the purchase dialog ───────────────────
+class _MonoSectionHeader extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _MonoSectionHeader({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(height: 1, color: color.withValues(alpha: 0.25)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: color,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 2.5,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(height: 1, color: color.withValues(alpha: 0.25)),
+        ),
+      ],
+    );
+  }
+}
+
 class DialogSectionHeader extends StatelessWidget {
   final String title;
   final Color color;
@@ -1618,7 +1893,9 @@ class DialogSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Container(height: 1, color: color.withOpacity(0.3))),
+        Expanded(
+          child: Container(height: 1, color: color.withValues(alpha: 0.3)),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Text(
@@ -1631,7 +1908,9 @@ class DialogSectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(child: Container(height: 1, color: color.withOpacity(0.3))),
+        Expanded(
+          child: Container(height: 1, color: color.withValues(alpha: 0.3)),
+        ),
       ],
     );
   }
@@ -1656,11 +1935,11 @@ class DialogResourceDisplay extends StatelessWidget {
     switch (type) {
       // Currencies
       case 'gold':
-        return (Icons.diamond_rounded, 'Gold', Colors.amber);
+        return (Icons.hexagon_rounded, 'Gold', Colors.amber);
       case 'silver':
         return (Icons.monetization_on_rounded, 'Silver', Colors.grey.shade300);
       case 'soft':
-        return (Icons.paid_rounded, 'Soft', Colors.lightBlue);
+        return (Icons.diamond_rounded, 'Shards', const Color(0xFFB388FF));
       // Resources
       case 'res_volcanic':
         return (

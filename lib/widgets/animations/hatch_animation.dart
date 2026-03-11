@@ -125,8 +125,8 @@ class _HatchCinematicState extends State<HatchCinematic>
             rotationController: _rotationController,
             waveController: _waveController,
             primaryColor: widget.palette.shell,
-            secondaryColor: widget.palette.shell.withOpacity(0.7),
-            accentColor: widget.palette.shell.withOpacity(0.5),
+            secondaryColor: widget.palette.shell.withValues(alpha: 0.7),
+            accentColor: widget.palette.shell.withValues(alpha: 0.5),
             factionType: widget.factionId ?? FactionId.verdant,
             particleSpeed: 0.6, // Slower, more ambient
             rotationSpeed: 0.4, // Gentle rotation
@@ -134,7 +134,7 @@ class _HatchCinematicState extends State<HatchCinematic>
           ),
 
           // Dark overlay to help egg pop
-          Container(color: widget.bg.withOpacity(0.3)),
+          Container(color: widget.bg.withValues(alpha: 0.3)),
 
           // Egg hatch animation on top
           RepaintBoundary(

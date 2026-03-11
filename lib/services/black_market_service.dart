@@ -3,7 +3,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/database/alchemons_db.dart'; // <-- use Settings table
 import 'package:alchemons/models/elemental_group.dart';
@@ -11,7 +10,6 @@ import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class DailyOffer {
@@ -243,6 +241,7 @@ class BlackMarketService extends ChangeNotifier {
 
   void _updateWeeklyContent() {
     final seed = _weeklySeed();
+    final weeklyRng = math.Random(seed);
 
     // Weekly premium
     final element = Elements.values.map((r) => r.name).toList();
@@ -254,7 +253,8 @@ class BlackMarketService extends ChangeNotifier {
         .toList();
     _premiumType = species[(seed ~/ 3) % species.length];
 
-    _premiumBonus = 2 + ((seed % 10) / 10.0);
+    // Weekly random premium multiplier: 150%..300% (x1.5..x3.0)
+    _premiumBonus = 1.5 + (weeklyRng.nextDouble() * 1.5);
 
     // Weekly offers & vials (names kept)
     _dailyOffers = _generateDailyOffers(seed);
@@ -276,7 +276,8 @@ class BlackMarketService extends ChangeNotifier {
     final offers = <DailyOffer>[];
 
     // Offer 1: Currency exchange
-    final goldAmount = 10 + ((seed % 5) * 100);
+    final goldAmount = (seed % 5) + 1;
+
     offers.add(
       DailyOffer(
         id: 'gold_exchange_$seed',

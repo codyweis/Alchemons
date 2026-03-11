@@ -182,7 +182,7 @@ class LineageData {
   };
 
   factory LineageData.fromJson(Map<String, dynamic> json) {
-    Map<String, int> _parseLineageMap(dynamic value) {
+    Map<String, int> parseLineageMap(dynamic value) {
       if (value is! Map) return {};
       return value.map(
         (k, v) => MapEntry(k.toString(), (v as num?)?.toInt() ?? 0),
@@ -193,9 +193,9 @@ class LineageData {
       generationDepth: (json['generationDepth'] as num?)?.toInt() ?? 0,
       nativeFaction: json['nativeFaction'] as String?,
       variantFaction: json['variantFaction'] as String?,
-      factionLineage: _parseLineageMap(json['factionLineage']),
-      elementLineage: _parseLineageMap(json['elementLineage']),
-      familyLineage: _parseLineageMap(json['familyLineage']),
+      factionLineage: parseLineageMap(json['factionLineage']),
+      elementLineage: parseLineageMap(json['elementLineage']),
+      familyLineage: parseLineageMap(json['familyLineage']),
       isPure: json['isPure'] as bool? ?? false,
     );
   }
@@ -229,29 +229,53 @@ class EggPayloadFactory {
   EggPayloadFactory(this.repository, {Random? random})
     : _random = random ?? Random();
 
-  EggPayload createWildCapturePayload(Creature creature) {
+  EggPayload createWildCapturePayload(
+    Creature creature, {
+    String? sourceOverride,
+  }) {
     final rng = _random;
     final statRange = _getStatRangeForRarity(creature.rarity);
+    // If the creature already has stats set (e.g. nexus fixed-stat encounters),
+    // honour them instead of re-rolling from rarity ranges.
+    final hasFixedStats = creature.stats != null;
 
     return EggPayload(
       baseId: creature.id,
       rarity: creature.rarity,
-      source: 'wild',
-      natureId: creature.nature?.id, // keep wild’s nature if you have it
-      isPrismaticSkin: creature.isPrismaticSkin ?? false,
+      source: sourceOverride ?? 'wild_capture',
+      natureId: creature.nature?.id,
+      isPrismaticSkin: creature.isPrismaticSkin,
       genetics: creature.genetics?.variants ?? {},
-      stats: CreatureStats(
-        speed: _rollInRange(rng, statRange.min, statRange.max),
-        intelligence: _rollInRange(rng, statRange.min, statRange.max),
-        strength: _rollInRange(rng, statRange.min, statRange.max),
-        beauty: _rollInRange(rng, statRange.min, statRange.max),
-      ),
-      potentials: CreatureStatPotentials(
-        speed: _rollInRange(rng, statRange.potMin, statRange.potMax),
-        intelligence: _rollInRange(rng, statRange.potMin, statRange.potMax),
-        strength: _rollInRange(rng, statRange.potMin, statRange.potMax),
-        beauty: _rollInRange(rng, statRange.potMin, statRange.potMax),
-      ),
+      stats: hasFixedStats
+          ? CreatureStats(
+              speed: creature.stats!.speed,
+              intelligence: creature.stats!.intelligence,
+              strength: creature.stats!.strength,
+              beauty: creature.stats!.beauty,
+            )
+          : CreatureStats(
+              speed: _rollInRange(rng, statRange.min, statRange.max),
+              intelligence: _rollInRange(rng, statRange.min, statRange.max),
+              strength: _rollInRange(rng, statRange.min, statRange.max),
+              beauty: _rollInRange(rng, statRange.min, statRange.max),
+            ),
+      potentials: hasFixedStats
+          ? CreatureStatPotentials(
+              speed: creature.stats!.speedPotential,
+              intelligence: creature.stats!.intelligencePotential,
+              strength: creature.stats!.strengthPotential,
+              beauty: creature.stats!.beautyPotential,
+            )
+          : CreatureStatPotentials(
+              speed: _rollInRange(rng, statRange.potMin, statRange.potMax),
+              intelligence: _rollInRange(
+                rng,
+                statRange.potMin,
+                statRange.potMax,
+              ),
+              strength: _rollInRange(rng, statRange.potMin, statRange.potMax),
+              beauty: _rollInRange(rng, statRange.potMin, statRange.potMax),
+            ),
       parentage: ParentageData(
         parentA: _createStarterParent(creature.types.first),
         parentB: _createStarterParent(creature.types.first),
@@ -276,9 +300,9 @@ class EggPayloadFactory {
     return EggPayload(
       baseId: offspring.id,
       rarity: offspring.rarity,
-      source: 'breeding',
+      source: 'standard_fusion',
       natureId: offspring.nature?.id,
-      isPrismaticSkin: offspring.isPrismaticSkin ?? false,
+      isPrismaticSkin: offspring.isPrismaticSkin,
       genetics: offspring.genetics?.variants ?? {},
       stats: CreatureStats(
         speed: offspring.stats?.speed ?? 0.0,
@@ -312,8 +336,25 @@ class EggPayloadFactory {
     final actualSeed = seed ?? DateTime.now().millisecondsSinceEpoch;
     final rng = Random(actualSeed);
 
-    final elementType = _factionKey(faction);
+    final factionType = _factionKey(faction);
 
+    String elementType;
+    switch (factionType) {
+      case 'volcanic':
+        elementType = 'Fire';
+        break;
+      case 'oceanic':
+        elementType = 'Water';
+        break;
+      case 'earthen':
+        elementType = 'Earth';
+        break;
+      case 'verdant':
+        elementType = 'Air';
+        break;
+      default:
+        elementType = 'Neutral';
+    }
     return EggPayload(
       baseId: baseId,
       rarity: 'Common',
@@ -360,6 +401,7 @@ class EggPayloadFactory {
     CreatureInstance ownedParent,
     Creature wildParent, {
     String? likelihoodAnalysisJson,
+    String? sourceOverride,
   }) {
     // Wild creatures get randomized attributes
 
@@ -371,9 +413,9 @@ class EggPayloadFactory {
     return EggPayload(
       baseId: offspring.id,
       rarity: offspring.rarity,
-      source: 'wild_breeding',
+      source: sourceOverride ?? 'wild_fusion',
       natureId: offspring.nature?.id,
-      isPrismaticSkin: offspring.isPrismaticSkin ?? false,
+      isPrismaticSkin: offspring.isPrismaticSkin,
       genetics: offspring.genetics?.variants ?? {},
       stats: CreatureStats(
         speed: offspring.stats?.speed ?? 0.0,
@@ -395,7 +437,6 @@ class EggPayloadFactory {
 
   EggPayload createVialPayload(Creature creature) {
     final rng = _random;
-    final seed = DateTime.now().millisecondsSinceEpoch;
 
     // Vials get random nature
     final nature = NatureCatalogWeighted.weightedRandom(rng);
@@ -485,7 +526,7 @@ class EggPayloadFactory {
       factionLineage: lineage?.factionLineage ?? {},
       elementLineage: lineage?.elementLineage ?? {},
       familyLineage: lineage?.familyLineage ?? {},
-      isPure: creature.isPure ?? false,
+      isPure: creature.isPure,
     );
   }
 

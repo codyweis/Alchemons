@@ -55,8 +55,7 @@ class StaminaService {
   /// Returns updated row, or null if not enough stamina.
   Future<CreatureInstance?> spendForBreeding(
     String instanceId, {
-    Creature?
-    instanceOverlayForNature, // pass creature to read Nature, if handy
+    Creature? instanceOverlayForNature,
     int baseCostBars = 1,
     DateTime? nowUtc,
   }) async {
@@ -71,15 +70,21 @@ class StaminaService {
     );
 
     final charge = _stochasticCost(baseCostBars * mult);
-    if (row.staminaBars < charge || charge <= 0) {
-      // Not enough stamina (or weird zero/negative charge)
+
+    // charge == 0 means free action (lucky stochastic roll), allow it!
+    if (charge > 0 && row.staminaBars < charge) {
+      // Not enough stamina
       return null;
+    }
+
+    // If charge is 0, skip the DB update entirely - it's free
+    if (charge == 0) {
+      return row;
     }
 
     final newBars = row.staminaBars - charge;
     final nowMs = (nowUtc ?? DateTime.now().toUtc()).millisecondsSinceEpoch;
 
-    // Spending resets the regen anchor so next bar regens from now.
     await db.creatureDao.updateStamina(
       instanceId: row.instanceId,
       staminaBars: newBars,
@@ -103,40 +108,6 @@ class StaminaService {
     await db.creatureDao.updateStamina(
       instanceId: row.instanceId,
       staminaBars: max,
-      staminaLastUtcMs: nowMs,
-    );
-
-    return db.creatureDao.getInstance(instanceId);
-  }
-
-  /// Spend stamina for wilderness (default: drain to zero).
-  /// You can tune [baseCostBars] if you want partial drains later.
-  Future<CreatureInstance?> spendForWilderness(
-    String instanceId, {
-    Creature? instanceOverlayForNature,
-    int? baseCostBars, // default = current bars (full drain)
-    DateTime? nowUtc,
-  }) async {
-    final row = await refreshAndGet(instanceId, nowUtc: nowUtc);
-    if (row == null) return null;
-
-    final nature = _natureFromRowOrOverlay(row, instanceOverlayForNature);
-    final mult = _natureNum(
-      nature,
-      'stamina_wilderness_drain_mult',
-      defaultVal: 1.0,
-    );
-
-    final base = baseCostBars ?? row.staminaBars;
-    final charge = _stochasticCost(base * mult).clamp(0, row.staminaBars);
-    if (charge <= 0) return row; // Nothing to spend
-
-    final newBars = row.staminaBars - charge;
-    final nowMs = (nowUtc ?? DateTime.now().toUtc()).millisecondsSinceEpoch;
-
-    await db.creatureDao.updateStamina(
-      instanceId: row.instanceId,
-      staminaBars: newBars,
       staminaLastUtcMs: nowMs,
     );
 

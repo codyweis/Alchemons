@@ -36,10 +36,10 @@ class PartyHUD extends StatelessWidget {
             margin: const EdgeInsets.all(12),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.75),
+              color: Colors.black.withValues(alpha: 0.75),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: Colors.purple.withOpacity(0.5),
+                color: Colors.purple.withValues(alpha: 0.5),
                 width: 2,
               ),
             ),
@@ -96,7 +96,7 @@ class PartyHUD extends StatelessWidget {
                     borderRadius: BorderRadius.circular(32),
                   ),
                   elevation: 8,
-                  shadowColor: const Color(0xFFE91E63).withOpacity(0.5),
+                  shadowColor: const Color(0xFFE91E63).withValues(alpha: 0.5),
                 ),
               ),
             ),
@@ -143,7 +143,7 @@ class _PartySlot extends StatelessWidget {
             height: 56,
             margin: const EdgeInsets.symmetric(horizontal: 4),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white30, width: 1),
             ),
@@ -175,6 +175,8 @@ class _PartySlot extends StatelessWidget {
               // Note: natureId in instance is just a string ID, not the full NatureDef
               // The base creature already has the correct nature definition
               isPrismaticSkin: inst.isPrismaticSkin,
+              alchemyEffect: inst.alchemyEffect,
+              variantFaction: inst.variantFaction,
             ) ??
             Creature(
               // Fallback if base not found (shouldn't happen)
@@ -194,8 +196,8 @@ class _PartySlot extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Colors.purple.withOpacity(0.3)
-                  : Colors.black.withOpacity(0.3),
+                  ? Colors.purple.withValues(alpha: 0.3)
+                  : Colors.black.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isSelected ? Colors.purple : Colors.white30,
@@ -213,7 +215,7 @@ class _PartySlot extends StatelessWidget {
                         )
                       : Icon(
                           Icons.pets,
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                           size: 32,
                         ),
                 ),
@@ -228,7 +230,7 @@ class _PartySlot extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.8),
+                      color: Colors.black.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -250,7 +252,7 @@ class _PartySlot extends StatelessWidget {
                     right: 2,
                     child: LinearProgressIndicator(
                       value: inst.staminaBars / inst.staminaMax,
-                      backgroundColor: Colors.red.withOpacity(0.3),
+                      backgroundColor: Colors.red.withValues(alpha: 0.3),
                       valueColor: const AlwaysStoppedAnimation(Colors.green),
                       minHeight: 3,
                     ),
@@ -285,7 +287,7 @@ class _CreatureThumbnail extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: RadialGradient(
-          colors: [color.withOpacity(0.8), color.withOpacity(0.4)],
+          colors: [color.withValues(alpha: 0.8), color.withValues(alpha: 0.4)],
         ),
       ),
       child: Center(

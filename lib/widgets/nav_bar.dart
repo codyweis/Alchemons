@@ -295,7 +295,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                           child: Text(
                             label,
                             style: TextStyle(
-                              color: (theme?.text ?? Colors.white).withOpacity(
+                              color: (theme?.text ?? Colors.white).withValues(alpha: 
                                 opacity,
                               ),
                               fontSize: 12,

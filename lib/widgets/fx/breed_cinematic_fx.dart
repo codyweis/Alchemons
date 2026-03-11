@@ -122,7 +122,7 @@ class _AlchemyFusionCinematicPageState<T>
   Widget build(BuildContext context) {
     // darker background with subtle vignette
     return Scaffold(
-      backgroundColor: Colors.black.withOpacity(.65),
+      backgroundColor: Colors.black.withValues(alpha: .65),
       body: Stack(
         children: [
           // vignette
@@ -134,8 +134,8 @@ class _AlchemyFusionCinematicPageState<T>
                   radius: 1.1,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(.55),
-                    Colors.black.withOpacity(.8),
+                    Colors.black.withValues(alpha: .55),
+                    Colors.black.withValues(alpha: .8),
                   ],
                   stops: const [0.30, 0.7, 1.0],
                 ),
@@ -357,12 +357,12 @@ class _Glow extends StatelessWidget {
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(.45 * intensity),
+            color: color.withValues(alpha: .45 * intensity),
             blurRadius: 20,
             spreadRadius: 2,
           ),
           BoxShadow(
-            color: color.withOpacity(.25 * intensity),
+            color: color.withValues(alpha: .25 * intensity),
             blurRadius: 60,
             spreadRadius: 20,
           ),
@@ -384,11 +384,11 @@ class _SigilPainter extends CustomPainter {
     final c = Offset(size.width / 2, size.height / 2);
     final baseR = math.min(size.width, size.height) * .32;
     final paintA = Paint()
-      ..color = a.withOpacity(.8)
+      ..color = a.withValues(alpha: .8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.2;
     final paintB = Paint()
-      ..color = b.withOpacity(.8)
+      ..color = b.withValues(alpha: .8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.2;
 
@@ -397,7 +397,7 @@ class _SigilPainter extends CustomPainter {
       c,
       baseR * 1.28,
       Paint()
-        ..color = Colors.white.withOpacity(.12)
+        ..color = Colors.white.withValues(alpha: .12)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
@@ -408,8 +408,6 @@ class _SigilPainter extends CustomPainter {
       for (int i = 0; i < seg; i++) {
         final a0 = (i / seg) * 2 * math.pi + rot;
         final a1 = a0 + (2 * math.pi / seg) * .55;
-        final p0 = c + Offset(math.cos(a0), math.sin(a0)) * r;
-        final p1 = c + Offset(math.cos(a1), math.sin(a1)) * r;
         canvas.drawArc(
           Rect.fromCircle(center: c, radius: r),
           a0,
@@ -428,7 +426,7 @@ class _SigilPainter extends CustomPainter {
 
     // Triangle glyphs
     final triPaint = Paint()
-      ..color = Colors.white.withOpacity(.35)
+      ..color = Colors.white.withValues(alpha: .35)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4;
 
@@ -453,8 +451,8 @@ class _SigilPainter extends CustomPainter {
     final corePaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          Color.lerp(a, b, .5)!.withOpacity(.45),
-          Colors.white.withOpacity(.0),
+          Color.lerp(a, b, .5)!.withValues(alpha: .45),
+          Colors.white.withValues(alpha: .0),
         ],
       ).createShader(Rect.fromCircle(center: c, radius: coreR * 1.8));
     canvas.drawCircle(c, coreR * 1.8, corePaint);
@@ -462,7 +460,7 @@ class _SigilPainter extends CustomPainter {
       c,
       coreR,
       Paint()
-        ..color = Colors.white.withOpacity(.65)
+        ..color = Colors.white.withValues(alpha: .65)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2,
     );
@@ -496,7 +494,7 @@ class _BeamPulse extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  colors: [mix.withOpacity(.15 * opacity), mix.withOpacity(.0)],
+                  colors: [mix.withValues(alpha: .15 * opacity), mix.withValues(alpha: .0)],
                   stops: const [0.0, 1.0],
                 ),
               ),
@@ -514,7 +512,7 @@ class _BeamPulse extends StatelessWidget {
                   gradient: LinearGradient(
                     colors: [
                       Colors.transparent,
-                      Colors.white.withOpacity(.9),
+                      Colors.white.withValues(alpha: .9),
                       Colors.transparent,
                     ],
                     begin: Alignment.topCenter,
@@ -523,7 +521,7 @@ class _BeamPulse extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: mix.withOpacity(.5),
+                      color: mix.withValues(alpha: .5),
                       blurRadius: 40,
                       spreadRadius: 8,
                     ),

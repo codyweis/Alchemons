@@ -98,7 +98,7 @@ class _AlchemicAuraPainter extends CustomPainter {
       final particleSize = 3.0 + (flicker * 1.5);
 
       // Use the flicker to vary particle opacity (from 0.4 to 1.0)
-      particlePaint.color = essenceColor.withOpacity(0.7 + (flicker * 0.3));
+      particlePaint.color = essenceColor.withValues(alpha: 0.7 + (flicker * 0.3));
 
       // Standard trig to find the particle's position on the breathing orbit
       final x = center.dx + mainRadius * math.cos(angle);

@@ -2,19 +2,14 @@ import 'package:alchemons/screens/feeding/feeding_stages.dart';
 import 'package:alchemons/screens/feeding/feeding_widgets.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
-import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
-import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
 
 class FeedingScreen extends StatefulWidget {
@@ -69,22 +64,24 @@ class _FeedingScreenState extends State<FeedingScreen>
     if (hasSeen || !mounted) return;
 
     final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
 
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: theme.surface,
+          backgroundColor: t.bg2,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(6),
+            side: BorderSide(color: t.borderDim),
           ),
           title: Row(
             children: [
               Text(
                 'Enhancement Basics',
                 style: TextStyle(
-                  color: theme.text,
+                  color: t.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
@@ -98,7 +95,7 @@ class _FeedingScreenState extends State<FeedingScreen>
               Text(
                 'This screen lets you power up your creatures by consuming others of the same species.',
                 style: TextStyle(
-                  color: theme.textMuted,
+                  color: t.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -131,7 +128,7 @@ class _FeedingScreenState extends State<FeedingScreen>
               Text(
                 'Tip: You can long-press a specimen to inspect its details before using it as fodder.',
                 style: TextStyle(
-                  color: theme.textMuted,
+                  color: t.textSecondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -146,10 +143,7 @@ class _FeedingScreenState extends State<FeedingScreen>
               },
               child: Text(
                 'Got it',
-                style: TextStyle(
-                  color: theme.primary,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(color: t.amber, fontWeight: FontWeight.w700),
               ),
             ),
           ],
@@ -185,6 +179,7 @@ class _FeedingScreenState extends State<FeedingScreen>
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
+    final t = ForgeTokens(theme);
     final db = context.watch<AlchemonsDatabase>();
 
     return Scaffold(
@@ -204,15 +199,10 @@ class _FeedingScreenState extends State<FeedingScreen>
         children: [
           Container(
             decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(0, 0),
-                radius: 1.2,
-                colors: [
-                  theme.surface,
-                  theme.surface,
-                  theme.surfaceAlt.withOpacity(.6),
-                ],
-                stops: const [0.0, 0.6, 1.0],
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [t.bg1, t.bg0],
               ),
             ),
             child: SafeArea(

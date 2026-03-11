@@ -4,15 +4,14 @@
 //
 // Flow:
 //   0. global mutation (1% rarity bump + fused element)
-//   1. guaranteed pair
-//   2. same-species clone
-//   3. hybrid:
-//        3a. roll family (biased toward less-rare parent + nature bias)
-//        3b. roll element (penalize fusion if cross-family + no recipe +
+//   1. same-species clone
+//   2. hybrid:
+//        2a. roll family (biased toward less-rare parent + nature bias)
+//        2b. roll element (penalize fusion if cross-family + no recipe +
 //            nature bias)
-//        3c. pick catalog creature for (family, element)
+//        2c. pick catalog creature for (family, element)
 //      if none ->
-//   4. forced parent fallback (must succeed)
+//   3. forced parent fallback (must succeed)
 //
 // Analyzer support:
 //   getFamilyDistribution / getElementDistribution / etc return deterministic
@@ -132,13 +131,7 @@ class BreedingEngine {
     Random? random,
   }) : _random = random ?? Random();
 
-  static const _rarityOrder = [
-    "Common",
-    "Uncommon",
-    "Rare",
-    "Legendary",
-    "Mythic",
-  ];
+  static const _rarityOrder = ["Common", "Uncommon", "Rare", "Legendary"];
 
   // ── 2.2 Public entrypoints ────────────────────────────────
 
@@ -200,6 +193,7 @@ class BreedingEngine {
     Creature p2, {
     required ParentSnapshot parentA,
     required ParentSnapshot parentB,
+    bool forcePrismatic = false,
   }) {
     final fam1 = _familyOf(p1);
     final fam2 = _familyOf(p2);
@@ -223,6 +217,7 @@ class BreedingEngine {
           p2,
           parentA: parentA,
           parentB: parentB,
+          forcePrismatic: forcePrismatic,
         );
         _log('[Breeding] RESULT (mutated): ${mutatedFinal.id}');
         _log('[Breeding] === BREED END ===');
@@ -242,6 +237,7 @@ class BreedingEngine {
         p2,
         parentA: parentA,
         parentB: parentB,
+        forcePrismatic: forcePrismatic,
       );
       _log('[Breeding] RESULT (pure): ${pure.id}');
       _log('[Breeding] === BREED END ===');
@@ -304,6 +300,7 @@ class BreedingEngine {
         p2,
         parentA: parentA,
         parentB: parentB,
+        forcePrismatic: forcePrismatic,
       );
 
       _log(
@@ -325,6 +322,7 @@ class BreedingEngine {
       p2,
       parentA: parentA,
       parentB: parentB,
+      forcePrismatic: forcePrismatic,
     );
 
     _log(
@@ -343,6 +341,7 @@ class BreedingEngine {
     Creature p2, {
     required ParentSnapshot parentA,
     required ParentSnapshot parentB,
+    bool forcePrismatic = false,
   }) {
     var child = base;
 
@@ -355,9 +354,11 @@ class BreedingEngine {
       child = child.copyWith(nature: n);
     }
 
-    // Prismatic cosmetic roll
-    if (_random.nextDouble() < tuning.prismaticSkinChance) {
-      _log('[Breeding] prismatic skin applied');
+    // Prismatic cosmetic roll (or guaranteed when forcePrismatic is set)
+    if (forcePrismatic || _random.nextDouble() < tuning.prismaticSkinChance) {
+      _log(
+        '[Breeding] prismatic skin applied${forcePrismatic ? " (void-forced)" : ""}',
+      );
       child = child.copyWith(isPrismaticSkin: true);
     }
 
@@ -382,40 +383,30 @@ class BreedingEngine {
     final factionA = elementalGroupNameOf(p1);
     final factionB = elementalGroupNameOf(p2);
 
-    final primaryElemChild = child.types.isNotEmpty ? child.types.first : null;
     final primaryElemA = p1.types.isNotEmpty ? p1.types.first : null;
     final primaryElemB = p2.types.isNotEmpty ? p2.types.first : null;
 
-    final famChild = _familyOf(child);
     final famA = _familyOf(p1);
     final famB = _familyOf(p2);
 
     // generation depth still tracked
     final depth = _computeChildDepth(parentA, parentB);
 
-    // MERGE & INCREMENT — faction
-    final factionLineage = _mergeLineageCounts(
-      a: parentA,
-      b: parentB,
-      childNativeFaction: nativeFaction,
-    );
+    // MERGE & INCREMENT
+    final factionLineage = _mergeLineageCounts(a: parentA, b: parentB);
 
     // MERGE & INCREMENT — elements
     final elementLineage = _mergeCounts(
       aMap: parentA.elementLineage,
       bMap: parentB.elementLineage,
-      incrementKeys: [
-        if (primaryElemA != null) primaryElemA,
-        if (primaryElemB != null) primaryElemB,
-        if (primaryElemChild != null) primaryElemChild,
-      ],
+      incrementKeys: {primaryElemA, primaryElemB}.whereType<String>().toList(),
     );
 
     // MERGE & INCREMENT — families
     final familyLineage = _mergeCounts(
       aMap: parentA.familyLineage,
       bMap: parentB.familyLineage,
-      incrementKeys: [famA, famB, famChild],
+      incrementKeys: {famA, famB}.toList(),
     );
 
     // roll variant faction (existing logic)
@@ -530,14 +521,44 @@ class BreedingEngine {
     final fam1 = _familyOf(p1);
     final fam2 = _familyOf(p2);
 
-    // same-family: mostly stick, tiny mutation chance
+    // Only allow Mystics to appear via recipes/mutations if BOTH parents
+    // are already from the Mystic family (and thus intentionally breeding
+    // mystics together). This prevents accidental generation of Mystics
+    // from non-mystic parents.
+    final parentsBothMystic = (fam1 == 'Mystic' && fam2 == 'Mystic');
+
+    // Check for explicit recipe FIRST (handles both same-family and cross-family)
+    final key = FamilyRecipeConfig.keyOf(fam1, fam2);
+    final recipe = familyRecipes.recipes[key];
+    if (recipe != null && recipe.isNotEmpty) {
+      // If parents aren't both mystics, strip any Mystic outcomes
+      final filtered = <String, double>{};
+      recipe.forEach((k, v) {
+        if (!parentsBothMystic && k == 'Mystic') return;
+        filtered[k] = v.toDouble();
+      });
+      return OutcomeDistribution<String>(filtered);
+    }
+
+    // same-family with NO explicit recipe: mostly stick, tiny mutation chance
     if (fam1 == fam2) {
       final mutationPct = tuning.sameFamilyMutationChancePct.toDouble();
       final stickPct = 100.0 - mutationPct;
 
+      // Exclude families that should not be reachable via same-family
+      // mutation (e.g. special families like "Mystic"). We filter by
+      // creature rarity so families whose members are marked with the
+      // special "Mystic" rarity won't be included in the mutation pool.
       final otherFamilies = repository.creatures
+          .where((c) {
+            final fam = _familyOf(c);
+            if (fam == fam1) return false; // skip same family
+            if (fam == 'Unknown') return false; // skip unknown
+            // skip families whose creatures are flagged as Mystic rarity
+            if (c.rarity == 'Mystic') return false;
+            return true;
+          })
           .map((c) => _familyOf(c))
-          .where((f) => f != 'Unknown' && f != fam1)
           .toSet()
           .toList();
 
@@ -553,16 +574,7 @@ class BreedingEngine {
       return OutcomeDistribution<String>(map);
     }
 
-    // cross-family: prefer authored combos first
-    final key = FamilyRecipeConfig.keyOf(fam1, fam2);
-    final recipe = familyRecipes.recipes[key];
-    if (recipe != null && recipe.isNotEmpty) {
-      return OutcomeDistribution<String>(
-        recipe.map((k, v) => MapEntry(k, v.toDouble())),
-      );
-    }
-
-    // default 50/50 lineage tug-of-war
+    // cross-family with no recipe: default 50/50 lineage tug-of-war
     return OutcomeDistribution<String>({fam1: 50.0, fam2: 50.0});
   }
 
@@ -665,7 +677,7 @@ class BreedingEngine {
       mutationWeights[v.id] = 1.0;
     }
 
-    Map<String, double> _normalize(Map<String, double> src) {
+    Map<String, double> normalize(Map<String, double> src) {
       final total = src.values.fold<double>(0, (a, b) => a + b);
       if (total <= 0) {
         return src.map((k, v) => MapEntry(k, 0.0));
@@ -673,8 +685,8 @@ class BreedingEngine {
       return src.map((k, v) => MapEntry(k, v / total));
     }
 
-    final normInherit = _normalize(inheritWeights);
-    final normMut = _normalize(mutationWeights);
+    final normInherit = normalize(inheritWeights);
+    final normMut = normalize(mutationWeights);
 
     final blended = <String, double>{};
     final allKeys = {...normInherit.keys, ...normMut.keys};
@@ -746,16 +758,16 @@ class BreedingEngine {
 
     final parents = [p1.nature, p2.nature].whereType<NatureDef>().toList();
 
-    Map<String, double> _poolDom(List<NatureDef> pool) {
+    Map<String, double> poolDom(List<NatureDef> pool) {
       final m = <String, double>{};
       for (final n in pool) {
-        final dom = (n.dominance ?? 1).toDouble();
+        final dom = n.dominance.toDouble();
         m[n.id] = (m[n.id] ?? 0) + dom;
       }
       return m;
     }
 
-    final globalDom = _poolDom(NatureCatalog.all);
+    final globalDom = poolDom(NatureCatalog.all);
 
     if (parents.isEmpty) {
       return OutcomeDistribution<String>(globalDom);
@@ -787,7 +799,7 @@ class BreedingEngine {
     }
 
     // mixed parent natures:
-    final parentDom = _poolDom(parents);
+    final parentDom = poolDom(parents);
     final out = <String, double>{};
 
     final totalParentDom = parentDom.values.fold<double>(0, (a, b) => a + b);
@@ -847,14 +859,14 @@ class BreedingEngine {
       mutPool[v.id] = 1.0;
     }
 
-    Map<String, double> _normalize(Map<String, double> w) {
+    Map<String, double> normalize(Map<String, double> w) {
       final tot = w.values.fold<double>(0, (a, b) => a + b);
       if (tot <= 0) return w.map((k, v) => MapEntry(k, 0.0));
       return w.map((k, v) => MapEntry(k, v / tot));
     }
 
-    final normInherit = _normalize(biased);
-    final normMut = _normalize(mutPool);
+    final normInherit = normalize(biased);
+    final normMut = normalize(mutPool);
 
     final finalWeights = <String, double>{};
     for (final id in {...normInherit.keys, ...normMut.keys}) {
@@ -1161,7 +1173,6 @@ class BreedingEngine {
   Map<String, int> _mergeLineageCounts({
     required ParentSnapshot a,
     required ParentSnapshot b,
-    required String childNativeFaction,
   }) {
     final out = <String, int>{};
 
@@ -1178,12 +1189,10 @@ class BreedingEngine {
     absorb(a.factionLineage);
     absorb(b.factionLineage);
 
-    // increment each parent's faction
-    out[a.nativeFaction] = (out[a.nativeFaction] ?? 0) + 1;
-    out[b.nativeFaction] = (out[b.nativeFaction] ?? 0) + 1;
-
-    // increment child's own faction
-    out[childNativeFaction] = (out[childNativeFaction] ?? 0) + 1;
+    // increment each parent's faction (deduped)
+    for (final faction in {a.nativeFaction, b.nativeFaction}) {
+      out[faction] = (out[faction] ?? 0) + 1;
+    }
 
     return out;
   }
@@ -1195,21 +1204,12 @@ class BreedingEngine {
     partnerFaction, // the faction of the parent you're breeding WITH
     required Random rng,
   }) {
-    // You can’t variant into the same faction you already are.
-    if (partnerFaction == childNativeFaction) {
-      return null;
-    }
-
-    // How much heritage do we already have in THAT partner's faction?
-    final score = lineageCounts[partnerFaction] ?? 0;
-    if (score <= 0) {
-      // zero history in that faction = no variant shot
-      return null;
-    }
-
-    // Each lineage point = +0.5%, capped at 10%
-    double chancePct = score * .5; // 1 point -> 0.5%
-    chancePct = chancePct.clamp(0.0, 10.0);
+    final chancePct = _variantRollChancePct(
+      childNativeFaction: childNativeFaction,
+      lineageCounts: lineageCounts,
+      partnerFaction: partnerFaction,
+    );
+    if (chancePct <= 0.0) return null;
 
     final roll = rng.nextDouble() * 100.0;
     if (roll < chancePct) {
@@ -1217,6 +1217,22 @@ class BreedingEngine {
     }
 
     return null;
+  }
+
+  double _variantRollChancePct({
+    required String childNativeFaction,
+    required Map<String, int> lineageCounts,
+    required String partnerFaction,
+  }) {
+    // You can’t variant into the same faction you already are.
+    if (partnerFaction == childNativeFaction) return 0.0;
+
+    // How much heritage do we already have in THAT partner's faction?
+    final score = lineageCounts[partnerFaction] ?? 0;
+    if (score <= 0) return 0.0;
+
+    // Each lineage point = +0.5%, capped at 10%
+    return (score * 0.5).clamp(0.0, 10.0);
   }
 
   /// Compute the chance (0-100) that we would have rolled *any* variantFaction
@@ -1239,41 +1255,64 @@ class BreedingEngine {
     final rolledFaction = lineageData.variantFaction;
     if (rolledFaction == null) return null; // no variant at all
 
-    final depth = lineageData.generationDepth;
+    final parentage = child.parentage;
+    if (parentage == null) return null;
+
+    final partnerA = parentage.parentA.nativeFaction;
+    final partnerB = parentage.parentB.nativeFaction;
     final childNative = lineageData.nativeFaction;
     final lineageCounts = lineageData.factionLineage;
 
-    // 1. candidate pool excluding child's native faction
-    final candidates = <String, int>{};
-    lineageCounts.forEach((faction, score) {
-      if (faction != childNative && score > 0) {
-        candidates[faction] = score;
+    final pA =
+        _variantRollChancePct(
+          childNativeFaction: childNative,
+          lineageCounts: lineageCounts,
+          partnerFaction: partnerA,
+        ) /
+        100.0;
+    final pB =
+        _variantRollChancePct(
+          childNativeFaction: childNative,
+          lineageCounts: lineageCounts,
+          partnerFaction: partnerB,
+        ) /
+        100.0;
+
+    if (pA <= 0.0 && pB <= 0.0) return null;
+
+    double pFinalA = 0.0;
+    double pFinalB = 0.0;
+    double pAny = 0.0;
+
+    if (partnerA == partnerB) {
+      final pEither = 1.0 - ((1.0 - pA) * (1.0 - pB));
+      pAny = pEither;
+      if (rolledFaction == partnerA) {
+        pFinalA = pEither;
       }
-    });
+    } else {
+      final scoreA = lineageCounts[partnerA] ?? 0;
+      final scoreB = lineageCounts[partnerB] ?? 0;
 
-    if (candidates.isEmpty) return null;
+      final pOnlyA = pA * (1.0 - pB);
+      final pOnlyB = pB * (1.0 - pA);
+      final pBoth = pA * pB;
 
-    // 2. trigger chance
-    final baseChance = 0.02; // 2%
-    final depthBonus = 0.01 * depth; // +1% per depth
-    final triggerChance = baseChance + depthBonus; // 0-1
-    final triggerChancePct = (triggerChance * 100.0).clamp(0.0, 100.0);
+      pFinalA = pOnlyA + ((scoreA >= scoreB) ? pBoth : 0.0);
+      pFinalB = pOnlyB + ((scoreB > scoreA) ? pBoth : 0.0);
+      pAny = pOnlyA + pOnlyB + pBoth;
+    }
 
-    // 3. pick weight for the specific rolled faction
-    final totalWeight = candidates.values.fold<int>(0, (sum, v) => sum + v);
-    if (totalWeight <= 0) return null;
-
-    final chosenWeight = candidates[rolledFaction] ?? 0;
-    if (chosenWeight <= 0) return null;
-
-    final share = chosenWeight / totalWeight; // 0-1
-
-    // final chance for THAT faction (trigger * share)
-    final finalPct = (triggerChance * share * 100.0).clamp(0.0, 100.0);
+    final pickedPct = rolledFaction == partnerA
+        ? (pFinalA * 100.0)
+        : rolledFaction == partnerB
+        ? (pFinalB * 100.0)
+        : 0.0;
+    if (pickedPct <= 0.0) return null;
 
     return VariantFactionOdds(
-      triggerChancePct: triggerChancePct,
-      pickedFactionPct: finalPct,
+      triggerChancePct: (pAny * 100.0).clamp(0.0, 100.0),
+      pickedFactionPct: pickedPct.clamp(0.0, 100.0),
       pickedFactionId: rolledFaction,
     );
   }
@@ -1290,12 +1329,11 @@ class BreedingEngine {
   Creature? _tryGlobalMutation(Creature p1, Creature p2) {
     // escalate rarity one tier above the higher parent, up to Legendary
     String nextRarity(String rarity) {
-      const tiers = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
+      const tiers = ['Common', 'Uncommon', 'Rare', 'Legendary'];
       final i = tiers.indexOf(rarity);
 
-      // If they're already near the top tier (Legendary/Mythic),
-      // don't escalate further.
-      if (i < 0 || i >= tiers.length - 2) return rarity;
+      // If they're already near the top tier (Legendary), don't escalate.
+      if (i < 0 || i >= tiers.length - 1) return rarity;
 
       return tiers[i + 1];
     }
@@ -1323,9 +1361,13 @@ class BreedingEngine {
     }
 
     // pick any catalog entry at that new rarity with an allowed element
+    // but don't produce Mystics unless both parents are Mystics.
+    final parentsBothMystic =
+        (_familyOf(p1) == 'Mystic' && _familyOf(p2) == 'Mystic');
     final candidates = repository.creatures.where((c) {
       final primary = c.types.isNotEmpty ? c.types.first : null;
       if (primary == null) return false;
+      if (!parentsBothMystic && c.mutationFamily == 'Mystic') return false;
       return elementSet.contains(primary) && c.rarity == targetRarity;
     }).toList();
 
@@ -1480,14 +1522,7 @@ class BreedingEngine {
   String _familyOf(Creature c) => (c.mutationFamily ?? 'Unknown');
 
   int _rarityRank(String rarity) {
-    const order = {
-      'Common': 0,
-      'Uncommon': 1,
-      'Rare': 2,
-      'Epic': 3,
-      'Legendary': 4,
-      'Mythic': 5,
-    };
+    const order = {'Common': 0, 'Uncommon': 1, 'Rare': 2, 'Legendary': 3};
     return order[rarity] ?? 0;
   }
 
@@ -1542,11 +1577,6 @@ class BreedingEngine {
     final j = _rarityOrder.indexOf(candidate);
     if (i < 0 || j < 0) return true; // permissive if unknown
     return (j - i).abs() <= 1;
-  }
-
-  bool _passesRequiredTypes(Creature c, Creature p1, Creature p2) {
-    // require offspring to share at least one element with a parent
-    return c.types.any((t) => p1.types.contains(t) || p2.types.contains(t));
   }
 
   double _noise(Random r, double mean, double sigma) =>
@@ -1669,8 +1699,9 @@ extension WildBreed on BreedingEngine {
   /// Breed a player-owned instance with a wild (catalog) creature.
   BreedingResult breedInstanceWithCreature(
     db.CreatureInstance a,
-    Creature wild,
-  ) {
+    Creature wild, {
+    bool forcePrismatic = false,
+  }) {
     final baseA = repository.getCreatureById(a.baseId);
     if (baseA == null) return BreedingResult.failure();
 
@@ -1687,7 +1718,13 @@ extension WildBreed on BreedingEngine {
     final snapA = ParentSnapshotFactory.fromDbInstance(a, repository);
     final snapB = ParentSnapshot.fromCreatureWithStats(wild, null);
 
-    return _breedCore(parentA, wild, parentA: snapA, parentB: snapB);
+    return _breedCore(
+      parentA,
+      wild,
+      parentA: snapA,
+      parentB: snapB,
+      forcePrismatic: forcePrismatic,
+    );
   }
 }
 
@@ -1720,7 +1757,19 @@ class ParentSnapshotFactory {
       if (raw == null || raw.isEmpty) return {};
       try {
         final map = (jsonDecode(raw) as Map<String, dynamic>);
-        return map.map((k, v) => MapEntry(k, (v as num).toInt()));
+        return map.map((k, v) {
+          var key = k.toString();
+
+          // Normalize legacy enum keys: "CreatureFamily.let" -> "Let"
+          if (key.startsWith('CreatureFamily.')) {
+            final tail = key.split('.').last;
+            key = tail.isEmpty
+                ? 'Unknown'
+                : tail[0].toUpperCase() + tail.substring(1);
+          }
+
+          return MapEntry(key, (v as num).toInt());
+        });
       } catch (_) {
         return {};
       }
@@ -1749,12 +1798,12 @@ class ParentSnapshotFactory {
           strengthPotential: inst.statStrengthPotential,
           beautyPotential: inst.statBeautyPotential,
         ),
-        generationDepth: inst.generationDepth ?? 0,
+        generationDepth: inst.generationDepth,
         factionLineage: decodeLineage(inst.factionLineageJson),
         nativeFaction: 'Unknown',
         variantFaction: inst.variantFaction,
-        elementLineage: decodeLineage(inst.elementLineageJson), // NEW
-        familyLineage: decodeLineage(inst.familyLineageJson), // NEW
+        elementLineage: decodeLineage(inst.elementLineageJson),
+        familyLineage: decodeLineage(inst.familyLineageJson),
       );
     }
 
@@ -1767,7 +1816,7 @@ class ParentSnapshotFactory {
       types: base.types,
       rarity: base.rarity,
       image: base.image,
-      isPrismaticSkin: inst.isPrismaticSkin || (base.isPrismaticSkin ?? false),
+      isPrismaticSkin: inst.isPrismaticSkin || base.isPrismaticSkin,
       genetics: decodedGenetics ?? base.genetics,
       nature: (inst.natureId != null)
           ? NatureCatalog.byId(inst.natureId!)
@@ -1783,7 +1832,7 @@ class ParentSnapshotFactory {
         strengthPotential: inst.statStrengthPotential,
         beautyPotential: inst.statBeautyPotential,
       ),
-      generationDepth: inst.generationDepth ?? 0,
+      generationDepth: inst.generationDepth,
       factionLineage: decodeLineage(inst.factionLineageJson),
       nativeFaction: nativeFaction,
       variantFaction: inst.variantFaction,

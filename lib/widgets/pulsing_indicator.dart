@@ -53,7 +53,7 @@ class _PulsingIndicatorState extends State<PulsingIndicator>
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: widget.color.withOpacity(_animation.value * 0.6),
+                color: widget.color.withValues(alpha: _animation.value * 0.6),
                 blurRadius: 20 * _animation.value,
                 spreadRadius: 5 * _animation.value,
               ),

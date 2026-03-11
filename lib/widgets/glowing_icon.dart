@@ -52,10 +52,10 @@ class GlowingIcon extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
 
-            border: Border.all(color: color.withOpacity(glow)),
+            border: Border.all(color: color.withValues(alpha: glow)),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(glow * .4),
+                color: color.withValues(alpha: glow * .4),
                 blurRadius: 20 + controller.value * 14,
               ),
             ],
@@ -95,7 +95,7 @@ class GlowingIcon extends StatelessWidget {
     if (dialogBuilder != null) {
       showDialog(
         context: context,
-        barrierColor: barrierColor ?? Colors.black.withOpacity(0.7),
+        barrierColor: barrierColor ?? Colors.black.withValues(alpha: 0.7),
         builder: dialogBuilder!,
       );
       return;
@@ -106,7 +106,7 @@ class GlowingIcon extends StatelessWidget {
       final accent = dialogAccentColor ?? color;
       showDialog(
         context: context,
-        barrierColor: barrierColor ?? Colors.black.withOpacity(0.7),
+        barrierColor: barrierColor ?? Colors.black.withValues(alpha: 0.7),
         builder: (ctx) {
           return Dialog(
             backgroundColor: Colors.transparent,
@@ -117,12 +117,12 @@ class GlowingIcon extends StatelessWidget {
                 filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0B0F14).withOpacity(0.94),
+                    color: const Color(0xFF0B0F14).withValues(alpha: 0.94),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: accent.withOpacity(.4), width: 2),
+                    border: Border.all(color: accent.withValues(alpha: .4), width: 2),
                     boxShadow: [
                       BoxShadow(
-                        color: accent.withOpacity(.25),
+                        color: accent.withValues(alpha: .25),
                         blurRadius: 20,
                         spreadRadius: 2,
                       ),

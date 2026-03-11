@@ -328,15 +328,4 @@ class FactionService extends ChangeNotifier {
     await db.settingsDao.setSetting('air_slot_applied_v1', '1');
     return true;
   }
-
-  // ---------------------------------------------------------------------------
-  // Utility
-  // ---------------------------------------------------------------------------
-
-  String _earthKey(String sceneId) {
-    final now = DateTime.now();
-    final m = now.month.toString().padLeft(2, '0');
-    final d = now.day.toString().padLeft(2, '0');
-    return 'earth_landexplorer::$sceneId::${now.year}-$m-$d';
-  }
 }

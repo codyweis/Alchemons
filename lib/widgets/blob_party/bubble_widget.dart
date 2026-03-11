@@ -43,9 +43,6 @@ class BubbleWidgetState extends State<BubbleWidget>
   late final AnimationController _gooCtrl;
   late final AnimationController _boopCtrl;
 
-  // Tap-vs-drag discrimination
-  double _dragDistance = 0.0;
-
   @override
   void initState() {
     super.initState();
@@ -93,11 +90,9 @@ class BubbleWidgetState extends State<BubbleWidget>
         onTap: widget.onTap, // <- THIS is the important part
         // ✅ DRAG PATH (only fires once finger exceeds system slop)
         onPanStart: (_) {
-          _dragDistance = 0;
           widget.onDragStart?.call();
         },
         onPanUpdate: (d) {
-          _dragDistance += d.delta.distance;
           widget.onDragUpdate?.call(d.delta);
         },
         onPanEnd: (d) {
@@ -187,8 +182,8 @@ class AlchemicalOrb extends StatelessWidget {
             shape: BoxShape.circle,
             gradient: RadialGradient(
               colors: [
-                color.withOpacity(0.2), // Inner glow
-                color.withOpacity(0.0), // Fades to nothing
+                color.withValues(alpha: 0.2), // Inner glow
+                color.withValues(alpha: 0.0), // Fades to nothing
               ],
               stops: const [0.3, 1.0], // Glow is 30% of radius
             ),
@@ -227,8 +222,8 @@ class AlchemicalOrb extends StatelessWidget {
               center: const Alignment(-0.6, -0.6), // Top-left
               radius: 0.7,
               colors: [
-                Colors.white.withOpacity(0.4), // Highlight
-                Colors.white.withOpacity(0.0), // Fades
+                Colors.white.withValues(alpha: 0.4), // Highlight
+                Colors.white.withValues(alpha: 0.0), // Fades
               ],
               stops: const [0.0, 0.6],
             ),

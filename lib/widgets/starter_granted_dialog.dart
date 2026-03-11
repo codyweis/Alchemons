@@ -29,35 +29,6 @@ class SystemDialog extends StatelessWidget {
     this.onSecondary,
   });
 
-  Color _frameColor(BuildContext context) {
-    switch (kind) {
-      case SystemDialogKind.success:
-        return const Color(0xFF9BE79B);
-      case SystemDialogKind.warning:
-        return const Color(0xFFFFE08A);
-      case SystemDialogKind.danger:
-        return const Color(0xFFFF9BA3);
-      case SystemDialogKind.info:
-      default:
-        return Colors.white.withOpacity(0.4);
-    }
-  }
-
-  IconData? _iconForKind() {
-    if (icon != null) return icon!;
-    switch (kind) {
-      case SystemDialogKind.success:
-        return null;
-      case SystemDialogKind.warning:
-        return Icons.warning_amber_outlined;
-      case SystemDialogKind.danger:
-        return Icons.gpp_bad_outlined;
-      case SystemDialogKind.info:
-      default:
-        return null;
-    }
-  }
-
   static Future<void> playStory(
     BuildContext context,
     List<StoryPage> pages,
@@ -77,8 +48,6 @@ class SystemDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final frame = _frameColor(context);
-
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
@@ -87,10 +56,10 @@ class SystemDialog extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(2),
-          border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               blurRadius: 30,
               spreadRadius: 5,
             ),
@@ -116,7 +85,7 @@ class SystemDialog extends StatelessWidget {
             Container(
               width: 80,
               height: 1,
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 20),
 
@@ -137,7 +106,7 @@ class SystemDialog extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 15,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       height: 1.5,
                       fontFamily: 'monospace',
                       letterSpacing: 0.5,
@@ -161,7 +130,7 @@ class SystemDialog extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white70,
                         side: BorderSide(
-                          color: Colors.white.withOpacity(0.5),
+                          color: Colors.white.withValues(alpha: 0.5),
                           width: 1.5,
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -297,7 +266,7 @@ class _TypewriterTextState extends State<_TypewriterText> {
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 15,
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: 0.9),
             height: 1.5,
             fontFamily: 'monospace',
             letterSpacing: 0.5,

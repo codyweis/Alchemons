@@ -30,10 +30,10 @@ class FilterChipSolid extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (label != 'All')
-              Icon(BreedConstants.getTypeIcon(label), size: 14, color: color)
-            else
-              Icon(Icons.all_inclusive, size: 14, color: color),
+            if (label == 'All')
+              Icon(Icons.all_inclusive, size: 14, color: color)
+            else if (BreedConstants.getTypeIcon(label) != null)
+              Icon(BreedConstants.getTypeIcon(label), size: 14, color: color),
             const SizedBox(width: 6),
             Text(
               label,

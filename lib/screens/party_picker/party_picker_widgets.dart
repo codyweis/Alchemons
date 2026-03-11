@@ -1,146 +1,130 @@
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/creature_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'party_picker_dialogs.dart';
+import 'team_builder_dialog.dart';
 
 // ---------- Header ----------
 
 class StageHeader extends StatelessWidget {
   final FactionTheme theme;
-  final String stage;
-  final VoidCallback onBack;
-  final VoidCallback? onOpenAllInstances;
 
-  const StageHeader({
-    super.key,
-    required this.theme,
-    required this.stage,
-    required this.onBack,
-    this.onOpenAllInstances,
-  });
+  const StageHeader({super.key, required this.theme});
 
   @override
   Widget build(BuildContext context) {
-    final canGoBack = stage != 'species';
-    final (title, subtitle) = _getStageText();
+    context.watch<SelectedPartyNotifier>();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
         color: theme.surface,
         border: Border(bottom: BorderSide(color: theme.border)),
       ),
       child: Row(
         children: [
-          if (canGoBack)
-            GestureDetector(
-              onTap: onBack,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.border),
-                ),
-                child: Icon(Icons.arrow_back, color: theme.text, size: 18),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).maybePop();
+            },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.surfaceAlt,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: theme.border),
               ),
+              child: Icon(Icons.arrow_back, color: theme.text, size: 18),
             ),
-          if (canGoBack) const SizedBox(width: 12),
-
-          if (!canGoBack)
-            GestureDetector(
-              onTap: () => {
-                HapticFeedback.lightImpact(),
-                Navigator.of(context).maybePop(),
-              },
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.border),
-                ),
-                child: Icon(Icons.arrow_back, color: theme.text, size: 18),
-              ),
-            ),
-          if (!canGoBack) const SizedBox(width: 12),
-
-          // Title/subtitle
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  'SELECT YOUR TEAM',
                   style: TextStyle(
+                    fontFamily: 'monospace',
                     color: theme.text,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.0,
                   ),
                 ),
-                if (subtitle != null)
-                  Text(
-                    subtitle!,
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  'Tap a creature to add or remove from squad',
+                  style: TextStyle(
+                    color: theme.textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
                   ),
+                ),
               ],
             ),
           ),
-
-          // "All Specimens" button on species stage
-          if (stage == 'species' && onOpenAllInstances != null) ...[
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: onOpenAllInstances,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.border),
-                ),
-                child: const Icon(Icons.grid_view_rounded, size: 18),
+          // Build teams button (replaces live count badge)
+          GestureDetector(
+            onTap: () async {
+              HapticFeedback.lightImpact();
+              await showDialog<void>(
+                context: context,
+                builder: (_) => TeamBuilderDialog(theme: theme),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.surfaceAlt,
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: theme.border),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.folder_open, color: theme.text, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Teams',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: theme.text,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
-  }
-
-  (String, String?) _getStageText() {
-    switch (stage) {
-      case 'species':
-        return ('Team Assembly', 'Select species to view specimens');
-      case 'all_instances':
-        return ('All Specimens', 'Select up to 3 for deployment');
-      case 'instance':
-        return ('Choose Specimens', 'Select up to 3 for deployment');
-      default:
-        return ('', null);
-    }
   }
 }
 
 // ---------- Footer ----------
 
 class PartyFooter extends StatelessWidget {
-  const PartyFooter({super.key, required this.theme});
+  const PartyFooter({
+    super.key,
+    required this.theme,
+    this.showDeployConfirm = true,
+  });
 
   final FactionTheme theme;
+
+  /// When false the "Deploy Team?" confirmation dialog is skipped.
+  final bool showDeployConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -236,13 +220,17 @@ class PartyFooter extends StatelessWidget {
 
                             if (!proceed) return;
 
-                            final confirmed = await showDialog<bool>(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (_) => DeployConfirmDialog(theme: theme),
-                            );
+                            if (showDeployConfirm) {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) =>
+                                    DeployConfirmDialog(theme: theme),
+                              );
+                              if (confirmed != true) return;
+                            }
 
-                            if (confirmed == true && context.mounted) {
+                            if (context.mounted) {
                               Navigator.pop(
                                 context,
                                 context.read<SelectedPartyNotifier>().members,
@@ -281,7 +269,7 @@ class TeamDisplay extends StatelessWidget {
         color: theme.surfaceAlt,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.greenAccent.shade400.withOpacity(.5),
+          color: Colors.greenAccent.shade400.withValues(alpha: .5),
           width: 1.2,
         ),
       ),
@@ -297,21 +285,23 @@ class TeamDisplay extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'Current Team',
+                'YOUR SQUAD',
                 style: TextStyle(
+                  fontFamily: 'monospace',
                   color: theme.text,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
                 ),
               ),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.greenAccent.shade400.withOpacity(.12),
+                  color: Colors.greenAccent.shade400.withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: Colors.greenAccent.shade400.withOpacity(.5),
+                    color: Colors.greenAccent.shade400.withValues(alpha: .5),
                   ),
                 ),
                 child: Text(
@@ -414,12 +404,49 @@ class TeamSlotFilled extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             Text(
-              'L${instance.level}',
+              'LV ${instance.level}',
               style: TextStyle(
                 color: Colors.amber.shade400,
                 fontSize: 7,
                 fontWeight: FontWeight.w700,
               ),
+            ),
+            const SizedBox(height: 3),
+            // Stamina pips
+            Builder(
+              builder: (context) {
+                final stamina = context.read<StaminaService>();
+                final state = stamina.computeState(instance);
+                final bars = state.bars.clamp(0, instance.staminaMax);
+                final max = instance.staminaMax;
+                final pipColor = bars == 0
+                    ? Colors.red.shade400
+                    : bars == 1 && max > 1
+                    ? Colors.orange.shade400
+                    : Colors.greenAccent.shade400;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(max, (i) {
+                    final filled = i < bars;
+                    return Container(
+                      width: 5,
+                      height: 5,
+                      margin: const EdgeInsets.symmetric(horizontal: 1),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: filled
+                            ? pipColor
+                            : pipColor.withValues(alpha: 0.15),
+                        border: Border.all(
+                          color: pipColor.withValues(alpha: filled ? 0.9 : 0.3),
+                          width: 0.6,
+                        ),
+                      ),
+                    );
+                  }),
+                );
+              },
             ),
           ],
         ),
@@ -535,13 +562,15 @@ class _DeployButtonState extends State<DeployButton>
                 border: Border.all(
                   color: canTap
                       ? Colors.greenAccent.shade400
-                      : widget.theme.border.withOpacity(.8),
+                      : widget.theme.border.withValues(alpha: .8),
                   width: 1.5,
                 ),
                 boxShadow: canTap
                     ? [
                         BoxShadow(
-                          color: Colors.greenAccent.shade400.withOpacity(.4),
+                          color: Colors.greenAccent.shade400.withValues(
+                            alpha: .4,
+                          ),
                           blurRadius: 16,
                           spreadRadius: 1,
                         ),
@@ -559,7 +588,7 @@ class _DeployButtonState extends State<DeployButton>
                   const SizedBox(width: 8),
                   Text(
                     widget.selectedCount > 0
-                        ? 'Deploy Team (${widget.selectedCount})'
+                        ? 'Confirm Team  (${widget.selectedCount})'
                         : 'Select Team Members',
                     style: TextStyle(
                       color: canTap ? Colors.white : widget.theme.textMuted,
@@ -574,78 +603,6 @@ class _DeployButtonState extends State<DeployButton>
           ),
         );
       },
-    );
-  }
-}
-
-// ---------- Species Row ----------
-
-class SpeciesRow extends StatelessWidget {
-  final FactionTheme theme;
-  final Creature creature;
-  final int count;
-  final VoidCallback onTap;
-
-  const SpeciesRow({
-    super.key,
-    required this.theme,
-    required this.creature,
-    required this.count,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        height: 75,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: theme.border),
-        ),
-        child: Row(
-          children: [
-            CreatureImage(c: creature, discovered: true),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    creature.name,
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  Text(
-                    creature.types.join(', '),
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              '$count',
-              style: TextStyle(
-                color: theme.primary,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

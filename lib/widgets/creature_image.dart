@@ -28,11 +28,11 @@ class CreatureImage extends StatelessWidget {
       child: Image.asset(
         width: size,
         height: size,
-        'assets/images/creatures/${c.rarity.toLowerCase()}/${c.id.toUpperCase()}_${c.name.toLowerCase()}.png',
+        'assets/images/${c.image}',
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => Container(
           decoration: BoxDecoration(
-            color: BreedConstants.getTypeColor(c.types.first).withOpacity(.12),
+            color: BreedConstants.getTypeColor(c.types.first).withValues(alpha: .12),
             borderRadius: BorderRadius.circular(rounded),
           ),
           child: Icon(

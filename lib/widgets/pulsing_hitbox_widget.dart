@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:flutter/material.dart';
 
 class PulsingDebugHitbox extends StatefulWidget {
   const PulsingDebugHitbox({
@@ -97,7 +96,7 @@ class _PulsingDebugHitboxState extends State<PulsingDebugHitbox>
       builder: (context, child) {
         // The core box for color/opacity
         Widget box = ColoredBox(
-          color: widget.color.withOpacity(_opacity.value),
+          color: widget.color.withValues(alpha: _opacity.value),
         );
 
         // Apply clipping shape

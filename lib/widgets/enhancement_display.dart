@@ -44,12 +44,10 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
   // Snapshot state for animation
   // FROM:
   double _fromProgress = 0.0;
-  int _fromLevel = 0;
   int _fromMaxXp = 0;
 
   // TO:
   double _toProgress = 0.0;
-  int _toLevel = 0;
   int _toMaxXp = 0;
 
   // Metadata
@@ -180,11 +178,9 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
     // 3. UPDATE STATE AND START ANIMATION
     // ---------
     setState(() {
-      _fromLevel = startLevel;
       _fromMaxXp = startMaxXp;
       _fromProgress = startProgress;
 
-      _toLevel = endLevel;
       _toMaxXp = endMaxXp;
       _toProgress = endProgress;
 
@@ -493,9 +489,9 @@ class _LevelDisplayState extends State<_LevelDisplay>
             vertical: 2,
           ), // REDUCED
           decoration: BoxDecoration(
-            color: widget.theme.primary.withOpacity(.2),
+            color: widget.theme.primary.withValues(alpha: .2),
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: widget.theme.primary.withOpacity(.4)),
+            border: Border.all(color: widget.theme.primary.withValues(alpha: .4)),
           ),
           child: Text(
             'Level ${widget.currentLevel}',
@@ -532,9 +528,9 @@ class _LevelDisplayState extends State<_LevelDisplay>
               vertical: 2,
             ), // REDUCED
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(.2),
+              color: Colors.green.withValues(alpha: .2),
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: Colors.green.withOpacity(.4)),
+              border: Border.all(color: Colors.green.withValues(alpha: .4)),
             ),
             child: Text(
               'Level ${widget.targetLevel}',
@@ -594,9 +590,9 @@ class _AnimatedXpBar extends StatelessWidget {
                   vertical: 2,
                 ), // REDUCED
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(.2),
+                  color: Colors.amber.withValues(alpha: .2),
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.amber.withOpacity(.4)),
+                  border: Border.all(color: Colors.amber.withValues(alpha: .4)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -759,7 +755,7 @@ class _StatGainChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(.15),
+        color: color.withValues(alpha: .15),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -846,7 +842,7 @@ class _StatValueChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(.15),
+        color: color.withValues(alpha: .15),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -867,14 +863,14 @@ class _StatValueChip extends StatelessWidget {
           Text(
             oldValue.toStringAsFixed(2),
             style: TextStyle(
-              color: color.withOpacity(0.6),
+              color: color.withValues(alpha: 0.6),
               fontSize: 9,
               fontWeight: FontWeight.w600,
               decoration: TextDecoration.lineThrough,
             ),
           ),
           const SizedBox(width: 3),
-          Icon(Icons.arrow_forward, size: 10, color: color.withOpacity(0.7)),
+          Icon(Icons.arrow_forward, size: 10, color: color.withValues(alpha: 0.7)),
           const SizedBox(width: 3),
           // New value SECOND (after arrow)
           Text(

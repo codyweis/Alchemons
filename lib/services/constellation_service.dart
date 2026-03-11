@@ -103,7 +103,11 @@ class ConstellationService extends ChangeNotifier {
   // ==================== BREEDING & MILESTONES ====================
 
   /// Increment breeding count for a species (call when breeding)
-  Future<void> incrementBreedCount(String speciesId) async {
+  /// Pass the rarity of the creature being bred for accurate point calculation
+  Future<void> incrementBreedCount(
+    String speciesId, {
+    String rarity = 'common',
+  }) async {
     final result = await _db.constellationDao.incrementBreedCount(speciesId);
 
     if (result.milestoneReached) {
@@ -113,12 +117,15 @@ class ConstellationService extends ChangeNotifier {
           milestoneNum <= BreedingMilestone.milestones.length) {
         final milestone = BreedingMilestone.milestones[milestoneNum - 1];
 
+        // Calculate points based on rarity
+        final pointsToAward = milestone.getPointsForRarity(rarity);
+
         await _db.constellationDao.addPoints(
-          amount: milestone.pointsAwarded,
+          amount: pointsToAward,
           transactionType: 'earned_breeding',
           sourceId: speciesId,
           description:
-              '$speciesId: ${milestone.displayName} (${result.newCount} bred)',
+              '$speciesId ($rarity): ${milestone.displayName} (${result.newCount} bred)',
         );
 
         await _db.constellationDao.markMilestoneAwarded(
@@ -127,7 +134,7 @@ class ConstellationService extends ChangeNotifier {
         );
 
         debugPrint(
-          '🎉 Milestone: $speciesId x${result.newCount} → +${milestone.pointsAwarded} points',
+          '🎉 Milestone: $speciesId ($rarity) x${result.newCount} → +$pointsToAward points',
         );
         notifyListeners();
       }
@@ -198,13 +205,22 @@ class ConstellationService extends ChangeNotifier {
     // Get all instances
     final allInstances = await _db.creatureDao.getAllInstances();
 
-    // Count bred instances per species
+    // Count bred instances per species and track rarity
     final Map<String, int> breedCounts = {};
+    final Map<String, String> speciesRarity = {}; // Track rarity per species
+
     for (final instance in allInstances) {
       // Only count if it was bred (has parentage)
       if (instance.parentageJson != null &&
           instance.parentageJson!.isNotEmpty) {
         breedCounts[instance.baseId] = (breedCounts[instance.baseId] ?? 0) + 1;
+
+        // Store rarity for this species (assuming all instances of same species have same rarity)
+        // You may need to fetch this from your creature definition
+        if (!speciesRarity.containsKey(instance.baseId)) {
+          // TODO: Get actual rarity from your creature catalog/definition
+          speciesRarity[instance.baseId] = 'common'; // Default to common
+        }
       }
     }
 
@@ -212,6 +228,7 @@ class ConstellationService extends ChangeNotifier {
     for (final entry in breedCounts.entries) {
       final speciesId = entry.key;
       final count = entry.value;
+      final rarity = speciesRarity[speciesId] ?? 'common';
 
       // Check which milestones were reached
       for (final milestone in BreedingMilestone.milestones) {
@@ -226,13 +243,16 @@ class ConstellationService extends ChangeNotifier {
             continue; // Already awarded
           }
 
+          // Calculate points with rarity multiplier
+          final pointsToAward = milestone.getPointsForRarity(rarity);
+
           // Award points
           await _db.constellationDao.addPoints(
-            amount: milestone.pointsAwarded,
+            amount: pointsToAward,
             transactionType: 'earned_breeding_retroactive',
             sourceId: speciesId,
             description:
-                'Retroactive: $speciesId ${milestone.displayName} (${milestone.count} bred)',
+                'Retroactive: $speciesId ($rarity) ${milestone.displayName} (${milestone.count} bred)',
           );
 
           // Update stats
@@ -242,7 +262,7 @@ class ConstellationService extends ChangeNotifier {
           );
 
           debugPrint(
-            '🎁 Retroactive: $speciesId milestone ${milestone.count} → +${milestone.pointsAwarded} pts',
+            '🎁 Retroactive: $speciesId ($rarity) milestone ${milestone.count} → +$pointsToAward pts',
           );
         }
       }

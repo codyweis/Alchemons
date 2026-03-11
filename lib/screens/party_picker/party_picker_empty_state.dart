@@ -39,7 +39,7 @@ class NoResultsFound extends StatelessWidget {
         children: [
           Icon(
             Icons.search_off_rounded,
-            color: theme.textMuted.withOpacity(.3),
+            color: theme.textMuted.withValues(alpha: .3),
             size: 48,
           ),
           const SizedBox(height: 12),
@@ -55,7 +55,7 @@ class NoResultsFound extends StatelessWidget {
           Text(
             'Try a different search term',
             style: TextStyle(
-              color: theme.textMuted.withOpacity(.7),
+              color: theme.textMuted.withValues(alpha: .7),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),

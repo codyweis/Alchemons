@@ -72,11 +72,10 @@ class _AlchemyOrbPainter extends CustomPainter {
     // Subtle outer glow
     final outerGlowPaint = Paint()
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
-      ..color = const Color(0xFF6B4FBF).withOpacity(0.15);
+      ..color = const Color(0xFF6B4FBF).withValues(alpha: 0.15);
     canvas.drawCircle(center, radius * 0.95, outerGlowPaint);
 
     // Stars scattered throughout
-    final rand = Random(42);
     final starPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
@@ -106,7 +105,7 @@ class _AlchemyOrbPainter extends CustomPainter {
         final twinkle = sin(rotation * 3 + seed) * 0.5 + 0.5;
         final opacity = layerOpacity * twinkle;
 
-        starPaint.color = Colors.white.withOpacity(opacity);
+        starPaint.color = Colors.white.withValues(alpha: opacity);
         canvas.drawCircle(Offset(x, y), starSize, starPaint);
       }
     }
@@ -114,13 +113,13 @@ class _AlchemyOrbPainter extends CustomPainter {
     // Very subtle center glow
     final centerGlowPaint = Paint()
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12)
-      ..color = const Color(0xFF8B7FD8).withOpacity(0.1);
+      ..color = const Color(0xFF8B7FD8).withValues(alpha: 0.1);
     canvas.drawCircle(center, radius * 0.3, centerGlowPaint);
 
     // Faint nebula wisps
     final nebulaPaint = Paint()
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20)
-      ..color = const Color(0xFF4A3F7F).withOpacity(0.08);
+      ..color = const Color(0xFF4A3F7F).withValues(alpha: 0.08);
 
     for (int i = 0; i < 3; i++) {
       final angle = (i / 3.0) * 2 * pi + rotation * 0.5;
@@ -136,7 +135,7 @@ class _AlchemyOrbPainter extends CustomPainter {
     final borderPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5
-      ..color = const Color(0xFF6B4FBF).withOpacity(0.2);
+      ..color = const Color(0xFF6B4FBF).withValues(alpha: 0.2);
     canvas.drawCircle(center, radius, borderPaint);
   }
 

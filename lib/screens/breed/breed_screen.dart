@@ -1,6 +1,5 @@
 // screens/breed/breed_screen.dart
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
@@ -25,17 +24,27 @@ class BreedScreen extends StatefulWidget {
 class _BreedScreenState extends State<BreedScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  int _activeTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_handleTabChange);
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _handleTabChange() {
+    final nextIndex = _tabController.index;
+    if (nextIndex != _activeTabIndex) {
+      setState(() => _activeTabIndex = nextIndex);
+    }
   }
 
   void _goCreatureScreen() {
@@ -58,15 +67,14 @@ class _BreedScreenState extends State<BreedScreen>
         await SystemDialog.playStory(context, pages);
       }
 
+      // 🔑 Mark extraction as complete and clear pending flag
       await db.settingsDao.setSetting('first_extraction_done', '1');
-      await db.settingsDao.deleteSetting(
-        'tutorial_extraction_pending',
-      ); // Clear the flag
+      await db.settingsDao.deleteSetting('tutorial_extraction_pending');
       await db.settingsDao.setNavLocked(false);
 
       // navigate to creature screen
       _goCreatureScreen();
-    } else {}
+    }
   }
 
   @override
@@ -92,15 +100,87 @@ class _BreedScreenState extends State<BreedScreen>
                 body: Scaffold(
                   backgroundColor: Colors.transparent,
                   appBar: AppBar(
+                    elevation: 0,
+                    scrolledUnderElevation: 0,
+                    backgroundColor: Colors.transparent,
+                    surfaceTintColor: Colors.transparent,
+                    bottom: PreferredSize(
+                      preferredSize: const Size.fromHeight(1),
+                      child: Container(
+                        height: 1,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              theme.border.withValues(alpha: .7),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                     title: IgnorePointer(
                       ignoring: isLocked,
                       child: TabBar(
-                        labelColor: theme.text,
+                        labelColor: theme.accent,
                         unselectedLabelColor: theme.textMuted,
                         controller: _tabController,
-                        tabs: const [
-                          Tab(text: 'Cultivations'),
-                          Tab(text: 'Fusion'),
+                        indicatorColor: theme.accent,
+                        indicatorWeight: 2.5,
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        labelStyle: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
+                        ),
+                        unselectedLabelStyle: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.0,
+                        ),
+                        tabs: [
+                          Tab(
+                            child: Builder(
+                              builder: (ctx) {
+                                final color =
+                                    DefaultTextStyle.of(ctx).style.color ??
+                                    theme.textMuted;
+                                return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.science_rounded,
+                                      size: 14,
+                                      color: color,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text('CULTIVATIONS'),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                          Tab(
+                            child: Builder(
+                              builder: (ctx) {
+                                final color =
+                                    DefaultTextStyle.of(ctx).style.color ??
+                                    theme.textMuted;
+                                return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.merge_type_rounded,
+                                      size: 14,
+                                      color: color,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text('FUSION'),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -108,14 +188,20 @@ class _BreedScreenState extends State<BreedScreen>
                   body: TabBarView(
                     controller: _tabController,
                     children: [
-                      NurseryTab(
-                        maxSeenNowUtc: DateTime.now().toUtc(),
-                        onHatchComplete: _handleExtractionComplete,
-                        onRequestAddEgg: () => _tabController.animateTo(1),
+                      TickerMode(
+                        enabled: _activeTabIndex == 0,
+                        child: NurseryTab(
+                          maxSeenNowUtc: DateTime.now().toUtc(),
+                          onHatchComplete: _handleExtractionComplete,
+                          onRequestAddEgg: () => _tabController.animateTo(1),
+                        ),
                       ),
-                      BreedingTab(
-                        discoveredCreatures: entries,
-                        onBreedingComplete: _noop,
+                      TickerMode(
+                        enabled: _activeTabIndex == 1,
+                        child: BreedingTab(
+                          discoveredCreatures: entries,
+                          onBreedingComplete: _noop,
+                        ),
                       ),
                     ],
                   ),

@@ -1,5 +1,6 @@
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // ---------- DEPLOY CONFIRM DIALOG ----------
 
@@ -9,104 +10,140 @@ class DeployConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF0A0E27).withOpacity(.95),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.amber.withOpacity(.5), width: 1.4),
+          color: t.bg1,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: t.borderAccent, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: t.amber.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.amber.withOpacity(.9),
-              size: 28,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Deploy Team?',
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .5,
+            // Header strip
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: t.bg0,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                border: Border(bottom: BorderSide(color: t.borderDim)),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Are you sure you want to deploy this team to the wild? Creatures in the wild are unique and will not be there again after leaving.",
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                height: 1.3,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                // Cancel button
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context, false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.04),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(.14),
-                          width: 1.4,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'CANCEL',
-                        style: TextStyle(
-                          color: theme.text,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                          letterSpacing: .5,
-                        ),
-                      ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: t.amberBright,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'DEPLOY TEAM?',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: t.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                // Deploy button
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context, true),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.greenAccent.withOpacity(.2),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.greenAccent.withOpacity(.6),
-                          width: 1.4,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'DEPLOY',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                          letterSpacing: .5,
-                        ),
-                      ),
+                ],
+              ),
+            ),
+            // Body
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Creatures in the wild are unique and will not be there again after leaving.',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: t.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      height: 1.5,
+                      letterSpacing: 0.2,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      // Cancel
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.pop(context, false);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: t.bg2,
+                              borderRadius: BorderRadius.circular(3),
+                              border: Border.all(color: t.borderDim),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'CANCEL',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.textSecondary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Deploy
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.pop(context, true);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: t.success.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(3),
+                              border: Border.all(
+                                color: t.success.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'DEPLOY',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.success,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 11,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -123,102 +160,140 @@ class ZeroStaminaWarningDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF0A0E27).withOpacity(.95),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.amber.withOpacity(.6), width: 1.4),
+          color: t.bg1,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: t.borderAccent, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: t.amber.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.amber.withOpacity(.95),
-              size: 28,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Low Stamina Detected',
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .5,
+            // Header strip
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: t.bg0,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                border: Border(bottom: BorderSide(color: t.borderDim)),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Are you sure you want to proceed? One or more Alchemons has 0 stamina.',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                height: 1.3,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context, false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.04),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(.14),
-                          width: 1.4,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'CANCEL',
-                        style: TextStyle(
-                          color: theme.text,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                          letterSpacing: .5,
-                        ),
-                      ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: t.amberBright,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'LOW STAMINA',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: t.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context, true),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(.18),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.amber.withOpacity(.7),
-                          width: 1.4,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'PROCEED',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                          letterSpacing: .5,
-                        ),
-                      ),
+                ],
+              ),
+            ),
+            // Body
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'One or more Alchemons has 0 stamina. Are you sure you want to proceed?',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: t.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      height: 1.5,
+                      letterSpacing: 0.2,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      // Cancel
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.pop(context, false);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: t.bg2,
+                              borderRadius: BorderRadius.circular(3),
+                              border: Border.all(color: t.borderDim),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'CANCEL',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.textSecondary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Proceed
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.pop(context, true);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: t.amberDim.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(3),
+                              border: Border.all(
+                                color: t.amber.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'PROCEED',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.amberBright,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 11,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),

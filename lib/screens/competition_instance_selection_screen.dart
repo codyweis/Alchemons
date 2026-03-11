@@ -1,13 +1,10 @@
-import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flame/extensions.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/competition.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:alchemons/utils/genetics_util.dart';
 
 /// Push this screen and it will return the chosen instanceId (String)
 /// via Navigator.pop<String>(instanceId).
@@ -195,9 +192,9 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(.05),
+                            color: Colors.white.withValues(alpha: .05),
                             borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: accent.withOpacity(.45)),
+                            border: Border.all(color: accent.withValues(alpha: .45)),
                           ),
                           child: Text(
                             t.toUpperCase(),
@@ -283,25 +280,25 @@ class _SearchField extends StatelessWidget {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.white.withOpacity(.55)),
+        hintStyle: TextStyle(color: Colors.white.withValues(alpha: .55)),
         isDense: true,
         filled: true,
-        fillColor: Colors.white.withOpacity(.06),
+        fillColor: Colors.white.withValues(alpha: .06),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 10,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.white.withOpacity(.14)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: .14)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.white.withOpacity(.14)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: .14)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.white.withOpacity(.22)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: .22)),
         ),
         prefixIcon: const Icon(Icons.search, color: Colors.white70, size: 18),
       ),
@@ -347,7 +344,7 @@ class _StatsCard extends StatelessWidget {
       return Container(
         height: strong ? 10 : 6,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.06),
+          color: Colors.white.withValues(alpha: .06),
           borderRadius: BorderRadius.circular(999),
         ),
         child: FractionallySizedBox(
@@ -356,7 +353,7 @@ class _StatsCard extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [accent, accent.withOpacity(.7)],
+                colors: [accent, accent.withValues(alpha: .7)],
               ),
               borderRadius: BorderRadius.circular(999),
             ),
@@ -370,11 +367,11 @@ class _StatsCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.04),
+          color: Colors.white.withValues(alpha: .04),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: accent.withOpacity(.45), width: 1.6),
+          border: Border.all(color: accent.withValues(alpha: .45), width: 1.6),
           boxShadow: [
-            BoxShadow(color: accent.withOpacity(.18), blurRadius: 16),
+            BoxShadow(color: accent.withValues(alpha: .18), blurRadius: 16),
           ],
         ),
         child: Row(
@@ -435,10 +432,10 @@ class _StatsCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.06),
+                          color: Colors.white.withValues(alpha: .06),
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: Colors.white.withOpacity(.15),
+                            color: Colors.white.withValues(alpha: .15),
                           ),
                         ),
                         child: Text(
@@ -529,7 +526,7 @@ class _MiniStat extends StatelessWidget {
               child: Container(
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(.05),
+                  color: Colors.white.withValues(alpha: .05),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: FractionallySizedBox(
@@ -537,7 +534,7 @@ class _MiniStat extends StatelessWidget {
                   widthFactor: (value / 10).clamp(0.0, 1.0),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(.2),
+                      color: Colors.white.withValues(alpha: .2),
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),

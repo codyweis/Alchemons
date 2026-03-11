@@ -122,7 +122,6 @@ class ThemeNotifier extends ChangeNotifier {
       case ThemeMode.dark:
         return StoredThemeMode.dark;
       case ThemeMode.system:
-      default:
         return StoredThemeMode
             .system; // --- MODIFIED: Fixed bug (was .dark) ---
     }

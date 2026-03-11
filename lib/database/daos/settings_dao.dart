@@ -189,6 +189,15 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     await setSetting('feeding_tutorial_seen', '1');
   }
 
+  Future<bool> hasSeenConstellationTutorial() async {
+    final v = await getSetting('constellation_tutorial_seen');
+    return v == '1';
+  }
+
+  Future<void> setConstellationTutorialSeen() async {
+    await setSetting('constellation_tutorial_seen', '1');
+  }
+
   Future<bool> hasSeenBiomeHarvestTutorial() async {
     final v = await getSetting('biome_harvest_tutorial_seen');
     return v == '1';
@@ -205,5 +214,75 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
 
   Future<void> setCreaturesTutorialSeen() async {
     await setSetting('creatures_screen_tutorial_seen', '1');
+  }
+
+  // =================== COSMIC PARTY (ALCHEMON PATROL) ===================
+
+  /// How many cosmic party slots the player has purchased (0-3).
+  Future<int> getCosmicPartySlotsUnlocked() async {
+    final v = await getSetting('cosmic_party_slots_unlocked');
+    if (v == null) return 0;
+    final n = int.tryParse(v) ?? 0;
+    return n.clamp(0, 3);
+  }
+
+  Future<void> setCosmicPartySlotsUnlocked(int n) async {
+    final clamped = n.clamp(0, 3);
+    await setSetting('cosmic_party_slots_unlocked', clamped.toString());
+  }
+
+  /// Get the list of instance IDs assigned to cosmic party slots.
+  Future<List<String?>> getCosmicPartySlots() async {
+    final keys = [
+      'cosmic_party_slot_0',
+      'cosmic_party_slot_1',
+      'cosmic_party_slot_2',
+    ];
+    final vals = <String?>[];
+    for (final k in keys) {
+      final v = await getSetting(k);
+      vals.add((v == null || v.isEmpty) ? null : v);
+    }
+    return vals;
+  }
+
+  Future<void> setCosmicPartySlotInstance(int index, String? instanceId) async {
+    if (index < 0 || index > 2) return;
+    final key = 'cosmic_party_slot_$index';
+    await setSetting(key, instanceId ?? '');
+  }
+
+  // =================== COSMIC GARRISON (HOME BASE ALCHEMONS) ===================
+
+  /// Get the list of instance IDs assigned to home garrison slots (up to 5).
+  Future<List<String?>> getCosmicGarrisonSlots() async {
+    final keys = List.generate(5, (i) => 'cosmic_garrison_slot_$i');
+    final vals = <String?>[];
+    for (final k in keys) {
+      final v = await getSetting(k);
+      vals.add((v == null || v.isEmpty) ? null : v);
+    }
+    return vals;
+  }
+
+  Future<void> setCosmicGarrisonSlotInstance(
+    int index,
+    String? instanceId,
+  ) async {
+    if (index < 0 || index > 4) return;
+    final key = 'cosmic_garrison_slot_$index';
+    await setSetting(key, instanceId ?? '');
+  }
+
+  // =================== COSMIC PRISMATIC FIELD ===================
+
+  /// Whether the one-time prismatic field easter-egg reward has been claimed.
+  Future<bool> getCosmicPrismaticRewardClaimed() async {
+    final v = await getSetting('cosmic_prismatic_reward');
+    return v == '1';
+  }
+
+  Future<void> setCosmicPrismaticRewardClaimed(bool claimed) async {
+    await setSetting('cosmic_prismatic_reward', claimed ? '1' : '0');
   }
 }

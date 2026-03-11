@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/widgets/creature_showcase_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -102,29 +101,6 @@ class _StoryIntroScreenState extends State<StoryIntroScreen>
       });
     } else {
       _completeStory();
-    }
-  }
-
-  void _previousPage() {
-    if (_isTransitioning) return;
-
-    // Cancel auto-advance when going backwards
-    _cancelAutoAdvanceTimer();
-
-    if (_currentPage > 0) {
-      HapticFeedback.lightImpact();
-      _isTransitioning = true;
-
-      _pageTransitionController.reverse().then((_) {
-        if (mounted) {
-          setState(() => _currentPage--);
-          _pageTransitionController.forward().then((_) {
-            _isTransitioning = false;
-            // Restart auto-advance timer
-            _startAutoAdvanceTimer();
-          });
-        }
-      });
     }
   }
 
@@ -627,7 +603,7 @@ class _LoadingScreenState extends State<_LoadingScreen> {
           Positioned.fill(child: Container(color: const Color(0xFF0A0A0A))),
 
         // Dark overlay
-        Positioned.fill(child: Container(color: Colors.black.withOpacity(0.4))),
+        Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.4))),
 
         // Loading UI
         SafeArea(
@@ -641,7 +617,7 @@ class _LoadingScreenState extends State<_LoadingScreen> {
                   widget.text,
                   style: GoogleFonts.robotoMono(
                     fontSize: 16,
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     letterSpacing: 3,
                     fontWeight: FontWeight.w700,
                   ),
@@ -654,7 +630,7 @@ class _LoadingScreenState extends State<_LoadingScreen> {
                   _statusText,
                   style: GoogleFonts.robotoMono(
                     fontSize: 12,
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.white.withValues(alpha: 0.6),
                     letterSpacing: 1.5,
                     fontWeight: FontWeight.w500,
                   ),
@@ -669,7 +645,7 @@ class _LoadingScreenState extends State<_LoadingScreen> {
                     height: 8,
                     child: LinearProgressIndicator(
                       value: _progress,
-                      backgroundColor: Colors.white.withOpacity(0.1),
+                      backgroundColor: Colors.white.withValues(alpha: 0.1),
                       valueColor: AlwaysStoppedAnimation<Color>(
                         Colors.cyan.shade400,
                       ),
@@ -683,7 +659,7 @@ class _LoadingScreenState extends State<_LoadingScreen> {
                   '${(_progress * 100).toInt()}%',
                   style: GoogleFonts.robotoMono(
                     fontSize: 14,
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     letterSpacing: 2,
                     fontWeight: FontWeight.w700,
                   ),

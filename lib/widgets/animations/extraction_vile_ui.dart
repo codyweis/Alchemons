@@ -159,7 +159,7 @@ class ExtractionVialCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: skin.frameEnd.withOpacity(0.35 * fx.frameGlow),
+              color: skin.frameEnd.withValues(alpha: 0.35 * fx.frameGlow),
               blurRadius: 24,
               spreadRadius: 2,
             ),
@@ -180,8 +180,8 @@ class ExtractionVialCard extends StatelessWidget {
                       radius: 1.0,
                       colors: [
                         skin.fill,
-                        Colors.black.withOpacity(0.08),
-                        Colors.black.withOpacity(0.18),
+                        Colors.black.withValues(alpha: 0.08),
+                        Colors.black.withValues(alpha: 0.18),
                       ],
                       stops: const [0.2, 0.7, 1.0],
                     ),
@@ -223,10 +223,10 @@ class ExtractionVialCard extends StatelessWidget {
                               vertical: compact ? 4 : 6,
                             ),
                             decoration: BoxDecoration(
-                              color: skin.badge.withOpacity(0.18),
+                              color: skin.badge.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(
-                                color: skin.badge.withOpacity(0.7),
+                                color: skin.badge.withValues(alpha: 0.7),
                                 width: 1,
                               ),
                             ),
@@ -261,7 +261,7 @@ class ExtractionVialCard extends StatelessWidget {
                             Text(
                               '${vial.price}',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.95),
+                                color: Colors.white.withValues(alpha: 0.95),
                                 fontWeight: FontWeight.w700,
                                 fontSize: compact ? 14 : 16,
                               ),
@@ -269,7 +269,7 @@ class ExtractionVialCard extends StatelessWidget {
                             Text(
                               '',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.70),
+                                color: Colors.white.withValues(alpha: 0.70),
                                 fontWeight: FontWeight.w500,
                                 fontSize: compact ? 12 : 13,
                               ),
@@ -332,7 +332,7 @@ class _AddButtonState extends State<_AddButton>
       ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack)),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withOpacity(0.1),
+          backgroundColor: Colors.white.withValues(alpha: 0.1),
           foregroundColor: Colors.white,
           elevation: 0,
           padding: EdgeInsets.symmetric(
@@ -360,39 +360,6 @@ class _AddButtonState extends State<_AddButton>
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RarityChip extends StatelessWidget {
-  final VialRarity rarity;
-  const _RarityChip({required this.rarity});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = <VialRarity, List<Color>>{
-      VialRarity.common: [const Color(0xFF334155), const Color(0xFF475569)],
-      VialRarity.uncommon: [const Color(0xFF14532D), const Color(0xFF15803D)],
-      VialRarity.rare: [const Color(0xFF1E3A8A), const Color(0xFF2563EB)],
-      VialRarity.legendary: [const Color(0xFF7C2D12), const Color(0xFFEA580C)],
-      VialRarity.mythic: [const Color(0xFF4C1D95), const Color(0xFFA21CAF)],
-    }[rarity]!;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: colors),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        rarity.name,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          fontSize: 11,
-          letterSpacing: 0.2,
         ),
       ),
     );
@@ -433,9 +400,9 @@ class _FrameShimmerState extends State<_FrameShimmer>
                 begin: Alignment(-1 + 2 * t, -1),
                 end: Alignment(1 + 2 * t, 1),
                 colors: [
-                  Colors.white.withOpacity(0.0),
-                  Colors.white.withOpacity(0.15 * widget.intensity),
-                  Colors.white.withOpacity(0.0),
+                  Colors.white.withValues(alpha: 0.0),
+                  Colors.white.withValues(alpha: 0.15 * widget.intensity),
+                  Colors.white.withValues(alpha: 0.0),
                 ],
                 stops: const [0.35, 0.5, 0.65],
               ),
@@ -507,7 +474,7 @@ class _TwinklePainter extends CustomPainter {
       final phase = (i * 0.17) % 1.0;
       final alpha =
           0.25 + 0.75 * (0.5 + 0.5 * math.sin(2 * math.pi * (t + phase)));
-      paint.color = Colors.white.withOpacity(alpha * 0.3);
+      paint.color = Colors.white.withValues(alpha: alpha * 0.3);
       canvas.drawCircle(stars[i], 0.8 + 1.5 * alpha, paint);
     }
   }
@@ -550,7 +517,7 @@ class _PulseOverlayState extends State<_PulseOverlay>
                 center: Alignment.center,
                 radius: 0.85 + 0.1 * breathe,
                 colors: [
-                  widget.color.withOpacity(0.10 + 0.05 * breathe),
+                  widget.color.withValues(alpha: 0.10 + 0.05 * breathe),
                   Colors.transparent,
                 ],
               ),

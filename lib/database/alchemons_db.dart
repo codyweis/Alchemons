@@ -1,16 +1,10 @@
 // lib/database/alchemons_db.dart
-import 'dart:convert';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/database/daos/constellation_dao.dart';
-import 'package:alchemons/models/elemental_group.dart';
-import 'package:alchemons/models/extraction_vile.dart';
-import 'package:alchemons/models/harvest_biome.dart';
-import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:drift/drift.dart';
 
 // Schema and Model Imports
 import 'package:alchemons/database/schema_tables.dart';
-import 'package:alchemons/database/models/stored_theme_mode.dart';
 
 // DAO Imports
 import 'package:alchemons/database/daos/settings_dao.dart';
@@ -20,6 +14,7 @@ import 'package:alchemons/database/daos/incubator_dao.dart';
 import 'package:alchemons/database/daos/inventory_dao.dart';
 import 'package:alchemons/database/daos/biome_dao.dart';
 import 'package:alchemons/database/daos/shop_dao.dart';
+import 'package:alchemons/database/daos/altar_dao.dart';
 
 part 'alchemons_db.g.dart';
 
@@ -52,6 +47,8 @@ part 'alchemons_db.g.dart';
     ConstellationTransactions,
     ConstellationUnlocks,
     BreedingStatistics,
+    AltarPlacements,
+    SurvivalHighScore,
   ],
   daos: [
     SettingsDao,
@@ -62,13 +59,14 @@ part 'alchemons_db.g.dart';
     BiomeDao,
     ShopDao,
     ConstellationDao,
+    AltarDao,
   ],
 )
 class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 30;
+  int get schemaVersion => 34;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -207,8 +205,60 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
           constellationPoints.hasSeenFinale,
         );
       }
+      if (from < 31) {
+        await m.createTable(altarPlacements);
+      }
+      if (from < 32) {
+        // Guard against "duplicate column" if the column was already added
+        // by a partially-committed prior migration run.
+        try {
+          await m.addColumn(altarPlacements, altarPlacements.snapshotJson);
+        } catch (_) {}
+      }
+      if (from < 33) {
+        await m.createTable(survivalHighScore);
+      }
+      if (from < 34) {
+        await m.addColumn(creatureInstances, creatureInstances.isFavorite);
+      }
     },
   );
+
+  // ── Survival Highscore helpers ────────────────────────────────────────────
+
+  /// Returns the single highscore row, or null if never played.
+  Future<SurvivalHighScoreData?> getSurvivalHighScore() async {
+    return (select(
+      survivalHighScore,
+    )..where((t) => t.id.equals(1))).getSingleOrNull();
+  }
+
+  /// Saves [wave], [score], [timeMs] only when they beat the stored records.
+  /// Creates the row if it doesn't exist yet.
+  Future<void> saveSurvivalHighScore({
+    required int wave,
+    required int score,
+    required int timeMs,
+  }) async {
+    final existing = await getSurvivalHighScore();
+    final newBestWave = existing == null
+        ? wave
+        : (wave > existing.bestWave ? wave : existing.bestWave);
+    final newBestScore = existing == null
+        ? score
+        : (score > existing.bestScore ? score : existing.bestScore);
+    final newBestTimeMs = existing == null
+        ? timeMs
+        : (timeMs > existing.bestTimeMs ? timeMs : existing.bestTimeMs);
+    await into(survivalHighScore).insertOnConflictUpdate(
+      SurvivalHighScoreCompanion(
+        id: const Value(1),
+        bestWave: Value(newBestWave),
+        bestScore: Value(newBestScore),
+        bestTimeMs: Value(newBestTimeMs),
+      ),
+    );
+  }
 
   Future<void> _seedInitialData() async {
     // Seed incubator slots
@@ -238,6 +288,39 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     // Seed resource balances
     for (final k in ElementResources.settingsKeys) {
       await _setSetting(k, '0');
+    }
+
+    // Seed initial inventory items
+    await _seedInitialInventory();
+  }
+
+  Future<void> _seedInitialInventory() async {
+    // Give 1 constellation point in the proper table
+    await into(constellationPoints).insert(
+      ConstellationPointsCompanion(
+        currentBalance: const Value(1),
+        totalEarned: const Value(1),
+        totalSpent: const Value(0),
+        hasSeenFinale: const Value(false),
+        lastUpdatedUtc: Value(DateTime.now().toUtc()),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+
+    // Give one of each harvester
+    final inventoryItemsToSeed = [
+      ('item.harvest_std_volcanic', 1),
+      ('item.harvest_std_oceanic', 1),
+      ('item.harvest_std_verdant', 1),
+      ('item.harvest_std_earthen', 1),
+      ('item.instant_hatch', 1), // Instant Fusion Extractor
+      ('item.stamina_potion', 1), // Stamina Elixir
+    ];
+
+    for (final (key, qty) in inventoryItemsToSeed) {
+      await into(
+        inventoryItems,
+      ).insert(InventoryItemsCompanion(key: Value(key), qty: Value(qty)));
     }
   }
 

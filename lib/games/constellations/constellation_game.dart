@@ -7,13 +7,11 @@ import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
-import 'package:flame/particles.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 const Map<ConstellationTree, List<String>> kTreeStoryFragments = {
   ConstellationTree.breeder: [
-    // BREEDER STORY – "The First Hatchery"
     'Before there were labs, there was only warmth and watching.',
     'A single egg floated in the dark, dreaming of feathers and teeth.',
     'Hands you do not remember cupped it like a fragile star.',
@@ -31,9 +29,7 @@ const Map<ConstellationTree, List<String>> kTreeStoryFragments = {
     'Care stopped being optional and became infrastructure.',
     'From then on, nothing truly alone stayed that way for long.',
   ],
-
   ConstellationTree.combat: [
-    // COMBAT STORY – "The Silent Arena"
     'They built the arena in a place sound refused to cross.',
     'No cheers, no drums, only breath and impact.',
     'Your first step inside felt heavier than gravity allowed.',
@@ -51,25 +47,17 @@ const Map<ConstellationTree, List<String>> kTreeStoryFragments = {
     'From then on, every fight was a negotiation with fate.',
     'The arena stayed silent, but the sky learned your name.',
   ],
-
   ConstellationTree.extraction: [
-    // EXTRACTION STORY – "Miners of Starlight"
-    'They told you the veins were empty centuries ago.',
-    'Yet the rock still sang if you pressed your ear close.',
-    'You followed the song into a shaft no map admitted.',
-    'Dust glittered, undecided between mundane and sacred.',
-    'Your tools were simple; your equations were not.',
-    'Each strike released a gasp of bottled radiance.',
-    'The light tried to flee; you offered it purpose instead.',
-    'Careful conduits turned chaos into circulation.',
-    'On your schematics, the mine looked like a nervous system.',
-    'In truth, it was a conversation with buried history.',
-    'You left the deepest caverns brighter than you found them.',
-    'Starlight, once lost, now flowed where it was needed most.',
-    'The surface felt different, as if standing on a healed bruise.',
-    'You logged the yield; the world logged the mercy.',
-    'Extraction became less about taking, more about translation.',
-    'The planet did not thank you, but it stopped protesting.',
+    'The first heartbeat',
+    'or waking breath,',
+    'the moment marking',
+    'flesh and life,',
+    'a flicker in the night,',
+    'the light grows,',
+    'the light flickers,',
+    'then fades,',
+    'can you remember',
+    'the glow?',
   ],
 };
 
@@ -83,28 +71,29 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   final Map<String, SkillNode> _nodes = {};
   final Map<String, ConnectionLine> _connections = {};
 
-  // Tree positions in a triangle formation
   final Map<ConstellationTree, Vector2> _treePositions = {
-    ConstellationTree.breeder: Vector2(0, -600), // Top
-    ConstellationTree.combat: Vector2(-700, 400), // Bottom left
-    ConstellationTree.extraction: Vector2(700, 400), // Bottom right
+    ConstellationTree.breeder: Vector2(0, -600),
+    ConstellationTree.combat: Vector2(-700, 400),
+    ConstellationTree.extraction: Vector2(700, 400),
   };
 
-  double _currentScale = 1.0;
-  double _baseScaleForGesture = 1.0; // Scale at start of gesture
+  double _baseScaleForGesture = 1.0;
   static const double _minScale = 0.2;
   static const double _maxScale = 2.0;
 
   bool _isTransitioning = false;
-
-  // Track if this is a pan vs pinch gesture
   Vector2? _lastFocalPoint;
 
-  // Finale sequence state
   bool _finaleTriggered = false;
   bool _isPlayingFinale = false;
   SpriteComponent? _constellationImage;
   StarfieldBackground? _starfield;
+
+  // Screen shake state (smooth, frame-based)
+  double _shakeTime = 0.0;
+  double _shakeDuration = 0.0;
+  double _shakeIntensity = 0.0;
+  Vector2? _shakeOriginalPosition;
 
   ConstellationGame({
     required this.selectedTree,
@@ -117,11 +106,8 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-
-    // Use the built-in camera - just configure it
     camera.viewfinder.anchor = Anchor.center;
 
-    // Add starfield background
     final starfield = StarfieldBackground(
       primaryColor: primaryColor,
       secondaryColor: secondaryColor,
@@ -129,15 +115,47 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     _starfield = starfield;
     await world.add(starfield);
 
-    // Build all three skill trees
     await _buildAllSkillTrees();
-
-    // Center camera on the selected tree
     camera.viewfinder.position = _treePositions[selectedTree]!;
   }
 
+  @override
+  void update(double dt) {
+    super.update(dt);
+
+    // Smooth screen shake in update loop
+    if (_shakeDuration > 0 && _shakeOriginalPosition != null) {
+      _shakeTime += dt;
+
+      if (_shakeTime >= _shakeDuration) {
+        camera.viewfinder.position = _shakeOriginalPosition!;
+        _shakeDuration = 0.0;
+        _shakeOriginalPosition = null;
+      } else {
+        // Perlin-like smooth noise using multiple sine waves
+        final progress = _shakeTime / _shakeDuration;
+        final decay = 1.0 - Curves.easeOut.transform(progress);
+        final intensity = _shakeIntensity * decay;
+
+        // Multiple frequencies for organic feel
+        final offsetX =
+            intensity *
+            (math.sin(_shakeTime * 45) * 0.5 +
+                math.sin(_shakeTime * 23 + 1.3) * 0.3 +
+                math.sin(_shakeTime * 67 + 2.7) * 0.2);
+        final offsetY =
+            intensity *
+            (math.sin(_shakeTime * 37 + 0.7) * 0.5 +
+                math.sin(_shakeTime * 53 + 1.9) * 0.3 +
+                math.sin(_shakeTime * 71 + 3.1) * 0.2);
+
+        camera.viewfinder.position =
+            _shakeOriginalPosition! + Vector2(offsetX, offsetY);
+      }
+    }
+  }
+
   Future<void> _buildAllSkillTrees() async {
-    // Build all three trees
     for (final tree in ConstellationTree.values) {
       await _buildSkillTree(tree);
     }
@@ -147,25 +165,20 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     final skills = ConstellationCatalog.forTree(tree);
     final treeOffset = _treePositions[tree]!;
 
-    // SPECIAL CASE: combat tree uses alchemy-circle layout
     if (tree == ConstellationTree.combat) {
       await _buildCombatAlchemyTree(skills, treeOffset);
       return;
     }
 
-    // --- existing vertical/tier layout for other trees ---
     final tierMap = ConstellationCatalog.byTierForTree(tree);
-
     final maxTier = tierMap.keys.reduce(math.max);
     final verticalSpacing = 180.0;
     final baseY = (maxTier * verticalSpacing) / 2;
 
-    // First pass: create all nodes
     final tempNodes = <String, SkillNode>{};
     for (final tier in tierMap.keys) {
       final skillsInTier = tierMap[tier]!;
       final horizontalSpacing = skillsInTier.length > 1 ? 220.0 : 0.0;
-
       final totalWidth = (skillsInTier.length - 1) * horizontalSpacing;
       final startX = -totalWidth / 2;
 
@@ -185,7 +198,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
           primaryColor: primaryColor,
           secondaryColor: secondaryColor,
           onTap: () => onSkillTapped(skill),
-          isRootNode: tier == 1, // Mark tier 1 skills as root nodes
+          isRootNode: tier == 1,
         );
 
         tempNodes[skill.id] = node;
@@ -203,7 +216,6 @@ class ConstellationGame extends FlameGame with ScaleDetector {
           final canUnlock = skill.canUnlock(unlockedSkills) && !isUnlocked;
 
           final connectionKey = '${prereqId}_${skill.id}';
-
           final connection = ConnectionLine(
             from: fromNode,
             to: toNode,
@@ -215,14 +227,12 @@ class ConstellationGame extends FlameGame with ScaleDetector {
           );
 
           connectionIndex++;
-
           _connections[connectionKey] = connection;
           await world.add(connection);
         }
       }
     }
 
-    // Third pass: add nodes (so they render on top)
     for (final entry in tempNodes.entries) {
       _nodes[entry.key] = entry.value;
       await world.add(entry.value);
@@ -235,8 +245,6 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   ) {
     final fragments = kTreeStoryFragments[tree];
     if (fragments == null || fragments.isEmpty) return null;
-
-    // If you want a strict one-time linear story, you can just:
     if (connectionIndex >= fragments.length) return null;
     return fragments[connectionIndex];
   }
@@ -246,41 +254,24 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     Vector2 treeOffset,
   ) async {
     final tempNodes = <String, SkillNode>{};
-
-    // How far each ring sits from the center
     const double ringSpacing = 150.0;
 
-    double _angleForSkill(ConstellationSkill skill) {
+    double angleForSkill(ConstellationSkill skill) {
       final id = skill.id;
-
-      if (id.startsWith('combat_atk_')) {
-        // Fire / Strength – top
-        return -math.pi / 2; // -90°
-      } else if (id.startsWith('combat_int_')) {
-        // Air / Int – right
-        return 0.0; // 0°
-      } else if (id.startsWith('combat_beauty_')) {
-        // Water / Beauty – bottom
-        return math.pi / 2; // 90°
-      } else if (id.startsWith('combat_speed_')) {
-        // Earth / Speed – left
-        return math.pi; // 180°
-      }
-
-      // Fallback: put unknowns near the center top-ish
+      if (id.startsWith('combat_atk_')) return -math.pi / 2;
+      if (id.startsWith('combat_int_')) return 0.0;
+      if (id.startsWith('combat_beauty_')) return math.pi / 2;
+      if (id.startsWith('combat_speed_')) return math.pi;
       return -math.pi / 2;
     }
 
-    // 1) Create nodes arranged in a circle / cross
     for (final skill in skills) {
-      final angle = _angleForSkill(skill);
+      final angle = angleForSkill(skill);
       final radius = skill.tier * ringSpacing;
-
       final localPos = Vector2(
         math.cos(angle) * radius,
         math.sin(angle) * radius,
       );
-
       final worldPos = treeOffset + localPos;
 
       final isUnlocked = unlockedSkills.contains(skill.id);
@@ -294,13 +285,12 @@ class ConstellationGame extends FlameGame with ScaleDetector {
         primaryColor: primaryColor,
         secondaryColor: secondaryColor,
         onTap: () => onSkillTapped(skill),
-        isRootNode: skill.tier == 1, // Mark tier 1 skills as root nodes
+        isRootNode: skill.tier == 1,
       );
 
       tempNodes[skill.id] = node;
     }
 
-    // 2) Create connections (same logic as default builder)
     int connectionIndex = 0;
     for (final skill in skills) {
       for (final prereqId in skill.prerequisites) {
@@ -312,7 +302,6 @@ class ConstellationGame extends FlameGame with ScaleDetector {
           final canUnlock = skill.canUnlock(unlockedSkills) && !isUnlocked;
 
           final connectionKey = '${prereqId}_${skill.id}';
-
           final connection = ConnectionLine(
             from: fromNode,
             to: toNode,
@@ -327,21 +316,18 @@ class ConstellationGame extends FlameGame with ScaleDetector {
           );
 
           connectionIndex++;
-
           _connections[connectionKey] = connection;
           await world.add(connection);
         }
       }
     }
 
-    // 3) Add nodes so they render on top of lines
     for (final entry in tempNodes.entries) {
       _nodes[entry.key] = entry.value;
       await world.add(entry.value);
     }
   }
 
-  /// Smoothly transition camera to a different tree
   Future<void> transitionToTree(ConstellationTree tree) async {
     if (_isTransitioning || tree == selectedTree) return;
 
@@ -350,24 +336,20 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     final targetPosition = _treePositions[tree]!;
 
-    // Smooth camera pan
     camera.viewfinder.add(
       MoveEffect.to(
         targetPosition,
-        EffectController(duration: 1.0, curve: Curves.easeInOut),
+        EffectController(duration: 0.8, curve: Curves.easeInOutCubic),
       ),
     );
 
-    // Wait for transition to complete
-    await Future.delayed(const Duration(milliseconds: 1000));
+    await Future.delayed(const Duration(milliseconds: 800));
     _isTransitioning = false;
   }
 
   @override
   void onScaleStart(ScaleStartInfo info) {
     if (_isTransitioning || _isPlayingFinale) return;
-
-    // Capture the current zoom at the start of this gesture
     _baseScaleForGesture = camera.viewfinder.zoom;
     _lastFocalPoint = info.eventPosition.global;
   }
@@ -378,41 +360,30 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     final currentFocalPoint = info.eventPosition.global;
 
-    // Handle panning (when scale is ~1.0, it's just a drag)
     if (_lastFocalPoint != null) {
       final delta = currentFocalPoint - _lastFocalPoint!;
       final newPosition =
           camera.viewfinder.position - (delta / camera.viewfinder.zoom);
-
-      // Clamp camera position to reasonable bounds
       camera.viewfinder.position = Vector2(
         newPosition.x.clamp(-1200.0, 1200.0),
         newPosition.y.clamp(-1000.0, 800.0),
       );
     }
+    _lastFocalPoint = currentFocalPoint.clone();
 
-    _lastFocalPoint = currentFocalPoint;
-
-    // Handle zooming (pinch gesture)
-    // info.scale.global gives us the cumulative scale since gesture start
-    if (info.scale.global.x != 1.0) {
-      final newScale = (_baseScaleForGesture * info.scale.global.x).clamp(
-        _minScale,
-        _maxScale,
-      );
-
-      camera.viewfinder.zoom = newScale;
-    }
+    final rawScale = info.raw.scale;
+    final newScale = (_baseScaleForGesture * rawScale).clamp(
+      _minScale,
+      _maxScale,
+    );
+    camera.viewfinder.zoom = newScale;
   }
 
   @override
   void onScaleEnd(ScaleEndInfo info) {
-    // Store the final scale for next time
-    _currentScale = camera.viewfinder.zoom;
     _lastFocalPoint = null;
   }
 
-  /// Refresh nodes when unlocks change
   void updateUnlockedSkills(Set<String> newUnlockedSkills) {
     final newlyUnlocked = newUnlockedSkills.difference(unlockedSkills);
 
@@ -426,12 +397,11 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       node.updateState(isUnlocked: isUnlocked, canUnlock: canUnlock);
     }
 
-    // Animate new connections for newly unlocked skills
     for (final skillId in newlyUnlocked) {
       final skill = ConstellationCatalog.byId(skillId);
       if (skill != null) {
         for (final prereqId in skill.prerequisites) {
-          final connectionKey = '${prereqId}_${skillId}';
+          final connectionKey = '${prereqId}_$skillId';
           final connection = _connections[connectionKey];
           if (connection != null) {
             connection.animateActivation();
@@ -441,41 +411,43 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     }
   }
 
-  /// Epic finale sequence when all constellations are unlocked
   Future<void> triggerFinale() async {
     if (_finaleTriggered || _isPlayingFinale) return;
 
     _finaleTriggered = true;
     _isPlayingFinale = true;
 
-    // 1. Screen shake (0.5s)
-    await _screenShake();
+    // Smooth screen shake (handled in update loop)
+    _startScreenShake(intensity: 12.0, duration: 1.5);
+    await Future.delayed(const Duration(milliseconds: 1500));
 
-    // 2. Make stars blink rapidly (1s)
     _starfield?.startRapidBlink();
     await Future.delayed(const Duration(milliseconds: 1000));
 
-    // 3. Zoom out to see all three trees (2s)
     await _zoomOut();
-
     await Future.delayed(const Duration(milliseconds: 1000));
 
-    // 4. Fade in constellation image behind everything (2s)
     await _fadeInConstellation();
-
-    // 5. Restore normal star twinkling on top
     _starfield?.restoreNormalTwinkling();
 
     _isPlayingFinale = false;
   }
 
-  /// Jump directly to the finale end state (for when user has already seen it)
+  void _startScreenShake({
+    required double intensity,
+    required double duration,
+  }) {
+    _shakeTime = 0.0;
+    _shakeDuration = duration;
+    _shakeIntensity = intensity;
+    _shakeOriginalPosition = camera.viewfinder.position.clone();
+  }
+
   Future<void> showFinaleEndState() async {
-    if (_constellationImage != null) return; // Already showing
+    if (_constellationImage != null) return;
 
     _finaleTriggered = true;
 
-    // Calculate the center point between all three trees
     final centerX =
         (_treePositions[ConstellationTree.breeder]!.x +
             _treePositions[ConstellationTree.combat]!.x +
@@ -488,14 +460,10 @@ class ConstellationGame extends FlameGame with ScaleDetector {
         3;
     final centerPosition = Vector2(centerX, centerY);
 
-    // Set camera to zoomed out position immediately
     camera.viewfinder.position = centerPosition;
     camera.viewfinder.zoom = 0.4;
-    _currentScale = 0.4;
 
-    // Load and display the constellation image at full opacity
     final sprite = await Sprite.load('ui/constellationbackgroundimg.png');
-
     final originalWidth = sprite.originalSize.x;
     final originalHeight = sprite.originalSize.y;
     final targetSize = 1500.0;
@@ -520,37 +488,13 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       position: Vector2(0, 0),
       priority: -5,
     );
-
-    // Set opacity after construction
     _constellationImage!.opacity = 0.1;
 
     await world.add(_constellationImage!);
-
-    // Make sure stars are in normal twinkling mode
     _starfield?.restoreNormalTwinkling();
   }
 
-  Future<void> _screenShake() async {
-    final originalPosition = camera.viewfinder.position.clone();
-    final random = math.Random();
-    const shakeIntensity = 15.0;
-    const shakeDuration = 2000; // milliseconds
-    const shakeInterval = 50; // milliseconds
-    final shakeCount = shakeDuration ~/ shakeInterval;
-
-    for (int i = 0; i < shakeCount; i++) {
-      final offsetX = (random.nextDouble() - 0.5) * shakeIntensity;
-      final offsetY = (random.nextDouble() - 0.5) * shakeIntensity;
-      camera.viewfinder.position = originalPosition + Vector2(offsetX, offsetY);
-      await Future.delayed(Duration(milliseconds: shakeInterval));
-    }
-
-    // Return to original position
-    camera.viewfinder.position = originalPosition;
-  }
-
   Future<void> _zoomOut() async {
-    // Calculate the center point between all three trees
     final centerX =
         (_treePositions[ConstellationTree.breeder]!.x +
             _treePositions[ConstellationTree.combat]!.x +
@@ -563,47 +507,36 @@ class ConstellationGame extends FlameGame with ScaleDetector {
         3;
     final centerPosition = Vector2(centerX, centerY);
 
-    // Zoom out to 0.4 to see all three trees
-    final zoomController = EffectController(
-      duration: 2.0,
-      curve: Curves.easeInOut,
+    camera.viewfinder.add(
+      ScaleEffect.to(
+        Vector2.all(0.4),
+        EffectController(duration: 2.0, curve: Curves.easeInOutCubic),
+      ),
     );
-
-    camera.viewfinder.add(ScaleEffect.to(Vector2.all(0.4), zoomController));
 
     camera.viewfinder.add(
       MoveEffect.to(
         centerPosition,
-        EffectController(duration: 2.0, curve: Curves.easeInOut),
+        EffectController(duration: 2.0, curve: Curves.easeInOutCubic),
       ),
     );
 
     await Future.delayed(const Duration(milliseconds: 2000));
-    _currentScale = 0.4;
   }
 
   Future<void> _fadeInConstellation() async {
-    // Load the constellation image
     final sprite = await Sprite.load('ui/constellationbackgroundimg.png');
-
-    // Get the original image dimensions
     final originalWidth = sprite.originalSize.x;
     final originalHeight = sprite.originalSize.y;
+    final targetSize = 1500.0;
 
-    // Calculate the size that fits the view without stretching
-    // We want it to cover the three trees nicely
-    final targetSize = 1500.0; // Adjust this to make it bigger/smaller
-
-    // Calculate aspect-ratio-preserving size
     final Vector2 imageSize;
     if (originalWidth > originalHeight) {
-      // Landscape image
       imageSize = Vector2(
         targetSize,
         targetSize * (originalHeight / originalWidth),
       );
     } else {
-      // Portrait or square image
       imageSize = Vector2(
         targetSize * (originalWidth / originalHeight),
         targetSize,
@@ -614,43 +547,45 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       sprite: sprite,
       size: imageSize,
       anchor: Anchor.center,
-      position: Vector2(0, 0), // Center of the world
+      position: Vector2(0, 0),
       priority: -5,
     );
-
-    // Start invisible
     _constellationImage!.opacity = 0.0;
 
     await world.add(_constellationImage!);
 
-    // Fade in over 2 seconds
     _constellationImage!.add(
       OpacityEffect.to(
-        .1, // Full opacity for transparent constellation lines
-        EffectController(duration: 4.0, curve: Curves.easeIn),
+        0.1,
+        EffectController(duration: 3.0, curve: Curves.easeOutCubic),
       ),
     );
 
-    await Future.delayed(const Duration(milliseconds: 4000));
+    await Future.delayed(const Duration(milliseconds: 3000));
   }
 }
 
-/// Individual skill node
+/// Individual skill node with improved particle system
 class SkillNode extends PositionComponent with TapCallbacks {
   final ConstellationSkill skill;
   final Color primaryColor;
   final Color secondaryColor;
   final VoidCallback onTap;
-  final bool isRootNode; // Mark if this is a tier 1 root node
+  final bool isRootNode;
 
   bool isUnlocked;
   bool canUnlock;
 
-  // Visual components
   late CircleComponent _outerRing;
   late CircleComponent _innerCore;
   late TextComponent _costText;
-  ParticleSystemComponent? _particles;
+
+  // Improved particle system - persistent particles with pooling
+  final List<_NodeParticle> _particles = [];
+  static const int _maxParticles = 12;
+
+  // Pulse animation state
+  double _pulseTime = 0.0;
 
   SkillNode({
     required this.skill,
@@ -660,37 +595,34 @@ class SkillNode extends PositionComponent with TapCallbacks {
     required this.primaryColor,
     required this.secondaryColor,
     required this.onTap,
-    this.isRootNode = false, // Default to false
+    this.isRootNode = false,
   }) : super(
          position: position,
          size: Vector2.all(80),
          anchor: Anchor.center,
-         priority: 0, // Nodes on top
+         priority: 0,
        );
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Create hexagonal alchemical node instead of circle
     _outerRing = CircleComponent(
       radius: 35,
       position: size / 2,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.transparent, // We'll custom render this
+      paint: Paint()..color = Colors.transparent,
     );
     await add(_outerRing);
 
-    // Inner core with mystical glow
     _innerCore = CircleComponent(
       radius: 28,
       position: size / 2,
       anchor: Anchor.center,
-      paint: Paint()..color = Colors.transparent, // We'll custom render this
+      paint: Paint()..color = Colors.transparent,
     );
     await add(_innerCore);
 
-    // Cost text (hidden once unlocked)
     _costText = TextComponent(
       text: isUnlocked ? '' : '${skill.pointsCost}',
       textRenderer: TextPaint(
@@ -705,14 +637,41 @@ class SkillNode extends PositionComponent with TapCallbacks {
     );
     await add(_costText);
 
-    // Particles for unlocked nodes
+    // Initialize particle pool
     if (isUnlocked) {
-      await _addParticles();
+      _initializeParticles();
+    }
+  }
+
+  void _initializeParticles() {
+    final random = math.Random();
+    for (int i = 0; i < _maxParticles; i++) {
+      _particles.add(
+        _NodeParticle(
+          angle: (i / _maxParticles) * math.pi * 2,
+          distance: 35.0 + random.nextDouble() * 15.0,
+          speed: 0.3 + random.nextDouble() * 0.4,
+          size: 2.0 + random.nextDouble() * 2.0,
+          phase: random.nextDouble() * math.pi * 2,
+        ),
+      );
+    }
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+
+    // Update pulse animation
+    if (canUnlock) {
+      _pulseTime += dt;
     }
 
-    // Pulsing animation for available nodes
-    if (canUnlock) {
-      _addPulseEffect();
+    // Update particles
+    if (isUnlocked) {
+      for (final particle in _particles) {
+        particle.update(dt);
+      }
     }
   }
 
@@ -724,40 +683,57 @@ class SkillNode extends PositionComponent with TapCallbacks {
     final ringColor = _getRingColor();
     final coreColor = _getCoreColor();
 
-    // Draw hexagonal outer ring (alchemical symbol)
     final hexPath = _createHexagon(center.toOffset(), 35);
 
-    // Outer glow for unlocked/available nodes
-    if (isUnlocked || canUnlock) {
+    // Animated glow for available nodes
+    if (canUnlock) {
+      final pulseValue = (math.sin(_pulseTime * 2.5) + 1) / 2; // 0 to 1
+      final glowOpacity = (0.1 + pulseValue * 0.25).clamp(0.0, 1.0);
+      final glowSize = 3.0 + pulseValue * 4.0;
+
       final glowPaint = Paint()
-        ..color = primaryColor.withOpacity(isUnlocked ? 0.8 : 0.18)
+        ..color = primaryColor.withValues(alpha: glowOpacity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = isUnlocked ? 1.0 : 3.0;
+        ..strokeWidth = glowSize
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal,
+          6.0 + pulseValue * 4.0,
+        );
       canvas.drawPath(hexPath, glowPaint);
     }
 
-    // Main hexagon border - thicker for root nodes
-    final borderWidth = isRootNode ? 13.0 : 1.0;
+    // Outer glow for unlocked nodes
+    if (isUnlocked) {
+      final glowPaint = Paint()
+        ..color = primaryColor.withValues(alpha: 0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
+      canvas.drawPath(hexPath, glowPaint);
+    }
+
+    // Main hexagon border
+    final borderWidth = isRootNode ? 4.0 : 2.0;
     final borderPaint = Paint()
       ..shader = ui.Gradient.linear(
         Offset(center.x, center.y - 35),
         Offset(center.x, center.y + 35),
-        [ringColor, ringColor.withOpacity(0.6)],
+        [ringColor, ringColor.withValues(alpha: 0.6)],
       )
       ..style = PaintingStyle.stroke
       ..strokeWidth = borderWidth;
     canvas.drawPath(hexPath, borderPaint);
 
-    // Inner hexagonal core (smaller)
+    // Inner hexagonal core
     final coreHexPath = _createHexagon(center.toOffset(), 28);
     final corePaint = Paint()
       ..shader = ui.Gradient.radial(
         center.toOffset(),
         28,
         [
-          coreColor.withOpacity(0.6),
-          coreColor.withOpacity(0.2),
-          coreColor.withOpacity(0.35),
+          coreColor.withValues(alpha: 0.6),
+          coreColor.withValues(alpha: 0.2),
+          coreColor.withValues(alpha: 0.35),
         ],
         [0.0, 0.5, 1.0],
       )
@@ -767,16 +743,55 @@ class SkillNode extends PositionComponent with TapCallbacks {
       canvas.drawPath(coreHexPath, corePaint);
     }
 
-    // Add alchemical corner accents for unlocked nodes
+    // Alchemical accents for unlocked nodes
     if (isUnlocked) {
       _drawAlchemicalAccents(canvas, center.toOffset(), 35);
+      _renderParticles(canvas, center);
+    }
+  }
+
+  void _renderParticles(Canvas canvas, Vector2 center) {
+    for (final particle in _particles) {
+      final pos = particle.getPosition(center);
+      final opacity = particle.getOpacity().clamp(0.0, 1.0);
+
+      // Diamond shape
+      final size = particle.size;
+      final paint = Paint()
+        ..color = primaryColor.withValues(
+          alpha: (opacity * 0.8).clamp(0.0, 1.0),
+        )
+        ..style = PaintingStyle.fill;
+
+      final path = Path()
+        ..moveTo(pos.x, pos.y - size)
+        ..lineTo(pos.x + size * 0.6, pos.y)
+        ..lineTo(pos.x, pos.y + size)
+        ..lineTo(pos.x - size * 0.6, pos.y)
+        ..close();
+
+      canvas.drawPath(path, paint);
+
+      // Inner glow
+      final glowPaint = Paint()
+        ..color = secondaryColor.withValues(
+          alpha: (opacity * 0.4).clamp(0.0, 1.0),
+        )
+        ..style = PaintingStyle.fill;
+      final glowPath = Path()
+        ..moveTo(pos.x, pos.y - size * 0.5)
+        ..lineTo(pos.x + size * 0.3, pos.y)
+        ..lineTo(pos.x, pos.y + size * 0.5)
+        ..lineTo(pos.x - size * 0.3, pos.y)
+        ..close();
+      canvas.drawPath(glowPath, glowPaint);
     }
   }
 
   Path _createHexagon(Offset center, double radius) {
     final path = Path();
     for (int i = 0; i < 6; i++) {
-      final angle = (math.pi / 3) * i - math.pi / 6; // Start from flat top
+      final angle = (math.pi / 3) * i - math.pi / 6;
       final x = center.dx + radius * math.cos(angle);
       final y = center.dy + radius * math.sin(angle);
 
@@ -791,9 +806,8 @@ class SkillNode extends PositionComponent with TapCallbacks {
   }
 
   void _drawAlchemicalAccents(Canvas canvas, Offset center, double radius) {
-    // Draw small diamond accents at hexagon corners
     final paint = Paint()
-      ..color = secondaryColor.withOpacity(0.7)
+      ..color = secondaryColor.withValues(alpha: 0.7)
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < 6; i++) {
@@ -815,103 +829,21 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
   Color _getRingColor() {
     if (isUnlocked) return primaryColor;
-    if (canUnlock) return primaryColor.withOpacity(0.8);
-    return primaryColor.withOpacity(0.3);
+    if (canUnlock) return primaryColor.withValues(alpha: 0.8);
+    return primaryColor.withValues(alpha: 0.3);
   }
 
   Color _getCoreColor() {
-    if (isUnlocked) return primaryColor.withOpacity(0.4);
-    if (canUnlock) return primaryColor.withOpacity(0.15);
-    return Colors.black.withOpacity(0.6);
-  }
-
-  Future<void> _addParticles() async {
-    // Alchemical energy particles - floating symbols and energy wisps
-    final particles = ParticleSystemComponent(
-      particle: Particle.generate(
-        count: 15,
-        lifespan: 3,
-        generator: (i) {
-          final angle =
-              (i / 15) * math.pi * 2 + (math.Random().nextDouble() * 0.5);
-          final distance = 40.0 + math.Random().nextDouble() * 20.0;
-          final floatSpeed = 15.0 + math.Random().nextDouble() * 10.0;
-
-          // Starting position in a circle around the node
-          final startOffset = Vector2(
-            math.cos(angle) * distance,
-            math.sin(angle) * distance,
-          );
-
-          // Floating upward and spiraling outward
-          return AcceleratedParticle(
-            speed: Vector2(
-              math.cos(angle) * floatSpeed,
-              -30.0, // Float upward
-            ),
-            acceleration: Vector2(0, -5.0), // Gentle upward acceleration
-            child: ComputedParticle(
-              lifespan: 3,
-              renderer: (canvas, particle) {
-                final life = particle.progress;
-                final opacity = (1.0 - life) * 0.7;
-
-                // Draw diamond/crystal shape
-                final size = 3.0 + (1.0 - life) * 2.0;
-                final paint = Paint()
-                  ..color = primaryColor.withOpacity(opacity)
-                  ..style = PaintingStyle.fill;
-
-                final path = Path()
-                  ..moveTo(0, -size)
-                  ..lineTo(size * 0.6, 0)
-                  ..lineTo(0, size)
-                  ..lineTo(-size * 0.6, 0)
-                  ..close();
-
-                canvas.drawPath(path, paint);
-
-                // Inner glow
-                final glowPaint = Paint()
-                  ..color = secondaryColor.withOpacity(opacity * 0.5)
-                  ..style = PaintingStyle.fill;
-                canvas.drawPath(
-                  Path()
-                    ..moveTo(0, -size * 0.5)
-                    ..lineTo(size * 0.3, 0)
-                    ..lineTo(0, size * 0.5)
-                    ..lineTo(-size * 0.3, 0)
-                    ..close(),
-                  glowPaint,
-                );
-              },
-            ),
-            position: startOffset,
-          );
-        },
-      ),
-      position: size / 2,
-    );
-
-    _particles = particles;
-    await add(particles);
-  }
-
-  void _addPulseEffect() {
-    // Apply pulse to the outer ring instead of the whole node
-    _outerRing.add(
-      OpacityEffect.to(
-        0.4,
-        EffectController(duration: 1.5, infinite: true, reverseDuration: 1.5),
-      ),
-    );
+    if (isUnlocked) return primaryColor.withValues(alpha: 0.4);
+    if (canUnlock) return primaryColor.withValues(alpha: 0.15);
+    return Colors.black.withValues(alpha: 0.6);
   }
 
   void updateState({required bool isUnlocked, required bool canUnlock}) {
+    final wasLocked = !this.isUnlocked;
     this.isUnlocked = isUnlocked;
     this.canUnlock = canUnlock;
 
-    // Hide cost text once unlocked (no checkmark)
     _costText.text = isUnlocked ? '' : '${skill.pointsCost}';
     _costText.textRenderer = TextPaint(
       style: TextStyle(
@@ -922,13 +854,8 @@ class SkillNode extends PositionComponent with TapCallbacks {
     );
 
     // Add particles if newly unlocked
-    if (isUnlocked && _particles == null) {
-      _addParticles();
-    }
-
-    // Add pulse if newly available
-    if (canUnlock && _outerRing.children.whereType<OpacityEffect>().isEmpty) {
-      _addPulseEffect();
+    if (isUnlocked && wasLocked && _particles.isEmpty) {
+      _initializeParticles();
     }
   }
 
@@ -938,7 +865,48 @@ class SkillNode extends PositionComponent with TapCallbacks {
   }
 }
 
-/// Connection line between nodes with animated activation
+/// Lightweight particle for skill nodes
+class _NodeParticle {
+  double angle;
+  double distance;
+  double speed;
+  double size;
+  double phase;
+  double _time = 0.0;
+
+  _NodeParticle({
+    required this.angle,
+    required this.distance,
+    required this.speed,
+    required this.size,
+    required this.phase,
+  });
+
+  void update(double dt) {
+    _time += dt * speed;
+    angle += dt * 0.3; // Slow rotation
+  }
+
+  Vector2 getPosition(Vector2 center) {
+    // Gentle floating motion
+    final floatOffset = math.sin(_time * 2 + phase) * 8.0;
+    final currentDistance = distance + floatOffset;
+
+    return Vector2(
+      center.x + math.cos(angle) * currentDistance,
+      center.y +
+          math.sin(angle) * currentDistance -
+          math.sin(_time * 1.5 + phase) * 5.0,
+    );
+  }
+
+  double getOpacity() {
+    // Gentle pulsing - clamp to valid range
+    return (0.4 + math.sin(_time * 2 + phase) * 0.3).clamp(0.0, 1.0);
+  }
+}
+
+/// Connection line with smoother animations
 class ConnectionLine extends Component {
   final SkillNode from;
   final SkillNode to;
@@ -946,22 +914,41 @@ class ConnectionLine extends Component {
   bool canActivate;
   final Color primaryColor;
   final int connectionIndex;
-
   final String? storyText;
 
-  double _animationProgress = 1.0; // 1.0 = fully drawn
+  double _animationProgress = 1.0;
   double _glowIntensity = 0.0;
   bool _isAnimating = false;
   double _animationTime = 0.0;
-  double _storyGlitchProgress = 0.0;
-  static const double _drawDuration = 2.0;
-  static const double _glowDuration = 1.0;
-  static const double _storyGlitchDuration = 0.5;
-  static const double _totalDuration = 3.5;
+  double _storyOpacity = 0.0;
 
-  // Glitch effect variables
-  final List<Offset> _glitchOffsets = [];
-  double _glitchTime = 0.0;
+  // Smoother timing
+  static const double _drawDuration = 1.05;
+  static const double _glowFadeTime = 0.95;
+  static const double _storyFadeInTime = 0.8;
+
+  // Traveling energy pulse
+  double _energyPulsePosition = 0.0;
+  bool _showEnergyPulse = false;
+  double _storyFloatOffset = 10.0;
+
+  late final String _wrappedStoryText;
+  late final List<String> _wrappedStoryLines;
+  TextPaint? _storyTextPaint;
+  double _storyPaintAlpha = -1.0;
+
+  final Paint _linePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  final Paint _glowPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+  final Paint _pulsePaint = Paint()..style = PaintingStyle.fill;
+  final Paint _pulseGlowPaint = Paint()
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
+  final Paint _storyBackdropPaint = Paint()..style = PaintingStyle.fill;
+  final Paint _storyBorderPaint = Paint()..style = PaintingStyle.stroke;
 
   ConnectionLine({
     required this.from,
@@ -971,9 +958,48 @@ class ConnectionLine extends Component {
     required this.primaryColor,
     required this.connectionIndex,
     this.storyText,
-  }) : super(priority: -1); // Behind nodes but above background
+  }) : super(priority: -1) {
+    _wrappedStoryText = _wrapStoryText(storyText);
+    _wrappedStoryLines = _wrappedStoryText.isEmpty
+        ? const <String>[]
+        : _wrappedStoryText.split('\n');
+  }
 
-  /// Trigger the constellation connection animation
+  static String _wrapStoryText(String? text, {int maxCharsPerLine = 26}) {
+    if (text == null) return '';
+    final clean = text.trim();
+    if (clean.isEmpty) return '';
+
+    final wrappedLines = <String>[];
+    for (final paragraph in clean.split('\n')) {
+      final p = paragraph.trim();
+      if (p.isEmpty) continue;
+
+      final words = p.split(RegExp(r'\s+'));
+      var currentLine = '';
+
+      for (final word in words) {
+        if (currentLine.isEmpty) {
+          currentLine = word;
+          continue;
+        }
+        final candidate = '$currentLine $word';
+        if (candidate.length <= maxCharsPerLine) {
+          currentLine = candidate;
+        } else {
+          wrappedLines.add(currentLine);
+          currentLine = word;
+        }
+      }
+
+      if (currentLine.isNotEmpty) {
+        wrappedLines.add(currentLine);
+      }
+    }
+
+    return wrappedLines.join('\n');
+  }
+
   void animateActivation() {
     if (_isAnimating || isActive) return;
 
@@ -982,16 +1008,10 @@ class ConnectionLine extends Component {
     _animationProgress = 0.0;
     _glowIntensity = 0.0;
     _animationTime = 0.0;
-    _storyGlitchProgress = 0.0;
-
-    // Pre-generate glitch offsets for the quote animation
-    final random = math.Random();
-    _glitchOffsets.clear();
-    for (int i = 0; i < 10; i++) {
-      _glitchOffsets.add(
-        Offset(random.nextDouble() * 6 - 3, random.nextDouble() * 6 - 3),
-      );
-    }
+    _storyOpacity = 0.0;
+    _energyPulsePosition = 0.0;
+    _showEnergyPulse = true;
+    _storyFloatOffset = 10.0;
   }
 
   @override
@@ -1000,29 +1020,48 @@ class ConnectionLine extends Component {
 
     if (!_isAnimating) return;
 
-    _animationTime += dt;
-    _glitchTime += dt * 20;
+    final frameDt = math.min(dt, 1 / 30);
+    _animationTime += frameDt;
 
+    // Line drawing with a smoother acceleration/deceleration curve.
     if (_animationTime < _drawDuration) {
-      _animationProgress = (_animationTime / _drawDuration).clamp(0.0, 1.0);
-    } else if (_animationTime < _drawDuration + _glowDuration) {
-      _animationProgress = 1.0;
-      final glowProgress = (_animationTime - _drawDuration) / _glowDuration;
-      _glowIntensity = glowProgress < 0.5
-          ? glowProgress * 2.0
-          : (1.0 - glowProgress) * 2.0;
-    } else if (_animationTime < _totalDuration) {
-      _animationProgress = 1.0;
-      _glowIntensity = 0.0;
-      final storyProgress =
-          (_animationTime - _drawDuration - _glowDuration) /
-          _storyGlitchDuration;
-      _storyGlitchProgress = storyProgress.clamp(0.0, 1.0);
+      final t = (_animationTime / _drawDuration).clamp(0.0, 1.0);
+      _animationProgress = Curves.easeInOutCubic.transform(t);
+      _energyPulsePosition = Curves.easeOutCubic.transform(t);
     } else {
       _animationProgress = 1.0;
-      _glowIntensity = 0.0;
-      _storyGlitchProgress = 1.0;
+      _showEnergyPulse = false;
+    }
+
+    // Glow animation - smooth rise and fall
+    final glowStartTime = _drawDuration * 0.3;
+    final glowEndTime = _drawDuration + _glowFadeTime;
+
+    if (_animationTime > glowStartTime && _animationTime < glowEndTime) {
+      final glowT =
+          ((_animationTime - glowStartTime) / (glowEndTime - glowStartTime))
+              .clamp(0.0, 1.0);
+      final bell = math.sin(glowT * math.pi).clamp(0.0, 1.0);
+      _glowIntensity = math.pow(bell, 1.2).toDouble() * 0.85;
+    } else {
+      _glowIntensity = (_glowIntensity - frameDt * 2).clamp(0.0, 1.0);
+    }
+
+    // Story text fades in while drifting into place.
+    final storyStartTime = _drawDuration * 0.72;
+    if (_animationTime > storyStartTime) {
+      final storyT = ((_animationTime - storyStartTime) / _storyFadeInTime)
+          .clamp(0.0, 1.0);
+      _storyOpacity = Curves.easeOutCubic.transform(storyT);
+      _storyFloatOffset = (1.0 - storyT) * 10.0;
+    }
+
+    // End animation
+    if (_animationTime >
+        _drawDuration + _glowFadeTime + _storyFadeInTime + 0.7) {
       _isAnimating = false;
+      _storyOpacity = 1.0;
+      _storyFloatOffset = 0.0;
     }
   }
 
@@ -1031,172 +1070,223 @@ class ConnectionLine extends Component {
     final fromPos = from.position;
     final toPos = to.position;
 
-    // Only draw if unlocked or can be unlocked (dimmed)
     if (!isActive && !canActivate) return;
 
-    // Calculate current end point based on animation progress
     final currentEnd = _isAnimating
         ? fromPos + (toPos - fromPos) * _animationProgress
         : toPos;
 
-    final direction = (toPos - fromPos).normalized();
-
-    // Base opacity - dimmed if not active
     final baseOpacity = isActive ? 0.8 : 0.25;
-    final glowBoost = _glowIntensity * 0.2;
+    final glowBoost = (_glowIntensity * 0.3).clamp(0.0, 0.5);
 
-    // Draw straight white glowing line
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(baseOpacity + glowBoost)
-      ..strokeWidth = 2.0 + (_glowIntensity * 4.0)
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+    // Main line
+    _linePaint
+      ..color = Colors.white.withValues(
+        alpha: (baseOpacity + glowBoost).clamp(0.0, 1.0),
+      )
+      ..strokeWidth = 2.0 + (_glowIntensity * 2.0)
+      ..maskFilter = null;
 
-    canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), paint);
+    canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _linePaint);
 
     // Outer glow
     if (isActive) {
-      final glowPaint = Paint()
-        ..color = Colors.white.withOpacity((0.3 + glowBoost) * 0.5)
-        ..strokeWidth = 8.0 + (_glowIntensity * 8.0)
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
+      _glowPaint
+        ..color = Colors.white.withValues(
+          alpha: ((0.2 + glowBoost) * 0.6).clamp(0.0, 1.0),
+        )
+        ..strokeWidth = 6.0 + (_glowIntensity * 6.0);
 
-      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), glowPaint);
+      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _glowPaint);
     }
 
-    // Draw story snippet when animation reaches that phase
-    if (_storyGlitchProgress > 0) {
-      _drawGlitchingStory(canvas, fromPos, toPos);
+    // Energy pulse traveling along the line
+    if (_showEnergyPulse && _animationProgress > 0.05) {
+      final pulsePos = fromPos + (toPos - fromPos) * _energyPulsePosition;
+      _pulsePaint.color = primaryColor.withValues(alpha: 0.9);
+
+      canvas.drawCircle(
+        pulsePos.toOffset(),
+        4.0 + _glowIntensity * 3.0,
+        _pulsePaint,
+      );
+
+      // Pulse glow
+      _pulseGlowPaint.color = primaryColor.withValues(alpha: 0.4);
+      canvas.drawCircle(pulsePos.toOffset(), 8.0, _pulseGlowPaint);
+    }
+
+    // Story text
+    if (_storyOpacity > 0 && storyText != null) {
+      _drawStoryText(canvas, fromPos, toPos);
     }
   }
 
-  void _drawGlitchingStory(Canvas canvas, Vector2 from, Vector2 to) {
-    if (storyText == null || storyText!.isEmpty) return;
+  void _drawStoryText(Canvas canvas, Vector2 from, Vector2 to) {
+    if (_wrappedStoryText.isEmpty) return;
 
     final midPoint = (from + to) / 2;
-    final direction = (to - from).normalized();
+    final path = to - from;
+    final lineLength = path.length;
+    if (lineLength <= 0.001) return;
+
+    final direction = path / lineLength;
     final perpendicular = Vector2(-direction.y, direction.x);
 
-    // How far away from the line you want the text
-    const sideDistance = 160.0;
-
-    // Calculate the horizontal and vertical distances to detect forks
-    final deltaX = (to.x - from.x).abs();
-    final deltaY = (to.y - from.y).abs();
-
-    // Determine if this is part of a fork
-    // A fork is when multiple connections share the same 'from' node
-    // and branch out horizontally or at angles
-    final isFork =
-        deltaX > 100; // Significant horizontal spread indicates a fork
-
-    bool isRightSide;
-
-    if (isFork) {
-      // For forks, place text on the outside based on which side the branch goes
-      if (to.x > from.x) {
-        // Branch goes to the right -> text on right
-        isRightSide = true;
-      } else {
-        // Branch goes to the left -> text on left
-        isRightSide = false;
-      }
-    } else {
-      // Normal alternating pattern for non-fork connections
-      isRightSide = connectionIndex % 2 == 0;
-    }
-
-    final sideOffset =
-        perpendicular * (isRightSide ? sideDistance : -sideDistance);
-    final alongOffsetVec = direction;
-
-    final storyPos = midPoint + sideOffset + alongOffsetVec;
-
-    // During glitch phase, jitter the text
-    final glitchOffset = _storyGlitchProgress < 1.0
-        ? _glitchOffsets[(_glitchTime % _glitchOffsets.length).floor()]
-        : Offset.zero;
-
-    final opacity = _storyGlitchProgress.clamp(0.0, 1.0);
-
-    // Glitchy ghost copies
-    if (_storyGlitchProgress < 1.0) {
-      for (int i = 0; i < 3; i++) {
-        final off = _glitchOffsets[i % _glitchOffsets.length];
-        final glitchPosVec = storyPos + Vector2(off.dx, off.dy);
-        final glitchPaint = TextPaint(
-          style: TextStyle(
-            color: Colors.white.withOpacity(opacity * 0.25),
-            fontSize: 12,
-            fontWeight: FontWeight.w300,
-          ),
-        );
-        glitchPaint.render(
-          canvas,
-          storyText!,
-          glitchPosVec,
-          anchor: Anchor.center,
-        );
-      }
-    }
-
-    // Main story text
-    final mainPaint = TextPaint(
-      style: GoogleFonts.imFellGreatPrimer(
-        color: Colors.white.withOpacity(opacity * 0.95),
-        fontSize: 12,
-      ),
+    final longestLineChars = _wrappedStoryLines.fold<int>(
+      0,
+      (max, line) => math.max(max, line.length),
+    );
+    final textWidth = (longestLineChars * 7.0 + 30.0).clamp(110.0, 320.0);
+    final textHeight = (_wrappedStoryLines.length * 16.0 + 16.0).clamp(
+      34.0,
+      140.0,
     );
 
-    final finalPosVec = storyPos + Vector2(glitchOffset.dx, glitchOffset.dy);
-    mainPaint.render(canvas, storyText!, finalPosVec, anchor: Anchor.center);
+    final baseDistance = (lineLength * 0.42).clamp(130.0, 230.0);
+    final safeDistance = baseDistance + (textHeight * 0.35);
+
+    final rightCandidate = midPoint + perpendicular * safeDistance;
+    final leftCandidate = midPoint - perpendicular * safeDistance;
+    final rightDist2 =
+        rightCandidate.x * rightCandidate.x +
+        rightCandidate.y * rightCandidate.y;
+    final leftDist2 =
+        leftCandidate.x * leftCandidate.x + leftCandidate.y * leftCandidate.y;
+
+    double sideSign = rightDist2 >= leftDist2 ? 1.0 : -1.0;
+    if ((rightDist2 - leftDist2).abs() < 8000) {
+      sideSign = connectionIndex.isEven ? 1.0 : -1.0;
+    }
+
+    final lane = (connectionIndex % 3) - 1;
+    final alongOffset = direction * (lane * 22.0);
+    final storyPos =
+        midPoint +
+        perpendicular * (safeDistance * sideSign) +
+        alongOffset +
+        Vector2(0, -_storyFloatOffset);
+
+    final alpha = (_storyOpacity * 0.85).clamp(0.0, 1.0);
+    if (_storyTextPaint == null || (alpha - _storyPaintAlpha).abs() > 0.02) {
+      _storyPaintAlpha = alpha;
+      _storyTextPaint = TextPaint(
+        style: GoogleFonts.imFellGreatPrimer(
+          color: Colors.white.withValues(alpha: alpha),
+          fontSize: 12,
+          height: 1.15,
+        ),
+      );
+    }
+
+    final rect = Rect.fromCenter(
+      center: storyPos.toOffset(),
+      width: textWidth,
+      height: textHeight,
+    );
+    final bubble = RRect.fromRectAndRadius(rect, const Radius.circular(10));
+
+    _storyBackdropPaint.color = Colors.black.withValues(
+      alpha: (_storyOpacity * 0.62).clamp(0.0, 1.0),
+    );
+    canvas.drawRRect(bubble, _storyBackdropPaint);
+
+    _storyBorderPaint
+      ..color = primaryColor.withValues(
+        alpha: (_storyOpacity * 0.3).clamp(0.0, 1.0),
+      )
+      ..strokeWidth = 1.0;
+    canvas.drawRRect(bubble, _storyBorderPaint);
+
+    _storyTextPaint!.render(
+      canvas,
+      _wrappedStoryText,
+      storyPos,
+      anchor: Anchor.center,
+    );
   }
 }
 
-/// Animated starfield background
-class StarfieldBackground extends Component {
+/// Starfield with improved twinkling
+class StarfieldBackground extends Component
+    with HasGameReference<ConstellationGame> {
   final Color primaryColor;
   final Color secondaryColor;
   final List<Star> stars = [];
-  bool _rapidBlinkMode = false;
+  double _time = 0.0;
+
+  static const int _farLayerCount = 2600;
+  static const int _midLayerCount = 1900;
+  static const int _nearLayerCount = 400;
 
   StarfieldBackground({
     required this.primaryColor,
     required this.secondaryColor,
-  }) : super(priority: -10); // Way behind everything
+  }) : super(priority: -10);
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Generate random stars across a large area to cover all three trees
     final random = math.Random();
-    for (int i = 0; i < 10000; i++) {
+
+    // Layered stars for depth
+    // Far layer - small, dim, slow
+    for (int i = 0; i < _farLayerCount; i++) {
       stars.add(
         Star(
           position: Vector2(
             random.nextDouble() * 6000 - 3000,
             random.nextDouble() * 6000 - 3000,
           ),
-          size: random.nextDouble() * 2 + 1,
-          opacity: random.nextDouble() * 0.5 + 0.3,
-          twinkleSpeed: random.nextDouble() * 2 + 1,
+          size: 0.5 + random.nextDouble() * 1.0,
+          baseOpacity: 0.15 + random.nextDouble() * 0.2,
+          twinkleSpeed: 0.3 + random.nextDouble() * 0.5,
+          twinklePhase: random.nextDouble() * math.pi * 2,
+        ),
+      );
+    }
+
+    // Mid layer - medium
+    for (int i = 0; i < _midLayerCount; i++) {
+      stars.add(
+        Star(
+          position: Vector2(
+            random.nextDouble() * 6000 - 3000,
+            random.nextDouble() * 6000 - 3000,
+          ),
+          size: 1.0 + random.nextDouble() * 1.5,
+          baseOpacity: 0.3 + random.nextDouble() * 0.3,
+          twinkleSpeed: 0.5 + random.nextDouble() * 1.0,
+          twinklePhase: random.nextDouble() * math.pi * 2,
+        ),
+      );
+    }
+
+    // Near layer - bright, fast twinkle
+    for (int i = 0; i < _nearLayerCount; i++) {
+      stars.add(
+        Star(
+          position: Vector2(
+            random.nextDouble() * 6000 - 3000,
+            random.nextDouble() * 6000 - 3000,
+          ),
+          size: 2.0 + random.nextDouble() * 1.5,
+          baseOpacity: 0.5 + random.nextDouble() * 0.4,
+          twinkleSpeed: 1.0 + random.nextDouble() * 2.0,
+          twinklePhase: random.nextDouble() * math.pi * 2,
         ),
       );
     }
   }
 
   void startRapidBlink() {
-    _rapidBlinkMode = true;
     for (final star in stars) {
       star.startRapidBlink();
     }
   }
 
   void restoreNormalTwinkling() {
-    _rapidBlinkMode = false;
     for (final star in stars) {
       star.restoreNormalTwinkle();
     }
@@ -1204,10 +1294,27 @@ class StarfieldBackground extends Component {
 
   @override
   void render(Canvas canvas) {
-    final paint = Paint()..color = primaryColor;
+    final paint = Paint();
+    final zoom = game.camera.viewfinder.zoom;
+    final viewCenter = game.camera.viewfinder.position;
+
+    // Render only stars near the visible region (+margin) for better frame-time.
+    final worldWidth = game.size.x / zoom;
+    final worldHeight = game.size.y / zoom;
+    final marginX = worldWidth * 0.4;
+    final marginY = worldHeight * 0.4;
+    final minX = viewCenter.x - worldWidth / 2 - marginX;
+    final maxX = viewCenter.x + worldWidth / 2 + marginX;
+    final minY = viewCenter.y - worldHeight / 2 - marginY;
+    final maxY = viewCenter.y + worldHeight / 2 + marginY;
 
     for (final star in stars) {
-      paint.color = primaryColor.withOpacity(star.currentOpacity);
+      final p = star.position;
+      if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) continue;
+
+      paint.color = primaryColor.withValues(
+        alpha: star.currentOpacityAt(_time),
+      );
       canvas.drawCircle(star.position.toOffset(), star.size, paint);
     }
   }
@@ -1215,34 +1322,42 @@ class StarfieldBackground extends Component {
   @override
   void update(double dt) {
     super.update(dt);
-    for (final star in stars) {
-      star.update(dt);
-    }
+    _time += dt;
   }
 }
 
 class Star {
   final Vector2 position;
   final double size;
-  final double opacity;
+  final double baseOpacity;
   final double twinkleSpeed;
-  double _time = 0;
+  final double twinklePhase;
   bool _rapidBlink = false;
-  double _rapidBlinkSpeed = 20.0;
 
   Star({
     required this.position,
     required this.size,
-    required this.opacity,
+    required this.baseOpacity,
     required this.twinkleSpeed,
+    required this.twinklePhase,
   });
 
-  double get currentOpacity {
+  double currentOpacityAt(double time) {
     if (_rapidBlink) {
-      // Rapid blinking effect
-      return opacity * (0.3 + 0.7 * (math.sin(_time * _rapidBlinkSpeed).abs()));
+      // More organic rapid blink with multiple frequencies
+      final blink =
+          (math.sin(time * 15 + twinklePhase) +
+              math.sin(time * 23 + twinklePhase * 1.3) * 0.5) /
+          1.5;
+      return (baseOpacity * (0.2 + 0.8 * ((blink + 1) / 2))).clamp(0.0, 1.0);
     }
-    return opacity * (0.5 + 0.5 * math.sin(_time * twinkleSpeed));
+
+    // Smooth twinkling with slight variation
+    final twinkle = math.sin(time * twinkleSpeed + twinklePhase);
+    final variation =
+        math.sin(time * twinkleSpeed * 0.7 + twinklePhase + 1.0) * 0.3;
+    final combined = ((twinkle + variation).clamp(-1.0, 1.0) + 1) / 2;
+    return (baseOpacity * (0.6 + 0.4 * combined)).clamp(0.0, 1.0);
   }
 
   void startRapidBlink() {
@@ -1251,9 +1366,5 @@ class Star {
 
   void restoreNormalTwinkle() {
     _rapidBlink = false;
-  }
-
-  void update(double dt) {
-    _time += dt;
   }
 }

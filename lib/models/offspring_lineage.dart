@@ -35,15 +35,15 @@ class OffspringLineageData {
       m = rawMap.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
     }
     // NEW: element + family maps (safe defaults)
-    Map<String, int> _coerceIntMap(dynamic raw) {
+    Map<String, int> coerceIntMap(dynamic raw) {
       if (raw is Map) {
         return raw.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
       }
       return {};
     }
 
-    final elemM = _coerceIntMap(j['elementLineage']);
-    final famM = _coerceIntMap(j['familyLineage']);
+    final elemM = coerceIntMap(j['elementLineage']);
+    final famM = coerceIntMap(j['familyLineage']);
 
     return OffspringLineageData(
       generationDepth: depth,

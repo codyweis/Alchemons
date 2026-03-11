@@ -129,8 +129,9 @@ class CurrencyDao extends DatabaseAccessor<AlchemonsDatabase>
       for (final r in rows) {
         if (r.key == 'wallet_soft') map['soft'] = int.tryParse(r.value) ?? 0;
         if (r.key == 'wallet_gold') map['gold'] = int.tryParse(r.value) ?? 0;
-        if (r.key == 'wallet_silver')
+        if (r.key == 'wallet_silver') {
           map['silver'] = int.tryParse(r.value) ?? 0;
+        }
       }
       return map;
     });

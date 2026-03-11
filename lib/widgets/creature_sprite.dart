@@ -1,15 +1,20 @@
 // lib/widgets/creature_sprite.dart
-import 'dart:convert';
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/utils/color_util.dart';
-import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/beauty_radiance.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/intelligence_halo.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/speed_flux.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/strength_forge.dart';
+import 'package:alchemons/utils/effect_size.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame/flame.dart' show Flame;
@@ -45,6 +50,15 @@ class CreatureSprite extends StatefulWidget {
   final bool isPrismatic; // animated hue cycle
   final Color? tint; // optional extra tint (usually null)
 
+  // New: Alchemy effect
+  final String? alchemyEffect;
+
+  // New: Variant faction
+  final String? variantFaction;
+  // Optional: UI slot size to normalize effect rendering in compact contexts
+  // (e.g. party pickers) so effects don't overpower the sprite.
+  final double? effectSlotSize;
+
   const CreatureSprite({
     super.key,
     required this.spritePath,
@@ -58,6 +72,9 @@ class CreatureSprite extends StatefulWidget {
     this.hueShift = 0.0,
     this.isPrismatic = false,
     this.tint,
+    this.alchemyEffect,
+    this.variantFaction,
+    this.effectSlotSize,
   });
 
   @override
@@ -65,7 +82,7 @@ class CreatureSprite extends StatefulWidget {
 }
 
 class _CreatureSpriteState extends State<CreatureSprite>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   // Helper to detect albino based on brightness value
   bool get _isAlbino => widget.brightness == 1.45;
 
@@ -74,6 +91,9 @@ class _CreatureSpriteState extends State<CreatureSprite>
   SpriteAnimationTicker? _spriteTicker;
 
   String? _loadError;
+  Timer? _retryTimer;
+  int _retryCount = 0;
+  static const int _maxLoadRetries = 2;
 
   @override
   void initState() {
@@ -118,6 +138,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     _hueController?.dispose();
     _spriteTicker = null;
     super.dispose();
@@ -196,12 +217,82 @@ class _CreatureSpriteState extends State<CreatureSprite>
       );
     }
 
-    return Transform.scale(
+    final scaled = Transform.scale(
       scale: widget.scale,
       child: RepaintBoundary(
         child: SizedBox.square(dimension: 69, child: sprite),
       ),
     );
+
+    // If an alchemy/visual effect is present, render the effect layer behind
+    // the sprite (match the behavior used by `InstanceSprite`).
+    if (widget.alchemyEffect != null) {
+      final effectPadding = widget.effectSlotSize != null
+          ? (widget.effectSlotSize! <= 56 ? 2.0 : 6.0)
+          : 8.0;
+      return Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          // effect may overflow bounds intentionally
+          _buildEffectLayer(widget.alchemyEffect!),
+          Padding(padding: EdgeInsets.all(effectPadding), child: scaled),
+        ],
+      );
+    }
+
+    return scaled;
+  }
+
+  Widget _buildEffectLayer(String effect) {
+    final slotSize = widget.effectSlotSize;
+    final widgetEff = slotSize != null
+        ? effectSizeFromWidgetSize(slotSize)
+        : null;
+    // Use the canonical display base (69px box * genetics scale) for sizing
+    // when no slot override is provided.
+    final displayBase = displayBaseFromVisuals(visualsScale: widget.scale);
+    final displayEff = effectSizeFromDisplayBase(
+      displayBase,
+      multiplier: 1.0,
+      minSize: 32.0,
+      maxSize: 116.0,
+    );
+    switch (effect) {
+      case 'alchemy_glow':
+        return AlchemyGlow(size: widgetEff ?? displayEff);
+      case 'elemental_aura':
+        return ElementalAura(
+          size: widgetEff ?? displayEff,
+          element: widget.variantFaction,
+        );
+      case 'volcanic_aura':
+        return VolcanicAura(size: widgetEff ?? displayEff);
+      case 'void_rift':
+        return VoidRift(size: (widgetEff ?? displayEff) * 0.8);
+      case 'prismatic_cascade':
+        final eff = slotSize != null
+            ? (slotSize <= 56
+                  ? prismaticCascadeSizeFromWidgetSize(
+                      slotSize,
+                    ).clamp(16.0, 22.0)
+                  : prismaticCascadeSizeFromWidgetSize(slotSize))
+            : prismaticCascadeSizeFromDisplayBase(displayBase);
+        return PrismaticCascade(size: eff);
+      case 'beauty_radiance':
+        final eff = slotSize != null
+            ? effectSizeFromWidgetSize(slotSize)
+            : displayEff;
+        return BeautyRadiance(size: eff);
+      case 'speed_flux':
+        return SpeedFlux(size: widgetEff ?? displayEff);
+      case 'strength_forge':
+        return StrengthForge(size: widgetEff ?? displayEff);
+      case 'intelligence_halo':
+        return IntelligenceHalo(size: widgetEff ?? displayEff);
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Future<void> _loadAnimation() async {
@@ -231,6 +322,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
             _spriteAnimation = anim;
             _spriteTicker = anim.createTicker();
             _loadError = null;
+            _retryCount = 0;
           });
         }
         return;
@@ -252,30 +344,31 @@ class _CreatureSpriteState extends State<CreatureSprite>
         ),
       );
 
+      if (!mounted) return;
       setState(() {
         _spriteAnimation = anim;
         _spriteTicker = anim.createTicker();
         _loadError = null;
+        _retryCount = 0;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _loadError = e.toString();
       });
+
+      if (_retryCount < _maxLoadRetries) {
+        _retryCount += 1;
+        _retryTimer?.cancel();
+        _retryTimer = Timer(Duration(milliseconds: 180 * _retryCount), () {
+          if (!mounted) return;
+          setState(() {
+            _loadError = null;
+          });
+          _loadAnimation();
+        });
+      }
     }
-  }
-}
-
-class _LoadingIndicator extends StatelessWidget {
-  const _LoadingIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: SizedBox.square(
-        dimension: 16,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
-    );
   }
 }
 
@@ -283,12 +376,14 @@ class InstanceSprite extends StatelessWidget {
   final Creature creature;
   final CreatureInstance instance;
   final double size;
+  final bool flipX;
 
   const InstanceSprite({
     super.key,
     required this.creature,
     required this.instance,
     required this.size,
+    this.flipX = false,
   });
 
   @override
@@ -320,12 +415,12 @@ class InstanceSprite extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           // Background glow/particles - this child will overflow its bounds
-          _buildEffectLayer(instance.alchemyEffect!),
+          _buildEffectLayer(instance.alchemyEffect!, visuals),
           // Creature sprite on top (keep the padding to ensure the sprite
           // image itself isn't pushed to the edge and clipped by its own BoxShadow)
           Padding(
             padding: const EdgeInsets.all(
-              30.0,
+              8.0,
             ), // Keep this for internal glow space
             child: sprite,
           ),
@@ -335,27 +430,47 @@ class InstanceSprite extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      // 💡 Use OverflowBox to allow the effect (child) to be visually larger
-      // than the size defined by this SizedBox.
       child: OverflowBox(
         minWidth: 0.0,
         maxWidth: double.infinity,
         minHeight: 0.0,
         maxHeight: double.infinity,
         alignment: Alignment.center,
-        child: sprite, // 'sprite' here contains the Stack with the effect
+        child: flipX
+            ? Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.diagonal3Values(-1, 1, 1),
+                child: sprite,
+              )
+            : sprite,
       ),
     );
   }
 
-  Widget _buildEffectLayer(String effect) {
+  Widget _buildEffectLayer(String effect, SpriteVisuals visuals) {
+    // For InstanceSprite (small UI slot), derive effect sizes from the
+    // widget slot `size` rather than the canonical 69px display base so
+    // previews remain visually balanced.
+    final widgetEff = effectSizeFromWidgetSize(size);
     switch (effect) {
       case 'alchemy_glow':
-        return AlchemyGlow(size: size);
+        return AlchemyGlow(size: widgetEff);
       case 'elemental_aura':
-        return ElementalAura(size: size, element: instance.variantFaction);
+        return ElementalAura(size: widgetEff, element: instance.variantFaction);
       case 'volcanic_aura':
-        return VolcanicAura(size: size);
+        return VolcanicAura(size: widgetEff);
+      case 'void_rift':
+        return VoidRift(size: widgetEff * 0.8);
+      case 'prismatic_cascade':
+        return PrismaticCascade(size: prismaticCascadeSizeFromWidgetSize(size));
+      case 'beauty_radiance':
+        return BeautyRadiance(size: widgetEff);
+      case 'speed_flux':
+        return SpeedFlux(size: widgetEff);
+      case 'strength_forge':
+        return StrengthForge(size: widgetEff);
+      case 'intelligence_halo':
+        return IntelligenceHalo(size: widgetEff);
       default:
         return const SizedBox.shrink();
     }
@@ -388,11 +503,6 @@ String? _tryGetString(CreatureInstance inst, String field) {
   } catch (_) {
     return null;
   }
-}
-
-// Tiny extension to make the fold block cleaner (optional). Put near bottom or in a utils file.
-extension _LetExt<T> on T {
-  R let<R>(R Function(T it) block) => block(this);
 }
 
 // ── color math helpers ────────────────────────────────────

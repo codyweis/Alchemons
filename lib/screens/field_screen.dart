@@ -118,7 +118,7 @@ class _FieldScreenState extends State<FieldScreen>
                         title: 'Resource Harvesting',
                         subtitle: 'Gather field materials & samples',
                         icon: Icons.agriculture_rounded,
-                        color: Colors.greenAccent.shade400.withOpacity(0.8),
+                        color: Colors.greenAccent.shade400.withValues(alpha: 0.8),
                         pillA: 'Open',
                         pillB: 'Extract',
                         onTap: _goHarvest,
@@ -128,7 +128,7 @@ class _FieldScreenState extends State<FieldScreen>
                         title: 'Competitions',
                         subtitle: 'Battle in elemental arenas',
                         icon: Icons.emoji_events_rounded,
-                        color: Colors.amberAccent.shade200.withOpacity(0.9),
+                        color: Colors.amberAccent.shade200.withValues(alpha: 0.9),
                         pillA: 'Open',
                         pillB: 'Ranked',
                         onTap: _goCompetitions,
@@ -320,8 +320,8 @@ class _FieldActionCardState extends State<_FieldActionCard> {
                           ),
                           _MiniPillClean(
                             text: widget.pillB,
-                            color: theme.textMuted.withOpacity(0.18),
-                            borderColor: theme.textMuted.withOpacity(0.32),
+                            color: theme.textMuted.withValues(alpha: 0.18),
+                            borderColor: theme.textMuted.withValues(alpha: 0.32),
                             textColor: theme.textMuted,
                           ),
                         ],
@@ -340,35 +340,6 @@ class _FieldActionCardState extends State<_FieldActionCard> {
           ),
         ),
       ),
-    );
-  }
-}
-
-// circular-ish icon badge, but flattened to match KpiPill chip style
-class _IconBadgeClean extends StatelessWidget {
-  const _IconBadgeClean({
-    required this.icon,
-    required this.color,
-    required this.bg,
-    required this.border,
-  });
-
-  final IconData icon;
-  final Color color;
-  final Color bg;
-  final Color border;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border, width: 1.5),
-      ),
-      child: Icon(icon, color: color, size: 22),
     );
   }
 }

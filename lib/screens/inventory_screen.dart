@@ -1,5 +1,4 @@
 // lib/screens/inventory_screen.dart - REDESIGNED
-import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
@@ -19,6 +18,7 @@ import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/screens/shop/shop_widgets.dart';
 
 /// Helper to get images for inventory items from ShopService
 class InventoryImageHelper {
@@ -36,6 +36,11 @@ class InventoryImageHelper {
 
   static String? getImage(String inventoryKey) {
     _buildCache();
+    // Boss trait relics: key.boss_trait.{element} → relics/{element}relic.png
+    if (inventoryKey.startsWith('key.boss_trait.')) {
+      final element = inventoryKey.substring('key.boss_trait.'.length);
+      return 'assets/images/relics/${element}relic.png';
+    }
     return _imageCache[inventoryKey];
   }
 
@@ -67,7 +72,7 @@ class InventoryImageHelper {
     // Default fallback (placeholder)
     return SizedBox.square(
       dimension: size,
-      child: Container(color: Colors.grey.withOpacity(0.1)),
+      child: Container(color: Colors.grey.withValues(alpha: 0.1)),
     );
   }
 }
@@ -81,6 +86,13 @@ class InventoryScreen extends StatefulWidget {
 
 class _InventoryScreenState extends State<InventoryScreen>
     with SingleTickerProviderStateMixin {
+  static const List<String> _tabLabels = ['Vials', 'Items', 'Special'];
+  static const Set<String> _spaceOnlyInventoryKeys = {
+    'wallet_astral_shards',
+    'item.astral_shard',
+    'item.astral_shards',
+  };
+
   // ADD: Mixin for TabController
 
   // REMOVE: int _selectedTab = 0; // 0 = Items, 1 = Vials
@@ -88,11 +100,12 @@ class _InventoryScreenState extends State<InventoryScreen>
   // ADD: TabController
   late TabController _tabController;
 
+  int get _tabCount => _tabLabels.length;
+
   @override
   void initState() {
     super.initState();
-    // Initialize TabController with length 2 (for Vials and Items)
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: _tabCount, vsync: this);
   }
 
   @override
@@ -103,6 +116,8 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   @override
   Widget build(BuildContext context) {
+    _syncTabController();
+
     final theme = context.watch<FactionTheme>();
 
     return ParticleBackgroundScaffold(
@@ -123,6 +138,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                   children: [
                     _buildVialsTab(theme), // Tab 1: Vials
                     _buildItemsTab(theme), // Tab 2: Items
+                    _buildKeyItemsTab(theme), // Tab 3: Key Items
                   ],
                 ),
               ),
@@ -130,6 +146,18 @@ class _InventoryScreenState extends State<InventoryScreen>
           ),
         ),
       ),
+    );
+  }
+
+  void _syncTabController() {
+    if (_tabController.length == _tabCount) return;
+
+    final priorIndex = _tabController.index;
+    _tabController.dispose();
+    _tabController = TabController(
+      length: _tabCount,
+      vsync: this,
+      initialIndex: priorIndex.clamp(0, _tabCount - 1),
     );
   }
 
@@ -146,36 +174,25 @@ class _InventoryScreenState extends State<InventoryScreen>
         // Color for the SELECTED tab text
         labelColor: theme.text,
         // Color for the UNSELECTED tab text
-        unselectedLabelColor: theme.text.withOpacity(0.6),
+        unselectedLabelColor: theme.text.withValues(alpha: 0.6),
 
-        tabs: const [
-          Tab(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                'Vials',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5,
+        tabs: _tabLabels
+            .map(
+              (label) => Tab(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          Tab(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                'Items',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ),
-        ],
+            )
+            .toList(),
         onTap: (index) {
           HapticFeedback.selectionClick();
         },
@@ -184,21 +201,63 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 
   Widget _buildHeader(FactionTheme theme) {
+    final db = context.read<AlchemonsDatabase>();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Text(
-              'INVENTORY',
-              style: TextStyle(
-                color: theme.text,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1,
-                fontSize: 20,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'INVENTORY',
+                  style: TextStyle(
+                    color: theme.text,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                    fontSize: 20,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Currency summary row
+          StreamBuilder<Map<String, int>>(
+            stream: db.currencyDao.watchAllCurrencies(),
+            builder: (context, snap) {
+              final c = snap.data ?? {'gold': 0, 'silver': 0};
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.surface.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.accentSoft.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    CurrencyPill(
+                      icon: Icons.hexagon_rounded,
+                      color: const Color(0xFFFFD700),
+                      amount: c['gold'] ?? 0,
+                    ),
+                    Container(width: 1, height: 14, color: theme.border),
+                    CurrencyPill(
+                      icon: Icons.monetization_on_rounded,
+                      color: theme.textMuted,
+                      amount: c['silver'] ?? 0,
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -212,7 +271,14 @@ class _InventoryScreenState extends State<InventoryScreen>
     return StreamBuilder<List<InventoryItem>>(
       stream: db.inventoryDao.watchItemInventory(),
       builder: (context, snapshot) {
-        final items = snapshot.data ?? [];
+        final allItems = snapshot.data ?? [];
+        final items = allItems.where((item) {
+          if (_isSpaceOnlyInventoryItem(item.key)) return false;
+          if (item.key.startsWith('vial.')) return false;
+          final def = registry[item.key];
+          if (def == null) return false;
+          return !def.isKeyItem;
+        }).toList();
 
         if (items.isEmpty) {
           return _buildEmptyState(
@@ -249,6 +315,62 @@ class _InventoryScreenState extends State<InventoryScreen>
         );
       },
     );
+  }
+
+  Widget _buildKeyItemsTab(FactionTheme theme) {
+    final db = context.read<AlchemonsDatabase>();
+    final registry = buildInventoryRegistry(db);
+
+    return StreamBuilder<List<InventoryItem>>(
+      stream: db.inventoryDao.watchItemInventory(),
+      builder: (context, snapshot) {
+        final allItems = snapshot.data ?? [];
+        final keyItems = allItems.where((item) {
+          if (_isSpaceOnlyInventoryItem(item.key)) return false;
+          final def = registry[item.key];
+          return def != null && def.isKeyItem;
+        }).toList();
+
+        if (keyItems.isEmpty) {
+          return _buildEmptyState(
+            theme,
+            icon: Icons.vpn_key_outlined,
+            message: 'No special items yet',
+            subtitle: '',
+          );
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 0.85,
+          ),
+          itemCount: keyItems.length,
+          itemBuilder: (context, index) {
+            final item = keyItems[index];
+            final def = registry[item.key];
+            if (def == null) return const SizedBox.shrink();
+
+            return _CleanItemCard(
+              item: item,
+              def: def,
+              theme: theme,
+              accent: theme.accent,
+              onTap: () => _showItemDetailsDialog(item, def, theme),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  bool _isSpaceOnlyInventoryItem(String key) {
+    final normalized = key.toLowerCase();
+    return _spaceOnlyInventoryKeys.contains(normalized) ||
+        normalized.contains('astral_shard');
   }
 
   Widget _buildVialsTab(FactionTheme theme) {
@@ -340,7 +462,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 80, color: theme.textMuted.withOpacity(0.3)),
+            Icon(icon, size: 80, color: theme.textMuted.withValues(alpha: 0.3)),
             const SizedBox(height: 20),
             Text(
               message,
@@ -354,7 +476,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             Text(
               subtitle,
               style: TextStyle(
-                color: theme.textMuted.withOpacity(0.7),
+                color: theme.textMuted.withValues(alpha: 0.7),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -372,14 +494,16 @@ class _InventoryScreenState extends State<InventoryScreen>
     InventoryItemDef def,
     FactionTheme theme,
   ) {
-    // 1. Determine the visual widget (animated or static)
+    final t = ForgeTokens(theme);
+
+    final canUse = def.canUse;
+    final canDelete = def.canDispose;
+
     final Widget visualWidget = InventoryImageHelper.getVisualWidget(
       key: item.key,
-      // NOTE: You must have a static method InventoryImageHelper.getImage(key)
-      // or similar to retrieve the asset path for non-alchemy items.
       assetName: InventoryImageHelper.getImage(item.key),
       icon: def.icon,
-      size: 120, // A good size for the dialog
+      size: 100,
     );
 
     showDialog(
@@ -387,23 +511,34 @@ class _InventoryScreenState extends State<InventoryScreen>
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 400),
+          constraints: const BoxConstraints(maxWidth: 380),
           decoration: BoxDecoration(
-            color: theme.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: theme.accent.withOpacity(0.5), width: 2),
+            color: t.bg1,
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: t.borderAccent, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: t.amber.withValues(alpha: 0.08),
+                blurRadius: 32,
+                spreadRadius: 2,
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
+              // ── Header ──────────────────────────────────────────────────
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
                 decoration: BoxDecoration(
-                  color: theme.accent,
+                  color: t.bg0,
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(18),
-                    topRight: Radius.circular(18),
+                    topLeft: Radius.circular(2),
+                    topRight: Radius.circular(2),
+                  ),
+                  border: Border(
+                    bottom: BorderSide(color: t.borderAccent, width: 1),
                   ),
                 ),
                 child: Row(
@@ -412,192 +547,210 @@ class _InventoryScreenState extends State<InventoryScreen>
                       child: Text(
                         'ITEM DETAILS',
                         style: TextStyle(
-                          color: theme.text,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
+                          fontFamily: 'monospace',
+                          color: t.textSecondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 2.4,
                         ),
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.close_rounded),
-                      color: theme.text.withOpacity(0.7),
-                      iconSize: 20,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: t.bg2,
+                          borderRadius: BorderRadius.circular(2),
+                          border: Border.all(color: t.borderDim, width: 1),
+                        ),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: t.textSecondary,
+                          size: 16,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              // Image/Icon Section (MODIFIED)
+              // ── Preview ─────────────────────────────────────────────────
               Container(
-                height: 160,
-                width: double.infinity,
-                margin: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: theme.accent.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: theme.accent.withOpacity(0.2)),
-                ),
-                child: Center(
-                  // 2. Use the result from the helper function directly
-                  child: visualWidget,
-                ),
+                height: 130,
+                color: t.bg0,
+                child: Center(child: visualWidget),
               ),
 
-              // Name
+              // ── Name ────────────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 child: Text(
-                  def.name,
+                  def.name.toUpperCase(),
                   style: TextStyle(
-                    color: theme.text,
-                    fontSize: 18,
+                    fontFamily: 'monospace',
+                    color: t.textPrimary,
+                    fontSize: 14,
                     fontWeight: FontWeight.w800,
+                    letterSpacing: 1.6,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
 
-              const SizedBox(height: 8),
-
-              // Quantity
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.accent.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.accent.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.inventory_2_rounded,
-                      color: theme.text,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Quantity: x${item.qty}',
-                      style: TextStyle(
-                        color: theme.text,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+              // ── Quantity badge ───────────────────────────────────────────
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: t.amberDim.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                    border: Border.all(color: t.borderAccent, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.inventory_2_rounded, color: t.amber, size: 12),
+                      const SizedBox(width: 6),
+                      Text(
+                        'QTY: ${item.qty}',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: t.amber,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
 
-              const SizedBox(height: 16),
-
-              // Description
+              // ── Description ──────────────────────────────────────────────
+              const SizedBox(height: 14),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
                   def.description,
                   style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
+                    color: t.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    height: 1.5,
+                    letterSpacing: 0.3,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
 
-              const SizedBox(height: 24),
-
-              // Action Buttons
+              // ── Buttons ──────────────────────────────────────────────────
+              const SizedBox(height: 20),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () async {
-                          Navigator.pop(ctx);
-                          await _deleteItem(item, def);
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                            side: BorderSide(
-                              color: Colors.red.withOpacity(0.5),
-                              width: 1,
-                            ),
+                    // DELETE
+                    GestureDetector(
+                      onTap: canDelete
+                          ? () async {
+                              Navigator.pop(ctx);
+                              await _deleteItem(item, def);
+                            }
+                          : null,
+                      child: Container(
+                        height: 44,
+                        width: 72,
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(2),
+                          border: Border.all(
+                            color: canDelete
+                                ? t.danger.withValues(alpha: 0.6)
+                                : t.borderDim,
+                            width: 1,
                           ),
                         ),
+                        alignment: Alignment.center,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
                               Icons.delete_outline_rounded,
-                              color: Colors.red.shade300,
-                              size: 16,
+                              size: 13,
+                              color: canDelete
+                                  ? t.danger.withValues(alpha: 0.8)
+                                  : t.textMuted,
                             ),
-                            const SizedBox(width: 6),
+                            const SizedBox(width: 4),
                             Text(
-                              'DELETE',
+                              canDelete ? 'DEL' : 'LOCK',
                               style: TextStyle(
-                                color: Colors.red.shade300,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
-                                letterSpacing: 0.6,
+                                fontFamily: 'monospace',
+                                color: canDelete
+                                    ? t.danger.withValues(alpha: 0.8)
+                                    : t.textMuted,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.0,
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _useItem(item, def);
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                            side: BorderSide(
-                              color: theme.accent.withOpacity(0.5),
-                              width: 1.5,
+                    const SizedBox(width: 10),
+                    // USE ITEM
+                    if (canUse)
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _useItem(item, def);
+                          },
+                          child: Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: t.amberDim.withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(2),
+                              border: Border.all(color: t.amber, width: 1),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: t.amber.withValues(alpha: 0.15),
+                                  blurRadius: 12,
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.play_arrow_rounded,
+                                  size: 15,
+                                  color: t.amberBright,
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  'USE ITEM',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: t.amberBright,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.4,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.play_arrow_rounded,
-                              color: theme.accent,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'USE ITEM',
-                              style: TextStyle(
-                                color: theme.text,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -610,28 +763,41 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   // ===== VIAL DETAILS DIALOG =====
   void _showVialDetailsDialog(ExtractionVial vial, FactionTheme theme) {
+    final t = ForgeTokens(theme);
+
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
-          constraints: BoxConstraints(maxWidth: 400),
+          constraints: const BoxConstraints(maxWidth: 380),
           decoration: BoxDecoration(
-            color: theme.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: theme.accent.withOpacity(0.5), width: 2),
+            color: t.bg1,
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: t.borderAccent, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: t.amber.withValues(alpha: 0.08),
+                blurRadius: 32,
+                spreadRadius: 2,
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header
+              // ── Header ──────────────────────────────────────────────────
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
                 decoration: BoxDecoration(
-                  color: theme.accent.withOpacity(0.1),
+                  color: t.bg0,
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(18),
-                    topRight: Radius.circular(18),
+                    topLeft: Radius.circular(2),
+                    topRight: Radius.circular(2),
+                  ),
+                  border: Border(
+                    bottom: BorderSide(color: t.borderAccent, width: 1),
                   ),
                 ),
                 child: Row(
@@ -640,153 +806,202 @@ class _InventoryScreenState extends State<InventoryScreen>
                       child: Text(
                         'VIAL DETAILS',
                         style: TextStyle(
-                          color: theme.text,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
+                          fontFamily: 'monospace',
+                          color: t.textSecondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 2.4,
                         ),
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.close_rounded),
-                      color: theme.text.withOpacity(0.7),
-                      iconSize: 20,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Vial Preview (using existing card)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  height: 160,
-                  child: ExtractionVialCard(vial: vial, compact: false),
-                ),
-              ),
-
-              // Quantity
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.accent.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.accent.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.science_rounded, color: theme.accent, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Available: x${vial.quantity}',
-                      style: TextStyle(
-                        color: theme.text,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: t.bg2,
+                          borderRadius: BorderRadius.circular(2),
+                          border: Border.all(color: t.borderDim, width: 1),
+                        ),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: t.textSecondary,
+                          size: 16,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 16),
+              // ── Vial card preview ────────────────────────────────────────
+              Container(
+                height: 150,
+                color: t.bg0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
+                ),
+                child: ExtractionVialCard(vial: vial, compact: false),
+              ),
 
-              // Info
+              // ── Title ───────────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 child: Text(
-                  'Extract this vial to capture the specimen inside and place it in your extraction chamber.',
+                  'EXTRACTION VIAL',
                   style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
+                    fontFamily: 'monospace',
+                    color: t.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.6,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
 
-              const SizedBox(height: 24),
+              // ── Qty badge ────────────────────────────────────────────────
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: t.amberDim.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                    border: Border.all(color: t.borderAccent, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.science_rounded, color: t.amber, size: 12),
+                      const SizedBox(width: 6),
+                      Text(
+                        'AVAILABLE: ${vial.quantity}',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: t.amber,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
-              // Action Buttons
+              // ── Description ──────────────────────────────────────────────
+              const SizedBox(height: 14),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  'Extract this vial to capture the specimen inside and place it in your extraction chamber.',
+                  style: TextStyle(
+                    color: t.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    height: 1.5,
+                    letterSpacing: 0.3,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+              // ── Buttons ──────────────────────────────────────────────────
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () async {
-                          Navigator.pop(ctx);
-                          await _deleteVial(vial);
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                            side: BorderSide(
-                              color: Colors.red.withOpacity(0.5),
-                              width: 1,
-                            ),
+                    // DELETE
+                    GestureDetector(
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        await _deleteVial(vial);
+                      },
+                      child: Container(
+                        height: 44,
+                        width: 72,
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(2),
+                          border: Border.all(
+                            color: t.danger.withValues(alpha: 0.6),
+                            width: 1,
                           ),
                         ),
+                        alignment: Alignment.center,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
                               Icons.delete_outline_rounded,
-                              color: Colors.red.shade300,
-                              size: 16,
+                              size: 13,
+                              color: t.danger.withValues(alpha: 0.8),
                             ),
-                            const SizedBox(width: 6),
+                            const SizedBox(width: 4),
                             Text(
-                              'DELETE',
+                              'DEL',
                               style: TextStyle(
-                                color: Colors.red.shade300,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
-                                letterSpacing: 0.6,
+                                fontFamily: 'monospace',
+                                color: t.danger.withValues(alpha: 0.8),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.0,
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
+                    // EXTRACT
                     Expanded(
-                      flex: 2,
-                      child: TextButton(
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                            side: BorderSide(width: 1),
-                          ),
-                        ),
-                        onPressed: () {
+                      child: GestureDetector(
+                        onTap: () {
                           Navigator.pop(ctx);
                           _useVial(vial);
                         },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'EXTRACT',
-                              style: TextStyle(
-                                color: theme.text,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14,
-                                letterSpacing: 0.6,
+                        child: Container(
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: t.amberDim.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(color: t.amber, width: 1),
+                            boxShadow: [
+                              BoxShadow(
+                                color: t.amber.withValues(alpha: 0.15),
+                                blurRadius: 12,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.science_rounded,
+                                size: 15,
+                                color: t.amberBright,
+                              ),
+                              const SizedBox(width: 7),
+                              Text(
+                                'EXTRACT',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: t.amberBright,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -801,7 +1016,14 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 
   Future<void> _useItem(InventoryItem item, InventoryItemDef def) async {
-    final db = context.read<AlchemonsDatabase>();
+    if (!def.canUse) {
+      _showToast(
+        'This is a key item and cannot be used right now',
+        icon: Icons.vpn_key_rounded,
+        color: Colors.indigo,
+      );
+      return;
+    }
 
     // Check if it's an alchemy effect
     if (item.key.startsWith('alchemy.')) {
@@ -1067,6 +1289,12 @@ class _InventoryScreenState extends State<InventoryScreen>
       InvKeys.alchemyGlow => 'alchemy_glow',
       InvKeys.alchemyElementalAura => 'elemental_aura',
       InvKeys.alchemyVolcanicAura => 'volcanic_aura',
+      InvKeys.alchemyVoidRift => 'void_rift',
+      InvKeys.alchemyPrismaticCascade => 'prismatic_cascade',
+      InvKeys.alchemyBeautyRadiance => 'beauty_radiance',
+      InvKeys.alchemySpeedFlux => 'speed_flux',
+      InvKeys.alchemyStrengthForge => 'strength_forge',
+      InvKeys.alchemyIntelligenceHalo => 'intelligence_halo',
       _ => null,
     };
 
@@ -1089,6 +1317,15 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 
   Future<void> _deleteItem(InventoryItem item, InventoryItemDef def) async {
+    if (!def.canDispose) {
+      _showToast(
+        'Special items cannot be removed',
+        icon: Icons.lock_rounded,
+        color: Colors.indigo,
+      );
+      return;
+    }
+
     final theme = context.read<FactionTheme>();
     final confirmed = await showDialog<String>(
       context: context,
@@ -1096,7 +1333,10 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(
+            color: theme.accent.withValues(alpha: 0.5),
+            width: 2,
+          ),
         ),
         title: Text(
           'Remove Item',
@@ -1178,7 +1418,10 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(
+            color: theme.accent.withValues(alpha: 0.5),
+            width: 2,
+          ),
         ),
         title: Text(
           'Extract Vial?',
@@ -1242,7 +1485,10 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withOpacity(0.5), width: 2),
+          side: BorderSide(
+            color: theme.accent.withValues(alpha: 0.5),
+            width: 2,
+          ),
         ),
         title: Text(
           'Remove Vial',
@@ -1380,7 +1626,7 @@ class _CleanItemCard extends StatelessWidget {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                   ),
                   child: Center(
                     child: Text(
@@ -1433,10 +1679,10 @@ class _CleanVialCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: accent.withOpacity(0.9),
+                color: accent.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   width: 1.5,
                 ),
               ),

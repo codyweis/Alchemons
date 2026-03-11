@@ -1,7 +1,10 @@
 import 'dart:ui';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
+import 'package:alchemons/services/cinematic_quality_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/models/elemental_group.dart';
@@ -9,12 +12,14 @@ import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 
 class StorageSection extends StatefulWidget {
   final Color primaryColor;
+  final CinematicQuality quality;
   final Widget Function(String title, IconData icon, Color color)
   buildSectionHeader;
 
   const StorageSection({
     super.key,
     required this.primaryColor,
+    required this.quality,
     required this.buildSectionHeader,
   });
 
@@ -97,19 +102,23 @@ class _StorageSectionState extends State<StorageSection> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(1) : color.withOpacity(0.15),
+          color: isSelected
+              ? color.withValues(alpha: 1)
+              : color.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
-                ? color.withOpacity(0.6)
-                : Colors.white.withOpacity(0.15),
+                ? color.withValues(alpha: 0.6)
+                : Colors.white.withValues(alpha: 0.15),
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.white.withOpacity(0.7),
+            color: isSelected
+                ? Colors.white
+                : Colors.white.withValues(alpha: 0.7),
             fontSize: 10,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.5,
@@ -127,15 +136,15 @@ class _StorageSectionState extends State<StorageSection> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(.15),
+            color: Colors.black.withValues(alpha: .15),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(.15)),
+            border: Border.all(color: Colors.white.withValues(alpha: .15)),
           ),
           child: Row(
             children: [
               Icon(
                 Icons.inventory_2_outlined,
-                color: Colors.white.withOpacity(.4),
+                color: Colors.white.withValues(alpha: .4),
                 size: 20,
               ),
               const SizedBox(width: 12),
@@ -182,7 +191,7 @@ class _StorageSectionState extends State<StorageSection> {
         itemCount: items.length,
         itemBuilder: (context, i) => SizedBox(
           height: rowHeight,
-          child: StorageEggCard(egg: items[i]),
+          child: StorageEggCard(egg: items[i], quality: widget.quality),
         ),
       ),
     );
@@ -191,14 +200,40 @@ class _StorageSectionState extends State<StorageSection> {
 
 class StorageEggCard extends StatelessWidget {
   final Egg egg;
+  final CinematicQuality quality;
 
-  const StorageEggCard({super.key, required this.egg});
+  const StorageEggCard({super.key, required this.egg, required this.quality});
 
   @override
   Widget build(BuildContext context) {
     final payload = parseEggPayload(egg);
     final elementGroup = getElementalGroupFromPayload(payload);
     final skin = elementGroup.skin;
+    final media = MediaQuery.of(context);
+    final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
+
+    final shortestSide = media.size.shortestSide;
+    int particleCount;
+    if (shortestSide < 380) {
+      particleCount = 6;
+    } else if (shortestSide < 430) {
+      particleCount = 10;
+    } else {
+      particleCount = 14;
+    }
+
+    if (deferEffects) {
+      particleCount = 4;
+    }
+
+    final qualityMultiplier = switch (quality) {
+      CinematicQuality.high => 2.4,
+      CinematicQuality.balanced => 1.0,
+    };
+    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 40);
+
+    final showParticles =
+        TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
 
     return GestureDetector(
       onTap: () => _showEggDetails(context),
@@ -214,7 +249,7 @@ class StorageEggCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: skin.frameEnd.withOpacity(0.25),
+              color: skin.frameEnd.withValues(alpha: 0.25),
               blurRadius: 16,
               spreadRadius: 1,
             ),
@@ -233,8 +268,8 @@ class StorageEggCard extends StatelessWidget {
                       radius: 1.0,
                       colors: [
                         skin.fill,
-                        Colors.black.withOpacity(0.08),
-                        Colors.black.withOpacity(0.18),
+                        Colors.black.withValues(alpha: 0.08),
+                        Colors.black.withValues(alpha: 0.18),
                       ],
                       stops: const [0.2, 0.7, 1.0],
                     ),
@@ -243,18 +278,19 @@ class StorageEggCard extends StatelessWidget {
               ),
 
               // Particle system
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: AlchemyBrewingParticleSystem(
-                    parentATypeId: elementGroup.particleTypes.$1,
-                    parentBTypeId: elementGroup.particleTypes.$2,
-                    particleCount: 30,
-                    speedMultiplier: 0.5,
-                    fusion: false,
-                    useSimpleFusion: true,
+              if (showParticles)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AlchemyBrewingParticleSystem(
+                      parentATypeId: elementGroup.particleTypes.$1,
+                      parentBTypeId: elementGroup.particleTypes.$2,
+                      particleCount: particleCount,
+                      speedMultiplier: 0.45,
+                      fusion: false,
+                      useSimpleFusion: true,
+                    ),
                   ),
                 ),
-              ),
               // Progress ring with % left (replaces egg icon)
               Positioned.fill(
                 child: Center(
@@ -356,7 +392,7 @@ class _ProgressBadge extends StatelessWidget {
                 value: 1,
                 strokeWidth: stroke,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  Colors.white.withOpacity(0.12),
+                  Colors.white.withValues(alpha: 0.12),
                 ),
                 backgroundColor: Colors.transparent,
               ),
@@ -398,7 +434,7 @@ class _ProgressBadge extends StatelessWidget {
                 Text(
                   percentLeft != null ? 'left' : 'remaining',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.4,
@@ -427,144 +463,192 @@ class EggDetailsModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
     final skin = elementGroup.skin;
-    final rarity = payload['rarity'] as String? ?? 'Common';
-    final generation =
-        (payload['lineage'] as Map?)?['generationDepth'] as int? ?? 0;
-    final isPure = (payload['lineage'] as Map?)?['isPure'] as bool? ?? false;
     final source = payload['source'] as String? ?? 'unknown';
 
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1D23),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: t.bg1,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+        border: Border(top: BorderSide(color: t.borderAccent, width: 1.5)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Drag handle
+          // Header bar
           Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(2),
+              color: t.bg0,
+              border: Border(
+                bottom: BorderSide(color: t.borderAccent, width: 1),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 3,
+                  height: 14,
+                  color: t.amber,
+                  margin: const EdgeInsets.only(right: 10),
+                ),
+                Expanded(
+                  child: Text(
+                    'SPECIMEN DETAILS',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: t.textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.4,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: t.bg2,
+                      borderRadius: BorderRadius.circular(2),
+                      border: Border.all(color: t.borderDim, width: 1),
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: t.textSecondary,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Large vial card display
                   Center(
                     child: SizedBox(
-                      height: 280,
-                      child: _buildLargeVialDisplay(skin),
+                      height: 240,
+                      child: _buildLargeVialDisplay(skin, t),
                     ),
                   ),
 
-                  const SizedBox(height: 24),
-
-                  // Title and badges
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              getEggLabel(payload),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${elementGroup.displayName} • Gen $generation',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // if (isPure)
-                      //   Container(
-                      //     padding: const EdgeInsets.symmetric(
-                      //       horizontal: 12,
-                      //       vertical: 6,
-                      //     ),
-                      //     decoration: BoxDecoration(
-                      //       color: elementGroup.color.withOpacity(0.2),
-                      //       borderRadius: BorderRadius.circular(8),
-                      //       border: Border.all(
-                      //         color: elementGroup.color.withOpacity(0.4),
-                      //       ),
-                      //     ),
-                      //     child: Row(
-                      //       mainAxisSize: MainAxisSize.min,
-                      //       children: [
-                      //         Icon(
-                      //           Icons.verified,
-                      //           size: 16,
-                      //           color: elementGroup.color,
-                      //         ),
-                      //         const SizedBox(width: 4),
-                      //         Text(
-                      //           'PURE',
-                      //           style: TextStyle(
-                      //             color: elementGroup.color,
-                      //             fontSize: 11,
-                      //             fontWeight: FontWeight.w900,
-                      //             letterSpacing: 0.5,
-                      //           ),
-                      //         ),
-                      //       ],
-                      //     ),
-                      //   ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Info sections
-                  _buildInfoSection('Source', _formatSource(source)),
                   const SizedBox(height: 16),
 
-                  if (payload['parentage'] != null)
-                    _buildParentageSection(payload['parentage'] as Map),
+                  // Name
+                  Center(
+                    child: Text(
+                      getEggLabel(payload).toUpperCase(),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: t.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.6,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Center(
+                    child: Text(
+                      elementGroup.displayName,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: t.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
 
-                  // const SizedBox(height: 16),
-                  // _buildStatsSection(payload),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+
+                  // Info sections
+                  _buildInfoSection('Source', _formatSource(source), t),
+
+                  const SizedBox(height: 20),
 
                   // Action buttons
                   Row(
                     children: [
-                      Expanded(
-                        child: _buildActionButton(
-                          context: context,
-                          label: 'ADD TO INCUBATOR',
-                          icon: Icons.add_circle_outline,
-                          color: elementGroup.color,
-                          onTap: () => _addToIncubator(context),
+                      // DELETE
+                      GestureDetector(
+                        onTap: () => _confirmDelete(context, t),
+                        child: Container(
+                          height: 44,
+                          width: 52,
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(
+                              color: t.danger.withValues(alpha: 0.5),
+                              width: 1,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.delete_outline_rounded,
+                            color: t.danger,
+                            size: 18,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      _buildDeleteButton(context, elementGroup.color),
+                      const SizedBox(width: 10),
+                      // ADD TO CHAMBER
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => _addToIncubator(context, t),
+                          child: Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: t.amberDim.withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(2),
+                              border: Border.all(color: t.amber, width: 1),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: t.amber.withValues(alpha: 0.15),
+                                  blurRadius: 12,
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.bubble_chart_rounded,
+                                  color: t.amberBright,
+                                  size: 15,
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  'ADD TO CHAMBER',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: t.amberBright,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -576,25 +660,26 @@ class EggDetailsModal extends StatelessWidget {
     );
   }
 
-  Widget _buildLargeVialDisplay(ElementalGroupSkin skin) {
+  Widget _buildLargeVialDisplay(ElementalGroupSkin skin, ForgeTokens t) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(4),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [skin.frameStart, skin.frameEnd],
         ),
+        border: Border.all(color: t.borderAccent, width: 1),
         boxShadow: [
           BoxShadow(
-            color: skin.frameEnd.withOpacity(0.4),
-            blurRadius: 24,
-            spreadRadius: 2,
+            color: skin.frameEnd.withValues(alpha: 0.25),
+            blurRadius: 16,
+            spreadRadius: 1,
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(3),
         child: Stack(
           children: [
             // Background gradient
@@ -606,8 +691,8 @@ class EggDetailsModal extends StatelessWidget {
                     radius: 1.0,
                     colors: [
                       skin.fill,
-                      Colors.black.withOpacity(0.08),
-                      Colors.black.withOpacity(0.18),
+                      Colors.black.withValues(alpha: 0.08),
+                      Colors.black.withValues(alpha: 0.18),
                     ],
                     stops: const [0.2, 0.7, 1.0],
                   ),
@@ -628,16 +713,28 @@ class EggDetailsModal extends StatelessWidget {
                 ),
               ),
             ),
-            // simple expanded text badge that shows time remaining
+            // Time remaining badge
             Positioned(
-              bottom: 12,
-              left: 12,
-              child: Text(
-                'Time Left: ${_fmtShort(Duration(milliseconds: egg.remainingMs))}',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+              bottom: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(2),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Text(
+                  _fmtShort(Duration(milliseconds: egg.remainingMs)),
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
             ),
@@ -647,247 +744,63 @@ class EggDetailsModal extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoSection(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildParentageSection(Map parentage) {
-    final parentA = parentage['parentA'] as Map?;
-    final parentB = parentage['parentB'] as Map?;
-
-    if (parentA == null || parentB == null) return const SizedBox.shrink();
-
-    final nameA = parentA['name'] as String? ?? 'Unknown';
-    final nameB = parentB['name'] as String? ?? 'Unknown';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'PARENTS',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: Text(
-                  nameA,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Icon(
-                Icons.close,
-                size: 16,
-                color: Colors.white.withOpacity(0.5),
-              ),
-            ),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: Text(
-                  nameB,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatsSection(Map<String, dynamic> payload) {
-    final stats = payload['stats'] as Map?;
-    if (stats == null) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'STATS',
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-          ),
-        ),
-        const SizedBox(height: 8),
-        _buildStatBar('Speed', stats['speed'] as num? ?? 0),
-        const SizedBox(height: 6),
-        _buildStatBar('Intelligence', stats['intelligence'] as num? ?? 0),
-        const SizedBox(height: 6),
-        _buildStatBar('Strength', stats['strength'] as num? ?? 0),
-        const SizedBox(height: 6),
-        _buildStatBar('Beauty', stats['beauty'] as num? ?? 0),
-      ],
-    );
-  }
-
-  Widget _buildStatBar(String label, num value) {
-    final percentage = (value / 3.0).clamp(0.0, 1.0);
-
-    return Row(
-      children: [
-        SizedBox(
-          width: 100,
-          child: Text(
-            label,
+  Widget _buildInfoSection(String label, String value, ForgeTokens t) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: t.bg2,
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: t.borderDim),
+      ),
+      child: Row(
+        children: [
+          Text(
+            label.toUpperCase(),
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: percentage,
-              backgroundColor: Colors.white.withOpacity(0.1),
-              valueColor: AlwaysStoppedAnimation(elementGroup.color),
-              minHeight: 8,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 40,
-          child: Text(
-            value.toStringAsFixed(1),
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
+              fontFamily: 'monospace',
+              color: t.textMuted,
+              fontSize: 9,
               fontWeight: FontWeight.w700,
+              letterSpacing: 1.8,
             ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButton({
-    required BuildContext context,
-    required String label,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [color, color.withOpacity(0.8)]),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.3),
-              blurRadius: 12,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.5,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: t.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
               ),
+              textAlign: TextAlign.right,
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDeleteButton(BuildContext context, Color accentColor) {
-    return GestureDetector(
-      onTap: () => _confirmDelete(context),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.red.withOpacity(0.3)),
-        ),
-        child: const Icon(Icons.delete_outline, color: Colors.red, size: 24),
+          ),
+        ],
       ),
     );
   }
 
   String _formatSource(String source) {
     return switch (source) {
-      'breeding' => 'Breeding Laboratory',
+      'wild_capture' => 'Wild Capture',
       'wild' => 'Wild Capture',
+      'wild_fusion' => 'Wild Fusion',
+      'wild_breeding' => 'Wild Fusion',
+      'standard_fusion' => 'Standard Fusion',
+      'breeding' => 'Standard Fusion',
+      'rift_portal' => 'Rift Portal',
+      'planet_summon' => 'Planet Summon',
+      'boss_summon' => 'Boss Summon',
       'vial' => 'Extraction Vial',
       'starter' => 'Starter Selection',
-      'wild_breeding' => 'Wild Breeding',
       _ => source.replaceAll('_', ' ').toUpperCase(),
     };
   }
 
-  Future<void> _addToIncubator(BuildContext context) async {
+  Future<void> _addToIncubator(BuildContext context, ForgeTokens t) async {
     final db = context.read<AlchemonsDatabase>();
 
     // Check for free slot
@@ -895,16 +808,41 @@ class EggDetailsModal extends StatelessWidget {
 
     if (freeSlot == null) {
       if (!context.mounted) return;
+      HapticFeedback.heavyImpact();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          duration: Duration(seconds: 2),
-          dismissDirection: DismissDirection.down,
-          showCloseIcon: true,
-          content: Text('All cultivation slots are full'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          duration: const Duration(seconds: 2),
+          content: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: t.bg1,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: Icon(Icons.lock_rounded, color: t.danger, size: 13),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'ALL CHAMBER SLOTS FULL',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.bg0,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: t.danger,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
         ),
       );
-      //close sheet
       Navigator.pop(context);
       return;
     }
@@ -929,74 +867,210 @@ class EggDetailsModal extends StatelessWidget {
     await db.incubatorDao.removeFromInventory(egg.eggId);
 
     if (!context.mounted) return;
+    HapticFeedback.lightImpact();
     Navigator.pop(context);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         duration: const Duration(seconds: 2),
-        dismissDirection: DismissDirection.down,
-        showCloseIcon: true,
-        content: Text('Added to Incubator Slot ${freeSlot.id + 1}'),
-        backgroundColor: elementGroup.color,
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: t.bg1,
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Icon(
+                Icons.bubble_chart_rounded,
+                color: t.amberBright,
+                size: 13,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'ADDED TO CHAMBER ${freeSlot.id + 1}',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: t.bg0,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: t.amber,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
       ),
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context) async {
+  Future<void> _confirmDelete(BuildContext context, ForgeTokens t) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1D23),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Delete Specimen?',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+      builder: (ctx) => Dialog(
+        backgroundColor: t.bg1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+          side: BorderSide(color: t.borderAccent, width: 1.5),
         ),
-        content: const Text(
-          'This action cannot be undone. The specimen will be permanently removed from storage.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontWeight: FontWeight.w700,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: t.danger.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: t.danger.withValues(alpha: 0.4)),
+                ),
+                child: Icon(
+                  Icons.delete_outline_rounded,
+                  color: t.danger,
+                  size: 24,
+                ),
               ),
-            ),
+              const SizedBox(height: 14),
+              Text(
+                'DELETE SPECIMEN?',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: t.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2.0,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This is permanent and cannot be undone.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: t.textSecondary,
+                  fontSize: 10,
+                  letterSpacing: 0.3,
+                  height: 1.6,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(ctx, false),
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: t.bg2,
+                          borderRadius: BorderRadius.circular(2),
+                          border: Border.all(color: t.borderDim),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'CANCEL',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(ctx, true),
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: t.danger.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(2),
+                          border: Border.all(
+                            color: t.danger.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'DELETE',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: t.danger,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'DELETE',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900),
-            ),
-          ),
-        ],
+        ),
       ),
     );
 
-    if (confirmed == true) {
-      await _deleteEgg(context);
+    if (confirmed == true && context.mounted) {
+      await _deleteEgg(context, t);
     }
   }
 
-  Future<void> _deleteEgg(BuildContext context) async {
+  Future<void> _deleteEgg(BuildContext context, ForgeTokens t) async {
     final db = context.read<AlchemonsDatabase>();
     await db.incubatorDao.removeFromInventory(egg.eggId);
 
     if (!context.mounted) return;
+    HapticFeedback.mediumImpact();
     Navigator.pop(context);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        duration: Duration(seconds: 2),
-        dismissDirection: DismissDirection.down,
-        showCloseIcon: true,
-        content: Text('Specimen deleted'),
-        backgroundColor: Colors.red,
+      SnackBar(
+        duration: const Duration(seconds: 2),
+        content: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: t.bg1,
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.white,
+                size: 13,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'SPECIMEN DELETED',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: t.danger,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
       ),
     );
   }

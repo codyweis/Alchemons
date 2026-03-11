@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
@@ -18,6 +19,7 @@ class NurseryBrewingCard extends StatefulWidget {
   // NEW: optional progress (0..1)
   final double? progress;
   final FactionTheme? theme;
+  final CinematicQuality quality;
 
   const NurseryBrewingCard({
     super.key,
@@ -28,6 +30,7 @@ class NurseryBrewingCard extends StatefulWidget {
     this.progress, // NEW
     this.useSimpleFusion = false,
     this.theme,
+    this.quality = CinematicQuality.high,
   });
 
   @override
@@ -129,79 +132,109 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: AnimatedBuilder(
-        animation: _glowAnimation,
-        builder: (context, child) {
-          return Container(
-            decoration: BoxDecoration(
-              color: theme!.brightness == Brightness.light
-                  ? const Color.fromARGB(255, 18, 18, 18)
-                  : Colors.black,
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(
-                color: widget.isReady
-                    ? const Color(0xFFFFD700) // Gold color
-                    : theme.text.withOpacity(0.5),
-                width: widget.isReady ? 1.0 : 0.5,
+    final media = MediaQuery.of(context);
+    final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
+
+    final shortestSide = media.size.shortestSide;
+    int particleCount;
+    if (shortestSide < 380) {
+      particleCount = 18;
+    } else if (shortestSide < 430) {
+      particleCount = 24;
+    } else {
+      particleCount = 30;
+    }
+
+    if (deferEffects) {
+      particleCount = 8;
+    }
+
+    final qualityMultiplier = switch (widget.quality) {
+      CinematicQuality.high => 2.0,
+      CinematicQuality.balanced => 1.0,
+    };
+    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 72);
+
+    final showParticles =
+        TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
+
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedBuilder(
+          animation: _glowAnimation,
+          builder: (context, child) {
+            return Container(
+              decoration: BoxDecoration(
+                color: theme!.brightness == Brightness.light
+                    ? const Color.fromARGB(255, 18, 18, 18)
+                    : Colors.black,
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(
+                  color: widget.isReady
+                      ? const Color(0xFFFFD700) // Gold color
+                      : theme.text.withValues(alpha: 0.5),
+                  width: widget.isReady ? 1.0 : 0.5,
+                ),
+                boxShadow: widget.isReady
+                    ? [
+                        BoxShadow(
+                          color: const Color(
+                            0xFFFFD700,
+                          ).withValues(alpha: 0.5 * _glowAnimation.value),
+                          blurRadius: 1 * _glowAnimation.value,
+                          spreadRadius: 2 * _glowAnimation.value,
+                        ),
+                        BoxShadow(
+                          color: const Color(
+                            0xFFFFD700,
+                          ).withValues(alpha: 0.3 * _glowAnimation.value),
+                          blurRadius: 20 * _glowAnimation.value,
+                          spreadRadius: 4 * _glowAnimation.value,
+                        ),
+                      ]
+                    : null,
               ),
-              boxShadow: widget.isReady
-                  ? [
-                      BoxShadow(
-                        color: const Color(
-                          0xFFFFD700,
-                        ).withOpacity(0.5 * _glowAnimation.value),
-                        blurRadius: 1 * _glowAnimation.value,
-                        spreadRadius: 2 * _glowAnimation.value,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Stack(
+                  children: [
+                    if (showParticles &&
+                        _parentTypes != null &&
+                        _parentTypes!.isNotEmpty)
+                      Positioned.fill(
+                        child: AlchemyBrewingParticleSystem(
+                          parentATypeId: _parentTypes![0],
+                          parentBTypeId: _parentTypes!.length > 1
+                              ? _parentTypes![1]
+                              : null,
+                          particleCount: particleCount,
+                          speedMultiplier: _speedFromProgress,
+                          fusion: widget.isReady,
+                          useSimpleFusion: widget.useSimpleFusion,
+                          theme: widget.theme,
+                        ),
                       ),
-                      BoxShadow(
-                        color: const Color(
-                          0xFFFFD700,
-                        ).withOpacity(0.3 * _glowAnimation.value),
-                        blurRadius: 20 * _glowAnimation.value,
-                        spreadRadius: 4 * _glowAnimation.value,
-                      ),
-                    ]
-                  : null,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Stack(
-                children: [
-                  if (_parentTypes != null && _parentTypes!.isNotEmpty)
                     Positioned.fill(
-                      child: AlchemyBrewingParticleSystem(
-                        parentATypeId: _parentTypes![0],
-                        parentBTypeId: _parentTypes!.length > 1
-                            ? _parentTypes![1]
-                            : null,
-                        particleCount: 80,
-                        speedMultiplier: _speedFromProgress,
-                        fusion: widget.isReady,
-                        useSimpleFusion: widget.useSimpleFusion,
-                        theme: widget.theme,
-                      ),
-                    ),
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          center: Alignment.center,
-                          radius: 1.0,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withOpacity(0.1),
-                          ],
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            center: Alignment.center,
+                            radius: 1.0,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.1),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

@@ -12,7 +12,7 @@ Widget buildLoadingScreen(FactionTheme theme, String message) {
           colors: [
             theme.surface,
             theme.surface,
-            theme.surfaceAlt.withOpacity(.6),
+            theme.surfaceAlt.withValues(alpha: .6),
           ],
           stops: const [0, .6, 1],
         ),
@@ -27,12 +27,12 @@ Widget buildLoadingScreen(FactionTheme theme, String message) {
             border: Border.all(color: theme.border, width: 2),
             boxShadow: [
               BoxShadow(
-                color: theme.accent.withOpacity(.4),
+                color: theme.accent.withValues(alpha: .4),
                 blurRadius: 28,
                 spreadRadius: 4,
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(.8),
+                color: Colors.black.withValues(alpha: .8),
                 blurRadius: 40,
                 spreadRadius: 16,
               ),

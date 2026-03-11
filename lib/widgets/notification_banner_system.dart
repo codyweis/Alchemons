@@ -130,7 +130,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
   IconData _getBannerIcon() {
     switch (widget.notification.type) {
       case NotificationBannerType.eggReady:
-        return Icons.egg_rounded;
+        return Icons.science_rounded;
       case NotificationBannerType.harvestReady:
         return Icons.science_rounded;
       case NotificationBannerType.dailyReward:
@@ -195,7 +195,10 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
       decoration: BoxDecoration(
         color: _getBannerColor(),
         shape: BoxShape.circle,
-        border: Border.all(color: _getAccentColor().withOpacity(0.6), width: 2),
+        border: Border.all(
+          color: _getAccentColor().withValues(alpha: 0.6),
+          width: 2,
+        ),
       ),
       child: Stack(
         children: [
@@ -241,7 +244,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
           bottomLeft: Radius.circular(12),
         ),
         border: Border.all(
-          color: _getAccentColor().withOpacity(0.4),
+          color: _getAccentColor().withValues(alpha: 0.4),
           width: 1.5,
         ),
       ),
@@ -253,10 +256,10 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: _getAccentColor().withOpacity(0.3),
+                  color: _getAccentColor().withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -297,7 +300,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
                             color: _getAccentColor(),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                               width: 1,
                             ),
                           ),
@@ -318,7 +321,7 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
                     Text(
                       widget.notification.subtitle!,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.85),
+                        color: Colors.white.withValues(alpha: 0.85),
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         shadows: const [
@@ -339,13 +342,13 @@ class _NotificationBannerWidgetState extends State<NotificationBannerWidget> {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.close_rounded,
-                  color: Colors.white.withOpacity(0.7),
-                  size: 16,
+                  color: Colors.white.withValues(alpha: 0.7),
+                  size: 25,
                 ),
               ),
             ),

@@ -15,8 +15,6 @@
 
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui';
-import 'dart:convert';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
@@ -25,12 +23,12 @@ import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/utils/likelihood_analyzer.dart';
 import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
-import 'package:alchemons/widgets/starter_granted_dialog.dart';
+import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
+import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart'; // 🆕 Import highlight widget
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -56,6 +54,9 @@ class EncounterOverlay extends StatefulWidget {
   final ValueChanged<Creature>? onPartyCreatureSelected;
   final VoidCallback? onPreRollShake;
   final Creature hydratedWildCreature;
+  final bool highlightPartyHUD; // 🆕 Tutorial highlighting
+  final bool isTutorial; // 🆕 Tutorial mode flag
+  final bool warnOnRun; // show a confirmation before running away
 
   const EncounterOverlay({
     super.key,
@@ -65,6 +66,9 @@ class EncounterOverlay extends StatefulWidget {
     this.onPartyCreatureSelected,
     this.onPreRollShake,
     required this.hydratedWildCreature,
+    this.highlightPartyHUD = false, // 🆕 Default to false
+    this.isTutorial = false, // 🆕 Default to false
+    this.warnOnRun = false,
   });
 
   @override
@@ -73,7 +77,7 @@ class EncounterOverlay extends StatefulWidget {
 
 class _EncounterOverlayState extends State<EncounterOverlay>
     with TickerProviderStateMixin {
-  bool _visible = false;
+  bool _visible = false; // ignore: unused_field
   String? _chosenInstanceId;
   bool _busy = false;
   String _status = 'Select a party member to act';
@@ -146,6 +150,68 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     _fadeController.forward();
   }
 
+  Future<void> _handleRun(BuildContext context) async {
+    if (!widget.warnOnRun) {
+      _hide(false);
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D0D1A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+          side: const BorderSide(color: Color(0xFFD4AF37), width: 1),
+        ),
+        title: const Text(
+          'LEAVE THE VOID?',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: Color(0xFFD4AF37),
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2,
+          ),
+        ),
+        content: const Text(
+          'The void will remain in the rift, but this encounter will be lost if you return.',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: Colors.white54,
+            fontSize: 11,
+            height: 1.6,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'STAY',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: Colors.white38,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'LEAVE',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: Color(0xFFD4AF37),
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) _hide(false);
+  }
+
   void _hide([bool success = false]) {
     _slideController.reverse().then((_) {
       if (mounted) {
@@ -192,7 +258,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           },
         ),
 
-        // Top-right: Party HUD
+        // Top-right: Party HUD with optional tutorial highlighting 🆕
         AnimatedBuilder(
           animation: _slideController,
           builder: (_, __) {
@@ -202,10 +268,16 @@ class _EncounterOverlayState extends State<EncounterOverlay>
               right: 16 - (300 * (1 - slide)),
               child: Opacity(
                 opacity: slide,
-                child: _PartyHUD(
-                  party: widget.party,
-                  chosenInstanceId: _chosenInstanceId,
-                  onSelect: _onSelectPartyCreature,
+                child: TutorialHighlight(
+                  enabled:
+                      widget.highlightPartyHUD &&
+                      _chosenInstanceId == null, // 🆕
+                  label: 'Select an Alchemon to breed', // 🆕
+                  child: _PartyHUD(
+                    party: widget.party,
+                    chosenInstanceId: _chosenInstanceId,
+                    onSelect: _onSelectPartyCreature,
+                  ),
                 ),
               ),
             );
@@ -229,13 +301,14 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     isPartySelected: _chosenInstanceId != null,
                     status: _status,
                     canAct: !_busy,
+                    isTutorial: widget.isTutorial, // 🆕 Pass tutorial flag
                     onBreed: !_busy
                         ? () => _handleBreed(context, wildCreature)
                         : null,
                     onCapture: !_busy
                         ? () => _handleCapture(context, wildCreature)
                         : null,
-                    onRun: () => _hide(false),
+                    onRun: () => _handleRun(context),
                     breedChance: _breedChance,
                   ),
                 ),
@@ -262,8 +335,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       nature: instRow.natureId != null
           ? NatureCatalog.byId(instRow.natureId!)
           : baseCreature.nature,
-      isPrismaticSkin:
-          instRow.isPrismaticSkin || (baseCreature.isPrismaticSkin ?? false),
+      isPrismaticSkin: instRow.isPrismaticSkin || baseCreature.isPrismaticSkin,
     );
 
     final wilderness = WildernessService(db, context.read<StaminaService>());
@@ -416,13 +488,12 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
           return Icon(
             Icons.pets,
-            color: Colors.white.withOpacity(.8),
+            color: Colors.white.withValues(alpha: .8),
             size: 64,
           );
         }
 
-        _hide(true);
-
+        // 🆕 Show cinematic FIRST, then hide overlay
         await showAlchemyFusionCinematic<void>(
           context: ctx,
           leftSprite: partySprite(),
@@ -437,6 +508,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
 
         if (!mounted) return;
         setState(() => _status = 'Successfully fused.');
+
+        // 🆕 Hide AFTER cinematic completes
+        _hide(true);
       } else {
         setState(() => _status = 'Failed… try again.');
       }
@@ -445,7 +519,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     }
   }
 
-  Future<void> _handleCapture(BuildContext ctx, dynamic wildCreature) async {
+  Future<void> _handleCapture(BuildContext ctx, Creature wildCreature) async {
     setState(() => _busy = true);
 
     try {
@@ -460,26 +534,81 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         return;
       }
 
-      final catchService = ctx.read<CatchService>();
-      final success = await catchService.attemptCatch(
-        device: selectedDevice,
-        target: wildCreature,
+      // 🎬 Show harvest cinematic with sprite
+      final repo = ctx.read<CreatureCatalog>();
+
+      Widget wildSprite() {
+        final hydrated = repo.getCreatureById(widget.encounter.wildBaseId);
+        if (hydrated?.spriteData != null) {
+          final sheet = sheetFromCreature(hydrated!);
+          final visuals = visualsFromInstance(hydrated, null);
+          return SizedBox(
+            width: 120,
+            height: 120,
+            child: CreatureSprite(
+              spritePath: sheet.path,
+              totalFrames: sheet.totalFrames,
+              rows: sheet.rows,
+              frameSize: sheet.frameSize,
+              stepTime: sheet.stepTime,
+              scale: visuals.scale,
+              saturation: visuals.saturation,
+              brightness: visuals.brightness,
+              hueShift: visuals.hueShiftDeg,
+              isPrismatic: visuals.isPrismatic,
+              tint: visuals.tint,
+            ),
+          );
+        }
+
+        return Icon(
+          Icons.pets,
+          color: Colors.white.withValues(alpha: .8),
+          size: 64,
+        );
+      }
+
+      Color colorOf(Creature? c, Color fallback) =>
+          c != null && c.types.isNotEmpty
+          ? BreedConstants.getTypeColor(c.types.first)
+          : fallback;
+
+      final targetColor = colorOf(wildCreature, Colors.green);
+
+      // Trigger screen shake before cinematic
+      widget.onPreRollShake?.call();
+
+      final success = await showHarvestCinematic(
+        context: ctx,
+        targetSprite: wildSprite(),
+        targetColor: targetColor,
+        deviceLabel: selectedDevice.label,
+        minDuration: const Duration(milliseconds: 1600),
+        task: () async {
+          final catchService = ctx.read<CatchService>();
+          return await catchService.attemptCatch(
+            device: selectedDevice,
+            target: wildCreature,
+          );
+        },
       );
 
       if (!mounted) return;
 
       if (success) {
         HapticFeedback.heavyImpact();
-        setState(() => _status = 'Captured!');
+        setState(
+          () => _status = 'Specimen sent to Cultivations for extraction',
+        );
 
-        await _placeWildEgg(ctx, wildCreature as Creature);
+        await _placeWildEgg(ctx, wildCreature);
 
-        await Future.delayed(const Duration(seconds: 2));
+        await Future.delayed(const Duration(milliseconds: 800));
         if (!mounted) return;
         _hide(true);
       } else {
         HapticFeedback.lightImpact();
-        setState(() => _status = 'Capture failed!');
+        setState(() => _status = 'Harvest failed!');
       }
     } catch (e) {
       if (mounted) {
@@ -519,6 +648,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final result = await breedingService.breedWithWild(
       ownedParent,
       wildCreature,
+      forcePrismatic: widget.encounter.voidBred,
+      sourceOverride: widget.encounter.source,
     );
 
     if (!result.success) {
@@ -529,11 +660,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     }
 
     if (mounted) {
-      final message = result.placement == EggPlacement.incubator
-          ? 'Wild breeding successful! Egg in incubator slot ${(result.slotId ?? 0) + 1}'
-          : 'Wild breeding successful! Egg stored in queue';
-
-      setState(() => _status = message);
+      setState(() => _status = 'Specimen sent to Cultivations for extraction');
     }
   }
 
@@ -562,7 +689,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     final hatchAtUtc = DateTime.now().toUtc().add(adjustedDelay);
 
     final factory = EggPayloadFactory(repo);
-    final payload = factory.createWildCapturePayload(capturedCreature);
+    final payload = factory.createWildCapturePayload(
+      capturedCreature,
+      sourceOverride: widget.encounter.source,
+    );
     final payloadJson = payload.toJsonString();
 
     final eggId = 'egg_${DateTime.now().millisecondsSinceEpoch}';
@@ -657,14 +787,14 @@ class _WildCreatureTitle extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: _rarityColor.withOpacity(0.4),
+                color: _rarityColor.withValues(alpha: 0.4),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
           child: Text(
-            '${rarity.toUpperCase()}', // Added 'RANK'
+            rarity.toUpperCase(), // Added 'RANK'
             style: const TextStyle(
               color: Colors.white,
               fontSize: 11,
@@ -797,39 +927,26 @@ class _PartyHUD extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
     return Container(
-      padding: const EdgeInsets.all(12),
-      // --- Wrapping with SingleChildScrollView for horizontal scrolling ---
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < party.length; i++) ...[
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color.fromARGB(
-                      255,
-                      255,
-                      255,
-                      255,
-                    ).withOpacity(0.5),
-                    width: 1,
-                  ),
-                ),
-                child: _PartyMemberCard(
-                  member: party[i],
-                  selected: party[i].instanceId == chosenInstanceId,
-                  onTap: () => onSelect(party[i].instanceId),
-                ),
-              ),
-              if (i < party.length - 1) const SizedBox(width: 8),
-            ],
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: t.bg1.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: t.borderDim, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < party.length; i++) ...[
+            _PartyMemberCard(
+              member: party[i],
+              selected: party[i].instanceId == chosenInstanceId,
+              onTap: () => onSelect(party[i].instanceId),
+            ),
+            if (i < party.length - 1) const SizedBox(width: 6),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -852,13 +969,13 @@ class _PartyMemberCard extends StatelessWidget {
     final repo = context.read<CreatureCatalog>();
     final stamina = context.read<StaminaService>();
 
+    final t = ForgeTokens(context.read<FactionTheme>());
+
     return FutureBuilder<CreatureInstance?>(
       future: db.creatureDao.getInstance(member.instanceId),
       builder: (context, snap) {
         final inst = snap.data;
         final base = inst == null ? null : repo.getCreatureById(inst.baseId);
-
-        // Use stamina service for display instead of raw DB values
         final StaminaState? state = inst != null
             ? stamina.computeState(inst)
             : null;
@@ -867,19 +984,21 @@ class _PartyMemberCard extends StatelessWidget {
           onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: 75,
-            padding: const EdgeInsets.all(2),
+            width: 56,
+            padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              border: selected
-                  ? Border.all(color: const Color(0xFF00FF88), width: 2)
-                  : null,
-              borderRadius: BorderRadius.circular(4),
+              color: selected ? t.amber.withValues(alpha: 0.12) : t.bg2,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(
+                color: selected ? t.amber : t.borderDim,
+                width: selected ? 1.5 : 1,
+              ),
               boxShadow: selected
                   ? [
-                      const BoxShadow(
-                        color: Color(0x8800FF88),
-                        blurRadius: 16,
-                        spreadRadius: 2,
+                      BoxShadow(
+                        color: t.amber.withValues(alpha: 0.28),
+                        blurRadius: 10,
+                        spreadRadius: 1,
                       ),
                     ]
                   : null,
@@ -887,32 +1006,19 @@ class _PartyMemberCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (selected) ...[
-                  Text(
-                    'Beauty ${inst?.statBeauty.toStringAsFixed(2) ?? '--'}',
-                    style: const TextStyle(
-                      color: Color.fromARGB(255, 16, 17, 17),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                ],
                 if (inst != null && base != null)
                   SizedBox(
-                    width: 48,
-                    height: 48,
+                    width: 36,
+                    height: 36,
                     child: InstanceSprite(
                       creature: base,
                       instance: inst,
-                      size: 40,
+                      size: 36,
                     ),
                   )
                 else
-                  const SizedBox(width: 48, height: 48),
-                const SizedBox(height: 6),
-
-                // ✅ Use computed stamina (bars + max) instead of raw DB fields
+                  const SizedBox(width: 36, height: 36),
+                const SizedBox(height: 4),
                 if (state != null)
                   StaminaBar(current: state.bars, max: state.max),
               ],
@@ -935,6 +1041,7 @@ class _ActionPanel extends StatelessWidget {
   final VoidCallback onRun;
   final double? breedChance; // 👈 NEW
   final bool isPartySelected;
+  final bool isTutorial; // 🆕 Tutorial mode flag
 
   const _ActionPanel({
     required this.status,
@@ -944,10 +1051,12 @@ class _ActionPanel extends StatelessWidget {
     required this.onRun,
     required this.isPartySelected,
     this.breedChance,
+    this.isTutorial = false, // 🆕 Default to false
   });
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
     final chanceText = breedChance != null
         ? 'Fusion success: ${(breedChance! * 100).toStringAsFixed(1)}%'
         : null;
@@ -955,18 +1064,19 @@ class _ActionPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (chanceText != null) // Only show if we have a computed chance
+        if (chanceText != null)
           Align(
             alignment: Alignment.centerRight,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 8.0, right: 4.0),
               child: Text(
                 chanceText,
-                style: const TextStyle(
-                  color: Color(0xFF00FF88),
-                  fontSize: 13,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: t.success,
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
+                  letterSpacing: 0.8,
                 ),
               ),
             ),
@@ -977,23 +1087,24 @@ class _ActionPanel extends StatelessWidget {
           children: [
             _ActionButton(
               disabled: !isPartySelected,
-              label: 'ATTEMPT ALCHEMICAL FUSION',
-              icon: Icons.auto_fix_high,
-              color: const Color.fromARGB(255, 16, 42, 16),
+              label: 'FUSION',
+              sublabel: 'ATTEMPT ALCHEMICAL',
+              accentColor: t.success,
               onPressed: canAct ? onBreed : null,
             ),
-            const SizedBox(width: 10),
-            _ActionButton(
-              label: 'HARVEST PROTOCOL',
-              icon: Icons.science,
-              color: const Color.fromARGB(255, 46, 3, 3),
-              onPressed: canAct ? onCapture : null,
-            ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
+            if (!isTutorial)
+              _ActionButton(
+                label: 'HARVEST',
+                sublabel: 'PROTOCOL',
+                accentColor: t.danger,
+                onPressed: canAct ? onCapture : null,
+              ),
+            if (!isTutorial) const SizedBox(width: 8),
             _ActionButton(
               label: 'MAP',
-              icon: Icons.exit_to_app,
-              color: const Color.fromARGB(255, 22, 20, 20),
+              sublabel: 'RETURN',
+              accentColor: t.teal,
               onPressed: onRun,
             ),
           ],
@@ -1005,46 +1116,88 @@ class _ActionPanel extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   final String label;
-  final IconData icon;
-  final Color color;
+  final String sublabel;
+  final IconData? icon;
+  final Color accentColor;
   final VoidCallback? onPressed;
-  final bool outlined;
   final bool disabled;
 
   const _ActionButton({
     required this.label,
-    required this.icon,
-    required this.color,
+    required this.sublabel,
+    this.icon,
+    required this.accentColor,
     this.onPressed,
-    this.outlined = false,
     this.disabled = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
     final isDisabled = onPressed == null || disabled;
+    final effectiveAccent = isDisabled ? t.textMuted : accentColor;
 
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isDisabled ? const Color(0xFF3A3A4E) : color,
-        foregroundColor: isDisabled ? Colors.white38 : Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        elevation: isDisabled ? 0 : 4,
-        shadowColor: isDisabled ? Colors.transparent : color.withOpacity(0.4),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 12,
-              letterSpacing: 0.5,
-            ),
+    return GestureDetector(
+      onTap: isDisabled ? null : onPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 18),
+        decoration: BoxDecoration(
+          color: t.bg1,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: isDisabled ? t.borderDim : effectiveAccent,
+            width: 1.5,
           ),
-        ],
+          boxShadow: isDisabled
+              ? null
+              : [
+                  BoxShadow(
+                    color: effectiveAccent.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                color: isDisabled ? t.textMuted : effectiveAccent,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+            ],
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  sublabel,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: isDisabled ? t.textMuted : t.textPrimary,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: isDisabled ? t.textMuted : effectiveAccent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

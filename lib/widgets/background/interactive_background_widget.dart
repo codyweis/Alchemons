@@ -260,9 +260,9 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    widget.primaryColor.withOpacity(.2),
-                    widget.secondaryColor.withOpacity(0.5),
-                    widget.accentColor.withOpacity(0.05),
+                    widget.primaryColor.withValues(alpha: .2),
+                    widget.secondaryColor.withValues(alpha: 0.5),
+                    widget.accentColor.withValues(alpha: 0.05),
                   ],
                 ),
               ),
@@ -312,8 +312,8 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
                           shape: BoxShape.circle,
                           gradient: RadialGradient(
                             colors: [
-                              widget.primaryColor.withOpacity(0.25),
-                              widget.primaryColor.withOpacity(0.1),
+                              widget.primaryColor.withValues(alpha: 0.25),
+                              widget.primaryColor.withValues(alpha: 0.1),
                               Colors.transparent,
                             ],
                           ),
@@ -332,8 +332,8 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
                           shape: BoxShape.circle,
                           gradient: RadialGradient(
                             colors: [
-                              widget.secondaryColor.withOpacity(0.2),
-                              widget.secondaryColor.withOpacity(0.08),
+                              widget.secondaryColor.withValues(alpha: 0.2),
+                              widget.secondaryColor.withValues(alpha: 0.08),
                               Colors.transparent,
                             ],
                           ),
@@ -352,8 +352,8 @@ class _InteractiveBackgroundState extends State<InteractiveBackground> {
                           shape: BoxShape.circle,
                           gradient: RadialGradient(
                             colors: [
-                              widget.accentColor.withOpacity(0.18),
-                              widget.accentColor.withOpacity(0.06),
+                              widget.accentColor.withValues(alpha: 0.18),
+                              widget.accentColor.withValues(alpha: 0.06),
                               Colors.transparent,
                             ],
                           ),
@@ -455,7 +455,7 @@ class InteractiveParticlePainter extends CustomPainter {
     }
 
     final paint = Paint()
-      ..color = primaryColor.withOpacity(0.25)
+      ..color = primaryColor.withValues(alpha: 0.25)
       ..style = PaintingStyle.fill;
 
     // Tap ripple
@@ -463,7 +463,7 @@ class InteractiveParticlePainter extends CustomPainter {
       final outerRadius = 10 + (rippleAnimation * 80);
       final outerOpacity = (1.0 - rippleAnimation) * 0.3;
       final outerRipple = Paint()
-        ..color = primaryColor.withOpacity(outerOpacity)
+        ..color = primaryColor.withValues(alpha: outerOpacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3;
       canvas.drawCircle(tapPosition!, outerRadius, outerRipple);
@@ -472,7 +472,7 @@ class InteractiveParticlePainter extends CustomPainter {
         final midRadius = 10 + ((rippleAnimation - 0.2) * 60);
         final midOpacity = (1.0 - rippleAnimation) * 0.25;
         final midRipple = Paint()
-          ..color = primaryColor.withOpacity(midOpacity)
+          ..color = primaryColor.withValues(alpha: midOpacity)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2;
         canvas.drawCircle(tapPosition!, midRadius, midRipple);
@@ -480,7 +480,7 @@ class InteractiveParticlePainter extends CustomPainter {
 
       final innerOpacity = (1.0 - rippleAnimation) * 0.2;
       final innerRipple = Paint()
-        ..color = primaryColor.withOpacity(innerOpacity)
+        ..color = primaryColor.withValues(alpha: innerOpacity)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(tapPosition!, 20, innerRipple);
     }
@@ -516,7 +516,7 @@ class InteractiveParticlePainter extends CustomPainter {
 
       particleOpacity *= _edgeFade(pos, size, 40);
 
-      paint.color = primaryColor.withOpacity(particleOpacity.clamp(0.0, 1.0));
+      paint.color = primaryColor.withValues(alpha: particleOpacity.clamp(0.0, 1.0));
       canvas.drawCircle(pos, radius, paint);
     }
 
@@ -544,7 +544,7 @@ class InteractiveParticlePainter extends CustomPainter {
 
           if (lineOpacity > 0) {
             final linePaint = Paint()
-              ..color = primaryColor.withOpacity(lineOpacity)
+              ..color = primaryColor.withValues(alpha: lineOpacity)
               ..strokeWidth = 1.5;
             canvas.drawLine(a, b, linePaint);
           }
@@ -625,7 +625,7 @@ class FirePainter extends CustomPainter {
         final opacity = fadeOpacity * 0.8 * flicker;
 
         final paint = Paint()
-          ..color = (i % 2 == 0 ? primaryColor : secondaryColor).withOpacity(
+          ..color = (i % 2 == 0 ? primaryColor : secondaryColor).withValues(alpha: 
             opacity,
           )
           ..style = PaintingStyle.fill;
@@ -633,7 +633,7 @@ class FirePainter extends CustomPainter {
         canvas.drawCircle(Offset(x, y), emberSize, paint);
 
         final glowPaint = Paint()
-          ..color = primaryColor.withOpacity(opacity * 0.4);
+          ..color = primaryColor.withValues(alpha: opacity * 0.4);
         canvas.drawCircle(Offset(x, y), emberSize * 2.5, glowPaint);
       }
     }
@@ -776,9 +776,9 @@ class RainSplashPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          primaryColor.withOpacity(.5),
-          primaryColor.withOpacity(0.18),
-          primaryColor.withOpacity(0.26),
+          primaryColor.withValues(alpha: .5),
+          primaryColor.withValues(alpha: 0.18),
+          primaryColor.withValues(alpha: 0.26),
         ],
         stops: const [0.0, 0.6, 1.0],
       ).createShader(poolBounds);
@@ -787,7 +787,7 @@ class RainSplashPainter extends CustomPainter {
     final crestPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1
-      ..color = Colors.white.withOpacity(0.07);
+      ..color = Colors.white.withValues(alpha: 0.07);
     canvas.drawPath(top, crestPaint);
 
     // ----- Rain + splashes (keep behavior, but make wind continuous & softer)
@@ -845,7 +845,7 @@ class RainSplashPainter extends CustomPainter {
         }
 
         if (fade > 0) {
-          rainPaint.color = primaryColor.withOpacity(0.13 * fade);
+          rainPaint.color = primaryColor.withValues(alpha: 0.13 * fade);
           final len = 9.0 + _seededRandom(i, 3) * 5;
           canvas.drawLine(
             Offset(xNow, yNow),
@@ -887,7 +887,7 @@ class RainSplashPainter extends CustomPainter {
               primaryColor,
               Colors.white,
               0.35,
-            )!.withOpacity(0.55 * life)
+            )!.withValues(alpha: 0.55 * life)
             ..strokeWidth = 2.2 - 1.2 * (1 - life);
           final lean = easedTiltX * 10.0; // continuous
           canvas.drawLine(origin, origin.translate(lean, -hJet), jetPaint);
@@ -914,7 +914,7 @@ class RainSplashPainter extends CustomPainter {
             primaryColor,
             Colors.white,
             0.45,
-          )!.withOpacity(0.35 * life);
+          )!.withValues(alpha: 0.35 * life);
         canvas.drawPath(crown, crownPaint);
 
         for (int k = -2; k <= 2; k++) {
@@ -934,7 +934,7 @@ class RainSplashPainter extends CustomPainter {
               primaryColor,
               Colors.white,
               0.50,
-            )!.withOpacity(0.55 * life);
+            )!.withValues(alpha: 0.55 * life);
             canvas.drawCircle(Offset(x, y), r, dropletPaint);
           }
         }
@@ -943,11 +943,11 @@ class RainSplashPainter extends CustomPainter {
         final foamAlpha =
             (poolMask(origin.dx, origin.dy) * 0.75 + 0.25) * (life * life);
 
-        foamBlob.color = Colors.white.withOpacity(0.10 * foamAlpha);
+        foamBlob.color = Colors.white.withValues(alpha: 0.10 * foamAlpha);
         canvas.drawCircle(Offset(xHit, ySurf + 6.0), foamR, foamBlob);
 
         foamStroke
-          ..color = Colors.white.withOpacity(0.18 * foamAlpha)
+          ..color = Colors.white.withValues(alpha: 0.18 * foamAlpha)
           ..strokeWidth = 1.1 + 0.6 * life;
         canvas.drawCircle(Offset(xHit, ySurf + 6.0), foamR * 1.15, foamStroke);
       }
@@ -964,7 +964,7 @@ class RainSplashPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Colors.white.withOpacity(0.05), Colors.transparent],
+        colors: [Colors.white.withValues(alpha: 0.05), Colors.transparent],
       ).createShader(Rect.fromLTWH(0, baseTop, size.width, 16));
     canvas.drawPath(sheenPath, sheenPaint);
   }
@@ -1038,7 +1038,7 @@ class AirPainter extends CustomPainter {
 
           final opacity = (0.18 - j * 0.03) * fadeOpacity;
           final cloudPaint = Paint()
-            ..color = (j % 2 == 0 ? primaryColor : secondaryColor).withOpacity(
+            ..color = (j % 2 == 0 ? primaryColor : secondaryColor).withValues(alpha: 
               opacity,
             )
             ..style = PaintingStyle.fill
@@ -1160,13 +1160,13 @@ class EarthPlantsPainter extends CustomPainter {
 
       final stemWidth = 1.6 + (h / 140.0);
       final stemColor = Color.lerp(
-        primaryColor.withOpacity(0.85),
-        secondaryColor.withOpacity(0.85),
+        primaryColor.withValues(alpha: 0.85),
+        secondaryColor.withValues(alpha: 0.85),
         hueMix,
       )!;
 
       stemPaint
-        ..color = stemColor.withOpacity(0.75 * alpha)
+        ..color = stemColor.withValues(alpha: 0.75 * alpha)
         ..strokeWidth = stemWidth;
 
       canvas.drawPath(stemPart, stemPaint);
@@ -1210,13 +1210,13 @@ class EarthPlantsPainter extends CustomPainter {
             ),
           );
 
-        leafPaint.color = stemColor.withOpacity(0.7 * leafAlpha);
+        leafPaint.color = stemColor.withValues(alpha: 0.7 * leafAlpha);
         canvas.drawPath(leafPath, leafPaint);
 
         final veinPaint = Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 0.8
-          ..color = Colors.white.withOpacity(0.25 * leafAlpha);
+          ..color = Colors.white.withValues(alpha: 0.25 * leafAlpha);
         canvas.drawLine(Offset(0, 0), Offset(leafW * 0.6, 0), veinPaint);
 
         canvas.restore();
@@ -1230,12 +1230,12 @@ class EarthPlantsPainter extends CustomPainter {
           secondaryColor,
           primaryColor,
           0.2 + 0.6 * hueMix,
-        )!.withOpacity(0.9 * alpha * (1.0 - 0.4 * fadeOut));
+        )!.withValues(alpha: 0.9 * alpha * (1.0 - 0.4 * fadeOut));
         budPaint.color = budColor;
         canvas.drawCircle(pos, budSize, budPaint);
       }
 
-      final baseGlow = Paint()..color = primaryColor.withOpacity(0.06 * alpha);
+      final baseGlow = Paint()..color = primaryColor.withValues(alpha: 0.06 * alpha);
       canvas.drawCircle(stemBase, 6.0, baseGlow);
     }
 
@@ -1243,7 +1243,7 @@ class EarthPlantsPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [primaryColor.withOpacity(0.12), primaryColor.withOpacity(0.0)],
+        colors: [primaryColor.withValues(alpha: 0.12), primaryColor.withValues(alpha: 0.0)],
       ).createShader(Rect.fromLTWH(0, bandTopY - 8, size.width, 16));
     canvas.drawRect(Rect.fromLTWH(0, bandTopY - 8, size.width, 16), soilPaint);
   }

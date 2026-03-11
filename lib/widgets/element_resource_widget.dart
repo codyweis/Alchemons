@@ -225,9 +225,6 @@ class _GlowyIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Animate intensity as we expand
-    final glowOpacity = lerpDouble(0.10, 0.35, t)!;
-    final glowScale = lerpDouble(1.2, 1.6, t)!; // radius growth
-    final blur = lerpDouble(6, 18, t)!;
 
     return SizedBox(
       width: size,
@@ -246,7 +243,7 @@ class _GlowyIcon extends StatelessWidget {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: color.withOpacity(lerpDouble(0.15, 0.35, t)!),
+                      color: color.withValues(alpha: lerpDouble(0.15, 0.35, t)!),
                       blurRadius: lerpDouble(10, 22, t)!,
                       spreadRadius: lerpDouble(2, 6, t)!,
                     ),

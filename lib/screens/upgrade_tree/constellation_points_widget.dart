@@ -1,4 +1,7 @@
 // lib/widgets/constellation_points_widget.dart
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/navigation/world_transition.dart';
+import 'package:alchemons/screens/cosmic/cosmic_screen.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_screen.dart';
 import 'package:alchemons/widgets/animations/alchemy_orb.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +10,44 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 
-/// Widget that displays constellation points on the home screen (next to currency)
+/// Alchemy orb button — navigates to the Cosmic exploration game.
+/// Requires cosmic ship to enter; shows a warning otherwise.
+class CosmicOrbWidget extends StatefulWidget {
+  const CosmicOrbWidget({super.key});
+
+  @override
+  State<CosmicOrbWidget> createState() => _CosmicOrbWidgetState();
+}
+
+class _CosmicOrbWidgetState extends State<CosmicOrbWidget> {
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: context.read<AlchemonsDatabase>().settingsDao.getSetting(
+        'cosmic_ship_unlocked',
+      ),
+      builder: (context, snapshot) {
+        final val = snapshot.data;
+        final unlocked = val == '1';
+
+        if (!unlocked) return const SizedBox.shrink();
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: FloatingAlchemyOrb(
+            onTap: () async {
+              HapticFeedback.lightImpact();
+              if (!context.mounted) return;
+              VoidPortal.push(context, page: const CosmicScreen());
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Constellation icon button with points badge — navigates to ConstellationScreen.
 class ConstellationPointsWidget extends StatelessWidget {
   const ConstellationPointsWidget({super.key});
 
@@ -25,52 +65,41 @@ class ConstellationPointsWidget extends StatelessWidget {
         return GestureDetector(
           onTap: () {
             HapticFeedback.lightImpact();
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ConstellationScreen()),
-            );
+            VoidPortal.push(context, page: const ConstellationScreen());
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Column(
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Your icon wrapped as before
-                    FloatingAlchemyOrb(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const ConstellationScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    // Badge for points (top-right corner)
-                    if (points > 0)
-                      Positioned(
-                        top: -4,
-                        right: -4,
-                        child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: theme.primary, // Solid color or gradient
-                            border: Border.all(color: Colors.white, width: 1.2),
-                          ),
-                          child: Text(
-                            '$points',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                Image.asset(
+                  'assets/images/ui/constellationicon.png',
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.contain,
+                ),
+                // Badge for points (top-right corner)
+                if (points > 0)
+                  Positioned(
+                    top: -4,
+                    right: -4,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.primary,
+                        border: Border.all(color: Colors.white, width: 1.2),
+                      ),
+                      child: Text(
+                        '$points',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                  ),
               ],
             ),
           ),
