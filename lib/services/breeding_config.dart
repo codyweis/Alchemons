@@ -3,11 +3,16 @@ class ElementRecipeConfig {
   final Map<String, Map<String, int>> recipes;
   ElementRecipeConfig({required this.recipes});
 
-  static String _norm(String s) => s.trim(); // keep case, just trim
+  static String norm(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return t;
+    final lower = t.toLowerCase();
+    return lower[0].toUpperCase() + lower.substring(1);
+  }
 
   /// Canonical unordered key: alphabetical + '+'
   static String keyOf(String a, String b) {
-    final x = _norm(a), y = _norm(b);
+    final x = norm(a), y = norm(b);
     return (x.compareTo(y) <= 0) ? '$x+$y' : '$y+$x';
   }
 }
@@ -18,8 +23,16 @@ class FamilyRecipeConfig {
   final Map<String, Map<String, int>> recipes; // key: unordered "A+B"
   const FamilyRecipeConfig({required this.recipes});
 
-  static String keyOf(String a, String b) =>
-      (a.compareTo(b) <= 0) ? '$a+$b' : '$b+$a';
+  static String norm(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return t;
+    final lower = t.toLowerCase();
+    return lower[0].toUpperCase() + lower.substring(1);
+  }
+
+  static String keyOf(String a, String b) => (norm(a).compareTo(norm(b)) <= 0)
+      ? '${norm(a)}+${norm(b)}'
+      : '${norm(b)}+${norm(a)}';
 
   Map<String, int>? recipeFor(String a, String b) => recipes[keyOf(a, b)];
 
@@ -38,9 +51,13 @@ class FamilyRecipeConfig {
     final out = <String, Map<String, int>>{};
     raw.forEach((k, v) {
       final parts = k.split('+');
-      final a = parts[0].trim();
-      final b = parts[1].trim();
-      out[FamilyRecipeConfig.keyOf(a, b)] = Map<String, int>.from(v); // copy
+      final a = FamilyRecipeConfig.norm(parts[0]);
+      final b = FamilyRecipeConfig.norm(parts[1]);
+      final normalizedDist = <String, int>{};
+      v.forEach((fam, weight) {
+        normalizedDist[FamilyRecipeConfig.norm(fam)] = weight;
+      });
+      out[FamilyRecipeConfig.keyOf(a, b)] = normalizedDist;
     });
 
     // 2) backlinks for “A+B → top=C”

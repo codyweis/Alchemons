@@ -17,10 +17,12 @@ class TopHud extends StatefulWidget {
     required this.planetsTotal,
     required this.dustCount,
     required this.wallet,
-    required this.onBack,
+    required this.onSettings,
     required this.onMiniMap,
     required this.onMeterTap,
     this.showMeter = true,
+    this.collapsed = false,
+    this.onCollapsedChanged,
   });
 
   final FactionTheme theme;
@@ -31,17 +33,40 @@ class TopHud extends StatefulWidget {
   final int planetsTotal;
   final int dustCount;
   final ShipWallet wallet;
-  final VoidCallback onBack;
+  final VoidCallback onSettings;
   final VoidCallback onMiniMap;
   final VoidCallback onMeterTap;
   final bool showMeter;
+  final bool collapsed;
+  final ValueChanged<bool>? onCollapsedChanged;
 
   @override
   State<TopHud> createState() => TopHudState();
 }
 
 class TopHudState extends State<TopHud> {
-  bool _collapsed = false;
+  late bool _collapsed;
+
+  @override
+  void initState() {
+    super.initState();
+    _collapsed = widget.collapsed;
+  }
+
+  @override
+  void didUpdateWidget(covariant TopHud oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.collapsed != oldWidget.collapsed &&
+        widget.collapsed != _collapsed) {
+      _collapsed = widget.collapsed;
+    }
+  }
+
+  void _setCollapsed(bool value) {
+    if (_collapsed == value) return;
+    setState(() => _collapsed = value);
+    widget.onCollapsedChanged?.call(value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +77,7 @@ class TopHudState extends State<TopHud> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             GestureDetector(
-              onTap: () => setState(() => _collapsed = false),
+              onTap: () => _setCollapsed(false),
               child: Container(
                 width: 34,
                 height: 34,
@@ -85,11 +110,11 @@ class TopHudState extends State<TopHud> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Row: back + title + minimap
+          // Row: settings + title + minimap
           Row(
             children: [
               GestureDetector(
-                onTap: widget.onBack,
+                onTap: widget.onSettings,
                 child: Container(
                   width: 34,
                   height: 34,
@@ -106,7 +131,7 @@ class TopHudState extends State<TopHud> {
                     ),
                   ),
                   child: const Icon(
-                    Icons.arrow_back_rounded,
+                    Icons.settings_rounded,
                     color: Colors.white60,
                     size: 18,
                   ),
@@ -223,7 +248,7 @@ class TopHudState extends State<TopHud> {
               if (widget.wallet.shards > 0) const SizedBox(width: 6),
               // Collapse arrow
               GestureDetector(
-                onTap: () => setState(() => _collapsed = true),
+                onTap: () => _setCollapsed(true),
                 child: Container(
                   width: 34,
                   height: 34,

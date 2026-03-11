@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
@@ -18,6 +19,7 @@ class NurseryBrewingCard extends StatefulWidget {
   // NEW: optional progress (0..1)
   final double? progress;
   final FactionTheme? theme;
+  final CinematicQuality quality;
 
   const NurseryBrewingCard({
     super.key,
@@ -28,6 +30,7 @@ class NurseryBrewingCard extends StatefulWidget {
     this.progress, // NEW
     this.useSimpleFusion = false,
     this.theme,
+    this.quality = CinematicQuality.high,
   });
 
   @override
@@ -129,6 +132,32 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
+    final media = MediaQuery.of(context);
+    final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
+
+    final shortestSide = media.size.shortestSide;
+    int particleCount;
+    if (shortestSide < 380) {
+      particleCount = 18;
+    } else if (shortestSide < 430) {
+      particleCount = 24;
+    } else {
+      particleCount = 30;
+    }
+
+    if (deferEffects) {
+      particleCount = 8;
+    }
+
+    final qualityMultiplier = switch (widget.quality) {
+      CinematicQuality.high => 2.0,
+      CinematicQuality.balanced => 1.0,
+    };
+    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 72);
+
+    final showParticles =
+        TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
+
     return RepaintBoundary(
       child: GestureDetector(
         onTap: widget.onTap,
@@ -170,14 +199,16 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
                 borderRadius: BorderRadius.circular(14),
                 child: Stack(
                   children: [
-                    if (_parentTypes != null && _parentTypes!.isNotEmpty)
+                    if (showParticles &&
+                        _parentTypes != null &&
+                        _parentTypes!.isNotEmpty)
                       Positioned.fill(
                         child: AlchemyBrewingParticleSystem(
                           parentATypeId: _parentTypes![0],
                           parentBTypeId: _parentTypes!.length > 1
                               ? _parentTypes![1]
                               : null,
-                          particleCount: 50,
+                          particleCount: particleCount,
                           speedMultiplier: _speedFromProgress,
                           fusion: widget.isReady,
                           useSimpleFusion: widget.useSimpleFusion,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -30,6 +31,9 @@ class NurseryTab extends StatefulWidget {
 
 class _NurseryTabState extends State<NurseryTab> {
   final Map<String, bool> _undiscoveredCache = {};
+  final CinematicQualityService _qualityService = CinematicQualityService();
+  bool _suspendNurseryAnimations = false;
+  CinematicQuality _cinematicQuality = CinematicQuality.high;
 
   /// One-shot timer that fires exactly when the soonest incubating egg
   /// is due to complete.  We reschedule it after every rebuild so we
@@ -37,7 +41,33 @@ class _NurseryTabState extends State<NurseryTab> {
   Timer? _nextReadyTimer;
 
   @override
+  void initState() {
+    super.initState();
+    _loadCinematicQuality();
+    CinematicQualityService.qualityNotifier.addListener(
+      _handleCinematicQualityChanged,
+    );
+  }
+
+  void _handleCinematicQualityChanged() {
+    if (!mounted) return;
+    final next = CinematicQualityService.qualityNotifier.value;
+    if (next != _cinematicQuality) {
+      setState(() => _cinematicQuality = next);
+    }
+  }
+
+  Future<void> _loadCinematicQuality() async {
+    final quality = await _qualityService.getQuality();
+    if (!mounted) return;
+    setState(() => _cinematicQuality = quality);
+  }
+
+  @override
   void dispose() {
+    CinematicQualityService.qualityNotifier.removeListener(
+      _handleCinematicQualityChanged,
+    );
     _nextReadyTimer?.cancel();
     super.dispose();
   }
@@ -196,30 +226,34 @@ class _NurseryTabState extends State<NurseryTab> {
                 .toList()
               ..sort((a, b) => a.id.compareTo(b.id)));
 
-        return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionHeader(
-                'ACTIVE CULTIVATION',
-                Icons.science_rounded,
-                theme.text,
-              ),
-              const SizedBox(height: 12),
-              _buildActiveGridWithPlaceholders(
-                activeSlots: activeSlots,
-                placeholders: unlockedEmptySlots.length,
-                primaryColor: theme.text,
-                theme: theme,
-              ),
-              const SizedBox(height: 24),
-              StorageSection(
-                primaryColor: theme.text,
-                buildSectionHeader: _buildSectionHeader,
-              ),
-            ],
+        return TickerMode(
+          enabled: !_suspendNurseryAnimations,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSectionHeader(
+                  'ACTIVE CULTIVATION',
+                  Icons.science_rounded,
+                  theme.text,
+                ),
+                const SizedBox(height: 12),
+                _buildActiveGridWithPlaceholders(
+                  activeSlots: activeSlots,
+                  placeholders: unlockedEmptySlots.length,
+                  primaryColor: theme.text,
+                  theme: theme,
+                ),
+                const SizedBox(height: 24),
+                StorageSection(
+                  primaryColor: theme.text,
+                  buildSectionHeader: _buildSectionHeader,
+                  quality: _cinematicQuality,
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -302,6 +336,7 @@ class _NurseryTabState extends State<NurseryTab> {
             statusColor: statusColor,
             isReady: ready,
             progress: progress,
+            quality: _cinematicQuality,
             useSimpleFusion: false,
             theme: theme,
             onTap: () => _showSlotInfoModal(
@@ -973,11 +1008,22 @@ class _NurseryTabState extends State<NurseryTab> {
   Future<void> _hatchFromSlot(IncubatorSlot slot) async {
     if (!mounted) return;
 
-    final result = await EggHatching.performHatching(
-      context: context,
-      slot: slot,
-      undiscoveredCache: _undiscoveredCache,
-    );
+    if (!_suspendNurseryAnimations) {
+      setState(() => _suspendNurseryAnimations = true);
+    }
+
+    late final HatchingResult result;
+    try {
+      result = await EggHatching.performHatching(
+        context: context,
+        slot: slot,
+        undiscoveredCache: _undiscoveredCache,
+      );
+    } finally {
+      if (mounted && _suspendNurseryAnimations) {
+        setState(() => _suspendNurseryAnimations = false);
+      }
+    }
 
     if (!mounted) return;
 
@@ -1229,8 +1275,8 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
                       ),
                       child: Icon(
                         Icons.add_rounded,
-                        color: widget.primaryColor.withValues(alpha: 
-                          (a + .3).clamp(0, 1),
+                        color: widget.primaryColor.withValues(
+                          alpha: (a + .3).clamp(0, 1),
                         ),
                         size: 22,
                       ),
@@ -1239,8 +1285,8 @@ class _PlaceholderTileState extends State<_PlaceholderTile>
                     Text(
                       'PLACE SPECIMEN',
                       style: TextStyle(
-                        color: widget.primaryColor.withValues(alpha: 
-                          (a + .2).clamp(0, 1),
+                        color: widget.primaryColor.withValues(
+                          alpha: (a + .2).clamp(0, 1),
                         ),
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
@@ -1343,9 +1389,13 @@ class _DiscardButton extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: radius,
-            color: filled ? color.withValues(alpha: .9) : color.withValues(alpha: .08),
+            color: filled
+                ? color.withValues(alpha: .9)
+                : color.withValues(alpha: .08),
             border: Border.all(
-              color: filled ? color.withValues(alpha: .3) : color.withValues(alpha: .35),
+              color: filled
+                  ? color.withValues(alpha: .3)
+                  : color.withValues(alpha: .35),
             ),
           ),
           child: Padding(

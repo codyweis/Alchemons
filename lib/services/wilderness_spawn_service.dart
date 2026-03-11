@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
+import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:drift/drift.dart';
 
 /// Service that manages active wild creature spawns across all scenes.
@@ -184,7 +185,6 @@ class WildernessSpawnService extends ChangeNotifier {
     // 4) Ensure every known scene has either:
     //    - at least one active spawn, OR
     //    - a scheduled time in the future
-    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
     for (final entry in scenes.entries) {
       final sceneId = entry.key;
       final hasSpawns = hasAnySpawnsInScene(sceneId);
@@ -192,7 +192,7 @@ class WildernessSpawnService extends ChangeNotifier {
 
       // Only schedule a next time if the scene has no spawns and there is
       // currently no scheduled time. If there's an existing due time that
-      // has already passed (due <= now) leave it alone so `processDueScenes`
+      // has already passed, leave it alone so `processDueScenes`
       // can immediately create the spawns instead of resetting the timer.
       if (!hasSpawns && due == null) {
         await scheduleNextSpawnTime(sceneId);
@@ -363,13 +363,30 @@ class WildernessSpawnService extends ChangeNotifier {
       return false;
     }
 
+    // Prefer points that are safely inside the camera area (avoid edge spawns).
+    final cameraSafePoints = freePoints
+        .where((sp) => _isCameraSafePoint(sp, scene))
+        .toList();
+    final candidatePoints = cameraSafePoints.isNotEmpty
+        ? cameraSafePoints
+        : freePoints;
+
     // Roll how many to spawn: 1..freePoints.length
     // ensure no more than 4
-    final spawnCount = 1 + _rng.nextInt(min(freePoints.length, 5));
+    final spawnCount = 1 + _rng.nextInt(min(candidatePoints.length, 5));
 
     // Shuffle to sample distinct points without repetition
-    freePoints.shuffle(_rng);
-    final selected = freePoints.take(spawnCount);
+    candidatePoints.shuffle(_rng);
+
+    // Enforce spacing so active encounters don't overlap each other.
+    final selected = <SpawnPoint>[];
+    for (final point in candidatePoints) {
+      if (!_hasSafeDistanceFromAll(point, selected, scene)) {
+        continue;
+      }
+      selected.add(point);
+      if (selected.length >= spawnCount) break;
+    }
 
     for (final point in selected) {
       final finalPool = poolForSpawn(
@@ -401,8 +418,13 @@ class WildernessSpawnService extends ChangeNotifier {
       debugPrint('✨ Spawned ${encounter.speciesId} at $sceneId/${point.id}');
     }
 
-    // After spawning, show notification if this is the first spawn
-    if (!hasAnySpawnsInScene(sceneId)) {
+    if (selected.isEmpty) {
+      debugPrint('⚠️ No valid spawn points selected in $sceneId');
+      return false;
+    }
+
+    // After spawning, show consolidated notification of active wilderness state.
+    if (hasAnySpawnsInScene(sceneId)) {
       final totalSpawns = _activeSpawns.values.fold<int>(
         0,
         (sum, spawns) => sum + spawns.length,
@@ -416,6 +438,38 @@ class WildernessSpawnService extends ChangeNotifier {
     }
 
     notifyListeners();
+    return true;
+  }
+
+  bool _isCameraSafePoint(SpawnPoint point, SceneDefinition scene) {
+    // Keep points away from extreme edges where framing can feel cramped.
+    const minX = 0.10;
+    const maxX = 0.90;
+    const minY = 0.10;
+    final maxY = scene.allowVerticalPan ? 0.88 : 0.38;
+    return point.normalizedPos.dx >= minX &&
+        point.normalizedPos.dx <= maxX &&
+        point.normalizedPos.dy >= minY &&
+        point.normalizedPos.dy <= maxY;
+  }
+
+  bool _hasSafeDistanceFromAll(
+    SpawnPoint point,
+    List<SpawnPoint> others,
+    SceneDefinition scene,
+  ) {
+    final px = point.normalizedPos.dx * scene.worldWidth;
+    final py = point.normalizedPos.dy * scene.worldHeight;
+    for (final other in others) {
+      final ox = other.normalizedPos.dx * scene.worldWidth;
+      final oy = other.normalizedPos.dy * scene.worldHeight;
+      final dx = px - ox;
+      final dy = py - oy;
+      final dist = sqrt(dx * dx + dy * dy);
+
+      final minDist = ((point.size.x + other.size.x) * 0.75) + 40.0;
+      if (dist < minDist) return false;
+    }
     return true;
   }
 

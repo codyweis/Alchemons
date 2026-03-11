@@ -24,6 +24,7 @@ import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/screens/boss/battle_screen.dart';
 import 'package:alchemons/screens/boss/boss_base_command_screen.dart';
 import 'package:alchemons/screens/party_picker/party_picker.dart';
+import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:alchemons/services/boss_upgrade_service.dart';
@@ -1245,6 +1246,18 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     SelectedPartyNotifier party,
     BossProgressNotifier progress,
   ) async {
+    if (boss.element.toLowerCase() == 'blood') {
+      final hasSeenFinale = await context
+          .read<ConstellationService>()
+          .hasSeenFinale();
+      if (!hasSeenFinale) {
+        if (mounted) {
+          await _showBloodBossLockedPopup(boss);
+        }
+        return;
+      }
+    }
+
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
     final staminaService = StaminaService(db);
@@ -1484,6 +1497,57 @@ class _BossBattleScreenState extends State<BossBattleScreen>
       );
       if (mounted) setState(() {});
     }
+  }
+
+  Future<void> _showBloodBossLockedPopup(Boss boss) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: _C.bg1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: const BorderSide(color: _C.borderDim),
+          ),
+          title: const Text(
+            'BLOOD BOSS',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: _C.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          content: Text(
+            '${boss.name} is not here.',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: _C.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+              letterSpacing: 0.6,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text(
+                'OK',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: _C.amberBright,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showToast(

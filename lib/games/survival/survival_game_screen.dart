@@ -305,6 +305,9 @@ class SurvivalGameScreen extends StatefulWidget {
 
 class _SurvivalGameScreenState extends State<SurvivalGameScreen>
     with TickerProviderStateMixin {
+  static const String _wave50CosmicBundleClaimedKey =
+      'survival_wave50_cosmic_bundle_claimed';
+
   _ScreenState _screenState = _ScreenState.menu;
   SurvivalHoardGame? _game;
   bool _isSpeedUpEnabled = false;
@@ -580,22 +583,35 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
     }
 
     if (rolledReward != null) {
-      // Wave 50+ guaranteed portal key
-      final bonusPortalKey = LootBoxConfig.rollSurvivalBonusPortalKey(
-        wave,
-        rng,
-      );
-      if (bonusPortalKey != null) {
-        await db.inventoryDao.addItemQty(bonusPortalKey, 1);
-        final def = registry[bonusPortalKey];
-        popupEntries.add(
-          LootOpeningEntry(
-            icon: def?.icon ?? Icons.vpn_key_rounded,
-            name: def?.name ?? 'Portal Key',
-            label: '×1 PORTAL KEY',
-            color: const Color(0xFFD4AF37),
-          ),
-        );
+      // Wave 50+ guaranteed cosmic bundle: all portal keys + prismatic cascade.
+      final hasClaimedWave50Bundle =
+          await db.settingsDao.getSetting(_wave50CosmicBundleClaimedKey) == '1';
+      if (wave >= 50 && !hasClaimedWave50Bundle) {
+        final guaranteedKeys = <String>[
+          InvKeys.portalKeyVolcanic,
+          InvKeys.portalKeyOceanic,
+          InvKeys.portalKeyVerdant,
+          InvKeys.portalKeyEarthen,
+          InvKeys.portalKeyArcane,
+          InvKeys.alchemyPrismaticCascade,
+        ];
+        for (final itemKey in guaranteedKeys) {
+          await db.inventoryDao.addItemQty(itemKey, 1);
+          final def = registry[itemKey];
+          final itemName = def?.name ?? itemKey;
+          lootRewardDetails.add('$itemName ×1');
+          popupEntries.add(
+            LootOpeningEntry(
+              icon: def?.icon ?? Icons.inventory_2_rounded,
+              name: itemName,
+              label: '×1',
+              color: const Color(0xFFD4AF37),
+            ),
+          );
+        }
+        await db.settingsDao.setSetting(_wave50CosmicBundleClaimedKey, '1');
+        lootRewardLabel =
+            '$lootRewardLabel, All Portal Keys ×1, Prismatic Cascade ×1';
       }
 
       final currencyRewards = LootBoxConfig.rollSurvivalBonusCurrency(

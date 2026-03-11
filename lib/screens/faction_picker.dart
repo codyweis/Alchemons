@@ -147,6 +147,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
   Future<void> _selectFaction() async {
     HapticFeedback.heavyImpact();
     final selected = _factions[_currentIndex];
+    final svc = context.read<FactionService>();
     // final elementalGroup = selected.elementalGroup;
     // final biome = Biome.values.firstWhere(
     //   (b) => b.name == elementalGroup.name,
@@ -158,7 +159,6 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
     await db.biomeDao.unlockBiome(biomeId: Biome.oceanic.id, free: true);
     await db.biomeDao.unlockBiome(biomeId: Biome.volcanic.id, free: true);
     // Persist through the service (single source of truth).
-    final svc = context.read<FactionService>();
     await svc.setId(selected.id);
 
     await db.settingsDao.setMustPickFaction(false);
@@ -557,7 +557,10 @@ class _PerkCard extends StatelessWidget {
                   color: color,
                   shape: BoxShape.circle,
                   boxShadow: [
-                    BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 4),
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.5),
+                      blurRadius: 4,
+                    ),
                   ],
                 ),
               ),
@@ -688,9 +691,14 @@ class _ConfirmButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 18),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.8)]),
+          gradient: LinearGradient(
+            colors: [color, color.withValues(alpha: 0.8)],
+          ),
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.3),
+            width: 2,
+          ),
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: 0.5),

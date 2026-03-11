@@ -4,15 +4,14 @@
 //
 // Flow:
 //   0. global mutation (1% rarity bump + fused element)
-//   1. guaranteed pair
-//   2. same-species clone
-//   3. hybrid:
-//        3a. roll family (biased toward less-rare parent + nature bias)
-//        3b. roll element (penalize fusion if cross-family + no recipe +
+//   1. same-species clone
+//   2. hybrid:
+//        2a. roll family (biased toward less-rare parent + nature bias)
+//        2b. roll element (penalize fusion if cross-family + no recipe +
 //            nature bias)
-//        3c. pick catalog creature for (family, element)
+//        2c. pick catalog creature for (family, element)
 //      if none ->
-//   4. forced parent fallback (must succeed)
+//   3. forced parent fallback (must succeed)
 //
 // Analyzer support:
 //   getFamilyDistribution / getElementDistribution / etc return deterministic
@@ -1205,21 +1204,12 @@ class BreedingEngine {
     partnerFaction, // the faction of the parent you're breeding WITH
     required Random rng,
   }) {
-    // You can’t variant into the same faction you already are.
-    if (partnerFaction == childNativeFaction) {
-      return null;
-    }
-
-    // How much heritage do we already have in THAT partner's faction?
-    final score = lineageCounts[partnerFaction] ?? 0;
-    if (score <= 0) {
-      // zero history in that faction = no variant shot
-      return null;
-    }
-
-    // Each lineage point = +0.5%, capped at 10%
-    double chancePct = score * .5; // 1 point -> 0.5%
-    chancePct = chancePct.clamp(0.0, 10.0);
+    final chancePct = _variantRollChancePct(
+      childNativeFaction: childNativeFaction,
+      lineageCounts: lineageCounts,
+      partnerFaction: partnerFaction,
+    );
+    if (chancePct <= 0.0) return null;
 
     final roll = rng.nextDouble() * 100.0;
     if (roll < chancePct) {
@@ -1227,6 +1217,22 @@ class BreedingEngine {
     }
 
     return null;
+  }
+
+  double _variantRollChancePct({
+    required String childNativeFaction,
+    required Map<String, int> lineageCounts,
+    required String partnerFaction,
+  }) {
+    // You can’t variant into the same faction you already are.
+    if (partnerFaction == childNativeFaction) return 0.0;
+
+    // How much heritage do we already have in THAT partner's faction?
+    final score = lineageCounts[partnerFaction] ?? 0;
+    if (score <= 0) return 0.0;
+
+    // Each lineage point = +0.5%, capped at 10%
+    return (score * 0.5).clamp(0.0, 10.0);
   }
 
   /// Compute the chance (0-100) that we would have rolled *any* variantFaction
@@ -1249,41 +1255,64 @@ class BreedingEngine {
     final rolledFaction = lineageData.variantFaction;
     if (rolledFaction == null) return null; // no variant at all
 
-    final depth = lineageData.generationDepth;
+    final parentage = child.parentage;
+    if (parentage == null) return null;
+
+    final partnerA = parentage.parentA.nativeFaction;
+    final partnerB = parentage.parentB.nativeFaction;
     final childNative = lineageData.nativeFaction;
     final lineageCounts = lineageData.factionLineage;
 
-    // 1. candidate pool excluding child's native faction
-    final candidates = <String, int>{};
-    lineageCounts.forEach((faction, score) {
-      if (faction != childNative && score > 0) {
-        candidates[faction] = score;
+    final pA =
+        _variantRollChancePct(
+          childNativeFaction: childNative,
+          lineageCounts: lineageCounts,
+          partnerFaction: partnerA,
+        ) /
+        100.0;
+    final pB =
+        _variantRollChancePct(
+          childNativeFaction: childNative,
+          lineageCounts: lineageCounts,
+          partnerFaction: partnerB,
+        ) /
+        100.0;
+
+    if (pA <= 0.0 && pB <= 0.0) return null;
+
+    double pFinalA = 0.0;
+    double pFinalB = 0.0;
+    double pAny = 0.0;
+
+    if (partnerA == partnerB) {
+      final pEither = 1.0 - ((1.0 - pA) * (1.0 - pB));
+      pAny = pEither;
+      if (rolledFaction == partnerA) {
+        pFinalA = pEither;
       }
-    });
+    } else {
+      final scoreA = lineageCounts[partnerA] ?? 0;
+      final scoreB = lineageCounts[partnerB] ?? 0;
 
-    if (candidates.isEmpty) return null;
+      final pOnlyA = pA * (1.0 - pB);
+      final pOnlyB = pB * (1.0 - pA);
+      final pBoth = pA * pB;
 
-    // 2. trigger chance
-    final baseChance = 0.02; // 2%
-    final depthBonus = 0.01 * depth; // +1% per depth
-    final triggerChance = baseChance + depthBonus; // 0-1
-    final triggerChancePct = (triggerChance * 100.0).clamp(0.0, 100.0);
+      pFinalA = pOnlyA + ((scoreA >= scoreB) ? pBoth : 0.0);
+      pFinalB = pOnlyB + ((scoreB > scoreA) ? pBoth : 0.0);
+      pAny = pOnlyA + pOnlyB + pBoth;
+    }
 
-    // 3. pick weight for the specific rolled faction
-    final totalWeight = candidates.values.fold<int>(0, (sum, v) => sum + v);
-    if (totalWeight <= 0) return null;
-
-    final chosenWeight = candidates[rolledFaction] ?? 0;
-    if (chosenWeight <= 0) return null;
-
-    final share = chosenWeight / totalWeight; // 0-1
-
-    // final chance for THAT faction (trigger * share)
-    final finalPct = (triggerChance * share * 100.0).clamp(0.0, 100.0);
+    final pickedPct = rolledFaction == partnerA
+        ? (pFinalA * 100.0)
+        : rolledFaction == partnerB
+        ? (pFinalB * 100.0)
+        : 0.0;
+    if (pickedPct <= 0.0) return null;
 
     return VariantFactionOdds(
-      triggerChancePct: triggerChancePct,
-      pickedFactionPct: finalPct,
+      triggerChancePct: (pAny * 100.0).clamp(0.0, 100.0),
+      pickedFactionPct: pickedPct.clamp(0.0, 100.0),
       pickedFactionId: rolledFaction,
     );
   }
@@ -1728,7 +1757,19 @@ class ParentSnapshotFactory {
       if (raw == null || raw.isEmpty) return {};
       try {
         final map = (jsonDecode(raw) as Map<String, dynamic>);
-        return map.map((k, v) => MapEntry(k, (v as num).toInt()));
+        return map.map((k, v) {
+          var key = k.toString();
+
+          // Normalize legacy enum keys: "CreatureFamily.let" -> "Let"
+          if (key.startsWith('CreatureFamily.')) {
+            final tail = key.split('.').last;
+            key = tail.isEmpty
+                ? 'Unknown'
+                : tail[0].toUpperCase() + tail.substring(1);
+          }
+
+          return MapEntry(key, (v as num).toInt());
+        });
       } catch (_) {
         return {};
       }

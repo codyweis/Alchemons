@@ -341,6 +341,7 @@ class _SummonSprite extends StatelessWidget {
           tint: visuals.tint,
           alchemyEffect: visuals.alchemyEffect, // Pass alchemyEffect
           variantFaction: visuals.variantFaction, // Pass variantFaction
+          effectSlotSize: size,
         ),
       );
     } else {

@@ -17,6 +17,7 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
+import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/utils/creature_instance_uti.dart';
@@ -155,6 +156,10 @@ class _AnimatedCosmicOrbState extends State<_AnimatedCosmicOrb>
   AnimationController? _ctrl;
   Animation<double>? _scale;
   bool _visible = false;
+  bool _wiredSettings = false;
+  bool _isPulsing = false;
+  async.StreamSubscription<String?>? _shipUnlockedSub;
+  async.StreamSubscription<String?>? _shipAnimPendingSub;
 
   @override
   void initState() {
@@ -166,43 +171,60 @@ class _AnimatedCosmicOrbState extends State<_AnimatedCosmicOrb>
     _scale = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.25), weight: 50),
       TweenSequenceItem(tween: Tween(begin: 1.25, end: 1.0), weight: 50),
-    ]).animate(CurvedAnimation(parent: _ctrl!, curve: Curves.easeOutBack));
+    ]).animate(CurvedAnimation(parent: _ctrl!, curve: Curves.easeInOutCubic));
+  }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final db = context.read<AlchemonsDatabase>();
-      final unlocked =
-          (await db.settingsDao.getSetting('cosmic_ship_unlocked')) == '1';
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_wiredSettings) return;
+    _wiredSettings = true;
+    final db = context.read<AlchemonsDatabase>();
 
+    _shipUnlockedSub = db.settingsDao
+        .watchSetting('cosmic_ship_unlocked')
+        .listen((raw) {
+          final unlocked = raw == '1';
+          if (!mounted || unlocked == _visible) return;
+          setState(() => _visible = unlocked);
+        });
+
+    _shipAnimPendingSub = db.settingsDao
+        .watchSetting('cosmic_ship_home_anim_pending')
+        .listen((raw) {
+          if (raw == '1') {
+            _consumePendingPulse(db);
+          }
+        });
+  }
+
+  Future<void> _consumePendingPulse(AlchemonsDatabase db) async {
+    if (!mounted || _isPulsing) return;
+    _isPulsing = true;
+    widget.onPulse?.call();
+
+    try {
+      _ctrl?.stop();
+      _ctrl?.reset();
+      await _ctrl?.forward();
+      await Future.delayed(const Duration(milliseconds: 150));
       if (!mounted) return;
-      setState(() {
-        _visible = unlocked;
-      });
-
-      if (!_visible) return;
-
-      final pending = await db.settingsDao.getSetting(
-        'cosmic_ship_home_anim_pending',
-      );
-      if (pending == '1') {
-        // notify parent to play screen shake
-        widget.onPulse?.call();
-
-        // Play pulse twice
-        await _ctrl!.forward();
-        await Future.delayed(const Duration(milliseconds: 150));
-        _ctrl!.reset();
-        await _ctrl!.forward();
-
-        // Clear the pending flag so this only runs once
-        try {
-          await db.settingsDao.deleteSetting('cosmic_ship_home_anim_pending');
-        } catch (_) {}
-      }
-    });
+      _ctrl?.reset();
+      await _ctrl?.forward();
+    } catch (_) {
+      // ignore animation errors if lifecycle changes mid-pulse
+    } finally {
+      try {
+        await db.settingsDao.deleteSetting('cosmic_ship_home_anim_pending');
+      } catch (_) {}
+      _isPulsing = false;
+    }
   }
 
   @override
   void dispose() {
+    _shipUnlockedSub?.cancel();
+    _shipAnimPendingSub?.cancel();
     _ctrl?.dispose();
     super.dispose();
   }
@@ -239,6 +261,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with TickerProviderStateMixin, RouteAware {
+  static const List<String> _coreWildernessBiomes = [
+    'valley',
+    'sky',
+    'volcano',
+    'swamp',
+  ];
+
   late AnimationController _breathingController;
   late AnimationController _rotationController;
   late AnimationController _particleController;
@@ -248,11 +277,13 @@ class _HomeScreenState extends State<HomeScreen>
   final PushNotificationService _pushNotifications = PushNotificationService();
   String? _lastEggStateKey;
   String? _lastHarvestStateKey;
+  String? _lastWildernessStateKey;
   final Map<int, int> _lastScheduledEggHatchMsBySlot = {};
 
   bool _isFieldTutorialActive = false;
   bool _tutorialCheckInProgress =
       false; // prevents double-fire from didUpdateWidget + didPopNext
+  bool _arcanePortalUnlocked = false;
 
   bool _isInitialized = false;
 
@@ -456,7 +487,10 @@ class _HomeScreenState extends State<HomeScreen>
         debugPrint('🎓 Tutorial: Starting field tutorial');
         await db.settingsDao.setNavLocked(true);
 
-        if (!spawnService.hasAnyActiveSpawns) {
+        final hasCoreBiomeSpawns = _coreWildernessBiomes.any(
+          (biomeId) => spawnService.getSceneSpawnCount(biomeId) > 0,
+        );
+        if (!hasCoreBiomeSpawns) {
           debugPrint(
             '🎓 Tutorial: No spawns found, scheduling immediate spawn for tutorial',
           );
@@ -488,11 +522,12 @@ class _HomeScreenState extends State<HomeScreen>
     // We don't care about the bool now, Scene/Map writes to DB
     await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
+      CupertinoPageRoute(
         builder: (_) => MapScreen(
           isTutorial: true,
           onNavigateSection: widget.onNavigateSection,
         ),
+        fullscreenDialog: true,
       ),
     );
 
@@ -603,28 +638,47 @@ class _HomeScreenState extends State<HomeScreen>
 
     final db = context.read<AlchemonsDatabase>();
     final slots = await db.incubatorDao.watchSlots().first;
-    _checkEggNotifications(slots);
+    await _checkEggNotifications(slots);
 
     final biomes = await db.biomeDao.watchBiomes().first;
-    _checkBiomeNotifications(biomes);
+    await _checkBiomeNotifications(biomes);
 
-    _checkWildernessNotifications();
+    await _checkWildernessNotifications();
   }
 
   // Wilderness
-  void _checkWildernessNotifications() {
+  Future<void> _checkWildernessNotifications() async {
     if (!mounted) return;
+    final enabled = await NotificationPreferencesService()
+        .isWildernessEnabled();
+    if (!mounted) return;
+    if (!enabled) {
+      _lastWildernessStateKey = null;
+      await _pushNotifications.cancelWildernessNotifications();
+      _clearNotification(NotificationBannerType.wildernessSpawn);
+      return;
+    }
 
     final spawnService = context.read<WildernessSpawnService>();
+    final visibleBiomes = await _visibleWildernessBiomes();
+    if (!mounted) return;
+    final totalSpawns = visibleBiomes.fold<int>(
+      0,
+      (sum, biomeId) => sum + spawnService.getSceneSpawnCount(biomeId),
+    );
+    final scenesWithSpawns = visibleBiomes.where((biomeId) {
+      return spawnService.getSceneSpawnCount(biomeId) > 0;
+    }).length;
 
-    if (spawnService.hasAnyActiveSpawns) {
-      final debugInfo = spawnService.getDebugInfo();
-      final totalSpawns = debugInfo['total_spawns'] as int;
-      final scenesWithSpawns = debugInfo['scenes_with_spawns'] as int;
+    if (totalSpawns > 0) {
+      final stateKey = 'spawns:$totalSpawns/$scenesWithSpawns';
 
       debugPrint(
-        '🌲 Wilderness notification check: $totalSpawns spawns across $scenesWithSpawns scenes',
+        '🌲 Wilderness notification check: $totalSpawns visible spawns across $scenesWithSpawns scenes',
       );
+
+      if (_lastWildernessStateKey == stateKey) return;
+      _lastWildernessStateKey = stateKey;
 
       _showNotification(
         NotificationBanner(
@@ -633,24 +687,48 @@ class _HomeScreenState extends State<HomeScreen>
           subtitle:
               'Wild specimens available in $scenesWithSpawns location${scenesWithSpawns > 1 ? 's' : ''}',
           count: totalSpawns,
-          stateKey: 'spawns:$totalSpawns/$scenesWithSpawns',
+          stateKey: stateKey,
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const MapScreen()),
+              CupertinoPageRoute(
+                builder: (_) => const MapScreen(),
+                fullscreenDialog: true,
+              ),
             );
           },
         ),
       );
     } else {
       debugPrint('🌲 Clearing wilderness notification (no active spawns)');
+      _lastWildernessStateKey = null;
       _clearNotification(NotificationBannerType.wildernessSpawn);
     }
   }
 
+  Future<List<String>> _visibleWildernessBiomes() async {
+    final db = context.read<AlchemonsDatabase>();
+    final arcaneUnlocked =
+        await db.settingsDao.getSetting('arcane_portal_unlocked') == '1';
+    if (mounted && _arcanePortalUnlocked != arcaneUnlocked) {
+      setState(() => _arcanePortalUnlocked = arcaneUnlocked);
+    }
+    return [..._coreWildernessBiomes, if (arcaneUnlocked) 'arcane'];
+  }
+
   // Eggs (per-egg scheduling only; no consolidated push)
-  void _checkEggNotifications(List<IncubatorSlot> slots) async {
+  Future<void> _checkEggNotifications(List<IncubatorSlot> slots) async {
     if (!mounted) return;
+    final enabled = await NotificationPreferencesService()
+        .isCultivationsEnabled();
+    if (!enabled) {
+      _lastEggStateKey = null;
+      _lastScheduledEggHatchMsBySlot.clear();
+      await _pushNotifications.cancelEggNotification();
+      await _pushNotifications.cancelEggReadySummaryNotification();
+      _clearNotification(NotificationBannerType.eggReady);
+      return;
+    }
 
     int readyEggs = 0;
     final nowUtc = DateTime.now().toUtc();
@@ -720,6 +798,7 @@ class _HomeScreenState extends State<HomeScreen>
       // De-dupe: if same stateKey as last emission, do nothing.
       if (_lastEggStateKey == stateKey) return;
       _lastEggStateKey = stateKey;
+      await _pushNotifications.showEggReadyNotification(count: readyEggs);
 
       _showNotification(
         NotificationBanner(
@@ -735,12 +814,21 @@ class _HomeScreenState extends State<HomeScreen>
       );
     } else {
       _lastEggStateKey = null; // reset de-dupe
+      await _pushNotifications.cancelEggReadySummaryNotification();
       _clearNotification(NotificationBannerType.eggReady);
     }
   }
 
-  void _checkBiomeNotifications(List<BiomeFarm> biomes) async {
+  Future<void> _checkBiomeNotifications(List<BiomeFarm> biomes) async {
     if (!mounted) return;
+    final enabled = await NotificationPreferencesService()
+        .isExtractionsEnabled();
+    if (!enabled) {
+      _lastHarvestStateKey = null;
+      await _pushNotifications.cancelHarvestNotification();
+      _clearNotification(NotificationBannerType.harvestReady);
+      return;
+    }
 
     final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
     final db = context.read<AlchemonsDatabase>();
@@ -831,6 +919,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _showNotification(NotificationBanner banner) {
     if (!mounted || _isFieldTutorialActive) return; // 🔹 block during tutorial
+
+    for (final existing in _activeNotifications) {
+      if (existing.type == banner.type &&
+          existing.stateKey == banner.stateKey) {
+        return;
+      }
+    }
 
     setState(() {
       // Ensure ONLY ONE banner per type at a time.
@@ -1144,242 +1239,262 @@ class _HomeScreenState extends State<HomeScreen>
               },
               child: Stack(
                 children: [
-                // Background is always the home background here
-                TickerMode(
-                  enabled: _animationsEnabled,
-                  child: RepaintBoundary(
-                    child: InteractiveBackground(
-                      particleController: _particleController,
-                      rotationController: _rotationController,
-                      waveController: _waveController,
-                      primaryColor: theme.primary,
-                      secondaryColor: theme.secondary,
-                      accentColor: theme.accent,
-                      factionType: currentFaction,
-                      particleSpeed: speeds.particle,
-                      rotationSpeed: speeds.rotation,
-                      elementalSpeed: speeds.elemental,
+                  // Background is always the home background here
+                  TickerMode(
+                    enabled: _animationsEnabled,
+                    child: RepaintBoundary(
+                      child: InteractiveBackground(
+                        particleController: _particleController,
+                        rotationController: _rotationController,
+                        waveController: _waveController,
+                        primaryColor: theme.primary,
+                        secondaryColor: theme.secondary,
+                        accentColor: theme.accent,
+                        factionType: currentFaction,
+                        particleSpeed: speeds.particle,
+                        rotationSpeed: speeds.rotation,
+                        elementalSpeed: speeds.elemental,
+                      ),
                     ),
                   ),
-                ),
 
-                SafeArea(
-                  top: true,
-                  child: Column(
-                    children: [
-                      _buildHeader(theme),
+                  SafeArea(
+                    top: true,
+                    child: Column(
+                      children: [
+                        _buildHeader(theme),
 
-                      if (_featuredData != null) ...[
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          height: 260,
-                          child: Center(
-                            child: TickerMode(
-                              enabled: _animationsEnabled,
-                              child: FeaturedHeroInteractive(
-                                data: _featuredData!,
-                                theme: theme,
-                                breathing: _breathingController,
-                                onLongPressChoose:
-                                    _handleChooseFeaturedInstance,
-                                onTapDetails: _handleOpenFeaturedDetails,
-                                instance: _featuredData!.instance,
-                                creature: _featuredData!.creature,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-
-                      Expanded(child: _buildHomeContent(theme)),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 140,
-                  left: 0,
-                  child: Consumer<WildernessSpawnService>(
-                    builder: (context, spawnService, child) {
-                      final hasSpawns = spawnService.hasAnyActiveSpawns;
-                      return Stack(
-                        children: [
-                          child!,
-                          if (hasSpawns)
-                            Positioned(
-                              top: 0,
-                              right: 10,
-                              child: Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withValues(alpha: 0.6),
-                                      blurRadius: 8,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
+                        if (_featuredData != null) ...[
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            height: 260,
+                            child: Center(
+                              child: TickerMode(
+                                enabled: _animationsEnabled,
+                                child: FeaturedHeroInteractive(
+                                  data: _featuredData!,
+                                  theme: theme,
+                                  breathing: _breathingController,
+                                  onLongPressChoose:
+                                      _handleChooseFeaturedInstance,
+                                  onTapDetails: _handleOpenFeaturedDetails,
+                                  instance: _featuredData!.instance,
+                                  creature: _featuredData!.creature,
                                 ),
                               ),
                             ),
+                          ),
                         ],
-                      );
-                    },
-                    child: SideDockFloating(
-                      theme: theme,
-                      showHarvestDot:
-                          !_isFieldTutorialActive &&
-                          context.select<HarvestService, bool>(
-                            (s) =>
-                                s.biomes.any((f) => f.unlocked && f.completed),
-                          ),
-                      highlightField: _isFieldTutorialActive,
-                      onField: () {
-                        if (_isFieldTutorialActive) {
-                          _handleFieldTutorialTap();
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MapScreen(),
-                            ),
-                          );
-                        }
-                      },
-                      onEnhance: _isFieldTutorialActive
-                          ? () {}
-                          : () {
-                              HapticFeedback.mediumImpact();
-                              Navigator.push(
-                                context,
-                                CupertinoPageRoute(
-                                  builder: (_) => const FeedingScreen(),
-                                  fullscreenDialog: true,
-                                ),
-                              );
-                            },
-                      onHarvest: _isFieldTutorialActive
-                          ? () {}
-                          : () {
-                              HapticFeedback.mediumImpact();
-                              Navigator.push(
-                                context,
-                                CupertinoPageRoute(
-                                  builder: (_) => const BiomeHarvestScreen(),
-                                  fullscreenDialog: true,
-                                ),
-                              );
-                            },
-                      onCompetitions: _isFieldTutorialActive
-                          ? () {}
-                          : () {
-                              HapticFeedback.mediumImpact();
-                              Navigator.push(
-                                context,
-                                CupertinoPageRoute(
-                                  builder: (_) => const CompetitionHubScreen(),
-                                  fullscreenDialog: true,
-                                ),
-                              );
-                            },
 
-                      onBattle: _isFieldTutorialActive
-                          ? () {}
-                          : () {
-                              HapticFeedback.mediumImpact();
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const GameModeScreen(),
-                                ),
-                              );
-                            },
-                      onBoss: _isFieldTutorialActive
-                          ? () {}
-                          : () {
-                              HapticFeedback.mediumImpact();
-                              () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const BossBattleScreen(),
-                                ),
-                              );
-                            },
-                      onMysticAltar: null,
+                        Expanded(child: _buildHomeContent(theme)),
+                      ],
                     ),
                   ),
-                ),
-
-                // RIGHT-SIDE BUTTON (new)
-                Stack(
-                  children: [
-                    // --- 1. First Icon (Your existing "BATTLE" icon) ---
-                    Positioned(
-                      top: MediaQuery.of(context).padding.top + 125,
-                      right: 0,
-                      child: Opacity(
-                        opacity: _isFieldTutorialActive ? 0.4 : 1.0,
-                        child: IgnorePointer(
-                          ignoring: _isFieldTutorialActive,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              _AnimatedCosmicOrb(onPulse: _playHomeShake),
-                              const SizedBox(height: 10),
-                              ConstellationPointsWidget(),
-                              if (context
-                                      .watch<BossProgressNotifier>()
-                                      .totalBossesDefeated >
-                                  0) ...[
-                                const SizedBox(height: 10),
-                                GestureDetector(
-                                  onTap: () {
-                                    HapticFeedback.heavyImpact();
-                                    VoidPortal.push(
-                                      context,
-                                      page: const MysticAltarScreen(),
-                                    );
-                                  },
-                                  child: Image.asset(
-                                    'assets/images/ui/relicicon.png',
-                                    width: 80,
-                                    height: 80,
-                                    fit: BoxFit.contain,
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 140,
+                    left: 0,
+                    child: Consumer<WildernessSpawnService>(
+                      builder: (context, spawnService, child) {
+                        final visibleBiomes = [
+                          ..._coreWildernessBiomes,
+                          if (_arcanePortalUnlocked) 'arcane',
+                        ];
+                        final hasSpawns = visibleBiomes.any(
+                          (biomeId) =>
+                              spawnService.getSceneSpawnCount(biomeId) > 0,
+                        );
+                        return Stack(
+                          children: [
+                            child!,
+                            if (hasSpawns)
+                              Positioned(
+                                top: 0,
+                                right: 10,
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.red.withValues(
+                                          alpha: 0.6,
+                                        ),
+                                        blurRadius: 8,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
                                   ),
                                 ),
+                              ),
+                          ],
+                        );
+                      },
+                      child: SideDockFloating(
+                        theme: theme,
+                        lockNonField: _isFieldTutorialActive,
+                        showHarvestDot:
+                            !_isFieldTutorialActive &&
+                            context.select<HarvestService, bool>(
+                              (s) => s.biomes.any(
+                                (f) => f.unlocked && f.completed,
+                              ),
+                            ),
+                        highlightField: _isFieldTutorialActive,
+                        onField: () {
+                          if (_isFieldTutorialActive) {
+                            _handleFieldTutorialTap();
+                          } else {
+                            Navigator.push(
+                              context,
+                              CupertinoPageRoute(
+                                builder: (_) => const MapScreen(),
+                                fullscreenDialog: true,
+                              ),
+                            );
+                          }
+                        },
+                        onEnhance: _isFieldTutorialActive
+                            ? () {}
+                            : () {
+                                HapticFeedback.mediumImpact();
+                                Navigator.push(
+                                  context,
+                                  CupertinoPageRoute(
+                                    builder: (_) => const FeedingScreen(),
+                                    fullscreenDialog: true,
+                                  ),
+                                );
+                              },
+                        onHarvest: _isFieldTutorialActive
+                            ? () {}
+                            : () {
+                                HapticFeedback.mediumImpact();
+                                Navigator.push(
+                                  context,
+                                  CupertinoPageRoute(
+                                    builder: (_) => const BiomeHarvestScreen(),
+                                    fullscreenDialog: true,
+                                  ),
+                                );
+                              },
+                        onCompetitions: _isFieldTutorialActive
+                            ? () {}
+                            : () {
+                                HapticFeedback.mediumImpact();
+                                Navigator.push(
+                                  context,
+                                  CupertinoPageRoute(
+                                    builder: (_) =>
+                                        const CompetitionHubScreen(),
+                                    fullscreenDialog: true,
+                                  ),
+                                );
+                              },
+
+                        onBattle: _isFieldTutorialActive
+                            ? () {}
+                            : () {
+                                HapticFeedback.mediumImpact();
+                                Navigator.push(
+                                  context,
+                                  CupertinoPageRoute(
+                                    builder: (_) => const GameModeScreen(),
+                                    fullscreenDialog: true,
+                                  ),
+                                );
+                              },
+                        onBoss: _isFieldTutorialActive
+                            ? () {}
+                            : () {
+                                HapticFeedback.mediumImpact();
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const BossBattleScreen(),
+                                  ),
+                                );
+                              },
+                        onMysticAltar: null,
+                      ),
+                    ),
+                  ),
+
+                  // RIGHT-SIDE BUTTON (new)
+                  Stack(
+                    children: [
+                      // --- 1. First Icon (Your existing "BATTLE" icon) ---
+                      Positioned(
+                        top: MediaQuery.of(context).padding.top + 125,
+                        right: 0,
+                        child: Opacity(
+                          opacity: _isFieldTutorialActive ? 0.4 : 1.0,
+                          child: IgnorePointer(
+                            ignoring: _isFieldTutorialActive,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                _AnimatedCosmicOrb(onPulse: _playHomeShake),
+                                const SizedBox(height: 10),
+                                ConstellationPointsWidget(),
+                                if (context
+                                        .watch<BossProgressNotifier>()
+                                        .totalBossesDefeated >
+                                    0) ...[
+                                  const SizedBox(height: 10),
+                                  GestureDetector(
+                                    onTap: () {
+                                      HapticFeedback.heavyImpact();
+                                      VoidPortal.push(
+                                        context,
+                                        page: const MysticAltarScreen(),
+                                      );
+                                    },
+                                    child: Image.asset(
+                                      'assets/images/ui/relicicon.png',
+                                      width: 80,
+                                      height: 80,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-
-                // Daily Treasure Chest — bottom center above nav bar
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 90),
-                    child: _DailyTreasureChest(),
+                    ],
                   ),
-                ),
 
-                if (_activeNotifications.isNotEmpty)
-                  NotificationBannerStack(
-                    key: ValueKey(
-                      _activeNotifications
-                          .map((n) => '${n.type.toKey()}|${n.stateKey}')
-                          .join(','),
+                  // Daily Treasure Chest — bottom center above nav bar
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 90),
+                      child: Opacity(
+                        opacity: _isFieldTutorialActive ? 0.35 : 1.0,
+                        child: IgnorePointer(
+                          ignoring: _isFieldTutorialActive,
+                          child: _DailyTreasureChest(),
+                        ),
+                      ),
                     ),
-                    notifications: _activeNotifications,
                   ),
-              ],
-            ),
-          );
+
+                  if (_activeNotifications.isNotEmpty)
+                    NotificationBannerStack(
+                      key: ValueKey(
+                        _activeNotifications
+                            .map((n) => '${n.type.toKey()}|${n.stateKey}')
+                            .join(','),
+                      ),
+                      notifications: _activeNotifications,
+                    ),
+                ],
+              ),
+            );
           },
     );
   }
@@ -1508,7 +1623,13 @@ class _HomeScreenState extends State<HomeScreen>
             Expanded(
               child: Align(
                 alignment: Alignment.centerRight,
-                child: ResourceCollectionWidget(theme: theme),
+                child: Opacity(
+                  opacity: _isFieldTutorialActive ? 0.35 : 1.0,
+                  child: IgnorePointer(
+                    ignoring: _isFieldTutorialActive,
+                    child: ResourceCollectionWidget(theme: theme),
+                  ),
+                ),
               ),
             ),
           ],
@@ -1546,7 +1667,13 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             const SizedBox(height: 10),
-            CurrencyDisplayWidget(),
+            Opacity(
+              opacity: _isFieldTutorialActive ? 0.35 : 1.0,
+              child: IgnorePointer(
+                ignoring: _isFieldTutorialActive,
+                child: CurrencyDisplayWidget(),
+              ),
+            ),
           ],
         ),
       ],

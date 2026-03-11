@@ -16,6 +16,9 @@ import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
+import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
+import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
+import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/nature_utils.dart';
@@ -64,6 +67,8 @@ class HatchingResult {
 /// Service class for handling egg hatching and extraction
 class EggHatching {
   EggHatching._();
+  static OverlayEntry? _activeDiscoveryOverlay;
+  static int _overlayVersion = 0;
 
   // ============================================================================
   // PUBLIC API
@@ -472,6 +477,15 @@ class EggHatching {
       variantColor = _getVariantColor(actualVariantFaction);
     }
 
+    final recipeDiscoveryFuture =
+        AlchemicalEncyclopediaService.registerBreedingDiscovery(
+          db: db,
+          repo: repo,
+          offspring: offspring,
+          parentageJson: instance?.parentageJson,
+        );
+    final cinematicQuality = await CinematicQualityService().getQuality();
+
     try {
       // ✅ still use the original context for the cinematic if you want
       if (!context.mounted) return;
@@ -484,6 +498,7 @@ class EggHatching {
         totalDuration: const Duration(milliseconds: 4200), // Faster!
         hintType: hintType,
         variantColor: variantColor,
+        quality: cinematicQuality,
       );
     } catch (e) {
       final factionSvc = context.read<FactionService>();
@@ -498,7 +513,22 @@ class EggHatching {
 
     if (!nav.mounted) return;
 
-    await _showExtractionResult(safeContext, instanceId, isNewDiscovery);
+    await _showExtractionResult(
+      safeContext,
+      instanceId,
+      isNewDiscovery,
+      cinematicQuality: cinematicQuality,
+    );
+
+    final recipeDiscovery = await recipeDiscoveryFuture.catchError(
+      (_) => EncyclopediaDiscoveryResult.none,
+    );
+    if (recipeDiscovery.hasAny) {
+      _showScorchedDiscoveryOverlay(
+        safeContext,
+        count: recipeDiscovery.unlocked.length,
+      );
+    }
   }
 
   /// Generate fallback lineage for wild/legacy creatures
@@ -614,8 +644,9 @@ class EggHatching {
   static Future<void> _showExtractionResult(
     BuildContext context,
     String instanceId,
-    bool isNewDiscovery,
-  ) async {
+    bool isNewDiscovery, {
+    required CinematicQuality cinematicQuality,
+  }) async {
     final offspring = await _effectiveFromInstance(context, instanceId);
 
     final factionSvc = context.read<FactionService>();
@@ -643,6 +674,25 @@ class EggHatching {
         .creatureDao
         .getInstance(instanceId);
 
+    final media = MediaQuery.of(context);
+    final shortestSide = media.size.shortestSide;
+    final lowFxDevice = media.disableAnimations || shortestSide < 430;
+    final dialogBlurSigma = switch (cinematicQuality) {
+      CinematicQuality.high => lowFxDevice ? 0.0 : 14.0,
+      CinematicQuality.balanced => lowFxDevice ? 0.0 : 8.0,
+    };
+
+    Widget dialogShell(Widget child) {
+      if (dialogBlurSigma <= 0) return child;
+      return BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: dialogBlurSigma,
+          sigmaY: dialogBlurSigma,
+        ),
+        child: child,
+      );
+    }
+
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -654,9 +704,8 @@ class EggHatching {
             insetPadding: const EdgeInsets.all(12),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
+              child: dialogShell(
+                Container(
                   width: MediaQuery.of(context).size.width * 0.95,
                   height: MediaQuery.of(context).size.height * 0.82,
                   decoration: BoxDecoration(
@@ -697,9 +746,13 @@ class EggHatching {
                                   child: CreatureScanAnimation(
                                     key: scanAnimationKey,
                                     isNewDiscovery: isNewDiscovery,
-                                    scanDuration: const Duration(
-                                      milliseconds: 2000,
-                                    ),
+                                    scanDuration: switch (cinematicQuality) {
+                                      CinematicQuality.high => const Duration(
+                                        milliseconds: 1400,
+                                      ),
+                                      CinematicQuality.balanced =>
+                                        const Duration(milliseconds: 1800),
+                                    },
                                     onReadyChanged: (ready) {
                                       if (ready) {
                                         safeSetDialogState(setDialogState, () {
@@ -851,10 +904,10 @@ class EggHatching {
                                             fc: fc,
                                           ),
                                         _buildVariantTypingRow(
-                                          context,
-                                          instanceId,
+                                          instance,
                                           scanComplete,
                                           primaryColor,
+                                          fc,
                                         ),
                                       ],
                                       fc,
@@ -1012,6 +1065,114 @@ class EggHatching {
   // ============================================================================
   // DIALOG UI COMPONENTS
   // ============================================================================
+
+  static void _showScorchedDiscoveryOverlay(
+    BuildContext context, {
+    required int count,
+  }) {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    final overlay = rootNav.overlay;
+    if (overlay == null) return;
+
+    final title = count == 1
+        ? 'New discovery added'
+        : '$count new discoveries added';
+
+    void dismissOverlay() {
+      _activeDiscoveryOverlay?.remove();
+      _activeDiscoveryOverlay = null;
+    }
+
+    void openEncyclopedia() {
+      dismissOverlay();
+      rootNav.push(
+        MaterialPageRoute(builder: (_) => const AlchemicalEncyclopediaScreen()),
+      );
+    }
+
+    dismissOverlay();
+    final int version = ++_overlayVersion;
+
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (overlayContext) {
+        final top = MediaQuery.of(overlayContext).padding.top + 10;
+        return Positioned(
+          top: top,
+          left: 14,
+          right: 14,
+          child: Material(
+            color: Colors.transparent,
+            child: GestureDetector(
+              onTap: openEncyclopedia,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF2B1711), Color(0xFF4B2317)],
+                  ),
+                  border: Border.all(
+                    color: const Color(0xFFE26A3D).withValues(alpha: .7),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFE26A3D).withValues(alpha: .2),
+                      blurRadius: 16,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFE26A3D).withValues(alpha: .2),
+                        border: Border.all(
+                          color: const Color(0xFFE26A3D).withValues(alpha: .6),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.menu_book_rounded,
+                        color: Color(0xFFFFB188),
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '$title • Tap to open encyclopedia',
+                        style: const TextStyle(
+                          color: Color(0xFFFFD4C1),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    _activeDiscoveryOverlay = entry;
+    overlay.insert(entry);
+
+    Future<void>.delayed(const Duration(seconds: 4), () {
+      if (_overlayVersion == version) {
+        dismissOverlay();
+      }
+    });
+  }
 
   static Widget _buildBadge(String text, Color color) {
     return Container(
@@ -1201,37 +1362,24 @@ class EggHatching {
   }
 
   static Widget _buildVariantTypingRow(
-    BuildContext context,
-    String instanceId,
+    CreatureInstance? instance,
     bool startTyping,
     Color primaryColor,
+    FC fc,
   ) {
-    final fc = FC.of(context);
-    return FutureBuilder<CreatureInstance?>(
-      future: context.read<AlchemonsDatabase>().creatureDao.getInstance(
-        instanceId,
-      ),
-      builder: (context, snap) {
-        if (!snap.hasData || snap.data == null) {
-          return const SizedBox.shrink();
-        }
+    if (instance == null) return const SizedBox.shrink();
+    final variantType = instance.variantFaction;
+    if (variantType == null || variantType.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-        final inst = snap.data!;
-        final isVariant =
-            inst.variantFaction != null && inst.variantFaction!.isNotEmpty;
-        if (!isVariant) return const SizedBox.shrink();
-
-        final variantType = inst.variantFaction!;
-
-        return _buildTypingAnalysisRow(
-          'VARIANT FACTION',
-          variantType,
-          startTyping,
-          primaryColor,
-          delay: const Duration(milliseconds: 900),
-          fc: fc,
-        );
-      },
+    return _buildTypingAnalysisRow(
+      'VARIANT FACTION',
+      variantType,
+      startTyping,
+      primaryColor,
+      delay: const Duration(milliseconds: 900),
+      fc: fc,
     );
   }
 

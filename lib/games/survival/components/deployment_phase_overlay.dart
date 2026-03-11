@@ -810,6 +810,9 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                 hueShift: creature.spriteVisuals?.hueShiftDeg ?? 0.0,
                 isPrismatic: creature.spriteVisuals?.isPrismatic ?? false,
                 tint: creature.spriteVisuals?.tint,
+                alchemyEffect: creature.spriteVisuals?.alchemyEffect,
+                variantFaction: creature.spriteVisuals?.variantFaction,
+                effectSlotSize: spriteSize,
               ),
             )
           : Text(
@@ -940,6 +943,11 @@ class _DeploymentPhaseOverlayState extends State<DeploymentPhaseOverlay>
                             isPrismatic:
                                 creature.spriteVisuals?.isPrismatic ?? false,
                             tint: creature.spriteVisuals?.tint,
+                            alchemyEffect:
+                                creature.spriteVisuals?.alchemyEffect,
+                            variantFaction:
+                                creature.spriteVisuals?.variantFaction,
+                            effectSlotSize: 44,
                           )
                         : Center(
                             child: Text(

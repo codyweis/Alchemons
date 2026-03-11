@@ -24,17 +24,27 @@ class BreedScreen extends StatefulWidget {
 class _BreedScreenState extends State<BreedScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  int _activeTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_handleTabChange);
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _handleTabChange() {
+    final nextIndex = _tabController.index;
+    if (nextIndex != _activeTabIndex) {
+      setState(() => _activeTabIndex = nextIndex);
+    }
   }
 
   void _goCreatureScreen() {
@@ -178,14 +188,20 @@ class _BreedScreenState extends State<BreedScreen>
                   body: TabBarView(
                     controller: _tabController,
                     children: [
-                      NurseryTab(
-                        maxSeenNowUtc: DateTime.now().toUtc(),
-                        onHatchComplete: _handleExtractionComplete,
-                        onRequestAddEgg: () => _tabController.animateTo(1),
+                      TickerMode(
+                        enabled: _activeTabIndex == 0,
+                        child: NurseryTab(
+                          maxSeenNowUtc: DateTime.now().toUtc(),
+                          onHatchComplete: _handleExtractionComplete,
+                          onRequestAddEgg: () => _tabController.animateTo(1),
+                        ),
                       ),
-                      BreedingTab(
-                        discoveredCreatures: entries,
-                        onBreedingComplete: _noop,
+                      TickerMode(
+                        enabled: _activeTabIndex == 1,
+                        child: BreedingTab(
+                          discoveredCreatures: entries,
+                          onBreedingComplete: _noop,
+                        ),
                       ),
                     ],
                   ),

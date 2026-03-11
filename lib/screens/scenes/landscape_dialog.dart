@@ -10,6 +10,7 @@ class LandscapeDialog extends StatelessWidget {
   final bool typewriter;
   final LandscapeDialogKind kind;
   final IconData? icon;
+  final bool showIcon;
   final String primaryLabel;
   final VoidCallback? onPrimary;
   final String? secondaryLabel;
@@ -22,6 +23,7 @@ class LandscapeDialog extends StatelessWidget {
     this.typewriter = false,
     this.kind = LandscapeDialogKind.info,
     this.icon,
+    this.showIcon = true,
     this.primaryLabel = 'CONTINUE',
     this.onPrimary,
     this.secondaryLabel,
@@ -42,6 +44,7 @@ class LandscapeDialog extends StatelessWidget {
   }
 
   IconData? _iconForKind() {
+    if (!showIcon) return null;
     if (icon != null) return icon!;
     switch (kind) {
       case LandscapeDialogKind.success:
@@ -216,6 +219,7 @@ class LandscapeDialog extends StatelessWidget {
     bool typewriter = false,
     LandscapeDialogKind kind = LandscapeDialogKind.info,
     IconData? icon,
+    bool showIcon = true,
     String primaryLabel = 'CONTINUE',
     VoidCallback? onPrimary,
     String? secondaryLabel,
@@ -231,6 +235,7 @@ class LandscapeDialog extends StatelessWidget {
         typewriter: typewriter,
         kind: kind,
         icon: icon,
+        showIcon: showIcon,
         primaryLabel: primaryLabel,
         onPrimary: onPrimary,
         secondaryLabel: secondaryLabel,

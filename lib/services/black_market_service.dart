@@ -241,6 +241,7 @@ class BlackMarketService extends ChangeNotifier {
 
   void _updateWeeklyContent() {
     final seed = _weeklySeed();
+    final weeklyRng = math.Random(seed);
 
     // Weekly premium
     final element = Elements.values.map((r) => r.name).toList();
@@ -252,7 +253,8 @@ class BlackMarketService extends ChangeNotifier {
         .toList();
     _premiumType = species[(seed ~/ 3) % species.length];
 
-    _premiumBonus = 2 + ((seed % 10) / 10.0);
+    // Weekly random premium multiplier: 150%..300% (x1.5..x3.0)
+    _premiumBonus = 1.5 + (weeklyRng.nextDouble() * 1.5);
 
     // Weekly offers & vials (names kept)
     _dailyOffers = _generateDailyOffers(seed);

@@ -750,37 +750,46 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                const Color(0xFF8B4789).withValues(alpha: 0.8),
-                Colors.purple.shade900.withValues(alpha: 0.8),
+                const Color(0xFF1B140E).withValues(alpha: 0.96),
+                const Color(0xFF0D0A08).withValues(alpha: 0.96),
               ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: const Color(0xFF8B4789).withValues(alpha: 0.6),
+              color: const Color(0xFF6B4C20).withValues(alpha: 0.9),
               width: 1.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF000000).withValues(alpha: 0.35),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(10),
+                  color: const Color(0xFFD97706).withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Colors.orange.withValues(alpha: 0.5),
-                    width: 1.5,
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.65),
+                    width: 1.2,
                   ),
                 ),
-                child: Icon(
-                  Icons.stars_rounded,
-                  color: Colors.orange.shade300,
+                child: const Icon(
+                  Icons.local_fire_department_rounded,
+                  color: Color(0xFFF59E0B),
                   size: 22,
                 ),
               ),
@@ -792,19 +801,22 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     const Text(
                       "WEEKLY PREMIUM",
                       style: TextStyle(
-                        color: Color(0xFFE8EAED),
+                        color: Color(0xFFE8DCC8),
                         fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.6,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.9,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${marketService.premiumRarity.toUpperCase()}${marketService.premiumType.toUpperCase()}',
-                      style: TextStyle(
-                        color: Colors.orange.shade300,
+                      '${marketService.premiumRarity.toUpperCase()} ${marketService.premiumType.toUpperCase()}',
+                      style: const TextStyle(
+                        color: Color(0xFFF59E0B),
                         fontSize: 13,
+                        fontFamily: 'monospace',
                         fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
                       ),
                     ),
                   ],
@@ -816,19 +828,20 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFF162215).withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: Colors.green.withValues(alpha: 0.5),
+                    color: const Color(0xFF2E7D32).withValues(alpha: 0.75),
                   ),
                 ),
                 child: Text(
                   '+${((marketService.premiumBonus - 1) * 100).toStringAsFixed(0)}%',
                   style: const TextStyle(
-                    color: Colors.greenAccent,
+                    color: Color(0xFF8BC34A),
                     fontSize: 13,
+                    fontFamily: 'monospace',
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 0.3,
+                    letterSpacing: 0.6,
                   ),
                 ),
               ),

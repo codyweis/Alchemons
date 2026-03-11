@@ -446,6 +446,10 @@ class InvKeys {
   static const alchemyVolcanicAura = 'alchemy.volcanic_aura';
   static const alchemyVoidRift = 'alchemy.void_rift';
   static const alchemyPrismaticCascade = 'alchemy.prismatic_cascade';
+  static const alchemyBeautyRadiance = 'alchemy.beauty_radiance';
+  static const alchemySpeedFlux = 'alchemy.speed_flux';
+  static const alchemyStrengthForge = 'alchemy.strength_forge';
+  static const alchemyIntelligenceHalo = 'alchemy.intelligence_halo';
   static const staminaPotion = 'item.stamina_potion';
   static const bossRefresh = 'item.boss_refresh';
   static const bossSummon = 'item.boss_summon';
@@ -551,6 +555,34 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       description:
           'Bathe your Alchemon in a full-spectrum prismatic light cascade — the rarest cosmetic in existence.',
       icon: Icons.lens_blur_rounded,
+    ),
+    InvKeys.alchemyBeautyRadiance: InventoryItemDef(
+      key: InvKeys.alchemyBeautyRadiance,
+      name: 'Beauty Radiance',
+      description:
+          'Contest reward effect: a stage-lit radiance that amplifies charm and presence.',
+      icon: Icons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemySpeedFlux: InventoryItemDef(
+      key: InvKeys.alchemySpeedFlux,
+      name: 'Speed Flux',
+      description:
+          'Contest reward effect: a kinetic flux aura that conveys relentless acceleration.',
+      icon: Icons.bolt_rounded,
+    ),
+    InvKeys.alchemyStrengthForge: InventoryItemDef(
+      key: InvKeys.alchemyStrengthForge,
+      name: 'Strength Forge',
+      description:
+          'Contest reward effect: a forged pressure aura projecting raw force and impact.',
+      icon: Icons.fitness_center_rounded,
+    ),
+    InvKeys.alchemyIntelligenceHalo: InventoryItemDef(
+      key: InvKeys.alchemyIntelligenceHalo,
+      name: 'Intelligence Halo',
+      description:
+          'Contest reward effect: a cerebral halo of void-lit focus and adaptive thought.',
+      icon: Icons.psychology_rounded,
     ),
     InvKeys.staminaPotion: InventoryItemDef(
       key: InvKeys.staminaPotion,

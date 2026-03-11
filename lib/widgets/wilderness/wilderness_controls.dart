@@ -10,11 +10,21 @@ import 'package:provider/provider.dart';
 class WildernessControls extends StatelessWidget {
   final VoidCallback onLeave;
   final List<PartyMember> party;
+  final String leaveTooltip;
+  final String leaveDialogTitle;
+  final String leaveDialogBody;
+  final String leaveConfirmLabel;
+  final String leaveCancelLabel;
 
   const WildernessControls({
     super.key,
     required this.onLeave,
     required this.party,
+    this.leaveTooltip = 'Leave Scene',
+    this.leaveDialogTitle = 'LEAVE SCENE?',
+    this.leaveDialogBody = 'Any active encounters will be lost.',
+    this.leaveConfirmLabel = 'LEAVE',
+    this.leaveCancelLabel = 'CANCEL',
   });
 
   @override
@@ -31,7 +41,7 @@ class WildernessControls extends StatelessWidget {
               bgColor: t.danger.withValues(alpha: 0.85),
               borderColor: t.danger,
               glowColor: t.danger,
-              tooltip: 'Leave Scene',
+              tooltip: leaveTooltip,
               onPressed: () => _showLeaveConfirmation(context),
             ),
             const SizedBox(width: 8),
@@ -62,7 +72,10 @@ class WildernessControls extends StatelessWidget {
             decoration: BoxDecoration(
               color: t2.bg1,
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: t2.danger.withValues(alpha: 0.5), width: 1.5),
+              border: Border.all(
+                color: t2.danger.withValues(alpha: 0.5),
+                width: 1.5,
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -90,7 +103,7 @@ class WildernessControls extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'LEAVE SCENE?',
+                        leaveDialogTitle,
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: t2.textPrimary,
@@ -105,7 +118,7 @@ class WildernessControls extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    'Any active encounters will be lost.',
+                    leaveDialogBody,
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: t2.textSecondary,
@@ -136,7 +149,7 @@ class WildernessControls extends StatelessWidget {
                             border: Border.all(color: t2.borderDim),
                           ),
                           child: Text(
-                            'CANCEL',
+                            leaveCancelLabel,
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t2.textSecondary,
@@ -165,7 +178,7 @@ class WildernessControls extends StatelessWidget {
                             border: Border.all(color: t2.danger),
                           ),
                           child: Text(
-                            'LEAVE',
+                            leaveConfirmLabel,
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: t2.danger,

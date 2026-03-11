@@ -6,6 +6,7 @@
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -68,19 +69,24 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _silverBalance = 0;
+  Map<String, int> _currencies = {};
   bool _purchasing = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _loadSilver();
+    _loadCurrencies();
   }
 
-  Future<void> _loadSilver() async {
+  Future<void> _loadCurrencies() async {
     final db = context.read<AlchemonsDatabase>();
-    final silver = await db.currencyDao.getSilverBalance();
-    if (mounted) setState(() => _silverBalance = silver);
+    final currencies = await db.currencyDao.getAllCurrencies();
+    if (!mounted) return;
+    setState(() {
+      _currencies = currencies;
+      _silverBalance = currencies['silver'] ?? 0;
+    });
   }
 
   @override
@@ -91,8 +97,8 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SurvivalUpgradeService>(
-      builder: (context, svc, _) {
+    return Consumer2<SurvivalUpgradeService, ShopService>(
+      builder: (context, svc, shopService, _) {
         return Scaffold(
           backgroundColor: _C.bg0,
           body: SafeArea(
@@ -104,7 +110,7 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildOrbSkinsTab(svc),
+                      _buildOrbSkinsTab(svc, shopService),
                       _buildGuardianTab(svc),
                       _buildAbilitiesTab(svc),
                     ],
@@ -238,7 +244,10 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
 
   // ── Orb Skins Tab ────────────────────────────────────────────────────────
 
-  Widget _buildOrbSkinsTab(SurvivalUpgradeService svc) {
+  Widget _buildOrbSkinsTab(
+    SurvivalUpgradeService svc,
+    ShopService shopService,
+  ) {
     final state = svc.state;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -252,32 +261,107 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
             style: _T.body,
           ),
           const SizedBox(height: 16),
-          ...kOrbBases.map(
-            (orbDef) => Padding(
+          ...kOrbBases.map((orbDef) {
+            final offer = _orbOfferForDef(orbDef);
+            final effectiveCost = _orbEffectiveCost(shopService, orbDef);
+            final canAfford = _canAfford(effectiveCost);
+            final canPurchase = offer == null
+                ? true
+                : shopService.canPurchase(offer.id);
+
+            return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _OrbSkinCard(
                 def: orbDef,
                 isOwned: state.ownedSkins.contains(orbDef.skin),
                 isEquipped: state.equippedSkin == orbDef.skin,
-                silverBalance: _silverBalance,
+                costLabel: _compactCostLabel(effectiveCost),
+                canPurchase: canAfford && canPurchase,
                 purchasing: _purchasing,
-                onPurchase: () => _purchaseOrb(svc, orbDef.skin),
+                onPurchase: () => _purchaseOrb(svc, shopService, orbDef.skin),
                 onEquip: () => _equipOrb(svc, orbDef.skin),
               ),
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );
   }
 
+  ShopOffer? _orbOfferForDef(OrbBaseDef def) {
+    for (final offer in ShopService.allOffers) {
+      if (offer.id == def.shopId) return offer;
+    }
+    return null;
+  }
+
+  Map<String, int> _orbEffectiveCost(ShopService shopService, OrbBaseDef def) {
+    final offer = _orbOfferForDef(def);
+    if (offer == null) return {'silver': def.cost};
+    return shopService.getEffectiveCost(offer);
+  }
+
+  bool _canAfford(Map<String, int> cost) {
+    for (final entry in cost.entries) {
+      if ((_currencies[entry.key] ?? 0) < entry.value) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  String _currencySuffix(String key) {
+    switch (key) {
+      case 'gold':
+        return 'G';
+      case 'silver':
+        return 'S';
+      default:
+        if (key.startsWith('res_')) {
+          return key.replaceFirst('res_', '').toUpperCase();
+        }
+        return key.toUpperCase();
+    }
+  }
+
+  String _currencyName(String key) {
+    switch (key) {
+      case 'gold':
+        return 'gold';
+      case 'silver':
+        return 'silver';
+      default:
+        if (key.startsWith('res_')) {
+          return '${key.replaceFirst('res_', '')} essence';
+        }
+        return key.replaceAll('_', ' ');
+    }
+  }
+
+  String _compactCostLabel(Map<String, int> cost) {
+    if (cost.isEmpty) return '0';
+    return cost.entries
+        .map((entry) => '${entry.value}${_currencySuffix(entry.key)}')
+        .join('+');
+  }
+
+  String _fullCostLabel(Map<String, int> cost) {
+    if (cost.isEmpty) return '0';
+    return cost.entries
+        .map((entry) => '${entry.value} ${_currencyName(entry.key)}')
+        .join(' + ');
+  }
+
   Future<void> _purchaseOrb(
     SurvivalUpgradeService svc,
+    ShopService shopService,
     OrbBaseSkin skin,
   ) async {
     if (_purchasing) return;
 
     final def = getOrbBaseDef(skin);
+    final offer = _orbOfferForDef(def);
+    final effectiveCost = _orbEffectiveCost(shopService, def);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -297,7 +381,7 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
           ),
         ),
         content: Text(
-          'Spend ${def.cost} silver on ${def.name}?',
+          'Spend ${_fullCostLabel(effectiveCost)} on ${def.name}?',
           style: TextStyle(
             fontFamily: 'monospace',
             color: _C.textSecondary,
@@ -335,14 +419,22 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
     if (confirmed != true || !mounted) return;
 
     setState(() => _purchasing = true);
-    final ok = await svc.purchaseOrbSkin(skin);
-    if (ok) await _loadSilver();
+    final ok = offer == null
+        ? await svc.purchaseOrbSkin(skin)
+        : await shopService.purchase(offer.id);
+
+    if (ok) {
+      if (offer != null) {
+        await svc.load();
+      }
+      await _loadCurrencies();
+    }
     if (mounted) {
       setState(() => _purchasing = false);
       if (!ok) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Not enough silver!'),
+            content: Text('Cannot complete purchase.'),
             backgroundColor: _C.danger,
           ),
         );
@@ -461,7 +553,7 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
 
     setState(() => _purchasing = true);
     final ok = await svc.upgradeGuardianStat(upgrade);
-    if (ok) await _loadSilver();
+    if (ok) await _loadCurrencies();
     if (mounted) {
       setState(() => _purchasing = false);
       if (!ok) {
@@ -578,7 +670,7 @@ class _SurvivalBaseCommandScreenState extends State<SurvivalBaseCommandScreen>
 
     setState(() => _purchasing = true);
     final ok = await svc.upgradeBaseAbility(ability);
-    if (ok) await _loadSilver();
+    if (ok) await _loadCurrencies();
     if (mounted) {
       setState(() => _purchasing = false);
       if (!ok) {
@@ -829,7 +921,8 @@ class _OrbSkinCard extends StatelessWidget {
   final OrbBaseDef def;
   final bool isOwned;
   final bool isEquipped;
-  final int silverBalance;
+  final String costLabel;
+  final bool canPurchase;
   final bool purchasing;
   final VoidCallback onPurchase;
   final VoidCallback onEquip;
@@ -838,7 +931,8 @@ class _OrbSkinCard extends StatelessWidget {
     required this.def,
     required this.isOwned,
     required this.isEquipped,
-    required this.silverBalance,
+    required this.costLabel,
+    required this.canPurchase,
     required this.purchasing,
     required this.onPurchase,
     required this.onEquip,
@@ -929,11 +1023,9 @@ class _OrbSkinCard extends StatelessWidget {
             // Action — only show buy button for unowned skins
             if (!isOwned)
               _ForgeButton(
-                label: '${def.cost}',
+                label: costLabel,
                 icon: Icons.paid_rounded,
-                onTap: (purchasing || silverBalance < def.cost)
-                    ? null
-                    : onPurchase,
+                onTap: (purchasing || !canPurchase) ? null : onPurchase,
                 loading: purchasing,
                 color: def.primaryColor,
               ),
@@ -1186,7 +1278,7 @@ class _AbilityCard extends StatelessWidget {
               child: Row(
                 children: [
                   Text(
-                    'LV.${currentLevel}',
+                    'LV.$currentLevel',
                     style: TextStyle(
                       fontFamily: 'monospace',
                       color: def.color,

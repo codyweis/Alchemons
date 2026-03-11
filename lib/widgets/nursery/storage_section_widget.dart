@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
+import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,12 +12,14 @@ import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 
 class StorageSection extends StatefulWidget {
   final Color primaryColor;
+  final CinematicQuality quality;
   final Widget Function(String title, IconData icon, Color color)
   buildSectionHeader;
 
   const StorageSection({
     super.key,
     required this.primaryColor,
+    required this.quality,
     required this.buildSectionHeader,
   });
 
@@ -188,7 +191,7 @@ class _StorageSectionState extends State<StorageSection> {
         itemCount: items.length,
         itemBuilder: (context, i) => SizedBox(
           height: rowHeight,
-          child: StorageEggCard(egg: items[i]),
+          child: StorageEggCard(egg: items[i], quality: widget.quality),
         ),
       ),
     );
@@ -197,14 +200,40 @@ class _StorageSectionState extends State<StorageSection> {
 
 class StorageEggCard extends StatelessWidget {
   final Egg egg;
+  final CinematicQuality quality;
 
-  const StorageEggCard({super.key, required this.egg});
+  const StorageEggCard({super.key, required this.egg, required this.quality});
 
   @override
   Widget build(BuildContext context) {
     final payload = parseEggPayload(egg);
     final elementGroup = getElementalGroupFromPayload(payload);
     final skin = elementGroup.skin;
+    final media = MediaQuery.of(context);
+    final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
+
+    final shortestSide = media.size.shortestSide;
+    int particleCount;
+    if (shortestSide < 380) {
+      particleCount = 6;
+    } else if (shortestSide < 430) {
+      particleCount = 10;
+    } else {
+      particleCount = 14;
+    }
+
+    if (deferEffects) {
+      particleCount = 4;
+    }
+
+    final qualityMultiplier = switch (quality) {
+      CinematicQuality.high => 2.4,
+      CinematicQuality.balanced => 1.0,
+    };
+    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 40);
+
+    final showParticles =
+        TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
 
     return GestureDetector(
       onTap: () => _showEggDetails(context),
@@ -249,18 +278,19 @@ class StorageEggCard extends StatelessWidget {
               ),
 
               // Particle system
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: AlchemyBrewingParticleSystem(
-                    parentATypeId: elementGroup.particleTypes.$1,
-                    parentBTypeId: elementGroup.particleTypes.$2,
-                    particleCount: 30,
-                    speedMultiplier: 0.5,
-                    fusion: false,
-                    useSimpleFusion: true,
+              if (showParticles)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AlchemyBrewingParticleSystem(
+                      parentATypeId: elementGroup.particleTypes.$1,
+                      parentBTypeId: elementGroup.particleTypes.$2,
+                      particleCount: particleCount,
+                      speedMultiplier: 0.45,
+                      fusion: false,
+                      useSimpleFusion: true,
+                    ),
                   ),
                 ),
-              ),
               // Progress ring with % left (replaces egg icon)
               Positioned.fill(
                 child: Center(

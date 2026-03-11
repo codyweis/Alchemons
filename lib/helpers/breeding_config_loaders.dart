@@ -18,7 +18,7 @@ Future<ElementRecipeConfig> loadElementRecipes() async {
     // normalize inner map
     final inner = <String, int>{};
     for (final e2 in rawVal.entries) {
-      inner[(e2.key).trim()] = (e2.value as num).toInt();
+      inner[ElementRecipeConfig.norm(e2.key)] = (e2.value as num).toInt();
     }
 
     // canonicalize pair keys
@@ -27,7 +27,8 @@ Future<ElementRecipeConfig> loadElementRecipes() async {
       final k = ElementRecipeConfig.keyOf(parts[0], parts[1]);
       out[k] = inner;
     } else {
-      out[rawKey] = inner; // single-element dominance like "Fire": {"Fire":100}
+      out[ElementRecipeConfig.norm(rawKey)] =
+          inner; // single-element dominance like "Fire": {"Fire":100}
     }
   }
 
@@ -49,7 +50,7 @@ Future<FamilyRecipeConfig> loadFamilyRecipes() async {
     (k, v) => MapEntry(
       k,
       (v as Map<String, dynamic>).map(
-        (kk, vv) => MapEntry(kk, (vv as num).toInt()),
+        (kk, vv) => MapEntry(FamilyRecipeConfig.norm(kk), (vv as num).toInt()),
       ),
     ),
   );

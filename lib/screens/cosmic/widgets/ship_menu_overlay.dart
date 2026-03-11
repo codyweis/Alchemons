@@ -211,812 +211,642 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
       child: Container(
         color: CosmicScreenStyles.bg0.withValues(alpha: 0.92),
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 10),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 360),
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-              decoration: BoxDecoration(
-                color: CosmicScreenStyles.bg1,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: CosmicScreenStyles.borderDim),
-                boxShadow: [
-                  BoxShadow(
-                    color: CosmicScreenStyles.amber.withValues(alpha: 0.08),
-                    blurRadius: 30,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  // Corner notches
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    child: _cornerNotch(topLeft: true),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: _cornerNotch(topLeft: false),
-                  ),
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: 360,
+              maxHeight: min(680.0, MediaQuery.of(context).size.height - 28),
+            ),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+            decoration: BoxDecoration(
+              color: CosmicScreenStyles.bg1,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: CosmicScreenStyles.borderDim),
+              boxShadow: [
+                BoxShadow(
+                  color: CosmicScreenStyles.amber.withValues(alpha: 0.08),
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                // Corner notches
+                Positioned(top: 0, left: 0, child: _cornerNotch(topLeft: true)),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: _cornerNotch(topLeft: false),
+                ),
 
-                  // Close button
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: GestureDetector(
-                      onTap: widget.onClose,
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF141820),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: CosmicScreenStyles.borderDim,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          color: CosmicScreenStyles.textSecondary,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Content
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // ── Header ──
-                      const Text(
-                        'SHIP CONSOLE',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: CosmicScreenStyles.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 3.0,
-                        ),
-                      ),
+                // Content
+                Column(
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
                       const SizedBox(height: 8),
-                      _etchedDivider(),
-                      const SizedBox(height: 16),
-
-                      // ── Status ──
-                      _forgeSection(
-                        'SYSTEMS',
-                        Column(
+                    _dockedHeader(),
+                    const SizedBox(height: 6),
+                    _etchedDivider(),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            ForgeBar(
-                              label: 'HULL',
-                              value:
-                                  '${widget.shipHealth.toStringAsFixed(1)} / ${widget.shipMaxHealth.toStringAsFixed(0)}',
-                              pct: healthPct,
-                              barColor: healthColor,
-                            ),
-                            const SizedBox(height: 10),
-                            ForgeBar(
-                              label: 'CARGO',
-                              value: '${(widget.meterFill * 100).round()}%',
-                              pct: widget.meterFill,
-                              barColor: CosmicScreenStyles.amberBright,
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                const Text(
-                                  'SHARDS',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: CosmicScreenStyles.textSecondary,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 1.6,
+                            // ── Status ──
+                            _forgeSection(
+                              'SYSTEMS',
+                              Column(
+                                children: [
+                                  ForgeBar(
+                                    label: 'HULL',
+                                    value:
+                                        '${widget.shipHealth.toStringAsFixed(1)} / ${widget.shipMaxHealth.toStringAsFixed(0)}',
+                                    pct: healthPct,
+                                    barColor: healthColor,
                                   ),
-                                ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
+                                  const SizedBox(height: 10),
+                                  ForgeBar(
+                                    label: 'CARGO',
+                                    value:
+                                        '${(widget.meterFill * 100).round()}%',
+                                    pct: widget.meterFill,
+                                    barColor: CosmicScreenStyles.amberBright,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: CosmicScreenStyles.amberBright
-                                        .withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(2),
-                                    border: Border.all(
-                                      color: CosmicScreenStyles.amberBright
-                                          .withValues(alpha: 0.35),
-                                      width: 0.8,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
+                                  const SizedBox(height: 10),
+                                  Row(
                                     children: [
-                                      const Icon(
-                                        Icons.diamond_rounded,
-                                        color: CosmicScreenStyles.amberBright,
-                                        size: 12,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${widget.walletShards}',
-                                        style: const TextStyle(
+                                      const Text(
+                                        'SHARDS',
+                                        style: TextStyle(
                                           fontFamily: 'monospace',
-                                          color: CosmicScreenStyles.amberBright,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
+                                          color:
+                                              CosmicScreenStyles.textSecondary,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 1.6,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: CosmicScreenStyles.amberBright
+                                              .withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(
+                                            2,
+                                          ),
+                                          border: Border.all(
+                                            color: CosmicScreenStyles
+                                                .amberBright
+                                                .withValues(alpha: 0.35),
+                                            width: 0.8,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.diamond_rounded,
+                                              color: CosmicScreenStyles
+                                                  .amberBright,
+                                              size: 12,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${widget.walletShards}',
+                                              style: const TextStyle(
+                                                fontFamily: 'monospace',
+                                                color: CosmicScreenStyles
+                                                    .amberBright,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
+                                ],
+                              ),
+                              accent: CosmicScreenStyles.teal,
+                            ),
+                            const SizedBox(height: 12),
+
+                            // ── Equipment ──
+                            _forgeSection(
+                              'EQUIPMENT',
+                              Column(
+                                children: [
+                                  // Active weapon
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        'GUN',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color:
+                                              CosmicScreenStyles.textSecondary,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 1.6,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: CosmicScreenStyles.teal
+                                              .withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(
+                                            2,
+                                          ),
+                                          border: Border.all(
+                                            color: CosmicScreenStyles.teal
+                                                .withValues(alpha: 0.35),
+                                            width: 0.8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          widget.activeWeaponName,
+                                          style: const TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: CosmicScreenStyles.teal,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (widget.hasMissiles) ...[
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        const Text(
+                                          'LAUNCHER',
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: CosmicScreenStyles
+                                                .textSecondary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 1.6,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(
+                                              0xFFE53935,
+                                            ).withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(
+                                              2,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(
+                                                0xFFE53935,
+                                              ).withValues(alpha: 0.35),
+                                              width: 0.8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'SEEKER MISSILES (${widget.missileAmmo})',
+                                            style: const TextStyle(
+                                              fontFamily: 'monospace',
+                                              color: Color(0xFFE53935),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  if (widget.hasBooster) ...[
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        const Text(
+                                          'BOOSTER',
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: CosmicScreenStyles
+                                                .textSecondary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 1.6,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(
+                                              0xFFFF6F00,
+                                            ).withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(
+                                              2,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(
+                                                0xFFFF6F00,
+                                              ).withValues(alpha: 0.35),
+                                              width: 0.8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'ION BOOSTER (${(widget.fuelFraction * 100).round()}%)',
+                                            style: const TextStyle(
+                                              fontFamily: 'monospace',
+                                              color: Color(0xFFFF6F00),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  if (widget.hasOrbitals) ...[
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        const Text(
+                                          'SHIELDS',
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: CosmicScreenStyles
+                                                .textSecondary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 1.6,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(
+                                              0xFF42A5F5,
+                                            ).withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(
+                                              2,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(
+                                                0xFF42A5F5,
+                                              ).withValues(alpha: 0.35),
+                                              width: 0.8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'SENTINELS (${widget.orbitalActive}/${OrbitalSentinel.maxActive})',
+                                            style: const TextStyle(
+                                              fontFamily: 'monospace',
+                                              color: Color(0xFF42A5F5),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              accent: CosmicScreenStyles.teal,
+                            ),
+                            const SizedBox(height: 12),
+
+                            // ── Consumable crafting ──
+                            _forgeSection(
+                              'SUPPLIES',
+                              Column(
+                                children: [
+                                  if (widget.hasBooster) ...[
+                                    ForgeBar(
+                                      label: 'FUEL',
+                                      value:
+                                          '${(widget.fuelFraction * 100).round()}%',
+                                      pct: widget.fuelFraction,
+                                      barColor: const Color(0xFFFF6F00),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    if (!widget.hasRefuelStation)
+                                      _craftButton(
+                                        label:
+                                            'REFUEL (${_fmtCost(ShipFuel.fuelCost)}/ea)',
+                                        color: const Color(0xFFFF6F00),
+                                        onTap: widget.onRefuel,
+                                        enabled: widget.isNearHome,
+                                      )
+                                    else
+                                      Text(
+                                        'AUTO-REFUEL AT HOME',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: const Color(
+                                            0xFFFF6F00,
+                                          ).withValues(alpha: 0.6),
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                    const SizedBox(height: 10),
+                                  ],
+                                  if (widget.hasMissiles) ...[
+                                    ForgeBar(
+                                      label: 'MISSILES',
+                                      value:
+                                          '${widget.missileAmmo}/${ShipFuel.maxMissileAmmo}',
+                                      pct:
+                                          widget.missileAmmo /
+                                          ShipFuel.maxMissileAmmo,
+                                      barColor: const Color(0xFFE53935),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    if (!widget.hasMissileStation)
+                                      _craftButton(
+                                        label:
+                                            'CRAFT MISSILES (${_fmtCost(ShipFuel.missileCost)}/ea)',
+                                        color: const Color(0xFFE53935),
+                                        onTap: widget.onCraftMissiles,
+                                        enabled: widget.isNearHome,
+                                      )
+                                    else
+                                      Text(
+                                        'AUTO-RELOAD AT HOME',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: const Color(
+                                            0xFFE53935,
+                                          ).withValues(alpha: 0.6),
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                    const SizedBox(height: 10),
+                                  ],
+                                  if (widget.hasOrbitals) ...[
+                                    Row(
+                                      children: [
+                                        const Text(
+                                          'SENTINELS',
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: CosmicScreenStyles
+                                                .textSecondary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 1.6,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Text(
+                                          '${widget.orbitalActive}/${OrbitalSentinel.maxActive} active \u2022 ${widget.orbitalStockpile} stock',
+                                          style: const TextStyle(
+                                            fontFamily: 'monospace',
+                                            color: Color(0xFF42A5F5),
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    if (!widget.hasSentinelStation)
+                                      _craftButton(
+                                        label:
+                                            'CRAFT SENTINELS (${_fmtCost(OrbitalSentinel.sentinelCost)}/ea)',
+                                        color: const Color(0xFF42A5F5),
+                                        onTap: widget.onCraftSentinels,
+                                        enabled: widget.isNearHome,
+                                      )
+                                    else
+                                      Text(
+                                        'AUTO-REPLENISH AT HOME',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: const Color(
+                                            0xFF42A5F5,
+                                          ).withValues(alpha: 0.6),
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                    const SizedBox(height: 4),
+                                    if (!widget.hasSentinelStation &&
+                                        widget.orbitalStockpile <
+                                            OrbitalSentinel
+                                                .autoReplenishThreshold)
+                                      Text(
+                                        'Need ${OrbitalSentinel.autoReplenishThreshold} stockpiled to auto-replenish',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: CosmicScreenStyles.textMuted,
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                  ],
+                                  if (!widget.hasBooster &&
+                                      !widget.hasMissiles &&
+                                      !widget.hasOrbitals)
+                                    Text(
+                                      'Craft equipment in the Customization Lab first.',
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        color: CosmicScreenStyles.textMuted,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              accent: const Color(0xFFFF6F00),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // ── Build Home (only when none exists) ──
+                            if (!widget.hasHomePlanet) ...[
+                              _forgeAction(
+                                icon: Icons.add_location_alt_rounded,
+                                label: 'BUILD HOME',
+                                onTap: widget.onBuildHome,
+                                primary: true,
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+
+                            // ── Crew (party) button ──
+                            if (widget.hasParty && widget.onParty != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Opacity(
+                                  opacity: widget.isNearHome ? 1.0 : 0.35,
+                                  child: _forgeAction(
+                                    icon: Icons.groups_rounded,
+                                    label: widget.isNearHome
+                                        ? 'PARTY'
+                                        : 'PARTY (AT HOME)',
+                                    onTap: widget.isNearHome
+                                        ? widget.onParty!
+                                        : () {},
+                                  ),
                                 ),
+                              ),
+
+                            // ── Inventory button ──
+                            _forgeAction(
+                              icon: Icons.inventory_rounded,
+                              label: 'INVENTORY',
+                              onTap: () =>
+                                  setState(() => _showInventoryOverlay = true),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // ── Actions ──
+                            Column(
+                              children: [
+                                if (widget.hasHomePlanet) ...[
+                                  _forgeAction(
+                                    icon: Icons.my_location_rounded,
+                                    label: 'RELOCATE HOME (50✦)',
+                                    onTap: widget.onRelocateHome,
+                                  ),
+                                ],
                               ],
                             ),
-                          ],
-                        ),
-                        accent: CosmicScreenStyles.teal,
-                      ),
-                      const SizedBox(height: 12),
+                            const SizedBox(height: 12),
 
-                      // ── Equipment ──
-                      _forgeSection(
-                        'EQUIPMENT',
-                        Column(
-                          children: [
-                            // Active weapon
-                            Row(
-                              children: [
-                                const Text(
-                                  'GUN',
+                            const SizedBox(height: 16),
+
+                            // ── Close ──
+                            GestureDetector(
+                              onTap: widget.onClose,
+                              child: Container(
+                                width: double.infinity,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: Border.all(
+                                    color: CosmicScreenStyles.borderAccent
+                                        .withValues(alpha: 0.6),
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: const Text(
+                                  'CLOSE',
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     color: CosmicScreenStyles.textSecondary,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 1.6,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.8,
                                   ),
-                                ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: CosmicScreenStyles.teal.withValues(
-                                      alpha: 0.12,
-                                    ),
-                                    borderRadius: BorderRadius.circular(2),
-                                    border: Border.all(
-                                      color: CosmicScreenStyles.teal.withValues(
-                                        alpha: 0.35,
-                                      ),
-                                      width: 0.8,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    widget.activeWeaponName,
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: CosmicScreenStyles.teal,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (widget.hasMissiles) ...[
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  const Text(
-                                    'LAUNCHER',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: CosmicScreenStyles.textSecondary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.6,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(
-                                        0xFFE53935,
-                                      ).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(2),
-                                      border: Border.all(
-                                        color: const Color(
-                                          0xFFE53935,
-                                        ).withValues(alpha: 0.35),
-                                        width: 0.8,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'SEEKER MISSILES (${widget.missileAmmo})',
-                                      style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: Color(0xFFE53935),
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                            if (widget.hasBooster) ...[
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  const Text(
-                                    'BOOSTER',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: CosmicScreenStyles.textSecondary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.6,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(
-                                        0xFFFF6F00,
-                                      ).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(2),
-                                      border: Border.all(
-                                        color: const Color(
-                                          0xFFFF6F00,
-                                        ).withValues(alpha: 0.35),
-                                        width: 0.8,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'ION BOOSTER (${(widget.fuelFraction * 100).round()}%)',
-                                      style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: Color(0xFFFF6F00),
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                            if (widget.hasOrbitals) ...[
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  const Text(
-                                    'SHIELDS',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: CosmicScreenStyles.textSecondary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.6,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(
-                                        0xFF42A5F5,
-                                      ).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(2),
-                                      border: Border.all(
-                                        color: const Color(
-                                          0xFF42A5F5,
-                                        ).withValues(alpha: 0.35),
-                                        width: 0.8,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'SENTINELS (${widget.orbitalActive}/${OrbitalSentinel.maxActive})',
-                                      style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: Color(0xFF42A5F5),
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                        accent: CosmicScreenStyles.teal,
-                      ),
-                      const SizedBox(height: 12),
-
-                      // ── Consumable crafting ──
-                      _forgeSection(
-                        'SUPPLIES',
-                        Column(
-                          children: [
-                            if (widget.hasBooster) ...[
-                              ForgeBar(
-                                label: 'FUEL',
-                                value:
-                                    '${(widget.fuelFraction * 100).round()}%',
-                                pct: widget.fuelFraction,
-                                barColor: const Color(0xFFFF6F00),
-                              ),
-                              const SizedBox(height: 6),
-                              if (!widget.hasRefuelStation)
-                                _craftButton(
-                                  label:
-                                      'REFUEL (${_fmtCost(ShipFuel.fuelCost)}/ea)',
-                                  color: const Color(0xFFFF6F00),
-                                  onTap: widget.onRefuel,
-                                  enabled: widget.isNearHome,
-                                )
-                              else
-                                Text(
-                                  'AUTO-REFUEL AT HOME',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: const Color(
-                                      0xFFFF6F00,
-                                    ).withValues(alpha: 0.6),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                              const SizedBox(height: 10),
-                            ],
-                            if (widget.hasMissiles) ...[
-                              ForgeBar(
-                                label: 'MISSILES',
-                                value:
-                                    '${widget.missileAmmo}/${ShipFuel.maxMissileAmmo}',
-                                pct:
-                                    widget.missileAmmo /
-                                    ShipFuel.maxMissileAmmo,
-                                barColor: const Color(0xFFE53935),
-                              ),
-                              const SizedBox(height: 6),
-                              if (!widget.hasMissileStation)
-                                _craftButton(
-                                  label:
-                                      'CRAFT MISSILES (${_fmtCost(ShipFuel.missileCost)}/ea)',
-                                  color: const Color(0xFFE53935),
-                                  onTap: widget.onCraftMissiles,
-                                  enabled: widget.isNearHome,
-                                )
-                              else
-                                Text(
-                                  'AUTO-RELOAD AT HOME',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: const Color(
-                                      0xFFE53935,
-                                    ).withValues(alpha: 0.6),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                              const SizedBox(height: 10),
-                            ],
-                            if (widget.hasOrbitals) ...[
-                              Row(
-                                children: [
-                                  const Text(
-                                    'SENTINELS',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: CosmicScreenStyles.textSecondary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.6,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    '${widget.orbitalActive}/${OrbitalSentinel.maxActive} active \u2022 ${widget.orbitalStockpile} stock',
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: Color(0xFF42A5F5),
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              if (!widget.hasSentinelStation)
-                                _craftButton(
-                                  label:
-                                      'CRAFT SENTINELS (${_fmtCost(OrbitalSentinel.sentinelCost)}/ea)',
-                                  color: const Color(0xFF42A5F5),
-                                  onTap: widget.onCraftSentinels,
-                                  enabled: widget.isNearHome,
-                                )
-                              else
-                                Text(
-                                  'AUTO-REPLENISH AT HOME',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: const Color(
-                                      0xFF42A5F5,
-                                    ).withValues(alpha: 0.6),
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                              const SizedBox(height: 4),
-                              if (!widget.hasSentinelStation &&
-                                  widget.orbitalStockpile <
-                                      OrbitalSentinel.autoReplenishThreshold)
-                                Text(
-                                  'Need ${OrbitalSentinel.autoReplenishThreshold} stockpiled to auto-replenish',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: CosmicScreenStyles.textMuted,
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                            ],
-                            if (!widget.hasBooster &&
-                                !widget.hasMissiles &&
-                                !widget.hasOrbitals)
-                              Text(
-                                'Craft equipment in the Customization Lab first.',
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: CosmicScreenStyles.textMuted,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                          ],
-                        ),
-                        accent: const Color(0xFFFF6F00),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // ── Go Home / Build Home ──
-                      if (widget.hasHomePlanet) ...[
-                        _forgeAction(
-                          icon: Icons.home_rounded,
-                          label: 'GO HOME',
-                          onTap: widget.onGoHome,
-                          primary: true,
-                        ),
-                        const SizedBox(height: 12),
-                      ] else ...[
-                        _forgeAction(
-                          icon: Icons.add_location_alt_rounded,
-                          label: 'BUILD HOME',
-                          onTap: widget.onBuildHome,
-                          primary: true,
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-
-                      // ── Crew (party) button ──
-                      if (widget.hasParty && widget.onParty != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Opacity(
-                            opacity: widget.isNearHome ? 1.0 : 0.35,
-                            child: _forgeAction(
-                              icon: Icons.groups_rounded,
-                              label: widget.isNearHome
-                                  ? 'PARTY'
-                                  : 'PARTY (AT HOME)',
-                              onTap: widget.isNearHome
-                                  ? widget.onParty!
-                                  : () {},
-                            ),
-                          ),
-                        ),
-
-                      // ── Inventory button ──
-                      _forgeAction(
-                        icon: Icons.inventory_rounded,
-                        label: 'INVENTORY',
-                        onTap: () =>
-                            setState(() => _showInventoryOverlay = true),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // ── Actions ──
-                      Column(
-                        children: [
-                          if (widget.hasHomePlanet) ...[
-                            _forgeAction(
-                              icon: Icons.my_location_rounded,
-                              label: 'RELOCATE HOME (50✦)',
-                              onTap: widget.onRelocateHome,
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // ── Settings ──
-                      _forgeSection(
-                        'SETTINGS',
-                        Column(
-                          children: [
-                            // Joystick toggle
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.gamepad_rounded,
-                                      color: CosmicScreenStyles.textSecondary,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'JOYSTICK',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: CosmicScreenStyles.textSecondary,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1.2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                GestureDetector(
-                                  onTap: () {
-                                    widget.onToggleJoystick?.call(
-                                      !widget.joystickEnabled,
-                                    );
-                                  },
-                                  child: Container(
-                                    width: 40,
-                                    height: 22,
-                                    decoration: BoxDecoration(
-                                      color: widget.joystickEnabled
-                                          ? CosmicScreenStyles.teal.withValues(
-                                              alpha: 0.3,
-                                            )
-                                          : CosmicScreenStyles.bg3,
-                                      borderRadius: BorderRadius.circular(11),
-                                      border: Border.all(
-                                        color: widget.joystickEnabled
-                                            ? CosmicScreenStyles.teal
-                                            : CosmicScreenStyles.borderDim,
-                                      ),
-                                    ),
-                                    child: AnimatedAlign(
-                                      alignment: widget.joystickEnabled
-                                          ? Alignment.centerRight
-                                          : Alignment.centerLeft,
-                                      duration: const Duration(
-                                        milliseconds: 150,
-                                      ),
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        margin: const EdgeInsets.all(1),
-                                        decoration: BoxDecoration(
-                                          color: widget.joystickEnabled
-                                              ? CosmicScreenStyles.teal
-                                              : CosmicScreenStyles.textMuted,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            // Tap-to-shoot toggle
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.touch_app_rounded,
-                                      color: CosmicScreenStyles.textSecondary,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'TAP TO SHOOT',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: CosmicScreenStyles.textSecondary,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1.2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                GestureDetector(
-                                  onTap: () {
-                                    widget.onToggleTapToShoot?.call(
-                                      !widget.tapToShootEnabled,
-                                    );
-                                  },
-                                  child: Container(
-                                    width: 40,
-                                    height: 22,
-                                    decoration: BoxDecoration(
-                                      color: widget.tapToShootEnabled
-                                          ? CosmicScreenStyles.teal.withValues(
-                                              alpha: 0.3,
-                                            )
-                                          : CosmicScreenStyles.bg3,
-                                      borderRadius: BorderRadius.circular(11),
-                                      border: Border.all(
-                                        color: widget.tapToShootEnabled
-                                            ? CosmicScreenStyles.teal
-                                            : CosmicScreenStyles.borderDim,
-                                      ),
-                                    ),
-                                    child: AnimatedAlign(
-                                      alignment: widget.tapToShootEnabled
-                                          ? Alignment.centerRight
-                                          : Alignment.centerLeft,
-                                      duration: const Duration(
-                                        milliseconds: 150,
-                                      ),
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        margin: const EdgeInsets.all(1),
-                                        decoration: BoxDecoration(
-                                          color: widget.tapToShootEnabled
-                                              ? CosmicScreenStyles.teal
-                                              : CosmicScreenStyles.textMuted,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            // Boost toggle mode
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.local_fire_department_rounded,
-                                      color: CosmicScreenStyles.textSecondary,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'BOOST TOGGLE',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: CosmicScreenStyles.textSecondary,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1.2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                GestureDetector(
-                                  onTap: () {
-                                    widget.onToggleBoostToggle?.call(
-                                      !widget.boostToggleEnabled,
-                                    );
-                                  },
-                                  child: Container(
-                                    width: 40,
-                                    height: 22,
-                                    decoration: BoxDecoration(
-                                      color: widget.boostToggleEnabled
-                                          ? CosmicScreenStyles.teal.withValues(
-                                              alpha: 0.3,
-                                            )
-                                          : CosmicScreenStyles.bg3,
-                                      borderRadius: BorderRadius.circular(11),
-                                      border: Border.all(
-                                        color: widget.boostToggleEnabled
-                                            ? CosmicScreenStyles.teal
-                                            : CosmicScreenStyles.borderDim,
-                                      ),
-                                    ),
-                                    child: AnimatedAlign(
-                                      alignment: widget.boostToggleEnabled
-                                          ? Alignment.centerRight
-                                          : Alignment.centerLeft,
-                                      duration: const Duration(
-                                        milliseconds: 150,
-                                      ),
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        margin: const EdgeInsets.all(1),
-                                        decoration: BoxDecoration(
-                                          color: widget.boostToggleEnabled
-                                              ? CosmicScreenStyles.teal
-                                              : CosmicScreenStyles.textMuted,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-
-                      // ── Close ──
-                      GestureDetector(
-                        onTap: widget.onClose,
-                        child: Container(
-                          width: double.infinity,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(
-                              color: CosmicScreenStyles.borderAccent.withValues(
-                                alpha: 0.6,
-                              ),
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            'CLOSE',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: CosmicScreenStyles.textSecondary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.8,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _dockedHeader() {
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: CosmicScreenStyles.bg3,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: CosmicScreenStyles.borderDim),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: widget.hasHomePlanet ? widget.onGoHome : widget.onBuildHome,
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: const Color(0xFF141820),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: CosmicScreenStyles.borderDim),
+              ),
+              child: Icon(
+                widget.hasHomePlanet
+                    ? Icons.home_rounded
+                    : Icons.add_location_alt_rounded,
+                color: CosmicScreenStyles.textSecondary,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'SHIP CONSOLE',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: CosmicScreenStyles.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2.2,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: widget.onClose,
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: const Color(0xFF141820),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: CosmicScreenStyles.borderDim),
+              ),
+              child: const Icon(
+                Icons.close_rounded,
+                color: CosmicScreenStyles.textSecondary,
+                size: 18,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

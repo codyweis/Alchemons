@@ -8,8 +8,12 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/beauty_radiance.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/intelligence_halo.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/speed_flux.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/strength_forge.dart';
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
@@ -54,13 +58,30 @@ class ShopService extends ChangeNotifier {
   final ConstellationEffectsService _constellations;
   final FactionService _factions;
 
+  // Keep false in normal gameplay; set true only for temporary local debug.
+  static const bool _debugUnlockContestEffectsInShop = false;
+
+  static const beautyContestEffectOfferId = 'effects.beauty_radiance';
+  static const speedContestEffectOfferId = 'effects.speed_flux';
+  static const strengthContestEffectOfferId = 'effects.strength_forge';
+  static const intelligenceContestEffectOfferId = 'effects.intelligence_halo';
+
+  static const Map<String, String> _contestEffectUnlockSettingByOfferId = {
+    beautyContestEffectOfferId: 'shop_unlock.effect.beauty_radiance',
+    speedContestEffectOfferId: 'shop_unlock.effect.speed_flux',
+    strengthContestEffectOfferId: 'shop_unlock.effect.strength_forge',
+    intelligenceContestEffectOfferId: 'shop_unlock.effect.intelligence_halo',
+  };
+
   // Track purchases
   final Map<String, int> _purchaseCounts = {}; // offerId -> count
   final Map<String, DateTime> _lastPurchaseTime = {}; // offerId -> last time
+  final Set<String> _unlockedContestEffectOfferIds = <String>{};
 
   ShopService(this._db, this._constellations, this._factions) {
     _loadPurchaseHistory();
     _loadInventoryCache();
+    _loadContestEffectUnlocks();
   }
 
   /// Faction-based discount for standard wild harvesters.
@@ -122,10 +143,87 @@ class ShopService extends ChangeNotifier {
           dimension: size,
           child: PrismaticCascade(size: effectSizeFromWidgetSize(size)),
         );
+      case InvKeys.alchemyBeautyRadiance:
+        return SizedBox.square(
+          dimension: size,
+          child: BeautyRadiance(size: effectSizeFromWidgetSize(size)),
+        );
+      case InvKeys.alchemySpeedFlux:
+        return SizedBox.square(
+          dimension: size,
+          child: SpeedFlux(size: effectSizeFromWidgetSize(size)),
+        );
+      case InvKeys.alchemyStrengthForge:
+        return SizedBox.square(
+          dimension: size,
+          child: StrengthForge(size: effectSizeFromWidgetSize(size)),
+        );
+      case InvKeys.alchemyIntelligenceHalo:
+        return SizedBox.square(
+          dimension: size,
+          child: IntelligenceHalo(size: effectSizeFromWidgetSize(size)),
+        );
 
       default:
         return null;
     }
+  }
+
+  Future<void> _loadContestEffectUnlocks() async {
+    _unlockedContestEffectOfferIds.clear();
+    for (final entry in _contestEffectUnlockSettingByOfferId.entries) {
+      final unlocked = await _db.settingsDao.getSetting(entry.value) == '1';
+      if (unlocked) {
+        _unlockedContestEffectOfferIds.add(entry.key);
+      }
+    }
+    notifyListeners();
+  }
+
+  bool _isContestEffectOfferUnlocked(String offerId) {
+    if (_debugUnlockContestEffectsInShop) return true;
+    if (!_contestEffectUnlockSettingByOfferId.containsKey(offerId)) {
+      return true;
+    }
+    return _unlockedContestEffectOfferIds.contains(offerId);
+  }
+
+  List<ShopOffer> getAlchemyEffectOffers() {
+    return allOffers
+        .where((o) => o.id.startsWith('effects.'))
+        .where((o) => _isContestEffectOfferUnlocked(o.id))
+        .toList();
+  }
+
+  Future<String?> unlockContestEffectOffer(
+    String offerId, {
+    int freeQty = 1,
+  }) async {
+    final unlockSetting = _contestEffectUnlockSettingByOfferId[offerId];
+    if (unlockSetting == null) return null;
+
+    final alreadyUnlocked =
+        _unlockedContestEffectOfferIds.contains(offerId) ||
+        (await _db.settingsDao.getSetting(unlockSetting) == '1');
+    if (alreadyUnlocked) {
+      _unlockedContestEffectOfferIds.add(offerId);
+      return null;
+    }
+
+    await _db.settingsDao.setSetting(unlockSetting, '1');
+    _unlockedContestEffectOfferIds.add(offerId);
+
+    final offer = _resolveOfferById(offerId);
+    if (offer?.inventoryKey != null && freeQty > 0) {
+      await _db.inventoryDao.addItemQty(offer!.inventoryKey!, freeQty);
+      _inventoryCache.update(
+        offer.inventoryKey!,
+        (v) => v + freeQty,
+        ifAbsent: () => freeQty,
+      );
+    }
+    notifyListeners();
+    return offer?.name;
   }
 
   static const Map<int, ElementalGroup> _weekday2Group = {
@@ -419,7 +517,19 @@ class ShopService extends ChangeNotifier {
       description:
           'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
       icon: Icons.biotech_rounded,
-      cost: const {'gold': 100}, // 4th purchase: 100 gold
+      cost: const {'gold': 250}, // 4th purchase: 250 gold
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+      assetName: 'assets/images/ui/breedicon.png',
+    ),
+    ShopOffer(
+      id: 'unlock.fusion_slot.5',
+      name: 'Fusion Slot (Step 5)',
+      description:
+          'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
+      icon: Icons.biotech_rounded,
+      cost: const {'gold': 500}, // 5th purchase: 500 gold
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -503,6 +613,54 @@ class ShopService extends ChangeNotifier {
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.alchemyPrismaticCascade,
+    ),
+    ShopOffer(
+      id: beautyContestEffectOfferId,
+      name: 'Beauty Radiance',
+      description:
+          'Contest mastery effect. Unlocked by clearing Beauty Lv5. Bathes your Alchemon in a stage-lit radiance.',
+      icon: Icons.auto_awesome_rounded,
+      cost: const {'gold': 40},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyBeautyRadiance,
+    ),
+    ShopOffer(
+      id: speedContestEffectOfferId,
+      name: 'Speed Flux',
+      description:
+          'Contest mastery effect. Unlocked by clearing Speed Lv5. Surrounds your Alchemon with kinetic velocity trails.',
+      icon: Icons.bolt_rounded,
+      cost: const {'gold': 40},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemySpeedFlux,
+    ),
+    ShopOffer(
+      id: strengthContestEffectOfferId,
+      name: 'Strength Forge',
+      description:
+          'Contest mastery effect. Unlocked by clearing Strength Lv5. Projects a forged pressure aura of raw power.',
+      icon: Icons.fitness_center_rounded,
+      cost: const {'gold': 40},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyStrengthForge,
+    ),
+    ShopOffer(
+      id: intelligenceContestEffectOfferId,
+      name: 'Intelligence Halo',
+      description:
+          'Contest mastery effect. Unlocked by clearing Intelligence Lv5. Wraps your Alchemon in a cerebral halo.',
+      icon: Icons.psychology_rounded,
+      cost: const {'gold': 40},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyIntelligenceHalo,
     ),
 
     // ── Portal Keys ──────────────────────────────────────────────────────────
@@ -686,7 +844,8 @@ class ShopService extends ChangeNotifier {
     return (_purchaseCounts['unlock.fusion_slot.1'] ?? 0) +
         (_purchaseCounts['unlock.fusion_slot.2'] ?? 0) +
         (_purchaseCounts['unlock.fusion_slot.3'] ?? 0) +
-        (_purchaseCounts['unlock.fusion_slot.4'] ?? 0);
+        (_purchaseCounts['unlock.fusion_slot.4'] ?? 0) +
+        (_purchaseCounts['unlock.fusion_slot.5'] ?? 0);
   }
 
   // ---- DAILY ELEMENT→GOLD EXCHANGE (5,000 → 1 gold) ----
@@ -795,6 +954,7 @@ class ShopService extends ChangeNotifier {
   bool canPurchase(String offerId) {
     final offer = _resolveOfferById(offerId);
     if (offer == null) return false; // unknown offer -> not purchasable
+    if (!_isContestEffectOfferUnlocked(offerId)) return false;
 
     switch (offer.limit) {
       case PurchaseLimit.once:
@@ -1020,11 +1180,24 @@ class ShopService extends ChangeNotifier {
       case 'effects.prismatic_cascade':
         await _db.inventoryDao.addItemQty(InvKeys.alchemyPrismaticCascade, qty);
         return true;
+      case beautyContestEffectOfferId:
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyBeautyRadiance, qty);
+        return true;
+      case speedContestEffectOfferId:
+        await _db.inventoryDao.addItemQty(InvKeys.alchemySpeedFlux, qty);
+        return true;
+      case strengthContestEffectOfferId:
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyStrengthForge, qty);
+        return true;
+      case intelligenceContestEffectOfferId:
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyIntelligenceHalo, qty);
+        return true;
 
       case 'unlock.fusion_slot.1':
       case 'unlock.fusion_slot.2':
       case 'unlock.fusion_slot.3':
       case 'unlock.fusion_slot.4':
+      case 'unlock.fusion_slot.5':
         // One purchase = one slot
         for (int i = 0; i < qty; i++) {
           await _db.incubatorDao.purchaseFusionSlot();

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 import 'package:flutter/material.dart';
@@ -37,6 +38,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
   late AnimationController _enterCtrl;
   late Animation<double> _slideAnim;
   late Animation<double> _fadeAnim;
+  CinematicQuality _cinematicQuality = CinematicQuality.high;
 
   @override
   void initState() {
@@ -51,10 +53,31 @@ class ExtractionDialogState extends State<ExtractionDialog>
     ).animate(CurvedAnimation(parent: _enterCtrl, curve: Curves.easeOutCubic));
     _fadeAnim = CurvedAnimation(parent: _enterCtrl, curve: Curves.easeOut);
     _enterCtrl.forward();
+    _loadCinematicQuality();
+    CinematicQualityService.qualityNotifier.addListener(
+      _handleCinematicQualityChanged,
+    );
+  }
+
+  void _handleCinematicQualityChanged() {
+    if (!mounted) return;
+    final next = CinematicQualityService.qualityNotifier.value;
+    if (next != _cinematicQuality) {
+      setState(() => _cinematicQuality = next);
+    }
+  }
+
+  Future<void> _loadCinematicQuality() async {
+    final q = await CinematicQualityService().getQuality();
+    if (!mounted) return;
+    setState(() => _cinematicQuality = q);
   }
 
   @override
   void dispose() {
+    CinematicQualityService.qualityNotifier.removeListener(
+      _handleCinematicQualityChanged,
+    );
     _enterCtrl.dispose();
     super.dispose();
   }
@@ -114,6 +137,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
                   rarity: rarity,
                   isUndiscovered: widget.isUndiscovered,
                   theme: theme,
+                  quality: _cinematicQuality,
                 ),
 
                 // ── INFO + ACTIONS PANEL ──────────────────────────────
@@ -229,7 +253,9 @@ class ExtractionDialogState extends State<ExtractionDialog>
                                   borderRadius: BorderRadius.circular(4),
                                   onTap: widget.onDiscard,
                                   splashColor: t.danger.withValues(alpha: .18),
-                                  highlightColor: t.danger.withValues(alpha: .08),
+                                  highlightColor: t.danger.withValues(
+                                    alpha: .08,
+                                  ),
                                   child: Ink(
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(4),
@@ -276,6 +302,7 @@ class _ParticleBanner extends StatelessWidget {
     required this.rarity,
     required this.isUndiscovered,
     required this.theme,
+    required this.quality,
   });
 
   final List<String>? parentTypes;
@@ -283,22 +310,49 @@ class _ParticleBanner extends StatelessWidget {
   final String rarity;
   final bool isUndiscovered;
   final FactionTheme theme;
+  final CinematicQuality quality;
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
+    final shortestSide = media.size.shortestSide;
+
+    int particleCount;
+    if (shortestSide < 380) {
+      particleCount = 12;
+    } else if (shortestSide < 430) {
+      particleCount = 18;
+    } else {
+      particleCount = 24;
+    }
+
+    if (deferEffects) {
+      particleCount = 8;
+    }
+
+    final qualityMultiplier = switch (quality) {
+      CinematicQuality.high => 2.0,
+      CinematicQuality.balanced => 1.0,
+    };
+    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 64);
+
+    final showParticles =
+        TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
+
     return SizedBox(
       height: 190,
       child: Stack(
         fit: StackFit.expand,
         children: [
           // Particle background
-          if (parentTypes != null && parentTypes!.isNotEmpty)
+          if (showParticles && parentTypes != null && parentTypes!.isNotEmpty)
             RepaintBoundary(
               child: AlchemyBrewingParticleSystem(
                 parentATypeId: parentTypes![0],
                 parentBTypeId: parentTypes!.length > 1 ? parentTypes![1] : null,
-                particleCount: 50,
-                speedMultiplier: 0.15,
+                particleCount: particleCount,
+                speedMultiplier: 0.12,
                 fusion: true,
                 theme: theme,
               ),
@@ -312,7 +366,10 @@ class _ParticleBanner extends StatelessWidget {
               gradient: RadialGradient(
                 center: Alignment.center,
                 radius: 0.85,
-                colors: [Colors.transparent, Colors.black.withValues(alpha: .5)],
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: .5),
+                ],
               ),
             ),
           ),
@@ -328,7 +385,10 @@ class _ParticleBanner extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withValues(alpha: .65)],
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: .65),
+                  ],
                 ),
               ),
             ),

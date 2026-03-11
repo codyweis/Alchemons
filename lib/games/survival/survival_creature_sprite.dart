@@ -104,6 +104,7 @@ class HoardGuardian extends PositionComponent
               desiredSize: size * 0.8,
               alchemyEffect: unit.spriteVisuals!.alchemyEffect,
               variantFaction: unit.spriteVisuals!.variantFaction,
+              effectScale: 0.72,
             )
             ..anchor = Anchor.center
             ..position = _animContainer.size / 2;

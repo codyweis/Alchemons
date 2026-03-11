@@ -1,20 +1,29 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 
 class PlanetRecipeHud extends StatelessWidget {
   const PlanetRecipeHud({
+    super.key,
     required this.planet,
     required this.recipe,
     required this.meter,
     required this.onSummon,
+    this.actionLabel = 'SUMMON',
+    this.hideLevel = false,
+    this.onTogglePin,
+    this.isPinned = false,
+    this.showPinnedTag = false,
   });
 
   final CosmicPlanet planet;
   final PlanetRecipe recipe;
   final ElementMeter meter;
   final VoidCallback? onSummon; // null if meter not full
+  final String actionLabel;
+  final bool hideLevel;
+  final VoidCallback? onTogglePin;
+  final bool isPinned;
+  final bool showPinnedTag;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +71,9 @@ class PlanetRecipeHud extends StatelessWidget {
               Icon(Icons.public, color: color, size: 14),
               const SizedBox(width: 8),
               Text(
-                '${planetName(planet.element).toUpperCase()} RECIPE',
+                hideLevel
+                    ? '${planetName(planet.element).toUpperCase()} PATHWAY'
+                    : '${planetName(planet.element).toUpperCase()} RECIPE  LV.${recipe.level}',
                 style: TextStyle(
                   color: color,
                   fontSize: 12,
@@ -70,7 +81,44 @@ class PlanetRecipeHud extends StatelessWidget {
                   letterSpacing: 1.5,
                 ),
               ),
+              if (showPinnedTag) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Text(
+                    'PINNED',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 8,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ],
               const Spacer(),
+              InkResponse(
+                onTap: onTogglePin,
+                radius: 16,
+                child: Icon(
+                  isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  size: 15,
+                  color: isPinned
+                      ? color.withValues(alpha: 0.95)
+                      : Colors.white.withValues(alpha: 0.55),
+                ),
+              ),
+              const SizedBox(width: 6),
               // Match score
               if (meter.total > 0)
                 Container(
@@ -210,77 +258,78 @@ class PlanetRecipeHud extends StatelessWidget {
               ),
             ),
 
-          // Summon button
-          if (onSummon != null) ...[
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: onSummon,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: score >= 0.7
-                        ? [
-                            const Color(0xFFFF6F00),
-                            const Color(0xFFFF8F00),
-                            const Color(0xFFFFC107),
-                          ]
-                        : [
-                            Colors.white.withValues(alpha: 0.08),
-                            Colors.white.withValues(alpha: 0.04),
-                          ],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: score >= 0.7
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: onSummon,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: score >= 0.7 && onSummon != null
                       ? [
-                          BoxShadow(
-                            color: Colors.amber.withValues(alpha: 0.4),
-                            blurRadius: 20,
-                            spreadRadius: 3,
-                          ),
-                          BoxShadow(
-                            color: const Color(
-                              0xFFFF6F00,
-                            ).withValues(alpha: 0.25),
-                            blurRadius: 40,
-                            spreadRadius: 6,
-                          ),
+                          const Color(0xFFFF6F00),
+                          const Color(0xFFFF8F00),
+                          const Color(0xFFFFC107),
                         ]
-                      : null,
-                  border: score >= 0.7
-                      ? Border.all(
-                          color: Colors.amber.withValues(alpha: 0.6),
-                          width: 1.5,
-                        )
-                      : null,
+                      : [
+                          Colors.white.withValues(alpha: 0.08),
+                          Colors.white.withValues(alpha: 0.04),
+                        ],
                 ),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.auto_awesome,
-                      color: score >= 0.7 ? Colors.white : Colors.white38,
-                      size: 16,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: score >= 0.7 && onSummon != null
+                    ? [
+                        BoxShadow(
+                          color: Colors.amber.withValues(alpha: 0.4),
+                          blurRadius: 20,
+                          spreadRadius: 3,
+                        ),
+                        BoxShadow(
+                          color: const Color(
+                            0xFFFF6F00,
+                          ).withValues(alpha: 0.25),
+                          blurRadius: 40,
+                          spreadRadius: 6,
+                        ),
+                      ]
+                    : null,
+                border: score >= 0.7 && onSummon != null
+                    ? Border.all(
+                        color: Colors.amber.withValues(alpha: 0.6),
+                        width: 1.5,
+                      )
+                    : null,
+              ),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.auto_awesome,
+                    color: score >= 0.7 && onSummon != null
+                        ? Colors.white
+                        : Colors.white38,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    actionLabel,
+                    style: TextStyle(
+                      color: score >= 0.7 && onSummon != null
+                          ? Colors.white
+                          : Colors.white38,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'SUMMON',
-                      style: TextStyle(
-                        color: score >= 0.7 ? Colors.white : Colors.white38,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ],
       ),
     );

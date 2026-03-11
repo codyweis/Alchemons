@@ -8,6 +8,7 @@ import 'dart:ui';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/systems/effects/has_effects.dart';
+import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 
 // ─────────────────────────────────────────────────────────
 // ELEMENT COLOURS  (mirrors SurvivalAttackManager.getElementColor)
@@ -387,6 +388,57 @@ class BattleRing {
 }
 
 // ─────────────────────────────────────────────────────────
+// BLOOD RING (ending ritual portal)
+// ─────────────────────────────────────────────────────────
+
+class BloodRing {
+  Offset position;
+  bool discovered;
+
+  /// True once the ending ritual has been completed at least once.
+  bool ritualCompleted;
+
+  BloodRing({
+    required this.position,
+    this.discovered = false,
+    this.ritualCompleted = false,
+  });
+
+  /// Visual outer radius.
+  static const double visualRadius = 320.0;
+
+  /// Interaction radius (proximity to show interaction button).
+  static const double interactRadius = 420.0;
+
+  /// Exit radius (hysteresis so the prompt does not flicker).
+  static const double exitRadius = 520.0;
+
+  String serialise() {
+    return '${position.dx.toStringAsFixed(1)},'
+        '${position.dy.toStringAsFixed(1)}|'
+        '${discovered ? 1 : 0}|'
+        '${ritualCompleted ? 1 : 0}';
+  }
+
+  factory BloodRing.deserialise(String raw) {
+    final parts = raw.split('|');
+    if (parts.length < 2) {
+      return BloodRing(position: const Offset(0, 0));
+    }
+    final posParts = parts[0].split(',');
+    final pos = Offset(
+      double.tryParse(posParts[0]) ?? 0,
+      double.tryParse(posParts[1]) ?? 0,
+    );
+    return BloodRing(
+      position: pos,
+      discovered: parts[1] == '1',
+      ritualCompleted: parts.length > 2 ? parts[2] == '1' : false,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
 // RIFT PORTAL (one per faction, permanent)
 // ─────────────────────────────────────────────────────────
 
@@ -573,6 +625,9 @@ class CosmicWorld {
     required this.prismaticField,
     required this.elementalNexus,
     required this.battleRing,
+    required this.bloodRing,
+    required this.contestArenas,
+    required this.contestHintNotes,
   });
 
   final List<CosmicPlanet> planets;
@@ -582,6 +637,9 @@ class CosmicWorld {
   final PrismaticField prismaticField;
   final ElementalNexus elementalNexus;
   final BattleRing battleRing;
+  final BloodRing bloodRing;
+  final List<CosmicContestArena> contestArenas;
+  final List<CosmicContestHintNote> contestHintNotes;
 
   /// Generate a standard cosmos: one planet per element scattered across a
   /// huge field. Deliberately large so it takes ~10 minutes to traverse.
@@ -731,6 +789,50 @@ class CosmicWorld {
     }
     final battleRing = BattleRing(position: ringPos);
 
+    // ── Blood Ring (ending ritual portal) ──
+    // Place far from all landmarks so it feels like a hidden final destination.
+    Offset bloodPos = Offset(margin, margin);
+    double bestBloodDist = 0;
+    for (int attempt = 0; attempt < 2000; attempt++) {
+      final candidate = Offset(
+        margin + rng.nextDouble() * (worldW - margin * 2),
+        margin + rng.nextDouble() * (worldH - margin * 2),
+      );
+      if (rifts.any((r) => (r.position - candidate).distance < 5000)) continue;
+      if ((prisPos - candidate).distance < 5000) continue;
+      if ((nexusPos - candidate).distance < 5000) continue;
+      if ((ringPos - candidate).distance < 5000) continue;
+      double minD = double.infinity;
+      for (final p in allPositions) {
+        final d = (p - candidate).distance;
+        if (d < minD) minD = d;
+      }
+      if (minD > bestBloodDist) {
+        bestBloodDist = minD;
+        bloodPos = candidate;
+      }
+    }
+    final bloodRing = BloodRing(position: bloodPos);
+
+    final contestObstacles = <Offset>[
+      ...allPositions,
+      ...rifts.map((r) => r.position),
+      prisPos,
+      nexusPos,
+      ringPos,
+      bloodPos,
+    ];
+    final contestArenas = generateCosmicContestArenas(
+      seed: rng.nextInt(1 << 30),
+      worldSize: const Size(worldW, worldH),
+      obstacles: contestObstacles,
+    );
+    final contestHintNotes = generateCosmicContestHintNotes(
+      seed: rng.nextInt(1 << 30),
+      worldSize: const Size(worldW, worldH),
+      obstacles: [...contestObstacles, ...contestArenas.map((a) => a.position)],
+    );
+
     return CosmicWorld(
       planets: planets,
       worldSize: const Size(worldW, worldH),
@@ -739,6 +841,9 @@ class CosmicWorld {
       prismaticField: prismaticField,
       elementalNexus: elementalNexus,
       battleRing: battleRing,
+      bloodRing: bloodRing,
+      contestArenas: contestArenas,
+      contestHintNotes: contestHintNotes,
     );
   }
 
@@ -867,6 +972,8 @@ String factionForElement(String element) {
 class CosmicFogState {
   final int worldSeed;
   final Set<int> discoveredIndices;
+  final Set<int> discoveredPoiIndices;
+  final Set<int> discoveredContestArenaIndices;
   final Set<int> revealedCells;
   final double shipX;
   final double shipY;
@@ -874,14 +981,20 @@ class CosmicFogState {
   const CosmicFogState({
     required this.worldSeed,
     required this.discoveredIndices,
+    this.discoveredPoiIndices = const {},
+    this.discoveredContestArenaIndices = const {},
     this.revealedCells = const {},
     this.shipX = -1,
     this.shipY = -1,
   });
 
-  /// Format: seed|planetIndices|shipX,shipY|revealedCells
+  /// Format:
+  /// seed|planetIndices|shipX,shipY|revealedCells|poiIndices|contestArenaIndices
   String serialise() {
     final pIndices = (discoveredIndices.toList()..sort()).join(',');
+    final poiIndices = (discoveredPoiIndices.toList()..sort()).join(',');
+    final contestIndices = (discoveredContestArenaIndices.toList()..sort())
+        .join(',');
     final ship = '${shipX.toStringAsFixed(1)},${shipY.toStringAsFixed(1)}';
     // Encode revealedCells as sorted, delta-encoded ints for compactness
     final sorted = revealedCells.toList()..sort();
@@ -892,7 +1005,7 @@ class CosmicFogState {
       buf.write(sorted[i] - prev);
       prev = sorted[i];
     }
-    return '$worldSeed|$pIndices|$ship|$buf';
+    return '$worldSeed|$pIndices|$ship|$buf|$poiIndices|$contestIndices';
   }
 
   factory CosmicFogState.deserialise(String raw) {
@@ -920,9 +1033,18 @@ class CosmicFogState {
       }
     }
 
+    final poiIndices = parts.length > 4 && parts[4].isNotEmpty
+        ? parts[4].split(',').map(int.parse).toSet()
+        : <int>{};
+    final contestIndices = parts.length > 5 && parts[5].isNotEmpty
+        ? parts[5].split(',').map(int.parse).toSet()
+        : <int>{};
+
     return CosmicFogState(
       worldSeed: seed,
       discoveredIndices: pIndices,
+      discoveredPoiIndices: poiIndices,
+      discoveredContestArenaIndices: contestIndices,
       revealedCells: cells,
       shipX: sx,
       shipY: sy,
@@ -941,45 +1063,52 @@ class CosmicFogState {
 /// at a particular planet. The player must collect the right mix of particles.
 class PlanetRecipe {
   final String planetElement;
+  final int level; // 1..3
   final Map<String, double> components; // element -> target %
   final double randomPct; // % that can be any element
 
   const PlanetRecipe({
     required this.planetElement,
+    required this.level,
     required this.components,
     required this.randomPct,
   });
 
-  /// Generate a deterministic recipe for [element] at [version].
+  /// Generate a deterministic recipe for [element] at [level] (1..3).
   factory PlanetRecipe.generate({
     required String element,
     required int seed,
-    required int version,
+    required int level,
   }) {
-    final rng = Random(seed ^ (element.hashCode * 31 + version * 997));
+    final recipeLevel = level.clamp(1, 3);
+    final rng = Random(seed ^ (element.hashCode * 31 + recipeLevel * 997));
     final others = kElementColors.keys.where((e) => e != element).toList()
       ..shuffle(rng);
 
-    // 0-3 secondary elements (simple recipes are possible)
-    final roll = rng.nextInt(10); // 0-9
-    final nSec = roll < 2
-        ? 0 // 20% chance: pure single-element recipe
-        : roll < 5
-        ? 1 // 30% chance: 2-element recipe
-        : roll < 8
-        ? 2 // 30% chance: 3-element recipe
-        : 3; // 20% chance: 4-element recipe
+    // Difficulty curve:
+    // L1: 1-2 total ingredients, L2: 2-3, L3: 3-4.
+    final nSec = switch (recipeLevel) {
+      1 => rng.nextBool() ? 0 : 1,
+      2 => rng.nextBool() ? 1 : 2,
+      _ => rng.nextBool() ? 2 : 3,
+    };
 
     // Raw weights → normalised later
     final weights = <String, int>{};
-    weights[element] = nSec == 0
-        ? 90 +
-              rng.nextInt(11) // pure: 90-100
-        : 35 + rng.nextInt(16); // mixed: 35-50
+    weights[element] = nSec == 0 ? 88 + rng.nextInt(13) : 36 + rng.nextInt(18);
     for (var i = 0; i < nSec; i++) {
-      weights[others[i]] = 5 + rng.nextInt(i == 0 ? 26 : 16);
+      final maxW = switch (recipeLevel) {
+        1 => i == 0 ? 24 : 14,
+        2 => i == 0 ? 28 : 20,
+        _ => i == 0 ? 30 : 22,
+      };
+      weights[others[i]] = 5 + rng.nextInt(maxW);
     }
-    final randomW = 2 + rng.nextInt(9);
+    final randomW = switch (recipeLevel) {
+      1 => 4 + rng.nextInt(8),
+      2 => 3 + rng.nextInt(7),
+      _ => 2 + rng.nextInt(6),
+    };
     final totalW = weights.values.fold(0, (s, v) => s + v) + randomW;
 
     final components = <String, double>{};
@@ -990,6 +1119,7 @@ class PlanetRecipe {
 
     return PlanetRecipe(
       planetElement: element,
+      level: recipeLevel,
       components: components,
       randomPct: max(0, 100.0 - assignedPct),
     );
@@ -1027,34 +1157,135 @@ class PlanetRecipe {
 // RECIPE STATE PERSISTENCE
 // ─────────────────────────────────────────────────────────
 
-/// Tracks how many times each planet's recipe has been completed (version).
+/// Tracks per-element recipe progression across 3 levels.
 class CosmicRecipeState {
-  final Map<String, int> versions;
+  final Map<String, int> unlockedLevels; // element -> max unlocked level (1..3)
+  final Map<String, int> completedMasks; // bit0=L1, bit1=L2, bit2=L3
+  final Map<String, int>
+  postMaxRollLevels; // element -> active random level 1..3
 
-  const CosmicRecipeState({required this.versions});
+  const CosmicRecipeState({
+    required this.unlockedLevels,
+    required this.completedMasks,
+    required this.postMaxRollLevels,
+  });
 
-  int versionFor(String element) => versions[element] ?? 0;
+  int unlockedLevelFor(String element) =>
+      (unlockedLevels[element] ?? 1).clamp(1, 3);
 
-  CosmicRecipeState increment(String element) {
-    final updated = Map<String, int>.from(versions);
-    updated[element] = (updated[element] ?? 0) + 1;
-    return CosmicRecipeState(versions: updated);
+  int completedMaskFor(String element) => completedMasks[element] ?? 0;
+
+  bool isLevelCompleted(String element, int level) {
+    final bit = 1 << (level.clamp(1, 3) - 1);
+    return (completedMaskFor(element) & bit) != 0;
   }
 
-  String serialise() =>
-      versions.entries.map((e) => '${e.key}:${e.value}').join(',');
+  bool isMaxMastered(String element) =>
+      (completedMaskFor(element) & 0x7) == 0x7;
+
+  int activeLevelFor(String element, {required int seed}) {
+    if (!isMaxMastered(element)) return unlockedLevelFor(element);
+    final rolled = postMaxRollLevels[element];
+    if (rolled != null && rolled >= 1 && rolled <= 3) return rolled;
+    final rng = Random(seed ^ element.hashCode ^ 0xA11CE);
+    return 1 + rng.nextInt(3);
+  }
+
+  CosmicRecipeState onRecipeSuccess(
+    String element,
+    int level, {
+    required Random rng,
+  }) {
+    final targetLevel = level.clamp(1, 3);
+    final updatedUnlocked = Map<String, int>.from(unlockedLevels);
+    final updatedMasks = Map<String, int>.from(completedMasks);
+    final updatedPostMax = Map<String, int>.from(postMaxRollLevels);
+
+    final bit = 1 << (targetLevel - 1);
+    final newMask = (updatedMasks[element] ?? 0) | bit;
+    updatedMasks[element] = newMask;
+
+    final currentUnlocked = (updatedUnlocked[element] ?? 1).clamp(1, 3);
+    if (targetLevel == currentUnlocked && currentUnlocked < 3) {
+      updatedUnlocked[element] = currentUnlocked + 1;
+    }
+
+    if ((newMask & 0x7) == 0x7) {
+      updatedPostMax[element] = 1 + rng.nextInt(3);
+    } else {
+      updatedPostMax.remove(element);
+    }
+
+    return CosmicRecipeState(
+      unlockedLevels: updatedUnlocked,
+      completedMasks: updatedMasks,
+      postMaxRollLevels: updatedPostMax,
+    );
+  }
+
+  String serialise() {
+    final keys = <String>{
+      ...unlockedLevels.keys,
+      ...completedMasks.keys,
+      ...postMaxRollLevels.keys,
+    }.toList()..sort();
+    return keys
+        .map((k) {
+          final unlocked = unlockedLevelFor(k);
+          final mask = completedMaskFor(k);
+          final roll = postMaxRollLevels[k] ?? 0;
+          return '$k=$unlocked|$mask|$roll';
+        })
+        .join(',');
+  }
 
   factory CosmicRecipeState.deserialise(String raw) {
-    if (raw.isEmpty) return const CosmicRecipeState(versions: {});
-    final map = <String, int>{};
-    for (final part in raw.split(',')) {
-      final kv = part.split(':');
-      if (kv.length == 2) map[kv[0]] = int.tryParse(kv[1]) ?? 0;
+    if (raw.isEmpty) {
+      return const CosmicRecipeState(
+        unlockedLevels: {},
+        completedMasks: {},
+        postMaxRollLevels: {},
+      );
     }
-    return CosmicRecipeState(versions: map);
+    final unlocked = <String, int>{};
+    final masks = <String, int>{};
+    final rolls = <String, int>{};
+    for (final part in raw.split(',')) {
+      if (part.contains('=')) {
+        final kv = part.split('=');
+        if (kv.length != 2) continue;
+        final key = kv[0];
+        final segs = kv[1].split('|');
+        final unlockedLevel = (int.tryParse(segs[0]) ?? 1).clamp(1, 3);
+        final mask = segs.length > 1 ? (int.tryParse(segs[1]) ?? 0) : 0;
+        final roll = segs.length > 2 ? (int.tryParse(segs[2]) ?? 0) : 0;
+        unlocked[key] = unlockedLevel;
+        masks[key] = mask & 0x7;
+        if (roll >= 1 && roll <= 3) rolls[key] = roll;
+      } else {
+        // Backward compatibility with old format: "element:version".
+        final kv = part.split(':');
+        if (kv.length != 2) continue;
+        final key = kv[0];
+        final version = int.tryParse(kv[1]) ?? 0;
+        final completed = version.clamp(0, 3);
+        final mask = completed <= 0 ? 0 : ((1 << completed) - 1);
+        unlocked[key] = (completed + 1).clamp(1, 3);
+        masks[key] = mask;
+      }
+    }
+    return CosmicRecipeState(
+      unlockedLevels: unlocked,
+      completedMasks: masks,
+      postMaxRollLevels: rolls,
+    );
   }
 
-  factory CosmicRecipeState.fresh() => const CosmicRecipeState(versions: {});
+  factory CosmicRecipeState.fresh() => const CosmicRecipeState(
+    unlockedLevels: {},
+    completedMasks: {},
+    postMaxRollLevels: {},
+  );
 }
 
 // ─────────────────────────────────────────────────────────
@@ -2913,6 +3144,14 @@ class Projectile {
   /// Radius of death-explosion scatter.
   final double deathExplosionRadius;
 
+  // ── Taunt fields (Mask trap lures) ──
+
+  /// If > 0, enemies inside this radius prioritize this projectile as a lure.
+  final double tauntRadius;
+
+  /// Turn/move aggression multiplier while enemies are taunted by this lure.
+  final double tauntStrength;
+
   // ── Ricochet fields (Pip bounce) ──
 
   /// Number of remaining bounces to other enemies on hit.
@@ -2966,6 +3205,8 @@ class Projectile {
     this.deathExplosionCount = 0,
     this.deathExplosionDamage = 0,
     this.deathExplosionRadius = 1.5,
+    this.tauntRadius = 0,
+    this.tauntStrength = 0,
     this.bounceCount = 0,
     this.trailInterval = 0,
     this.trailDamage = 0,
@@ -4736,6 +4977,86 @@ CosmicSpecialResult _maskSpecial(
       deathExplosionCount: explodeCount,
       deathExplosionDamage: damage * explodeDmg,
       deathExplosionRadius: 2.5,
+      tauntRadius: 320,
+      tauntStrength: 3.4,
+    );
+  }
+
+  // Helper: stationary trap-totem that force-taunts nearby enemies.
+  Projectile tauntTrap(
+    Offset pos,
+    double dmgMul, {
+    double life = 8.0,
+    double radius = 2.0,
+    double vs = 1.9,
+    double hp = 9.0,
+    double tauntR = 420.0,
+    double tauntStr = 4.4,
+    int explodeCount = 8,
+    double explodeDmg = 1.9,
+  }) {
+    return Projectile(
+      position: pos,
+      angle: 0,
+      element: element,
+      damage: damage * dmgMul,
+      life: life,
+      stationary: true,
+      radiusMultiplier: radius,
+      visualScale: vs,
+      decoy: true,
+      decoyHp: hp,
+      deathExplosionCount: explodeCount,
+      deathExplosionDamage: damage * explodeDmg,
+      deathExplosionRadius: 2.2,
+      tauntRadius: tauntR,
+      tauntStrength: tauntStr,
+    );
+  }
+
+  final trapAnchor =
+      targetPos ??
+      Offset(
+        origin.dx + cos(baseAngle) * 120,
+        origin.dy + sin(baseAngle) * 120,
+      );
+  final trapCount = switch (element) {
+    'Lightning' || 'Air' => 4,
+    'Earth' || 'Mud' || 'Dark' => 3,
+    _ => 2,
+  };
+  final trapTauntRadius = switch (element) {
+    'Dark' => 520.0,
+    'Earth' => 490.0,
+    'Mud' => 500.0,
+    'Light' => 500.0,
+    _ => 440.0,
+  };
+  final trapLife = switch (element) {
+    'Earth' || 'Mud' => 10.0,
+    'Ice' || 'Steam' => 9.0,
+    'Dark' => 9.5,
+    _ => 8.0,
+  };
+  for (var i = 0; i < trapCount; i++) {
+    final a = baseAngle + ((i - (trapCount - 1) / 2) * 0.6);
+    final spread = 30.0 + i * 16.0;
+    final pos = Offset(
+      trapAnchor.dx + cos(a) * spread,
+      trapAnchor.dy + sin(a) * spread,
+    );
+    projs.add(
+      tauntTrap(
+        pos,
+        0.85,
+        life: trapLife,
+        tauntR: trapTauntRadius,
+        hp: element == 'Earth'
+            ? 14
+            : element == 'Mud'
+            ? 12
+            : 9,
+      ),
     );
   }
 
@@ -5669,24 +5990,24 @@ String cosmicSpecialAbilityName(String family, String element) {
       };
     case 'mask':
       return switch (element) {
-        'Fire' => 'Inferno Assault',
-        'Lava' => 'Volcanic Idol',
-        'Lightning' => 'Tesla Swarm',
-        'Water' => 'Bubble Assault',
-        'Ice' => 'Frost Decoy',
-        'Steam' => 'Steam Assault',
-        'Earth' => 'Monolith Assault',
-        'Mud' => 'Bog Assault',
-        'Dust' => 'Caltrop Swarm',
-        'Crystal' => 'Prism Decoy',
-        'Air' => 'Wind Assault',
-        'Plant' => 'Vine Construct',
-        'Poison' => 'Plague Assault',
-        'Spirit' => 'Phantom Decoy',
-        'Dark' => 'Void Well',
-        'Light' => 'Beacon Assault',
-        'Blood' => 'Blood Obelisk',
-        _ => 'Seeker Mine Field',
+        'Fire' => 'Inferno Lure Grid',
+        'Lava' => 'Volcanic Taunt Idol',
+        'Lightning' => 'Tesla Snare Grid',
+        'Water' => 'Tidal Lure Net',
+        'Ice' => 'Frost Snare Totem',
+        'Steam' => 'Steam Pressure Lure',
+        'Earth' => 'Monolith Taunt Field',
+        'Mud' => 'Bog Snare Pit',
+        'Dust' => 'Caltrop Lure Field',
+        'Crystal' => 'Prism Snare Totem',
+        'Air' => 'Cyclone Lure Field',
+        'Plant' => 'Vine Snare Construct',
+        'Poison' => 'Plague Snare Grid',
+        'Spirit' => 'Phantom Lure Totem',
+        'Dark' => 'Void Taunt Well',
+        'Light' => 'Beacon Snare Field',
+        'Blood' => 'Blood Lure Obelisk',
+        _ => 'Taunt Trap Field',
       };
     case 'kin':
       return switch (element) {
@@ -6307,6 +6628,7 @@ enum POIType {
   harvesterMarket,
   riftKeyMarket,
   cosmicMarket,
+  stardustScanner,
 }
 
 /// A discoverable point of interest in the cosmos.
@@ -6368,8 +6690,8 @@ class SpacePOI {
       );
     }
 
-    // 5 derelicts
-    for (var i = 0; i < 5; i++) {
+    // 1 derelict
+    for (var i = 0; i < 1; i++) {
       Offset pos;
       int tries = 0;
       do {
@@ -6390,19 +6712,26 @@ class SpacePOI {
       );
     }
 
-    // 4 comets
-    for (var i = 0; i < 4; i++) {
+    // 1 meteor shower zone (hidden on the map; encountered in-world)
+    for (var i = 0; i < 1; i++) {
+      Offset pos;
+      int tries = 0;
+      do {
+        pos = Offset(
+          margin + rng.nextDouble() * (worldSize.width - margin * 2),
+          margin + rng.nextDouble() * (worldSize.height - margin * 2),
+        );
+        tries++;
+      } while (tries < 150 &&
+          planets.any((p) => (p.position - pos).distance < minPlanetDist));
       pois.add(
         SpacePOI(
-          position: Offset(
-            margin + rng.nextDouble() * (worldSize.width - margin * 2),
-            margin + rng.nextDouble() * (worldSize.height - margin * 2),
-          ),
+          position: pos,
           type: POIType.comet,
           element: elements[rng.nextInt(elements.length)],
-          radius: 15,
+          radius: 620,
           angle: rng.nextDouble() * pi * 2,
-          speed: 30 + rng.nextDouble() * 40,
+          speed: 0,
         ),
       );
     }
@@ -6429,11 +6758,12 @@ class SpacePOI {
       );
     }
 
-    // 3 space markets (harvester + rift key + cosmic)
+    // 4 stations (harvester + rift key + cosmic + stardust scanner)
     for (final mType in [
       POIType.harvesterMarket,
       POIType.riftKeyMarket,
       POIType.cosmicMarket,
+      POIType.stardustScanner,
     ]) {
       Offset pos;
       int tries = 0;
@@ -6450,8 +6780,8 @@ class SpacePOI {
         SpacePOI(
           position: pos,
           type: mType,
-          element: 'Crystal',
-          radius: 60,
+          element: mType == POIType.stardustScanner ? 'Light' : 'Crystal',
+          radius: mType == POIType.stardustScanner ? 120 : 60,
           discovered: false, // discovered when ship gets close
         ),
       );

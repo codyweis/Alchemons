@@ -497,6 +497,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       tint: member.spriteVisuals?.tint,
                       alchemyEffect: member.spriteVisuals?.alchemyEffect,
                       variantFaction: member.spriteVisuals?.variantFaction,
+                      effectSlotSize: 52,
                     )
                   : member.imagePath != null
                   ? ClipOval(
@@ -689,6 +690,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                       tint: spriteVisuals?.tint,
                       alchemyEffect: spriteVisuals?.alchemyEffect,
                       variantFaction: spriteVisuals?.variantFaction,
+                      effectSlotSize: 64,
                     ),
                   ),
                 const SizedBox(height: 8),
@@ -914,6 +916,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                             tint: visuals?.tint,
                             alchemyEffect: visuals?.alchemyEffect,
                             variantFaction: visuals?.variantFaction,
+                            effectSlotSize: 42,
                           )
                         : Icon(Icons.catching_pokemon, color: eColor, size: 18),
                   ),

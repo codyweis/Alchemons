@@ -5,8 +5,13 @@
 // Dark metal panels, amber reagent accents, monospace tactical typography.
 
 import 'package:alchemons/providers/theme_provider.dart';
+import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/cinematic_quality_service.dart';
+import 'package:alchemons/services/notification_preferences_service.dart';
+import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
@@ -16,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // TYPOGRAPHY HELPERS  (colors resolved at runtime via ForgeTokens)
@@ -175,19 +181,40 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late Future<_ProfileData> _load;
+  final NotificationPreferencesService _notificationPrefs =
+      NotificationPreferencesService();
+  final CinematicQualityService _cinematicQualityService =
+      CinematicQualityService();
+  final PushNotificationService _pushNotifications = PushNotificationService();
+  bool _cultivationsEnabled = true;
+  bool _wildernessEnabled = true;
+  bool _extractionsEnabled = true;
+  bool _notificationPrefsLoaded = false;
+  CinematicQuality _cinematicQuality = CinematicQuality.high;
+  bool _cinematicQualityLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _load = _fetch();
+    _loadNotificationPrefs();
+    _loadCinematicQuality();
   }
 
   Future<_ProfileData> _fetch() async {
     final svc = context.read<FactionService>();
     final fid = svc.current;
-    if (fid == null) return const _ProfileData(null, 0);
+    final prefs = await SharedPreferences.getInstance();
+    final noteIds = deserialiseContestHintIds(
+      prefs.getString('cosmic_trait_hint_notes_v1') ?? '',
+    );
+    final cosmicHints = kCosmicContestHintLore
+        .where((h) => noteIds.contains(h.id))
+        .toList();
+
+    if (fid == null) return _ProfileData(null, 0, cosmicHints);
     final discovered = await svc.discoveredCount();
-    return _ProfileData(fid, discovered);
+    return _ProfileData(fid, discovered, cosmicHints);
   }
 
   Future<void> _replayStory() async {
@@ -196,6 +223,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       MaterialPageRoute(builder: (_) => const StoryIntroScreen()),
     );
+  }
+
+  Future<void> _openEncyclopedia() async {
+    HapticFeedback.mediumImpact();
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const AlchemicalEncyclopediaScreen()),
+    );
+  }
+
+  Future<void> _loadNotificationPrefs() async {
+    final cultivations = await _notificationPrefs.isCultivationsEnabled();
+    final wilderness = await _notificationPrefs.isWildernessEnabled();
+    final extractions = await _notificationPrefs.isExtractionsEnabled();
+    if (!mounted) return;
+    setState(() {
+      _cultivationsEnabled = cultivations;
+      _wildernessEnabled = wilderness;
+      _extractionsEnabled = extractions;
+      _notificationPrefsLoaded = true;
+    });
+  }
+
+  Future<void> _toggleCultivations(bool value) async {
+    setState(() => _cultivationsEnabled = value);
+    await _notificationPrefs.setCultivationsEnabled(value);
+    if (!value) {
+      await _pushNotifications.cancelEggNotification();
+    }
+  }
+
+  Future<void> _toggleWilderness(bool value) async {
+    setState(() => _wildernessEnabled = value);
+    await _notificationPrefs.setWildernessEnabled(value);
+    if (!value) {
+      await _pushNotifications.cancelWildernessNotifications();
+    }
+  }
+
+  Future<void> _toggleExtractions(bool value) async {
+    setState(() => _extractionsEnabled = value);
+    await _notificationPrefs.setExtractionsEnabled(value);
+    if (!value) {
+      await _pushNotifications.cancelHarvestNotification();
+    }
+  }
+
+  Future<void> _loadCinematicQuality() async {
+    final quality = await _cinematicQualityService.getQuality();
+    if (!mounted) return;
+    setState(() {
+      _cinematicQuality = quality;
+      _cinematicQualityLoaded = true;
+    });
+  }
+
+  Future<void> _setCinematicQuality(CinematicQuality value) async {
+    setState(() => _cinematicQuality = value);
+    await _cinematicQualityService.setQuality(value);
   }
 
   @override
@@ -275,6 +361,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: _label(t).copyWith(color: accentColor),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _openEncyclopedia,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: t.bg2,
+                            borderRadius: BorderRadius.circular(3),
+                            border: Border.all(color: t.borderDim),
+                          ),
+                          child: Icon(
+                            Icons.menu_book_rounded,
+                            size: 22,
+                            color: t.textSecondary,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
 
@@ -332,6 +435,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
 
                   const SizedBox(height: 24),
+                  const _EtchedDivider(label: 'COSMIC NOTES'),
+                  const SizedBox(height: 14),
+
+                  _ForgePanel(
+                    accentBar: t.teal,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.edit_note_rounded,
+                              size: 14,
+                              color: t.teal,
+                            ),
+                            const SizedBox(width: 8),
+                            Text('DISCOVERED HINT NOTES', style: _label(t)),
+                            const Spacer(),
+                            Text(
+                              '${data.cosmicHints.length}',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.teal,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (data.cosmicHints.isEmpty)
+                          Text(
+                            'No cosmic hint notes discovered yet.',
+                            style: _body(t).copyWith(fontSize: 11),
+                          )
+                        else ...[
+                          for (final hint in data.cosmicHints.take(6))
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Text(
+                                '• ${hint.text}',
+                                style: _body(t).copyWith(fontSize: 11),
+                              ),
+                            ),
+                          if (data.cosmicHints.length > 6)
+                            Text(
+                              '+${data.cosmicHints.length - 6} more archived notes',
+                              style: _body(
+                                t,
+                              ).copyWith(fontSize: 10, color: t.textMuted),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
                   const _EtchedDivider(label: 'GENERAL SETTINGS'),
                   const SizedBox(height: 14),
 
@@ -371,6 +532,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Text('FONT STYLE', style: _label(t)),
                         const Spacer(),
                         _FontSelectorWidget(t: t),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _ForgePanel(
+                    accentBar: t.amber,
+                    padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.movie_filter_rounded,
+                          size: 14,
+                          color: t.amber,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('CINEMATIC QUALITY', style: _label(t)),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Extraction and hatch visual intensity',
+                                style: _body(t).copyWith(fontSize: 10),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        _CinematicQualitySelector(
+                          t: t,
+                          value: _cinematicQuality,
+                          enabled: _cinematicQualityLoaded,
+                          onChanged: _setCinematicQuality,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  const _EtchedDivider(label: 'NOTIFICATIONS'),
+                  const SizedBox(height: 14),
+
+                  _ForgePanel(
+                    accentBar: t.teal,
+                    child: Column(
+                      children: [
+                        _NotificationToggleRow(
+                          icon: Icons.science_rounded,
+                          title: 'CULTIVATIONS',
+                          subtitle: 'Egg ready and extraction-ready alerts',
+                          value: _cultivationsEnabled,
+                          enabled: _notificationPrefsLoaded,
+                          onChanged: _toggleCultivations,
+                          accent: t.teal,
+                        ),
+                        const SizedBox(height: 8),
+                        _NotificationToggleRow(
+                          icon: Icons.explore_rounded,
+                          title: 'WILDERNESS',
+                          subtitle: 'Wild spawn alerts across biomes',
+                          value: _wildernessEnabled,
+                          enabled: _notificationPrefsLoaded,
+                          onChanged: _toggleWilderness,
+                          accent: t.teal,
+                        ),
+                        const SizedBox(height: 8),
+                        _NotificationToggleRow(
+                          icon: Icons.science_outlined,
+                          title: 'EXTRACTIONS',
+                          subtitle: 'Biome harvest completion alerts',
+                          value: _extractionsEnabled,
+                          enabled: _notificationPrefsLoaded,
+                          onChanged: _toggleExtractions,
+                          accent: t.teal,
+                        ),
                       ],
                     ),
                   ),
@@ -532,6 +771,129 @@ class _FontSelectorWidget extends StatelessWidget {
     );
   }
 }
+
+class _CinematicQualitySelector extends StatelessWidget {
+  final ForgeTokens t;
+  final CinematicQuality value;
+  final bool enabled;
+  final Future<void> Function(CinematicQuality value) onChanged;
+
+  const _CinematicQualitySelector({
+    required this.t,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  String _labelFor(CinematicQuality quality) {
+    return switch (quality) {
+      CinematicQuality.high => 'HIGH',
+      CinematicQuality.balanced => 'BALANCED',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.45,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: t.bg3,
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: t.borderDim),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<CinematicQuality>(
+            value: value,
+            icon: Icon(Icons.arrow_drop_down, color: t.amber, size: 18),
+            dropdownColor: t.bg2,
+            isDense: true,
+            onChanged: enabled
+                ? (next) {
+                    if (next == null) return;
+                    HapticFeedback.selectionClick();
+                    onChanged(next);
+                  }
+                : null,
+            items: CinematicQuality.values
+                .map(
+                  (q) => DropdownMenuItem<CinematicQuality>(
+                    value: q,
+                    child: Text(
+                      _labelFor(q),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: t.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationToggleRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final bool enabled;
+  final Future<void> Function(bool value) onChanged;
+  final Color accent;
+
+  const _NotificationToggleRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: accent),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: _label(t)),
+              const SizedBox(height: 2),
+              Text(subtitle, style: _body(t).copyWith(fontSize: 10)),
+            ],
+          ),
+        ),
+        IgnorePointer(
+          ignoring: !enabled,
+          child: Opacity(
+            opacity: enabled ? 1.0 : 0.45,
+            child: Switch.adaptive(
+              value: value,
+              activeColor: accent,
+              onChanged: (v) {
+                HapticFeedback.selectionClick();
+                onChanged(v);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 // ──────────────────────────────────────────────────────────────────────────────
 // DATA
 // ──────────────────────────────────────────────────────────────────────────────
@@ -539,5 +901,6 @@ class _FontSelectorWidget extends StatelessWidget {
 class _ProfileData {
   final FactionId? faction;
   final int discoveredCount;
-  const _ProfileData(this.faction, this.discoveredCount);
+  final List<CosmicContestHintLore> cosmicHints;
+  const _ProfileData(this.faction, this.discoveredCount, this.cosmicHints);
 }

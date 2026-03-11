@@ -5,11 +5,9 @@ import 'dart:math';
 
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/faction.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -211,31 +209,6 @@ class BreedingServiceV2 {
     Creature offspring,
   ) {
     try {
-      final baseA = repository.getCreatureById(parent1.baseId);
-      final baseB = repository.getCreatureById(parent2.baseId);
-
-      if (baseA == null || baseB == null) return null;
-
-      // Hydrate instances with genetics + nature
-      final geneticsA = decodeGenetics(parent1.geneticsJson);
-      final geneticsB = decodeGenetics(parent2.geneticsJson);
-
-      final parentA = baseA.copyWith(
-        genetics: geneticsA,
-        nature: parent1.natureId != null
-            ? NatureCatalog.byId(parent1.natureId!)
-            : baseA.nature,
-        isPrismaticSkin: parent1.isPrismaticSkin,
-      );
-
-      final parentB = baseB.copyWith(
-        genetics: geneticsB,
-        nature: parent2.natureId != null
-            ? NatureCatalog.byId(parent2.natureId!)
-            : baseB.nature,
-        isPrismaticSkin: parent2.isPrismaticSkin,
-      );
-
       final analyzer = BreedingLikelihoodAnalyzer(
         repository: repository,
         elementRecipes: engine.elementRecipes,
@@ -244,9 +217,9 @@ class BreedingServiceV2 {
         engine: engine,
       );
 
-      final report = analyzer.analyzeBreedingResult(
-        parentA,
-        parentB,
+      final report = analyzer.analyzeInstanceBreedingResult(
+        parent1,
+        parent2,
         offspring,
       );
 
@@ -265,18 +238,6 @@ class BreedingServiceV2 {
     Creature offspring,
   ) {
     try {
-      final ownedBase = repository.getCreatureById(ownedParent.baseId);
-      if (ownedBase == null) return null;
-
-      final geneticsOwned = decodeGenetics(ownedParent.geneticsJson);
-      final hydratedOwned = ownedBase.copyWith(
-        genetics: geneticsOwned,
-        nature: ownedParent.natureId != null
-            ? NatureCatalog.byId(ownedParent.natureId!)
-            : ownedBase.nature,
-        isPrismaticSkin: ownedParent.isPrismaticSkin,
-      );
-
       final analyzer = BreedingLikelihoodAnalyzer(
         repository: repository,
         elementRecipes: engine.elementRecipes,
@@ -285,8 +246,8 @@ class BreedingServiceV2 {
         engine: engine,
       );
 
-      final report = analyzer.analyzeBreedingResult(
-        hydratedOwned,
+      final report = analyzer.analyzeWildBreedingResult(
+        ownedParent,
         randomizedWild,
         offspring,
       );

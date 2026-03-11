@@ -39,3 +39,26 @@ double effectSizeFromWidgetSize(
 }) {
   return math.max(minSize, math.min(widgetSize * multiplier, maxSize));
 }
+
+/// Canonical sizing for the Prismatic Cascade visual.
+///
+/// Keeps the effect visually consistent and prevents oversized renders in
+/// compact UI slots (party pickers, list tiles) while still reading clearly in
+/// larger contexts.
+double prismaticCascadeSizeFromDisplayBase(double displayBase) {
+  return effectSizeFromDisplayBase(
+    displayBase,
+    multiplier: 1.08,
+    minSize: 34.0,
+    maxSize: 128.0,
+  );
+}
+
+double prismaticCascadeSizeFromWidgetSize(double widgetSize) {
+  return effectSizeFromWidgetSize(
+    widgetSize,
+    multiplier: 0.58,
+    minSize: 24.0,
+    maxSize: 92.0,
+  );
+}

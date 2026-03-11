@@ -23,6 +23,12 @@ class GameInventoryOverlay extends StatefulWidget {
 }
 
 class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
+  static const Set<String> _spaceOnlyInventoryKeys = {
+    'wallet_astral_shards',
+    'item.astral_shard',
+    'item.astral_shards',
+  };
+
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
@@ -34,7 +40,11 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
       builder: (context, snapshot) {
         final allItems = snapshot.data ?? [];
         final items = allItems
-            .where((item) => !item.key.startsWith('vial.'))
+            .where(
+              (item) =>
+                  !item.key.startsWith('vial.') &&
+                  !_isSpaceOnlyInventoryItem(item.key),
+            )
             .toList();
 
         if (items.isEmpty) {
@@ -142,6 +152,12 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
         );
       },
     );
+  }
+
+  bool _isSpaceOnlyInventoryItem(String key) {
+    final normalized = key.toLowerCase();
+    return _spaceOnlyInventoryKeys.contains(normalized) ||
+        normalized.contains('astral_shard');
   }
 
   Widget _buildEmptyState(ForgeTokens t) {
@@ -648,6 +664,10 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
       InvKeys.alchemyVolcanicAura => 'volcanic_aura',
       InvKeys.alchemyVoidRift => 'void_rift',
       InvKeys.alchemyPrismaticCascade => 'prismatic_cascade',
+      InvKeys.alchemyBeautyRadiance => 'beauty_radiance',
+      InvKeys.alchemySpeedFlux => 'speed_flux',
+      InvKeys.alchemyStrengthForge => 'strength_forge',
+      InvKeys.alchemyIntelligenceHalo => 'intelligence_halo',
       _ => null,
     };
 
@@ -676,7 +696,10 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
         backgroundColor: theme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.accent.withValues(alpha: 0.5), width: 2),
+          side: BorderSide(
+            color: theme.accent.withValues(alpha: 0.5),
+            width: 2,
+          ),
         ),
         title: Text(
           'Remove Item',
@@ -802,7 +825,9 @@ class _CompactItemCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: t.bg3,
                   borderRadius: BorderRadius.circular(2),
-                  border: Border.all(color: t.borderAccent.withValues(alpha: 0.6)),
+                  border: Border.all(
+                    color: t.borderAccent.withValues(alpha: 0.6),
+                  ),
                 ),
                 child: Text(
                   '${item.qty}',

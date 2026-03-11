@@ -8,6 +8,7 @@ import 'package:alchemons/games/survival/survival_game_screen.dart';
 import 'package:alchemons/screens/boss/boss_intro_screen.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
+import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -37,31 +38,18 @@ class GameModeScreen extends StatelessWidget {
       whiteBackground: theme.brightness == Brightness.light,
       body: Scaffold(
         backgroundColor: Colors.transparent,
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: FloatingCloseButton(
+          onTap: () => Navigator.of(context).pop(),
+          theme: theme,
+        ),
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Back button
-                GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: theme.surface.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: theme.border.withValues(alpha: 0.3)),
-                    ),
-                    child: Icon(
-                      Icons.arrow_back_rounded,
-                      color: theme.text,
-                      size: 20,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 32),
+                const SizedBox(height: 12),
 
                 // Title
                 Text(
@@ -166,7 +154,10 @@ class _ModeCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.surface.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: accentColor.withValues(alpha: 0.25), width: 1),
+          border: Border.all(
+            color: accentColor.withValues(alpha: 0.25),
+            width: 1,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

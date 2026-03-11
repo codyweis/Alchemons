@@ -158,6 +158,12 @@ class _AlchemicalParticleBackgroundState
     _isInitialized = true;
   }
 
+  void _resetForSize(Size size) {
+    _particles.clear();
+    _isInitialized = false;
+    _initializeParticles(size);
+  }
+
   void _updateParticles() {
     if (!_isInitialized) return;
     final size = _lastSize;
@@ -191,6 +197,14 @@ class _AlchemicalParticleBackgroundState
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
+        final last = _lastSize;
+        final sizeChanged =
+            last != null &&
+            ((last.width - size.width).abs() > 1.0 ||
+                (last.height - size.height).abs() > 1.0);
+        if (sizeChanged) {
+          _resetForSize(size);
+        }
         _lastSize = size;
         _initializeParticles(size);
 

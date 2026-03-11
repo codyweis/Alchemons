@@ -48,22 +48,16 @@ const Map<ConstellationTree, List<String>> kTreeStoryFragments = {
     'The arena stayed silent, but the sky learned your name.',
   ],
   ConstellationTree.extraction: [
-    'They told you the veins were empty centuries ago.',
-    'Yet the rock still sang if you pressed your ear close.',
-    'You followed the song into a shaft no map admitted.',
-    'Dust glittered, undecided between mundane and sacred.',
-    'Your tools were simple; your equations were not.',
-    'Each strike released a gasp of bottled radiance.',
-    'The light tried to flee; you offered it purpose instead.',
-    'Careful conduits turned chaos into circulation.',
-    'On your schematics, the mine looked like a nervous system.',
-    'In truth, it was a conversation with buried history.',
-    'You left the deepest caverns brighter than you found them.',
-    'Starlight, once lost, now flowed where it was needed most.',
-    'The surface felt different, as if standing on a healed bruise.',
-    'You logged the yield; the world logged the mercy.',
-    'Extraction became less about taking, more about translation.',
-    'The planet did not thank you, but it stopped protesting.',
+    'The first heartbeat',
+    'or waking breath,',
+    'the moment marking',
+    'flesh and life,',
+    'a flicker in the night,',
+    'the light grows,',
+    'the light flickers,',
+    'then fades,',
+    'can you remember',
+    'the glow?',
   ],
 };
 
@@ -764,7 +758,9 @@ class SkillNode extends PositionComponent with TapCallbacks {
       // Diamond shape
       final size = particle.size;
       final paint = Paint()
-        ..color = primaryColor.withValues(alpha: (opacity * 0.8).clamp(0.0, 1.0))
+        ..color = primaryColor.withValues(
+          alpha: (opacity * 0.8).clamp(0.0, 1.0),
+        )
         ..style = PaintingStyle.fill;
 
       final path = Path()
@@ -778,7 +774,9 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
       // Inner glow
       final glowPaint = Paint()
-        ..color = secondaryColor.withValues(alpha: (opacity * 0.4).clamp(0.0, 1.0))
+        ..color = secondaryColor.withValues(
+          alpha: (opacity * 0.4).clamp(0.0, 1.0),
+        )
         ..style = PaintingStyle.fill;
       final glowPath = Path()
         ..moveTo(pos.x, pos.y - size * 0.5)
@@ -925,13 +923,32 @@ class ConnectionLine extends Component {
   double _storyOpacity = 0.0;
 
   // Smoother timing
-  static const double _drawDuration = 1.2;
-  static const double _glowFadeTime = 0.8;
-  static const double _storyFadeInTime = 0.6;
+  static const double _drawDuration = 1.05;
+  static const double _glowFadeTime = 0.95;
+  static const double _storyFadeInTime = 0.8;
 
   // Traveling energy pulse
   double _energyPulsePosition = 0.0;
   bool _showEnergyPulse = false;
+  double _storyFloatOffset = 10.0;
+
+  late final String _wrappedStoryText;
+  late final List<String> _wrappedStoryLines;
+  TextPaint? _storyTextPaint;
+  double _storyPaintAlpha = -1.0;
+
+  final Paint _linePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  final Paint _glowPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+  final Paint _pulsePaint = Paint()..style = PaintingStyle.fill;
+  final Paint _pulseGlowPaint = Paint()
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
+  final Paint _storyBackdropPaint = Paint()..style = PaintingStyle.fill;
+  final Paint _storyBorderPaint = Paint()..style = PaintingStyle.stroke;
 
   ConnectionLine({
     required this.from,
@@ -941,7 +958,47 @@ class ConnectionLine extends Component {
     required this.primaryColor,
     required this.connectionIndex,
     this.storyText,
-  }) : super(priority: -1);
+  }) : super(priority: -1) {
+    _wrappedStoryText = _wrapStoryText(storyText);
+    _wrappedStoryLines = _wrappedStoryText.isEmpty
+        ? const <String>[]
+        : _wrappedStoryText.split('\n');
+  }
+
+  static String _wrapStoryText(String? text, {int maxCharsPerLine = 26}) {
+    if (text == null) return '';
+    final clean = text.trim();
+    if (clean.isEmpty) return '';
+
+    final wrappedLines = <String>[];
+    for (final paragraph in clean.split('\n')) {
+      final p = paragraph.trim();
+      if (p.isEmpty) continue;
+
+      final words = p.split(RegExp(r'\s+'));
+      var currentLine = '';
+
+      for (final word in words) {
+        if (currentLine.isEmpty) {
+          currentLine = word;
+          continue;
+        }
+        final candidate = '$currentLine $word';
+        if (candidate.length <= maxCharsPerLine) {
+          currentLine = candidate;
+        } else {
+          wrappedLines.add(currentLine);
+          currentLine = word;
+        }
+      }
+
+      if (currentLine.isNotEmpty) {
+        wrappedLines.add(currentLine);
+      }
+    }
+
+    return wrappedLines.join('\n');
+  }
 
   void animateActivation() {
     if (_isAnimating || isActive) return;
@@ -954,6 +1011,7 @@ class ConnectionLine extends Component {
     _storyOpacity = 0.0;
     _energyPulsePosition = 0.0;
     _showEnergyPulse = true;
+    _storyFloatOffset = 10.0;
   }
 
   @override
@@ -962,13 +1020,14 @@ class ConnectionLine extends Component {
 
     if (!_isAnimating) return;
 
-    _animationTime += dt;
+    final frameDt = math.min(dt, 1 / 30);
+    _animationTime += frameDt;
 
-    // Line drawing with easeOutCubic
+    // Line drawing with a smoother acceleration/deceleration curve.
     if (_animationTime < _drawDuration) {
-      final t = _animationTime / _drawDuration;
-      _animationProgress = Curves.easeOutCubic.transform(t);
-      _energyPulsePosition = _animationProgress;
+      final t = (_animationTime / _drawDuration).clamp(0.0, 1.0);
+      _animationProgress = Curves.easeInOutCubic.transform(t);
+      _energyPulsePosition = Curves.easeOutCubic.transform(t);
     } else {
       _animationProgress = 1.0;
       _showEnergyPulse = false;
@@ -980,26 +1039,29 @@ class ConnectionLine extends Component {
 
     if (_animationTime > glowStartTime && _animationTime < glowEndTime) {
       final glowT =
-          (_animationTime - glowStartTime) / (glowEndTime - glowStartTime);
-      // Smooth bell curve
-      _glowIntensity = math.sin(glowT * math.pi) * 0.8;
+          ((_animationTime - glowStartTime) / (glowEndTime - glowStartTime))
+              .clamp(0.0, 1.0);
+      final bell = math.sin(glowT * math.pi).clamp(0.0, 1.0);
+      _glowIntensity = math.pow(bell, 1.2).toDouble() * 0.85;
     } else {
-      _glowIntensity = (_glowIntensity - dt * 2).clamp(0.0, 1.0);
+      _glowIntensity = (_glowIntensity - frameDt * 2).clamp(0.0, 1.0);
     }
 
-    // Story text fade in
-    final storyStartTime = _drawDuration + 0.2;
+    // Story text fades in while drifting into place.
+    final storyStartTime = _drawDuration * 0.72;
     if (_animationTime > storyStartTime) {
       final storyT = ((_animationTime - storyStartTime) / _storyFadeInTime)
           .clamp(0.0, 1.0);
       _storyOpacity = Curves.easeOutCubic.transform(storyT);
+      _storyFloatOffset = (1.0 - storyT) * 10.0;
     }
 
     // End animation
     if (_animationTime >
-        _drawDuration + _glowFadeTime + _storyFadeInTime + 0.5) {
+        _drawDuration + _glowFadeTime + _storyFadeInTime + 0.7) {
       _isAnimating = false;
       _storyOpacity = 1.0;
+      _storyFloatOffset = 0.0;
     }
   }
 
@@ -1018,48 +1080,40 @@ class ConnectionLine extends Component {
     final glowBoost = (_glowIntensity * 0.3).clamp(0.0, 0.5);
 
     // Main line
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 
-        (baseOpacity + glowBoost).clamp(0.0, 1.0),
+    _linePaint
+      ..color = Colors.white.withValues(
+        alpha: (baseOpacity + glowBoost).clamp(0.0, 1.0),
       )
       ..strokeWidth = 2.0 + (_glowIntensity * 2.0)
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..maskFilter = null;
 
-    canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), paint);
+    canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _linePaint);
 
     // Outer glow
     if (isActive) {
-      final glowPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 
-          ((0.2 + glowBoost) * 0.6).clamp(0.0, 1.0),
+      _glowPaint
+        ..color = Colors.white.withValues(
+          alpha: ((0.2 + glowBoost) * 0.6).clamp(0.0, 1.0),
         )
-        ..strokeWidth = 6.0 + (_glowIntensity * 6.0)
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+        ..strokeWidth = 6.0 + (_glowIntensity * 6.0);
 
-      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), glowPaint);
+      canvas.drawLine(fromPos.toOffset(), currentEnd.toOffset(), _glowPaint);
     }
 
     // Energy pulse traveling along the line
     if (_showEnergyPulse && _animationProgress > 0.05) {
       final pulsePos = fromPos + (toPos - fromPos) * _energyPulsePosition;
-      final pulsePaint = Paint()
-        ..color = primaryColor.withValues(alpha: 0.9)
-        ..style = PaintingStyle.fill;
+      _pulsePaint.color = primaryColor.withValues(alpha: 0.9);
 
       canvas.drawCircle(
         pulsePos.toOffset(),
         4.0 + _glowIntensity * 3.0,
-        pulsePaint,
+        _pulsePaint,
       );
 
       // Pulse glow
-      final pulseGlowPaint = Paint()
-        ..color = primaryColor.withValues(alpha: 0.4)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
-      canvas.drawCircle(pulsePos.toOffset(), 8.0, pulseGlowPaint);
+      _pulseGlowPaint.color = primaryColor.withValues(alpha: 0.4);
+      canvas.drawCircle(pulsePos.toOffset(), 8.0, _pulseGlowPaint);
     }
 
     // Story text
@@ -1069,43 +1123,101 @@ class ConnectionLine extends Component {
   }
 
   void _drawStoryText(Canvas canvas, Vector2 from, Vector2 to) {
-    if (storyText == null || storyText!.isEmpty) return;
+    if (_wrappedStoryText.isEmpty) return;
 
     final midPoint = (from + to) / 2;
-    final direction = (to - from).normalized();
+    final path = to - from;
+    final lineLength = path.length;
+    if (lineLength <= 0.001) return;
+
+    final direction = path / lineLength;
     final perpendicular = Vector2(-direction.y, direction.x);
 
-    const sideDistance = 140.0;
-    final deltaX = (to.x - from.x).abs();
-    final isFork = deltaX > 100;
-
-    bool isRightSide;
-    if (isFork) {
-      isRightSide = to.x > from.x;
-    } else {
-      isRightSide = connectionIndex % 2 == 0;
-    }
-
-    final sideOffset =
-        perpendicular * (isRightSide ? sideDistance : -sideDistance);
-    final storyPos = midPoint + sideOffset;
-
-    final mainPaint = TextPaint(
-      style: GoogleFonts.imFellGreatPrimer(
-        color: Colors.white.withValues(alpha: (_storyOpacity * 0.85).clamp(0.0, 1.0)),
-        fontSize: 12,
-      ),
+    final longestLineChars = _wrappedStoryLines.fold<int>(
+      0,
+      (max, line) => math.max(max, line.length),
+    );
+    final textWidth = (longestLineChars * 7.0 + 30.0).clamp(110.0, 320.0);
+    final textHeight = (_wrappedStoryLines.length * 16.0 + 16.0).clamp(
+      34.0,
+      140.0,
     );
 
-    mainPaint.render(canvas, storyText!, storyPos, anchor: Anchor.center);
+    final baseDistance = (lineLength * 0.42).clamp(130.0, 230.0);
+    final safeDistance = baseDistance + (textHeight * 0.35);
+
+    final rightCandidate = midPoint + perpendicular * safeDistance;
+    final leftCandidate = midPoint - perpendicular * safeDistance;
+    final rightDist2 =
+        rightCandidate.x * rightCandidate.x +
+        rightCandidate.y * rightCandidate.y;
+    final leftDist2 =
+        leftCandidate.x * leftCandidate.x + leftCandidate.y * leftCandidate.y;
+
+    double sideSign = rightDist2 >= leftDist2 ? 1.0 : -1.0;
+    if ((rightDist2 - leftDist2).abs() < 8000) {
+      sideSign = connectionIndex.isEven ? 1.0 : -1.0;
+    }
+
+    final lane = (connectionIndex % 3) - 1;
+    final alongOffset = direction * (lane * 22.0);
+    final storyPos =
+        midPoint +
+        perpendicular * (safeDistance * sideSign) +
+        alongOffset +
+        Vector2(0, -_storyFloatOffset);
+
+    final alpha = (_storyOpacity * 0.85).clamp(0.0, 1.0);
+    if (_storyTextPaint == null || (alpha - _storyPaintAlpha).abs() > 0.02) {
+      _storyPaintAlpha = alpha;
+      _storyTextPaint = TextPaint(
+        style: GoogleFonts.imFellGreatPrimer(
+          color: Colors.white.withValues(alpha: alpha),
+          fontSize: 12,
+          height: 1.15,
+        ),
+      );
+    }
+
+    final rect = Rect.fromCenter(
+      center: storyPos.toOffset(),
+      width: textWidth,
+      height: textHeight,
+    );
+    final bubble = RRect.fromRectAndRadius(rect, const Radius.circular(10));
+
+    _storyBackdropPaint.color = Colors.black.withValues(
+      alpha: (_storyOpacity * 0.62).clamp(0.0, 1.0),
+    );
+    canvas.drawRRect(bubble, _storyBackdropPaint);
+
+    _storyBorderPaint
+      ..color = primaryColor.withValues(
+        alpha: (_storyOpacity * 0.3).clamp(0.0, 1.0),
+      )
+      ..strokeWidth = 1.0;
+    canvas.drawRRect(bubble, _storyBorderPaint);
+
+    _storyTextPaint!.render(
+      canvas,
+      _wrappedStoryText,
+      storyPos,
+      anchor: Anchor.center,
+    );
   }
 }
 
 /// Starfield with improved twinkling
-class StarfieldBackground extends Component {
+class StarfieldBackground extends Component
+    with HasGameReference<ConstellationGame> {
   final Color primaryColor;
   final Color secondaryColor;
   final List<Star> stars = [];
+  double _time = 0.0;
+
+  static const int _farLayerCount = 2600;
+  static const int _midLayerCount = 1900;
+  static const int _nearLayerCount = 400;
 
   StarfieldBackground({
     required this.primaryColor,
@@ -1120,7 +1232,7 @@ class StarfieldBackground extends Component {
 
     // Layered stars for depth
     // Far layer - small, dim, slow
-    for (int i = 0; i < 4000; i++) {
+    for (int i = 0; i < _farLayerCount; i++) {
       stars.add(
         Star(
           position: Vector2(
@@ -1136,7 +1248,7 @@ class StarfieldBackground extends Component {
     }
 
     // Mid layer - medium
-    for (int i = 0; i < 3000; i++) {
+    for (int i = 0; i < _midLayerCount; i++) {
       stars.add(
         Star(
           position: Vector2(
@@ -1152,7 +1264,7 @@ class StarfieldBackground extends Component {
     }
 
     // Near layer - bright, fast twinkle
-    for (int i = 0; i < 500; i++) {
+    for (int i = 0; i < _nearLayerCount; i++) {
       stars.add(
         Star(
           position: Vector2(
@@ -1183,9 +1295,26 @@ class StarfieldBackground extends Component {
   @override
   void render(Canvas canvas) {
     final paint = Paint();
+    final zoom = game.camera.viewfinder.zoom;
+    final viewCenter = game.camera.viewfinder.position;
+
+    // Render only stars near the visible region (+margin) for better frame-time.
+    final worldWidth = game.size.x / zoom;
+    final worldHeight = game.size.y / zoom;
+    final marginX = worldWidth * 0.4;
+    final marginY = worldHeight * 0.4;
+    final minX = viewCenter.x - worldWidth / 2 - marginX;
+    final maxX = viewCenter.x + worldWidth / 2 + marginX;
+    final minY = viewCenter.y - worldHeight / 2 - marginY;
+    final maxY = viewCenter.y + worldHeight / 2 + marginY;
 
     for (final star in stars) {
-      paint.color = primaryColor.withValues(alpha: star.currentOpacity);
+      final p = star.position;
+      if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) continue;
+
+      paint.color = primaryColor.withValues(
+        alpha: star.currentOpacityAt(_time),
+      );
       canvas.drawCircle(star.position.toOffset(), star.size, paint);
     }
   }
@@ -1193,9 +1322,7 @@ class StarfieldBackground extends Component {
   @override
   void update(double dt) {
     super.update(dt);
-    for (final star in stars) {
-      star.update(dt);
-    }
+    _time += dt;
   }
 }
 
@@ -1205,7 +1332,6 @@ class Star {
   final double baseOpacity;
   final double twinkleSpeed;
   final double twinklePhase;
-  double _time = 0;
   bool _rapidBlink = false;
 
   Star({
@@ -1216,20 +1342,20 @@ class Star {
     required this.twinklePhase,
   });
 
-  double get currentOpacity {
+  double currentOpacityAt(double time) {
     if (_rapidBlink) {
       // More organic rapid blink with multiple frequencies
       final blink =
-          (math.sin(_time * 15 + twinklePhase) +
-              math.sin(_time * 23 + twinklePhase * 1.3) * 0.5) /
+          (math.sin(time * 15 + twinklePhase) +
+              math.sin(time * 23 + twinklePhase * 1.3) * 0.5) /
           1.5;
       return (baseOpacity * (0.2 + 0.8 * ((blink + 1) / 2))).clamp(0.0, 1.0);
     }
 
     // Smooth twinkling with slight variation
-    final twinkle = math.sin(_time * twinkleSpeed + twinklePhase);
+    final twinkle = math.sin(time * twinkleSpeed + twinklePhase);
     final variation =
-        math.sin(_time * twinkleSpeed * 0.7 + twinklePhase + 1.0) * 0.3;
+        math.sin(time * twinkleSpeed * 0.7 + twinklePhase + 1.0) * 0.3;
     final combined = ((twinkle + variation).clamp(-1.0, 1.0) + 1) / 2;
     return (baseOpacity * (0.6 + 0.4 * combined)).clamp(0.0, 1.0);
   }
@@ -1240,9 +1366,5 @@ class Star {
 
   void restoreNormalTwinkle() {
     _rapidBlink = false;
-  }
-
-  void update(double dt) {
-    _time += dt;
   }
 }

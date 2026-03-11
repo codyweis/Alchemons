@@ -3,6 +3,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -15,6 +16,8 @@ class PushNotificationService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  final NotificationPreferencesService _prefs =
+      NotificationPreferencesService();
 
   // Notification IDs - using separate ranges to prevent collisions
   static const int eggHatchingBaseId = 1000; // 1000-1099 for individual eggs
@@ -47,7 +50,7 @@ class PushNotificationService {
     // Set local location
     final String timeZoneName = DateTime.now().timeZoneName;
     try {
-      tz.setLocalLocation(tz.getLocation(timeZoneName));
+      tz.setLocalLocation(tz.getLocation(_resolveTimeZoneName(timeZoneName)));
     } catch (e) {
       debugPrint('⚠️ Could not set timezone to $timeZoneName, using UTC');
       tz.setLocalLocation(tz.getLocation('UTC'));
@@ -113,6 +116,23 @@ class PushNotificationService {
     return DateTime(time.year, time.month, time.day, time.hour, time.minute);
   }
 
+  String _resolveTimeZoneName(String raw) {
+    const fallbackByAbbrev = <String, String>{
+      'MDT': 'America/Denver',
+      'MST': 'America/Denver',
+      'CDT': 'America/Chicago',
+      'CST': 'America/Chicago',
+      'EDT': 'America/New_York',
+      'EST': 'America/New_York',
+      'PDT': 'America/Los_Angeles',
+      'PST': 'America/Los_Angeles',
+      'AKDT': 'America/Anchorage',
+      'AKST': 'America/Anchorage',
+      'HST': 'Pacific/Honolulu',
+    };
+    return fallbackByAbbrev[raw] ?? raw;
+  }
+
   // ============================================================================
   // EGG HATCHING NOTIFICATIONS
   // ============================================================================
@@ -123,6 +143,7 @@ class PushNotificationService {
     int? slotIndex,
   }) async {
     if (!_initialized) await initialize();
+    if (!await _prefs.isCultivationsEnabled()) return;
 
     final now = DateTime.now();
     if (hatchTime.isBefore(now)) {
@@ -165,9 +186,9 @@ class PushNotificationService {
               'Notifications when specimens are ready for extraction',
           importance: Importance.high,
           priority: Priority.high,
-          payload: 'egg_ready:$eggId',
         ),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: 'egg_ready:$eggId',
       );
 
       debugPrint(
@@ -230,9 +251,9 @@ class PushNotificationService {
               'Notifications when specimens are ready for extraction',
           importance: Importance.high,
           priority: Priority.high,
-          payload: 'eggs_window_ready:$eggCount',
         ),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: 'eggs_window_ready:$eggCount',
       );
 
       debugPrint(
@@ -245,6 +266,7 @@ class PushNotificationService {
   // Immediate consolidated "X eggs ready now" (e.g., called when app does a check)
   Future<void> showEggReadyNotification({required int count}) async {
     if (!_initialized) await initialize();
+    if (!await _prefs.isCultivationsEnabled()) return;
 
     await _notifications.show(
       eggReadyConsolidatedId,
@@ -259,8 +281,8 @@ class PushNotificationService {
             'Notifications when specimens are ready for extraction',
         importance: Importance.high,
         priority: Priority.high,
-        payload: 'eggs_ready:$count',
       ),
+      payload: 'eggs_ready:$count',
     );
 
     debugPrint(
@@ -300,6 +322,11 @@ class PushNotificationService {
     }
   }
 
+  Future<void> cancelEggReadySummaryNotification() async {
+    if (!_initialized) await initialize();
+    await _notifications.cancel(eggReadyConsolidatedId);
+  }
+
   // ============================================================================
   // WILDERNESS SPAWN NOTIFICATIONS
   // ============================================================================
@@ -309,6 +336,7 @@ class PushNotificationService {
     required String biomeId,
   }) async {
     if (!_initialized) await initialize();
+    if (!await _prefs.isWildernessEnabled()) return;
 
     final now = DateTime.now();
     if (spawnTime.isBefore(now)) {
@@ -320,17 +348,21 @@ class PushNotificationService {
       'sky': 'Sky Peaks',
       'volcano': 'Volcano',
       'swamp': 'Swamp',
+      'arcane': 'Arcane',
     };
 
     final biomeName = biomeNames[biomeId] ?? biomeId;
     final scheduledDate = tz.TZDateTime.from(spawnTime, tz.local);
 
-    // Use a stable ID based on biome (0-99 range for 4 biomes)
-    final biomeIndex = biomeNames.keys.toList().indexOf(biomeId).clamp(0, 99);
+    // Use a stable ID based on biome key, with a deterministic fallback.
+    final biomeIndex = _notificationSlotForKey(
+      key: biomeId,
+      knownOrder: biomeNames.keys.toList(),
+    );
 
     await _notifications.zonedSchedule(
       wildernessSpawnBaseId + biomeIndex,
-      '🌲 Wild Creatures Detected!',
+      'Wild Creatures Detected!',
       'New specimens spotted in the $biomeName',
       scheduledDate,
       _notificationDetails(
@@ -339,9 +371,9 @@ class PushNotificationService {
         channelDescription: 'Notifications when wild creatures spawn',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
-        payload: 'wilderness_spawn:$biomeId',
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      payload: 'wilderness_spawn:$biomeId',
     );
 
     debugPrint(
@@ -355,10 +387,11 @@ class PushNotificationService {
     required int locationCount,
   }) async {
     if (!_initialized) await initialize();
+    if (!await _prefs.isWildernessEnabled()) return;
 
     await _notifications.show(
       wildernessConsolidatedId,
-      '🌲 Wild Creatures Detected!',
+      'Wild Creatures Detected!',
       'Specimens spotted in $locationCount location${locationCount > 1 ? 's' : ''}',
       _notificationDetails(
         channelId: 'wilderness_spawns',
@@ -366,8 +399,8 @@ class PushNotificationService {
         channelDescription: 'Notifications when wild creatures spawn',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
-        payload: 'wilderness_active:$spawnCount',
       ),
+      payload: 'wilderness_active:$spawnCount',
     );
 
     debugPrint(
@@ -393,6 +426,7 @@ class PushNotificationService {
     required String biomeId,
   }) async {
     if (!_initialized) await initialize();
+    if (!await _prefs.isExtractionsEnabled()) return;
 
     final localReadyTime = readyTime.isUtc ? readyTime.toLocal() : readyTime;
     final now = DateTime.now();
@@ -402,13 +436,16 @@ class PushNotificationService {
     }
     final scheduledDate = tz.TZDateTime.from(localReadyTime, tz.local);
 
-    // Use a stable ID based on biome type (0-99 range)
+    // Use a stable ID based on biome type (0-99 range).
     final biomeNames = ['valley', 'sky', 'volcano', 'swamp'];
-    final biomeIndex = biomeNames.indexOf(biomeId).clamp(0, 99);
+    final biomeIndex = _notificationSlotForKey(
+      key: biomeId,
+      knownOrder: biomeNames,
+    );
 
     await _notifications.zonedSchedule(
       harvestReadyBaseId + biomeIndex,
-      '⚗️ Harvest Complete!',
+      'Harvest Complete!',
       'Your alchemical harvest is ready for collection',
       scheduledDate,
       _notificationDetails(
@@ -417,9 +454,9 @@ class PushNotificationService {
         channelDescription: 'Notifications when harvests are complete',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
-        payload: 'harvest_ready:$biomeId',
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      payload: 'harvest_ready:$biomeId',
     );
 
     debugPrint(
@@ -430,6 +467,7 @@ class PushNotificationService {
 
   Future<void> showHarvestReadyNotification({required int count}) async {
     if (!_initialized) await initialize();
+    if (!await _prefs.isExtractionsEnabled()) return;
 
     await _notifications.show(
       harvestConsolidatedId,
@@ -443,8 +481,8 @@ class PushNotificationService {
         channelDescription: 'Notifications when harvests are complete',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
-        payload: 'harvests_ready:$count',
       ),
+      payload: 'harvests_ready:$count',
     );
 
     debugPrint(
@@ -455,7 +493,10 @@ class PushNotificationService {
   Future<void> cancelHarvestNotification({String? biomeId}) async {
     if (biomeId != null) {
       final biomeNames = ['valley', 'sky', 'volcano', 'swamp'];
-      final biomeIndex = biomeNames.indexOf(biomeId).clamp(0, 99);
+      final biomeIndex = _notificationSlotForKey(
+        key: biomeId,
+        knownOrder: biomeNames,
+      );
       await _notifications.cancel(harvestReadyBaseId + biomeIndex);
       debugPrint(
         '🔕 Cancelled harvest notification for $biomeId '
@@ -481,7 +522,6 @@ class PushNotificationService {
     required String channelDescription,
     required Importance importance,
     required Priority priority,
-    String? payload,
   }) {
     return NotificationDetails(
       android: AndroidNotificationDetails(
@@ -506,6 +546,22 @@ class PushNotificationService {
         presentSound: true,
       ),
     );
+  }
+
+  // Stable 0-99 notification slot for known keys, with deterministic fallback.
+  int _notificationSlotForKey({
+    required String key,
+    required List<String> knownOrder,
+  }) {
+    final knownIndex = knownOrder.indexOf(key);
+    if (knownIndex >= 0) return knownIndex;
+
+    final knownCount = knownOrder.length.clamp(0, 99);
+    final dynamicSlots = 100 - knownCount;
+    final hash = key.codeUnits.fold<int>(0, (acc, u) => (acc * 31 + u) % 100);
+
+    if (dynamicSlots <= 0) return hash;
+    return knownCount + (hash % dynamicSlots);
   }
 
   // Cancel all notifications

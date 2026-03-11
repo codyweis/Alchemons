@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
+import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 
@@ -41,6 +42,7 @@ Future<void> playHatchingCinematicAlchemy({
   Duration totalDuration = const Duration(milliseconds: 4200), // Faster!
   HatchHintType hintType = HatchHintType.normal,
   Color? variantColor, // For variant hints
+  CinematicQuality quality = CinematicQuality.high,
 }) async {
   await Navigator.of(context).push(
     PageRouteBuilder(
@@ -56,6 +58,7 @@ Future<void> playHatchingCinematicAlchemy({
         totalDuration: totalDuration,
         hintType: hintType,
         variantColor: variantColor,
+        quality: quality,
       ),
     ),
   );
@@ -69,6 +72,7 @@ class _HatchingCinematicPage extends StatefulWidget {
   final Duration totalDuration;
   final HatchHintType hintType;
   final Color? variantColor;
+  final CinematicQuality quality;
 
   const _HatchingCinematicPage({
     required this.parentATypeId,
@@ -78,6 +82,7 @@ class _HatchingCinematicPage extends StatefulWidget {
     this.totalDuration = const Duration(milliseconds: 4200),
     this.hintType = HatchHintType.normal,
     this.variantColor,
+    this.quality = CinematicQuality.high,
   });
 
   @override
@@ -102,6 +107,8 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
   late Animation<double> _revealScale;
 
   late final _geoCache = _GeoCache();
+  double _fxScale = 1.0;
+  bool _reducedEffects = false;
 
   // Track hint jolt triggers
   int _hintJoltCount = 0;
@@ -208,6 +215,37 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final media = MediaQuery.of(context);
+    final shortestSide = media.size.shortestSide;
+
+    double scale;
+    if (shortestSide < 380) {
+      scale = 0.58;
+    } else if (shortestSide < 430) {
+      scale = 0.72;
+    } else if (shortestSide < 500) {
+      scale = 0.85;
+    } else {
+      scale = 1.0;
+    }
+
+    if (media.disableAnimations) {
+      scale = 0.50;
+    }
+
+    final qualityMultiplier = switch (widget.quality) {
+      CinematicQuality.high => 2.1,
+      CinematicQuality.balanced => 1.0,
+    };
+
+    final combinedScale = (scale * qualityMultiplier).clamp(0.10, 2.45);
+    _fxScale = combinedScale;
+    _reducedEffects = combinedScale < 0.90;
+  }
+
   void _maybeFireHintJolt(double t) {
     if (_hintJoltCount >= _maxHintJolts) return;
 
@@ -299,6 +337,8 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
           animation: _timeline,
           builder: (context, _) {
             final t = _timeline.value;
+            final highQualityEffects =
+                widget.quality == CinematicQuality.high && !_reducedEffects;
 
             // Whiteout at reveal
             final whiteout = _intervalValue(
@@ -322,9 +362,11 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
             final baseSpeed = t < 0.30
                 ? 0.9
                 : (t < 0.55 ? 0.6 : (t < 0.65 ? 2.8 : 1.0));
-            final speed = t < 0.30
-                ? ui.lerpDouble(0.2, baseSpeed, chargeInProgress)!
-                : baseSpeed;
+            final speed =
+                (t < 0.30
+                    ? ui.lerpDouble(0.2, baseSpeed, chargeInProgress)!
+                    : baseSpeed) *
+                (highQualityEffects && t >= 0.52 && t < 0.74 ? 1.14 : 1.0);
 
             // Geometry opacity
             double geoOpacity;
@@ -343,7 +385,15 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
             }
 
             // Particle count
-            int baseParticleCount = (t >= 0.55 && t < 0.65) ? 100 : 70;
+            int baseParticleCount = (t >= 0.55 && t < 0.65) ? 90 : 62;
+            if (highQualityEffects && t >= 0.50 && t < 0.72) {
+              baseParticleCount += 20;
+            }
+            final maxParticles = highQualityEffects ? 210 : 180;
+            baseParticleCount = (baseParticleCount * _fxScale).round().clamp(
+              6,
+              maxParticles,
+            );
             if (t < 0.25) {
               baseParticleCount = ui
                   .lerpDouble(
@@ -357,6 +407,9 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
               final fadeT = ((t - 0.88) / 0.12).clamp(0.0, 1.0);
               baseParticleCount = (baseParticleCount * (1.0 - fadeT)).round();
             }
+            final tertiaryShockwaveT = highQualityEffects
+                ? _intervalValue(t, 0.71, 0.90, Curves.easeOutQuart)
+                : 0.0;
 
             // Global fade
             double globalFade = 1.0;
@@ -412,7 +465,7 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                               coreScale: _coreScale.value,
                               shockwaveT: _shockwave.value,
                               secondaryShockwaveT: _secondaryShockwave.value,
-                              tertiaryShockwaveT: 0, // Removed for speed
+                              tertiaryShockwaveT: tertiaryShockwaveT,
                               explosionT: _explosionAnim.value,
                               vignette: vignetteIntensity,
                               whiteout: whiteout,
@@ -422,6 +475,8 @@ class _HatchingCinematicPageState extends State<_HatchingCinematicPage>
                               hintType: widget.hintType,
                               hintJoltT: _hintJoltAnim.value,
                               variantColor: widget.variantColor,
+                              reducedEffects: _reducedEffects,
+                              highQualityEffects: highQualityEffects,
                             ),
                           );
                         },
@@ -578,6 +633,8 @@ class _CoreAndGeometryPainter extends CustomPainter {
   final HatchHintType hintType;
   final double hintJoltT;
   final Color? variantColor;
+  final bool reducedEffects;
+  final bool highQualityEffects;
 
   // Rainbow colors for prismatic
   static const _rainbowColors = [
@@ -606,6 +663,8 @@ class _CoreAndGeometryPainter extends CustomPainter {
     this.hintType = HatchHintType.normal,
     this.hintJoltT = 0,
     this.variantColor,
+    this.reducedEffects = false,
+    this.highQualityEffects = false,
   }) : _flowerPic = flowerPic,
        _cubePic = cubePic;
 
@@ -632,39 +691,49 @@ class _CoreAndGeometryPainter extends CustomPainter {
 
     // Sacred Geometry
     if (geoOpacity > 0 && (_flowerPic != null || _cubePic != null)) {
-      final geoRadius = size.shortestSide * 0.26;
-      final geoBounds = Rect.fromCircle(center: center, radius: geoRadius);
-      final opacityPaint = Paint()
-        ..color = Color.fromRGBO(255, 255, 255, geoOpacity);
-
-      canvas.saveLayer(geoBounds, opacityPaint);
-
       final rot1 =
           2 * pi * Curves.easeOutCubic.transform((t - 0.30).clamp(0.0, .5) * 2);
       final rot2 =
           -2 *
           pi *
           Curves.easeOutCubic.transform((t - 0.38).clamp(0.0, .5) * 2);
+      if (reducedEffects) {
+        if (_flowerPic != null) {
+          canvas.save();
+          canvas.translate(center.dx, center.dy);
+          canvas.rotate(rot1);
+          canvas.translate(-center.dx, -center.dy);
+          canvas.drawPicture(_flowerPic);
+          canvas.restore();
+        }
+      } else {
+        final geoRadius = size.shortestSide * 0.26;
+        final geoBounds = Rect.fromCircle(center: center, radius: geoRadius);
+        final opacityPaint = Paint()
+          ..color = Color.fromRGBO(255, 255, 255, geoOpacity);
 
-      if (_flowerPic != null) {
-        canvas.save();
-        canvas.translate(center.dx, center.dy);
-        canvas.rotate(rot1);
-        canvas.translate(-center.dx, -center.dy);
-        canvas.drawPicture(_flowerPic);
+        canvas.saveLayer(geoBounds, opacityPaint);
+
+        if (_flowerPic != null) {
+          canvas.save();
+          canvas.translate(center.dx, center.dy);
+          canvas.rotate(rot1);
+          canvas.translate(-center.dx, -center.dy);
+          canvas.drawPicture(_flowerPic);
+          canvas.restore();
+        }
+
+        if (_cubePic != null) {
+          canvas.save();
+          canvas.translate(center.dx, center.dy);
+          canvas.rotate(rot2);
+          canvas.translate(-center.dx, -center.dy);
+          canvas.drawPicture(_cubePic);
+          canvas.restore();
+        }
+
         canvas.restore();
       }
-
-      if (_cubePic != null) {
-        canvas.save();
-        canvas.translate(center.dx, center.dy);
-        canvas.rotate(rot2);
-        canvas.translate(-center.dx, -center.dy);
-        canvas.drawPicture(_cubePic);
-        canvas.restore();
-      }
-
-      canvas.restore();
     }
 
     // Core Orb
@@ -688,7 +757,10 @@ class _CoreAndGeometryPainter extends CustomPainter {
       // Outer glow
       final glow = Paint()
         ..shader = RadialGradient(
-          colors: [base.withValues(alpha: 0.18 * coreOpacity), Colors.transparent],
+          colors: [
+            base.withValues(alpha: 0.18 * coreOpacity),
+            Colors.transparent,
+          ],
           stops: const [0.0, 1.0],
         ).createShader(Rect.fromCircle(center: center, radius: r * 2.4));
       canvas.drawCircle(center, r * 2.2, glow);
@@ -696,7 +768,10 @@ class _CoreAndGeometryPainter extends CustomPainter {
       // Orb
       final orb = Paint()
         ..shader = RadialGradient(
-          colors: [base.withValues(alpha: 0.55 * coreOpacity), base.withValues(alpha: 0.0)],
+          colors: [
+            base.withValues(alpha: 0.55 * coreOpacity),
+            base.withValues(alpha: 0.0),
+          ],
           stops: const [0.5, 1.0],
         ).createShader(Rect.fromCircle(center: center, radius: r));
       canvas.drawCircle(center, r, orb);
@@ -739,6 +814,19 @@ class _CoreAndGeometryPainter extends CustomPainter {
       0.5,
       0.35,
     );
+    if (highQualityEffects) {
+      _drawShockwave(
+        canvas,
+        size,
+        center,
+        palette,
+        tertiaryShockwaveT,
+        0.78,
+        4,
+        0.8,
+        0.24,
+      );
+    }
 
     // Explosion particles
     if (explosionT > 0 && explosionT < 0.75) {
@@ -746,13 +834,20 @@ class _CoreAndGeometryPainter extends CustomPainter {
         ..style = PaintingStyle.fill
         ..isAntiAlias = true;
 
-      for (int i = 0; i < 16; i++) {
-        final angle = (i * 2 * pi / 16) + (t * 0.5);
+      final burstParticleCount = reducedEffects
+          ? 10
+          : (highQualityEffects ? 24 : 16);
+      for (int i = 0; i < burstParticleCount; i++) {
+        final angle = (i * 2 * pi / burstParticleCount) + (t * 0.5);
         final distance = size.shortestSide * 0.12 * explosionT;
         final particlePos =
             center + Offset(cos(angle) * distance, sin(angle) * distance);
         final particleAlpha = (1.0 - explosionT) * 0.75;
-        final particleSize = ui.lerpDouble(3, 1, explosionT)!;
+        final particleSize = ui.lerpDouble(
+          highQualityEffects ? 3.4 : 3.0,
+          1,
+          explosionT,
+        )!;
 
         particlePaint.color = palette.withValues(alpha: particleAlpha);
         canvas.drawCircle(particlePos, particleSize, particlePaint);
@@ -761,7 +856,8 @@ class _CoreAndGeometryPainter extends CustomPainter {
 
     // Whiteout
     if (whiteout > 0) {
-      final paint = Paint()..color = Colors.white.withValues(alpha: whiteout * 0.9);
+      final paint = Paint()
+        ..color = Colors.white.withValues(alpha: whiteout * 0.9);
       canvas.drawRect(Offset.zero & size, paint);
     }
   }
@@ -783,13 +879,26 @@ class _CoreAndGeometryPainter extends CustomPainter {
         ).createShader(Rect.fromCircle(center: center, radius: joltRadius))
         ..isAntiAlias = true;
 
-      // Apply alpha via saveLayer
-      canvas.saveLayer(
-        Rect.fromCircle(center: center, radius: joltRadius + 20),
-        Paint()..color = Color.fromRGBO(255, 255, 255, joltAlpha * 0.8),
-      );
-      canvas.drawCircle(center, joltRadius, ringPaint);
-      canvas.restore();
+      if (reducedEffects) {
+        canvas.drawCircle(
+          center,
+          joltRadius,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = ui.lerpDouble(12, 3, hintJoltT)!
+            ..color = _rainbowColors[((t * 6) % 6).floor()].withValues(
+              alpha: joltAlpha * 0.85,
+            ),
+        );
+      } else {
+        // Apply alpha via saveLayer
+        canvas.saveLayer(
+          Rect.fromCircle(center: center, radius: joltRadius + 20),
+          Paint()..color = Color.fromRGBO(255, 255, 255, joltAlpha * 0.8),
+        );
+        canvas.drawCircle(center, joltRadius, ringPaint);
+        canvas.restore();
+      }
 
       // Inner glow with shifting rainbow
       final colorIndex = ((t * 6) % 6).floor();
@@ -807,8 +916,9 @@ class _CoreAndGeometryPainter extends CustomPainter {
       canvas.drawCircle(center, joltRadius * 0.5, innerGlow);
 
       // Sparkle particles in rainbow colors
-      for (int i = 0; i < 12; i++) {
-        final angle = (i * 2 * pi / 12) + (t * 3);
+      final sparkleCount = reducedEffects ? 6 : 12;
+      for (int i = 0; i < sparkleCount; i++) {
+        final angle = (i * 2 * pi / sparkleCount) + (t * 3);
         final dist = joltRadius * 0.7;
         final pos = center + Offset(cos(angle) * dist, sin(angle) * dist);
         final sparkleColor = _rainbowColors[i % _rainbowColors.length];
@@ -884,11 +994,14 @@ class _CoreAndGeometryPainter extends CustomPainter {
         coreScale != old.coreScale ||
         shockwaveT != old.shockwaveT ||
         secondaryShockwaveT != old.secondaryShockwaveT ||
+        tertiaryShockwaveT != old.tertiaryShockwaveT ||
         explosionT != old.explosionT ||
         vignette != old.vignette ||
         whiteout != old.whiteout ||
         hintType != old.hintType ||
         hintJoltT != old.hintJoltT ||
-        variantColor != old.variantColor;
+        variantColor != old.variantColor ||
+        reducedEffects != old.reducedEffects ||
+        highQualityEffects != old.highQualityEffects;
   }
 }

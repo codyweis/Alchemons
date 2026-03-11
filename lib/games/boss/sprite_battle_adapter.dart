@@ -5,6 +5,15 @@ import 'dart:ui';
 import 'dart:math' as math;
 import 'package:alchemons/games/boss/attack_animations.dart';
 import 'package:alchemons/games/boss/battle_game.dart';
+import 'package:alchemons/games/sprite_effects/sprite_beauty_radiance_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_elemental_aura_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_glow_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_intelligence_halo_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_prismatic_cascade_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_speed_flux_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_strength_forge_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_void_rift_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_volcanic_aura.dart';
 import 'package:alchemons/services/gameengines/boss_battle_engine_service.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -25,7 +34,8 @@ import 'package:flutter/material.dart'
         RadialGradient,
         LinearGradient,
         SweepGradient,
-        GradientRotation;
+        GradientRotation,
+        StrokeCap;
 
 final _rng = math.Random();
 
@@ -119,45 +129,51 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
       visualsScale: visuals.scale,
     );
     final effectBase = effectSizeFromDisplayBase(displayBase, multiplier: 1.0);
+    final prismaticBase = prismaticCascadeSizeFromDisplayBase(displayBase);
 
     switch (effectName) {
       case 'alchemy_glow':
-        // Replicates the pulsing radial glow
-        effectComponent = FlameAlchemyGlow(baseSize: effectBase);
+        effectComponent = AlchemyGlowComponent(baseSize: effectBase);
         break;
       case 'elemental_aura':
-        // Replicates the orbiting particles
-        final elementColor = _getElementColor('Aqua');
-        effectComponent = FlameElementalAura(
+        effectComponent = ElementalAuraComponent(
           baseSize: effectBase,
-          color: elementColor,
+          element: combatant.instanceRef?.variantFaction,
         );
         break;
+      case 'volcanic_aura':
+        effectComponent = VolcanicAuraComponent(baseSize: effectBase);
+        break;
       case 'void_rift':
-        effectComponent = _FlameVoidRift(baseSize: effectBase * 0.8);
+        effectComponent = VoidRiftComponent(baseSize: effectBase * 0.8);
         break;
       case 'prismatic_cascade':
-        effectComponent = _FlamePrismaticCascade(baseSize: effectBase);
+        effectComponent = PrismaticCascadeComponent(
+          baseSize: prismaticBase * 0.62,
+        );
+        break;
+      case 'beauty_radiance':
+        effectComponent = BeautyRadianceComponent(baseSize: effectBase);
+        break;
+      case 'speed_flux':
+        effectComponent = SpeedFluxComponent(baseSize: effectBase);
+        break;
+      case 'strength_forge':
+        effectComponent = StrengthForgeComponent(baseSize: effectBase);
+        break;
+      case 'intelligence_halo':
+        effectComponent = IntelligenceHaloComponent(baseSize: effectBase);
         break;
       default:
         return; // No known effect
     }
 
-    _effectLayer.add(effectComponent);
-  }
-
-  // Placeholder for FactionColors logic
-  Color _getElementColor(String element) {
-    switch (element) {
-      case 'Pyro':
-        return Colors.red;
-      case 'Aqua':
-        return Colors.blue;
-      case 'Terra':
-        return Colors.green;
-      default:
-        return Colors.white;
+    if (effectComponent is PositionComponent) {
+      effectComponent
+        ..anchor = Anchor.center
+        ..position = Vector2(0, 10);
     }
+    _effectLayer.add(effectComponent);
   }
 
   // Stub method - HP bar displayed elsewhere in the UI

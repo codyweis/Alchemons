@@ -1,12 +1,17 @@
 import 'dart:ui';
 import 'dart:math' as math;
 
+import 'package:alchemons/games/sprite_effects/sprite_beauty_radiance_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_elemental_aura_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_glow_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_intelligence_halo_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_prismatic_cascade_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_speed_flux_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_strength_forge_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_void_rift_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_volcanic_aura.dart';
 import 'package:alchemons/utils/color_util.dart';
+import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
@@ -18,6 +23,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   final Vector2 desiredSize;
   final String? alchemyEffect;
   final String? variantFaction;
+  final double effectScale;
 
   late final SpriteAnimationComponent _anim;
   double _prismaticHue = 0;
@@ -30,6 +36,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
     required this.desiredSize,
     this.alchemyEffect,
     this.variantFaction,
+    this.effectScale = 1.0,
   });
 
   @override
@@ -91,7 +98,17 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   }
 
   PositionComponent? _buildEffectComponent(String effect) {
-    final baseSize = desiredSize.x; // Use the desired size as base
+    final displayBase = displayBaseFromVisuals(
+      baseBox: desiredSize.x,
+      visualsScale: visuals.scale,
+    );
+    final baseSize = effectSizeFromDisplayBase(
+      displayBase,
+      multiplier: effectScale,
+      minSize: 28.0,
+      maxSize: 132.0,
+    );
+    final prismaticSize = prismaticCascadeSizeFromDisplayBase(displayBase);
 
     switch (effect) {
       case 'alchemy_glow':
@@ -106,7 +123,17 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
       case 'void_rift':
         return VoidRiftComponent(baseSize: baseSize * 0.8);
       case 'prismatic_cascade':
-        return PrismaticCascadeComponent(baseSize: baseSize * 0.6);
+        return PrismaticCascadeComponent(
+          baseSize: prismaticSize.clamp(30.0, 128.0),
+        );
+      case 'beauty_radiance':
+        return BeautyRadianceComponent(baseSize: baseSize);
+      case 'speed_flux':
+        return SpeedFluxComponent(baseSize: baseSize);
+      case 'strength_forge':
+        return StrengthForgeComponent(baseSize: baseSize);
+      case 'intelligence_halo':
+        return IntelligenceHaloComponent(baseSize: baseSize);
       default:
         return null;
     }

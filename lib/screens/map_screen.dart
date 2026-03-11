@@ -5,6 +5,7 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
+import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/pulsing_hitbox_widget.dart';
 import 'package:flutter/material.dart';
@@ -338,11 +339,22 @@ class _MapScreenState extends State<MapScreen>
         },
         child: Scaffold(
           backgroundColor: Colors.transparent,
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerDocked,
+          floatingActionButton: FloatingCloseButton(
+            onTap: () {
+              if (widget.isTutorial) {
+                _showTutorialBlockedDialog();
+                return;
+              }
+              Navigator.pop(context);
+            },
+            theme: theme,
+          ),
           body: SafeArea(
             child: Column(
               children: [
                 _HeaderBar(
-                  onBack: () => Navigator.pop(context),
                   theme: theme,
                   onInfo: () {
                     showDialog(
@@ -468,28 +480,6 @@ class _MapScreenState extends State<MapScreen>
                     ),
                   ),
                 ),
-
-                // Hint bar pinned to bottom
-                if (!widget.isTutorial)
-                  anySpawns
-                      ? _MapHintBar(theme: theme)
-                      : Container(
-                          decoration: BoxDecoration(
-                            color: theme.surfaceAlt,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: theme.accent.withValues(alpha: .35),
-                              width: 1.2,
-                            ),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(
-                              'No wild creatures detected at this time.',
-                              style: TextStyle(color: theme.textMuted),
-                            ),
-                          ),
-                        ),
               ],
             ),
           ),
@@ -577,7 +567,8 @@ class _MapScreenState extends State<MapScreen>
     context.read<FactionService>();
     final spawnService = context.read<WildernessSpawnService>();
 
-    if (spawnService.getSceneSpawnCount(biomeId) == 0) {
+    final sceneSpawnCount = spawnService.getSceneSpawnCount(biomeId);
+    if (sceneSpawnCount == 0) {
       _showToast(
         context,
         'No creatures detected in this area',
@@ -685,13 +676,11 @@ class _HeaderBar extends StatelessWidget {
   const _HeaderBar({
     required this.theme,
     required this.onInfo,
-    required this.onBack,
     this.isTutorial = false,
   });
 
   final FactionTheme theme;
   final VoidCallback onInfo;
-  final VoidCallback onBack;
   final bool isTutorial;
 
   @override
@@ -704,13 +693,7 @@ class _HeaderBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(
-                icon: Icon(
-                  isTutorial ? Icons.lock_outline : Icons.arrow_back,
-                  color: isTutorial ? theme.textMuted : theme.text,
-                ),
-                onPressed: onBack,
-              ),
+              const SizedBox(width: 48, height: 48),
               // center title/subtitle
               Expanded(
                 child: Column(
@@ -1052,12 +1035,17 @@ class _ScorchedSpawnBox extends StatelessWidget {
 
     return Container(
       width: boxWidth,
-      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: compact ? 4 : 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 6 : 8,
+        vertical: compact ? 4 : 6,
+      ),
       decoration: BoxDecoration(
         color: fc.bg1,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: fc.borderAccent, width: 1.2),
-        boxShadow: [BoxShadow(color: fc.borderDim.withValues(alpha: .12), blurRadius: 6)],
+        boxShadow: [
+          BoxShadow(color: fc.borderDim.withValues(alpha: .12), blurRadius: 6),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1068,13 +1056,19 @@ class _ScorchedSpawnBox extends StatelessWidget {
               Expanded(
                 child: Text(
                   biomeId.toUpperCase(),
-                  style: ft.heading.copyWith(fontSize: titleSize, color: fc.amberBright),
+                  style: ft.heading.copyWith(
+                    fontSize: titleSize,
+                    color: fc.amberBright,
+                  ),
                 ),
               ),
               const SizedBox(width: 6),
               Text(
                 _formatTime(nextDue),
-                style: ft.mono.copyWith(fontSize: timeSize, color: fc.textSecondary),
+                style: ft.mono.copyWith(
+                  fontSize: timeSize,
+                  color: fc.textSecondary,
+                ),
               ),
             ],
           ),
@@ -1300,45 +1294,6 @@ class _MarkerTapWrapperState extends State<_MarkerTapWrapper> {
   }
 }
 
-// hint / legend bar at bottom of the map
-class _MapHintBar extends StatelessWidget {
-  const _MapHintBar({required this.theme});
-  final FactionTheme theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 40),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: .45),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: theme.accent.withValues(alpha: .35),
-          width: 1.2,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline_rounded, size: 16, color: theme.text),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Wild creatures detected here! Tap to explore.',
-              style: TextStyle(
-                color: theme.text,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                height: 1.3,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // =====================================================
 // INFO DIALOG
 // =====================================================
@@ -1360,7 +1315,12 @@ class _InfoDialog extends StatelessWidget {
           color: fc.bg2,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: fc.borderAccent, width: 1.2),
-          boxShadow: [BoxShadow(color: fc.borderDim.withValues(alpha: .12), blurRadius: 12)],
+          boxShadow: [
+            BoxShadow(
+              color: fc.borderDim.withValues(alpha: .12),
+              blurRadius: 12,
+            ),
+          ],
         ),
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -1369,11 +1329,19 @@ class _InfoDialog extends StatelessWidget {
             // Header row with small amber marker
             Row(
               children: [
-                Container(width: 4, height: 20, color: fc.amber, margin: const EdgeInsets.only(right: 10)),
+                Container(
+                  width: 4,
+                  height: 20,
+                  color: fc.amber,
+                  margin: const EdgeInsets.only(right: 10),
+                ),
                 Expanded(
                   child: Text(
                     'Fusing Expeditions',
-                    style: ft.heading.copyWith(fontSize: 14, color: fc.textPrimary),
+                    style: ft.heading.copyWith(
+                      fontSize: 14,
+                      color: fc.textPrimary,
+                    ),
                   ),
                 ),
                 Icon(Icons.explore_rounded, color: fc.amberBright, size: 20),

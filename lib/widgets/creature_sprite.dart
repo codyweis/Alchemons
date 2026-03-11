@@ -7,8 +7,12 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/beauty_radiance.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/intelligence_halo.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/speed_flux.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/strength_forge.dart';
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/void_rift.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/volcanic_aura.dart';
@@ -51,6 +55,9 @@ class CreatureSprite extends StatefulWidget {
 
   // New: Variant faction
   final String? variantFaction;
+  // Optional: UI slot size to normalize effect rendering in compact contexts
+  // (e.g. party pickers) so effects don't overpower the sprite.
+  final double? effectSlotSize;
 
   const CreatureSprite({
     super.key,
@@ -67,6 +74,7 @@ class CreatureSprite extends StatefulWidget {
     this.tint,
     this.alchemyEffect,
     this.variantFaction,
+    this.effectSlotSize,
   });
 
   @override
@@ -219,12 +227,16 @@ class _CreatureSpriteState extends State<CreatureSprite>
     // If an alchemy/visual effect is present, render the effect layer behind
     // the sprite (match the behavior used by `InstanceSprite`).
     if (widget.alchemyEffect != null) {
+      final effectPadding = widget.effectSlotSize != null
+          ? (widget.effectSlotSize! <= 56 ? 2.0 : 6.0)
+          : 8.0;
       return Stack(
         alignment: Alignment.center,
+        clipBehavior: Clip.none,
         children: [
           // effect may overflow bounds intentionally
           _buildEffectLayer(widget.alchemyEffect!),
-          Padding(padding: const EdgeInsets.all(8.0), child: scaled),
+          Padding(padding: EdgeInsets.all(effectPadding), child: scaled),
         ],
       );
     }
@@ -233,20 +245,51 @@ class _CreatureSpriteState extends State<CreatureSprite>
   }
 
   Widget _buildEffectLayer(String effect) {
-    // Use the canonical display base (69px box * genetics scale) for sizing.
+    final slotSize = widget.effectSlotSize;
+    final widgetEff = slotSize != null
+        ? effectSizeFromWidgetSize(slotSize)
+        : null;
+    // Use the canonical display base (69px box * genetics scale) for sizing
+    // when no slot override is provided.
     final displayBase = displayBaseFromVisuals(visualsScale: widget.scale);
+    final displayEff = effectSizeFromDisplayBase(
+      displayBase,
+      multiplier: 1.0,
+      minSize: 32.0,
+      maxSize: 116.0,
+    );
     switch (effect) {
       case 'alchemy_glow':
-        return AlchemyGlow(size: displayBase);
+        return AlchemyGlow(size: widgetEff ?? displayEff);
       case 'elemental_aura':
-        return ElementalAura(size: displayBase, element: widget.variantFaction);
+        return ElementalAura(
+          size: widgetEff ?? displayEff,
+          element: widget.variantFaction,
+        );
       case 'volcanic_aura':
-        return VolcanicAura(size: displayBase);
+        return VolcanicAura(size: widgetEff ?? displayEff);
       case 'void_rift':
-        return VoidRift(size: displayBase * 0.8);
+        return VoidRift(size: (widgetEff ?? displayEff) * 0.8);
       case 'prismatic_cascade':
-        final eff = effectSizeFromDisplayBase(displayBase);
+        final eff = slotSize != null
+            ? (slotSize <= 56
+                  ? prismaticCascadeSizeFromWidgetSize(
+                      slotSize,
+                    ).clamp(16.0, 22.0)
+                  : prismaticCascadeSizeFromWidgetSize(slotSize))
+            : prismaticCascadeSizeFromDisplayBase(displayBase);
         return PrismaticCascade(size: eff);
+      case 'beauty_radiance':
+        final eff = slotSize != null
+            ? effectSizeFromWidgetSize(slotSize)
+            : displayEff;
+        return BeautyRadiance(size: eff);
+      case 'speed_flux':
+        return SpeedFlux(size: widgetEff ?? displayEff);
+      case 'strength_forge':
+        return StrengthForge(size: widgetEff ?? displayEff);
+      case 'intelligence_halo':
+        return IntelligenceHalo(size: widgetEff ?? displayEff);
       default:
         return const SizedBox.shrink();
     }
@@ -419,7 +462,15 @@ class InstanceSprite extends StatelessWidget {
       case 'void_rift':
         return VoidRift(size: widgetEff * 0.8);
       case 'prismatic_cascade':
-        return PrismaticCascade(size: widgetEff);
+        return PrismaticCascade(size: prismaticCascadeSizeFromWidgetSize(size));
+      case 'beauty_radiance':
+        return BeautyRadiance(size: widgetEff);
+      case 'speed_flux':
+        return SpeedFlux(size: widgetEff);
+      case 'strength_forge':
+        return StrengthForge(size: widgetEff);
+      case 'intelligence_halo':
+        return IntelligenceHalo(size: widgetEff);
       default:
         return const SizedBox.shrink();
     }

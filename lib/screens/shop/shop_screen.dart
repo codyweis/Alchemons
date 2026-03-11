@@ -54,10 +54,10 @@ class _ShopScreenState extends State<ShopScreen> {
   late final Map<String, int> _slot2Cost;
   late final Map<String, int> _slot3Cost;
 
-  // Cosmic party slot costs (gold)
-  static const Map<String, int> _partySlot1Cost = {'silver': 100};
-  static const Map<String, int> _partySlot2Cost = {'silver': 100};
-  static const Map<String, int> _partySlot3Cost = {'silver': 100};
+  // Cosmic party slot costs.
+  static const Map<String, int> _partySlot1Cost = {'silver': 10000};
+  static const Map<String, int> _partySlot2Cost = {'gold': 25};
+  static const Map<String, int> _partySlot3Cost = {'gold': 100};
 
   @override
   void initState() {
@@ -595,9 +595,7 @@ class _ShopScreenState extends State<ShopScreen> {
   ) {
     return Consumer<ShopService>(
       builder: (context, shopService, _) {
-        final effectOffers = ShopService.allOffers
-            .where((o) => o.id.startsWith('effects'))
-            .toList();
+        final effectOffers = shopService.getAlchemyEffectOffers();
 
         if (effectOffers.isEmpty) {
           return const Padding(
@@ -854,14 +852,16 @@ class _ShopScreenState extends State<ShopScreen> {
         void addPartySlot(int slotNumber, Map<String, int> cost) {
           if (_cosmicPartySlots >= slotNumber && !_showPurchased) return;
           final enabled = _cosmicPartySlots < slotNumber;
-          final canAfford =
-              (allCurrencies['silver'] ?? 0) >= (cost['silver'] ?? 0);
+          final canAfford = cost.entries.every(
+            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+          );
           final costWidgets = <Widget>[
-            CostChip(
-              currencyType: 'silver',
-              amount: cost['silver']!,
-              available: allCurrencies['silver'] ?? 0,
-            ),
+            for (final e in cost.entries)
+              CostChip(
+                currencyType: e.key,
+                amount: e.value,
+                available: allCurrencies[e.key] ?? 0,
+              ),
           ];
           final slotOffer = ShopOffer(
             rewardType: 'Upgrade',
@@ -967,9 +967,9 @@ class _ShopScreenState extends State<ShopScreen> {
       return;
     }
 
-    final ok = await db.currencyDao.spendSilver(cost['silver']!);
+    final ok = await _spendWalletCost(db, cost);
     if (!ok) {
-      _toast('Not enough Silver', icon: Icons.lock_rounded, color: t.amber);
+      _toast('Not enough currency', icon: Icons.lock_rounded, color: t.amber);
       return;
     }
 
@@ -981,6 +981,31 @@ class _ShopScreenState extends State<ShopScreen> {
       color: t.teal,
     );
     HapticFeedback.lightImpact();
+  }
+
+  Future<bool> _spendWalletCost(
+    AlchemonsDatabase db,
+    Map<String, int> cost,
+  ) async {
+    // Guard first so we don't partially spend in mixed-currency costs.
+    final balances = await db.currencyDao.getAllCurrencies();
+    final canAfford = cost.entries.every(
+      (e) => (balances[e.key] ?? 0) >= e.value,
+    );
+    if (!canAfford) return false;
+
+    for (final e in cost.entries) {
+      final key = e.key;
+      final amount = e.value;
+      final spent = switch (key) {
+        'silver' => await db.currencyDao.spendSilver(amount),
+        'gold' => await db.currencyDao.spendGold(amount),
+        'soft' => await db.currencyDao.spendSoft(amount),
+        _ => false,
+      };
+      if (!spent) return false;
+    }
+    return true;
   }
 
   Widget _buildPortalKeysGrid(
@@ -1286,6 +1311,7 @@ class _ShopScreenState extends State<ShopScreen> {
           'unlock.fusion_slot.2',
           'unlock.fusion_slot.3',
           'unlock.fusion_slot.4',
+          'unlock.fusion_slot.5',
         ];
         String? nextFusionId;
         for (final id in fusionIds) {

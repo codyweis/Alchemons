@@ -87,6 +87,11 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen>
     with SingleTickerProviderStateMixin {
   static const List<String> _tabLabels = ['Vials', 'Items', 'Special'];
+  static const Set<String> _spaceOnlyInventoryKeys = {
+    'wallet_astral_shards',
+    'item.astral_shard',
+    'item.astral_shards',
+  };
 
   // ADD: Mixin for TabController
 
@@ -222,7 +227,7 @@ class _InventoryScreenState extends State<InventoryScreen>
           StreamBuilder<Map<String, int>>(
             stream: db.currencyDao.watchAllCurrencies(),
             builder: (context, snap) {
-              final c = snap.data ?? {'gold': 0, 'silver': 0, 'soft': 0};
+              final c = snap.data ?? {'gold': 0, 'silver': 0};
               return Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -249,12 +254,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                       color: theme.textMuted,
                       amount: c['silver'] ?? 0,
                     ),
-                    Container(width: 1, height: 14, color: theme.border),
-                    CurrencyPill(
-                      icon: Icons.diamond_rounded,
-                      color: const Color(0xFFB388FF),
-                      amount: c['soft'] ?? 0,
-                    ),
                   ],
                 ),
               );
@@ -274,6 +273,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       builder: (context, snapshot) {
         final allItems = snapshot.data ?? [];
         final items = allItems.where((item) {
+          if (_isSpaceOnlyInventoryItem(item.key)) return false;
           if (item.key.startsWith('vial.')) return false;
           final def = registry[item.key];
           if (def == null) return false;
@@ -326,6 +326,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       builder: (context, snapshot) {
         final allItems = snapshot.data ?? [];
         final keyItems = allItems.where((item) {
+          if (_isSpaceOnlyInventoryItem(item.key)) return false;
           final def = registry[item.key];
           return def != null && def.isKeyItem;
         }).toList();
@@ -364,6 +365,12 @@ class _InventoryScreenState extends State<InventoryScreen>
         );
       },
     );
+  }
+
+  bool _isSpaceOnlyInventoryItem(String key) {
+    final normalized = key.toLowerCase();
+    return _spaceOnlyInventoryKeys.contains(normalized) ||
+        normalized.contains('astral_shard');
   }
 
   Widget _buildVialsTab(FactionTheme theme) {
@@ -1284,6 +1291,10 @@ class _InventoryScreenState extends State<InventoryScreen>
       InvKeys.alchemyVolcanicAura => 'volcanic_aura',
       InvKeys.alchemyVoidRift => 'void_rift',
       InvKeys.alchemyPrismaticCascade => 'prismatic_cascade',
+      InvKeys.alchemyBeautyRadiance => 'beauty_radiance',
+      InvKeys.alchemySpeedFlux => 'speed_flux',
+      InvKeys.alchemyStrengthForge => 'strength_forge',
+      InvKeys.alchemyIntelligenceHalo => 'intelligence_halo',
       _ => null,
     };
 

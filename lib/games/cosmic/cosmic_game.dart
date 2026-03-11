@@ -7,18 +7,23 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 
+import 'cosmic_contests.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/utils/color_util.dart';
+import 'package:alchemons/utils/effect_size.dart';
 import 'package:flame/components.dart' show Anchor;
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flame/sprite.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 import 'cosmic_data.dart';
 import 'package:alchemons/systems/effects/effect.dart';
 import 'package:alchemons/systems/effects/effect_loader.dart';
 import 'package:alchemons/systems/effects/effect_registry.dart';
+
+enum _ContestCinematicMode { beauty, speed, strength, intelligence }
 
 // In-world prismatic cascade painter helper.
 void _drawPrismaticCascadeCanvas(
@@ -119,6 +124,605 @@ void _drawPrismaticCascadeCanvas(
   }
 }
 
+double _cosmicEffectRadius({
+  required double spriteScale,
+  required double baseSpriteSize,
+  double multiplier = 1.0,
+  double minRadius = 10.0,
+  double maxRadius = 38.0,
+}) {
+  final displayBase = baseSpriteSize * spriteScale;
+  final effectDiameter = effectSizeFromDisplayBase(
+    displayBase,
+    multiplier: multiplier,
+    minSize: minRadius * 2,
+    maxSize: maxRadius * 2,
+  );
+  return effectDiameter * 0.5;
+}
+
+double _cosmicPrismaticBaseRadius({
+  required double spriteScale,
+  required double baseSpriteSize,
+}) {
+  final displayBase = baseSpriteSize * spriteScale;
+  final prismaticSize = prismaticCascadeSizeFromDisplayBase(
+    displayBase,
+  ).clamp(34.0, 86.0);
+  return prismaticSize * 0.5;
+}
+
+void _drawAlchemyGlowCanvas(
+  Canvas canvas,
+  double radius,
+  double elapsed,
+  double opacity,
+) {
+  final pulse = 0.85 + 0.2 * sin(elapsed * 4.0);
+  final outerR = radius * 2.0 * pulse;
+  final midR = radius * 1.45 * pulse;
+  final coreR = radius * 0.9 * pulse;
+
+  canvas.drawCircle(
+    Offset.zero,
+    outerR,
+    Paint()
+      ..color = const Color(0xFF6A5CFF).withValues(alpha: 0.20 * opacity)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, outerR * 0.35),
+  );
+  canvas.drawCircle(
+    Offset.zero,
+    midR,
+    Paint()
+      ..color = const Color(0xFF25D1FF).withValues(alpha: 0.26 * opacity)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, midR * 0.26),
+  );
+  canvas.drawCircle(
+    Offset.zero,
+    coreR,
+    Paint()
+      ..color = Colors.white.withValues(alpha: 0.12 * opacity)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, coreR * 0.18),
+  );
+}
+
+void _drawElementalAuraCanvas(
+  Canvas canvas,
+  double radius,
+  Color essence,
+  double elapsed,
+  double opacity,
+) {
+  final orbitR = radius * (1.10 + 0.06 * sin(elapsed * 2.0));
+  canvas.drawCircle(
+    Offset.zero,
+    radius * 1.25,
+    Paint()
+      ..color = essence.withValues(alpha: 0.30 * opacity)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.32),
+  );
+  canvas.drawCircle(
+    Offset.zero,
+    radius * 0.72,
+    Paint()
+      ..color = Colors.white.withValues(alpha: 0.14 * opacity)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.20),
+  );
+  for (int i = 0; i < 5; i++) {
+    final a = elapsed * 2.0 + (i / 5) * pi * 2;
+    final p = Offset(cos(a) * orbitR, sin(a) * orbitR);
+    final flicker = 0.55 + 0.45 * sin(elapsed * 8.0 + i * 0.9);
+    final pr = radius * (0.09 + 0.04 * flicker);
+    canvas.drawCircle(
+      p,
+      pr,
+      Paint()
+        ..color = essence.withValues(alpha: (0.70 + 0.45 * flicker) * opacity)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, pr * 0.9),
+    );
+  }
+}
+
+void _drawVolcanicAuraCanvas(
+  Canvas canvas,
+  double radius,
+  double elapsed,
+  double opacity,
+) {
+  final spin = elapsed * 0.9;
+  final ringR = radius * 1.5;
+  final ringStroke = max(2.0, radius * 0.22);
+  final shader = SweepGradient(
+    colors: [
+      const Color(0xFFFF7A18).withValues(alpha: 0.44 * opacity),
+      const Color(0xFFFF3D00).withValues(alpha: 0.34 * opacity),
+      const Color(0xFF8E24AA).withValues(alpha: 0.30 * opacity),
+      const Color(0xFFFF7A18).withValues(alpha: 0.44 * opacity),
+    ],
+    stops: const [0.0, 0.35, 0.7, 1.0],
+    transform: GradientRotation(spin),
+  ).createShader(Rect.fromCircle(center: Offset.zero, radius: ringR));
+  canvas.drawCircle(
+    Offset.zero,
+    ringR,
+    Paint()
+      ..shader = shader
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringStroke
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, ringStroke * 0.65),
+  );
+
+  final coreR = radius * 1.15;
+  canvas.drawCircle(
+    Offset.zero,
+    coreR,
+    Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.white.withValues(alpha: 0.40 * opacity),
+          Colors.amber.withValues(alpha: 0.32 * opacity),
+          const Color(0xFFFF6D00).withValues(alpha: 0.24 * opacity),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.28, 0.62, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset.zero, radius: coreR)),
+  );
+
+  for (int i = 0; i < 6; i++) {
+    final a = elapsed * 3.0 + (i / 6) * pi * 2;
+    final d = radius * 1.25;
+    final p = Offset(cos(a) * d, sin(a) * d);
+    canvas.drawCircle(
+      p,
+      radius * 0.10,
+      Paint()
+        ..color = Colors.amber.withValues(alpha: 0.65 * opacity)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.12),
+    );
+  }
+}
+
+void _drawVoidRiftCanvas(
+  Canvas canvas,
+  double radius,
+  double elapsed,
+  double opacity,
+) {
+  final rotA = elapsed * 0.52;
+  final rotB = -elapsed * 0.8;
+  final outerR = radius * 2.1;
+  final midR = radius * 1.5;
+  final coreR = radius * 0.95;
+
+  final outerShader = SweepGradient(
+    colors: [
+      const Color(0xFF4B0082).withValues(alpha: 0.0),
+      const Color(0xFF6A0DAD).withValues(alpha: 0.46 * opacity),
+      Colors.black.withValues(alpha: 0.58 * opacity),
+      const Color(0xFF9400D3).withValues(alpha: 0.36 * opacity),
+      Colors.black.withValues(alpha: 0.52 * opacity),
+      const Color(0xFF4B0082).withValues(alpha: 0.0),
+    ],
+    stops: const [0.0, 0.18, 0.38, 0.58, 0.78, 1.0],
+    transform: GradientRotation(rotA),
+  ).createShader(Rect.fromCircle(center: Offset.zero, radius: outerR));
+  canvas.drawCircle(Offset.zero, outerR, Paint()..shader = outerShader);
+
+  final midShader = SweepGradient(
+    colors: [
+      Colors.transparent,
+      const Color(0xFFBB00FF).withValues(alpha: 0.45 * opacity),
+      Colors.transparent,
+      Colors.black.withValues(alpha: 0.60 * opacity),
+      const Color(0xFFBB00FF).withValues(alpha: 0.25 * opacity),
+      Colors.transparent,
+    ],
+    stops: const [0.0, 0.14, 0.34, 0.56, 0.76, 1.0],
+    transform: GradientRotation(rotB),
+  ).createShader(Rect.fromCircle(center: Offset.zero, radius: midR));
+  canvas.drawCircle(Offset.zero, midR, Paint()..shader = midShader);
+
+  canvas.drawCircle(
+    Offset.zero,
+    coreR,
+    Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.black.withValues(alpha: 0.82 * opacity),
+          const Color(0xFF3D0070).withValues(alpha: 0.62 * opacity),
+          const Color(0xFF6A0DAD).withValues(alpha: 0.24 * opacity),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.42, 0.74, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset.zero, radius: coreR))
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.22),
+  );
+}
+
+void _drawBeautyRadianceCanvas(
+  Canvas canvas,
+  double radius,
+  double elapsed,
+  double opacity,
+) {
+  final orbit = elapsed * 1.2;
+  final pulse = 0.95 + 0.12 * sin(elapsed * 3.4);
+  final haloR = radius * 1.35 * pulse;
+  canvas.drawCircle(
+    Offset.zero,
+    haloR,
+    Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFFFFF3E0).withValues(alpha: 0.18 * opacity),
+          const Color(0xFFF8BBD0).withValues(alpha: 0.13 * opacity),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.58, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset.zero, radius: haloR)),
+  );
+
+  final ringR = radius * 1.03;
+  final ringStroke = max(0.9, radius * 0.06);
+  final ringShader = SweepGradient(
+    transform: GradientRotation(orbit * 0.6),
+    colors: [
+      Colors.transparent,
+      const Color(0xFFFFE082).withValues(alpha: 0.24 * opacity),
+      const Color(0xFFF48FB1).withValues(alpha: 0.20 * opacity),
+      const Color(0xFFFFE082).withValues(alpha: 0.24 * opacity),
+      Colors.transparent,
+    ],
+    stops: const [0.0, 0.2, 0.5, 0.8, 1.0],
+  ).createShader(Rect.fromCircle(center: Offset.zero, radius: ringR));
+  canvas.drawCircle(
+    Offset.zero,
+    ringR,
+    Paint()
+      ..shader = ringShader
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringStroke
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, ringStroke * 0.36),
+  );
+
+  for (int i = 0; i < 14; i++) {
+    final a = orbit + (i / 14) * 2 * pi;
+    final p = Offset(cos(a) * radius * 0.92, sin(a) * radius * 0.92);
+    canvas.save();
+    canvas.translate(p.dx, p.dy);
+    canvas.rotate(a + pi / 2);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: radius * 0.07,
+          height: radius * 0.28,
+        ),
+        Radius.circular(radius * 0.04),
+      ),
+      Paint()
+        ..color =
+            Color.lerp(
+              const Color(0xFFF8BBD0),
+              const Color(0xFFFFE082),
+              i / 14.0,
+            )!.withValues(
+              alpha:
+                  (0.20 + 0.16 * (0.5 + 0.5 * sin(elapsed * 3 + i))) * opacity,
+            ),
+    );
+    canvas.restore();
+  }
+}
+
+void _drawSpeedFluxCanvas(
+  Canvas canvas,
+  double radius,
+  double elapsed,
+  double opacity,
+) {
+  final flow = elapsed * 4.6;
+
+  canvas.drawCircle(
+    Offset.zero,
+    radius * 1.18,
+    Paint()
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFFE1F5FE).withValues(alpha: 0.14 * opacity),
+              const Color(0xFF4FC3F7).withValues(alpha: 0.12 * opacity),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.62, 1.0],
+          ).createShader(
+            Rect.fromCircle(center: Offset.zero, radius: radius * 1.18),
+          ),
+  );
+
+  final arcPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeWidth = max(1.4, radius * 0.13)
+    ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.06);
+  for (int i = 0; i < 3; i++) {
+    final rr = radius * (0.75 + i * 0.22);
+    final start = flow * (1.2 + i * 0.2) + i * 0.8;
+    arcPaint.shader = SweepGradient(
+      transform: GradientRotation(start),
+      colors: [
+        Colors.transparent,
+        const Color(0xFF80DEEA).withValues(alpha: (0.22 + i * 0.07) * opacity),
+        const Color(0xFF42A5F5).withValues(alpha: (0.48 + i * 0.10) * opacity),
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.42, 0.72, 1.0],
+    ).createShader(Rect.fromCircle(center: Offset.zero, radius: rr));
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset.zero, radius: rr),
+      start,
+      1.58,
+      false,
+      arcPaint,
+    );
+  }
+
+  final streakPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeWidth = max(1.0, radius * 0.07);
+  for (int i = 0; i < 12; i++) {
+    final phase = ((elapsed * 2.2) + i / 12.0) % 1.0;
+    final a = flow * 0.9 + (i / 12) * 2 * pi;
+    final endR = radius * (0.70 + 0.94 * phase);
+    final startR = endR - radius * (0.34 + 0.2 * phase);
+    final p0 = Offset(cos(a) * startR, sin(a) * startR);
+    final p1 = Offset(cos(a) * endR, sin(a) * endR);
+    streakPaint.shader = LinearGradient(
+      colors: [
+        const Color(0xFFB3E5FC).withValues(alpha: 0.0),
+        const Color(0xFF81D4FA).withValues(alpha: 0.42 * opacity),
+        const Color(0xFF29B6F6).withValues(alpha: 0.82 * opacity),
+      ],
+      stops: const [0.0, 0.55, 1.0],
+    ).createShader(Rect.fromPoints(p0, p1));
+    canvas.drawLine(p0, p1, streakPaint);
+  }
+}
+
+void _drawStrengthForgeCanvas(
+  Canvas canvas,
+  double radius,
+  double elapsed,
+  double opacity,
+) {
+  final pulse = 0.9 + 0.16 * sin(elapsed * 3.2);
+  final spin = elapsed * (2 * pi / 6.8);
+
+  canvas.drawCircle(
+    Offset.zero,
+    radius * 1.15 * pulse,
+    Paint()
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFFFFECB3).withValues(alpha: 0.20 * opacity),
+              const Color(0xFFFF8A65).withValues(alpha: 0.18 * opacity),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.6, 1.0],
+          ).createShader(
+            Rect.fromCircle(center: Offset.zero, radius: radius * 1.15 * pulse),
+          ),
+  );
+
+  void drawHex(double rr, double stroke, double rot, Color col) {
+    final path = Path();
+    for (int i = 0; i < 6; i++) {
+      final a = rot + (i / 6.0) * 2 * pi - pi / 2;
+      final p = Offset(cos(a) * rr, sin(a) * rr);
+      if (i == 0) {
+        path.moveTo(p.dx, p.dy);
+      } else {
+        path.lineTo(p.dx, p.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = col.withValues(alpha: 0.75 * opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..strokeJoin = StrokeJoin.round
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, stroke * 0.8),
+    );
+  }
+
+  drawHex(
+    radius * 0.92 * pulse,
+    max(1.6, radius * 0.09),
+    spin,
+    const Color(0xFFFF7043),
+  );
+  drawHex(
+    radius * 0.68 * pulse,
+    max(1.2, radius * 0.06),
+    -spin * 0.72,
+    const Color(0xFFFFCC80),
+  );
+
+  for (int i = 0; i < 6; i++) {
+    final a = spin + (i / 6.0) * 2 * pi;
+    final p = Offset(cos(a) * radius * 0.9, sin(a) * radius * 0.9);
+    canvas.save();
+    canvas.translate(p.dx, p.dy);
+    canvas.rotate(a + pi / 2);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: radius * 0.14,
+          height: radius * 0.24,
+        ),
+        Radius.circular(radius * 0.04),
+      ),
+      Paint()
+        ..color = const Color(0xFFFFAB91).withValues(alpha: 0.72 * opacity),
+    );
+    canvas.restore();
+  }
+}
+
+void _drawIntelligenceHaloCanvas(
+  Canvas canvas,
+  double radius,
+  double elapsed,
+  double opacity,
+) {
+  final spin = elapsed * (2 * pi / 5.6);
+  final pulse = 0.92 + 0.14 * sin(elapsed * 2.8);
+  canvas.drawCircle(
+    Offset.zero,
+    radius * 1.2 * pulse,
+    Paint()
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFFEDE7F6).withValues(alpha: 0.14 * opacity),
+              const Color(0xFFB39DDB).withValues(alpha: 0.14 * opacity),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.58, 1.0],
+          ).createShader(
+            Rect.fromCircle(center: Offset.zero, radius: radius * 1.2 * pulse),
+          ),
+  );
+
+  void drawSegmentRing(
+    double rr,
+    double rot,
+    Color a,
+    Color b,
+    double thickness,
+  ) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = thickness
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, thickness * 0.45);
+    for (int i = 0; i < 6; i++) {
+      paint.color = (i.isEven ? a : b).withValues(alpha: opacity);
+      final start = rot + (i / 6.0) * 2 * pi;
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset.zero, radius: rr),
+        start,
+        0.72,
+        false,
+        paint,
+      );
+    }
+  }
+
+  drawSegmentRing(
+    radius * 0.9,
+    spin,
+    const Color(0xFFB39DDB).withValues(alpha: 0.68),
+    const Color(0xFF80DEEA).withValues(alpha: 0.68),
+    max(1.4, radius * 0.08),
+  );
+  drawSegmentRing(
+    radius * 0.64,
+    -spin * 0.72,
+    const Color(0xFF90CAF9).withValues(alpha: 0.56),
+    const Color(0xFFCE93D8).withValues(alpha: 0.52),
+    max(1.0, radius * 0.05),
+  );
+
+  final nodes = <Offset>[];
+  for (int i = 0; i < 6; i++) {
+    final a = spin + (i / 6.0) * 2 * pi;
+    nodes.add(Offset(cos(a) * radius * 0.82, sin(a) * radius * 0.82));
+  }
+  final link = Paint()
+    ..color = const Color(0xFFB39DDB).withValues(alpha: 0.26 * opacity)
+    ..strokeWidth = max(0.8, radius * 0.02)
+    ..style = PaintingStyle.stroke;
+  for (int i = 0; i < nodes.length; i++) {
+    canvas.drawLine(nodes[i], nodes[(i + 2) % nodes.length], link);
+  }
+  for (final n in nodes) {
+    canvas.drawCircle(
+      n,
+      max(1.6, radius * 0.04),
+      Paint()
+        ..color = const Color(0xFFC5CAE9).withValues(alpha: 0.82 * opacity)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.04),
+    );
+  }
+}
+
+void _drawAlchemyEffectCanvas({
+  required Canvas canvas,
+  required String effect,
+  required double spriteScale,
+  required double baseSpriteSize,
+  required String? variantFaction,
+  required double elapsed,
+  required double opacity,
+}) {
+  final effectRadius = _cosmicEffectRadius(
+    spriteScale: spriteScale,
+    baseSpriteSize: baseSpriteSize,
+  );
+  switch (effect) {
+    case 'alchemy_glow':
+      _drawAlchemyGlowCanvas(canvas, effectRadius, elapsed, opacity);
+      break;
+    case 'elemental_aura':
+      _drawElementalAuraCanvas(
+        canvas,
+        effectRadius,
+        FactionColors.of(variantFaction ?? 'Arcane'),
+        elapsed,
+        opacity,
+      );
+      break;
+    case 'volcanic_aura':
+      _drawVolcanicAuraCanvas(canvas, effectRadius, elapsed, opacity);
+      break;
+    case 'void_rift':
+      _drawVoidRiftCanvas(canvas, effectRadius * 0.88, elapsed, opacity);
+      break;
+    case 'prismatic_cascade':
+      _drawPrismaticCascadeCanvas(
+        canvas,
+        _cosmicPrismaticBaseRadius(
+          spriteScale: spriteScale,
+          baseSpriteSize: baseSpriteSize,
+        ),
+        1.0,
+        elapsed,
+        opacity,
+      );
+      break;
+    case 'beauty_radiance':
+      _drawBeautyRadianceCanvas(canvas, effectRadius, elapsed, opacity);
+      break;
+    case 'speed_flux':
+      _drawSpeedFluxCanvas(canvas, effectRadius, elapsed, opacity);
+      break;
+    case 'strength_forge':
+      _drawStrengthForgeCanvas(canvas, effectRadius, elapsed, opacity);
+      break;
+    case 'intelligence_halo':
+      _drawIntelligenceHaloCanvas(canvas, effectRadius, elapsed, opacity);
+      break;
+    default:
+      break;
+  }
+}
+
 // Lightweight ring-minion type (top-level)
 class _RingMinion {
   Offset position;
@@ -174,6 +778,9 @@ class CosmicGame extends FlameGame with PanDetector {
     this.onCompanionDied,
     this.onNearNexus,
     this.onNearBattleRing,
+    this.onNearBloodRing,
+    this.onNearContestArena,
+    this.onContestHintCollected,
     Set<String>? initialCustomizations,
     Map<String, String>? initialOptions,
     String? initialAmmoId,
@@ -201,11 +808,15 @@ class CosmicGame extends FlameGame with PanDetector {
   final void Function(SpacePOI? poi)? onNearMarket;
   final VoidCallback? onCompanionAutoReturned;
   final void Function(CosmicPartyMember member)? onCompanionDied;
+  final void Function(CosmicContestArena? arena)? onNearContestArena;
+  final void Function(CosmicContestHintNote note)? onContestHintCollected;
 
   // ── state ──────────────────────────────────────────────
   final ElementMeter meter = ElementMeter();
   CosmicPlanet? nearPlanet;
   SpacePOI? nearMarket;
+  int? _starDustScannerTargetIndex;
+  int? _scannerCompletedDustIndex;
 
   late _ShipComponent ship;
   // Loaded effect prototypes from assets
@@ -252,6 +863,18 @@ class CosmicGame extends FlameGame with PanDetector {
   bool get isNearBattleRing => _isNearBattleRing;
   void Function(bool isNear)? onNearBattleRing;
 
+  // Blood Ring (ending ritual portal)
+  late BloodRing bloodRing = world_.bloodRing;
+  bool _wasNearBloodRing = false;
+  bool _isNearBloodRing = false;
+  bool get isNearBloodRing => _isNearBloodRing;
+  void Function(bool isNear)? onNearBloodRing;
+
+  // Trait contest arenas + hint notes (separate system from battle ring)
+  late List<CosmicContestArena> contestArenas = world_.contestArenas;
+  late List<CosmicContestHintNote> contestHintNotes = world_.contestHintNotes;
+  CosmicContestArena? nearContestArena;
+
   // Battle Ring opponent (in-world 1v1)
   CosmicCompanion? battleRingOpponent;
   final List<Projectile> ringOpponentProjectiles = [];
@@ -275,8 +898,64 @@ class CosmicGame extends FlameGame with PanDetector {
   SpriteAnimationTicker? _ringOpponentTicker;
   SpriteVisuals? _ringOpponentVisuals;
   double _ringOpponentSpriteScale = 1.0;
+  Sprite? _ringOpponentFallbackSprite;
+  double _ringOpponentFallbackScale = 1.0;
+  int _ringOpponentFallbackLoadToken = 0;
+  int _ringOpponentSpriteLoadToken = 0;
+  double _ringOpponentSpriteRetryTimer = 0.0;
+  int _ringOpponentSpriteLoadsInFlight = 0;
   VoidCallback? onBattleRingWon;
   VoidCallback? onBattleRingLost;
+
+  // Beauty contest in-arena cinematic (non-combat showcase)
+  bool _beautyContestCinematicActive = false;
+  Offset _beautyContestCenter = Offset.zero;
+  double _beautyContestTimer = 0;
+  bool _beautyContestCompAbilityA = false;
+  bool _beautyContestOppAbilityA = false;
+  bool _beautyContestCompAbilityB = false;
+  bool _beautyContestOppAbilityB = false;
+  double _beautyContestCompHopTimer = 0;
+  double _beautyContestOppHopTimer = 0;
+  static const double _beautyContestHopDuration = 0.82;
+  static const double _beautyContestHopHeight = 24.0;
+  static const double _beautyContestOrbitSpeed = 0.82;
+  static const double _beautyContestCompAbilityATime = 3.0;
+  static const double _beautyContestOppAbilityATime = 6.8;
+  static const double _beautyContestCompAbilityBTime = 10.6;
+  static const double _beautyContestOppAbilityBTime = 14.4;
+  static const double _beautyContestIntroDuration = 0.95;
+  static const double _beautyContestFinalPoseTime = 16.5;
+  static const double _beautyContestFinalPoseBlendDuration = 0.9;
+  bool _beautyContestPlayerWon = true;
+  double _beautyContestCompVisualScale = 1.0;
+  double _beautyContestOppVisualScale = 1.0;
+  bool _beautyContestIntroActive = false;
+  double _beautyContestIntroTimer = 0;
+  Offset _beautyContestShipIntroStart = Offset.zero;
+  Offset _beautyContestCompIntroStart = Offset.zero;
+  Offset _beautyContestOppIntroStart = Offset.zero;
+  _ContestCinematicMode _contestCinematicMode = _ContestCinematicMode.beauty;
+  double _speedContestRaceDuration = 11.0;
+  double _speedContestCompRate = 1.0;
+  double _speedContestOppRate = 1.0;
+  double _speedContestCompProgress = pi * 0.5;
+  double _speedContestOppProgress = pi * 0.5 - 0.18;
+  double _strengthContestDuration = 11.0;
+  double _strengthContestCompForce = 1.0;
+  double _strengthContestOppForce = 1.0;
+  double _strengthContestShift = 0.0;
+  double _intelligenceContestDuration = 11.0;
+  double _intelligenceContestCompFocus = 1.0;
+  double _intelligenceContestOppFocus = 1.0;
+  double _intelligenceContestBias = 0.0;
+  double _intelligenceContestOrbit = 0.0;
+  Offset _intelligenceContestOrbPos = Offset.zero;
+  bool get beautyContestCinematicActive => _beautyContestCinematicActive;
+  double get beautyContestIntroDuration => _beautyContestIntroDuration;
+  double get speedContestIntroDuration => _beautyContestIntroDuration;
+  double get strengthContestIntroDuration => _beautyContestIntroDuration;
+  double get intelligenceContestIntroDuration => _beautyContestIntroDuration;
 
   // Nexus pocket dimension
   bool inNexusPocket = false;
@@ -363,6 +1042,7 @@ class CosmicGame extends FlameGame with PanDetector {
   int _nextPackId = 0; // unique pack ID counter
   static const int _maxEnemies = 160;
   static const double _enemySpawnInterval = 1.2; // seconds between checks
+  static const double _meterPickupMultiplier = 3.0;
 
   // Swarm cluster spawn timer
   double _swarmSpawnTimer = 0;
@@ -508,6 +1188,7 @@ class CosmicGame extends FlameGame with PanDetector {
       worldSize: world_.worldSize,
       planets: world_.planets,
     );
+    syncStarDustScannerAvailability();
 
     // Generate initial boss lairs (3-4 spread around the world)
     final lairRng = Random(world_.planets.first.element.hashCode ^ 0xCC33);
@@ -551,18 +1232,22 @@ class CosmicGame extends FlameGame with PanDetector {
   @override
   void onPanStart(DragStartInfo info) {
     if (tapToShootMode) return;
-    _dragTarget = Offset(
-      info.eventPosition.global.x + camX,
-      info.eventPosition.global.y + camY,
+    _dragTarget = _wrap(
+      Offset(
+        info.eventPosition.global.x + camX,
+        info.eventPosition.global.y + camY,
+      ),
     );
   }
 
   @override
   void onPanUpdate(DragUpdateInfo info) {
     if (tapToShootMode) return;
-    _dragTarget = Offset(
-      info.eventPosition.global.x + camX,
-      info.eventPosition.global.y + camY,
+    _dragTarget = _wrap(
+      Offset(
+        info.eventPosition.global.x + camX,
+        info.eventPosition.global.y + camY,
+      ),
     );
   }
 
@@ -573,7 +1258,13 @@ class CosmicGame extends FlameGame with PanDetector {
 
   /// Set drag target from screen coordinates (used by tap-to-shoot mode).
   void setDragTargetFromScreen(Offset screenPos) {
-    _dragTarget = Offset(screenPos.dx + camX, screenPos.dy + camY);
+    _dragTarget = _wrap(Offset(screenPos.dx + camX, screenPos.dy + camY));
+  }
+
+  /// Set a world travel target and steer using shortest toroidal path.
+  void setTravelTarget(Offset worldPos) {
+    _dragTarget = _wrap(worldPos);
+    joystickDirection = null;
   }
 
   /// Teleport ship directly (for mini-map clicks).
@@ -801,20 +1492,92 @@ class CosmicGame extends FlameGame with PanDetector {
       'Scheduled $_pendingRingMinionCount ring minions for level $level',
     );
 
+    // Reset and preload static sprite fallback.
+    _ringOpponentFallbackSprite = null;
+    _ringOpponentFallbackScale = 1.0;
+    _loadRingOpponentFallbackSprite(member);
+
     // Load sprite
     _loadRingOpponentSprite(member);
   }
 
-  Future<void> _loadRingOpponentSprite(CosmicPartyMember member) async {
-    final sheet = member.spriteSheet;
-    if (sheet == null) {
-      _ringOpponentAnim = null;
-      _ringOpponentTicker = null;
-      _ringOpponentVisuals = null;
-      return;
+  String _toBundleImageKey(String raw) {
+    if (raw.startsWith('assets/')) return raw;
+    if (raw.startsWith('images/')) return 'assets/$raw';
+    return 'assets/images/$raw';
+  }
+
+  String _toFlameImageKey(String raw) {
+    if (raw.startsWith('assets/images/')) {
+      return raw.substring('assets/images/'.length);
     }
+    if (raw.startsWith('assets/')) {
+      return raw.substring('assets/'.length);
+    }
+    return raw;
+  }
+
+  Future<ui.Image> _loadUiImageFromBundle(String bundleKey) async {
+    final data = await rootBundle.load(bundleKey);
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
+
+  Future<void> _loadRingOpponentFallbackSprite(CosmicPartyMember member) async {
+    final rawPath = member.imagePath;
+    if (rawPath == null || rawPath.trim().isEmpty) return;
+    final expectedInstanceId = member.instanceId;
+    final token = ++_ringOpponentFallbackLoadToken;
     try {
-      final image = await images.load(sheet.path);
+      ui.Image image;
+      try {
+        image = await images.load(_toFlameImageKey(rawPath));
+      } catch (_) {
+        image = await _loadUiImageFromBundle(_toBundleImageKey(rawPath));
+      }
+      if (token != _ringOpponentFallbackLoadToken ||
+          battleRingOpponent?.member.instanceId != expectedInstanceId) {
+        return;
+      }
+      _ringOpponentFallbackSprite = Sprite(image);
+      final desiredSize = 48.0;
+      final sx = desiredSize / image.width;
+      final sy = desiredSize / image.height;
+      final specScale = battleRingOpponent?.speciesScale ?? 1.3;
+      _ringOpponentFallbackScale =
+          min(sx, sy) * (member.spriteVisuals?.scale ?? 1.0) * specScale;
+    } catch (e) {
+      debugPrint('Failed to load ring opponent fallback sprite: $rawPath - $e');
+    }
+  }
+
+  Future<void> _loadRingOpponentSprite(CosmicPartyMember member) async {
+    final loadToken = ++_ringOpponentSpriteLoadToken;
+    final expectedInstanceId = member.instanceId;
+    final sheet = member.spriteSheet;
+    final sheetPath = sheet?.path ?? '<no-sheet>';
+    _ringOpponentSpriteLoadsInFlight++;
+    try {
+      if (sheet == null) {
+        if (loadToken == _ringOpponentSpriteLoadToken &&
+            battleRingOpponent?.member.instanceId == expectedInstanceId) {
+          _ringOpponentAnim = null;
+          _ringOpponentTicker = null;
+          _ringOpponentVisuals = null;
+        }
+        return;
+      }
+      ui.Image image;
+      try {
+        image = await images.load(_toFlameImageKey(sheet.path));
+      } catch (_) {
+        image = await _loadUiImageFromBundle(_toBundleImageKey(sheet.path));
+      }
+      if (loadToken != _ringOpponentSpriteLoadToken ||
+          battleRingOpponent?.member.instanceId != expectedInstanceId) {
+        return;
+      }
       final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
       final anim = SpriteAnimation.fromFrameData(
         image,
@@ -838,11 +1601,20 @@ class CosmicGame extends FlameGame with PanDetector {
       final specScale = battleRingOpponent?.speciesScale ?? 1.3;
       _ringOpponentSpriteScale =
           min(sx, sy) * (_ringOpponentVisuals?.scale ?? 1.0) * specScale;
+      _ringOpponentSpriteRetryTimer = 0.0;
     } catch (e) {
-      debugPrint('Failed to load ring opponent sprite: ${sheet.path} - $e');
-      _ringOpponentAnim = null;
-      _ringOpponentTicker = null;
-      _ringOpponentVisuals = null;
+      debugPrint('Failed to load ring opponent sprite: $sheetPath - $e');
+      if (loadToken == _ringOpponentSpriteLoadToken &&
+          battleRingOpponent?.member.instanceId == expectedInstanceId) {
+        _ringOpponentAnim = null;
+        _ringOpponentTicker = null;
+        _ringOpponentVisuals = null;
+      }
+    } finally {
+      _ringOpponentSpriteLoadsInFlight = max(
+        0,
+        _ringOpponentSpriteLoadsInFlight - 1,
+      );
     }
   }
 
@@ -933,11 +1705,1076 @@ class CosmicGame extends FlameGame with PanDetector {
     _ringOpponentAnim = null;
     _ringOpponentTicker = null;
     _ringOpponentVisuals = null;
+    _ringOpponentFallbackSprite = null;
+    _ringOpponentFallbackScale = 1.0;
+    _ringOpponentFallbackLoadToken++;
+    _ringOpponentSpriteLoadToken++;
+    _ringOpponentSpriteRetryTimer = 0.0;
+    _ringOpponentSpriteLoadsInFlight = 0;
     // Reset pending minion spawn state
     _ringMinionsSpawnedForCurrentOpponent = false;
     _pendingRingMinionCount = 0;
     _pendingRingMinionLevel = 0;
     _pendingRingMinionElement = null;
+  }
+
+  void beginBeautyContestCinematic({
+    required CosmicPartyMember opponentMember,
+    required Offset arenaCenter,
+    required bool playerWon,
+  }) {
+    if (activeCompanion == null) return;
+    _beautyContestCinematicActive = true;
+    _beautyContestCenter = arenaCenter;
+    _beautyContestPlayerWon = playerWon;
+    _beautyContestTimer = 0;
+    _beautyContestCompAbilityA = false;
+    _beautyContestOppAbilityA = false;
+    _beautyContestCompAbilityB = false;
+    _beautyContestOppAbilityB = false;
+    _beautyContestCompHopTimer = 0;
+    _beautyContestOppHopTimer = 0;
+    _beautyContestCompVisualScale = 1.0;
+    _beautyContestOppVisualScale = 1.0;
+    _beautyContestIntroActive = true;
+    _beautyContestIntroTimer = 0;
+    _contestCinematicMode = _ContestCinematicMode.beauty;
+    _beautyContestShipIntroStart = ship.pos;
+
+    shooting = false;
+    shootingMissiles = false;
+    boosting = false;
+
+    companionProjectiles.clear();
+    ringOpponentProjectiles.clear();
+    ringMinions.clear();
+    vfxParticles.clear();
+    vfxRings.clear();
+
+    // Spawn real opponent sprite/visuals in arena.
+    spawnBattleRingOpponent(opponentMember);
+    _ringOpponentSpriteRetryTimer = 1.1;
+    battleRing.inBattle = false;
+
+    const orbitR = 170.0;
+    const introOppOffset = Offset(220, -80);
+    final compIntroTarget = Offset(
+      _beautyContestCenter.dx + cos(pi) * orbitR,
+      _beautyContestCenter.dy + sin(pi) * orbitR * 0.48,
+    );
+    final oppIntroTarget = Offset(
+      _beautyContestCenter.dx + cos(0) * orbitR,
+      _beautyContestCenter.dy + sin(0) * orbitR * 0.48,
+    );
+
+    final comp = activeCompanion!;
+    _beautyContestCompIntroStart = comp.position;
+    if ((_beautyContestCompIntroStart - _beautyContestCenter).distance > 900) {
+      _beautyContestCompIntroStart = _toroidalLerp(
+        compIntroTarget,
+        _beautyContestCenter,
+        0.32,
+      );
+      comp.position = _beautyContestCompIntroStart;
+      comp.anchorPosition = comp.position;
+    }
+    comp.life = max(comp.life, 1.0);
+    comp.returning = false;
+    comp.returnTimer = 0;
+
+    if (battleRingOpponent != null) {
+      _beautyContestOppIntroStart = _wrap(
+        Offset(
+          oppIntroTarget.dx + introOppOffset.dx,
+          oppIntroTarget.dy + introOppOffset.dy,
+        ),
+      );
+      battleRingOpponent!.position = _beautyContestOppIntroStart;
+      battleRingOpponent!.anchorPosition = battleRingOpponent!.position;
+      // Beauty contest should show full sprites immediately (no summon scale-in).
+      battleRingOpponent!.life = 1.0;
+      battleRingOpponent!.returning = false;
+      battleRingOpponent!.returnTimer = 0;
+    }
+  }
+
+  void beginSpeedContestCinematic({
+    required CosmicPartyMember opponentMember,
+    required Offset arenaCenter,
+    required bool playerWon,
+    required double playerScore,
+    required double opponentScore,
+  }) {
+    if (activeCompanion == null) return;
+    _beautyContestCinematicActive = true;
+    _beautyContestCenter = arenaCenter;
+    _beautyContestPlayerWon = playerWon;
+    _beautyContestTimer = 0;
+    _beautyContestCompAbilityA = false;
+    _beautyContestOppAbilityA = false;
+    _beautyContestCompAbilityB = false;
+    _beautyContestOppAbilityB = false;
+    _beautyContestCompHopTimer = 0;
+    _beautyContestOppHopTimer = 0;
+    _beautyContestCompVisualScale = 1.0;
+    _beautyContestOppVisualScale = 1.0;
+    _beautyContestIntroActive = true;
+    _beautyContestIntroTimer = 0;
+    _contestCinematicMode = _ContestCinematicMode.speed;
+    _beautyContestShipIntroStart = ship.pos;
+
+    final scoreGap = (playerScore - opponentScore).abs().clamp(0.0, 1.5);
+    final lead = 0.06 + scoreGap * 0.05;
+    if (playerWon) {
+      _speedContestCompRate = 1.0 + lead;
+      _speedContestOppRate = 1.0 - lead * 0.65;
+    } else {
+      _speedContestCompRate = 1.0 - lead * 0.65;
+      _speedContestOppRate = 1.0 + lead;
+    }
+    _speedContestRaceDuration = 11.0;
+    _speedContestCompProgress = pi * 0.5;
+    _speedContestOppProgress = pi * 0.5 - 0.18;
+
+    shooting = false;
+    shootingMissiles = false;
+    boosting = false;
+
+    companionProjectiles.clear();
+    ringOpponentProjectiles.clear();
+    ringMinions.clear();
+    vfxParticles.clear();
+    vfxRings.clear();
+
+    spawnBattleRingOpponent(opponentMember);
+    _ringOpponentSpriteRetryTimer = 1.1;
+    battleRing.inBattle = false;
+
+    const outerRx = 222.0;
+    const outerRy = 124.0;
+    const introOppOffset = Offset(240, -60);
+    final compIntroTarget = Offset(
+      _beautyContestCenter.dx + cos(pi * 0.5) * outerRx,
+      _beautyContestCenter.dy + sin(pi * 0.5) * outerRy,
+    );
+    final oppIntroTarget = Offset(
+      _beautyContestCenter.dx + cos(pi * 0.5 - 0.18) * (outerRx - 32),
+      _beautyContestCenter.dy + sin(pi * 0.5 - 0.18) * (outerRy - 22),
+    );
+
+    final comp = activeCompanion!;
+    _beautyContestCompIntroStart = comp.position;
+    if ((_beautyContestCompIntroStart - _beautyContestCenter).distance > 900) {
+      _beautyContestCompIntroStart = _toroidalLerp(
+        compIntroTarget,
+        _beautyContestCenter,
+        0.30,
+      );
+      comp.position = _beautyContestCompIntroStart;
+      comp.anchorPosition = comp.position;
+    }
+    comp.life = max(comp.life, 1.0);
+    comp.returning = false;
+    comp.returnTimer = 0;
+
+    if (battleRingOpponent != null) {
+      _beautyContestOppIntroStart = _wrap(
+        Offset(
+          oppIntroTarget.dx + introOppOffset.dx,
+          oppIntroTarget.dy + introOppOffset.dy,
+        ),
+      );
+      battleRingOpponent!.position = _beautyContestOppIntroStart;
+      battleRingOpponent!.anchorPosition = battleRingOpponent!.position;
+      battleRingOpponent!.life = 1.0;
+      battleRingOpponent!.returning = false;
+      battleRingOpponent!.returnTimer = 0;
+    }
+  }
+
+  void beginStrengthContestCinematic({
+    required CosmicPartyMember opponentMember,
+    required Offset arenaCenter,
+    required bool playerWon,
+    required double playerScore,
+    required double opponentScore,
+  }) {
+    if (activeCompanion == null) return;
+    _beautyContestCinematicActive = true;
+    _beautyContestCenter = arenaCenter;
+    _beautyContestPlayerWon = playerWon;
+    _beautyContestTimer = 0;
+    _beautyContestCompAbilityA = false;
+    _beautyContestOppAbilityA = false;
+    _beautyContestCompAbilityB = false;
+    _beautyContestOppAbilityB = false;
+    _beautyContestCompHopTimer = 0;
+    _beautyContestOppHopTimer = 0;
+    _beautyContestCompVisualScale = 1.0;
+    _beautyContestOppVisualScale = 1.0;
+    _beautyContestIntroActive = true;
+    _beautyContestIntroTimer = 0;
+    _contestCinematicMode = _ContestCinematicMode.strength;
+    _beautyContestShipIntroStart = ship.pos;
+
+    final gap = (playerScore - opponentScore).abs().clamp(0.0, 1.8);
+    final lead = 0.07 + gap * 0.06;
+    if (playerWon) {
+      _strengthContestCompForce = 1.0 + lead;
+      _strengthContestOppForce = 1.0 - lead * 0.58;
+    } else {
+      _strengthContestCompForce = 1.0 - lead * 0.58;
+      _strengthContestOppForce = 1.0 + lead;
+    }
+    _strengthContestDuration = 11.0;
+    _strengthContestShift = 0.0;
+
+    shooting = false;
+    shootingMissiles = false;
+    boosting = false;
+
+    companionProjectiles.clear();
+    ringOpponentProjectiles.clear();
+    ringMinions.clear();
+    vfxParticles.clear();
+    vfxRings.clear();
+
+    spawnBattleRingOpponent(opponentMember);
+    _ringOpponentSpriteRetryTimer = 1.1;
+    battleRing.inBattle = false;
+
+    const introOppOffset = Offset(210, -42);
+    final compIntroTarget = Offset(
+      _beautyContestCenter.dx - 128,
+      _beautyContestCenter.dy + 20,
+    );
+    final oppIntroTarget = Offset(
+      _beautyContestCenter.dx + 128,
+      _beautyContestCenter.dy + 20,
+    );
+
+    final comp = activeCompanion!;
+    _beautyContestCompIntroStart = comp.position;
+    if ((_beautyContestCompIntroStart - _beautyContestCenter).distance > 900) {
+      _beautyContestCompIntroStart = _toroidalLerp(
+        compIntroTarget,
+        _beautyContestCenter,
+        0.28,
+      );
+      comp.position = _beautyContestCompIntroStart;
+      comp.anchorPosition = comp.position;
+    }
+    comp.life = max(comp.life, 1.0);
+    comp.returning = false;
+    comp.returnTimer = 0;
+
+    if (battleRingOpponent != null) {
+      _beautyContestOppIntroStart = _wrap(
+        Offset(
+          oppIntroTarget.dx + introOppOffset.dx,
+          oppIntroTarget.dy + introOppOffset.dy,
+        ),
+      );
+      battleRingOpponent!.position = _beautyContestOppIntroStart;
+      battleRingOpponent!.anchorPosition = battleRingOpponent!.position;
+      battleRingOpponent!.life = 1.0;
+      battleRingOpponent!.returning = false;
+      battleRingOpponent!.returnTimer = 0;
+    }
+  }
+
+  void beginIntelligenceContestCinematic({
+    required CosmicPartyMember opponentMember,
+    required Offset arenaCenter,
+    required bool playerWon,
+    required double playerScore,
+    required double opponentScore,
+  }) {
+    if (activeCompanion == null) return;
+    _beautyContestCinematicActive = true;
+    _beautyContestCenter = arenaCenter;
+    _beautyContestPlayerWon = playerWon;
+    _beautyContestTimer = 0;
+    _beautyContestCompAbilityA = false;
+    _beautyContestOppAbilityA = false;
+    _beautyContestCompAbilityB = false;
+    _beautyContestOppAbilityB = false;
+    _beautyContestCompHopTimer = 0;
+    _beautyContestOppHopTimer = 0;
+    _beautyContestCompVisualScale = 1.0;
+    _beautyContestOppVisualScale = 1.0;
+    _beautyContestIntroActive = true;
+    _beautyContestIntroTimer = 0;
+    _contestCinematicMode = _ContestCinematicMode.intelligence;
+    _beautyContestShipIntroStart = ship.pos;
+
+    final gap = (playerScore - opponentScore).abs().clamp(0.0, 1.8);
+    final lead = 0.08 + gap * 0.05;
+    if (playerWon) {
+      _intelligenceContestCompFocus = 1.0 + lead;
+      _intelligenceContestOppFocus = 1.0 - lead * 0.60;
+    } else {
+      _intelligenceContestCompFocus = 1.0 - lead * 0.60;
+      _intelligenceContestOppFocus = 1.0 + lead;
+    }
+    _intelligenceContestDuration = 11.0;
+    _intelligenceContestBias = 0.0;
+    _intelligenceContestOrbit = 0.0;
+    _intelligenceContestOrbPos = _beautyContestCenter;
+
+    shooting = false;
+    shootingMissiles = false;
+    boosting = false;
+
+    companionProjectiles.clear();
+    ringOpponentProjectiles.clear();
+    ringMinions.clear();
+    vfxParticles.clear();
+    vfxRings.clear();
+
+    spawnBattleRingOpponent(opponentMember);
+    _ringOpponentSpriteRetryTimer = 1.1;
+    battleRing.inBattle = false;
+
+    const introOppOffset = Offset(230, -56);
+    final compIntroTarget = Offset(
+      _beautyContestCenter.dx - 144,
+      _beautyContestCenter.dy + 12,
+    );
+    final oppIntroTarget = Offset(
+      _beautyContestCenter.dx + 144,
+      _beautyContestCenter.dy + 12,
+    );
+
+    final comp = activeCompanion!;
+    _beautyContestCompIntroStart = comp.position;
+    if ((_beautyContestCompIntroStart - _beautyContestCenter).distance > 900) {
+      _beautyContestCompIntroStart = _toroidalLerp(
+        compIntroTarget,
+        _beautyContestCenter,
+        0.28,
+      );
+      comp.position = _beautyContestCompIntroStart;
+      comp.anchorPosition = comp.position;
+    }
+    comp.life = max(comp.life, 1.0);
+    comp.returning = false;
+    comp.returnTimer = 0;
+
+    if (battleRingOpponent != null) {
+      _beautyContestOppIntroStart = _wrap(
+        Offset(
+          oppIntroTarget.dx + introOppOffset.dx,
+          oppIntroTarget.dy + introOppOffset.dy,
+        ),
+      );
+      battleRingOpponent!.position = _beautyContestOppIntroStart;
+      battleRingOpponent!.anchorPosition = battleRingOpponent!.position;
+      battleRingOpponent!.life = 1.0;
+      battleRingOpponent!.returning = false;
+      battleRingOpponent!.returnTimer = 0;
+    }
+  }
+
+  void endBeautyContestCinematic() {
+    if (!_beautyContestCinematicActive) return;
+    _beautyContestCinematicActive = false;
+    _beautyContestTimer = 0;
+    _beautyContestCompAbilityA = false;
+    _beautyContestOppAbilityA = false;
+    _beautyContestCompAbilityB = false;
+    _beautyContestOppAbilityB = false;
+    _beautyContestCompHopTimer = 0;
+    _beautyContestOppHopTimer = 0;
+    _beautyContestCompVisualScale = 1.0;
+    _beautyContestOppVisualScale = 1.0;
+    _beautyContestIntroActive = false;
+    _beautyContestIntroTimer = 0;
+    _contestCinematicMode = _ContestCinematicMode.beauty;
+    _speedContestRaceDuration = 11.0;
+    _speedContestCompRate = 1.0;
+    _speedContestOppRate = 1.0;
+    _speedContestCompProgress = pi * 0.5;
+    _speedContestOppProgress = pi * 0.5 - 0.18;
+    _strengthContestDuration = 11.0;
+    _strengthContestCompForce = 1.0;
+    _strengthContestOppForce = 1.0;
+    _strengthContestShift = 0.0;
+    _intelligenceContestDuration = 11.0;
+    _intelligenceContestCompFocus = 1.0;
+    _intelligenceContestOppFocus = 1.0;
+    _intelligenceContestBias = 0.0;
+    _intelligenceContestOrbit = 0.0;
+    _intelligenceContestOrbPos = Offset.zero;
+    companionProjectiles.clear();
+    ringOpponentProjectiles.clear();
+    dismissBattleRingOpponent();
+  }
+
+  void _updateBeautyContestCinematic(double dt) {
+    final comp = activeCompanion;
+    final opp = battleRingOpponent;
+    if (comp == null || opp == null || !opp.isAlive) {
+      endBeautyContestCinematic();
+      return;
+    }
+
+    _beautyContestTimer += dt;
+    _riftPulse += dt;
+    _beautyContestCompHopTimer = max(0.0, _beautyContestCompHopTimer - dt);
+    _beautyContestOppHopTimer = max(0.0, _beautyContestOppHopTimer - dt);
+    _ringOpponentSpriteRetryTimer = max(
+      0.0,
+      _ringOpponentSpriteRetryTimer - dt,
+    );
+    _companionTicker?.update(dt);
+    _ringOpponentTicker?.update(dt);
+
+    // Retry opponent sprite load in-case an async load raced or failed.
+    if (_ringOpponentTicker == null &&
+        opp.member.spriteSheet != null &&
+        _ringOpponentSpriteLoadsInFlight == 0 &&
+        _ringOpponentSpriteRetryTimer <= 0) {
+      _ringOpponentSpriteRetryTimer = 1.1;
+      _loadRingOpponentSprite(opp.member);
+    }
+
+    if (_beautyContestIntroActive) {
+      _beautyContestIntroTimer += dt;
+      final introT = Curves.easeInOutCubic.transform(
+        (_beautyContestIntroTimer / _beautyContestIntroDuration).clamp(
+          0.0,
+          1.0,
+        ),
+      );
+      final compTarget = switch (_contestCinematicMode) {
+        _ContestCinematicMode.speed => Offset(
+          _beautyContestCenter.dx + cos(pi * 0.5) * 222.0,
+          _beautyContestCenter.dy + sin(pi * 0.5) * 124.0,
+        ),
+        _ContestCinematicMode.strength => Offset(
+          _beautyContestCenter.dx - 128,
+          _beautyContestCenter.dy + 20,
+        ),
+        _ContestCinematicMode.intelligence => Offset(
+          _beautyContestCenter.dx - 144,
+          _beautyContestCenter.dy + 12,
+        ),
+        _ContestCinematicMode.beauty => Offset(
+          _beautyContestCenter.dx + cos(pi) * 170.0,
+          _beautyContestCenter.dy + sin(pi) * 170.0 * 0.48,
+        ),
+      };
+      final oppTarget = switch (_contestCinematicMode) {
+        _ContestCinematicMode.speed => Offset(
+          _beautyContestCenter.dx + cos(pi * 0.5 - 0.18) * (222.0 - 32),
+          _beautyContestCenter.dy + sin(pi * 0.5 - 0.18) * (124.0 - 22),
+        ),
+        _ContestCinematicMode.strength => Offset(
+          _beautyContestCenter.dx + 128,
+          _beautyContestCenter.dy + 20,
+        ),
+        _ContestCinematicMode.intelligence => Offset(
+          _beautyContestCenter.dx + 144,
+          _beautyContestCenter.dy + 12,
+        ),
+        _ContestCinematicMode.beauty => Offset(
+          _beautyContestCenter.dx + cos(0) * 170.0,
+          _beautyContestCenter.dy + sin(0) * 170.0 * 0.48,
+        ),
+      };
+      ship.pos = _toroidalLerp(
+        _beautyContestShipIntroStart,
+        _beautyContestCenter,
+        introT,
+      );
+      _revealAround(ship.pos, 220);
+
+      comp.position = _toroidalLerp(
+        _beautyContestCompIntroStart,
+        compTarget,
+        introT,
+      );
+      opp.position = _toroidalLerp(
+        _beautyContestOppIntroStart,
+        oppTarget,
+        introT,
+      );
+      comp.anchorPosition = comp.position;
+      opp.anchorPosition = opp.position;
+      comp.angle = atan2(
+        _beautyContestCenter.dy - comp.position.dy,
+        _beautyContestCenter.dx - comp.position.dx,
+      );
+      opp.angle = atan2(
+        _beautyContestCenter.dy - opp.position.dy,
+        _beautyContestCenter.dx - opp.position.dx,
+      );
+
+      if (_beautyContestIntroTimer >= _beautyContestIntroDuration) {
+        _beautyContestIntroActive = false;
+        _beautyContestIntroTimer = 0;
+        _beautyContestTimer = 0;
+      }
+      return;
+    }
+
+    if (_contestCinematicMode == _ContestCinematicMode.speed) {
+      _updateSpeedContestCinematic(dt, comp, opp);
+      return;
+    }
+    if (_contestCinematicMode == _ContestCinematicMode.strength) {
+      _updateStrengthContestCinematic(dt, comp, opp);
+      return;
+    }
+    if (_contestCinematicMode == _ContestCinematicMode.intelligence) {
+      _updateIntelligenceContestCinematic(dt, comp, opp);
+      return;
+    }
+
+    // Keep camera centered on contest arena.
+    ship.pos = _beautyContestCenter;
+    _revealAround(ship.pos, 220);
+
+    final orbitA = _beautyContestTimer * _beautyContestOrbitSpeed;
+    const orbitR = 170.0;
+    final compPos = Offset(
+      _beautyContestCenter.dx + cos(orbitA + pi) * orbitR,
+      _beautyContestCenter.dy +
+          sin(orbitA + pi) * orbitR * 0.48 -
+          sin(
+                (1 -
+                        (_beautyContestCompHopTimer / _beautyContestHopDuration)
+                            .clamp(0.0, 1.0)) *
+                    pi,
+              ) *
+              _beautyContestHopHeight,
+    );
+    final oppPos = Offset(
+      _beautyContestCenter.dx + cos(orbitA) * orbitR,
+      _beautyContestCenter.dy +
+          sin(orbitA) * orbitR * 0.48 -
+          sin(
+                (1 -
+                        (_beautyContestOppHopTimer / _beautyContestHopDuration)
+                            .clamp(0.0, 1.0)) *
+                    pi,
+              ) *
+              _beautyContestHopHeight,
+    );
+
+    Offset resolvedCompPos = compPos;
+    Offset resolvedOppPos = oppPos;
+    if (_beautyContestTimer >= _beautyContestFinalPoseTime) {
+      final finalT = Curves.easeOutCubic.transform(
+        ((_beautyContestTimer - _beautyContestFinalPoseTime) /
+                _beautyContestFinalPoseBlendDuration)
+            .clamp(0.0, 1.0),
+      );
+      final winnerPos = Offset(
+        _beautyContestCenter.dx,
+        _beautyContestCenter.dy - 124,
+      );
+      final loserPos = Offset(
+        _beautyContestCenter.dx,
+        _beautyContestCenter.dy + 154,
+      );
+      final playerTarget = _beautyContestPlayerWon ? winnerPos : loserPos;
+      final oppTarget = _beautyContestPlayerWon ? loserPos : winnerPos;
+      resolvedCompPos = Offset.lerp(compPos, playerTarget, finalT)!;
+      resolvedOppPos = Offset.lerp(oppPos, oppTarget, finalT)!;
+      _beautyContestCompVisualScale = _beautyContestPlayerWon
+          ? 1.0 + (1.18 - 1.0) * finalT
+          : 1.0 + (0.64 - 1.0) * finalT;
+      _beautyContestOppVisualScale = _beautyContestPlayerWon
+          ? 1.0 + (0.64 - 1.0) * finalT
+          : 1.0 + (1.18 - 1.0) * finalT;
+      _beautyContestCompHopTimer = 0;
+      _beautyContestOppHopTimer = 0;
+    } else {
+      _beautyContestCompVisualScale = 1.0;
+      _beautyContestOppVisualScale = 1.0;
+    }
+
+    // Keep cinematic positions local to the arena center (no world wrapping),
+    // otherwise one side can wrap off-screen near map edges.
+    comp.position = resolvedCompPos;
+    opp.position = resolvedOppPos;
+    comp.anchorPosition = comp.position;
+    opp.anchorPosition = opp.position;
+    if (_beautyContestTimer >= _beautyContestFinalPoseTime) {
+      comp.angle = -pi / 2;
+      opp.angle = -pi / 2;
+    } else {
+      comp.angle = atan2(
+        _beautyContestCenter.dy - comp.position.dy,
+        _beautyContestCenter.dx - comp.position.dx,
+      );
+      opp.angle = atan2(
+        _beautyContestCenter.dy - opp.position.dy,
+        _beautyContestCenter.dx - opp.position.dx,
+      );
+    }
+
+    // Timed special-ability showcases.
+    if (!_beautyContestCompAbilityA &&
+        _beautyContestTimer >= _beautyContestCompAbilityATime) {
+      _beautyContestCompAbilityA = true;
+      _beautyContestCompHopTimer = _beautyContestHopDuration;
+      final result = createCosmicSpecialAbility(
+        origin: comp.position,
+        baseAngle: comp.angle,
+        family: comp.member.family,
+        element: comp.member.element,
+        damage: max(6.0, comp.elemAtk * 1.5),
+        maxHp: comp.maxHp,
+        targetPos: opp.position,
+      );
+      companionProjectiles.addAll(result.projectiles);
+      _spawnHitSpark(comp.position, elementColor(comp.member.element));
+    }
+    if (!_beautyContestOppAbilityA &&
+        _beautyContestTimer >= _beautyContestOppAbilityATime) {
+      _beautyContestOppAbilityA = true;
+      _beautyContestOppHopTimer = _beautyContestHopDuration;
+      final result = createCosmicSpecialAbility(
+        origin: opp.position,
+        baseAngle: opp.angle,
+        family: opp.member.family,
+        element: opp.member.element,
+        damage: max(6.0, opp.elemAtk * 1.5),
+        maxHp: opp.maxHp,
+        targetPos: comp.position,
+      );
+      ringOpponentProjectiles.addAll(result.projectiles);
+      _spawnHitSpark(opp.position, elementColor(opp.member.element));
+    }
+    if (!_beautyContestCompAbilityB &&
+        _beautyContestTimer >= _beautyContestCompAbilityBTime) {
+      _beautyContestCompAbilityB = true;
+      _beautyContestCompHopTimer = _beautyContestHopDuration;
+      final result = createCosmicSpecialAbility(
+        origin: comp.position,
+        baseAngle: comp.angle + pi * 0.18,
+        family: comp.member.family,
+        element: comp.member.element,
+        damage: max(6.0, comp.elemAtk * 1.4),
+        maxHp: comp.maxHp,
+        targetPos: opp.position,
+      );
+      companionProjectiles.addAll(result.projectiles);
+      _spawnHitSpark(comp.position, elementColor(comp.member.element));
+    }
+    if (!_beautyContestOppAbilityB &&
+        _beautyContestTimer >= _beautyContestOppAbilityBTime) {
+      _beautyContestOppAbilityB = true;
+      _beautyContestOppHopTimer = _beautyContestHopDuration;
+      final result = createCosmicSpecialAbility(
+        origin: opp.position,
+        baseAngle: opp.angle + pi * 0.16,
+        family: opp.member.family,
+        element: opp.member.element,
+        damage: max(6.0, opp.elemAtk * 1.4),
+        maxHp: opp.maxHp,
+        targetPos: comp.position,
+      );
+      ringOpponentProjectiles.addAll(result.projectiles);
+      _spawnHitSpark(opp.position, elementColor(opp.member.element));
+    }
+
+    // Move only contest showcase projectiles and vfx (no combat/collisions).
+    void updateContestProjectiles(List<Projectile> list) {
+      for (var i = list.length - 1; i >= 0; i--) {
+        final p = list[i];
+        final pSpeed = Projectile.speed * p.speedMultiplier;
+        if (p.orbitCenter != null && p.orbitTime > 0) {
+          p.orbitTime -= dt;
+          p.orbitAngle += p.orbitSpeed * dt;
+          p.orbitRadius += dt * 8.0;
+          p.position = Offset(
+            p.orbitCenter!.dx + cos(p.orbitAngle) * p.orbitRadius,
+            p.orbitCenter!.dy + sin(p.orbitAngle) * p.orbitRadius,
+          );
+          if (p.orbitTime <= 0) {
+            p.angle = atan2(
+              p.position.dy - p.orbitCenter!.dy,
+              p.position.dx - p.orbitCenter!.dx,
+            );
+            p.orbitCenter = null;
+          }
+        } else {
+          p.position = Offset(
+            p.position.dx + cos(p.angle) * pSpeed * dt,
+            p.position.dy + sin(p.angle) * pSpeed * dt,
+          );
+        }
+        p.life -= dt;
+        if (p.life <= 0) list.removeAt(i);
+      }
+    }
+
+    updateContestProjectiles(companionProjectiles);
+    updateContestProjectiles(ringOpponentProjectiles);
+
+    for (var i = vfxParticles.length - 1; i >= 0; i--) {
+      vfxParticles[i].update(dt);
+      if (vfxParticles[i].life <= 0) vfxParticles.removeAt(i);
+    }
+    for (var i = vfxRings.length - 1; i >= 0; i--) {
+      vfxRings[i].update(dt);
+      if (vfxRings[i].dead) vfxRings.removeAt(i);
+    }
+  }
+
+  void _updateSpeedContestCinematic(
+    double dt,
+    CosmicCompanion comp,
+    CosmicCompanion opp,
+  ) {
+    ship.pos = _beautyContestCenter;
+    _revealAround(ship.pos, 220);
+
+    const outerRx = 222.0;
+    const outerRy = 124.0;
+    const innerRx = 190.0;
+    const innerRy = 102.0;
+    const angularBase = 1.65;
+
+    _beautyContestCompVisualScale = 1.0;
+    _beautyContestOppVisualScale = 1.0;
+
+    if (_beautyContestTimer < _speedContestRaceDuration) {
+      _speedContestCompProgress += dt * angularBase * _speedContestCompRate;
+      _speedContestOppProgress += dt * angularBase * _speedContestOppRate;
+
+      final compBob = sin(_beautyContestTimer * 8.2) * 4.0;
+      final oppBob = sin(_beautyContestTimer * 8.2 + 1.2) * 4.0;
+
+      comp.position = Offset(
+        _beautyContestCenter.dx + cos(_speedContestCompProgress) * outerRx,
+        _beautyContestCenter.dy +
+            sin(_speedContestCompProgress) * outerRy -
+            compBob,
+      );
+      opp.position = Offset(
+        _beautyContestCenter.dx + cos(_speedContestOppProgress) * innerRx,
+        _beautyContestCenter.dy +
+            sin(_speedContestOppProgress) * innerRy -
+            oppBob,
+      );
+
+      comp.angle = atan2(
+        outerRy * cos(_speedContestCompProgress),
+        -outerRx * sin(_speedContestCompProgress),
+      );
+      opp.angle = atan2(
+        innerRy * cos(_speedContestOppProgress),
+        -innerRx * sin(_speedContestOppProgress),
+      );
+    } else {
+      final finalT = Curves.easeOutCubic.transform(
+        ((_beautyContestTimer - _speedContestRaceDuration) / 1.0).clamp(
+          0.0,
+          1.0,
+        ),
+      );
+
+      final compTrackPos = Offset(
+        _beautyContestCenter.dx + cos(_speedContestCompProgress) * outerRx,
+        _beautyContestCenter.dy + sin(_speedContestCompProgress) * outerRy,
+      );
+      final oppTrackPos = Offset(
+        _beautyContestCenter.dx + cos(_speedContestOppProgress) * innerRx,
+        _beautyContestCenter.dy + sin(_speedContestOppProgress) * innerRy,
+      );
+
+      final winnerPos = Offset(
+        _beautyContestCenter.dx,
+        _beautyContestCenter.dy - 124,
+      );
+      final loserPos = Offset(
+        _beautyContestCenter.dx,
+        _beautyContestCenter.dy + 154,
+      );
+      final playerTarget = _beautyContestPlayerWon ? winnerPos : loserPos;
+      final oppTarget = _beautyContestPlayerWon ? loserPos : winnerPos;
+
+      comp.position = Offset.lerp(compTrackPos, playerTarget, finalT)!;
+      opp.position = Offset.lerp(oppTrackPos, oppTarget, finalT)!;
+
+      _beautyContestCompVisualScale = _beautyContestPlayerWon
+          ? 1.0 + (1.16 - 1.0) * finalT
+          : 1.0 + (0.64 - 1.0) * finalT;
+      _beautyContestOppVisualScale = _beautyContestPlayerWon
+          ? 1.0 + (0.64 - 1.0) * finalT
+          : 1.0 + (1.16 - 1.0) * finalT;
+      comp.angle = -pi / 2;
+      opp.angle = -pi / 2;
+    }
+
+    comp.anchorPosition = comp.position;
+    opp.anchorPosition = opp.position;
+
+    for (var i = vfxParticles.length - 1; i >= 0; i--) {
+      vfxParticles[i].update(dt);
+      if (vfxParticles[i].life <= 0) vfxParticles.removeAt(i);
+    }
+    for (var i = vfxRings.length - 1; i >= 0; i--) {
+      vfxRings[i].update(dt);
+      if (vfxRings[i].dead) vfxRings.removeAt(i);
+    }
+  }
+
+  void _updateStrengthContestCinematic(
+    double dt,
+    CosmicCompanion comp,
+    CosmicCompanion opp,
+  ) {
+    ship.pos = _beautyContestCenter;
+    _revealAround(ship.pos, 220);
+
+    _beautyContestCompVisualScale = 1.0;
+    _beautyContestOppVisualScale = 1.0;
+
+    const baseHalf = 132.0;
+    const baseY = 24.0;
+    const laneHalfExtent = 118.0;
+
+    if (_beautyContestTimer < _strengthContestDuration) {
+      final forceDelta = (_strengthContestCompForce - _strengthContestOppForce);
+      _strengthContestShift -= forceDelta * dt * 11.0;
+      _strengthContestShift = _strengthContestShift.clamp(
+        -laneHalfExtent,
+        laneHalfExtent,
+      );
+
+      final compThump = sin(_beautyContestTimer * 9.2) * 6.0;
+      final oppThump = sin(_beautyContestTimer * 9.2 + 1.1) * 6.0;
+      final clashY = _beautyContestCenter.dy + baseY;
+
+      comp.position = Offset(
+        _beautyContestCenter.dx - baseHalf,
+        clashY + compThump,
+      );
+      opp.position = Offset(
+        _beautyContestCenter.dx + baseHalf,
+        clashY + oppThump,
+      );
+
+      comp.angle = 0;
+      opp.angle = pi;
+
+      if ((_beautyContestTimer * 4.0).floor() !=
+          ((_beautyContestTimer - dt) * 4.0).floor()) {
+        final centerPulse = Offset(
+          _beautyContestCenter.dx + _strengthContestShift,
+          _beautyContestCenter.dy + baseY,
+        );
+        _spawnHitSpark(centerPulse, const Color(0xFFFFB74D));
+      }
+    } else {
+      final finalT = Curves.easeOutCubic.transform(
+        ((_beautyContestTimer - _strengthContestDuration) / 1.0).clamp(
+          0.0,
+          1.0,
+        ),
+      );
+      final compClashPos = Offset(
+        _beautyContestCenter.dx - baseHalf,
+        _beautyContestCenter.dy + baseY,
+      );
+      final oppClashPos = Offset(
+        _beautyContestCenter.dx + baseHalf,
+        _beautyContestCenter.dy + baseY,
+      );
+      final winnerPos = Offset(
+        _beautyContestCenter.dx,
+        _beautyContestCenter.dy - 124,
+      );
+      final loserPos = Offset(
+        _beautyContestCenter.dx,
+        _beautyContestCenter.dy + 154,
+      );
+      final playerTarget = _beautyContestPlayerWon ? winnerPos : loserPos;
+      final oppTarget = _beautyContestPlayerWon ? loserPos : winnerPos;
+      comp.position = Offset.lerp(compClashPos, playerTarget, finalT)!;
+      opp.position = Offset.lerp(oppClashPos, oppTarget, finalT)!;
+
+      _beautyContestCompVisualScale = _beautyContestPlayerWon
+          ? 1.0 + (1.20 - 1.0) * finalT
+          : 1.0 + (0.62 - 1.0) * finalT;
+      _beautyContestOppVisualScale = _beautyContestPlayerWon
+          ? 1.0 + (0.62 - 1.0) * finalT
+          : 1.0 + (1.20 - 1.0) * finalT;
+      comp.angle = -pi / 2;
+      opp.angle = -pi / 2;
+    }
+
+    comp.anchorPosition = comp.position;
+    opp.anchorPosition = opp.position;
+
+    for (var i = vfxParticles.length - 1; i >= 0; i--) {
+      vfxParticles[i].update(dt);
+      if (vfxParticles[i].life <= 0) vfxParticles.removeAt(i);
+    }
+    for (var i = vfxRings.length - 1; i >= 0; i--) {
+      vfxRings[i].update(dt);
+      if (vfxRings[i].dead) vfxRings.removeAt(i);
+    }
+  }
+
+  void _updateIntelligenceContestCinematic(
+    double dt,
+    CosmicCompanion comp,
+    CosmicCompanion opp,
+  ) {
+    ship.pos = _beautyContestCenter;
+    _revealAround(ship.pos, 220);
+
+    _beautyContestCompVisualScale = 1.0;
+    _beautyContestOppVisualScale = 1.0;
+
+    const baseHalf = 146.0;
+    const baseY = 16.0;
+    const orbitRx = 34.0;
+    const orbitRy = 19.0;
+
+    _intelligenceContestOrbit += dt * 1.55;
+
+    _intelligenceContestBias = _intelligenceContestBias.clamp(-1.0, 1.0);
+    var orbPos = Offset(
+      _beautyContestCenter.dx +
+          _intelligenceContestBias * 82.0 +
+          cos(_intelligenceContestOrbit * 1.8) * 34.0,
+      _beautyContestCenter.dy +
+          baseY +
+          sin(_intelligenceContestOrbit * 2.2 + 0.9) * 22.0,
+    );
+
+    if (_beautyContestTimer < _intelligenceContestDuration) {
+      final focusDelta =
+          (_intelligenceContestCompFocus - _intelligenceContestOppFocus);
+      _intelligenceContestBias -= focusDelta * dt * 0.85;
+      _intelligenceContestBias = _intelligenceContestBias.clamp(-1.0, 1.0);
+
+      final compThrum = sin(_beautyContestTimer * 5.4) * 3.4;
+      final oppThrum = sin(_beautyContestTimer * 5.4 + 1.4) * 3.4;
+
+      comp.position = Offset(
+        _beautyContestCenter.dx -
+            baseHalf +
+            cos(_intelligenceContestOrbit + pi) * orbitRx,
+        _beautyContestCenter.dy +
+            baseY +
+            sin(_intelligenceContestOrbit + pi) * orbitRy +
+            compThrum,
+      );
+      opp.position = Offset(
+        _beautyContestCenter.dx +
+            baseHalf +
+            cos(_intelligenceContestOrbit) * orbitRx,
+        _beautyContestCenter.dy +
+            baseY +
+            sin(_intelligenceContestOrbit) * orbitRy +
+            oppThrum,
+      );
+
+      orbPos = Offset(
+        _beautyContestCenter.dx +
+            _intelligenceContestBias * 82.0 +
+            cos(_intelligenceContestOrbit * 1.8) * 34.0,
+        _beautyContestCenter.dy +
+            baseY +
+            sin(_intelligenceContestOrbit * 2.2 + 0.9) * 22.0,
+      );
+      comp.angle = atan2(
+        orbPos.dy - comp.position.dy,
+        orbPos.dx - comp.position.dx,
+      );
+      opp.angle = atan2(
+        orbPos.dy - opp.position.dy,
+        orbPos.dx - opp.position.dx,
+      );
+
+      if ((_beautyContestTimer * 3.2).floor() !=
+          ((_beautyContestTimer - dt) * 3.2).floor()) {
+        _spawnHitSpark(orbPos, const Color(0xFFD1C4E9));
+      }
+      if ((_beautyContestTimer * 1.4).floor() !=
+          ((_beautyContestTimer - dt) * 1.4).floor()) {
+        vfxRings.add(
+          VfxShockRing(
+            x: orbPos.dx,
+            y: orbPos.dy,
+            maxRadius: 62,
+            color: const Color(0xFFB39DDB),
+            expandSpeed: 160,
+          ),
+        );
+      }
+    } else {
+      final finalT = Curves.easeOutCubic.transform(
+        ((_beautyContestTimer - _intelligenceContestDuration) / 1.0).clamp(
+          0.0,
+          1.0,
+        ),
+      );
+
+      final compMindPos = Offset(
+        _beautyContestCenter.dx -
+            baseHalf +
+            cos(_intelligenceContestOrbit + pi) * orbitRx,
+        _beautyContestCenter.dy +
+            baseY +
+            sin(_intelligenceContestOrbit + pi) * orbitRy,
+      );
+      final oppMindPos = Offset(
+        _beautyContestCenter.dx +
+            baseHalf +
+            cos(_intelligenceContestOrbit) * orbitRx,
+        _beautyContestCenter.dy +
+            baseY +
+            sin(_intelligenceContestOrbit) * orbitRy,
+      );
+      final winnerPos = Offset(
+        _beautyContestCenter.dx,
+        _beautyContestCenter.dy - 124,
+      );
+      final loserPos = Offset(
+        _beautyContestCenter.dx,
+        _beautyContestCenter.dy + 154,
+      );
+      final playerTarget = _beautyContestPlayerWon ? winnerPos : loserPos;
+      final oppTarget = _beautyContestPlayerWon ? loserPos : winnerPos;
+      comp.position = Offset.lerp(compMindPos, playerTarget, finalT)!;
+      opp.position = Offset.lerp(oppMindPos, oppTarget, finalT)!;
+
+      final winner = _beautyContestPlayerWon ? comp : opp;
+      orbPos = Offset.lerp(orbPos, winner.position, finalT)!;
+
+      _beautyContestCompVisualScale = _beautyContestPlayerWon
+          ? 1.0 + (1.18 - 1.0) * finalT
+          : 1.0 + (0.64 - 1.0) * finalT;
+      _beautyContestOppVisualScale = _beautyContestPlayerWon
+          ? 1.0 + (0.64 - 1.0) * finalT
+          : 1.0 + (1.18 - 1.0) * finalT;
+      comp.angle = -pi / 2;
+      opp.angle = -pi / 2;
+    }
+
+    _intelligenceContestOrbPos = orbPos;
+
+    comp.anchorPosition = comp.position;
+    opp.anchorPosition = opp.position;
+
+    for (var i = vfxParticles.length - 1; i >= 0; i--) {
+      vfxParticles[i].update(dt);
+      if (vfxParticles[i].life <= 0) vfxParticles.removeAt(i);
+    }
+    for (var i = vfxRings.length - 1; i >= 0; i--) {
+      vfxRings[i].update(dt);
+      if (vfxRings[i].dead) vfxRings.removeAt(i);
+    }
   }
 
   // ── Garrison (home-based alchemons) ──
@@ -964,7 +2801,8 @@ class CosmicGame extends FlameGame with PanDetector {
       // Derive combat stats from member
       final atkDmg = 5.0 + m.statStrength * 0.5 + m.level * 0.8;
       final specialDmg = 8.0 + m.statIntelligence * 0.6 + m.level * 1.0;
-      final range = 120.0 + m.statSpeed * 0.3;
+      final range = 170.0 + m.statSpeed * 35.0 + m.statIntelligence * 20.0;
+      final specialRange = range * 1.4;
       final garrisonHp = (80 + m.statStrength * 3 + m.level * 5).round();
       _garrison.add(
         _GarrisonCreature(
@@ -975,6 +2813,7 @@ class CosmicGame extends FlameGame with PanDetector {
           attackDamage: atkDmg,
           specialDamage: specialDmg,
           attackRange: range,
+          specialRange: specialRange,
           maxHp: garrisonHp,
         ),
       );
@@ -1025,6 +2864,42 @@ class CosmicGame extends FlameGame with PanDetector {
     return Offset(((p.dx % w) + w) % w, ((p.dy % h) + h) % h);
   }
 
+  /// Interpolate across toroidal bounds using shortest wrapped delta.
+  Offset _toroidalLerp(Offset from, Offset to, double t) {
+    final w = world_.worldSize.width;
+    final h = world_.worldSize.height;
+    var dx = to.dx - from.dx;
+    var dy = to.dy - from.dy;
+    if (dx > w / 2) dx -= w;
+    if (dx < -w / 2) dx += w;
+    if (dy > h / 2) dy -= h;
+    if (dy < -h / 2) dy += h;
+    return _wrap(Offset(from.dx + dx * t, from.dy + dy * t));
+  }
+
+  /// Returns a camera-local toroidal equivalent of [worldPos] that is nearest
+  /// to the current viewport center. Useful for rendering near world edges.
+  Offset _wrappedRenderPos(
+    Offset worldPos,
+    double camX,
+    double camY,
+    double screenW,
+    double screenH,
+  ) {
+    final w = world_.worldSize.width;
+    final h = world_.worldSize.height;
+    final centerX = camX + screenW * 0.5;
+    final centerY = camY + screenH * 0.5;
+
+    var dx = worldPos.dx - centerX;
+    var dy = worldPos.dy - centerY;
+    if (dx > w / 2) dx -= w;
+    if (dx < -w / 2) dx += w;
+    if (dy > h / 2) dy -= h;
+    if (dy < -h / 2) dy += h;
+    return Offset(centerX + dx, centerY + dy);
+  }
+
   // ── update loop ────────────────────────────────────────
 
   double _elapsed = 0;
@@ -1033,6 +2908,11 @@ class CosmicGame extends FlameGame with PanDetector {
   void update(double dt) {
     super.update(dt);
     _elapsed += dt;
+
+    if (_beautyContestCinematicActive) {
+      _updateBeautyContestCinematic(dt);
+      return;
+    }
 
     // ── ship movement ──
     double baseSpeed = _shipDead
@@ -1070,8 +2950,14 @@ class CosmicGame extends FlameGame with PanDetector {
         shipIsIdle = true;
       }
     } else if (_dragTarget != null) {
-      final dx = _dragTarget!.dx - ship.pos.dx;
-      final dy = _dragTarget!.dy - ship.pos.dy;
+      var dx = _dragTarget!.dx - ship.pos.dx;
+      var dy = _dragTarget!.dy - ship.pos.dy;
+      final ww = world_.worldSize.width;
+      final wh = world_.worldSize.height;
+      if (dx > ww / 2) dx -= ww;
+      if (dx < -ww / 2) dx += ww;
+      if (dy > wh / 2) dy -= wh;
+      if (dy < -wh / 2) dy += wh;
       final dist = sqrt(dx * dx + dy * dy);
 
       if (dist > 5) {
@@ -1245,7 +3131,8 @@ class CosmicGame extends FlameGame with PanDetector {
     for (final poi in spacePOIs) {
       if (poi.type != POIType.harvesterMarket &&
           poi.type != POIType.riftKeyMarket &&
-          poi.type != POIType.cosmicMarket)
+          poi.type != POIType.cosmicMarket &&
+          poi.type != POIType.stardustScanner)
         continue;
       var mdx = poi.position.dx - ship.pos.dx;
       var mdy = poi.position.dy - ship.pos.dy;
@@ -1328,7 +3215,7 @@ class CosmicGame extends FlameGame with PanDetector {
       if (dx * dx + dy * dy < 30 * 30) {
         // Collected!
         if (!meter.isFull) {
-          meter.add(p.element, 0.5);
+          meter.add(p.element, 0.5 * _meterPickupMultiplier);
           onMeterChanged();
         }
         elemParticles.removeAt(i);
@@ -1425,7 +3312,7 @@ class CosmicGame extends FlameGame with PanDetector {
             ParticleSwarm.collectRadius * ParticleSwarm.collectRadius) {
           mote.collected = true;
           if (!meter.isFull) {
-            meter.add(swarm.element, 1.0);
+            meter.add(swarm.element, 1.0 * _meterPickupMultiplier);
             onMeterChanged();
           }
         }
@@ -1445,6 +3332,11 @@ class CosmicGame extends FlameGame with PanDetector {
       if (ddx * ddx + ddy * ddy < 50 * 50) {
         dust.collected = true;
         collectedDustCount++;
+        if (_starDustScannerTargetIndex == dust.index) {
+          _starDustScannerTargetIndex = null;
+          _scannerCompletedDustIndex = dust.index;
+        }
+        syncStarDustScannerAvailability();
         onStarDustCollected?.call(dust.index);
       }
     }
@@ -1988,9 +3880,10 @@ class CosmicGame extends FlameGame with PanDetector {
             );
           }
 
-          // Find nearest enemy in attack range
+          // Find nearest enemy in engage range (basic or special).
+          final engageRange = max(comp.attackRange, comp.specialAbilityRange);
           CosmicEnemy? nearestEnemy;
-          double nearestDist = comp.attackRange;
+          double nearestDist = engageRange;
 
           // During ring battle, prioritise the ring opponent
           bool targetIsRingOpponent = false;
@@ -2026,7 +3919,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
           if (targetIsRingOpponent ||
               nearestEnemy != null ||
-              (activeBoss != null && nearestDist < comp.attackRange)) {
+              (activeBoss != null && nearestDist < engageRange)) {
             final targetPos = targetIsRingOpponent
                 ? battleRingOpponent!.position
                 : (nearestEnemy?.position ?? activeBoss!.position);
@@ -2034,9 +3927,9 @@ class CosmicGame extends FlameGame with PanDetector {
             final toTarget = targetPos - comp.position;
             comp.angle = atan2(toTarget.dy, toTarget.dx);
 
-            // If the target is out of basic attack range, move toward it
+            // If the target is out of special range, move toward it.
             final distToTarget = toTarget.distance;
-            if (distToTarget > comp.attackRange) {
+            if (distToTarget > comp.specialAbilityRange) {
               final chaseSpeed = 100.0 + (comp.member.statSpeed * 10.0);
               final step = chaseSpeed * dt;
               comp.position +=
@@ -2058,7 +3951,8 @@ class CosmicGame extends FlameGame with PanDetector {
 
             // Special attack (every 30s base, scaled by cooldownReduction)
             // Each family has a unique ability, flavored by element!
-            if (comp.specialCooldown <= 0) {
+            if (comp.specialCooldown <= 0 &&
+                distToTarget <= comp.specialAbilityRange) {
               comp.specialCooldown = comp.effectiveSpecialCooldown;
               // Generate family+element special ability
               final result = createCosmicSpecialAbility(
@@ -2185,20 +4079,60 @@ class CosmicGame extends FlameGame with PanDetector {
         if (activeCompanion != null && activeCompanion!.isAlive) {
           final comp = activeCompanion!;
           final toComp = comp.position - opp.position;
-          final distToComp = toComp.distance;
+          var distToComp = toComp.distance;
           opp.angle = atan2(toComp.dy, toComp.dx);
 
-          // If the player's companion is out of range, move toward it so
-          // the opponent actively closes distance instead of idling.
-          if (distToComp > opp.attackRange) {
-            final chaseSpeedOpp = 100.0 + (opp.member.statSpeed * 10.0);
-            final stepOpp = chaseSpeedOpp * dt;
-            opp.position += (toComp / distToComp) * min(stepOpp, distToComp);
+          if (opp.isBlessing) {
+            opp.blessingTimer -= dt;
+            opp.currentHp = min(
+              opp.maxHp,
+              opp.currentHp + (opp.blessingHealPerTick * dt).round(),
+            );
           }
 
-          if (distToComp <= opp.attackRange) {
+          var skipActions = false;
+          if (opp.isCharging) {
+            opp.chargeTimer -= dt;
+            opp.chargeTarget = comp.position;
+            final toTarget = opp.chargeTarget! - opp.position;
+            final dist = toTarget.distance;
+            if (dist > 10) {
+              final step = CosmicCompanion.chargeSpeed * dt;
+              opp.position += (toTarget / dist) * min(step, dist);
+              opp.angle = atan2(toTarget.dy, toTarget.dx);
+            } else {
+              final dmg = max(
+                1,
+                (opp.chargeDamage * 100 / (100 + comp.physDef)).round(),
+              );
+              comp.takeDamage(dmg);
+              _spawnHitSpark(comp.position, elementColor(opp.member.element));
+              opp.chargeTimer = 0;
+              opp.chargeTarget = null;
+            }
+            if (opp.chargeTimer > 0) {
+              skipActions = true;
+            } else {
+              final refreshToComp = comp.position - opp.position;
+              distToComp = refreshToComp.distance;
+              opp.angle = atan2(refreshToComp.dy, refreshToComp.dx);
+            }
+          }
+
+          if (!skipActions) {
+            final engageRange = max(opp.attackRange, opp.specialAbilityRange);
+            final toCompNow = comp.position - opp.position;
+            distToComp = toCompNow.distance;
+            // If the player's companion is out of engage range, move toward it.
+            if (distToComp > engageRange) {
+              final chaseSpeedOpp = 100.0 + (opp.member.statSpeed * 10.0);
+              final stepOpp = chaseSpeedOpp * dt;
+              opp.position +=
+                  (toCompNow / distToComp) * min(stepOpp, distToComp);
+            }
+
             // Basic attack
-            if (opp.basicCooldown <= 0) {
+            if (distToComp <= opp.attackRange && opp.basicCooldown <= 0) {
               opp.basicCooldown = opp.effectiveBasicCooldown;
               final basics = createFamilyBasicAttack(
                 origin: opp.position,
@@ -2211,7 +4145,8 @@ class CosmicGame extends FlameGame with PanDetector {
             }
 
             // Special attack
-            if (opp.specialCooldown <= 0) {
+            if (distToComp <= opp.specialAbilityRange &&
+                opp.specialCooldown <= 0) {
               opp.specialCooldown = opp.effectiveSpecialCooldown;
               final result = createCosmicSpecialAbility(
                 origin: opp.position,
@@ -2223,6 +4158,19 @@ class CosmicGame extends FlameGame with PanDetector {
                 targetPos: comp.position,
               );
               ringOpponentProjectiles.addAll(result.projectiles);
+              if (result.shieldHp > 0) opp.shieldHp = result.shieldHp;
+              if (result.chargeTimer > 0) {
+                opp.chargeTimer = result.chargeTimer;
+                opp.chargeDamage = result.chargeDamage;
+                opp.chargeTarget = comp.position;
+              }
+              if (result.selfHeal > 0) {
+                opp.currentHp = min(opp.maxHp, opp.currentHp + result.selfHeal);
+              }
+              if (result.blessingTimer > 0) {
+                opp.blessingTimer = result.blessingTimer;
+                opp.blessingHealPerTick = result.blessingHealPerTick;
+              }
               _spawnHitSpark(opp.position, elementColor(opp.member.element));
             }
           }
@@ -2237,6 +4185,20 @@ class CosmicGame extends FlameGame with PanDetector {
     // ── update ring opponent projectiles ──
     for (var i = ringOpponentProjectiles.length - 1; i >= 0; i--) {
       final p = ringOpponentProjectiles[i];
+
+      if (p.homing && activeCompanion != null && activeCompanion!.isAlive) {
+        final target = activeCompanion!.position;
+        final desired = atan2(
+          target.dy - p.position.dy,
+          target.dx - p.position.dx,
+        );
+        double diff = desired - p.angle;
+        while (diff > pi) diff -= 2 * pi;
+        while (diff < -pi) diff += 2 * pi;
+        final maxTurn = p.homingStrength * dt;
+        p.angle += diff.clamp(-maxTurn, maxTurn);
+      }
+
       final pSpeed = Projectile.speed * p.speedMultiplier;
 
       // Handle orbital projectiles
@@ -2255,11 +4217,56 @@ class CosmicGame extends FlameGame with PanDetector {
           );
           p.orbitCenter = null;
         }
+      } else if (p.stationary) {
+        // no movement
       } else {
         p.position = Offset(
           p.position.dx + cos(p.angle) * pSpeed * dt,
           p.position.dy + sin(p.angle) * pSpeed * dt,
         );
+      }
+
+      if (p.trailInterval > 0 && !p.stationary && p.orbitCenter == null) {
+        p.trailTimer += dt;
+        if (p.trailTimer >= p.trailInterval) {
+          p.trailTimer -= p.trailInterval;
+          ringOpponentProjectiles.add(
+            Projectile(
+              position: p.position,
+              angle: 0,
+              element: p.element,
+              damage: p.trailDamage,
+              life: p.trailLife,
+              stationary: true,
+              radiusMultiplier: 1.5,
+              piercing: true,
+              visualScale: 1.2,
+            ),
+          );
+        }
+      }
+
+      if (p.clusterCount > 0 && !p.clustered && p.life < 0.75) {
+        p.clustered = true;
+        for (var ci = 0; ci < p.clusterCount; ci++) {
+          final ca = ci * (pi * 2 / p.clusterCount);
+          ringOpponentProjectiles.add(
+            Projectile(
+              position: Offset(
+                p.position.dx + cos(ca) * 10,
+                p.position.dy + sin(ca) * 10,
+              ),
+              angle: ca,
+              element: p.element,
+              damage: p.clusterDamage,
+              life: 1.5,
+              speedMultiplier: 0.7,
+              radiusMultiplier: 1.5,
+              piercing: true,
+              visualScale: 1.0,
+            ),
+          );
+        }
       }
 
       p.life -= dt;
@@ -2275,17 +4282,33 @@ class CosmicGame extends FlameGame with PanDetector {
         final dx = p.position.dx - comp.position.dx;
         final dy = p.position.dy - comp.position.dy;
         if (dx * dx + dy * dy < (hitRadius + 15) * (hitRadius + 15)) {
-          final dmg = max(1, (p.damage * 100 / (100 + comp.elemDef)).round());
+          final pierceFalloff = p.piercing
+              ? pow(0.7, p.pierceCount).toDouble()
+              : 1.0;
+          final dmg = max(
+            1,
+            (p.damage * pierceFalloff * 100 / (100 + comp.elemDef)).round(),
+          );
           comp.takeDamage(dmg);
           _spawnHitSpark(
             p.position,
             elementColor(battleRingOpponent?.member.element ?? 'Earth'),
           );
-          ringOpponentProjectiles.removeAt(i);
+          if (p.piercing) {
+            p.pierceCount++;
+          } else if (p.bounceCount > 0) {
+            p.bounceCount--;
+            p.pierceCount++;
+            p.angle += pi * 0.65 + (_rng.nextDouble() * pi * 0.7);
+          } else {
+            ringOpponentProjectiles.removeAt(i);
+          }
           continue;
         }
       }
     }
+
+    _updateRingMinions(dt);
 
     // ── update companion projectiles ──
     for (var i = companionProjectiles.length - 1; i >= 0; i--) {
@@ -2409,111 +4432,6 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       }
 
-      // ── update ring minions (assistants) ──
-      for (var mi = ringMinions.length - 1; mi >= 0; mi--) {
-        final m = ringMinions[mi];
-        if (m.dead) {
-          ringMinions.removeAt(mi);
-          continue;
-        }
-        m.life += dt;
-        m.attackCooldown = (m.attackCooldown - dt).clamp(0.0, 100.0);
-        // If orbitTime > 0, animate orbit (portal) until emergence
-        if (m.orbitTime > 0) {
-          m.orbitTime -= dt;
-          // Chargers should have a much subtler portal wobble; shooters spin faster.
-          if (m.type == 'charger') {
-            m.orbitAngle += (0.4 + _rng.nextDouble() * 0.6) * dt;
-            m.orbitRadius += dt * 1.5; // minimal expansion for chargers
-          } else {
-            m.orbitAngle += (1.2 + _rng.nextDouble() * 1.6) * dt; // spin
-            m.orbitRadius += dt * 3.0; // reduced expansion for shooters
-          }
-          if (m.orbitCenter != null) {
-            m.position = Offset(
-              m.orbitCenter!.dx + cos(m.orbitAngle) * m.orbitRadius,
-              m.orbitCenter!.dy + sin(m.orbitAngle) * m.orbitRadius,
-            );
-          }
-          if (m.orbitTime <= 0) {
-            // Emerge: small VFX to show portal spawn
-            _spawnHitSpark(m.position, elementColor(m.element));
-          }
-          continue; // don't move toward companion until emerged
-        }
-
-        // Different behaviors per minion type after emergence
-        if (m.type == 'shooter') {
-          // Shooters hold position / orbit and periodically fire at the
-          // player's companion.
-          if (m.orbitCenter != null) {
-            // gentle orbital hover
-            m.orbitAngle += (0.6 + _rng.nextDouble() * 0.8) * dt;
-            m.position = Offset(
-              m.orbitCenter!.dx + cos(m.orbitAngle) * m.orbitRadius,
-              m.orbitCenter!.dy + sin(m.orbitAngle) * m.orbitRadius,
-            );
-          } else if (activeCompanion != null && activeCompanion!.isAlive) {
-            // small drift toward the companion but stay mostly stationary
-            final comp = activeCompanion!;
-            final toComp = comp.position - m.position;
-            final dist = toComp.distance;
-            if (dist > 2.0) {
-              final step = (m.speed * 0.35) * dt;
-              m.position += (toComp / dist) * min(step, dist);
-            }
-          }
-          // Shooting
-          m.shootCooldown -= dt;
-          if (m.shootCooldown <= 0 &&
-              activeCompanion != null &&
-              activeCompanion!.isAlive) {
-            m.shootCooldown = 0.6 + _rng.nextDouble() * 1.2;
-            final comp = activeCompanion!;
-            final ang = atan2(
-              comp.position.dy - m.position.dy,
-              comp.position.dx - m.position.dx,
-            );
-            // Use the ring opponent's family so the projectile visuals match
-            final fam = battleRingOpponent?.member.family ?? 'neutral';
-            final basics = createFamilyBasicAttack(
-              origin: m.position,
-              angle: ang,
-              element: m.element,
-              family: fam,
-              damage: max(2.0, (m.health * 0.12)),
-            );
-            ringOpponentProjectiles.addAll(basics);
-          }
-        } else {
-          // Charger: slowly move in toward the player's companion and
-          // slam into it for high contact damage. They are tanky.
-          if (activeCompanion != null && activeCompanion!.isAlive) {
-            final comp = activeCompanion!;
-            final toComp = comp.position - m.position;
-            final dist = toComp.distance;
-            if (dist > 2.0) {
-              final step = (m.speed * 0.6) * dt; // slow, steady approach
-              m.position += (toComp / dist) * min(step, dist);
-            }
-            // Heavy contact damage when they reach the companion
-            if (dist < (m.radius + 15)) {
-              if (m.attackCooldown <= 0) {
-                // Slower, less devastating hits from chargers
-                m.attackCooldown = 2.2;
-                final contactDmg = 6.0 + (m.health / 12.0);
-                final dmg = max(
-                  1,
-                  (contactDmg * 100 / (100 + comp.physDef)).round(),
-                );
-                comp.takeDamage(dmg);
-                _spawnHitSpark(comp.position, elementColor(m.element));
-              }
-            }
-          }
-        }
-      }
-
       p.life -= dt;
       if (p.life <= 0) {
         // If this is a decoy, spawn death explosion
@@ -2526,6 +4444,12 @@ class CosmicGame extends FlameGame with PanDetector {
 
       final hitRadius = Projectile.radius * p.radiusMultiplier;
       bool consumed = false;
+
+      // Decoys/taunt traps resolve damage through the dedicated
+      // enemy->decoy collision path so they persist as lures.
+      if (p.decoy) {
+        continue;
+      }
 
       // Hit enemies
       for (var ei = enemies.length - 1; ei >= 0; ei--) {
@@ -2749,12 +4673,13 @@ class CosmicGame extends FlameGame with PanDetector {
         // ── Kin blessing: heal over time ──
         if (g.blessingTimer > 0) {
           g.blessingTimer -= dt;
-          g.hp = min(g.maxHp, g.hp + (g.maxHp * 0.02 * dt).round());
+          g.hp = min(g.maxHp, g.hp + (g.blessingHealPerTick * dt).round());
         }
 
-        // ── Find nearest enemy within attack range ──
+        // ── Find nearest enemy within engage range (basic or special) ──
+        final engageRange = max(g.attackRange, g.specialRange);
         CosmicEnemy? nearestEnemy;
-        double nearestDist = g.attackRange;
+        double nearestDist = engageRange;
         for (final e in enemies) {
           if (e.dead) continue;
           final d = (e.position - g.position).distance;
@@ -2773,14 +4698,14 @@ class CosmicGame extends FlameGame with PanDetector {
         }
 
         if (nearestEnemy != null ||
-            (activeBoss != null && nearestDist < g.attackRange)) {
+            (activeBoss != null && nearestDist < engageRange)) {
           // ── Chase & attack ──
           final targetPos = nearestEnemy?.position ?? activeBoss!.position;
           final toTarget = targetPos - g.position;
           g.faceAngle = atan2(toTarget.dy, toTarget.dx);
 
-          // Move toward enemy (but stay within patrol zone)
-          if (toTarget.distance > 30.0) {
+          // Move toward enemy only when outside special-cast range.
+          if (toTarget.distance > g.specialRange) {
             final chaseSpeed = _GarrisonCreature.wanderSpeed * 3.5 * dt;
             g.position +=
                 (toTarget / toTarget.distance) *
@@ -2788,7 +4713,7 @@ class CosmicGame extends FlameGame with PanDetector {
           }
 
           // Basic attack — family-specific pattern
-          if (g.attackCooldown <= 0) {
+          if (g.attackCooldown <= 0 && toTarget.distance <= g.attackRange) {
             g.attackCooldown = 1.2;
             final basics = createFamilyBasicAttack(
               origin: g.position,
@@ -2801,8 +4726,12 @@ class CosmicGame extends FlameGame with PanDetector {
           }
 
           // Special attack — family+element ability!
-          if (g.specialCooldown <= 0) {
-            g.specialCooldown = 20.0;
+          if (g.specialCooldown <= 0 && toTarget.distance <= g.specialRange) {
+            g.specialCooldown =
+                (14.0 -
+                        (g.member.statSpeed * 0.6) -
+                        (g.member.statIntelligence * 0.4))
+                    .clamp(6.0, 14.0);
             final result = createCosmicSpecialAbility(
               origin: g.position,
               baseAngle: g.faceAngle,
@@ -2825,6 +4754,7 @@ class CosmicGame extends FlameGame with PanDetector {
             }
             if (result.blessingTimer > 0) {
               g.blessingTimer = result.blessingTimer;
+              g.blessingHealPerTick = result.blessingHealPerTick;
             }
             _spawnHitSpark(g.position, elementColor(g.member.element));
           }
@@ -2982,11 +4912,26 @@ class CosmicGame extends FlameGame with PanDetector {
       final wh = world_.worldSize.height;
       for (final e in enemies) {
         if (e.dead) continue;
-        // Only aggressive/provoked enemies attack decoys
+        // Passive enemies still engage if a taunt trap is actively luring them.
         if (!e.provoked &&
             (e.behavior == EnemyBehavior.feeding ||
                 e.behavior == EnemyBehavior.drifting)) {
-          continue;
+          var taunted = false;
+          for (final cp in companionProjectiles) {
+            if (!cp.decoy || cp.decoyHp <= 0 || cp.tauntRadius <= 0) continue;
+            var tdx = cp.position.dx - e.position.dx;
+            var tdy = cp.position.dy - e.position.dy;
+            if (tdx > ww / 2) tdx -= ww;
+            if (tdx < -ww / 2) tdx += ww;
+            if (tdy > wh / 2) tdy -= wh;
+            if (tdy < -wh / 2) tdy += wh;
+            final dd = sqrt(tdx * tdx + tdy * tdy);
+            if (dd <= cp.tauntRadius) {
+              taunted = true;
+              break;
+            }
+          }
+          if (!taunted) continue;
         }
         for (var di = companionProjectiles.length - 1; di >= 0; di--) {
           final decoy = companionProjectiles[di];
@@ -3275,6 +5220,77 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
+    // ── blood ring proximity ──
+    {
+      final ring = bloodRing;
+      var bdx = ring.position.dx - ship.pos.dx;
+      var bdy = ring.position.dy - ship.pos.dy;
+      if (bdx > ww / 2) bdx -= ww;
+      if (bdx < -ww / 2) bdx += ww;
+      if (bdy > wh / 2) bdy -= wh;
+      if (bdy < -wh / 2) bdy += wh;
+      final bd = sqrt(bdx * bdx + bdy * bdy);
+      final threshold = _wasNearBloodRing
+          ? BloodRing.exitRadius
+          : BloodRing.interactRadius;
+      final nowNear = bd < threshold;
+      if (nowNear != _wasNearBloodRing) {
+        _wasNearBloodRing = nowNear;
+        _isNearBloodRing = nowNear;
+        onNearBloodRing?.call(nowNear);
+      }
+      if (!ring.discovered && bd < BloodRing.interactRadius + 300) {
+        ring.discovered = true;
+      }
+    }
+
+    // ── trait contest arena proximity ──
+    {
+      CosmicContestArena? closest;
+      double closestDist = double.infinity;
+      for (final arena in contestArenas) {
+        var adx = arena.position.dx - ship.pos.dx;
+        var ady = arena.position.dy - ship.pos.dy;
+        if (adx > ww / 2) adx -= ww;
+        if (adx < -ww / 2) adx += ww;
+        if (ady > wh / 2) ady -= wh;
+        if (ady < -wh / 2) ady += wh;
+        final ad = sqrt(adx * adx + ady * ady);
+
+        if (!arena.discovered && ad < CosmicContestArena.interactRadius + 320) {
+          arena.discovered = true;
+        }
+
+        final threshold = nearContestArena == arena
+            ? CosmicContestArena.exitRadius
+            : CosmicContestArena.interactRadius;
+        if (ad < threshold && ad < closestDist) {
+          closestDist = ad;
+          closest = arena;
+        }
+      }
+      if (closest != nearContestArena) {
+        nearContestArena = closest;
+        onNearContestArena?.call(closest);
+      }
+    }
+
+    // ── collectible contest hint notes ──
+    for (final note in contestHintNotes) {
+      if (note.collected) continue;
+      var hdx = note.position.dx - ship.pos.dx;
+      var hdy = note.position.dy - ship.pos.dy;
+      if (hdx > ww / 2) hdx -= ww;
+      if (hdx < -ww / 2) hdx += ww;
+      if (hdy > wh / 2) hdy -= wh;
+      if (hdy < -wh / 2) hdy += wh;
+      final hd = sqrt(hdx * hdx + hdy * hdy);
+      if (hd < CosmicContestHintNote.interactRadius) {
+        note.collected = true;
+        onContestHintCollected?.call(note);
+      }
+    }
+
     // ── galaxy whirl update ──
     for (final whirl in galaxyWhirls) {
       whirl.rotation += dt * 0.8;
@@ -3458,14 +5474,68 @@ class CosmicGame extends FlameGame with PanDetector {
     for (final poi in spacePOIs) {
       poi.life += dt;
 
-      // Move comets
-      if (poi.type == POIType.comet && !poi.interacted) {
-        poi.position = _wrap(
-          Offset(
-            poi.position.dx + cos(poi.angle) * poi.speed * dt,
-            poi.position.dy + sin(poi.angle) * poi.speed * dt,
-          ),
-        );
+      // Hidden meteor-shower zone: encounter in-world, then relocate far away.
+      if (poi.type == POIType.comet) {
+        var cdx = poi.position.dx - ship.pos.dx;
+        var cdy = poi.position.dy - ship.pos.dy;
+        if (cdx > ww / 2) cdx -= ww;
+        if (cdx < -ww / 2) cdx += ww;
+        if (cdy > wh / 2) cdy -= wh;
+        if (cdy < -wh / 2) cdy += wh;
+        final cometDist = sqrt(cdx * cdx + cdy * cdy);
+
+        if (!poi.discovered && cometDist < poi.radius + 300) {
+          poi.discovered = true;
+        }
+
+        const encounterDuration = 10.0;
+        const pulseEvery = 1.25;
+        final insideShower = cometDist < poi.radius * 0.95;
+
+        // Entering the shower starts a timed encounter (instead of instant relocate).
+        if (insideShower && !poi.interacted) {
+          poi.interacted = true;
+          poi.speed = 0; // re-used as elapsed encounter time
+          onPOIDiscovered?.call(poi);
+          _spawnLootDrops(ship.pos, poi.element, 5, 5.5);
+        }
+
+        if (insideShower && poi.interacted) {
+          final prevElapsed = poi.speed;
+          final prevPulse = (prevElapsed / pulseEvery).floor();
+          poi.speed += dt;
+          final nextPulse = (poi.speed / pulseEvery).floor();
+
+          if (nextPulse > prevPulse) {
+            final burstRng = Random(
+              nextPulse * 911 + poi.position.dx.toInt() ^
+                  poi.position.dy.toInt(),
+            );
+            final a = burstRng.nextDouble() * 2 * pi;
+            final r = poi.radius * (0.2 + burstRng.nextDouble() * 0.65);
+            final burstPos = _wrap(
+              Offset(
+                poi.position.dx + cos(a) * r,
+                poi.position.dy + sin(a) * r,
+              ),
+            );
+            _spawnLootDrops(burstPos, poi.element, 4, 6.0);
+          }
+
+          if (prevElapsed < encounterDuration &&
+              poi.speed >= encounterDuration) {
+            _spawnLootDrops(ship.pos, poi.element, 10, 6.5);
+          }
+        }
+
+        // Only relocate once the encounter has completed and the player leaves.
+        if (poi.interacted &&
+            !insideShower &&
+            poi.speed >= encounterDuration &&
+            cometDist > poi.radius * 1.2) {
+          _relocateMeteorShower(poi);
+        }
+        continue;
       }
 
       if (poi.interacted) continue;
@@ -3473,7 +5543,8 @@ class CosmicGame extends FlameGame with PanDetector {
       // Markets use proximity detection (nearMarket), not one-shot interaction
       if (poi.type == POIType.harvesterMarket ||
           poi.type == POIType.riftKeyMarket ||
-          poi.type == POIType.cosmicMarket)
+          poi.type == POIType.cosmicMarket ||
+          poi.type == POIType.stardustScanner)
         continue;
 
       // Proximity check
@@ -3497,7 +5568,7 @@ class CosmicGame extends FlameGame with PanDetector {
         switch (poi.type) {
           case POIType.nebula:
             if (!meter.isFull) {
-              meter.add(poi.element, 8.0);
+              meter.add(poi.element, 8.0 * _meterPickupMultiplier);
               onMeterChanged();
             }
             break;
@@ -3505,11 +5576,12 @@ class CosmicGame extends FlameGame with PanDetector {
             _spawnLootDrops(poi.position, poi.element, 8, 3.0);
             break;
           case POIType.comet:
-            _spawnLootDrops(poi.position, poi.element, 4, 5.0);
+            // Handled above as meteor-shower zone.
             break;
           case POIType.harvesterMarket:
           case POIType.riftKeyMarket:
           case POIType.cosmicMarket:
+          case POIType.stardustScanner:
             // Markets are handled via nearMarket proximity, not one-shot.
             break;
           case POIType.warpAnomaly:
@@ -3592,6 +5664,399 @@ class CosmicGame extends FlameGame with PanDetector {
 
       canvas.drawCircle(Offset(p.x, p.y), p.size + 3, Paint()..color = glow);
       canvas.drawCircle(Offset(p.x, p.y), p.size, Paint()..color = color);
+    }
+
+    if (_beautyContestCinematicActive) {
+      final introFade = _beautyContestIntroActive
+          ? Curves.easeOutCubic.transform(
+              (_beautyContestIntroTimer / _beautyContestIntroDuration).clamp(
+                0.0,
+                1.0,
+              ),
+            )
+          : 1.0;
+      final center = _beautyContestCenter;
+      if (_contestCinematicMode == _ContestCinematicMode.beauty) {
+        final pulse = 0.5 + 0.5 * sin(_elapsed * 1.8);
+        final haloR = 300.0 + 24.0 * sin(_elapsed * 0.9);
+        final sweepR = 212.0 + 12.0 * sin(_elapsed * 1.6);
+
+        canvas.drawCircle(
+          center,
+          haloR,
+          Paint()
+            ..color = const Color(
+              0xFFF06292,
+            ).withValues(alpha: (0.18 + pulse * 0.10) * introFade)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60),
+        );
+        canvas.drawCircle(
+          center,
+          220,
+          Paint()
+            ..color = const Color(
+              0xFF80DEEA,
+            ).withValues(alpha: 0.14 * introFade)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 38),
+        );
+        canvas.drawCircle(
+          center,
+          170,
+          Paint()
+            ..shader = ui.Gradient.radial(center, 170, [
+              const Color(
+                0xFFFFF8E1,
+              ).withValues(alpha: (0.16 + pulse * 0.06) * introFade),
+              Colors.transparent,
+            ]),
+        );
+        for (var i = 0; i < 10; i++) {
+          final a = _elapsed * 0.26 + i * (pi * 2 / 10);
+          final p = Offset(
+            center.dx + cos(a) * sweepR,
+            center.dy + sin(a) * sweepR * 0.58,
+          );
+          canvas.drawCircle(
+            p,
+            7.0 + 1.2 * sin(_elapsed * 2.2 + i),
+            Paint()
+              ..color = const Color(
+                0xFFFFE082,
+              ).withValues(alpha: 0.24 * introFade)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+          );
+        }
+      } else if (_contestCinematicMode == _ContestCinematicMode.speed) {
+        final pulse = 0.5 + 0.5 * sin(_elapsed * 2.2);
+        const outerRx = 246.0;
+        const outerRy = 138.0;
+        const innerRx = 208.0;
+        const innerRy = 114.0;
+        final outerRect = Rect.fromCenter(
+          center: center,
+          width: outerRx * 2,
+          height: outerRy * 2,
+        );
+        final innerRect = Rect.fromCenter(
+          center: center,
+          width: innerRx * 2,
+          height: innerRy * 2,
+        );
+
+        canvas.drawOval(
+          outerRect,
+          Paint()
+            ..color = const Color(
+              0xFF4FC3F7,
+            ).withValues(alpha: (0.26 + pulse * 0.10) * introFade)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 5
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        );
+        canvas.drawOval(
+          innerRect,
+          Paint()
+            ..color = const Color(
+              0xFFB3E5FC,
+            ).withValues(alpha: (0.20 + pulse * 0.08) * introFade)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        );
+        for (var i = 0; i < 16; i++) {
+          final a = _elapsed * 2.8 + i * (pi * 2 / 16);
+          final p = Offset(
+            center.dx + cos(a) * (innerRx + 8),
+            center.dy + sin(a) * (innerRy + 6),
+          );
+          canvas.drawCircle(
+            p,
+            2.6,
+            Paint()
+              ..color = const Color(
+                0xFFE1F5FE,
+              ).withValues(alpha: (0.16 + pulse * 0.08) * introFade),
+          );
+        }
+      } else if (_contestCinematicMode == _ContestCinematicMode.strength) {
+        final pulse = 0.5 + 0.5 * sin(_elapsed * 3.0);
+        const laneHalfExtent = 118.0;
+        final clashCenterBase = Offset(center.dx, center.dy + 24);
+        final clashCenter = Offset(
+          center.dx + _strengthContestShift,
+          center.dy + 24,
+        );
+        final shiftNorm = (_strengthContestShift / laneHalfExtent).clamp(
+          -1.0,
+          1.0,
+        );
+        final markerColor = Color.lerp(
+          const Color(0xFFFFAB91),
+          const Color(0xFFFFCC80),
+          ((shiftNorm + 1) / 2).clamp(0.0, 1.0),
+        )!;
+        final laneLeft = Offset(
+          clashCenterBase.dx - laneHalfExtent,
+          clashCenterBase.dy,
+        );
+        final laneRight = Offset(
+          clashCenterBase.dx + laneHalfExtent,
+          clashCenterBase.dy,
+        );
+        var markerPos = clashCenter;
+        if (_beautyContestTimer >= _strengthContestDuration) {
+          final revealT = Curves.easeOutCubic.transform(
+            ((_beautyContestTimer - _strengthContestDuration) / 1.0).clamp(
+              0.0,
+              1.0,
+            ),
+          );
+          final winner = _beautyContestPlayerWon
+              ? activeCompanion
+              : battleRingOpponent;
+          if (winner != null) {
+            markerPos = Offset.lerp(clashCenter, winner.position, revealT)!;
+          }
+        }
+
+        // Strength lane + neutral alchemical center marker.
+        canvas.drawLine(
+          laneLeft,
+          laneRight,
+          Paint()
+            ..color = const Color(
+              0xFFFFE0B2,
+            ).withValues(alpha: 0.08 * introFade)
+            ..strokeWidth = 5
+            ..strokeCap = StrokeCap.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        );
+        canvas.drawLine(
+          laneLeft,
+          laneRight,
+          Paint()
+            ..color = const Color(
+              0xFFFFE0B2,
+            ).withValues(alpha: 0.16 * introFade)
+            ..strokeWidth = 2.2
+            ..strokeCap = StrokeCap.round,
+        );
+        for (var i = 0; i < 8; i++) {
+          final travel = (_elapsed * 0.24 + i / 8) % 1.0;
+          final laneX = laneLeft.dx + (laneRight.dx - laneLeft.dx) * travel;
+          final laneY = clashCenterBase.dy + sin(_elapsed * 2.8 + i) * 1.5;
+          canvas.drawCircle(
+            Offset(laneX, laneY),
+            1.8 + (i % 2) * 0.5,
+            Paint()
+              ..color = const Color(
+                0xFFFFF3E0,
+              ).withValues(alpha: (0.10 + pulse * 0.06) * introFade)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+          );
+        }
+        canvas.drawCircle(
+          clashCenterBase,
+          16,
+          Paint()
+            ..color = const Color(
+              0xFFFFF3E0,
+            ).withValues(alpha: 0.24 * introFade)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        );
+        final hexPath = Path();
+        for (var i = 0; i < 6; i++) {
+          final a = -pi / 2 + i * (pi * 2 / 6);
+          final pt = Offset(
+            clashCenterBase.dx + cos(a) * 8,
+            clashCenterBase.dy + sin(a) * 8,
+          );
+          if (i == 0) {
+            hexPath.moveTo(pt.dx, pt.dy);
+          } else {
+            hexPath.lineTo(pt.dx, pt.dy);
+          }
+        }
+        hexPath.close();
+        canvas.drawPath(
+          hexPath,
+          Paint()
+            ..color = const Color(
+              0xFFFFE0B2,
+            ).withValues(alpha: 0.36 * introFade)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6,
+        );
+
+        canvas.drawCircle(
+          clashCenter,
+          170,
+          Paint()
+            ..color = const Color(
+              0xFFFFA65A,
+            ).withValues(alpha: (0.13 + pulse * 0.08) * introFade)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 26),
+        );
+        canvas.drawCircle(
+          clashCenter,
+          108,
+          Paint()
+            ..color = const Color(
+              0xFFFFE0B2,
+            ).withValues(alpha: (0.08 + pulse * 0.06) * introFade)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+        );
+        for (var i = 0; i < 12; i++) {
+          final a = _elapsed * 2.4 + i * (pi * 2 / 12);
+          final p = Offset(
+            clashCenter.dx + cos(a) * 116,
+            clashCenter.dy + sin(a) * 62,
+          );
+          canvas.drawCircle(
+            p,
+            4.0 + (i % 3) * 0.8,
+            Paint()
+              ..color = const Color(
+                0xFFFFCC80,
+              ).withValues(alpha: (0.15 + pulse * 0.06) * introFade),
+          );
+        }
+
+        // Moving alchemical force marker tracks control of the center.
+        canvas.drawCircle(
+          markerPos,
+          20,
+          Paint()
+            ..color = markerColor.withValues(
+              alpha: (0.15 + pulse * 0.12) * introFade,
+            )
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        );
+        canvas.drawCircle(
+          markerPos,
+          10.5,
+          Paint()..color = markerColor.withValues(alpha: 0.92 * introFade),
+        );
+        canvas.drawCircle(
+          markerPos,
+          4,
+          Paint()
+            ..color = const Color(
+              0xFFFFFFFF,
+            ).withValues(alpha: 0.92 * introFade),
+        );
+      } else if (_contestCinematicMode == _ContestCinematicMode.intelligence) {
+        final pulse = 0.5 + 0.5 * sin(_elapsed * 2.6);
+        final latticeCenter = Offset(center.dx, center.dy + 16);
+        final orbPos = _intelligenceContestOrbPos;
+        final biasNorm = ((_intelligenceContestBias + 1.0) * 0.5).clamp(
+          0.0,
+          1.0,
+        );
+        final orbColor = Color.lerp(
+          const Color(0xFF9FA8DA),
+          const Color(0xFFD1C4E9),
+          biasNorm,
+        )!;
+
+        canvas.drawCircle(
+          latticeCenter,
+          240,
+          Paint()
+            ..color = const Color(
+              0xFF7E57C2,
+            ).withValues(alpha: (0.14 + pulse * 0.07) * introFade)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 46),
+        );
+        canvas.drawCircle(
+          latticeCenter,
+          146,
+          Paint()
+            ..color = const Color(
+              0xFFB3E5FC,
+            ).withValues(alpha: (0.08 + pulse * 0.04) * introFade)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24),
+        );
+
+        for (var i = 0; i < 3; i++) {
+          final radius = 62.0 + i * 44.0;
+          canvas.drawCircle(
+            latticeCenter,
+            radius,
+            Paint()
+              ..color = const Color(
+                0xFFD1C4E9,
+              ).withValues(alpha: (0.09 - i * 0.02) * introFade)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.2
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+          );
+        }
+
+        final nodePoints = <Offset>[];
+        for (var i = 0; i < 10; i++) {
+          final a = _elapsed * 0.78 + i * (pi * 2 / 10);
+          final p = Offset(
+            latticeCenter.dx + cos(a) * 168.0,
+            latticeCenter.dy + sin(a) * 92.0,
+          );
+          nodePoints.add(p);
+          canvas.drawCircle(
+            p,
+            2.8 + (i % 3) * 0.6,
+            Paint()
+              ..color = const Color(
+                0xFFEDE7F6,
+              ).withValues(alpha: (0.14 + pulse * 0.05) * introFade),
+          );
+          canvas.drawLine(
+            p,
+            orbPos,
+            Paint()
+              ..color = const Color(
+                0xFFB39DDB,
+              ).withValues(alpha: (0.08 + ((i % 4) * 0.01)) * introFade)
+              ..strokeWidth = 1.0,
+          );
+        }
+        for (var i = 0; i < nodePoints.length; i++) {
+          final a = nodePoints[i];
+          final b = nodePoints[(i + 2) % nodePoints.length];
+          canvas.drawLine(
+            a,
+            b,
+            Paint()
+              ..color = const Color(
+                0xFF9575CD,
+              ).withValues(alpha: 0.06 * introFade)
+              ..strokeWidth = 0.8,
+          );
+        }
+
+        canvas.drawCircle(
+          orbPos,
+          32,
+          Paint()
+            ..color = orbColor.withValues(
+              alpha: (0.22 + pulse * 0.09) * introFade,
+            )
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+        );
+        canvas.drawCircle(
+          orbPos,
+          14,
+          Paint()..color = orbColor.withValues(alpha: 0.95 * introFade),
+        );
+        canvas.drawCircle(
+          orbPos,
+          4.5,
+          Paint()
+            ..color = const Color(
+              0xFFFFFFFF,
+            ).withValues(alpha: 0.9 * introFade),
+        );
+      }
     }
 
     // ── particle swarms ──
@@ -4075,34 +6540,103 @@ class CosmicGame extends FlameGame with PanDetector {
           }
           break;
         case POIType.comet:
-          final cColor = elementColor(poi.element);
-          for (var t = 0; t < 12; t++) {
-            final trailX = pp.dx - cos(poi.angle) * t * 6;
-            final trailY = pp.dy - sin(poi.angle) * t * 6;
-            final trailAlpha = (1.0 - t / 12.0) * 0.4;
-            final trailR = 4.0 - t * 0.3;
-            if (trailR > 0) {
-              canvas.drawCircle(
-                Offset(trailX, trailY),
-                trailR,
-                Paint()
-                  ..color = cColor.withValues(alpha: trailAlpha)
-                  ..maskFilter = MaskFilter.blur(BlurStyle.normal, trailR),
-              );
-            }
-          }
+          final mColor = elementColor(poi.element);
+          final zoneR = poi.radius;
+          final fallAngle = poi.angle + 0.35 * sin(poi.life * 0.2);
+          final baseDir = Offset(cos(fallAngle), sin(fallAngle));
+
+          // Broad atmospheric haze so it reads like a moving storm region.
           canvas.drawCircle(
             pp,
-            8,
+            zoneR * 0.9,
             Paint()
-              ..color = cColor.withValues(alpha: 0.4)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+              ..color = mColor.withValues(alpha: 0.05)
+              ..maskFilter = MaskFilter.blur(BlurStyle.normal, zoneR * 0.22),
           );
           canvas.drawCircle(
             pp,
-            4,
-            Paint()..color = Colors.white.withValues(alpha: 0.8),
+            zoneR * 0.45,
+            Paint()
+              ..color = Colors.white.withValues(alpha: 0.03)
+              ..maskFilter = MaskFilter.blur(BlurStyle.normal, zoneR * 0.15),
           );
+
+          // Meteors fly through one-after-another (not static floating dots).
+          const slots = 14;
+          const cycleSeconds = 14.0;
+          final spacing = cycleSeconds / slots;
+          final activeWindow =
+              spacing * 0.72; // leaves a short gap between meteors
+          final cycleT = poi.life % cycleSeconds;
+
+          for (var i = 0; i < slots; i++) {
+            var local = cycleT - i * spacing;
+            if (local < 0) local += cycleSeconds;
+            if (local > activeWindow) continue;
+
+            final t = local / activeWindow; // 0..1 for this meteor life
+            final smooth = t * t * (3 - 2 * t); // smoothstep
+            final fade = t < 0.2
+                ? (t / 0.2)
+                : (t > 0.82 ? ((1 - t) / 0.18).clamp(0.0, 1.0) : 1.0);
+
+            final lane = ((i * 37) % 100) / 100.0 * 2 - 1; // -1..1
+            final laneAngle = fallAngle + lane * 0.32;
+            final dir = Offset(cos(laneAngle), sin(laneAngle));
+            final perp = Offset(-dir.dy, dir.dx);
+
+            final travel = zoneR * 2.4;
+            final lateral = lane * zoneR * 0.55;
+            final start = pp - dir * (travel * 0.54) + perp * lateral;
+            final head = start + dir * (travel * smooth);
+            final tailLen = 70.0 + (i % 4) * 18.0;
+            final tail = head - dir * tailLen;
+            final alpha = (0.18 + (1 - t) * 0.52) * fade;
+
+            canvas.drawLine(
+              tail,
+              head,
+              Paint()
+                ..color = mColor.withValues(alpha: alpha * 0.95)
+                ..strokeWidth = 1.6 + (i % 2) * 0.5
+                ..strokeCap = StrokeCap.round
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.8),
+            );
+
+            canvas.drawLine(
+              head - dir * 16,
+              head,
+              Paint()
+                ..color = Colors.white.withValues(alpha: alpha * 0.9)
+                ..strokeWidth = 0.9
+                ..strokeCap = StrokeCap.round
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6),
+            );
+
+            canvas.drawCircle(
+              head,
+              1.9 + (i % 2) * 0.5,
+              Paint()
+                ..color = Colors.white.withValues(alpha: alpha)
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
+            );
+          }
+
+          // Light drifting dust behind the active stream direction.
+          for (var d = 0; d < 10; d++) {
+            final drift =
+                poi.life * (0.16 + d * 0.011) + d * 1.23 + baseDir.dx * 1.7;
+            final r = zoneR * (0.22 + (d % 7) * 0.09);
+            final p = Offset(
+              pp.dx + cos(drift) * r,
+              pp.dy + sin(drift * 1.2) * r * 0.7,
+            );
+            canvas.drawCircle(
+              p,
+              1.2 + (d % 3) * 0.35,
+              Paint()..color = mColor.withValues(alpha: 0.12),
+            );
+          }
           break;
         case POIType.warpAnomaly:
           final wAlphaScale = poi.interacted ? 0.8 : 1.0;
@@ -4152,11 +6686,14 @@ class CosmicGame extends FlameGame with PanDetector {
         case POIType.harvesterMarket:
         case POIType.riftKeyMarket:
         case POIType.cosmicMarket:
+        case POIType.stardustScanner:
           final mColor = poi.type == POIType.harvesterMarket
               ? const Color(0xFFFFB300) // amber/gold
               : poi.type == POIType.riftKeyMarket
               ? const Color(0xFF7C4DFF) // purple
-              : const Color(0xFF00E5FF); // cyan/teal for cosmic
+              : poi.type == POIType.cosmicMarket
+              ? const Color(0xFF00E5FF) // cyan/teal for cosmic
+              : const Color(0xFF9CCC65); // green for scanner
           // Rotating hexagonal station
           canvas.save();
           canvas.translate(pp.dx, pp.dy);
@@ -4220,7 +6757,9 @@ class CosmicGame extends FlameGame with PanDetector {
               ? 'HARVESTER SHOP'
               : poi.type == POIType.riftKeyMarket
               ? 'RIFT KEY SHOP'
-              : 'COSMIC MARKET';
+              : poi.type == POIType.cosmicMarket
+              ? 'COSMIC MARKET'
+              : 'STAR DUST SCANNER';
           final mTp = TextPainter(
             text: TextSpan(
               text: marketLabel,
@@ -4379,13 +6918,190 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
+    // ── blood ring (ending ritual portal) ──
+    {
+      final ring = bloodRing;
+      final rp = ring.position;
+      if ((rp.dx - cx - screenW / 2).abs() < screenW * 2.5 &&
+          (rp.dy - cy - screenH / 2).abs() < screenH * 2.5) {
+        final pulse = 0.82 + 0.18 * sin(_riftPulse * 2.2);
+        final outerR =
+            BloodRing.visualRadius * (0.92 + 0.06 * sin(_riftPulse * 1.4));
+
+        // Outer blood haze
+        canvas.drawCircle(
+          rp,
+          outerR * 1.18,
+          Paint()
+            ..color = const Color(0xFF7F0000).withValues(alpha: 0.22 * pulse)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28),
+        );
+
+        // Main ritual ring
+        canvas.drawCircle(
+          rp,
+          outerR,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 10
+            ..color = const Color(0xFFB71C1C).withValues(alpha: 0.8 * pulse),
+        );
+
+        // Inner ring
+        canvas.drawCircle(
+          rp,
+          outerR * 0.72,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..color = const Color(0xFFFFCDD2).withValues(alpha: 0.5 * pulse),
+        );
+
+        // Orbiting ritual marks
+        for (var i = 0; i < 8; i++) {
+          final a = _riftPulse * 0.65 + (i * pi / 4);
+          final markPos = Offset(
+            rp.dx + cos(a) * (outerR + 24),
+            rp.dy + sin(a) * (outerR + 24),
+          );
+          canvas.drawCircle(
+            markPos,
+            4.5,
+            Paint()..color = const Color(0xFFFF8A80).withValues(alpha: 0.8),
+          );
+        }
+
+        // Core state changes after ending completion.
+        if (ring.ritualCompleted) {
+          canvas.drawCircle(
+            rp,
+            outerR * 0.24,
+            Paint()
+              ..shader = ui.Gradient.radial(rp, outerR * 0.26, [
+                const Color(0xFFB2EBF2).withValues(alpha: 0.85),
+                const Color(0xFF1A0000).withValues(alpha: 0.0),
+              ]),
+          );
+        } else {
+          canvas.drawCircle(
+            rp,
+            outerR * 0.18,
+            Paint()
+              ..color = const Color(0xFF4A0000).withValues(alpha: 0.65 * pulse),
+          );
+        }
+
+        if (_isNearBloodRing || (rp - ship.pos).distance < 550) {
+          final label = ring.ritualCompleted ? 'BLOOD PORTAL' : 'BLOOD RING';
+          final textPainter = TextPainter(
+            text: TextSpan(
+              text: label,
+              style: const TextStyle(
+                color: Color(0x99FF8A80),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.2,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          textPainter.paint(
+            canvas,
+            Offset(rp.dx - textPainter.width / 2, rp.dy + outerR * 0.45),
+          );
+        }
+      }
+    }
+
+    // ── trait contest arenas ──
+    for (final arena in contestArenas) {
+      final ap = arena.position;
+      if ((ap.dx - cx - screenW / 2).abs() > screenW * 2.5 ||
+          (ap.dy - cy - screenH / 2).abs() > screenH * 2.5) {
+        continue;
+      }
+
+      final col = arena.trait.color;
+      final pulse = 0.82 + 0.18 * sin(_riftPulse * 1.9 + arena.trait.index);
+
+      canvas.drawCircle(
+        ap,
+        CosmicContestArena.visualRadius * 0.95,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 7
+          ..color = col.withValues(alpha: 0.42 * pulse),
+      );
+      canvas.drawCircle(
+        ap,
+        CosmicContestArena.visualRadius * 0.62,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2
+          ..color = col.withValues(alpha: 0.76 * pulse),
+      );
+      canvas.drawCircle(
+        ap,
+        CosmicContestArena.visualRadius * 0.22,
+        Paint()
+          ..color = col.withValues(alpha: 0.28 * pulse)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+
+      if (nearContestArena == arena || (ap - ship.pos).distance < 520) {
+        final labelPainter = TextPainter(
+          text: TextSpan(
+            text: arena.trait.arenaLabel.toUpperCase(),
+            style: TextStyle(
+              color: col.withValues(alpha: 0.86),
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.8,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        labelPainter.paint(
+          canvas,
+          Offset(ap.dx - labelPainter.width / 2, ap.dy + 90),
+        );
+      }
+    }
+
+    // ── floating trait hint notes ──
+    for (final note in contestHintNotes) {
+      if (note.collected) continue;
+      final np = note.position;
+      if ((np.dx - cx - screenW / 2).abs() > screenW * 1.2 ||
+          (np.dy - cy - screenH / 2).abs() > screenH * 1.2) {
+        continue;
+      }
+      final nPulse = 0.5 + 0.5 * sin(_elapsed * 3.4 + note.id.hashCode * 0.01);
+      canvas.drawCircle(
+        np,
+        18 + nPulse * 4,
+        Paint()
+          ..color = const Color(
+            0xFFB3E5FC,
+          ).withValues(alpha: 0.1 + nPulse * 0.1)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+      );
+      canvas.drawCircle(
+        np,
+        4,
+        Paint()..color = const Color(0xFFE1F5FE).withValues(alpha: 0.9),
+      );
+    }
+
     // ── home planet ──
     if (homePlanet != null) {
       final hp = homePlanet!;
-      final hpPos = hp.position;
-      if ((hpPos.dx - cx - screenW / 2).abs() < screenW &&
-          (hpPos.dy - cy - screenH / 2).abs() < screenH) {
-        final vr = hp.visualRadius;
+      final vr = hp.visualRadius;
+      final hpPos = _wrappedRenderPos(hp.position, cx, cy, screenW, screenH);
+      // Keep rendering longer so large outer cosmetics don't pop off-screen.
+      final homeVisualMargin = vr * 4.5 + 240.0;
+      if ((hpPos.dx - cx - screenW / 2).abs() < screenW + homeVisualMargin &&
+          (hpPos.dy - cy - screenH / 2).abs() < screenH + homeVisualMargin) {
         final col = hp.blendedColor;
 
         // Warm aura
@@ -4500,59 +7216,15 @@ class CosmicGame extends FlameGame with PanDetector {
 
             // Render simple effect overlays for alchemy/variant effects (behind sprite)
             if (g.visuals?.alchemyEffect != null) {
-              final eff = g.visuals!.alchemyEffect!;
-              switch (eff) {
-                case 'alchemy_glow':
-                  canvas.drawCircle(
-                    Offset.zero,
-                    20 * g.spriteScale,
-                    Paint()
-                      ..color = Colors.white.withValues(alpha: 0.18)
-                      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12),
-                  );
-                  break;
-                case 'elemental_aura':
-                  final c = FactionColors.of(
-                    g.visuals?.variantFaction ?? 'Arcane',
-                  );
-                  canvas.drawCircle(
-                    Offset.zero,
-                    20 * g.spriteScale,
-                    Paint()
-                      ..color = c.withValues(alpha: 0.22)
-                      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 10),
-                  );
-                  break;
-                case 'volcanic_aura':
-                  canvas.drawCircle(
-                    Offset.zero,
-                    20 * g.spriteScale,
-                    Paint()
-                      ..color = const Color(0xFFFF8A65).withValues(alpha: 0.22)
-                      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 10),
-                  );
-                  break;
-                case 'void_rift':
-                  canvas.drawCircle(
-                    Offset.zero,
-                    14 * g.spriteScale,
-                    Paint()
-                      ..color = Colors.black.withValues(alpha: 0.6)
-                      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8),
-                  );
-                  break;
-                case 'prismatic_cascade':
-                  _drawPrismaticCascadeCanvas(
-                    canvas,
-                    34.0,
-                    g.spriteScale,
-                    _elapsed,
-                    0.9,
-                  );
-                  break;
-                default:
-                  break;
-              }
+              _drawAlchemyEffectCanvas(
+                canvas: canvas,
+                effect: g.visuals!.alchemyEffect!,
+                spriteScale: g.spriteScale,
+                baseSpriteSize: 40.0,
+                variantFaction: g.visuals?.variantFaction,
+                elapsed: _elapsed,
+                opacity: 0.95,
+              );
             }
 
             // Flip based on facing direction
@@ -4609,9 +7281,12 @@ class CosmicGame extends FlameGame with PanDetector {
         // ── Orbital path ring ──
         if (_orbitalPartner != null) {
           final center = _homeOrbitsPartner
-              ? Offset(
-                  _orbitalPartner!.position.dx - cx,
-                  _orbitalPartner!.position.dy - cy,
+              ? _wrappedRenderPos(
+                  _orbitalPartner!.position,
+                  cx,
+                  cy,
+                  screenW,
+                  screenH,
                 )
               : hpPos;
           // Dashed orbital ring
@@ -6134,9 +8809,9 @@ class CosmicGame extends FlameGame with PanDetector {
           : 1.0;
 
       // Ease curves
-      final summonScale = isSummoning
-          ? Curves.elasticOut.transform(summonT)
-          : 1.0;
+      final summonScale =
+          (isSummoning ? Curves.elasticOut.transform(summonT) : 1.0) *
+          _beautyContestCompVisualScale;
       final retreatScale = comp.returning
           ? Curves.easeInBack.transform(retreatT)
           : 1.0;
@@ -6357,61 +9032,16 @@ class CosmicGame extends FlameGame with PanDetector {
 
         // Simple canvas-based effect overlays for companion (behind sprite)
         if (_companionVisuals?.alchemyEffect != null) {
-          final eff = _companionVisuals!.alchemyEffect!;
-          switch (eff) {
-            case 'alchemy_glow':
-              canvas.drawCircle(
-                Offset.zero,
-                22 * animScale,
-                Paint()
-                  ..color = Colors.white.withValues(alpha: 0.20 * opacity)
-                  ..maskFilter = MaskFilter.blur(BlurStyle.normal, 14),
-              );
-              break;
-            case 'elemental_aura':
-              final c = FactionColors.of(
-                _companionVisuals?.variantFaction ?? 'Arcane',
-              );
-              canvas.drawCircle(
-                Offset.zero,
-                22 * animScale,
-                Paint()
-                  ..color = c.withValues(alpha: 0.24 * opacity)
-                  ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12),
-              );
-              break;
-            case 'volcanic_aura':
-              canvas.drawCircle(
-                Offset.zero,
-                22 * animScale,
-                Paint()
-                  ..color = const Color(
-                    0xFFFF8A65,
-                  ).withValues(alpha: 0.22 * opacity)
-                  ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12),
-              );
-              break;
-            case 'void_rift':
-              canvas.drawCircle(
-                Offset.zero,
-                16 * animScale,
-                Paint()
-                  ..color = Colors.black.withValues(alpha: 0.6 * opacity)
-                  ..maskFilter = MaskFilter.blur(BlurStyle.normal, 10),
-              );
-              break;
-            case 'prismatic_cascade':
-              _drawPrismaticCascadeCanvas(
-                canvas,
-                36.0,
-                animScale,
-                _elapsed,
-                opacity,
-              );
-              break;
-            default:
-              break;
-          }
+          final companionScale = _companionSpriteScale * animScale;
+          _drawAlchemyEffectCanvas(
+            canvas: canvas,
+            effect: _companionVisuals!.alchemyEffect!,
+            spriteScale: companionScale,
+            baseSpriteSize: 48.0,
+            variantFaction: _companionVisuals?.variantFaction,
+            elapsed: _elapsed,
+            opacity: opacity,
+          );
         }
 
         // Flip sprite horizontally to face shooting direction
@@ -6440,8 +9070,9 @@ class CosmicGame extends FlameGame with PanDetector {
         );
       }
 
-      // Health bar above companion (only show after summon animation)
-      if (!isSummoning) {
+      // Health bar above companion (only show after summon animation,
+      // but hidden during contest cinematics).
+      if (!isSummoning && !_beautyContestCinematicActive) {
         final hpW = 30.0;
         final hpH = 3.0;
         final hpX = -hpW / 2;
@@ -6469,7 +9100,9 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       // Invincibility flash overlay
-      if (comp.invincibleTimer > 0 && !isSummoning) {
+      if (comp.invincibleTimer > 0 &&
+          !isSummoning &&
+          !_beautyContestCinematicActive) {
         final flash = sin(_elapsed * 20) > 0 ? 0.4 : 0.0;
         canvas.drawCircle(
           Offset.zero,
@@ -6492,9 +9125,9 @@ class CosmicGame extends FlameGame with PanDetector {
       final summonT = isSummoning
           ? (opp.life / summonDur).clamp(0.0, 1.0)
           : 1.0;
-      final summonScale = isSummoning
-          ? Curves.elasticOut.transform(summonT)
-          : 1.0;
+      final summonScale =
+          (isSummoning ? Curves.elasticOut.transform(summonT) : 1.0) *
+          _beautyContestOppVisualScale;
 
       canvas.save();
       canvas.translate(oppPos.dx, oppPos.dy);
@@ -6554,59 +9187,16 @@ class CosmicGame extends FlameGame with PanDetector {
 
         // Simple effect overlays for ring opponent (behind sprite)
         if (_ringOpponentVisuals?.alchemyEffect != null) {
-          final eff = _ringOpponentVisuals!.alchemyEffect!;
-          switch (eff) {
-            case 'alchemy_glow':
-              canvas.drawCircle(
-                Offset.zero,
-                24 * summonScale,
-                Paint()
-                  ..color = Colors.white.withValues(alpha: 0.20)
-                  ..maskFilter = MaskFilter.blur(BlurStyle.normal, 14),
-              );
-              break;
-            case 'elemental_aura':
-              final c = FactionColors.of(
-                _ringOpponentVisuals?.variantFaction ?? 'Arcane',
-              );
-              canvas.drawCircle(
-                Offset.zero,
-                24 * summonScale,
-                Paint()
-                  ..color = c.withValues(alpha: 0.24)
-                  ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12),
-              );
-              break;
-            case 'volcanic_aura':
-              canvas.drawCircle(
-                Offset.zero,
-                24 * summonScale,
-                Paint()
-                  ..color = const Color(0xFFFF8A65).withValues(alpha: 0.22)
-                  ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12),
-              );
-              break;
-            case 'void_rift':
-              canvas.drawCircle(
-                Offset.zero,
-                16 * summonScale,
-                Paint()
-                  ..color = Colors.black.withValues(alpha: 0.6)
-                  ..maskFilter = MaskFilter.blur(BlurStyle.normal, 10),
-              );
-              break;
-            case 'prismatic_cascade':
-              _drawPrismaticCascadeCanvas(
-                canvas,
-                36.0,
-                summonScale,
-                _elapsed,
-                0.95,
-              );
-              break;
-            default:
-              break;
-          }
+          final opponentScale = _ringOpponentSpriteScale * summonScale;
+          _drawAlchemyEffectCanvas(
+            canvas: canvas,
+            effect: _ringOpponentVisuals!.alchemyEffect!,
+            spriteScale: opponentScale,
+            baseSpriteSize: 48.0,
+            variantFaction: _ringOpponentVisuals?.variantFaction,
+            elapsed: _elapsed,
+            opacity: 0.95,
+          );
         }
 
         final facingRight = cos(opp.angle) > 0;
@@ -6618,6 +9208,19 @@ class CosmicGame extends FlameGame with PanDetector {
           canvas.scale(totalScale);
         }
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+        canvas.restore();
+      } else if (_ringOpponentFallbackSprite != null) {
+        final paint = Paint()
+          ..color = Colors.white
+          ..filterQuality = ui.FilterQuality.high;
+        final totalScale = _ringOpponentFallbackScale * summonScale;
+        canvas.save();
+        canvas.scale(totalScale);
+        _ringOpponentFallbackSprite!.render(
+          canvas,
+          anchor: Anchor.center,
+          overridePaint: paint,
+        );
         canvas.restore();
       } else {
         // Fallback: red-tinted circle
@@ -6633,8 +9236,8 @@ class CosmicGame extends FlameGame with PanDetector {
         );
       }
 
-      // HP bar (red-tinted for opponent)
-      if (!isSummoning) {
+      // HP bar (red-tinted for opponent), hidden during contest cinematics.
+      if (!isSummoning && !_beautyContestCinematicActive) {
         final hpW = 30.0;
         final hpH = 3.0;
         final hpX = -hpW / 2;
@@ -6657,7 +9260,9 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       // Invincibility flash
-      if (opp.invincibleTimer > 0 && !isSummoning) {
+      if (opp.invincibleTimer > 0 &&
+          !isSummoning &&
+          !_beautyContestCinematicActive) {
         final flash = sin(_elapsed * 20) > 0 ? 0.4 : 0.0;
         canvas.drawCircle(
           Offset.zero,
@@ -7524,6 +10129,112 @@ class CosmicGame extends FlameGame with PanDetector {
     }
   }
 
+  void _updateRingMinions(double dt) {
+    for (var mi = ringMinions.length - 1; mi >= 0; mi--) {
+      final m = ringMinions[mi];
+      if (m.dead) {
+        ringMinions.removeAt(mi);
+        continue;
+      }
+      m.life += dt;
+      m.attackCooldown = (m.attackCooldown - dt).clamp(0.0, 100.0);
+      // If orbitTime > 0, animate orbit (portal) until emergence
+      if (m.orbitTime > 0) {
+        m.orbitTime -= dt;
+        // Chargers should have a much subtler portal wobble; shooters spin faster.
+        if (m.type == 'charger') {
+          m.orbitAngle += (0.4 + _rng.nextDouble() * 0.6) * dt;
+          m.orbitRadius += dt * 1.5; // minimal expansion for chargers
+        } else {
+          m.orbitAngle += (1.2 + _rng.nextDouble() * 1.6) * dt; // spin
+          m.orbitRadius += dt * 3.0; // reduced expansion for shooters
+        }
+        if (m.orbitCenter != null) {
+          m.position = Offset(
+            m.orbitCenter!.dx + cos(m.orbitAngle) * m.orbitRadius,
+            m.orbitCenter!.dy + sin(m.orbitAngle) * m.orbitRadius,
+          );
+        }
+        if (m.orbitTime <= 0) {
+          // Emerge: small VFX to show portal spawn
+          _spawnHitSpark(m.position, elementColor(m.element));
+        }
+        continue; // don't move toward companion until emerged
+      }
+
+      // Different behaviors per minion type after emergence
+      if (m.type == 'shooter') {
+        // Shooters hold position / orbit and periodically fire at the
+        // player's companion.
+        if (m.orbitCenter != null) {
+          // gentle orbital hover
+          m.orbitAngle += (0.6 + _rng.nextDouble() * 0.8) * dt;
+          m.position = Offset(
+            m.orbitCenter!.dx + cos(m.orbitAngle) * m.orbitRadius,
+            m.orbitCenter!.dy + sin(m.orbitAngle) * m.orbitRadius,
+          );
+        } else if (activeCompanion != null && activeCompanion!.isAlive) {
+          // small drift toward the companion but stay mostly stationary
+          final comp = activeCompanion!;
+          final toComp = comp.position - m.position;
+          final dist = toComp.distance;
+          if (dist > 2.0) {
+            final step = (m.speed * 0.35) * dt;
+            m.position += (toComp / dist) * min(step, dist);
+          }
+        }
+        // Shooting
+        m.shootCooldown -= dt;
+        if (m.shootCooldown <= 0 &&
+            activeCompanion != null &&
+            activeCompanion!.isAlive) {
+          m.shootCooldown = 0.6 + _rng.nextDouble() * 1.2;
+          final comp = activeCompanion!;
+          final ang = atan2(
+            comp.position.dy - m.position.dy,
+            comp.position.dx - m.position.dx,
+          );
+          // Use the ring opponent's family so the projectile visuals match
+          final fam = battleRingOpponent?.member.family ?? 'neutral';
+          final basics = createFamilyBasicAttack(
+            origin: m.position,
+            angle: ang,
+            element: m.element,
+            family: fam,
+            damage: max(2.0, (m.health * 0.12)),
+          );
+          ringOpponentProjectiles.addAll(basics);
+        }
+      } else {
+        // Charger: slowly move in toward the player's companion and
+        // slam into it for high contact damage. They are tanky.
+        if (activeCompanion != null && activeCompanion!.isAlive) {
+          final comp = activeCompanion!;
+          final toComp = comp.position - m.position;
+          final dist = toComp.distance;
+          if (dist > 2.0) {
+            final step = (m.speed * 0.6) * dt; // slow, steady approach
+            m.position += (toComp / dist) * min(step, dist);
+          }
+          // Heavy contact damage when they reach the companion
+          if (dist < (m.radius + 15)) {
+            if (m.attackCooldown <= 0) {
+              // Slower, less devastating hits from chargers
+              m.attackCooldown = 2.2;
+              final contactDmg = 6.0 + (m.health / 12.0);
+              final dmg = max(
+                1,
+                (contactDmg * 100 / (100 + comp.physDef)).round(),
+              );
+              comp.takeDamage(dmg);
+              _spawnHitSpark(comp.position, elementColor(m.element));
+            }
+          }
+        }
+      }
+    }
+  }
+
   void _updateEnemyAI(CosmicEnemy e, double dt) {
     e.driftTimer -= dt;
 
@@ -7570,7 +10281,8 @@ class CosmicGame extends FlameGame with PanDetector {
       if (ddy > wh / 2) ddy -= wh;
       if (ddy < -wh / 2) ddy += wh;
       final dd = sqrt(ddx * ddx + ddy * ddy);
-      if (dd < 500 && dd < nearestDecoyDist) {
+      final aggroRadius = cp.tauntRadius > 0 ? cp.tauntRadius : 500.0;
+      if (dd < aggroRadius && dd < nearestDecoyDist) {
         nearestDecoy = cp;
         nearestDecoyDist = dd;
       }
@@ -7578,10 +10290,19 @@ class CosmicGame extends FlameGame with PanDetector {
 
     // If a decoy is nearby, aggressive enemies chase it instead of the ship
     if (nearestDecoy != null &&
-        (e.behavior == EnemyBehavior.aggressive ||
+        (nearestDecoy.tauntRadius > 0 ||
+            e.behavior == EnemyBehavior.aggressive ||
             e.behavior == EnemyBehavior.swarming ||
             e.behavior == EnemyBehavior.territorial ||
             e.provoked)) {
+      if (nearestDecoy.tauntRadius > 0) {
+        e.provoked = true;
+        if (e.behavior == EnemyBehavior.drifting ||
+            e.behavior == EnemyBehavior.feeding ||
+            e.behavior == EnemyBehavior.territorial) {
+          e.behavior = EnemyBehavior.aggressive;
+        }
+      }
       var ddx = nearestDecoy.position.dx - e.position.dx;
       var ddy = nearestDecoy.position.dy - e.position.dy;
       if (ddx > ww / 2) ddx -= ww;
@@ -7592,12 +10313,20 @@ class CosmicGame extends FlameGame with PanDetector {
       var diff = toDecoy - e.angle;
       while (diff > pi) diff -= pi * 2;
       while (diff < -pi) diff += pi * 2;
-      e.angle += diff * 4.0 * dt; // aggressive turn toward decoy
+      final turnRate = nearestDecoy.tauntStrength > 0
+          ? nearestDecoy.tauntStrength
+          : 4.0;
+      e.angle += diff * turnRate * dt;
+      final tauntSpeedMult =
+          (nearestDecoy.tauntStrength > 0
+                  ? (1.0 + nearestDecoy.tauntStrength * 0.08).clamp(1.0, 1.6)
+                  : 1.0)
+              .toDouble();
       // Skip normal AI — enemy is locked onto decoy
       e.position = _wrap(
         Offset(
-          e.position.dx + cos(e.angle) * e.speed * dt,
-          e.position.dy + sin(e.angle) * e.speed * dt,
+          e.position.dx + cos(e.angle) * e.speed * tauntSpeedMult * dt,
+          e.position.dy + sin(e.angle) * e.speed * tauntSpeedMult * dt,
         ),
       );
       return;
@@ -9144,6 +11873,8 @@ class CosmicGame extends FlameGame with PanDetector {
       // Reset meter
       meter.reset();
       onMeterChanged();
+      // Lose all unbanked Astral Shards on death.
+      shipWallet.depositAll();
       onShipDied?.call();
     }
   }
@@ -9164,6 +11895,14 @@ class CosmicGame extends FlameGame with PanDetector {
         .where((e) => e.$2.discovered)
         .map((e) => e.$1)
         .toSet(),
+    discoveredPoiIndices: spacePOIs.indexed
+        .where((e) => e.$2.discovered)
+        .map((e) => e.$1)
+        .toSet(),
+    discoveredContestArenaIndices: world_.contestArenas.indexed
+        .where((e) => e.$2.discovered)
+        .map((e) => e.$1)
+        .toSet(),
     revealedCells: Set<int>.from(revealedCells),
     shipX: ship.pos.dx,
     shipY: ship.pos.dy,
@@ -9174,6 +11913,16 @@ class CosmicGame extends FlameGame with PanDetector {
     for (final idx in state.discoveredIndices) {
       if (idx < world_.planets.length) {
         world_.planets[idx].discovered = true;
+      }
+    }
+    for (final idx in state.discoveredPoiIndices) {
+      if (idx < spacePOIs.length) {
+        spacePOIs[idx].discovered = true;
+      }
+    }
+    for (final idx in state.discoveredContestArenaIndices) {
+      if (idx < world_.contestArenas.length) {
+        world_.contestArenas[idx].discovered = true;
       }
     }
     // Restore ALL revealed cells directly
@@ -9192,6 +11941,61 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
     collectedDustCount = collected.length;
+    syncStarDustScannerAvailability();
+  }
+
+  /// Restore already-collected contest hint notes from persisted IDs.
+  void restoreCollectedContestHints(Set<String> collectedIds) {
+    if (collectedIds.isEmpty) return;
+    for (final note in contestHintNotes) {
+      if (collectedIds.contains(note.id)) {
+        note.collected = true;
+      }
+    }
+  }
+
+  bool get hasRemainingStarDust => collectedDustCount < starDusts.length;
+
+  int? get starDustScannerTargetIndex => _starDustScannerTargetIndex;
+
+  StarDust? get starDustScannerTarget {
+    final idx = _starDustScannerTargetIndex;
+    if (idx == null || idx < 0 || idx >= starDusts.length) return null;
+    final dust = starDusts[idx];
+    return dust.collected ? null : dust;
+  }
+
+  int? consumeCompletedScannerDustIndex() {
+    final idx = _scannerCompletedDustIndex;
+    _scannerCompletedDustIndex = null;
+    return idx;
+  }
+
+  String? activateStarDustScanner({int shardCost = 50}) {
+    syncStarDustScannerAvailability();
+    final scanner = _findStarDustScannerPoi();
+    if (scanner == null) {
+      return 'All star dust has been collected. Scanner offline.';
+    }
+    if (!hasRemainingStarDust) {
+      return 'All star dust has been collected. Scanner offline.';
+    }
+    if (_starDustScannerTargetIndex != null) {
+      return 'Scanner already locked. Follow the radar beeper to your target.';
+    }
+    if (shipWallet.shards < shardCost) {
+      return 'Not enough shards. Need $shardCost to activate the scanner.';
+    }
+
+    final target = _nearestUncollectedStarDust();
+    if (target == null) {
+      return 'No uncollected star dust found.';
+    }
+
+    shipWallet.shards -= shardCost;
+    _starDustScannerTargetIndex = target.index;
+    _relocateStarDustScanner(scanner);
+    return null;
   }
 
   /// Get the nearest rift portal the ship is close to (if any).
@@ -9394,6 +12198,94 @@ class CosmicGame extends FlameGame with PanDetector {
     canvas.restore();
   }
 
+  SpacePOI? _findStarDustScannerPoi() {
+    for (final poi in spacePOIs) {
+      if (poi.type == POIType.stardustScanner) return poi;
+    }
+    return null;
+  }
+
+  StarDust? _nearestUncollectedStarDust() {
+    final ww = world_.worldSize.width;
+    final wh = world_.worldSize.height;
+    StarDust? best;
+    double bestDist = double.infinity;
+    for (final dust in starDusts) {
+      if (dust.collected) continue;
+      var dx = dust.position.dx - ship.pos.dx;
+      var dy = dust.position.dy - ship.pos.dy;
+      if (dx > ww / 2) dx -= ww;
+      if (dx < -ww / 2) dx += ww;
+      if (dy > wh / 2) dy -= wh;
+      if (dy < -wh / 2) dy += wh;
+      final d = sqrt(dx * dx + dy * dy);
+      if (d < bestDist) {
+        bestDist = d;
+        best = dust;
+      }
+    }
+    return best;
+  }
+
+  void syncStarDustScannerAvailability() {
+    final scanner = _findStarDustScannerPoi();
+    if (!hasRemainingStarDust) {
+      if (scanner != null) {
+        spacePOIs.remove(scanner);
+      }
+      _starDustScannerTargetIndex = null;
+      if (nearMarket?.type == POIType.stardustScanner) {
+        nearMarket = null;
+        onNearMarket?.call(null);
+      }
+      return;
+    }
+
+    if (scanner == null) {
+      final newScanner = SpacePOI(
+        position: ship.pos,
+        type: POIType.stardustScanner,
+        element: 'Light',
+        radius: 120,
+        discovered: false,
+      );
+      spacePOIs.add(newScanner);
+      _relocateStarDustScanner(newScanner);
+    }
+  }
+
+  void _relocateStarDustScanner(SpacePOI scanner) {
+    final rng = Random();
+    const margin = 2200.0;
+    const minPlanetDist = 2600.0;
+    const minPoiDist = 2200.0;
+    const minShipDist = 7000.0;
+    final ww = world_.worldSize.width;
+    final wh = world_.worldSize.height;
+
+    Offset pos;
+    int tries = 0;
+    do {
+      pos = Offset(
+        margin + rng.nextDouble() * (ww - margin * 2),
+        margin + rng.nextDouble() * (wh - margin * 2),
+      );
+      tries++;
+    } while (tries < 500 &&
+        ((pos - ship.pos).distance < minShipDist ||
+            world_.planets.any(
+              (p) => (p.position - pos).distance < minPlanetDist,
+            ) ||
+            spacePOIs.any(
+              (p) => p != scanner && (p.position - pos).distance < minPoiDist,
+            )));
+
+    scanner.position = pos;
+    scanner.discovered = false;
+    scanner.interacted = false;
+    scanner.life = 0;
+  }
+
   /// Relocate a rift portal to a new random position far from planets and other rifts.
   void relocateRift(RiftPortal rift) {
     final rng = Random();
@@ -9417,6 +12309,54 @@ class CosmicGame extends FlameGame with PanDetector {
     rift.position = pos;
     _nearestRift = null;
     _wasNearRift = false;
+  }
+
+  void _relocateMeteorShower(SpacePOI shower) {
+    final rng = Random();
+    const margin = 2200.0;
+    const minPlanetDist = 2600.0;
+    const minOtherPoiDist = 2400.0;
+    const minShipDist = 9000.0;
+    const minRelocateDist = 9000.0;
+    final ww = world_.worldSize.width;
+    final wh = world_.worldSize.height;
+    final oldPos = shower.position;
+
+    double wrappedDist(Offset a, Offset b) {
+      var dx = (a.dx - b.dx).abs();
+      var dy = (a.dy - b.dy).abs();
+      if (dx > ww / 2) dx = ww - dx;
+      if (dy > wh / 2) dy = wh - dy;
+      return sqrt(dx * dx + dy * dy);
+    }
+
+    Offset pos;
+    int tries = 0;
+    do {
+      pos = Offset(
+        margin + rng.nextDouble() * (ww - margin * 2),
+        margin + rng.nextDouble() * (wh - margin * 2),
+      );
+      tries++;
+    } while (tries < 500 &&
+        (wrappedDist(pos, ship.pos) < minShipDist ||
+            wrappedDist(pos, oldPos) < minRelocateDist ||
+            world_.planets.any(
+              (p) => wrappedDist(pos, p.position) < minPlanetDist,
+            ) ||
+            spacePOIs.any(
+              (p) =>
+                  p != shower &&
+                  p.type != POIType.comet &&
+                  wrappedDist(pos, p.position) < minOtherPoiDist,
+            )));
+
+    shower.position = pos;
+    shower.angle = rng.nextDouble() * 2 * pi;
+    shower.speed = 0;
+    shower.life = 0;
+    shower.discovered = false;
+    shower.interacted = false;
   }
 
   void _respawnSwarm(ParticleSwarm swarm) {
@@ -9697,8 +12637,8 @@ class CosmicGame extends FlameGame with PanDetector {
     if (activeCustomizations.contains('dark_void')) {
       final voidLayers = switch (customizationOptions['dark_void.layers'] ??
           'Normal') {
-        'Few' => 2,
-        'Many' => 6,
+        'Thin' => 2,
+        'Deep' => 6,
         _ => 4,
       };
       for (var i = 0; i < voidLayers; i++) {
@@ -9951,9 +12891,9 @@ class CosmicGame extends FlameGame with PanDetector {
     if (activeCustomizations.contains('radiant_halo')) {
       final haloGlow = switch (customizationOptions['radiant_halo.glow'] ??
           'Normal') {
-        'Dim' => 0.18,
-        'Bright' => 0.55,
-        _ => 0.35,
+        'Subtle' => 0.16,
+        'Blinding' => 0.72,
+        _ => 0.4,
       };
       final haloPosOffset =
           switch (customizationOptions['radiant_halo.position'] ?? 'Mid') {
@@ -9988,7 +12928,7 @@ class CosmicGame extends FlameGame with PanDetector {
       final mistCount = switch (customizationOptions['ocean_mist.density'] ??
           'Normal') {
         'Light' => 3,
-        'Dense' => 10,
+        'Heavy' => 10,
         _ => 6,
       };
       final mistPosOffset =
@@ -10014,7 +12954,7 @@ class CosmicGame extends FlameGame with PanDetector {
     if (activeCustomizations.contains('blood_moon')) {
       final pulseIntensity = switch (customizationOptions['blood_moon.pulse'] ??
           'Normal') {
-        'Subtle' => 0.08,
+        'Gentle' => 0.08,
         'Intense' => 0.25,
         _ => 0.15,
       };
@@ -10033,7 +12973,7 @@ class CosmicGame extends FlameGame with PanDetector {
     if (activeCustomizations.contains('poison_cloud')) {
       final cloudSpread = switch (customizationOptions['poison_cloud.spread'] ??
           'Normal') {
-        'Narrow' => 6.0,
+        'Tight' => 6.0,
         'Wide' => 14.0,
         _ => 10.0,
       };
@@ -10063,7 +13003,7 @@ class CosmicGame extends FlameGame with PanDetector {
       final dustCount = switch (customizationOptions['dust_storm.particles'] ??
           'Normal') {
         'Few' => 6,
-        'Many' => 20,
+        'Swarm' => 20,
         _ => 12,
       };
       final dustPosOffset =
@@ -10086,9 +13026,9 @@ class CosmicGame extends FlameGame with PanDetector {
     // Steam Vents — erupting geyser jets
     if (activeCustomizations.contains('steam_vents')) {
       final ventCount = switch (customizationOptions['steam_vents.jets'] ??
-          'Normal') {
-        'Few' => 2,
-        'Many' => 6,
+          '4') {
+        '2' => 2,
+        '6' => 6,
         _ => 4,
       };
       for (var i = 0; i < ventCount; i++) {
@@ -10154,10 +13094,10 @@ class CosmicGame extends FlameGame with PanDetector {
     // Spirit Wisps — ethereal ghost lights
     if (activeCustomizations.contains('spirit_wisps')) {
       final wispCount = switch (customizationOptions['spirit_wisps.count'] ??
-          'Normal') {
+          'Some') {
         'Few' => 3,
         'Many' => 8,
-        _ => 5,
+        _ => 5, // Some
       };
       final wispPosOffset =
           switch (customizationOptions['spirit_wisps.position'] ?? 'Mid') {
@@ -10192,27 +13132,23 @@ class CosmicGame extends FlameGame with PanDetector {
 
     // Nature's Blessing — all element colours radiate
     if (activeCustomizations.contains('natures_blessing')) {
-      final blessBrightness =
-          switch (customizationOptions['natures_blessing.brightness'] ??
-          'Normal') {
-            'Dim' => 0.25,
-            'Bright' => 1.0,
-            _ => 0.5,
-          };
-      final blessSize =
-          switch (customizationOptions['natures_blessing.brightness'] ??
-          'Normal') {
-            'Dim' => 3.0,
-            'Bright' => 6.0,
-            _ => 3.0,
-          };
-      final blessBlur =
-          switch (customizationOptions['natures_blessing.brightness'] ??
-          'Normal') {
-            'Dim' => 3.0,
-            'Bright' => 8.0,
-            _ => 3.0,
-          };
+      final blessBrightnessOpt =
+          customizationOptions['natures_blessing.brightness'] ?? 'Normal';
+      final blessBrightness = switch (blessBrightnessOpt) {
+        'Dim' => 0.18,
+        'Bright' => 0.92,
+        _ => 0.5,
+      };
+      final blessSize = switch (blessBrightnessOpt) {
+        'Dim' => 2.6,
+        'Bright' => 8.8,
+        _ => 5.6,
+      };
+      final blessBlur = switch (blessBrightnessOpt) {
+        'Dim' => 2.8,
+        'Bright' => 13.0,
+        _ => 7.0,
+      };
       final blessPosOffset =
           switch (customizationOptions['natures_blessing.position'] ?? 'Mid') {
             'Close' => 4.0,
@@ -10231,6 +13167,17 @@ class CosmicGame extends FlameGame with PanDetector {
               alpha: (blessBrightness + 0.2 * sin(t * 1.5 + i)).clamp(0.0, 1.0),
             )
             ..maskFilter = MaskFilter.blur(BlurStyle.normal, blessBlur),
+        );
+      }
+      if (blessBrightnessOpt == 'Bright') {
+        canvas.drawCircle(
+          pos,
+          vr + blessPosOffset + 14,
+          Paint()
+            ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.18)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4.0
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
         );
       }
     }
@@ -12423,6 +15370,7 @@ class _GarrisonCreature {
     required this.attackDamage,
     required this.specialDamage,
     required this.attackRange,
+    required this.specialRange,
     required this.maxHp,
   }) : hp = maxHp;
 
@@ -12446,8 +15394,9 @@ class _GarrisonCreature {
   final double attackDamage;
   final double specialDamage;
   final double attackRange;
+  final double specialRange;
   double attackCooldown = 0;
-  double specialCooldown = 20.0; // start on full cooldown
+  double specialCooldown = 8.0;
 
   // Shield/Charge state (Horn special)
   int shieldHp = 0;
@@ -12457,6 +15406,7 @@ class _GarrisonCreature {
 
   // Blessing state (Kin special)
   double blessingTimer = 0;
+  double blessingHealPerTick = 0;
 
   // Movement
   static const double wanderSpeed = 14.0;
