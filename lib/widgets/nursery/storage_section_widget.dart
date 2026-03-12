@@ -171,7 +171,7 @@ class _StorageSectionState extends State<StorageSection> {
     // Tunables
     const rows = 2; // fixed number of rows
     const spacing = 8.0; // matches your grid spacing
-    const rowHeight = 120.0; // visual height of each tile row (~card height)
+    const rowHeight = 60.0; // roughly half-size storage vial tiles
 
     // Total height = 3 rows + the 2 gaps between them
     final gridHeight = rows * rowHeight + (rows - 1) * spacing;
@@ -215,22 +215,22 @@ class StorageEggCard extends StatelessWidget {
     final shortestSide = media.size.shortestSide;
     int particleCount;
     if (shortestSide < 380) {
-      particleCount = 6;
+      particleCount = 1;
     } else if (shortestSide < 430) {
-      particleCount = 10;
+      particleCount = 2;
     } else {
-      particleCount = 14;
+      particleCount = 3;
     }
 
     if (deferEffects) {
-      particleCount = 4;
+      particleCount = 0;
     }
 
     final qualityMultiplier = switch (quality) {
-      CinematicQuality.high => 2.4,
-      CinematicQuality.balanced => 1.0,
+      CinematicQuality.high => 1.0,
+      CinematicQuality.balanced => 0.5,
     };
-    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 40);
+    particleCount = (particleCount * qualityMultiplier).round().clamp(0, 8);
 
     final showParticles =
         TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
@@ -706,8 +706,8 @@ class EggDetailsModal extends StatelessWidget {
                 child: AlchemyBrewingParticleSystem(
                   parentATypeId: elementGroup.particleTypes.$1,
                   parentBTypeId: elementGroup.particleTypes.$2,
-                  particleCount: 80,
-                  speedMultiplier: 0.8,
+                  particleCount: 18,
+                  speedMultiplier: 0.45,
                   fusion: false,
                   useSimpleFusion: true,
                 ),

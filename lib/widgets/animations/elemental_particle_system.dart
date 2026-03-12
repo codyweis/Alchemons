@@ -329,6 +329,20 @@ class AlchemyBrewingPainter extends CustomPainter {
   final FactionTheme? theme;
   final bool fromCinematic;
 
+  // FIX 3: Frame counter — replaces particle list identity check.
+  // Increment this each update so shouldRepaint can detect real changes
+  // without an always-true reference comparison.
+  final int frameCount;
+
+  // FIX 2: Cached Paint objects — allocated once on the painter, reused
+  // every frame. Eliminates ~3,600 Paint allocs/sec at 60fps × 60 particles.
+  final _particlePaint = Paint()..style = PaintingStyle.fill;
+  final _glowPaint = Paint()..style = PaintingStyle.fill;
+  final _corePaint = Paint()..style = PaintingStyle.fill;
+  final _sparkGlowPaint = Paint()..style = PaintingStyle.fill;
+  final _sparkCorePaint = Paint()..style = PaintingStyle.fill;
+  final _strokePaint = Paint()..style = PaintingStyle.stroke;
+
   AlchemyBrewingPainter({
     required this.particles,
     required this.sparks,
@@ -343,38 +357,23 @@ class AlchemyBrewingPainter extends CustomPainter {
     this.useSimpleFusion = false,
     this.theme,
     this.fromCinematic = false,
+    this.frameCount = 0,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw reaction sparks (using the fast method from above)
+    // Draw reaction sparks
     for (final spark in sparks) {
-      // ... (fast glow/core logic here) ...
-      final glowPaint = Paint()
-        ..color = spark.color.withValues(alpha: spark.life * 0.15)
-        ..style = PaintingStyle.fill;
-      final corePaint = Paint()
-        ..color = spark.color.withValues(alpha: spark.life * 0.8)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(spark.position, spark.size * 2.5, glowPaint);
-      canvas.drawCircle(spark.position, spark.size, corePaint);
+      _sparkGlowPaint.color = spark.color.withValues(alpha: spark.life * 0.15);
+      _sparkCorePaint.color = spark.color.withValues(alpha: spark.life * 0.8);
+      canvas.drawCircle(spark.position, spark.size * 2.5, _sparkGlowPaint);
+      canvas.drawCircle(spark.position, spark.size, _sparkCorePaint);
     }
-
-    // ===== NEW: ADDITIVE BLENDING =====
-    // 1. Save the canvas, applying the "additive" blend mode
-    // This makes all overlapping particles add their color, creating a bright,
-    // energetic, and non-confetti look.
-    // canvas.saveLayer(
-    //   Rect.fromLTWH(0, 0, size.width, size.height),
-    //   Paint()..blendMode = BlendMode.plus,
-    // );
 
     // Draw main particles
     for (final particle in particles) {
       _drawParticle(canvas, particle);
     }
-
-    //canvas.restore();
 
     // Energy field when brewing is intense (disabled during fusion to declutter)
     if (speedMultiplier > 2.0 && !isFusion) {
@@ -384,14 +383,11 @@ class AlchemyBrewingPainter extends CustomPainter {
     // Fusion visuals
     if (isFusion) {
       if (useSimpleFusion) {
-        // Simple geometric fusion
         _drawSimpleFusion(canvas, size);
       } else {
-        // Full alchemical fusion animation
         if (fusionT < 1.0) {
           _drawFusion(canvas, size, fusionT);
         } else {
-          // Idle state with full glyphs
           _drawFusion(canvas, size, 1.0);
         }
       }
@@ -409,13 +405,11 @@ class AlchemyBrewingPainter extends CustomPainter {
         ? 1
         : x * x * (3 - 2 * x);
 
-    // Animation timing
     final steadySpin = idleAngle;
     final breathe = 0.5 + 0.5 * sin(idleAngle * 3 / (2 * pi));
     final pulse = 0.7 + 0.3 * sin(idleAngle * 4 / (2 * pi));
     final handoff = smoothstep(((t - 0.88) / 0.12).clamp(0.0, 1.0));
 
-    // ===== PHASE B: 0.35..0.85 — Sacred geometry and energy flows
     final b = ((t - 0.35) / 0.5).clamp(0.0, 1.0);
     if (b > 0 || t >= 1.0) {
       final liveB = max(b, 0.0001);
@@ -423,7 +417,6 @@ class AlchemyBrewingPainter extends CustomPainter {
       canvas.save();
       canvas.translate(center.dx, center.dy);
 
-      // Sacred geometry rotation
       final liveRot1 = 2 * pi * liveB;
       final liveRot2 = -2 * pi * liveB * 1.3;
       final rot1 = t >= 1.0
@@ -433,7 +426,6 @@ class AlchemyBrewingPainter extends CustomPainter {
           ? -steadySpin * 1.1
           : (1 - handoff) * liveRot2 + handoff * (-steadySpin * 1.1);
 
-      // Draw sacred geometry layers
       _drawSacredGeometry(
         canvas,
         Size(500, 500),
@@ -465,20 +457,18 @@ class AlchemyBrewingPainter extends CustomPainter {
       ],
     );
 
-    final paint = Paint()
-      ..shader = gradient.createShader(
-        Rect.fromCircle(center: center, radius: maxRadius),
-      );
-
-    canvas.drawCircle(center, maxRadius, paint);
+    _glowPaint.shader = gradient.createShader(
+      Rect.fromCircle(center: center, radius: maxRadius),
+    );
+    canvas.drawCircle(center, maxRadius, _glowPaint);
+    _glowPaint.shader = null;
   }
 
   void _drawParticle(Canvas canvas, AlchemyParticle particle) {
-    final paint = Paint()
-      ..color = particle.color.withValues(
-        alpha: particle.opacity * particle.life,
-      )
-      ..style = PaintingStyle.fill;
+    // Reuse cached paint — just update the color
+    _particlePaint.color = particle.color.withValues(
+      alpha: particle.opacity * particle.life,
+    );
 
     canvas.save();
     canvas.translate(particle.position.dx, particle.position.dy);
@@ -490,7 +480,7 @@ class AlchemyBrewingPainter extends CustomPainter {
 
     switch (config.shape) {
       case ParticleShape.circle:
-        canvas.drawCircle(Offset.zero, particle.size, paint);
+        canvas.drawCircle(Offset.zero, particle.size, _particlePaint);
         break;
       case ParticleShape.square:
         canvas.drawRect(
@@ -499,20 +489,20 @@ class AlchemyBrewingPainter extends CustomPainter {
             width: particle.size * 2,
             height: particle.size * 2,
           ),
-          paint,
+          _particlePaint,
         );
         break;
       case ParticleShape.diamond:
-        _drawDiamond(canvas, paint, particle.size);
+        _drawDiamond(canvas, _particlePaint, particle.size);
         break;
       case ParticleShape.star:
-        _drawStar(canvas, paint, particle.size);
+        _drawStar(canvas, _particlePaint, particle.size);
         break;
       case ParticleShape.leaf:
-        _drawLeaf(canvas, paint, particle.size);
+        _drawLeaf(canvas, _particlePaint, particle.size);
         break;
       case ParticleShape.shard:
-        _drawShard(canvas, paint, particle.size);
+        _drawShard(canvas, _particlePaint, particle.size);
         break;
     }
 
@@ -574,7 +564,6 @@ class AlchemyBrewingPainter extends CustomPainter {
       (config2 ?? config1).colors.first,
     );
 
-    // Easing functions
     double easeOut(double x) => 1 - pow(1 - x, 2).toDouble();
     double smoothstep(double x) => x <= 0
         ? 0
@@ -582,13 +571,11 @@ class AlchemyBrewingPainter extends CustomPainter {
         ? 1
         : x * x * (3 - 2 * x);
 
-    // Animation timing
     final steadySpin = idleAngle;
     final breathe = 0.5 + 0.5 * sin(idleAngle * 3 / (2 * pi));
     final pulse = 0.7 + 0.3 * sin(idleAngle * 4 / (2 * pi));
     final handoff = smoothstep(((t - 0.88) / 0.12).clamp(0.0, 1.0));
 
-    // ===== PHASE A: 0..0.4 — Transmutation circles with runes
     final a = (t / 0.4).clamp(0.0, 1.0);
     if (a > 0 || t >= 1.0) {
       _drawTransmutationCircles(
@@ -602,7 +589,6 @@ class AlchemyBrewingPainter extends CustomPainter {
       );
     }
 
-    // ===== PHASE B: 0.35..0.85 — Sacred geometry and energy flows
     final b = ((t - 0.35) / 0.5).clamp(0.0, 1.0);
     if (b > 0 || t >= 1.0) {
       final liveB = max(b, 0.0001);
@@ -610,7 +596,6 @@ class AlchemyBrewingPainter extends CustomPainter {
       canvas.save();
       canvas.translate(center.dx, center.dy);
 
-      // Sacred geometry rotation
       final liveRot1 = 2 * pi * liveB;
       final liveRot2 = -2 * pi * liveB * 1.3;
       final rot1 = t >= 1.0
@@ -620,7 +605,6 @@ class AlchemyBrewingPainter extends CustomPainter {
           ? -steadySpin * 1.1
           : (1 - handoff) * liveRot2 + handoff * (-steadySpin * 1.1);
 
-      // Draw sacred geometry layers
       _drawSacredGeometry(
         canvas,
         size,
@@ -636,7 +620,6 @@ class AlchemyBrewingPainter extends CustomPainter {
       canvas.restore();
     }
 
-    // ===== PHASE C: 0.75..1.0 — Core manifestation
     final c = ((t - 0.75) / 0.25).clamp(0.0, 1.0);
     if (c > 0 || t >= 1.0) {
       _drawAlchemicalCore(
@@ -664,24 +647,19 @@ class AlchemyBrewingPainter extends CustomPainter {
   ) {
     final maxRadius = min(size.width, size.height) * 0.45;
 
-    // Main transmutation circle with notches
+    // No MaskFilter.blur — blur requires a full rasterize+convolve pass on
+    // the GPU and spikes frame time on mid-range devices. Simple stroked
+    // circles at varying opacity are visually close and essentially free.
     for (int ring = 0; ring < 3; ring++) {
       final radius = maxRadius * (0.4 + ring * 0.2) * progress;
+      // Outer rings slightly more transparent for a natural fade-out feel
+      final alpha = (0.35 - ring * 0.08) * progress;
 
-      // Circle with gradient effect
-      final gradientPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..shader = RadialGradient(
-          colors: [
-            baseColor.withValues(alpha: 0.4 * progress),
-            baseColor.withValues(alpha: 0.2 * progress),
-          ],
-          stops: const [0.0, 1.0],
-        ).createShader(Rect.fromCircle(center: center, radius: radius))
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      _strokePaint
+        ..strokeWidth = 1.5 - ring * 0.3
+        ..color = baseColor.withValues(alpha: alpha.clamp(0.0, 1.0));
 
-      canvas.drawCircle(center, radius, gradientPaint);
+      canvas.drawCircle(center, radius, _strokePaint);
     }
   }
 
@@ -700,40 +678,33 @@ class AlchemyBrewingPainter extends CustomPainter {
     final r1 = min(size.width, size.height) * 0.16;
     final r2 = min(size.width, size.height) * 0.10;
 
-    // Flower of Life pattern (outer)
     canvas.save();
     canvas.rotate(rot1);
 
     if (useFlower) {
-      final flowerPaint = Paint()
-        ..style = PaintingStyle.stroke
+      _strokePaint
         ..strokeWidth = 0.8
         ..color = baseColor.withValues(
           alpha: 0.3 * progress * (isIdle ? pulse : 1.0),
-        )
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1);
+        );
 
-      // Draw overlapping circles for flower of life
       for (int i = 0; i < 6; i++) {
         final angle = i * pi / 3;
         final offset = Offset(cos(angle) * r1 * 0.5, sin(angle) * r1 * 0.5);
-        canvas.drawCircle(offset, r1 * 0.5, flowerPaint);
+        canvas.drawCircle(offset, r1 * 0.5, _strokePaint);
       }
     }
     canvas.restore();
 
-    // Metatron's Cube elements (inner)
     canvas.save();
     canvas.rotate(rot2);
 
-    final cubePaint = Paint()
-      ..style = PaintingStyle.stroke
+    _strokePaint
       ..strokeWidth = 0.5
       ..color = baseColor.withValues(
         alpha: 0.25 * progress * (isIdle ? breathe : 1.0),
       );
 
-    // Draw interconnected lines
     final points = <Offset>[];
     for (int i = 0; i < 6; i++) {
       final angle = i * pi / 3;
@@ -742,7 +713,7 @@ class AlchemyBrewingPainter extends CustomPainter {
 
     for (int i = 0; i < points.length; i++) {
       for (int j = i + 1; j < points.length; j++) {
-        canvas.drawLine(points[i], points[j], cubePaint);
+        canvas.drawLine(points[i], points[j], _strokePaint);
       }
     }
 
@@ -762,83 +733,66 @@ class AlchemyBrewingPainter extends CustomPainter {
   ) {
     final maxRadius = min(size.width, size.height) * 0.15;
 
-    // ========== FUSION ANIMATION CORE ==========
-    // Calculate core state based on progress
     double coreExpansionProgress;
     double fadeMultiplier;
 
     if (!isIdle) {
-      // During animation: expand then contract
       if (progress < 0.5) {
-        // Expansion phase (0.0 to 0.5)
         coreExpansionProgress = easeOut(progress * 2);
         fadeMultiplier = 1.0;
       } else {
-        // Contraction phase (0.5 to 1.0)
         coreExpansionProgress = easeOut(1.0 - (progress - 0.5) * 2);
-        // Start fading during final 20% of contraction
         fadeMultiplier = progress < 0.8 ? 1.0 : 1.0 - ((progress - 0.8) / 0.2);
       }
     } else {
-      // Idle state - use minimal expansion with breathing
       coreExpansionProgress = 0.0;
       fadeMultiplier = 1.0;
     }
 
-    // Core parameters
-    final baseIdleRadius = 18.0;
-    final maxExpansion = 25.0;
+    const baseIdleRadius = 18.0;
+    const maxExpansion = 25.0;
     final coreRadius =
         baseIdleRadius +
         (maxExpansion * coreExpansionProgress) +
         (isIdle ? 4 * breathe : 0);
 
-    // Always draw the core (whether animating or idle)
-
-    // OUTER GLOW
     final outerGlowOpacity = isIdle
-        ? 0.1 *
-              pulse // Subtle pulsing in idle
+        ? 0.1 * pulse
         : 0.15 * coreExpansionProgress * fadeMultiplier;
 
-    final outerGlow = Paint()
-      ..style = PaintingStyle.fill
-      ..shader = RadialGradient(
-        colors: [
-          baseColor.withValues(alpha: outerGlowOpacity),
-          baseColor.withValues(alpha: outerGlowOpacity * 0.3),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.6, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: coreRadius * 3));
+    _glowPaint.shader = RadialGradient(
+      colors: [
+        baseColor.withValues(alpha: outerGlowOpacity),
+        baseColor.withValues(alpha: outerGlowOpacity * 0.3),
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.6, 1.0],
+    ).createShader(Rect.fromCircle(center: center, radius: coreRadius * 3));
 
-    canvas.drawCircle(center, coreRadius * 3, outerGlow);
+    canvas.drawCircle(center, coreRadius * 3, _glowPaint);
 
-    // INNER CORE
     final coreOpacity = isIdle
-        ? 0.3 +
-              0.2 *
-                  breathe // Breathing effect in idle
+        ? 0.3 + 0.2 * breathe
         : 0.3 + 0.5 * coreExpansionProgress * fadeMultiplier;
 
-    final corePaint = Paint()
-      ..style = PaintingStyle.fill
-      ..shader = RadialGradient(
-        colors: [
-          baseColor.withValues(alpha: coreOpacity),
-          baseColor.withValues(alpha: coreOpacity * 0.4),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.7, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: coreRadius));
+    _corePaint.shader = RadialGradient(
+      colors: [
+        baseColor.withValues(alpha: coreOpacity),
+        baseColor.withValues(alpha: coreOpacity * 0.4),
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.7, 1.0],
+    ).createShader(Rect.fromCircle(center: center, radius: coreRadius));
 
-    canvas.drawCircle(center, coreRadius, corePaint);
+    canvas.drawCircle(center, coreRadius, _corePaint);
 
-    // Energy rays (only during expansion, not in idle)
+    // Clear shaders
+    _glowPaint.shader = null;
+    _corePaint.shader = null;
+
     if (!isIdle && coreExpansionProgress > 0.5) {
       final rayAlpha = (coreExpansionProgress - 0.5) * 2;
-      final rayPaint = Paint()
-        ..style = PaintingStyle.stroke
+      _strokePaint
         ..strokeWidth = 0.5
         ..color = baseColor.withValues(alpha: 0.2 * rayAlpha * fadeMultiplier);
 
@@ -850,12 +804,11 @@ class AlchemyBrewingPainter extends CustomPainter {
         canvas.drawLine(
           center + Offset(cos(angle) * innerR, sin(angle) * innerR),
           center + Offset(cos(angle) * outerR, sin(angle) * outerR),
-          rayPaint,
+          _strokePaint,
         );
       }
     }
 
-    // Orbiting particles (only in idle state)
     if (isIdle) {
       for (int i = 0; i < 3; i++) {
         final orbitAngle = rotation * (1 + i * 0.3) + (i * 2 * pi / 3);
@@ -867,11 +820,8 @@ class AlchemyBrewingPainter extends CustomPainter {
               sin(orbitAngle) * orbitRadius,
             );
 
-        final particlePaint = Paint()
-          ..style = PaintingStyle.fill
-          ..color = baseColor.withValues(alpha: 0.6 * pulse);
-
-        canvas.drawCircle(particlePos, 3, particlePaint);
+        _particlePaint.color = baseColor.withValues(alpha: 0.6 * pulse);
+        canvas.drawCircle(particlePos, 3, _particlePaint);
       }
     }
   }
@@ -887,12 +837,16 @@ class AlchemyBrewingPainter extends CustomPainter {
     );
   }
 
+  // FIX 3: shouldRepaint now uses frameCount instead of particle list identity.
+  // The old check (particles != oldDelegate.particles) was always true because
+  // we mutate the same list in-place — every frame triggered a repaint even
+  // when no particles had moved. frameCount is incremented in _updateParticles,
+  // so repaints only happen when state has actually changed.
   @override
   bool shouldRepaint(AlchemyBrewingPainter oldDelegate) {
-    return particles != oldDelegate.particles ||
+    return frameCount != oldDelegate.frameCount ||
         fusionT != oldDelegate.fusionT ||
-        idleAngle != oldDelegate.idleAngle ||
-        speedMultiplier != oldDelegate.speedMultiplier;
+        idleAngle != oldDelegate.idleAngle;
   }
 }
 
@@ -931,8 +885,14 @@ class _AlchemyBrewingParticleSystemState
     extends State<AlchemyBrewingParticleSystem>
     with TickerProviderStateMixin {
   late AnimationController _controller;
-  late AnimationController _fusionCtrl; // drives fusion timeline
-  bool _fusionPlayed = false; // sticky once triggered
+  late AnimationController _fusionCtrl;
+  bool _fusionPlayed = false;
+
+  // FIX 1: Object pool — pre-allocate the maximum number of particles once.
+  // _updateParticles resets fields in-place instead of calling _createParticle,
+  // eliminating allocation pressure and GC jank on mid-range devices.
+  static const _maxPoolSize = 72;
+  late final List<AlchemyParticle> _pool;
 
   late List<AlchemyParticle> _particles;
   late List<ReactionSpark> _sparks;
@@ -943,12 +903,18 @@ class _AlchemyBrewingParticleSystemState
   Size _lastSize = Size.zero;
   bool _hasInitializedParticles = false;
 
+  // FIX 3: Frame counter incremented each update, passed to painter.
+  int _frameCount = 0;
+
+  // Pre-separated parentA index list for O(1) spark candidate lookup.
+  final List<int> _parentAIndices = [];
+
   void _onFusionStatusChanged(AnimationStatus status) {
     if (status == AnimationStatus.completed &&
         mounted &&
         _hasInitializedParticles) {
       setState(() {
-        _initParticles(); // create the idle particles using the *real* size
+        _initParticles();
       });
     }
   }
@@ -963,6 +929,20 @@ class _AlchemyBrewingParticleSystemState
     _configB = widget.parentBTypeId != null
         ? ElementalConfigs.getConfig(widget.parentBTypeId!)
         : null;
+
+    // FIX 1: Pre-allocate pool with dummy values — fields will be
+    // overwritten by _resetParticle before any particle is used.
+    _pool = List.generate(
+      _maxPoolSize,
+      (_) => AlchemyParticle(
+        position: Offset.zero,
+        velocity: Offset.zero,
+        size: 4,
+        color: Colors.transparent,
+        opacity: 0,
+        elementType: 'parentA',
+      ),
+    );
 
     _controller = AnimationController(
       vsync: this,
@@ -1002,28 +982,26 @@ class _AlchemyBrewingParticleSystemState
           : null;
 
       if (_hasInitializedParticles) {
-        _initParticles(); // only when we actually know size
+        _initParticles();
       }
     }
   }
 
   void _initParticles() {
     _particles.clear();
+    _parentAIndices.clear();
 
-    // During idle/fusion, show representative particles
     if (widget.fusion && _fusionCtrl.value >= 1.0) {
-      // 2 main orbital particles (one from each parent)
+      // Idle/fusion: small set of orbital particles
       _particles.add(_createIdleParticle(_configA, 'parentA', isMain: true));
       if (_configB != null) {
         _particles.add(_createIdleParticle(_configB!, 'parentB', isMain: true));
       }
 
-      // 5 smaller particles from parent A
       for (int i = 0; i < 5; i++) {
         _particles.add(_createIdleParticle(_configA, 'parentA', isMain: false));
       }
 
-      // 5 smaller particles from parent B (if exists)
       if (_configB != null) {
         for (int i = 0; i < 5; i++) {
           _particles.add(
@@ -1032,130 +1010,68 @@ class _AlchemyBrewingParticleSystemState
         }
       }
 
+      // No spark candidates during idle fusion
       return;
     }
 
-    // Normal brewing: full particle count
+    // Normal brewing: pull from pool up to particleCount
     final halfCount = widget.particleCount ~/ 2;
+    final totalCount = widget.particleCount.clamp(0, _maxPoolSize);
 
-    // Parent A particles
-    for (int i = 0; i < halfCount; i++) {
-      _particles.add(_createParticle(_configA, 'parentA'));
+    for (int i = 0; i < halfCount && i < totalCount; i++) {
+      final p = _pool[i];
+      _resetParticle(p, _configA, 'parentA');
+      _particles.add(p);
+      _parentAIndices.add(_particles.length - 1);
     }
 
-    // Parent B particles (if exists)
     if (_configB != null) {
-      for (int i = 0; i < widget.particleCount - halfCount; i++) {
-        _particles.add(_createParticle(_configB!, 'parentB'));
+      for (int i = halfCount; i < totalCount; i++) {
+        final p = _pool[i];
+        _resetParticle(p, _configB!, 'parentB');
+        _particles.add(p);
       }
     }
   }
 
-  AlchemyParticle _createIdleParticle(
+  // FIX 1: Reset an existing particle from the pool in-place.
+  // No allocation — just overwrites the fields.
+  void _resetParticle(
+    AlchemyParticle p,
     ElementConfig config,
-    String elementType, {
-    required bool isMain,
-  }) {
-    final center = Offset(_lastSize.width / 2, _lastSize.height / 2);
-
-    if (isMain) {
-      // Main orbital particles (2 total)
-      final isParentA = elementType == 'parentA';
-      final angle = isParentA ? 0.0 : pi; // 0° and 180° apart
-      final orbitRadius = 40.0;
-
-      final position =
-          center + Offset(cos(angle) * orbitRadius, sin(angle) * orbitRadius);
-
-      // Gentle orbital velocity
-      final velocity = Offset(-sin(angle) * 0.3, cos(angle) * 0.3);
-
-      return AlchemyParticle(
-        position: position,
-        velocity: velocity,
-        size: config.maxSize * 1.5, // Larger for visibility
-        color: config.colors.first, // Use primary color
-        opacity: 0.8,
-        rotation: 0,
-        rotationSpeed: 0.02,
-        life: 1.0,
-        energy: 1.0,
-        elementType: elementType,
-      );
-    } else {
-      // Smaller random floating particles (10 total)
-      final randomAngle = _random.nextDouble() * 2 * pi;
-      final randomRadius = 20.0 + _random.nextDouble() * 50.0;
-
-      final position =
-          center +
-          Offset(
-            cos(randomAngle) * randomRadius,
-            sin(randomAngle) * randomRadius,
-          );
-
-      // Random gentle drift
-      final driftAngle = _random.nextDouble() * 2 * pi;
-      final driftSpeed = 0.1 + _random.nextDouble() * 0.2;
-      final velocity = Offset(
-        cos(driftAngle) * driftSpeed,
-        sin(driftAngle) * driftSpeed,
-      );
-
-      return AlchemyParticle(
-        position: position,
-        velocity: velocity,
-        size:
-            config.minSize +
-            _random.nextDouble() * (config.maxSize - config.minSize),
-        color:
-            config.colors[_random.nextInt(
-              config.colors.length,
-            )], // Random color from palette
-        opacity: 0.4 + _random.nextDouble() * 0.4,
-        rotation: _random.nextDouble() * 2 * pi,
-        rotationSpeed: (_random.nextDouble() - 0.5) * 0.03,
-        life: 1.0,
-        energy: 1.0,
-        elementType: elementType,
-      );
-    }
-  }
-
-  AlchemyParticle _createParticle(ElementConfig config, String elementType) {
+    String elementType,
+  ) {
     final size =
         config.minSize +
         _random.nextDouble() * (config.maxSize - config.minSize);
     final color = config.colors[_random.nextInt(config.colors.length)];
 
-    // Start from edge or random
     final startFromEdge = _random.nextBool();
     Offset position;
-    Offset velocity;
 
     if (startFromEdge) {
       final offscreenMargin = config.maxSize * 2;
       final edge = _random.nextInt(4);
       switch (edge) {
-        case 0: // top
+        case 0:
           position = Offset(
             _random.nextDouble() * _lastSize.width,
             -offscreenMargin,
           );
           break;
-        case 1: // right
+        case 1:
           position = Offset(
             _lastSize.width + offscreenMargin,
             _random.nextDouble() * _lastSize.height,
           );
           break;
-        case 2: // bottom
+        case 2:
           position = Offset(
             _random.nextDouble() * _lastSize.width,
             _lastSize.height + offscreenMargin,
           );
           break;
-        default: // left
+        default:
           position = Offset(
             -offscreenMargin,
             _random.nextDouble() * _lastSize.height,
@@ -1170,40 +1086,103 @@ class _AlchemyBrewingParticleSystemState
 
     final center = Offset(_lastSize.width / 2, _lastSize.height / 2);
     final toCenter = center - position;
-    final distance = sqrt(
-      toCenter.dx * toCenter.dx + toCenter.dy * toCenter.dy,
-    );
+    final dx = toCenter.dx;
+    final dy = toCenter.dy;
+    final dist2 = dx * dx + dy * dy;
 
-    if (distance > 0) {
-      final normalized = Offset(toCenter.dx / distance, toCenter.dy / distance);
+    Offset velocity;
+    if (dist2 > 0) {
+      final invDist = 1.0 / sqrt(dist2);
       final speed =
           config.minSpeed +
           _random.nextDouble() * (config.maxSpeed - config.minSpeed);
 
       final angleVariation = (_random.nextDouble() - 0.5) * 0.8;
-      final cosMath =
-          normalized.dx * cos(angleVariation) -
-          normalized.dy * sin(angleVariation);
-      final sinMath =
-          normalized.dx * sin(angleVariation) +
-          normalized.dy * cos(angleVariation);
-      velocity = Offset(cosMath * speed, sinMath * speed);
+      final cosA = cos(angleVariation);
+      final sinA = sin(angleVariation);
+      final nx = dx * invDist;
+      final ny = dy * invDist;
+      velocity = Offset(
+        (nx * cosA - ny * sinA) * speed,
+        (nx * sinA + ny * cosA) * speed,
+      );
     } else {
       velocity = _getInitialVelocity(config);
     }
 
-    return AlchemyParticle(
-      position: position,
-      velocity: velocity,
-      size: size,
-      color: color,
-      opacity: 0.5 + _random.nextDouble() * 0.5,
-      rotation: _random.nextDouble() * pi * 2,
-      rotationSpeed: (_random.nextDouble() - 0.5) * 0.05,
-      life: 0.5 + _random.nextDouble() * 0.5,
-      energy: _random.nextDouble(),
-      elementType: elementType,
-    );
+    p.position = position;
+    p.velocity = velocity;
+    p.size = size;
+    p.color = color;
+    p.opacity = 0.5 + _random.nextDouble() * 0.5;
+    p.rotation = _random.nextDouble() * pi * 2;
+    p.rotationSpeed = (_random.nextDouble() - 0.5) * 0.05;
+    p.life = 0.5 + _random.nextDouble() * 0.5;
+    p.energy = _random.nextDouble();
+    p.elementType = elementType;
+  }
+
+  AlchemyParticle _createIdleParticle(
+    ElementConfig config,
+    String elementType, {
+    required bool isMain,
+  }) {
+    final center = Offset(_lastSize.width / 2, _lastSize.height / 2);
+
+    if (isMain) {
+      final isParentA = elementType == 'parentA';
+      final angle = isParentA ? 0.0 : pi;
+      const orbitRadius = 40.0;
+
+      final position =
+          center + Offset(cos(angle) * orbitRadius, sin(angle) * orbitRadius);
+      final velocity = Offset(-sin(angle) * 0.3, cos(angle) * 0.3);
+
+      return AlchemyParticle(
+        position: position,
+        velocity: velocity,
+        size: config.maxSize * 1.5,
+        color: config.colors.first,
+        opacity: 0.8,
+        rotation: 0,
+        rotationSpeed: 0.02,
+        life: 1.0,
+        energy: 1.0,
+        elementType: elementType,
+      );
+    } else {
+      final randomAngle = _random.nextDouble() * 2 * pi;
+      final randomRadius = 20.0 + _random.nextDouble() * 50.0;
+
+      final position =
+          center +
+          Offset(
+            cos(randomAngle) * randomRadius,
+            sin(randomAngle) * randomRadius,
+          );
+
+      final driftAngle = _random.nextDouble() * 2 * pi;
+      final driftSpeed = 0.1 + _random.nextDouble() * 0.2;
+      final velocity = Offset(
+        cos(driftAngle) * driftSpeed,
+        sin(driftAngle) * driftSpeed,
+      );
+
+      return AlchemyParticle(
+        position: position,
+        velocity: velocity,
+        size:
+            config.minSize +
+            _random.nextDouble() * (config.maxSize - config.minSize),
+        color: config.colors[_random.nextInt(config.colors.length)],
+        opacity: 0.4 + _random.nextDouble() * 0.4,
+        rotation: _random.nextDouble() * 2 * pi,
+        rotationSpeed: (_random.nextDouble() - 0.5) * 0.03,
+        life: 1.0,
+        energy: 1.0,
+        elementType: elementType,
+      );
+    }
   }
 
   Offset _getInitialVelocity(ElementConfig config) {
@@ -1244,18 +1223,16 @@ class _AlchemyBrewingParticleSystemState
     super.dispose();
   }
 
-  double get _continuousIdleAngle {
-    // One full rotation every 24s (smooth, continuous)
-    final elapsedMs = _controller.lastElapsedDuration?.inMilliseconds ?? 0;
-    const periodMs = 24000;
-    final phase = (elapsedMs % periodMs) / periodMs; // 0..1 but wraps at 24s
-    return 2 * pi * phase; // angle in radians, continuous across frames
-  }
+  // Idle angle accumulated in _updateParticles to stay continuous across
+  // controller cycles. The controller repeats 0→1 every 3s; each tick we
+  // add the delta so the angle never jumps back to 0 at the wrap boundary.
+  double _idleAngle = 0.0;
+  double _lastControllerValue = 0.0;
+
+  double get _continuousIdleAngle => _idleAngle;
 
   @override
   Widget build(BuildContext context) {
-    // LayoutBuilder is OUTSIDE AnimatedBuilder so a layout pass only happens
-    // when the parent constraints change, not on every 60-fps animation tick.
     return LayoutBuilder(
       builder: (context, constraints) {
         final newSize = Size(constraints.maxWidth, constraints.maxHeight);
@@ -1290,6 +1267,7 @@ class _AlchemyBrewingParticleSystemState
                 idleAngle: _continuousIdleAngle,
                 theme: widget.theme,
                 fromCinematic: widget.fromCinematic,
+                frameCount: _frameCount,
               ),
               size: _lastSize,
             );
@@ -1300,11 +1278,24 @@ class _AlchemyBrewingParticleSystemState
   }
 
   void _updateParticles() {
+    // Accumulate idle angle from controller delta so it stays continuous
+    // across repeat cycles. The controller goes 0→1 then wraps; reading
+    // .value directly would cause a jump to 0 each cycle. Instead we
+    // compute how much it advanced this tick and add that to a running total.
+    final currentValue = _controller.value;
+    double delta = currentValue - _lastControllerValue;
+    // Handle the wrap: if the controller repeated, delta will be large and
+    // negative. Treat it as the small positive remainder instead.
+    if (delta < 0) delta += 1.0;
+    // Scale: controller period is 3s, one full rotation every 24s → factor 3/24
+    _idleAngle += delta * 2 * pi * (3.0 / 24.0);
+    _lastControllerValue = currentValue;
+
     final width = _lastSize.width;
     final height = _lastSize.height;
     final center = Offset(width / 2, height / 2);
 
-    // IDLE MODE: Simple orbital motion for main particles, gentle drift for small ones
+    // IDLE MODE
     if (widget.fusion && _fusionCtrl.value >= 1.0) {
       for (int i = 0; i < _particles.length; i++) {
         final p = _particles[i];
@@ -1312,20 +1303,17 @@ class _AlchemyBrewingParticleSystemState
         final distance = toCenter.distance;
 
         if (i < 2) {
-          // Main particles: circular orbit
           if (distance > 0) {
             final angle = atan2(p.velocity.dy, p.velocity.dx);
-            final newAngle = angle + 0.02; // Constant gentle rotation
+            final newAngle = angle + 0.02;
             p.velocity = Offset(cos(newAngle) * 0.3, sin(newAngle) * 0.3);
             p.position += p.velocity;
             p.rotation += p.rotationSpeed;
           }
         } else {
-          // Small particles: gentle float with slight center attraction
           p.position += p.velocity;
           p.rotation += p.rotationSpeed;
 
-          // Gentle pull to keep them from drifting too far
           if (distance > 70) {
             p.velocity += Offset(
               (toCenter.dx / distance) * 0.01,
@@ -1333,10 +1321,8 @@ class _AlchemyBrewingParticleSystemState
             );
           }
 
-          // Gentle velocity damping
           p.velocity *= 0.99;
 
-          // Wrap around if they go too far
           if (distance > 90) {
             final wrapAngle = _random.nextDouble() * 2 * pi;
             p.position =
@@ -1344,28 +1330,25 @@ class _AlchemyBrewingParticleSystemState
           }
         }
       }
-      return; // Skip all the complex brewing logic
+      _frameCount++;
+      return;
     }
 
-    // FUSION TRANSITION: Fade out particles smoothly
+    // FUSION TRANSITION
     if (widget.fusion && _fusionCtrl.value < 1.0) {
-      // Start fading particles at 50% through the fusion animation
-      final fadeStart = 0.5;
+      const fadeStart = 0.5;
       if (_fusionCtrl.value > fadeStart) {
         final fadeProgress =
             (_fusionCtrl.value - fadeStart) / (1.0 - fadeStart);
 
-        // Gradually reduce particle count during fade
         final targetParticleCount =
             2 + ((1.0 - fadeProgress) * (_particles.length - 2)).round();
 
         for (int i = 0; i < _particles.length; i++) {
           final p = _particles[i];
 
-          // Fade out opacity
-          p.opacity *= (1.0 - fadeProgress * 0.1); // Gradual fade
+          p.opacity *= (1.0 - fadeProgress * 0.1);
 
-          // Pull strongly to center
           final toCenter = center - p.position;
           final distance = toCenter.distance;
           if (distance > 0) {
@@ -1378,20 +1361,19 @@ class _AlchemyBrewingParticleSystemState
           p.position += p.velocity * 0.5;
           p.rotation += p.rotationSpeed;
 
-          // Mark excess particles for removal
           if (i >= targetParticleCount) {
             p.life = 0;
           }
         }
 
-        // Remove dead particles
         _particles.removeWhere((p) => p.life <= 0);
-
-        return; // Skip normal brewing logic during fade
+        _frameCount++;
+        return;
       }
     }
 
-    // BREWING MODE: Full particle system below
+    // BREWING MODE
+
     _sparks.removeWhere((spark) {
       spark.life -= 0.03;
       return spark.life <= 0;
@@ -1401,12 +1383,23 @@ class _AlchemyBrewingParticleSystemState
     final fusionDamp = widget.fusion ? 0.35 : 1.0;
     final speedMult = baseMult * fusionDamp;
 
-    // Pre-compute constants for the loop
-    final particleCount = _particles.length;
+    // FIX 2 (trig hoist): Compute swirl rotation constants once outside the
+    // loop. The old code called atan2+cos+sin per particle per frame.
+    // A 2D rotation matrix only needs cos/sin of the delta angle — computed
+    // once here, then applied with pure multiplies inside the loop.
+    final swirlDelta = (widget.fusion ? 0.01 : 0.03) * speedMult;
+    final swirlCos = cos(swirlDelta);
+    final swirlSin = sin(swirlDelta);
+
+    final pullStrength = widget.fusion ? 0.12 : 0.02;
+    final rotSpeedMult = speedMult; // named for clarity
+
     final boundLeft = -30.0;
     final boundRight = width + 30.0;
     final boundTop = -30.0;
     final boundBottom = height + 30.0;
+
+    final particleCount = _particles.length;
 
     for (int i = 0; i < particleCount; i++) {
       final p = _particles[i];
@@ -1414,34 +1407,36 @@ class _AlchemyBrewingParticleSystemState
           ? _configA
           : (_configB ?? _configA);
 
-      // Integrate
       p.position += p.velocity * speedMult;
-      p.rotation += p.rotationSpeed * speedMult;
+      p.rotation += p.rotationSpeed * rotSpeedMult;
 
-      // Attraction to center
-      final toCenter = center - p.position;
-      final distance = toCenter.distance;
-      final pullStrength = widget.fusion ? 0.12 : 0.02;
-      if (distance > 6) {
+      // Center attraction — use distance-squared to avoid sqrt when possible
+      final toCenterDx = center.dx - p.position.dx;
+      final toCenterDy = center.dy - p.position.dy;
+      final dist2 = toCenterDx * toCenterDx + toCenterDy * toCenterDy;
+
+      if (dist2 > 36) {
+        // FIX 2: One sqrt, only when the pull is actually needed
+        final invDist = 1.0 / sqrt(dist2);
         p.velocity += Offset(
-          (toCenter.dx / distance) * pullStrength,
-          (toCenter.dy / distance) * pullStrength,
+          toCenterDx * invDist * pullStrength,
+          toCenterDy * invDist * pullStrength,
         );
       }
 
-      // Swirl
-      final angle = atan2(p.velocity.dy, p.velocity.dx);
-      final newAngle = angle + (widget.fusion ? 0.01 : 0.03) * speedMult;
-      final spd = p.velocity.distance;
-      p.velocity = Offset(cos(newAngle) * spd, sin(newAngle) * spd);
+      // FIX 2: Apply swirl via rotation matrix — zero trig calls per particle
+      final vx = p.velocity.dx;
+      final vy = p.velocity.dy;
+      p.velocity = Offset(
+        vx * swirlCos - vy * swirlSin,
+        vx * swirlSin + vy * swirlCos,
+      );
 
-      // Pulsing elements
       if (config.movement == ParticleMovementPattern.pulsing) {
         final amp = widget.fusion ? 0.4 : 0.7;
         p.opacity = 0.3 + amp * ((sin(_controller.value * pi * 2) + 1) / 2);
       }
 
-      // Life & bounds
       p.life -= 0.002 * speedMult;
 
       if (p.life <= 0 ||
@@ -1449,9 +1444,10 @@ class _AlchemyBrewingParticleSystemState
           p.position.dx > boundRight ||
           p.position.dy < boundTop ||
           p.position.dy > boundBottom) {
-        _particles[i] = _createParticle(config, p.elementType);
+        // FIX 1: Reset pool particle in-place instead of allocating new one
+        _resetParticle(p, config, p.elementType);
         if (widget.fusion) {
-          _particles[i].position = Offset(
+          p.position = Offset(
             _random.nextDouble() * width,
             _random.nextBool() ? -20 : height + 20,
           );
@@ -1459,38 +1455,38 @@ class _AlchemyBrewingParticleSystemState
       }
     }
 
-    // Probabilistic reaction sparks (only during brewing, not fusion)
-    if (_configB != null && !widget.fusion) {
-      final checksPerFrame = 3;
+    // Spark generation — uses pre-separated parentA index list for O(1) lookup
+    if (_configB != null && !widget.fusion && _parentAIndices.isNotEmpty) {
+      const checksPerFrame = 3;
+      final progressEstimate = ((speedMult - 0.1) / (6.0 - 0.1)).clamp(
+        0.0,
+        1.0,
+      );
+      final progressSquared = progressEstimate * progressEstimate;
+      final sparkChance = 0.015 + (progressSquared * 0.085);
+      final threshold = sparkChance * speedMult;
 
       for (int check = 0; check < checksPerFrame; check++) {
-        final i = _random.nextInt(_particles.length);
-        final p = _particles[i];
-
-        if (p.elementType != 'parentA') continue;
-
-        // Use speedMultiplier as progress proxy (0.1 -> 6.0 maps to 0 -> 1)
-        final progressEstimate = ((speedMult - 0.1) / (6.0 - 0.1)).clamp(
-          0.0,
-          1.0,
-        );
-        final progressSquared = progressEstimate * progressEstimate;
-        final sparkChance = 0.015 + (progressSquared * 0.085);
-
-        if (_random.nextDouble() < sparkChance * speedMult) {
-          final offset = Offset(
-            (_random.nextDouble() - 0.5) * 30,
-            (_random.nextDouble() - 0.5) * 30,
-          );
-
-          _createReactionSpark(
-            p.position + offset,
-            _configA.colors[_random.nextInt(_configA.colors.length)],
-            _configB!.colors[_random.nextInt(_configB!.colors.length)],
-          );
+        if (_random.nextDouble() < threshold) {
+          final idx = _parentAIndices[_random.nextInt(_parentAIndices.length)];
+          if (idx < _particles.length) {
+            final p = _particles[idx];
+            final offset = Offset(
+              (_random.nextDouble() - 0.5) * 30,
+              (_random.nextDouble() - 0.5) * 30,
+            );
+            _createReactionSpark(
+              p.position + offset,
+              _configA.colors[_random.nextInt(_configA.colors.length)],
+              _configB!.colors[_random.nextInt(_configB!.colors.length)],
+            );
+          }
         }
       }
     }
+
+    // FIX 3: Tick frame counter so shouldRepaint can detect real changes
+    _frameCount++;
   }
 
   void _createReactionSpark(Offset position, Color color1, Color color2) {

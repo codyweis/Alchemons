@@ -16,7 +16,6 @@ class NurseryBrewingCard extends StatefulWidget {
   final Color statusColor;
   final bool useSimpleFusion;
 
-  // NEW: optional progress (0..1)
   final double? progress;
   final FactionTheme? theme;
   final CinematicQuality quality;
@@ -27,7 +26,7 @@ class NurseryBrewingCard extends StatefulWidget {
     required this.onTap,
     required this.isReady,
     required this.statusColor,
-    this.progress, // NEW
+    this.progress,
     this.useSimpleFusion = false,
     this.theme,
     this.quality = CinematicQuality.high,
@@ -48,7 +47,6 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
     super.initState();
     _extractParentTypes();
 
-    // Set up glow animation
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -105,20 +103,18 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
 
   double _ease(double p, {double gamma = 2.0}) {
     final clamped = p.clamp(0.0, 1.0);
-    return math.pow(clamped, gamma).toDouble(); // slow start → fast end
+    return math.pow(clamped, gamma).toDouble();
   }
 
   double get _speedFromProgress {
     if (widget.isReady) return 0.2;
     if (widget.progress != null) {
-      // Map 0..1 progress to a 0.1..6.0 speed range with easing.
       const minSpeed = 0.1;
       const maxSpeed = 6.0;
       final eased = _ease(widget.progress!);
       return minSpeed + (maxSpeed - minSpeed) * eased;
     }
 
-    // Fallback: original minutes-based buckets
     final remaining = Duration(milliseconds: widget.egg.remainingMs);
     final totalMinutes = remaining.inMinutes;
     if (totalMinutes > 120) return 0.1;
@@ -145,15 +141,19 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
       particleCount = 30;
     }
 
-    if (deferEffects) {
-      particleCount = 8;
-    }
-
+    // Apply quality multiplier first ...
     final qualityMultiplier = switch (widget.quality) {
       CinematicQuality.high => 2.0,
       CinematicQuality.balanced => 1.0,
     };
     particleCount = (particleCount * qualityMultiplier).round().clamp(0, 72);
+
+    // FIX: ... then cap for deferred loading. Previously deferEffects ran
+    // before the quality multiply, so high quality + defer gave 16 instead
+    // of 8. Now the cap is applied to the already-scaled count.
+    if (deferEffects) {
+      particleCount = math.min(particleCount, 8);
+    }
 
     final showParticles =
         TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
@@ -172,7 +172,7 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
                 borderRadius: BorderRadius.circular(5),
                 border: Border.all(
                   color: widget.isReady
-                      ? const Color(0xFFFFD700) // Gold color
+                      ? const Color(0xFFFFD700)
                       : theme.text.withValues(alpha: 0.5),
                   width: widget.isReady ? 1.0 : 0.5,
                 ),

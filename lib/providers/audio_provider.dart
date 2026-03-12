@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 
 enum MusicCue {
@@ -19,7 +20,7 @@ enum MusicCue {
   cosmicExploration,
 }
 
-class AudioController extends ChangeNotifier {
+class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   static const double _defaultMusicVolume = 0.20;
   static const double _homeMusicVolume = 0.15;
 
@@ -93,11 +94,16 @@ class AudioController extends ChangeNotifier {
   int _cosmicCycleIndex = 0;
   String? _lastCosmicMusicAsset;
   bool _advancingCosmicTrack = false;
+  bool _appIsForeground = true;
 
   MusicCue? _currentCue;
   String? _currentMusicAsset;
 
   AudioController(this._db) {
+    WidgetsBinding.instance.addObserver(this);
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    _appIsForeground =
+        lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
     _bootstrapFuture = _bootstrap();
   }
 
@@ -108,6 +114,15 @@ class AudioController extends ChangeNotifier {
 
   bool get effectiveMusicEnabled => _masterEnabled && _musicEnabled;
   bool get effectiveSoundsEnabled => _masterEnabled && _soundsEnabled;
+  bool get _shouldPlayMusic => effectiveMusicEnabled && _appIsForeground;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final isForeground = state == AppLifecycleState.resumed;
+    if (_appIsForeground == isForeground) return;
+    _appIsForeground = isForeground;
+    unawaited(_applyMusicState());
+  }
 
   Future<void> _bootstrap() async {
     _masterEnabled = await _readBoolSetting(
@@ -300,12 +315,10 @@ class AudioController extends ChangeNotifier {
     try {
       await _syncLoopModeForCurrentCue();
 
-      final targetVolume = effectiveMusicEnabled
-          ? _volumeForCue(_currentCue)
-          : 0.0;
+      final targetVolume = _shouldPlayMusic ? _volumeForCue(_currentCue) : 0.0;
       await _musicPlayer.setVolume(targetVolume);
 
-      if (effectiveMusicEnabled) {
+      if (_shouldPlayMusic) {
         if (!_musicPlayer.playing) {
           await _musicPlayer.play();
         }
@@ -469,6 +482,7 @@ class AudioController extends ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _masterSub?.cancel();
     _musicSub?.cancel();
     _soundsSub?.cancel();
