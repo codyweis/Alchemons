@@ -15,6 +15,11 @@ class AlchemyParticle {
   double energy; // for reaction effects
   String elementType; // which parent this came from ("parentA" | "parentB")
 
+  // Pre-baked draw color: color * opacity * life. Set in _resetParticle and
+  // refreshed via bakeColor() whenever opacity or life changes. Eliminates
+  // a Color alloc + withValues() call in the hot draw path every frame.
+  Color drawnColor;
+
   AlchemyParticle({
     required this.position,
     required this.velocity,
@@ -26,7 +31,11 @@ class AlchemyParticle {
     this.rotationSpeed = 0,
     this.life = 1.0,
     this.energy = 1.0,
-  });
+  }) : drawnColor = color.withValues(alpha: opacity);
+
+  void bakeColor() {
+    drawnColor = color.withValues(alpha: (opacity * life).clamp(0.0, 1.0));
+  }
 }
 
 /// Reaction spark particle (created when elements collide)
@@ -362,8 +371,9 @@ class AlchemyBrewingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw reaction sparks
+    // Draw reaction sparks — iterate ring buffer, skip dead slots
     for (final spark in sparks) {
+      if (spark.life <= 0) continue;
       _sparkGlowPaint.color = spark.color.withValues(alpha: spark.life * 0.15);
       _sparkCorePaint.color = spark.color.withValues(alpha: spark.life * 0.8);
       canvas.drawCircle(spark.position, spark.size * 2.5, _sparkGlowPaint);
@@ -465,23 +475,31 @@ class AlchemyBrewingPainter extends CustomPainter {
   }
 
   void _drawParticle(Canvas canvas, AlchemyParticle particle) {
-    // Reuse cached paint — just update the color
-    _particlePaint.color = particle.color.withValues(
-      alpha: particle.opacity * particle.life,
-    );
-
-    canvas.save();
-    canvas.translate(particle.position.dx, particle.position.dy);
-    canvas.rotate(particle.rotation);
+    // Use pre-baked color — no withValues() alloc here
+    _particlePaint.color = particle.drawnColor;
 
     final config = particle.elementType == 'parentA'
         ? config1
         : (config2 ?? config1);
 
+    // Circle fast-path: skip save/translate/rotate/restore entirely.
+    // drawCircle accepts a world-space center directly and circles are
+    // rotationally symmetric so rotation is irrelevant. Covers fire, water,
+    // air, steam, lava, mud, dust, poison, spirit, dark, blood — the
+    // majority of real element combinations.
+    if (config.shape == ParticleShape.circle) {
+      canvas.drawCircle(particle.position, particle.size, _particlePaint);
+      return;
+    }
+
+    // Non-circle shapes need a local transform for rotation + positioning
+    canvas.save();
+    canvas.translate(particle.position.dx, particle.position.dy);
+    canvas.rotate(particle.rotation);
+
     switch (config.shape) {
       case ParticleShape.circle:
-        canvas.drawCircle(Offset.zero, particle.size, _particlePaint);
-        break;
+        break; // unreachable — handled above
       case ParticleShape.square:
         canvas.drawRect(
           Rect.fromCenter(
@@ -895,7 +913,20 @@ class _AlchemyBrewingParticleSystemState
   late final List<AlchemyParticle> _pool;
 
   late List<AlchemyParticle> _particles;
-  late List<ReactionSpark> _sparks;
+  // Ring buffer for reaction sparks — fixed capacity, no list reallocation
+  // or element shifting. Head advances on write; life==0 means slot is empty.
+  static const _sparkCapacity = 54; // 18 sparks x 3 per event
+  final _sparkBuf = List<ReactionSpark>.generate(
+    54,
+    (_) => ReactionSpark(
+      position: Offset.zero,
+      color: Colors.transparent,
+      size: 0,
+      life: 0,
+    ),
+  );
+  int _sparkHead = 0;
+  int _sparkCount = 0;
   late ElementConfig _configA;
   ElementConfig? _configB;
   final Random _random = Random();
@@ -955,7 +986,6 @@ class _AlchemyBrewingParticleSystemState
     )..addStatusListener(_onFusionStatusChanged);
 
     _particles = [];
-    _sparks = [];
 
     if (widget.fusion) {
       _fusionPlayed = true;
@@ -1120,6 +1150,7 @@ class _AlchemyBrewingParticleSystemState
     p.life = 0.5 + _random.nextDouble() * 0.5;
     p.energy = _random.nextDouble();
     p.elementType = elementType;
+    p.bakeColor();
   }
 
   AlchemyParticle _createIdleParticle(
@@ -1255,7 +1286,7 @@ class _AlchemyBrewingParticleSystemState
             return CustomPaint(
               painter: AlchemyBrewingPainter(
                 particles: _particles,
-                sparks: _sparks,
+                sparks: _sparkBuf,
                 config1: _configA,
                 config2: _configB,
                 animationProgress: _controller.value,
@@ -1348,6 +1379,7 @@ class _AlchemyBrewingParticleSystemState
           final p = _particles[i];
 
           p.opacity *= (1.0 - fadeProgress * 0.1);
+          p.bakeColor();
 
           final toCenter = center - p.position;
           final distance = toCenter.distance;
@@ -1374,10 +1406,14 @@ class _AlchemyBrewingParticleSystemState
 
     // BREWING MODE
 
-    _sparks.removeWhere((spark) {
-      spark.life -= 0.03;
-      return spark.life <= 0;
-    });
+    // Decay sparks in ring buffer — no shifting, just decrement life
+    for (int i = 0; i < _sparkCapacity; i++) {
+      final s = _sparkBuf[i];
+      if (s.life > 0) {
+        s.life -= 0.03;
+        if (s.life < 0) s.life = 0;
+      }
+    }
 
     final baseMult = widget.speedMultiplier;
     final fusionDamp = widget.fusion ? 0.35 : 1.0;
@@ -1435,6 +1471,7 @@ class _AlchemyBrewingParticleSystemState
       if (config.movement == ParticleMovementPattern.pulsing) {
         final amp = widget.fusion ? 0.4 : 0.7;
         p.opacity = 0.3 + amp * ((sin(_controller.value * pi * 2) + 1) / 2);
+        p.bakeColor();
       }
 
       p.life -= 0.002 * speedMult;
@@ -1490,29 +1527,26 @@ class _AlchemyBrewingParticleSystemState
   }
 
   void _createReactionSpark(Offset position, Color color1, Color color2) {
-    if (_sparks.length > 50) return;
-
     final blendedColor = Color.fromARGB(
       255,
       ((color1.r + color2.r) * 127.5).round(),
       ((color1.g + color2.g) * 127.5).round(),
       ((color1.b + color2.b) * 127.5).round(),
     );
-
+    // Write into ring buffer slots, overwriting the oldest if full
     for (int i = 0; i < 3; i++) {
-      _sparks.add(
-        ReactionSpark(
-          position:
-              position +
-              Offset(
-                (_random.nextDouble() - 0.5) * 5,
-                (_random.nextDouble() - 0.5) * 5,
-              ),
-          color: blendedColor,
-          size: 2 + _random.nextDouble() * 3,
-          life: 1.0,
-        ),
-      );
+      final slot = _sparkBuf[_sparkHead];
+      slot.position =
+          position +
+          Offset(
+            (_random.nextDouble() - 0.5) * 5,
+            (_random.nextDouble() - 0.5) * 5,
+          );
+      slot.color = blendedColor;
+      slot.size = 2 + _random.nextDouble() * 3;
+      slot.life = 1.0;
+      _sparkHead = (_sparkHead + 1) % _sparkCapacity;
+      if (_sparkCount < _sparkCapacity) _sparkCount++;
     }
   }
 }

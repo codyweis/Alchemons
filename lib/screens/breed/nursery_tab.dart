@@ -33,6 +33,7 @@ class _NurseryTabState extends State<NurseryTab> {
   final Map<String, bool> _undiscoveredCache = {};
   final CinematicQualityService _qualityService = CinematicQualityService();
   bool _suspendNurseryAnimations = false;
+  int _animationPauseHolds = 0;
   CinematicQuality _cinematicQuality = CinematicQuality.high;
 
   /// One-shot timer that fires exactly when the soonest incubating egg
@@ -424,33 +425,41 @@ class _NurseryTabState extends State<NurseryTab> {
     bool isUndiscovered,
   ) {
     if (ready) {
-      _showExtractionDialog(slot, primaryColor, isUndiscovered);
+      unawaited(_showExtractionDialog(slot, primaryColor, isUndiscovered));
     } else {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black87,
-        builder: (context) => _SlotInfoDialogWrapper(
-          slot: slot,
-          primaryColor: primaryColor,
-          isUndiscovered: isUndiscovered,
-          maxSeenNowUtc: widget.maxSeenNowUtc,
-          onAccelerate: () {
-            Navigator.pop(context);
-            _speedUpSlot(slot.id);
-          },
-          onReturn: () {
-            Navigator.pop(context);
-            _cancelToInventory(slot);
-          },
-          onInstantHatch: () {
-            Navigator.pop(context);
-            _instantHatchSlot(slot);
-          },
-          onClose: () => Navigator.pop(context),
+      unawaited(
+        _showDialogWithPausedBackground<void>(
+          barrierDismissible: false,
+          barrierColor: Colors.black87,
+          builder: (context) => _SlotInfoDialogWrapper(
+            slot: slot,
+            primaryColor: primaryColor,
+            isUndiscovered: isUndiscovered,
+            maxSeenNowUtc: widget.maxSeenNowUtc,
+            onAccelerate: () {
+              Navigator.pop(context);
+              _speedUpSlot(slot.id);
+            },
+            onReturn: () {
+              Navigator.pop(context);
+              _cancelToInventory(slot);
+            },
+            onInstantHatch: () {
+              Navigator.pop(context);
+              _instantHatchSlot(slot);
+            },
+            onClose: () => Navigator.pop(context),
+          ),
         ),
       );
     }
+  }
+
+  Future<void> _startHatchFromReadyPopup(IncubatorSlot slot) async {
+    // Let the extraction dialog close animation finish before cinematic starts.
+    await Future<void>.delayed(const Duration(milliseconds: 140));
+    if (!mounted) return;
+    await _hatchFromSlot(slot);
   }
 
   Future<void> _showExtractionDialog(
@@ -462,8 +471,7 @@ class _NurseryTabState extends State<NurseryTab> {
     final extractionDone = await db.settingsDao
         .hasCompletedExtractionTutorial();
     if (!mounted) return;
-    showDialog(
-      context: context,
+    await _showDialogWithPausedBackground<void>(
       barrierDismissible: false,
       barrierColor: Colors.black87,
       builder: (context) => ExtractionDialog(
@@ -473,7 +481,7 @@ class _NurseryTabState extends State<NurseryTab> {
         isTutorial: !extractionDone,
         onExtract: () {
           Navigator.pop(context);
-          _hatchFromSlot(slot);
+          unawaited(_startHatchFromReadyPopup(slot));
         },
         onDiscard: () {
           Navigator.pop(context);
@@ -489,96 +497,97 @@ class _NurseryTabState extends State<NurseryTab> {
   void _showDiscardConfirmation(IncubatorSlot slot) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
-    showDialog(
-      context: context,
-      barrierColor: Colors.black87,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Container(
-            decoration: BoxDecoration(
-              color: t.bg1,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: t.danger.withValues(alpha: .45)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 3,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: t.danger,
-                        borderRadius: BorderRadius.circular(2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: t.danger.withValues(alpha: .45),
-                            blurRadius: 8,
-                          ),
-                        ],
+    unawaited(
+      _showDialogWithPausedBackground<void>(
+        barrierColor: Colors.black87,
+        builder: (context) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Container(
+              decoration: BoxDecoration(
+                color: t.bg1,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: t.danger.withValues(alpha: .45)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 3,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: t.danger,
+                          borderRadius: BorderRadius.circular(2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: t.danger.withValues(alpha: .45),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'DISCARD SPECIMEN?',
-                      style: TextStyle(
-                        color: t.danger,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.2,
+                      const SizedBox(width: 12),
+                      Text(
+                        'DISCARD SPECIMEN?',
+                        style: TextStyle(
+                          color: t.danger,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'This will permanently destroy the specimen. This action cannot be undone.',
-                  style: TextStyle(
-                    color: theme.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
+                    ],
                   ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DiscardButton(
-                        label: 'CANCEL',
-                        color: theme.textMuted,
-                        filled: false,
-                        onTap: () => Navigator.pop(context),
-                      ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'This will permanently destroy the specimen. This action cannot be undone.',
+                    style: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _DiscardButton(
-                        label: 'DISCARD',
-                        color: t.danger,
-                        filled: true,
-                        onTap: () async {
-                          Navigator.pop(context);
-                          await context
-                              .read<AlchemonsDatabase>()
-                              .incubatorDao
-                              .clearEgg(slot.id);
-                          _showToast(
-                            'Specimen discarded',
-                            icon: Icons.delete_forever_rounded,
-                            color: Colors.red.shade600,
-                          );
-                        },
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DiscardButton(
+                          label: 'CANCEL',
+                          color: theme.textMuted,
+                          filled: false,
+                          onTap: () => Navigator.pop(context),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _DiscardButton(
+                          label: 'DISCARD',
+                          color: t.danger,
+                          filled: true,
+                          onTap: () async {
+                            Navigator.pop(context);
+                            await context
+                                .read<AlchemonsDatabase>()
+                                .incubatorDao
+                                .clearEgg(slot.id);
+                            _showToast(
+                              'Specimen discarded',
+                              icon: Icons.delete_forever_rounded,
+                              color: Colors.red.shade600,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -633,16 +642,17 @@ class _NurseryTabState extends State<NurseryTab> {
     final factionColors = getFactionColors(currentFaction);
     final primaryColor = factionColors.$1;
 
-    showDialog(
-      context: context,
-      builder: (context) => _buildAccelerationDialog(
-        slotId,
-        slot,
-        remaining,
-        halfTime,
-        halfCost,
-        fullCost,
-        primaryColor,
+    unawaited(
+      _showDialogWithPausedBackground<void>(
+        builder: (context) => _buildAccelerationDialog(
+          slotId,
+          slot,
+          remaining,
+          halfTime,
+          halfCost,
+          fullCost,
+          primaryColor,
+        ),
       ),
     );
   }
@@ -1008,9 +1018,7 @@ class _NurseryTabState extends State<NurseryTab> {
   Future<void> _hatchFromSlot(IncubatorSlot slot) async {
     if (!mounted) return;
 
-    if (!_suspendNurseryAnimations) {
-      setState(() => _suspendNurseryAnimations = true);
-    }
+    _acquireBackgroundAnimationPause();
 
     late final HatchingResult result;
     try {
@@ -1020,9 +1028,7 @@ class _NurseryTabState extends State<NurseryTab> {
         undiscoveredCache: _undiscoveredCache,
       );
     } finally {
-      if (mounted && _suspendNurseryAnimations) {
-        setState(() => _suspendNurseryAnimations = false);
-      }
+      _releaseBackgroundAnimationPause();
     }
 
     if (!mounted) return;
@@ -1064,8 +1070,7 @@ class _NurseryTabState extends State<NurseryTab> {
 
   Future<bool> _showConfirmDialog(String title, String message) async {
     final theme = context.read<FactionTheme>();
-    return await showDialog<bool>(
-          context: context,
+    return await _showDialogWithPausedBackground<bool>(
           builder: (context) => AlertDialog(
             title: Text(title, style: TextStyle(color: theme.text)),
             content: Text(
@@ -1088,6 +1093,42 @@ class _NurseryTabState extends State<NurseryTab> {
           ),
         ) ??
         false;
+  }
+
+  void _acquireBackgroundAnimationPause() {
+    _animationPauseHolds += 1;
+    if (mounted && !_suspendNurseryAnimations) {
+      setState(() => _suspendNurseryAnimations = true);
+    }
+  }
+
+  void _releaseBackgroundAnimationPause() {
+    if (_animationPauseHolds > 0) {
+      _animationPauseHolds -= 1;
+    }
+    if (_animationPauseHolds == 0 && mounted && _suspendNurseryAnimations) {
+      setState(() => _suspendNurseryAnimations = false);
+    }
+  }
+
+  Future<T?> _showDialogWithPausedBackground<T>({
+    required WidgetBuilder builder,
+    bool barrierDismissible = true,
+    Color? barrierColor,
+  }) async {
+    if (!mounted) return null;
+    _acquireBackgroundAnimationPause();
+    try {
+      return await showDialog<T>(
+        context: context,
+        barrierDismissible: barrierDismissible,
+        barrierColor: barrierColor,
+        builder: (dialogContext) =>
+            TickerMode(enabled: true, child: Builder(builder: builder)),
+      );
+    } finally {
+      _releaseBackgroundAnimationPause();
+    }
   }
 }
 
