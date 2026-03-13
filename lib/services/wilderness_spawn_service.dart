@@ -128,6 +128,7 @@ class WildernessSpawnService extends ChangeNotifier {
       final sceneId = entry.key;
       final dueAt = entry.value;
       if (!eligibleSceneIds.contains(sceneId) || dueAt <= now) continue;
+      if (hasAnySpawnsInScene(sceneId)) continue;
       await _pushNotifications.scheduleWildernessSpawnNotification(
         spawnTime: DateTime.fromMillisecondsSinceEpoch(
           dueAt,
@@ -322,6 +323,27 @@ class WildernessSpawnService extends ChangeNotifier {
   // ------------------------------------------------------------
   // SCHEDULING (time only)
   // ------------------------------------------------------------
+  Future<void> _syncScheduledWildernessNotification(
+    String sceneId, {
+    required int dueAtUtcMs,
+  }) async {
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    if (hasAnySpawnsInScene(sceneId) || dueAtUtcMs <= now) {
+      await _pushNotifications.cancelWildernessSpawnNotification(
+        biomeId: sceneId,
+      );
+      return;
+    }
+
+    await _pushNotifications.scheduleWildernessSpawnNotification(
+      spawnTime: DateTime.fromMillisecondsSinceEpoch(
+        dueAtUtcMs,
+        isUtc: true,
+      ).toLocal(),
+      biomeId: sceneId,
+    );
+  }
+
   Future<void> scheduleNextSpawnTime(
     String sceneId, {
     Duration? windowMin,
@@ -345,6 +367,7 @@ class WildernessSpawnService extends ChangeNotifier {
       debugPrint(
         '⏱ Keeping existing spawn for $sceneId at ${DateTime.fromMillisecondsSinceEpoch(existing, isUtc: true)}',
       );
+      await _syncScheduledWildernessNotification(sceneId, dueAtUtcMs: existing);
       return;
     }
 
@@ -370,11 +393,7 @@ class WildernessSpawnService extends ChangeNotifier {
           SpawnScheduleCompanion.insert(sceneId: sceneId, dueAtUtcMs: dueAt),
         );
 
-    // NEW: Schedule push notification
-    await _pushNotifications.scheduleWildernessSpawnNotification(
-      spawnTime: dueDate.toLocal(),
-      biomeId: sceneId,
-    );
+    await _syncScheduledWildernessNotification(sceneId, dueAtUtcMs: dueAt);
   }
 
   // ------------------------------------------------------------
@@ -393,6 +412,7 @@ class WildernessSpawnService extends ChangeNotifier {
   ) async {
     final eligibleSceneIds = await _eligibleSceneIds(scenes.keys);
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final hadAnyActiveSpawnsBeforeTick = hasAnyActiveSpawns;
     var spawnedAnyScene = false;
 
     for (final entry in scenes.entries) {
@@ -438,7 +458,9 @@ class WildernessSpawnService extends ChangeNotifier {
     }
 
     if (spawnedAnyScene) {
-      await _showActiveWildernessSummaryNotification();
+      await _showActiveWildernessSummaryNotification(
+        silentUpdate: hadAnyActiveSpawnsBeforeTick,
+      );
     }
   }
 
@@ -493,6 +515,8 @@ class WildernessSpawnService extends ChangeNotifier {
       debugPrint('⚠️ Skipping spawn for $sceneId - scene is not eligible');
       return false;
     }
+
+    final hadAnyActiveSpawnsBeforeSpawn = hasAnyActiveSpawns;
 
     // Double-check: don't spawn if scene is active
     if (isSceneActive(sceneId)) {
@@ -569,10 +593,17 @@ class WildernessSpawnService extends ChangeNotifier {
       return false;
     }
 
+    // Scene now has active spawns; suppress stale "next spawn" scheduled push.
+    await _pushNotifications.cancelWildernessSpawnNotification(
+      biomeId: sceneId,
+    );
+
     // After spawning, show consolidated notification of active wilderness state.
     // Callers can disable this to batch multiple spawn operations into one push.
     if (emitSummaryNotification && hasAnySpawnsInScene(sceneId)) {
-      await _showActiveWildernessSummaryNotification();
+      await _showActiveWildernessSummaryNotification(
+        silentUpdate: hadAnyActiveSpawnsBeforeSpawn,
+      );
     }
 
     notifyListeners();
@@ -614,7 +645,9 @@ class WildernessSpawnService extends ChangeNotifier {
   // ------------------------------------------------------------
   // REMOVE / CLEAR
   // ------------------------------------------------------------
-  Future<void> _showActiveWildernessSummaryNotification() async {
+  Future<void> _showActiveWildernessSummaryNotification({
+    bool silentUpdate = false,
+  }) async {
     final eligibleSceneIds = await _eligibleSceneIds(_activeSpawns.keys);
     final totalSpawns = eligibleSceneIds.fold<int>(
       0,
@@ -632,6 +665,7 @@ class WildernessSpawnService extends ChangeNotifier {
     await _pushNotifications.showWildernessSpawnNotification(
       spawnCount: totalSpawns,
       locationCount: scenesWithSpawns,
+      silentUpdate: silentUpdate,
     );
   }
 

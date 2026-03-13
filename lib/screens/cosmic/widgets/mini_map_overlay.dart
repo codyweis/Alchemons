@@ -502,18 +502,18 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
                     offset: Offset(0, vertLift),
                     child: Opacity(
                       opacity: opacity,
-                      child: AnimatedBuilder(
-                        animation: widget.spinCtrl,
-                        builder: (context, _) {
-                          final spin = widget.spinCtrl.value * pi * 2;
-                          final pulse = isCenter
-                              ? 1.0 + 0.04 * sin(spin * 1.1)
-                              : 1.0;
-                          final drawSize = size * pulse;
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedBuilder(
+                            animation: widget.spinCtrl,
+                            builder: (context, _) {
+                              final spin = widget.spinCtrl.value * pi * 2;
+                              final pulse = isCenter
+                                  ? 1.0 + 0.04 * sin(spin * 1.1)
+                                  : 1.0;
+                              final drawSize = size * pulse;
+                              return SizedBox(
                                 width: drawSize,
                                 height: drawSize,
                                 child: CustomPaint(
@@ -524,27 +524,23 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
                                     explicitRadius: drawSize * 0.38,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                planetName(
-                                  planets[index].element,
-                                ).toUpperCase(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: isCenter
-                                      ? Colors.white
-                                      : Colors.white38,
-                                  fontSize: isCenter ? 11.0 : 8.5,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ],
-                          );
-                        },
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            planetName(planets[index].element).toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: isCenter ? Colors.white : Colors.white38,
+                              fontSize: isCenter ? 11.0 : 8.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -1111,11 +1107,13 @@ class _PlanetPreviewPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _PlanetPreviewPainter old) =>
-      old.planet.element != planet.element ||
-      old.spin != spin ||
-      old.highlighted != highlighted ||
-      old.explicitRadius != explicitRadius;
+  bool shouldRepaint(covariant _PlanetPreviewPainter old) {
+    if (old.planet.element != planet.element) return true;
+    if (old.highlighted != highlighted) return true;
+    if (old.explicitRadius != explicitRadius) return true;
+    if (!highlighted && !old.highlighted) return false;
+    return old.spin != spin;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1161,6 +1161,11 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
+  void _playCosmicSfx(SoundCue cue) {
+    if (!mounted) return;
+    unawaited(context.read<AudioController>().playSound(cue));
+  }
+
   /// Display a brief pickup message for an item loot drop.
   void _showItemPickupMessage(String itemKey) {
     final name = switch (itemKey) {
@@ -1230,6 +1235,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     final scannerCompleted = _game?.consumeCompletedScannerDustIndex();
     if (mounted) {
       HapticFeedback.lightImpact();
+      _playCosmicSfx(SoundCue.cosmicOrbPickup);
       final totalDust = _game?.starDusts.length ?? 50;
       const perDustSpeedBonusPct = 2;
       final totalSpeedBonusPct = ((_collectedDust.length / totalDust) * 100)
@@ -1294,6 +1300,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Navigate to RiftPortalScreen with empty party (harvester-only capture)
     if (!mounted) return;
+    _playCosmicSfx(SoundCue.cosmicPortalOpen);
     unawaited(context.read<AudioController>().playPortalMusic());
     final success = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -1389,6 +1396,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Enter the pocket dimension
     _game!.enterNexusPocket();
+    _playCosmicSfx(SoundCue.cosmicPortalOpen);
     _saveNexusState();
 
     // Award harvester
@@ -1421,6 +1429,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   void _openNexusEncounter(String element) async {
     final nexus = _game!.elementalNexus;
+    _playCosmicSfx(SoundCue.cosmicPortalOpen);
     unawaited(context.read<AudioController>().playPortalMusic());
     final result = await Navigator.of(context).push<NexusResult>(
       MaterialPageRoute(
@@ -3139,6 +3148,9 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   void _onPOIDiscovered(SpacePOI poi) {
+    if (poi.type == POIType.warpAnomaly) {
+      _playCosmicSfx(SoundCue.cosmicAnomalyBurst);
+    }
     _saveFogState();
     if (mounted && _showPinnedMiniMap) {
       setState(() {});
@@ -3315,6 +3327,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _game!.onMeterChanged();
     _saveHomePlanet();
 
+    _playCosmicSfx(SoundCue.cosmicOrbDeposit);
     _showQuote('Deposited $elemSummary at home!');
     HapticFeedback.mediumImpact();
   }
@@ -4606,6 +4619,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         _handleElementsCaptured();
         return;
       }
+      _playCosmicSfx(SoundCue.cosmicStarforgeActivate);
 
       if (pathwayUnlocked) {
         await _applyRecipeSuccessProgress(targetElement, recipeLevel);

@@ -33,6 +33,13 @@ class PushNotificationService {
   static const int harvestReadyBaseId =
       3000; // 3000-3099 for individual harvests
   static const int harvestConsolidatedId = 3100; // Single ID for consolidated
+  static const List<String> _wildernessBiomeOrder = [
+    'valley',
+    'sky',
+    'volcano',
+    'swamp',
+    'arcane',
+  ];
 
   // Tracking for egg hatch time windows (to suppress multi-spam)
   // Key: normalized hatch time (to minute, ISO string)
@@ -264,7 +271,10 @@ class PushNotificationService {
   }
 
   // Immediate consolidated "X eggs ready now" (e.g., called when app does a check)
-  Future<void> showEggReadyNotification({required int count}) async {
+  Future<void> showEggReadyNotification({
+    required int count,
+    bool silentUpdate = false,
+  }) async {
     if (!_initialized) await initialize();
     if (!await _prefs.isCultivationsEnabled()) return;
 
@@ -281,12 +291,13 @@ class PushNotificationService {
             'Notifications when specimens are ready for extraction',
         importance: Importance.high,
         priority: Priority.high,
+        silentUpdate: silentUpdate,
       ),
       payload: 'eggs_ready:$count',
     );
 
     debugPrint(
-      '🔔 Showed egg ready notification (count: $count, ID: $eggReadyConsolidatedId)',
+      '🔔 Showed egg ready notification (count: $count, ID: $eggReadyConsolidatedId, silent: $silentUpdate)',
     );
   }
 
@@ -357,7 +368,7 @@ class PushNotificationService {
     // Use a stable ID based on biome key, with a deterministic fallback.
     final biomeIndex = _notificationSlotForKey(
       key: biomeId,
-      knownOrder: biomeNames.keys.toList(),
+      knownOrder: _wildernessBiomeOrder,
     );
 
     await _notifications.zonedSchedule(
@@ -382,9 +393,26 @@ class PushNotificationService {
     );
   }
 
+  Future<void> cancelWildernessSpawnNotification({
+    required String biomeId,
+  }) async {
+    if (!_initialized) await initialize();
+
+    final biomeIndex = _notificationSlotForKey(
+      key: biomeId,
+      knownOrder: _wildernessBiomeOrder,
+    );
+    await _notifications.cancel(wildernessSpawnBaseId + biomeIndex);
+    debugPrint(
+      '🔕 Cancelled wilderness spawn notification for $biomeId '
+      '(ID: ${wildernessSpawnBaseId + biomeIndex})',
+    );
+  }
+
   Future<void> showWildernessSpawnNotification({
     required int spawnCount,
     required int locationCount,
+    bool silentUpdate = false,
   }) async {
     if (!_initialized) await initialize();
     if (!await _prefs.isWildernessEnabled()) return;
@@ -399,12 +427,13 @@ class PushNotificationService {
         channelDescription: 'Notifications when wild creatures spawn',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
+        silentUpdate: silentUpdate,
       ),
       payload: 'wilderness_active:$spawnCount',
     );
 
     debugPrint(
-      '🔔 Showed wilderness spawn notification (count: $spawnCount, ID: $wildernessConsolidatedId)',
+      '🔔 Showed wilderness spawn notification (count: $spawnCount, ID: $wildernessConsolidatedId, silent: $silentUpdate)',
     );
   }
 
@@ -471,7 +500,10 @@ class PushNotificationService {
     );
   }
 
-  Future<void> showHarvestReadyNotification({required int count}) async {
+  Future<void> showHarvestReadyNotification({
+    required int count,
+    bool silentUpdate = false,
+  }) async {
     if (!_initialized) await initialize();
     if (!await _prefs.isExtractionsEnabled()) return;
 
@@ -487,13 +519,20 @@ class PushNotificationService {
         channelDescription: 'Notifications when harvests are complete',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
+        silentUpdate: silentUpdate,
       ),
       payload: 'harvests_ready:$count',
     );
 
     debugPrint(
-      '🔔 Showed harvest ready notification (count: $count, ID: $harvestConsolidatedId)',
+      '🔔 Showed harvest ready notification (count: $count, ID: $harvestConsolidatedId, silent: $silentUpdate)',
     );
+  }
+
+  Future<void> cancelHarvestSummaryNotification() async {
+    if (!_initialized) await initialize();
+    await _notifications.cancel(harvestConsolidatedId);
+    debugPrint('🔕 Cancelled harvest summary notification');
   }
 
   Future<void> cancelHarvestNotification({String? biomeId}) async {
@@ -528,6 +567,7 @@ class PushNotificationService {
     required String channelDescription,
     required Importance importance,
     required Priority priority,
+    bool silentUpdate = false,
   }) {
     return NotificationDetails(
       android: AndroidNotificationDetails(
@@ -536,20 +576,23 @@ class PushNotificationService {
         channelDescription: channelDescription,
         importance: importance,
         priority: priority,
-        enableVibration: true,
+        playSound: !silentUpdate,
+        enableVibration: !silentUpdate,
+        onlyAlertOnce: silentUpdate,
+        silent: silentUpdate,
         enableLights: true,
         color: const Color(0xFF6A1B9A),
         icon: '@mipmap/ic_launcher',
       ),
-      iOS: const DarwinNotificationDetails(
+      iOS: DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
-        presentSound: true,
+        presentSound: !silentUpdate,
       ),
-      macOS: const DarwinNotificationDetails(
+      macOS: DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
-        presentSound: true,
+        presentSound: !silentUpdate,
       ),
     );
   }

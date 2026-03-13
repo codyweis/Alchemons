@@ -1,0 +1,7 @@
+Add one file for each cue below (any of: .wav, .mp3, .flac, .m4a, .ogg):
+
+- sfx_cosmic_portal_open
+- sfx_cosmic_orb_pickup
+- sfx_cosmic_orb_deposit
+- sfx_cosmic_anomaly_burst
+- sfx_cosmic_starforge_activate

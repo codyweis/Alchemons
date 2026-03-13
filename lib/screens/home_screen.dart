@@ -296,6 +296,7 @@ class _HomeScreenState extends State<HomeScreen>
   String? _lastWildernessStateKey;
   final Map<int, int> _lastScheduledEggHatchMsBySlot = {};
   Set<int> _lastReadyEggSlotIds = <int>{};
+  Set<int> _lastReadyHarvestBiomeIds = <int>{};
 
   bool _isFieldTutorialActive = false;
   bool _tutorialCheckInProgress =
@@ -738,8 +739,8 @@ class _HomeScreenState extends State<HomeScreen>
     return [..._coreWildernessBiomes, if (arcaneUnlocked) 'arcane'];
   }
 
-  // Eggs: keep per-egg schedules current and emit summary push only when
-  // new slots become ready.
+  // Eggs: keep per-egg schedules current and silently update the consolidated
+  // summary notification while ready eggs remain unresolved.
   Future<void> _checkEggNotifications(List<IncubatorSlot> slots) async {
     if (!mounted) return;
     final enabled = await NotificationPreferencesService()
@@ -759,6 +760,8 @@ class _HomeScreenState extends State<HomeScreen>
     final List<Future> scheduleTasks = [];
     final List<int> slotsToCancel = [];
     final List<int> readySlotIds = [];
+    final List<({int slotId, DateTime hatchUtc, int hatchMs, String eggId})>
+    futureHatches = [];
     final Set<int> activeSlotIds = <int>{};
 
     for (final slot in slots) {
@@ -776,25 +779,46 @@ class _HomeScreenState extends State<HomeScreen>
           slotsToCancel.add(slot.id);
           _lastScheduledEggHatchMsBySlot.remove(slot.id);
         } else {
-          // Schedule only when this slot's hatch timestamp actually changed.
-          final lastScheduledMs = _lastScheduledEggHatchMsBySlot[slot.id];
-          final hatchMs = slot.hatchAtUtcMs!;
-          if (lastScheduledMs != hatchMs) {
-            scheduleTasks.add(
-              _pushNotifications.scheduleEggHatchingNotification(
-                hatchTime: hatchUtc.toLocal(),
-                eggId: slot.eggId!,
-                slotIndex: slot.id,
-              ),
-            );
-            _lastScheduledEggHatchMsBySlot[slot.id] = hatchMs;
-          }
+          futureHatches.add((
+            slotId: slot.id,
+            hatchUtc: hatchUtc,
+            hatchMs: slot.hatchAtUtcMs!,
+            eggId: slot.eggId!,
+          ));
         }
       } else {
         // Slot is empty/invalid -> ensure any stale scheduled notification is cleared.
         slotsToCancel.add(slot.id);
         _lastScheduledEggHatchMsBySlot.remove(slot.id);
       }
+    }
+
+    // Keep only one upcoming scheduled push: the earliest hatch.
+    // This avoids "4 cultivations finishing back-to-back = 4 pushes" spam.
+    futureHatches.sort((a, b) => a.hatchMs.compareTo(b.hatchMs));
+    final earliestFuture = futureHatches.isNotEmpty
+        ? futureHatches.first
+        : null;
+
+    if (earliestFuture != null) {
+      final lastScheduledMs =
+          _lastScheduledEggHatchMsBySlot[earliestFuture.slotId];
+      if (lastScheduledMs != earliestFuture.hatchMs) {
+        scheduleTasks.add(
+          _pushNotifications.scheduleEggHatchingNotification(
+            hatchTime: earliestFuture.hatchUtc.toLocal(),
+            eggId: earliestFuture.eggId,
+            slotIndex: earliestFuture.slotId,
+          ),
+        );
+      }
+      _lastScheduledEggHatchMsBySlot[earliestFuture.slotId] =
+          earliestFuture.hatchMs;
+    }
+
+    for (final future in futureHatches.skip(1)) {
+      slotsToCancel.add(future.slotId);
+      _lastScheduledEggHatchMsBySlot.remove(future.slotId);
     }
 
     // If slot list changed, clean up removed slot IDs too.
@@ -818,12 +842,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (readyEggs > 0) {
       readySlotIds.sort();
       final readySlotIdSet = readySlotIds.toSet();
-      final hasNewReadyEggs = readySlotIdSet.any(
-        (slotId) => !_lastReadyEggSlotIds.contains(slotId),
-      );
-      final hasRemovedReadyEggs = _lastReadyEggSlotIds.any(
-        (slotId) => !readySlotIdSet.contains(slotId),
-      );
+      final hadAnyReadyEggs = _lastReadyEggSlotIds.isNotEmpty;
       final stateKey = 'slots:${readySlotIds.join(",")}';
 
       // De-dupe: if same stateKey as last emission, do nothing.
@@ -833,14 +852,16 @@ class _HomeScreenState extends State<HomeScreen>
       }
       _lastEggStateKey = stateKey;
 
-      // Only send a local push when NEW eggs become ready.
-      // Avoid re-alerting while the user extracts from an already-ready set.
-      if (hasNewReadyEggs) {
+      // Transition behavior:
+      // - none -> some: alert
+      // - some -> changed some: silently update existing notification
+      if (!hadAnyReadyEggs) {
         await _pushNotifications.showEggReadyNotification(count: readyEggs);
-      } else if (hasRemovedReadyEggs) {
-        // Ready count decreased (e.g., extraction). Clear stale summary instead
-        // of re-alerting with a new count.
-        await _pushNotifications.cancelEggReadySummaryNotification();
+      } else {
+        await _pushNotifications.showEggReadyNotification(
+          count: readyEggs,
+          silentUpdate: true,
+        );
       }
 
       _showNotification(
@@ -870,6 +891,7 @@ class _HomeScreenState extends State<HomeScreen>
         .isExtractionsEnabled();
     if (!enabled) {
       _lastHarvestStateKey = null;
+      _lastReadyHarvestBiomeIds.clear();
       await _pushNotifications.cancelHarvestNotification();
       _clearNotification(NotificationBannerType.harvestReady);
       return;
@@ -911,10 +933,20 @@ class _HomeScreenState extends State<HomeScreen>
 
     if (readyHarvests > 0) {
       readyBiomeIds.sort();
+      final readyBiomeIdSet = readyBiomeIds.toSet();
+      final hadAnyReadyHarvests = _lastReadyHarvestBiomeIds.isNotEmpty;
       final stateKey = 'biomes:${readyBiomeIds.join(",")}';
 
-      if (_lastHarvestStateKey == stateKey) return;
+      if (_lastHarvestStateKey == stateKey) {
+        _lastReadyHarvestBiomeIds = readyBiomeIdSet;
+        return;
+      }
       _lastHarvestStateKey = stateKey;
+
+      await _pushNotifications.showHarvestReadyNotification(
+        count: readyHarvests,
+        silentUpdate: hadAnyReadyHarvests,
+      );
 
       _showNotification(
         NotificationBanner(
@@ -931,8 +963,11 @@ class _HomeScreenState extends State<HomeScreen>
           },
         ),
       );
+      _lastReadyHarvestBiomeIds = readyBiomeIdSet;
     } else {
       _lastHarvestStateKey = null;
+      _lastReadyHarvestBiomeIds.clear();
+      await _pushNotifications.cancelHarvestSummaryNotification();
       _clearNotification(NotificationBannerType.harvestReady);
     }
   }
@@ -942,8 +977,12 @@ class _HomeScreenState extends State<HomeScreen>
     final db = context.read<AlchemonsDatabase>();
     final slots = await db.incubatorDao.watchSlots().first;
     final now = DateTime.now().toUtc();
+    final List<({int slotId, DateTime hatchUtc, String eggId})> futureHatches =
+        [];
 
     for (final s in slots) {
+      // Reset each slot's scheduled push so startup never duplicates stale jobs.
+      await _pushNotifications.cancelEggNotification(slotIndex: s.id);
       if (!(s.unlocked && s.eggId != null && s.hatchAtUtcMs != null)) continue;
 
       final hatchUtc = DateTime.fromMillisecondsSinceEpoch(
@@ -951,16 +990,19 @@ class _HomeScreenState extends State<HomeScreen>
         isUtc: true,
       );
 
-      // Avoid duplicates: cancel then reschedule if still in the future
-      await _pushNotifications.cancelEggNotification(slotIndex: s.id);
       if (hatchUtc.isAfter(now)) {
-        await _pushNotifications.scheduleEggHatchingNotification(
-          hatchTime: hatchUtc.toLocal(),
-          eggId: s.eggId!,
-          slotIndex: s.id,
-        );
+        futureHatches.add((slotId: s.id, hatchUtc: hatchUtc, eggId: s.eggId!));
       }
     }
+
+    if (futureHatches.isEmpty) return;
+    futureHatches.sort((a, b) => a.hatchUtc.compareTo(b.hatchUtc));
+    final earliest = futureHatches.first;
+    await _pushNotifications.scheduleEggHatchingNotification(
+      hatchTime: earliest.hatchUtc.toLocal(),
+      eggId: earliest.eggId,
+      slotIndex: earliest.slotId,
+    );
   }
 
   void _showNotification(NotificationBanner banner) {
