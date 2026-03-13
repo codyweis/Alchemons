@@ -1948,6 +1948,9 @@ class _GarrisonCreature {
     required this.member,
     required this.position,
     required this.wanderAngle,
+    required this.guardAngle,
+    required this.guardRadius,
+    required this.guardPhase,
     required this.speciesScale,
     required this.attackDamage,
     required this.specialDamage,
@@ -1959,6 +1962,9 @@ class _GarrisonCreature {
   final CosmicPartyMember member;
   Offset position;
   double wanderAngle;
+  final double guardAngle;
+  final double guardRadius;
+  final double guardPhase;
   double faceAngle = 0;
   final double speciesScale;
 

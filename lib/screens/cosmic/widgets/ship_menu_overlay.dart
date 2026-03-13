@@ -30,7 +30,6 @@ class ShipMenuOverlay extends StatefulWidget {
     this.hasMissileStation = false,
     this.hasSentinelStation = false,
     required this.onClose,
-    required this.onGoHome,
     required this.onBuildHome,
     required this.onRelocateHome,
     required this.onJettisonCargo,
@@ -69,7 +68,6 @@ class ShipMenuOverlay extends StatefulWidget {
   final bool hasSentinelStation;
   final bool hasParty;
   final VoidCallback onClose;
-  final VoidCallback onGoHome;
   final VoidCallback onBuildHome;
   final VoidCallback onRelocateHome;
   final VoidCallback onJettisonCargo;
@@ -795,25 +793,26 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
       ),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: widget.hasHomePlanet ? widget.onGoHome : widget.onBuildHome,
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: const Color(0xFF141820),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: CosmicScreenStyles.borderDim),
+          if (!widget.hasHomePlanet)
+            GestureDetector(
+              onTap: widget.onBuildHome,
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141820),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: CosmicScreenStyles.borderDim),
+                ),
+                child: const Icon(
+                  Icons.add_location_alt_rounded,
+                  color: CosmicScreenStyles.textSecondary,
+                  size: 18,
+                ),
               ),
-              child: Icon(
-                widget.hasHomePlanet
-                    ? Icons.home_rounded
-                    : Icons.add_location_alt_rounded,
-                color: CosmicScreenStyles.textSecondary,
-                size: 18,
-              ),
-            ),
-          ),
+            )
+          else
+            const SizedBox(width: 34, height: 34),
           const SizedBox(width: 10),
           const Expanded(
             child: Text(

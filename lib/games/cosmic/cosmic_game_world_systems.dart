@@ -40,16 +40,17 @@ extension CosmicGameWorldSystems on CosmicGame {
     final rng = Random();
 
     // Roll behavior type:
-    //  30% aggressive, 25% drifting, 15% territorial, 15% stalking, 15% (solo feeding)
+    // Bias ambient roaming toward passive contacts so space feels alive
+    // without turning every encounter into pressure.
     final roll = rng.nextDouble();
     EnemyBehavior behavior;
-    if (roll < 0.30) {
+    if (roll < 0.18) {
       behavior = EnemyBehavior.aggressive;
-    } else if (roll < 0.55) {
+    } else if (roll < 0.62) {
       behavior = EnemyBehavior.drifting;
-    } else if (roll < 0.70) {
+    } else if (roll < 0.74) {
       behavior = EnemyBehavior.territorial;
-    } else if (roll < 0.85) {
+    } else if (roll < 0.84) {
       behavior = EnemyBehavior.stalking;
     } else {
       behavior = EnemyBehavior.feeding;
@@ -74,13 +75,13 @@ extension CosmicGameWorldSystems on CosmicGame {
         break;
       case EnemyBehavior.drifting:
         final roll = rng.nextDouble();
-        tier = roll < 0.50
+        tier = roll < 0.56
             ? EnemyTier.wisp
-            : roll < 0.70
-            ? EnemyTier.phantom
             : roll < 0.90
-            ? EnemyTier.sentinel
-            : EnemyTier.drone;
+            ? EnemyTier.drone
+            : roll < 0.98
+            ? EnemyTier.phantom
+            : EnemyTier.sentinel;
         break;
       case EnemyBehavior.territorial:
         final roll = rng.nextDouble();
@@ -102,13 +103,13 @@ extension CosmicGameWorldSystems on CosmicGame {
         break;
       case EnemyBehavior.feeding:
         final roll = rng.nextDouble();
-        tier = roll < 0.40
+        tier = roll < 0.55
             ? EnemyTier.wisp
-            : roll < 0.65
-            ? EnemyTier.sentinel
             : roll < 0.85
-            ? EnemyTier.phantom
-            : EnemyTier.colossus;
+            ? EnemyTier.drone
+            : roll < 0.97
+            ? EnemyTier.sentinel
+            : EnemyTier.phantom;
         break;
       case EnemyBehavior.swarming:
         // Swarms: mostly drones & wisps
@@ -191,14 +192,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           EnemyTier.brute => 20 + rng.nextDouble() * 8,
           EnemyTier.colossus => 30 + rng.nextDouble() * 12,
         },
-        health: switch (tier) {
-          EnemyTier.drone => 0.5,
-          EnemyTier.wisp => 1.0,
-          EnemyTier.sentinel => 3.0,
-          EnemyTier.phantom => 4.0,
-          EnemyTier.brute => 8.0,
-          EnemyTier.colossus => 15.0,
-        },
+        health: CosmicBalance.enemyBaseHealth(tier),
         speed: switch (tier) {
           EnemyTier.drone => 90 + rng.nextDouble() * 50,
           EnemyTier.wisp => 60 + rng.nextDouble() * 40,
@@ -241,7 +235,7 @@ extension CosmicGameWorldSystems on CosmicGame {
         element: element,
         tier: EnemyTier.sentinel,
         radius: 18 + rng.nextDouble() * 6,
-        health: 5.0,
+        health: CosmicBalance.enemyBaseHealth(EnemyTier.sentinel) * 1.2,
         speed: 30 + rng.nextDouble() * 20,
         angle: rng.nextDouble() * pi * 2,
         driftTimer: rng.nextDouble() * 4,
@@ -252,8 +246,8 @@ extension CosmicGameWorldSystems on CosmicGame {
       ),
     );
 
-    // 3-5 wisp minions
-    final minionCount = 3 + rng.nextInt(3);
+    // 5-8 wisp minions so roaming space has more prey-sized targets.
+    final minionCount = 5 + rng.nextInt(4);
     for (var m = 0; m < minionCount; m++) {
       final mAngle = rng.nextDouble() * pi * 2;
       final mDist = 40 + rng.nextDouble() * 80;
@@ -266,7 +260,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           element: element,
           tier: EnemyTier.wisp,
           radius: 6 + rng.nextDouble() * 4,
-          health: 1.0,
+          health: CosmicBalance.enemyBaseHealth(EnemyTier.wisp),
           speed: 40 + rng.nextDouble() * 30,
           angle: rng.nextDouble() * pi * 2,
           driftTimer: rng.nextDouble() * 4,
@@ -279,7 +273,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     }
   }
 
-  /// Spawn a swarm cluster of 15-25 swarming wisps at a position.
+  /// Spawn a swarm cluster of 20-32 swarming small flyers at a position.
   /// If [center] is not given, picks a random spot in deep space.
   /// Respects the enemy cap — skips if already at max.
   void _spawnSwarmCluster({Offset? center, Random? rng}) {
@@ -289,9 +283,9 @@ extension CosmicGameWorldSystems on CosmicGame {
     const elements = ['Fire', 'Water', 'Earth', 'Air', 'Light', 'Dark'];
     final element = elements[rng.nextInt(elements.length)];
     final count = min(
-      15 + rng.nextInt(11),
+      20 + rng.nextInt(13),
       CosmicGame._maxEnemies - enemies.length,
-    ); // 15-25, capped
+    ); // 20-32, capped
 
     // Pick center if not provided — random position in world, away from edges
     final cx =
@@ -318,7 +312,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           radius: swarmTier == EnemyTier.drone
               ? 4 + rng.nextDouble() * 3
               : 5 + rng.nextDouble() * 4,
-          health: swarmTier == EnemyTier.drone ? 0.5 : 1.0,
+          health: CosmicBalance.enemyBaseHealth(swarmTier),
           speed: swarmTier == EnemyTier.drone
               ? 55 + rng.nextDouble() * 40
               : 35 + rng.nextDouble() * 35,
@@ -406,7 +400,8 @@ extension CosmicGameWorldSystems on CosmicGame {
           element: whirl.element,
           tier: EnemyTier.brute,
           radius: 28 + rng.nextDouble() * 6,
-          health: 16.0 * hpScale, // double-HP brute mini-boss
+          health:
+              CosmicBalance.enemyBaseHealth(EnemyTier.brute) * 1.6 * hpScale,
           speed: (30 + rng.nextDouble() * 10) * spdScale,
           angle: rng.nextDouble() * pi * 2,
           driftTimer: rng.nextDouble() * 2,
@@ -481,7 +476,8 @@ extension CosmicGameWorldSystems on CosmicGame {
           element: whirl.element,
           tier: EnemyTier.colossus,
           radius: 38 + rng.nextDouble() * 8,
-          health: 30.0 * hpScale, // massive colossus mega-boss
+          health:
+              CosmicBalance.enemyBaseHealth(EnemyTier.colossus) * 1.8 * hpScale,
           speed: (20 + rng.nextDouble() * 10) * spdScale,
           angle: rng.nextDouble() * pi * 2,
           driftTimer: rng.nextDouble() * 2,
@@ -563,14 +559,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           EnemyTier.brute => 20 + rng.nextDouble() * 8,
           EnemyTier.colossus => 30 + rng.nextDouble() * 12,
         },
-        health: switch (tier) {
-          EnemyTier.drone => 0.5 * hpScale,
-          EnemyTier.wisp => 1.0 * hpScale,
-          EnemyTier.sentinel => 3.0 * hpScale,
-          EnemyTier.phantom => 4.0 * hpScale,
-          EnemyTier.brute => 8.0 * hpScale,
-          EnemyTier.colossus => 15.0 * hpScale,
-        },
+        health: CosmicBalance.enemyBaseHealth(tier) * hpScale,
         speed: switch (tier) {
           EnemyTier.drone => (100 + rng.nextDouble() * 60) * spdScale,
           EnemyTier.wisp => (70 + rng.nextDouble() * 50) * spdScale,
@@ -802,11 +791,16 @@ extension CosmicGameWorldSystems on CosmicGame {
                   ? (1.0 + nearestDecoy.tauntStrength * 0.08).clamp(1.0, 1.6)
                   : 1.0)
               .toDouble();
+      final snareMoveMult = nearestDecoy.snareRadius > 0
+          ? nearestDecoy.snareMoveMultiplier.clamp(0.2, 1.0).toDouble()
+          : 1.0;
       // Skip normal AI — enemy is locked onto decoy
       e.position = _wrap(
         Offset(
-          e.position.dx + cos(e.angle) * e.speed * tauntSpeedMult * dt,
-          e.position.dy + sin(e.angle) * e.speed * tauntSpeedMult * dt,
+          e.position.dx +
+              cos(e.angle) * e.speed * tauntSpeedMult * snareMoveMult * dt,
+          e.position.dy +
+              sin(e.angle) * e.speed * tauntSpeedMult * snareMoveMult * dt,
         ),
       );
       return;
@@ -821,6 +815,27 @@ extension CosmicGameWorldSystems on CosmicGame {
     if (dy < -wh / 2) dy += wh;
     final distToShip = sqrt(dx * dx + dy * dy);
     final toShip = atan2(dy, dx);
+    var moveSpeedMult = 1.0;
+
+    for (final cp in companionProjectiles) {
+      if (cp.snareRadius <= 0) continue;
+      final center = cp.transferOrbitCenter ?? cp.orbitCenter ?? cp.position;
+      final sdx = center.dx - e.position.dx;
+      final sdy = center.dy - e.position.dy;
+      final snareDist2 = sdx * sdx + sdy * sdy;
+      if (snareDist2 > cp.snareRadius * cp.snareRadius) continue;
+
+      moveSpeedMult = min(moveSpeedMult, cp.snareMoveMultiplier);
+      final toSnare = atan2(sdy, sdx);
+      var snareDiff = toSnare - e.angle;
+      while (snareDiff > pi) {
+        snareDiff -= pi * 2;
+      }
+      while (snareDiff < -pi) {
+        snareDiff += pi * 2;
+      }
+      e.angle += snareDiff * 1.8 * dt;
+    }
 
     switch (e.behavior) {
       case EnemyBehavior.aggressive:
@@ -843,8 +858,19 @@ extension CosmicGameWorldSystems on CosmicGame {
         break;
 
       case EnemyBehavior.drifting:
-        // Wander aimlessly — gentle curves
-        if (e.driftTimer <= 0) {
+        // Small drifters act like ambient flyers: they scatter if approached.
+        if (!e.provoked &&
+            (e.tier == EnemyTier.wisp || e.tier == EnemyTier.drone) &&
+            distToShip < 240) {
+          var diff = (toShip + pi) - e.angle;
+          while (diff > pi) {
+            diff -= pi * 2;
+          }
+          while (diff < -pi) {
+            diff += pi * 2;
+          }
+          e.angle += diff * 3.5 * dt;
+        } else if (e.driftTimer <= 0) {
           e.angle += (Random().nextDouble() - 0.5) * 1.0;
           e.driftTimer = 2 + Random().nextDouble() * 4;
         }
@@ -878,8 +904,8 @@ extension CosmicGameWorldSystems on CosmicGame {
             e.angle += 0.3 * dt;
           }
 
-          // If player is very close, flee briefly (not aggro, just skittish)
-          if (distToShip < 150 && !e.provoked) {
+          // If player is close, flee briefly (not aggro, just skittish)
+          if (distToShip < 240 && !e.provoked) {
             e.angle = toShip + pi; // face away
           }
         }
@@ -964,8 +990,9 @@ extension CosmicGameWorldSystems on CosmicGame {
         }
         break;
       case EnemyBehavior.swarming:
-        // Swarm: cluster toward player and nearby swarmers
-        if (distToShip < 800) {
+        // Swarm: cluster toward player and nearby swarmers,
+        // but do not commit from too far away unless provoked.
+        if (e.provoked || distToShip < 520) {
           var diff = toShip - e.angle;
           while (diff > pi) {
             diff -= pi * 2;
@@ -1011,8 +1038,8 @@ extension CosmicGameWorldSystems on CosmicGame {
     // Move
     e.position = _wrap(
       Offset(
-        e.position.dx + cos(e.angle) * e.speed * dt,
-        e.position.dy + sin(e.angle) * e.speed * dt,
+        e.position.dx + cos(e.angle) * e.speed * moveSpeedMult * dt,
+        e.position.dy + sin(e.angle) * e.speed * moveSpeedMult * dt,
       ),
     );
 
@@ -1089,13 +1116,10 @@ extension CosmicGameWorldSystems on CosmicGame {
     lair.state = BossLairState.fighting;
 
     final lvl = lair.level;
-    // Level scaling: Lv1=1.0x  Lv5=2.8x  Lv10=5.05x
-    final levelScale = 1.0 + (lvl - 1) * 0.45;
-    final healthScale = levelScale * (1.0 + _bossesDefeated * 0.08);
-    // Speed scales mildly: Lv1=1.0x  Lv10=1.45x
-    final speedScale = 1.0 + (lvl - 1) * 0.05;
-    // Radius grows slightly with level
-    final radiusBonus = (lvl - 1) * 1.5;
+    final healthScale =
+        CosmicBalance.bossHealthScale(lvl) * (1.0 + _bossesDefeated * 0.05);
+    final speedScale = CosmicBalance.bossSpeedScale(lvl);
+    final radiusBonus = CosmicBalance.bossRadiusBonus(lvl);
 
     activeBoss = CosmicBoss(
       position: lair.position,
@@ -1168,11 +1192,10 @@ extension CosmicGameWorldSystems on CosmicGame {
     final sy = matchingPlanet.position.dy + sin(angle) * orbitDist;
     final pos = _wrap(Offset(sx, sy));
 
-    // Level scaling
-    final levelScale = 1.0 + (lvl - 1) * 0.45;
-    final healthScale = levelScale * (1.0 + _bossesDefeated * 0.08);
-    final speedScale = 1.0 + (lvl - 1) * 0.05;
-    final radiusBonus = (lvl - 1) * 1.5;
+    final healthScale =
+        CosmicBalance.bossHealthScale(lvl) * (1.0 + _bossesDefeated * 0.05);
+    final speedScale = CosmicBalance.bossSpeedScale(lvl);
+    final radiusBonus = CosmicBalance.bossRadiusBonus(lvl);
 
     activeBoss = CosmicBoss(
       position: pos,
@@ -1205,9 +1228,9 @@ extension CosmicGameWorldSystems on CosmicGame {
         ? matching.elementAt(rng.nextInt(matching.length))
         : kBossTemplates[rng.nextInt(kBossTemplates.length)];
 
-    // Level = number of discovered planets (clamped 1-20)
+    // Level = number of discovered planets, capped to the combat level range.
     final discovered = world_.planets.where((p) => p.discovered).length;
-    final lvl = discovered.clamp(1, 20);
+    final lvl = discovered.clamp(1, CosmicBalance.maxCombatLevel);
 
     // Spawn near the discovered planet
     final angle = rng.nextDouble() * pi * 2;
@@ -1216,11 +1239,10 @@ extension CosmicGameWorldSystems on CosmicGame {
     final sy = planet.position.dy + sin(angle) * orbitDist;
     final pos = _wrap(Offset(sx, sy));
 
-    // Scaling
-    final levelScale = 1.0 + (lvl - 1) * 0.45;
-    final healthScale = levelScale * (1.0 + _bossesDefeated * 0.08);
-    final speedScale = 1.0 + (lvl - 1) * 0.05;
-    final radiusBonus = (lvl - 1) * 1.5;
+    final healthScale =
+        CosmicBalance.bossHealthScale(lvl) * (1.0 + _bossesDefeated * 0.05);
+    final speedScale = CosmicBalance.bossSpeedScale(lvl);
+    final radiusBonus = CosmicBalance.bossRadiusBonus(lvl);
 
     activeBoss = CosmicBoss(
       position: pos,
@@ -1382,7 +1404,10 @@ extension CosmicGameWorldSystems on CosmicGame {
             position: boss.position,
             angle: toShip + spread,
             element: boss.element,
-            damage: 1.0,
+            damage: CosmicBalance.bossProjectileDamage(
+              level: boss.level,
+              type: boss.type,
+            ),
             speed: 220 + boss.level * 8.0,
           ),
         );
@@ -1399,7 +1424,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     } else {
       if (boss.shieldTimer <= 0) {
         boss.shieldUp = true;
-        boss.shieldHealth = CosmicBoss.shieldMaxHealth;
+        boss.shieldHealth = CosmicBalance.bossShieldHealth(boss.level);
         boss.shieldTimer = CosmicBoss.shieldDuration;
       }
     }
@@ -1467,7 +1492,11 @@ extension CosmicGameWorldSystems on CosmicGame {
             position: boss.position,
             angle: fanAngle,
             element: boss.element,
-            damage: boss.enraged ? 1.5 : 1.0,
+            damage: CosmicBalance.bossProjectileDamage(
+              level: boss.level,
+              type: boss.type,
+              enraged: boss.enraged,
+            ),
             speed: 200 + boss.level * 10.0,
             radius: 5.0,
           ),
@@ -1508,7 +1537,7 @@ extension CosmicGameWorldSystems on CosmicGame {
           radius: tier == EnemyTier.wisp
               ? 8 + rng.nextDouble() * 4
               : 14 + rng.nextDouble() * 6,
-          health: tier == EnemyTier.wisp ? 2.0 : 5.0,
+          health: CosmicBalance.enemyBaseHealth(tier) * 1.5,
           speed: 60 + rng.nextDouble() * 40,
           angle: rng.nextDouble() * pi * 2,
           driftTimer: rng.nextDouble() * 2,
@@ -1531,6 +1560,15 @@ extension CosmicGameWorldSystems on CosmicGame {
       );
       bp.life -= dt;
       if (bp.life <= 0) {
+        bossProjectiles.removeAt(i);
+        continue;
+      }
+
+      if (_consumeEscortInterceptionAt(
+        bp.position,
+        bp.radius,
+        sparkColor: elementColor(bp.element),
+      )) {
         bossProjectiles.removeAt(i);
         continue;
       }
@@ -2390,7 +2428,7 @@ extension CosmicGameWorldSystems on CosmicGame {
   void _damageShip(double damage) {
     if (_shipDead || _shipInvincible > 0) return;
     shipHealth -= damage;
-    _shipInvincible = 0.5; // brief invincibility after hit
+    _shipInvincible = 0.65; // brief invincibility after hit
 
     // Hit flash particles around ship
     _spawnHitSpark(ship.pos, Colors.redAccent);
@@ -2409,6 +2447,193 @@ extension CosmicGameWorldSystems on CosmicGame {
       shipWallet.depositAll();
       onShipDied?.call();
     }
+  }
+
+  Offset? _nearestEscortTarget(Offset origin) {
+    Offset? bestTarget;
+    var bestDist2 = double.infinity;
+
+    for (final e in enemies) {
+      if (e.dead) continue;
+      final d2 = (e.position - origin).distanceSquared;
+      if (d2 < bestDist2) {
+        bestDist2 = d2;
+        bestTarget = e.position;
+      }
+    }
+
+    if (battleRing.inBattle) {
+      for (final rm in ringMinions) {
+        if (rm.dead) continue;
+        final d2 = (rm.position - origin).distanceSquared;
+        if (d2 < bestDist2) {
+          bestDist2 = d2;
+          bestTarget = rm.position;
+        }
+      }
+    }
+
+    if (activeBoss != null && !activeBoss!.dead) {
+      final d2 = (activeBoss!.position - origin).distanceSquared;
+      if (d2 < bestDist2) {
+        bestTarget = activeBoss!.position;
+      }
+    }
+
+    return bestTarget;
+  }
+
+  Projectile _createEscortTurretShot(Projectile orb, Offset targetPos) {
+    final angle = atan2(
+      targetPos.dy - orb.position.dy,
+      targetPos.dx - orb.position.dx,
+    );
+    switch (orb.element) {
+      case 'Crystal':
+        return Projectile(
+          position: orb.position,
+          angle: angle,
+          element: orb.element,
+          damage: orb.turretDamage,
+          life: 1.7,
+          speedMultiplier: orb.turretSpeedMultiplier,
+          radiusMultiplier: 1.35,
+          visualScale: 0.95,
+          piercing: true,
+          bounceCount: 1,
+        );
+      case 'Water':
+        return Projectile(
+          position: orb.position,
+          angle: angle,
+          element: orb.element,
+          damage: orb.turretDamage,
+          life: 1.9,
+          speedMultiplier: orb.turretSpeedMultiplier,
+          radiusMultiplier: 1.45,
+          visualScale: 1.05,
+          homing: orb.turretHomingStrength > 0,
+          homingStrength: orb.turretHomingStrength,
+        );
+      case 'Lightning':
+        return Projectile(
+          position: orb.position,
+          angle: angle,
+          element: orb.element,
+          damage: orb.turretDamage,
+          life: 1.15,
+          speedMultiplier: orb.turretSpeedMultiplier,
+          radiusMultiplier: 1.0,
+          visualScale: 0.82,
+          bounceCount: 2,
+        );
+      case 'Lava':
+      case 'Earth':
+        return Projectile(
+          position: orb.position,
+          angle: angle,
+          element: orb.element,
+          damage: orb.turretDamage,
+          life: 1.9,
+          speedMultiplier: orb.turretSpeedMultiplier,
+          radiusMultiplier: 1.5,
+          visualScale: 1.15,
+        );
+      case 'Spirit':
+      case 'Dark':
+      case 'Blood':
+        return Projectile(
+          position: orb.position,
+          angle: angle,
+          element: orb.element,
+          damage: orb.turretDamage,
+          life: 1.8,
+          speedMultiplier: orb.turretSpeedMultiplier,
+          radiusMultiplier: 1.2,
+          visualScale: 1.0,
+          piercing: true,
+          homing: orb.turretHomingStrength > 0,
+          homingStrength: orb.turretHomingStrength,
+        );
+      case 'Plant':
+      case 'Poison':
+      case 'Fire':
+        return Projectile(
+          position: orb.position,
+          angle: angle,
+          element: orb.element,
+          damage: orb.turretDamage,
+          life: 1.6,
+          speedMultiplier: orb.turretSpeedMultiplier,
+          radiusMultiplier: 1.2,
+          visualScale: 0.96,
+          homing: orb.turretHomingStrength > 0,
+          homingStrength: orb.turretHomingStrength,
+          trailInterval: orb.element == 'Fire' ? 0.12 : 0,
+          trailDamage: orb.element == 'Fire' ? orb.turretDamage * 0.2 : 0,
+          trailLife: orb.element == 'Fire' ? 0.45 : 0,
+        );
+      case 'Steam':
+      case 'Mud':
+      case 'Ice':
+        return Projectile(
+          position: orb.position,
+          angle: angle,
+          element: orb.element,
+          damage: orb.turretDamage,
+          life: 1.7,
+          speedMultiplier: orb.turretSpeedMultiplier,
+          radiusMultiplier: 1.35,
+          visualScale: 1.05,
+        );
+      case 'Dust':
+        return Projectile(
+          position: orb.position,
+          angle: angle,
+          element: orb.element,
+          damage: orb.turretDamage,
+          life: 0.95,
+          speedMultiplier: orb.turretSpeedMultiplier,
+          radiusMultiplier: 0.92,
+          visualScale: 0.74,
+        );
+      default:
+        return Projectile(
+          position: orb.position,
+          angle: angle,
+          element: orb.element,
+          damage: orb.turretDamage,
+          life: 1.5,
+          speedMultiplier: orb.turretSpeedMultiplier,
+          radiusMultiplier: 1.15,
+          visualScale: 0.9,
+          homing: orb.turretHomingStrength > 0,
+          homingStrength: orb.turretHomingStrength,
+        );
+    }
+  }
+
+  bool _consumeEscortInterceptionAt(
+    Offset hostilePosition,
+    double hostileRadius, {
+    Color sparkColor = const Color(0xFFFFF3C8),
+  }) {
+    for (var i = companionProjectiles.length - 1; i >= 0; i--) {
+      final orb = companionProjectiles[i];
+      if (orb.interceptCharges <= 0 || orb.interceptRadius <= 0) continue;
+      final hitR = hostileRadius + orb.interceptRadius;
+      final delta = orb.position - hostilePosition;
+      if (delta.distanceSquared > hitR * hitR) continue;
+
+      orb.interceptCharges--;
+      _spawnHitSpark(orb.position, sparkColor);
+      _spawnHitSpark(hostilePosition, sparkColor);
+      if (orb.interceptCharges <= 0) {
+        companionProjectiles.removeAt(i);
+      }
+      return true;
+    }
+    return false;
   }
 
   /// Percentage of world discovered (for display).

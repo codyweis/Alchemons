@@ -84,21 +84,6 @@ class GameModeScreen extends StatelessWidget {
                 Expanded(
                   child: Column(
                     children: [
-                      // Survival Card
-                      Expanded(
-                        child: _ModeCard(
-                          theme: theme,
-                          title: 'Survival',
-                          tagline: 'Endless Waves',
-                          description:
-                              'Defend your orb against endless hordes. Deploy strategically and unlock powerful upgrades as you progress.',
-                          accentColor: const Color(0xFF8B5CF6),
-                          onTap: () => _navigateToSurvival(context),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
                       // Boss Gauntlet Card
                       Expanded(
                         child: _ModeCard(
@@ -109,6 +94,21 @@ class GameModeScreen extends StatelessWidget {
                               'Challenge elemental bosses in turn-based combat. Conquer all seventeen to prove your mastery.',
                           accentColor: const Color(0xFFEF4444),
                           onTap: () => _navigateToBoss(context),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Survival Card
+                      Expanded(
+                        child: _ModeCard(
+                          theme: theme,
+                          title: 'Survival',
+                          tagline: 'Endless Waves',
+                          description:
+                              'Defend your orb against endless hordes. Deploy strategically and unlock powerful upgrades as you progress.',
+                          accentColor: const Color(0xFF8B5CF6),
+                          onTap: () => _navigateToSurvival(context),
                         ),
                       ),
                     ],

@@ -58,6 +58,7 @@ class CosmicGame extends FlameGame with PanDetector {
     this.onNearNexus,
     this.onNearBattleRing,
     this.onNearBloodRing,
+    this.onBattleRingCancelled,
     this.onNearContestArena,
     this.onContestHintCollected,
     Set<String>? initialCustomizations,
@@ -87,6 +88,7 @@ class CosmicGame extends FlameGame with PanDetector {
   final void Function(SpacePOI? poi)? onNearMarket;
   final VoidCallback? onCompanionAutoReturned;
   final void Function(CosmicPartyMember member)? onCompanionDied;
+  final VoidCallback? onBattleRingCancelled;
   final void Function(CosmicContestArena? arena)? onNearContestArena;
   final void Function(CosmicContestHintNote note)? onContestHintCollected;
 
@@ -271,7 +273,7 @@ class CosmicGame extends FlameGame with PanDetector {
   bool hasMissiles = false; // whether missile launcher is equipped
   String? activeShipSkin; // 'skin_phantom', 'skin_solar', or null (default)
 
-  // Power-up levels (0-5), each level adds 16% damage (80% at max)
+  // Power-up levels (0-5), each level adds 12% damage (60% at max)
   int ammoUpgradeLevel = 0;
   int missileUpgradeLevel = 0;
 
@@ -321,14 +323,14 @@ class CosmicGame extends FlameGame with PanDetector {
   double _enemySpawnTimer = 0;
   int _bossesDefeated = 0;
   int _nextPackId = 0; // unique pack ID counter
-  static const int _maxEnemies = 160;
-  static const double _enemySpawnInterval = 1.2; // seconds between checks
+  static const int _maxEnemies = 220;
+  static const double _enemySpawnInterval = 1.0; // seconds between checks
   static const double _meterPickupMultiplier = 3.0;
 
   // Swarm cluster spawn timer
   double _swarmSpawnTimer = 0;
   static const double _swarmSpawnInterval =
-      20.0; // seconds between swarm spawns
+      16.0; // seconds between swarm spawns
   bool _initialSwarmsSpawned = false;
 
   // Random boss spawn timer
@@ -383,11 +385,11 @@ class CosmicGame extends FlameGame with PanDetector {
 
   // Feeding-pack spawn: separate timer, spawns near asteroid belt
   double _feedingPackTimer = 0;
-  static const double _feedingPackInterval = 12.5;
+  static const double _feedingPackInterval = 10.0;
 
   // Ship health
-  double shipHealth = 5.0;
-  static const double shipMaxHealth = 5.0;
+  double shipHealth = CosmicBalance.shipMaxHealth;
+  static const double shipMaxHealth = CosmicBalance.shipMaxHealth;
   double _shipInvincible = 0; // invincibility timer after hit
   bool _shipDead = false;
   double _respawnTimer = 0;
@@ -567,6 +569,176 @@ class CosmicGame extends FlameGame with PanDetector {
     'kin': 2.0,
     'mystic': 2.4,
   };
+
+  static double _clampDouble(double value, double minValue, double maxValue) {
+    return value.clamp(minValue, maxValue).toDouble();
+  }
+
+  double _familyAttackRange(String family, double baseRange) {
+    switch (family.toLowerCase()) {
+      case 'horn':
+        return baseRange * 0.58;
+      case 'mane':
+        return baseRange * 0.85;
+      case 'mask':
+        return baseRange * 0.95;
+      case 'kin':
+        return baseRange * 0.90;
+      case 'wing':
+        return baseRange * 1.05;
+      default:
+        return baseRange;
+    }
+  }
+
+  double _familySpecialRange(String family, double baseRange) {
+    switch (family.toLowerCase()) {
+      case 'horn':
+        return baseRange * 0.82;
+      case 'mane':
+        return baseRange * 1.05;
+      case 'mask':
+        return baseRange * 1.20;
+      case 'let':
+        return baseRange * 1.25;
+      case 'pip':
+        return baseRange * 1.20;
+      case 'wing':
+        return baseRange * 1.35;
+      case 'kin':
+        return baseRange * 1.10;
+      case 'mystic':
+        return baseRange * 1.45;
+      default:
+        return baseRange * 1.25;
+    }
+  }
+
+  double _combatAcquireRange({
+    required String family,
+    required double attackRange,
+    required double specialRange,
+  }) {
+    final engageRange = max(attackRange, specialRange);
+    final floor = switch (family.toLowerCase()) {
+      'horn' => 460.0,
+      'mane' => 420.0,
+      'wing' || 'mystic' => 480.0,
+      _ => 400.0,
+    };
+    return max(engageRange + 150.0, floor);
+  }
+
+  double _preferredCombatDistance({
+    required String family,
+    required double attackRange,
+    required double specialRange,
+  }) {
+    switch (family.toLowerCase()) {
+      case 'horn':
+        return _clampDouble(attackRange * 0.72, 72.0, 120.0);
+      case 'mane':
+        return _clampDouble(attackRange * 0.82, 84.0, 140.0);
+      case 'mask':
+        return _clampDouble(specialRange * 0.80, 130.0, 210.0);
+      case 'kin':
+        return _clampDouble(specialRange * 0.72, 110.0, 180.0);
+      case 'wing':
+        return _clampDouble(specialRange * 0.85, 165.0, 280.0);
+      case 'let':
+        return _clampDouble(specialRange * 0.90, 170.0, 280.0);
+      case 'pip':
+        return _clampDouble(attackRange * 0.72, 115.0, 175.0);
+      case 'mystic':
+        return _clampDouble(specialRange * 0.90, 170.0, 300.0);
+      default:
+        return _clampDouble(
+          max(attackRange, specialRange) * 0.80,
+          120.0,
+          220.0,
+        );
+    }
+  }
+
+  double _combatChaseSpeed(String family, double speedStat) {
+    final base = 100.0 + (speedStat * 10.0);
+    switch (family.toLowerCase()) {
+      case 'horn':
+        return base * 1.40;
+      case 'mane':
+        return base * 1.18;
+      case 'mask':
+        return base * 1.08;
+      case 'wing':
+        return base * 1.05;
+      default:
+        return base;
+    }
+  }
+
+  double _distanceToSegment(Offset point, Offset start, Offset end) {
+    final segment = end - start;
+    final lengthSquared = segment.dx * segment.dx + segment.dy * segment.dy;
+    if (lengthSquared <= 0.0001) return (point - start).distance;
+    final t =
+        (((point.dx - start.dx) * segment.dx) +
+            ((point.dy - start.dy) * segment.dy)) /
+        lengthSquared;
+    final clampedT = t.clamp(0.0, 1.0);
+    final projection = Offset(
+      start.dx + segment.dx * clampedT,
+      start.dy + segment.dy * clampedT,
+    );
+    return (point - projection).distance;
+  }
+
+  bool _resolveCompanionChargeImpact(
+    CosmicCompanion comp,
+    Offset from,
+    Offset to, {
+    double sweepRadius = 48.0,
+  }) {
+    var hit = false;
+
+    for (final e in enemies) {
+      if (e.dead) continue;
+      final d = _distanceToSegment(e.position, from, to);
+      if (d <= e.radius + sweepRadius) {
+        e.health -= comp.chargeDamage;
+        _spawnHitSpark(e.position, elementColor(comp.member.element));
+        if (!e.provoked) _provokePackOf(e);
+        hit = true;
+      }
+    }
+
+    if (activeBoss != null) {
+      final bossRadius = activeBoss!.radius + sweepRadius;
+      final d = _distanceToSegment(activeBoss!.position, from, to);
+      if (d <= bossRadius) {
+        activeBoss!.health -= comp.chargeDamage;
+        _spawnHitSpark(to, elementColor(comp.member.element));
+        hit = true;
+      }
+    }
+
+    if (battleRingOpponent != null && battleRingOpponent!.isAlive) {
+      final d = _distanceToSegment(battleRingOpponent!.position, from, to);
+      if (d <= sweepRadius + 28.0) {
+        battleRingOpponent!.takeDamage(comp.chargeDamage.round());
+        _spawnHitSpark(
+          battleRingOpponent!.position,
+          elementColor(comp.member.element),
+        );
+        hit = true;
+      }
+    }
+
+    if (hit) {
+      comp.chargeTimer = 0;
+      comp.chargeTarget = null;
+    }
+    return hit;
+  }
 
   // ── update loop ────────────────────────────────────────
 
@@ -1525,48 +1697,21 @@ class CosmicGame extends FlameGame with PanDetector {
           if (comp.isCharging) {
             comp.chargeTimer -= dt;
             if (comp.chargeTarget != null) {
+              final startPos = comp.position;
               final toTarget = comp.chargeTarget! - comp.position;
               final dist = toTarget.distance;
               if (dist > 10) {
                 final step = CosmicCompanion.chargeSpeed * dt;
                 comp.position += (toTarget / dist) * min(step, dist);
                 comp.angle = atan2(toTarget.dy, toTarget.dx);
+                _resolveCompanionChargeImpact(comp, startPos, comp.position);
               } else {
-                // Arrived — deal AoE damage to nearby enemies
-                for (final e in enemies) {
-                  if (e.dead) continue;
-                  final d = (e.position - comp.position).distance;
-                  if (d < 60) {
-                    e.health -= comp.chargeDamage;
-                    _spawnHitSpark(
-                      e.position,
-                      elementColor(comp.member.element),
-                    );
-                    if (!e.provoked) _provokePackOf(e);
-                  }
-                }
-                if (activeBoss != null) {
-                  final bd = (activeBoss!.position - comp.position).distance;
-                  if (bd < 60) {
-                    activeBoss!.health -= comp.chargeDamage;
-                    _spawnHitSpark(
-                      comp.position,
-                      elementColor(comp.member.element),
-                    );
-                  }
-                }
-                // Ring opponent charge hit
-                if (battleRingOpponent != null && battleRingOpponent!.isAlive) {
-                  final rd =
-                      (battleRingOpponent!.position - comp.position).distance;
-                  if (rd < 60) {
-                    battleRingOpponent!.takeDamage(comp.chargeDamage.round());
-                    _spawnHitSpark(
-                      battleRingOpponent!.position,
-                      elementColor(comp.member.element),
-                    );
-                  }
-                }
+                _resolveCompanionChargeImpact(
+                  comp,
+                  startPos,
+                  comp.position,
+                  sweepRadius: 68.0,
+                );
                 comp.chargeTimer = 0;
                 comp.chargeTarget = null;
               }
@@ -1586,10 +1731,19 @@ class CosmicGame extends FlameGame with PanDetector {
             );
           }
 
-          // Find nearest enemy in engage range (basic or special).
-          final engageRange = max(comp.attackRange, comp.specialAbilityRange);
+          final family = comp.member.family.toLowerCase();
+          final acquireRange = _combatAcquireRange(
+            family: family,
+            attackRange: comp.attackRange,
+            specialRange: comp.specialAbilityRange,
+          );
+          final preferredDistance = _preferredCombatDistance(
+            family: family,
+            attackRange: comp.attackRange,
+            specialRange: comp.specialAbilityRange,
+          );
           CosmicEnemy? nearestEnemy;
-          double nearestDist = engageRange;
+          double nearestDist = acquireRange;
 
           // During ring battle, prioritise the ring opponent
           bool targetIsRingOpponent = false;
@@ -1625,7 +1779,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
           if (targetIsRingOpponent ||
               nearestEnemy != null ||
-              (activeBoss != null && nearestDist < engageRange)) {
+              (activeBoss != null && nearestDist < acquireRange)) {
             final targetPos = targetIsRingOpponent
                 ? battleRingOpponent!.position
                 : (nearestEnemy?.position ?? activeBoss!.position);
@@ -1635,8 +1789,11 @@ class CosmicGame extends FlameGame with PanDetector {
 
             // If the target is out of special range, move toward it.
             final distToTarget = toTarget.distance;
-            if (distToTarget > comp.specialAbilityRange) {
-              final chaseSpeed = 100.0 + (comp.member.statSpeed * 10.0);
+            if (distToTarget > preferredDistance) {
+              final chaseSpeed = _combatChaseSpeed(
+                family,
+                comp.member.statSpeed.toDouble(),
+              );
               final step = chaseSpeed * dt;
               comp.position +=
                   (toTarget / distToTarget) * min(step, distToTarget);
@@ -1668,6 +1825,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 element: comp.member.element,
                 damage: comp.elemAtk * 2.0,
                 maxHp: comp.maxHp,
+                casterPower: comp.member.statIntelligence.toDouble(),
                 targetPos: targetPos,
               );
               companionProjectiles.addAll(result.projectiles);
@@ -1701,14 +1859,9 @@ class CosmicGame extends FlameGame with PanDetector {
             if (e.dead) continue;
             final d = (e.position - comp.position).distance;
             if (d < e.radius + 15) {
-              final contactDmg = switch (e.tier) {
-                EnemyTier.colossus => 25.0,
-                EnemyTier.brute => 15.0,
-                EnemyTier.phantom => 10.0,
-                EnemyTier.sentinel => 8.0,
-                EnemyTier.drone => 5.0,
-                EnemyTier.wisp => 3.0,
-              };
+              final contactDmg = CosmicBalance.enemyCompanionContactDamage(
+                e.tier,
+              );
               final dmg = max(
                 1,
                 (contactDmg * 100 / (100 + comp.physDef)).round(),
@@ -1826,12 +1979,19 @@ class CosmicGame extends FlameGame with PanDetector {
           }
 
           if (!skipActions) {
-            final engageRange = max(opp.attackRange, opp.specialAbilityRange);
+            final family = opp.member.family.toLowerCase();
+            final preferredDistance = _preferredCombatDistance(
+              family: family,
+              attackRange: opp.attackRange,
+              specialRange: opp.specialAbilityRange,
+            );
             final toCompNow = comp.position - opp.position;
             distToComp = toCompNow.distance;
-            // If the player's companion is out of engage range, move toward it.
-            if (distToComp > engageRange) {
-              final chaseSpeedOpp = 100.0 + (opp.member.statSpeed * 10.0);
+            if (distToComp > preferredDistance) {
+              final chaseSpeedOpp = _combatChaseSpeed(
+                family,
+                opp.member.statSpeed.toDouble(),
+              );
               final stepOpp = chaseSpeedOpp * dt;
               opp.position +=
                   (toCompNow / distToComp) * min(stepOpp, distToComp);
@@ -1861,6 +2021,7 @@ class CosmicGame extends FlameGame with PanDetector {
                 element: opp.member.element,
                 damage: opp.elemAtk * 2.0,
                 maxHp: opp.maxHp,
+                casterPower: opp.member.statIntelligence.toDouble(),
                 targetPos: comp.position,
               );
               ringOpponentProjectiles.addAll(result.projectiles);
@@ -1891,6 +2052,7 @@ class CosmicGame extends FlameGame with PanDetector {
     // ── update ring opponent projectiles ──
     for (var i = ringOpponentProjectiles.length - 1; i >= 0; i--) {
       final p = ringOpponentProjectiles[i];
+      var transferringToOrbit = false;
 
       if (p.homing && activeCompanion != null && activeCompanion!.isAlive) {
         final target = activeCompanion!.position;
@@ -1912,15 +2074,54 @@ class CosmicGame extends FlameGame with PanDetector {
       final pSpeed = Projectile.speed * p.speedMultiplier;
 
       // Handle orbital projectiles
-      if (p.orbitCenter != null && p.orbitTime > 0) {
-        p.orbitTime -= dt;
+      if (p.transferOrbitCenter != null) {
+        if (p.shipOrbitDelay > 0) {
+          p.shipOrbitDelay = max(0.0, p.shipOrbitDelay - dt);
+        } else {
+          transferringToOrbit = true;
+          p.orbitAngle += p.orbitSpeed * dt;
+          final desiredCenter = p.transferOrbitCenter!;
+          final desiredPos = Offset(
+            desiredCenter.dx + cos(p.orbitAngle) * p.orbitRadius,
+            desiredCenter.dy + sin(p.orbitAngle) * p.orbitRadius,
+          );
+          final toDesired = desiredPos - p.position;
+          final dist = toDesired.distance;
+          final attachStep = Projectile.speed * p.shipOrbitTransferSpeed * dt;
+          if (dist <= attachStep || dist < 8) {
+            p.position = desiredPos;
+            p.orbitCenter = desiredCenter;
+            p.transferOrbitCenter = null;
+            transferringToOrbit = false;
+          } else {
+            p.position += (toDesired / dist) * attachStep;
+          }
+        }
+      }
+
+      if (!transferringToOrbit &&
+          p.orbitCenter != null &&
+          (p.holdOrbit || p.orbitTime > 0)) {
+        if (!p.holdOrbit) {
+          p.orbitTime -= dt;
+        }
         p.orbitAngle += p.orbitSpeed * dt;
-        p.orbitRadius += dt * 8.0;
         p.position = Offset(
           p.orbitCenter!.dx + cos(p.orbitAngle) * p.orbitRadius,
           p.orbitCenter!.dy + sin(p.orbitAngle) * p.orbitRadius,
         );
-        if (p.orbitTime <= 0) {
+        if (p.turretInterval > 0 &&
+            activeCompanion != null &&
+            activeCompanion!.isAlive) {
+          p.turretTimer += dt;
+          if (p.turretTimer >= p.turretInterval) {
+            p.turretTimer -= p.turretInterval;
+            ringOpponentProjectiles.add(
+              _createEscortTurretShot(p, activeCompanion!.position),
+            );
+          }
+        }
+        if (!p.holdOrbit && p.orbitTime <= 0) {
           p.angle = atan2(
             p.position.dy - p.orbitCenter!.dy,
             p.position.dx - p.orbitCenter!.dx,
@@ -1929,7 +2130,7 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       } else if (p.stationary) {
         // no movement
-      } else {
+      } else if (!transferringToOrbit) {
         p.position = Offset(
           p.position.dx + cos(p.angle) * pSpeed * dt,
           p.position.dy + sin(p.angle) * pSpeed * dt,
@@ -2023,6 +2224,58 @@ class CosmicGame extends FlameGame with PanDetector {
     // ── update companion projectiles ──
     for (var i = companionProjectiles.length - 1; i >= 0; i--) {
       final p = companionProjectiles[i];
+      var transferringToShip = false;
+
+      if (p.transferToShipOrbit && !p.followShipOrbit) {
+        if (p.shipOrbitDelay > 0) {
+          p.shipOrbitDelay = max(0.0, p.shipOrbitDelay - dt);
+        } else {
+          transferringToShip = true;
+          p.orbitAngle += p.orbitSpeed * dt;
+          final desiredPos = Offset(
+            ship.pos.dx + cos(p.orbitAngle) * p.orbitRadius,
+            ship.pos.dy + sin(p.orbitAngle) * p.orbitRadius,
+          );
+          final toDesired = desiredPos - p.position;
+          final dist = toDesired.distance;
+          final attachStep = Projectile.speed * p.shipOrbitTransferSpeed * dt;
+          if (dist <= attachStep || dist < 8) {
+            p.position = desiredPos;
+            p.orbitCenter = ship.pos;
+            p.followShipOrbit = true;
+            transferringToShip = false;
+          } else {
+            p.position += (toDesired / dist) * attachStep;
+          }
+        }
+      } else if (p.transferOrbitCenter != null) {
+        if (p.shipOrbitDelay > 0) {
+          p.shipOrbitDelay = max(0.0, p.shipOrbitDelay - dt);
+        } else {
+          transferringToShip = true;
+          p.orbitAngle += p.orbitSpeed * dt;
+          final desiredCenter = p.transferOrbitCenter!;
+          final desiredPos = Offset(
+            desiredCenter.dx + cos(p.orbitAngle) * p.orbitRadius,
+            desiredCenter.dy + sin(p.orbitAngle) * p.orbitRadius,
+          );
+          final toDesired = desiredPos - p.position;
+          final dist = toDesired.distance;
+          final attachStep = Projectile.speed * p.shipOrbitTransferSpeed * dt;
+          if (dist <= attachStep || dist < 8) {
+            p.position = desiredPos;
+            p.orbitCenter = desiredCenter;
+            p.transferOrbitCenter = null;
+            transferringToShip = false;
+          } else {
+            p.position += (toDesired / dist) * attachStep;
+          }
+        }
+      }
+
+      if (p.followShipOrbit) {
+        p.orbitCenter = ship.pos;
+      }
 
       // Homing: steer toward nearest enemy
       if (p.homing) {
@@ -2074,23 +2327,38 @@ class CosmicGame extends FlameGame with PanDetector {
       final pSpeed = Projectile.speed * p.speedMultiplier;
 
       // Orbital projectiles: orbit their center before launching
-      if (p.orbitCenter != null && p.orbitTime > 0) {
-        p.orbitTime -= dt;
+      if (!transferringToShip &&
+          p.orbitCenter != null &&
+          (p.holdOrbit || p.orbitTime > 0)) {
+        if (!p.holdOrbit) {
+          p.orbitTime -= dt;
+        }
         p.orbitAngle += p.orbitSpeed * dt;
-        p.orbitRadius += dt * 8.0; // slowly expand orbit
         p.position = Offset(
           p.orbitCenter!.dx + cos(p.orbitAngle) * p.orbitRadius,
           p.orbitCenter!.dy + sin(p.orbitAngle) * p.orbitRadius,
         );
+        if (p.turretInterval > 0 &&
+            (!p.transferToShipOrbit || p.followShipOrbit) &&
+            p.transferOrbitCenter == null) {
+          p.turretTimer += dt;
+          if (p.turretTimer >= p.turretInterval) {
+            p.turretTimer -= p.turretInterval;
+            final target = _nearestEscortTarget(p.position);
+            if (target != null) {
+              companionProjectiles.add(_createEscortTurretShot(p, target));
+            }
+          }
+        }
         // When orbit time expires, launch outward
-        if (p.orbitTime <= 0) {
+        if (!p.holdOrbit && p.orbitTime <= 0) {
           p.angle = p.orbitAngle; // launch in current orbital direction
           p.orbitCenter = null; // stop orbiting
         }
       } else if (p.stationary) {
         // Stationary projectiles don't move (mines, lingering clouds)
         // no position change
-      } else {
+      } else if (!transferringToShip) {
         p.position = Offset(
           p.position.dx + cos(p.angle) * pSpeed * dt,
           p.position.dy + sin(p.angle) * pSpeed * dt,
@@ -2341,8 +2609,9 @@ class CosmicGame extends FlameGame with PanDetector {
     if (homePlanet != null) {
       final hp = homePlanet!;
       final hpCenter = hp.position;
-      // Patrol zone = beacon ring radius
-      final patrolRadius = hp.visualRadius + 8.0;
+      final patrolRadius = _garrison.isEmpty
+          ? hp.visualRadius + 72.0
+          : _garrison.map((g) => g.guardRadius).reduce(max).toDouble() + 28.0;
 
       for (final g in _garrison) {
         g.ticker?.update(dt);
@@ -2390,10 +2659,19 @@ class CosmicGame extends FlameGame with PanDetector {
           g.hp = min(g.maxHp, g.hp + (g.blessingHealPerTick * dt).round());
         }
 
-        // ── Find nearest enemy within engage range (basic or special) ──
-        final engageRange = max(g.attackRange, g.specialRange);
+        final family = g.member.family.toLowerCase();
+        final acquireRange = _combatAcquireRange(
+          family: family,
+          attackRange: g.attackRange,
+          specialRange: g.specialRange,
+        );
+        final preferredDistance = _preferredCombatDistance(
+          family: family,
+          attackRange: g.attackRange,
+          specialRange: g.specialRange,
+        );
         CosmicEnemy? nearestEnemy;
-        double nearestDist = engageRange;
+        double nearestDist = acquireRange;
         for (final e in enemies) {
           if (e.dead) continue;
           final d = (e.position - g.position).distance;
@@ -2412,15 +2690,15 @@ class CosmicGame extends FlameGame with PanDetector {
         }
 
         if (nearestEnemy != null ||
-            (activeBoss != null && nearestDist < engageRange)) {
+            (activeBoss != null && nearestDist < acquireRange)) {
           // ── Chase & attack ──
           final targetPos = nearestEnemy?.position ?? activeBoss!.position;
           final toTarget = targetPos - g.position;
           g.faceAngle = atan2(toTarget.dy, toTarget.dx);
 
-          // Move toward enemy only when outside special-cast range.
-          if (toTarget.distance > g.specialRange) {
-            final chaseSpeed = _GarrisonCreature.wanderSpeed * 3.5 * dt;
+          if (toTarget.distance > preferredDistance) {
+            final chaseSpeed =
+                _combatChaseSpeed(family, g.member.statSpeed.toDouble()) * dt;
             g.position +=
                 (toTarget / toTarget.distance) *
                 min(chaseSpeed, toTarget.distance);
@@ -2453,6 +2731,7 @@ class CosmicGame extends FlameGame with PanDetector {
               element: g.member.element,
               damage: g.specialDamage,
               maxHp: g.maxHp,
+              casterPower: g.member.statIntelligence.toDouble(),
               targetPos: targetPos,
             );
             companionProjectiles.addAll(result.projectiles);
@@ -2473,19 +2752,25 @@ class CosmicGame extends FlameGame with PanDetector {
             _spawnHitSpark(g.position, elementColor(g.member.element));
           }
         } else {
-          // ── No enemy — wander patrol ──
-          g.faceAngle = g.wanderAngle;
-          g.wanderAngle += (sin(_elapsed * 0.7 + g.position.dx) * 0.4) * dt;
+          // ── No enemy — hold a distinct orbital lane around the planet ──
+          final orbitAngle =
+              g.guardAngle +
+              (_elapsed * 0.08) +
+              sin(_elapsed * 0.45 + g.guardPhase) * 0.22;
+          final orbitRadius =
+              g.guardRadius + sin(_elapsed * 0.75 + g.guardPhase) * 8.0;
           final wanderTarget = Offset(
-            g.position.dx + cos(g.wanderAngle) * 40.0,
-            g.position.dy + sin(g.wanderAngle) * 40.0,
+            hpCenter.dx + cos(orbitAngle) * orbitRadius,
+            hpCenter.dy + sin(orbitAngle) * orbitRadius,
           );
           final toW = wanderTarget - g.position;
           final wDist = toW.distance;
           if (wDist > 1.0) {
-            final step = _GarrisonCreature.wanderSpeed * dt;
+            final step = (_GarrisonCreature.wanderSpeed * 1.4) * dt;
             g.position += (toW / wDist) * min(step, wDist);
+            g.faceAngle = atan2(toW.dy, toW.dx);
           }
+          g.wanderAngle = orbitAngle + pi / 2;
         }
 
         // Clamp within patrol zone (beacon ring) around home planet
@@ -2503,8 +2788,8 @@ class CosmicGame extends FlameGame with PanDetector {
       if (_enemySpawnTimer >= _enemySpawnInterval &&
           enemies.length < _maxEnemies) {
         _enemySpawnTimer = 0;
-        // ~70% chance each interval — enemies are common
-        if (Random().nextDouble() < 0.7) {
+        // ~82% chance each interval — space stays populated while roaming
+        if (Random().nextDouble() < 0.82) {
           _spawnEnemy();
         }
       }
@@ -2514,8 +2799,8 @@ class CosmicGame extends FlameGame with PanDetector {
       if (_feedingPackTimer >= _feedingPackInterval &&
           enemies.length < _maxEnemies - 2) {
         _feedingPackTimer = 0;
-        // 40% chance — packs are moderately rare
-        if (Random().nextDouble() < 0.4) {
+        // 65% chance — prey packs appear often enough to chase
+        if (Random().nextDouble() < 0.65) {
           _spawnFeedingPack();
         }
       }
@@ -2535,8 +2820,8 @@ class CosmicGame extends FlameGame with PanDetector {
     if (!_initialSwarmsSpawned) {
       _initialSwarmsSpawned = true;
       final swarmRng = Random(0x5A4E3D2C);
-      // Spawn 6-8 swarm clusters scattered around the world
-      final clusterCount = 6 + swarmRng.nextInt(3);
+      // Spawn 9-12 swarm clusters scattered around the world
+      final clusterCount = 9 + swarmRng.nextInt(4);
       for (int c = 0; c < clusterCount; c++) {
         final cx =
             2000.0 + swarmRng.nextDouble() * (world_.worldSize.width - 4000);
@@ -2551,8 +2836,8 @@ class CosmicGame extends FlameGame with PanDetector {
     if (_swarmSpawnTimer >= _swarmSpawnInterval &&
         enemies.length < _maxEnemies) {
       _swarmSpawnTimer = 0;
-      // 50% chance each interval — keeps the world populated
-      if (Random().nextDouble() < 0.5) {
+      // 72% chance each interval — keeps ambient prey density up
+      if (Random().nextDouble() < 0.72) {
         _spawnSwarmCluster();
       }
     }
@@ -2724,14 +3009,7 @@ class CosmicGame extends FlameGame with PanDetector {
         if (edy < -wh / 2) edy += wh;
         final hitR = e.radius + 14; // ship collision radius ~14
         if (edx * edx + edy * edy < hitR * hitR) {
-          final contactDmg = switch (e.tier) {
-            EnemyTier.colossus => 4.0,
-            EnemyTier.brute => 2.5,
-            EnemyTier.phantom => 2.0,
-            EnemyTier.sentinel => 1.5,
-            EnemyTier.drone => 1.0,
-            EnemyTier.wisp => 0.5,
-          };
+          final contactDmg = CosmicBalance.enemyShipContactDamage(e.tier);
           _damageShip(contactDmg);
           e.dead = true;
           _spawnKillVfx(e.position, elementColor(e.element), e.radius, false);
@@ -2756,7 +3034,13 @@ class CosmicGame extends FlameGame with PanDetector {
       if (bdy < -wh / 2) bdy += wh;
       final bHitR = boss.radius + 14;
       if (bdx * bdx + bdy * bdy < bHitR * bHitR) {
-        _damageShip(2.0);
+        _damageShip(
+          CosmicBalance.bossCollisionDamage(
+            level: boss.level,
+            type: boss.type,
+            charging: boss.type == BossType.charger && boss.charging,
+          ),
+        );
       }
     }
 
@@ -2923,6 +3207,9 @@ class CosmicGame extends FlameGame with PanDetector {
           ? BattleRing.exitRadius
           : BattleRing.interactRadius;
       final nowNearBR = bd < threshold;
+      if (br.inBattle && bd > BattleRing.cancelRadius) {
+        cancelBattleRingFight();
+      }
       if (nowNearBR != _wasNearBattleRing) {
         _wasNearBattleRing = nowNearBR;
         _isNearBattleRing = nowNearBR;
@@ -6028,8 +6315,9 @@ class CosmicGame extends FlameGame with PanDetector {
 
         // ── Gunner: shield ring ──
         if (boss.type == BossType.gunner && boss.shieldUp) {
-          final shieldAlpha = (boss.shieldHealth / CosmicBoss.shieldMaxHealth)
-              .clamp(0.0, 1.0);
+          final shieldAlpha =
+              (boss.shieldHealth / CosmicBalance.bossShieldHealth(boss.level))
+                  .clamp(0.0, 1.0);
           canvas.drawCircle(
             Offset.zero,
             boss.radius * 1.6,
@@ -6327,8 +6615,47 @@ class CosmicGame extends FlameGame with PanDetector {
           ? elementColor(cp.element!)
           : const Color(0xFF42A5F5);
       final vs = cp.visualScale;
+      final style = cp.visualStyle;
 
-      if (cp.decoy && cp.decoyHp > 0) {
+      if (cp.decoy && cp.decoyHp > 0 && cp.stationary) {
+        final pulse = 0.72 + 0.28 * sin(cp.life * 4.5);
+        final runeR = 9.0 * vs;
+        canvas.drawCircle(
+          cpp,
+          runeR * 2.8,
+          Paint()
+            ..color = projColor.withValues(alpha: 0.08 * pulse)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, runeR * 1.6),
+        );
+        final outer = Path();
+        for (var j = 0; j < 6; j++) {
+          final a = cp.life * 1.2 + j * (pi / 3);
+          final pt = Offset(cpp.dx + cos(a) * runeR, cpp.dy + sin(a) * runeR);
+          if (j == 0) {
+            outer.moveTo(pt.dx, pt.dy);
+          } else {
+            outer.lineTo(pt.dx, pt.dy);
+          }
+        }
+        outer.close();
+        canvas.drawPath(
+          outer,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.8
+            ..color = projColor.withValues(alpha: 0.75),
+        );
+        canvas.drawCircle(
+          cpp,
+          runeR * 0.58,
+          Paint()..color = projColor.withValues(alpha: 0.26),
+        );
+        canvas.drawCircle(
+          cpp,
+          runeR * 0.22,
+          Paint()..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.7)!,
+        );
+      } else if (cp.decoy && cp.decoyHp > 0) {
         // ── Decoy totem rendering (Mask decoys that enemies target) ──
         final pulse = 0.7 + 0.3 * sin(cp.life * 4.0);
         final totemR = 8.0 * vs;
@@ -6371,6 +6698,109 @@ class CosmicGame extends FlameGame with PanDetector {
           cpp,
           totemR * 0.2,
           Paint()..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.8)!,
+        );
+      } else if (style == ProjectileVisualStyle.meteor) {
+        final tailLen = 22.0 * vs;
+        final tailStart = Offset(
+          cpp.dx - cos(cp.angle) * tailLen,
+          cpp.dy - sin(cp.angle) * tailLen,
+        );
+        canvas.drawLine(
+          tailStart,
+          cpp,
+          Paint()
+            ..shader = ui.Gradient.linear(
+              tailStart,
+              cpp,
+              [
+                projColor.withValues(alpha: 0.02),
+                projColor.withValues(alpha: 0.35),
+                Color.lerp(projColor, const Color(0xFFFFFFFF), 0.35)!,
+              ],
+              const [0.0, 0.6, 1.0],
+            )
+            ..strokeWidth = 7.5 * vs
+            ..strokeCap = StrokeCap.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        );
+        canvas.drawCircle(
+          cpp,
+          6.0 * vs,
+          Paint()..color = projColor.withValues(alpha: 0.92),
+        );
+        canvas.drawCircle(
+          Offset(
+            cpp.dx - cos(cp.angle) * (2.5 * vs),
+            cpp.dy - sin(cp.angle) * (2.5 * vs),
+          ),
+          3.2 * vs,
+          Paint()
+            ..color = Color.lerp(projColor, const Color(0xFF2B1A12), 0.55)!,
+        );
+        canvas.drawCircle(
+          Offset(
+            cpp.dx + cos(cp.angle + 0.6) * (1.8 * vs),
+            cpp.dy + sin(cp.angle + 0.6) * (1.8 * vs),
+          ),
+          1.7 * vs,
+          Paint()..color = const Color(0xFFFFF2D6).withValues(alpha: 0.85),
+        );
+      } else if (style == ProjectileVisualStyle.slash) {
+        final tailLen = 18.0 * vs;
+        final tail = Offset(
+          cpp.dx - cos(cp.angle) * tailLen,
+          cpp.dy - sin(cp.angle) * tailLen,
+        );
+        canvas.drawLine(
+          tail,
+          cpp,
+          Paint()
+            ..color = projColor.withValues(alpha: 0.24)
+            ..strokeWidth = 5.0 * vs
+            ..strokeCap = StrokeCap.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        );
+        canvas.drawLine(
+          tail,
+          cpp,
+          Paint()
+            ..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.22)!
+            ..strokeWidth = 2.2 * vs
+            ..strokeCap = StrokeCap.round,
+        );
+      } else if (style == ProjectileVisualStyle.dart) {
+        final tailLen = 12.0 * vs;
+        final tail = Offset(
+          cpp.dx - cos(cp.angle) * tailLen,
+          cpp.dy - sin(cp.angle) * tailLen,
+        );
+        canvas.drawLine(
+          tail,
+          cpp,
+          Paint()
+            ..color = projColor.withValues(alpha: 0.32)
+            ..strokeWidth = 3.2 * vs
+            ..strokeCap = StrokeCap.round
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        );
+        final wingAngle = pi * 0.75;
+        final headLen = 5.0 * vs;
+        final left = Offset(
+          cpp.dx - cos(cp.angle - wingAngle) * headLen,
+          cpp.dy - sin(cp.angle - wingAngle) * headLen,
+        );
+        final right = Offset(
+          cpp.dx - cos(cp.angle + wingAngle) * headLen,
+          cpp.dy - sin(cp.angle + wingAngle) * headLen,
+        );
+        final head = Path()
+          ..moveTo(cpp.dx, cpp.dy)
+          ..lineTo(left.dx, left.dy)
+          ..lineTo(right.dx, right.dy)
+          ..close();
+        canvas.drawPath(
+          head,
+          Paint()..color = projColor.withValues(alpha: 0.95),
         );
       } else if (cp.piercing && vs >= 1.5) {
         // ── Beam-style rendering (Crystal, Lightning piercing) ──
@@ -6471,10 +6901,663 @@ class CosmicGame extends FlameGame with PanDetector {
               0.8,
             )!.withValues(alpha: pulse),
         );
+      } else if (cp.orbitCenter != null &&
+          style == ProjectileVisualStyle.kinOrbital) {
+        final pulse = 0.78 + 0.22 * sin(cp.orbitAngle * 3.5 + cp.life * 2.0);
+        final ringR = 6.2 * vs;
+        final haloPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4 * vs
+          ..color = projColor.withValues(alpha: 0.35)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+        switch (cp.element) {
+          case 'Light':
+            canvas.drawCircle(cpp, ringR * 1.35 * pulse, haloPaint);
+            canvas.drawCircle(
+              cpp,
+              ringR * 0.72,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0 * vs
+                ..color = const Color(0xFFFFF3C8).withValues(alpha: 0.72),
+            );
+            for (var j = 0; j < 4; j++) {
+              final a = cp.life * 2.4 + j * (pi / 2);
+              canvas.drawCircle(
+                Offset(cpp.dx + cos(a) * 5.6 * vs, cpp.dy + sin(a) * 5.6 * vs),
+                1.1 * vs,
+                Paint()..color = const Color(0xFFFFF7DA).withValues(alpha: 0.9),
+              );
+            }
+            canvas.drawCircle(
+              cpp,
+              3.1 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.82),
+            );
+            canvas.drawCircle(
+              cpp,
+              1.8 * vs,
+              Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.95),
+            );
+            break;
+          case 'Dark':
+            final crescent = Path()
+              ..addOval(Rect.fromCircle(center: cpp, radius: 4.5 * vs))
+              ..addOval(
+                Rect.fromCircle(
+                  center: Offset(cpp.dx + 1.8 * vs, cpp.dy - 0.6 * vs),
+                  radius: 3.4 * vs,
+                ),
+              );
+            canvas.drawCircle(
+              cpp,
+              ringR * 0.82 * pulse,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0 * vs
+                ..color = projColor.withValues(alpha: 0.18),
+            );
+            canvas.drawPath(
+              crescent,
+              Paint()..color = projColor.withValues(alpha: 0.92),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx - 1.4 * vs, cpp.dy + 0.8 * vs),
+              1.4 * vs,
+              Paint()..color = const Color(0xFFF8E8FF).withValues(alpha: 0.86),
+            );
+            break;
+          case 'Crystal':
+            final prism = Path();
+            for (var j = 0; j < 6; j++) {
+              final a = cp.life * 1.8 + j * (pi / 3);
+              final r = j.isEven ? 5.2 * vs : 3.0 * vs;
+              final pt = Offset(cpp.dx + cos(a) * r, cpp.dy + sin(a) * r);
+              if (j == 0) {
+                prism.moveTo(pt.dx, pt.dy);
+              } else {
+                prism.lineTo(pt.dx, pt.dy);
+              }
+            }
+            prism.close();
+            canvas.drawPath(
+              prism,
+              Paint()..color = projColor.withValues(alpha: 0.9),
+            );
+            canvas.drawCircle(
+              cpp,
+              2.0 * vs,
+              Paint()
+                ..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.75)!,
+            );
+            break;
+          case 'Blood':
+            canvas.drawCircle(
+              cpp,
+              4.2 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.86),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx, cpp.dy + 2.0 * vs),
+              2.6 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.62),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx - 0.8 * vs, cpp.dy - 1.5 * vs),
+              1.2 * vs,
+              Paint()..color = const Color(0xFFFFD8D8).withValues(alpha: 0.9),
+            );
+            break;
+          case 'Water':
+            canvas.drawCircle(
+              cpp,
+              ringR * 0.95 * pulse,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.2 * vs
+                ..color = projColor.withValues(alpha: 0.48),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx - 1.2 * vs, cpp.dy - 1.1 * vs),
+              3.2 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.58),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx + 1.4 * vs, cpp.dy + 1.6 * vs),
+              1.6 * vs,
+              Paint()..color = const Color(0xFFE5FBFF).withValues(alpha: 0.85),
+            );
+            break;
+          case 'Air':
+            final gust = Path();
+            for (var j = 0; j < 3; j++) {
+              final a = cp.life * 4.0 + j * (pi * 2 / 3);
+              gust.addArc(
+                Rect.fromCircle(center: cpp, radius: (3.6 + j * 1.4) * vs),
+                a,
+                pi * 0.9,
+              );
+            }
+            canvas.drawPath(
+              gust,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.3 * vs
+                ..strokeCap = StrokeCap.round
+                ..color = projColor.withValues(alpha: 0.82),
+            );
+            canvas.drawCircle(
+              cpp,
+              1.6 * vs,
+              Paint()..color = const Color(0xFFF0FDFF).withValues(alpha: 0.9),
+            );
+            break;
+          case 'Fire':
+            final tail = Offset(
+              cpp.dx - cos(cp.orbitAngle) * 8.0 * vs,
+              cpp.dy - sin(cp.orbitAngle) * 8.0 * vs,
+            );
+            canvas.drawLine(
+              tail,
+              cpp,
+              Paint()
+                ..color = projColor.withValues(alpha: 0.46)
+                ..strokeWidth = 3.2 * vs
+                ..strokeCap = StrokeCap.round,
+            );
+            canvas.drawCircle(cpp, 3.6 * vs, Paint()..color = projColor);
+            canvas.drawCircle(
+              Offset(cpp.dx + 1.0 * vs, cpp.dy - 1.2 * vs),
+              1.4 * vs,
+              Paint()..color = const Color(0xFFFFE2AE),
+            );
+            break;
+          case 'Lightning':
+            final bolt = Path()
+              ..moveTo(cpp.dx - 2.6 * vs, cpp.dy - 4.8 * vs)
+              ..lineTo(cpp.dx + 0.6 * vs, cpp.dy - 1.2 * vs)
+              ..lineTo(cpp.dx - 0.9 * vs, cpp.dy - 0.7 * vs)
+              ..lineTo(cpp.dx + 2.5 * vs, cpp.dy + 4.8 * vs)
+              ..lineTo(cpp.dx - 0.8 * vs, cpp.dy + 1.0 * vs)
+              ..lineTo(cpp.dx + 0.8 * vs, cpp.dy + 0.4 * vs)
+              ..close();
+            canvas.drawPath(
+              bolt,
+              Paint()..color = projColor.withValues(alpha: 0.92),
+            );
+            break;
+          case 'Plant':
+            final leaf = Path()
+              ..moveTo(cpp.dx, cpp.dy - 4.6 * vs)
+              ..quadraticBezierTo(
+                cpp.dx + 4.5 * vs,
+                cpp.dy - 1.0 * vs,
+                cpp.dx,
+                cpp.dy + 4.8 * vs,
+              )
+              ..quadraticBezierTo(
+                cpp.dx - 4.5 * vs,
+                cpp.dy - 1.0 * vs,
+                cpp.dx,
+                cpp.dy - 4.6 * vs,
+              );
+            canvas.drawPath(
+              leaf,
+              Paint()..color = projColor.withValues(alpha: 0.88),
+            );
+            canvas.drawLine(
+              Offset(cpp.dx, cpp.dy - 3.6 * vs),
+              Offset(cpp.dx, cpp.dy + 3.2 * vs),
+              Paint()
+                ..color = const Color(0xFFE2FFC7).withValues(alpha: 0.72)
+                ..strokeWidth = 1.0 * vs,
+            );
+            break;
+          case 'Earth':
+            final slab = Path()
+              ..moveTo(cpp.dx - 4.8 * vs, cpp.dy - 2.0 * vs)
+              ..lineTo(cpp.dx + 4.0 * vs, cpp.dy - 4.6 * vs)
+              ..lineTo(cpp.dx + 5.2 * vs, cpp.dy + 2.6 * vs)
+              ..lineTo(cpp.dx - 3.2 * vs, cpp.dy + 5.0 * vs)
+              ..close();
+            canvas.drawPath(
+              slab,
+              Paint()..color = projColor.withValues(alpha: 0.9),
+            );
+            break;
+          case 'Mud':
+            for (final offset in [
+              Offset(-2.2 * vs, 1.0 * vs),
+              Offset(1.6 * vs, -1.4 * vs),
+              Offset(2.0 * vs, 2.2 * vs),
+            ]) {
+              canvas.drawCircle(
+                cpp + offset,
+                2.4 * vs,
+                Paint()..color = projColor.withValues(alpha: 0.78),
+              );
+            }
+            break;
+          case 'Steam':
+            for (final offset in [
+              Offset(-2.6 * vs, 1.4 * vs),
+              Offset(0.4 * vs, -1.8 * vs),
+              Offset(2.8 * vs, 1.0 * vs),
+            ]) {
+              canvas.drawCircle(
+                cpp + offset,
+                2.5 * vs,
+                Paint()..color = projColor.withValues(alpha: 0.38),
+              );
+            }
+            canvas.drawCircle(
+              cpp,
+              1.3 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.7),
+            );
+            break;
+          case 'Ice':
+            final shard = Path()
+              ..moveTo(cpp.dx, cpp.dy - 5.0 * vs)
+              ..lineTo(cpp.dx + 3.2 * vs, cpp.dy - 0.6 * vs)
+              ..lineTo(cpp.dx + 0.8 * vs, cpp.dy + 4.8 * vs)
+              ..lineTo(cpp.dx - 2.8 * vs, cpp.dy + 0.4 * vs)
+              ..close();
+            canvas.drawPath(
+              shard,
+              Paint()..color = projColor.withValues(alpha: 0.9),
+            );
+            break;
+          case 'Poison':
+            canvas.drawCircle(
+              cpp,
+              4.2 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.75),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx - 1.6 * vs, cpp.dy - 1.1 * vs),
+              1.4 * vs,
+              Paint()..color = const Color(0xFFE7FFD3).withValues(alpha: 0.8),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx + 1.2 * vs, cpp.dy + 1.8 * vs),
+              0.9 * vs,
+              Paint()..color = const Color(0xFFE7FFD3).withValues(alpha: 0.72),
+            );
+            break;
+          case 'Spirit':
+            canvas.drawCircle(
+              cpp,
+              4.5 * vs,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.1 * vs
+                ..color = projColor.withValues(alpha: 0.52),
+            );
+            canvas.drawArc(
+              Rect.fromCircle(center: cpp, radius: 5.0 * vs),
+              cp.life * 2.0,
+              pi * 1.15,
+              false,
+              Paint()
+                ..color = projColor.withValues(alpha: 0.9)
+                ..strokeWidth = 1.4 * vs
+                ..strokeCap = StrokeCap.round
+                ..style = PaintingStyle.stroke,
+            );
+            canvas.drawCircle(
+              cpp,
+              1.6 * vs,
+              Paint()..color = const Color(0xFFF7F3FF).withValues(alpha: 0.9),
+            );
+            break;
+          case 'Lava':
+            canvas.drawCircle(
+              cpp,
+              4.6 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.88),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx - 1.0 * vs, cpp.dy + 1.4 * vs),
+              2.3 * vs,
+              Paint()..color = const Color(0xFF4D2818),
+            );
+            canvas.drawCircle(
+              cpp,
+              1.1 * vs,
+              Paint()..color = const Color(0xFFFFD36E),
+            );
+            break;
+          case 'Dust':
+            for (var j = 0; j < 5; j++) {
+              final a = cp.life * 5.5 + j * (pi * 2 / 5);
+              canvas.drawCircle(
+                Offset(cpp.dx + cos(a) * 3.9 * vs, cpp.dy + sin(a) * 3.9 * vs),
+                0.9 * vs,
+                Paint()..color = projColor.withValues(alpha: 0.76),
+              );
+            }
+            canvas.drawCircle(
+              cpp,
+              1.0 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.86),
+            );
+            break;
+          default:
+            canvas.drawCircle(cpp, ringR * pulse, haloPaint);
+            canvas.drawCircle(
+              cpp,
+              3.8 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.88),
+            );
+            canvas.drawCircle(
+              cpp,
+              1.8 * vs,
+              Paint()
+                ..color = Color.lerp(projColor, const Color(0xFFFFFFFF), 0.72)!,
+            );
+        }
+      } else if (cp.orbitCenter != null &&
+          style == ProjectileVisualStyle.mysticOrbital) {
+        final pulse = 0.75 + 0.25 * sin(cp.orbitAngle * 4.0 + cp.life * 2.5);
+        final glow = Paint()
+          ..color = projColor.withValues(alpha: 0.20)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
+        canvas.drawCircle(cpp, 6.8 * vs * pulse, glow);
+        switch (cp.element) {
+          case 'Fire':
+            final tail = Offset(
+              cpp.dx - cos(cp.angle) * 9.0 * vs,
+              cpp.dy - sin(cp.angle) * 9.0 * vs,
+            );
+            canvas.drawLine(
+              tail,
+              cpp,
+              Paint()
+                ..color = projColor.withValues(alpha: 0.45)
+                ..strokeWidth = 3.0 * vs
+                ..strokeCap = StrokeCap.round,
+            );
+            canvas.drawCircle(cpp, 3.8 * vs, Paint()..color = projColor);
+            canvas.drawCircle(
+              Offset(cpp.dx + 1.2 * vs, cpp.dy - 1.2 * vs),
+              1.5 * vs,
+              Paint()..color = const Color(0xFFFFE7B8),
+            );
+            break;
+          case 'Lava':
+            canvas.drawCircle(
+              cpp,
+              4.5 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.92),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx - 1.1 * vs, cpp.dy + 1.4 * vs),
+              2.4 * vs,
+              Paint()..color = const Color(0xFF4B2617),
+            );
+            canvas.drawCircle(
+              cpp,
+              1.2 * vs,
+              Paint()..color = const Color(0xFFFFD36E),
+            );
+            break;
+          case 'Lightning':
+            final star = Path();
+            for (var j = 0; j < 4; j++) {
+              final a = cp.life * 8.0 + j * (pi / 2);
+              final outer = Offset(
+                cpp.dx + cos(a) * 5.2 * vs,
+                cpp.dy + sin(a) * 5.2 * vs,
+              );
+              final inner = Offset(
+                cpp.dx + cos(a + pi / 4) * 1.8 * vs,
+                cpp.dy + sin(a + pi / 4) * 1.8 * vs,
+              );
+              if (j == 0) {
+                star.moveTo(outer.dx, outer.dy);
+              } else {
+                star.lineTo(outer.dx, outer.dy);
+              }
+              star.lineTo(inner.dx, inner.dy);
+            }
+            star.close();
+            canvas.drawPath(
+              star,
+              Paint()..color = projColor.withValues(alpha: 0.95),
+            );
+            break;
+          case 'Water':
+            canvas.drawCircle(
+              cpp,
+              4.6 * vs,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.6 * vs
+                ..color = projColor.withValues(alpha: 0.75),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx - 1.0 * vs, cpp.dy - 1.0 * vs),
+              2.9 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.55),
+            );
+            break;
+          case 'Ice':
+            final hex = Path();
+            for (var j = 0; j < 6; j++) {
+              final a = cp.life * 1.8 + j * (pi / 3);
+              final pt = Offset(
+                cpp.dx + cos(a) * 4.8 * vs,
+                cpp.dy + sin(a) * 4.8 * vs,
+              );
+              if (j == 0) {
+                hex.moveTo(pt.dx, pt.dy);
+              } else {
+                hex.lineTo(pt.dx, pt.dy);
+              }
+            }
+            hex.close();
+            canvas.drawPath(
+              hex,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.4 * vs
+                ..color = projColor.withValues(alpha: 0.9),
+            );
+            canvas.drawCircle(cpp, 1.8 * vs, Paint()..color = projColor);
+            break;
+          case 'Steam':
+            for (final offset in [
+              Offset(-2.5 * vs, 1.0 * vs),
+              Offset(0, -1.5 * vs),
+              Offset(2.5 * vs, 1.0 * vs),
+            ]) {
+              canvas.drawCircle(
+                cpp + offset,
+                2.3 * vs,
+                Paint()..color = projColor.withValues(alpha: 0.42),
+              );
+            }
+            break;
+          case 'Earth':
+            final diamond = Path()
+              ..moveTo(cpp.dx, cpp.dy - 5.0 * vs)
+              ..lineTo(cpp.dx + 4.2 * vs, cpp.dy)
+              ..lineTo(cpp.dx, cpp.dy + 5.0 * vs)
+              ..lineTo(cpp.dx - 4.2 * vs, cpp.dy)
+              ..close();
+            canvas.drawPath(
+              diamond,
+              Paint()..color = projColor.withValues(alpha: 0.92),
+            );
+            break;
+          case 'Mud':
+            for (final offset in [
+              Offset(-2.6 * vs, 0.6 * vs),
+              Offset(1.4 * vs, -1.3 * vs),
+              Offset(2.2 * vs, 2.0 * vs),
+            ]) {
+              canvas.drawCircle(
+                cpp + offset,
+                2.4 * vs,
+                Paint()..color = projColor.withValues(alpha: 0.82),
+              );
+            }
+            break;
+          case 'Dust':
+            for (var j = 0; j < 4; j++) {
+              final a = cp.life * 5.0 + j * (pi / 2);
+              canvas.drawCircle(
+                Offset(cpp.dx + cos(a) * 3.8 * vs, cpp.dy + sin(a) * 3.8 * vs),
+                1.1 * vs,
+                Paint()..color = projColor.withValues(alpha: 0.8),
+              );
+            }
+            canvas.drawCircle(cpp, 1.2 * vs, Paint()..color = projColor);
+            break;
+          case 'Crystal':
+            final prism = Path();
+            for (var j = 0; j < 6; j++) {
+              final a = cp.life * 1.5 + j * (pi / 3);
+              final r = j.isEven ? 5.0 * vs : 3.0 * vs;
+              final pt = Offset(cpp.dx + cos(a) * r, cpp.dy + sin(a) * r);
+              if (j == 0) {
+                prism.moveTo(pt.dx, pt.dy);
+              } else {
+                prism.lineTo(pt.dx, pt.dy);
+              }
+            }
+            prism.close();
+            canvas.drawPath(
+              prism,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.4 * vs
+                ..color = projColor.withValues(alpha: 0.95),
+            );
+            break;
+          case 'Air':
+            canvas.drawArc(
+              Rect.fromCircle(center: cpp, radius: 5.0 * vs),
+              cp.life * 4.5,
+              pi * 1.1,
+              false,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.8 * vs
+                ..color = projColor.withValues(alpha: 0.88),
+            );
+            break;
+          case 'Plant':
+            for (var j = 0; j < 3; j++) {
+              final a = cp.life * 2.0 + j * (pi * 2 / 3);
+              canvas.drawCircle(
+                Offset(cpp.dx + cos(a) * 2.8 * vs, cpp.dy + sin(a) * 2.8 * vs),
+                2.0 * vs,
+                Paint()..color = projColor.withValues(alpha: 0.78),
+              );
+            }
+            canvas.drawCircle(
+              cpp,
+              1.1 * vs,
+              Paint()..color = const Color(0xFFF2FFD6),
+            );
+            break;
+          case 'Poison':
+            canvas.drawCircle(
+              cpp,
+              4.5 * vs,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.5 * vs
+                ..color = projColor.withValues(alpha: 0.78),
+            );
+            canvas.drawCircle(
+              cpp,
+              1.8 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.92),
+            );
+            break;
+          case 'Spirit':
+            canvas.drawCircle(
+              Offset(cpp.dx - 1.9 * vs, cpp.dy),
+              2.4 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.58),
+            );
+            canvas.drawCircle(
+              Offset(cpp.dx + 1.9 * vs, cpp.dy),
+              2.4 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.78),
+            );
+            break;
+          case 'Dark':
+            canvas.drawCircle(
+              cpp,
+              4.8 * vs,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.4 * vs
+                ..color = projColor.withValues(alpha: 0.65),
+            );
+            canvas.drawCircle(
+              cpp,
+              2.4 * vs,
+              Paint()..color = const Color(0xFF120E1F),
+            );
+            break;
+          case 'Light':
+            canvas.drawCircle(
+              cpp,
+              4.4 * vs,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.3 * vs
+                ..color = projColor.withValues(alpha: 0.82),
+            );
+            canvas.drawLine(
+              Offset(cpp.dx - 4.5 * vs, cpp.dy),
+              Offset(cpp.dx + 4.5 * vs, cpp.dy),
+              Paint()
+                ..color = projColor.withValues(alpha: 0.85)
+                ..strokeWidth = 1.4 * vs,
+            );
+            canvas.drawLine(
+              Offset(cpp.dx, cpp.dy - 4.5 * vs),
+              Offset(cpp.dx, cpp.dy + 4.5 * vs),
+              Paint()
+                ..color = projColor.withValues(alpha: 0.85)
+                ..strokeWidth = 1.4 * vs,
+            );
+            break;
+          case 'Blood':
+            final drop = Path()
+              ..moveTo(cpp.dx, cpp.dy - 4.8 * vs)
+              ..quadraticBezierTo(
+                cpp.dx + 4.0 * vs,
+                cpp.dy - 1.2 * vs,
+                cpp.dx,
+                cpp.dy + 5.0 * vs,
+              )
+              ..quadraticBezierTo(
+                cpp.dx - 4.0 * vs,
+                cpp.dy - 1.2 * vs,
+                cpp.dx,
+                cpp.dy - 4.8 * vs,
+              );
+            canvas.drawPath(
+              drop,
+              Paint()..color = projColor.withValues(alpha: 0.9),
+            );
+            break;
+          default:
+            canvas.drawCircle(
+              cpp,
+              3.5 * vs,
+              Paint()..color = projColor.withValues(alpha: 0.9),
+            );
+        }
       } else if (cp.orbitCenter != null) {
-        // ── Orbital rendering (Mystic/Kin orbiting projectiles) ──
         final pulse = 0.8 + 0.2 * sin(cp.orbitAngle * 3);
-        // Orbit trail
         canvas.drawCircle(
           cpp,
           5.0 * vs * pulse,
@@ -6482,13 +7565,11 @@ class CosmicGame extends FlameGame with PanDetector {
             ..color = projColor.withValues(alpha: 0.3)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
         );
-        // Core orb
         canvas.drawCircle(
           cpp,
           3.5 * vs,
           Paint()..color = projColor.withValues(alpha: 0.9),
         );
-        // Bright center
         canvas.drawCircle(
           cpp,
           1.5 * vs,

@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:flutter/services.dart';
@@ -18,8 +19,10 @@ class MiniMapOverlay extends StatefulWidget {
     required this.game,
     required this.theme,
     required this.markers,
+    required this.hasHomePlanet,
     required this.onTeleport,
     required this.onNavigatePlanet,
+    required this.onGoHome,
     required this.onClose,
     required this.onMarkersChanged,
     this.debugShowAllContestArenasOnMap = false,
@@ -30,8 +33,10 @@ class MiniMapOverlay extends StatefulWidget {
   final CosmicGame game;
   final FactionTheme theme;
   final List<MapMarker> markers;
+  final bool hasHomePlanet;
   final void Function(Offset worldPos) onTeleport;
   final void Function(CosmicPlanet planet) onNavigatePlanet;
+  final VoidCallback onGoHome;
   final VoidCallback onClose;
   final void Function(List<MapMarker> markers) onMarkersChanged;
   final bool debugShowAllContestArenasOnMap;
@@ -41,14 +46,12 @@ class MiniMapOverlay extends StatefulWidget {
   State<MiniMapOverlay> createState() => MiniMapOverlayState();
 }
 
-class MiniMapOverlayState extends State<MiniMapOverlay>
-    with SingleTickerProviderStateMixin {
+class MiniMapOverlayState extends State<MiniMapOverlay> {
   final TransformationController _transformCtrl = TransformationController();
   int _selectedColor = 0;
   bool _markerMode = false;
+  bool _showMarkerColors = false;
   int _planetIndex = 0;
-  late final AnimationController _spinCtrl;
-
   // Sorted + filtered once per build, cached here to avoid repeated sorts.
   late List<CosmicPlanet> _discoveredPlanets;
 
@@ -59,19 +62,28 @@ class MiniMapOverlayState extends State<MiniMapOverlay>
         );
   }
 
+  void _runAfterBuild(VoidCallback action) {
+    final phase = WidgetsBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.transientCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        action();
+      });
+      return;
+    }
+    action();
+  }
+
   @override
   void initState() {
     super.initState();
     _refreshPlanets();
-    _spinCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 14),
-    )..repeat();
   }
 
   @override
   void dispose() {
-    _spinCtrl.dispose();
     _transformCtrl.dispose();
     super.dispose();
   }
@@ -131,7 +143,10 @@ class MiniMapOverlayState extends State<MiniMapOverlay>
       }
     }
 
-    if (bestPos != null) widget.onTeleport(bestPos!);
+    if (bestPos != null) {
+      final target = bestPos!;
+      _runAfterBuild(() => widget.onTeleport(target));
+    }
   }
 
   void _handleLongPress(LongPressStartDetails details, double scale) {
@@ -160,9 +175,12 @@ class MiniMapOverlayState extends State<MiniMapOverlay>
 
   void _navigateToSelected() {
     if (_discoveredPlanets.isEmpty) return;
-    widget.onNavigatePlanet(
-      _discoveredPlanets[_planetIndex.clamp(0, _discoveredPlanets.length - 1)],
-    );
+    final target =
+        _discoveredPlanets[_planetIndex.clamp(
+          0,
+          _discoveredPlanets.length - 1,
+        )];
+    _runAfterBuild(() => widget.onNavigatePlanet(target));
   }
 
   @override
@@ -179,14 +197,26 @@ class MiniMapOverlayState extends State<MiniMapOverlay>
       child: SafeArea(
         child: Column(
           children: [
-            _Header(onClose: widget.onClose),
+            _Header(
+              hasHomePlanet: widget.hasHomePlanet,
+              onGoHome: () => _runAfterBuild(widget.onGoHome),
+              onClose: widget.onClose,
+            ),
             _MarkerToolbar(
               markerMode: _markerMode,
+              showMarkerColors: _showMarkerColors,
               selectedColor: _selectedColor,
               hasMarkers: widget.markers.isNotEmpty,
-              onToggleMode: () => setState(() => _markerMode = !_markerMode),
+              onToggleMode: () => setState(() {
+                final nextOpen = !_showMarkerColors;
+                _showMarkerColors = nextOpen;
+                if (!nextOpen) {
+                  _markerMode = false;
+                }
+              }),
               onSelectColor: (i) => setState(() {
                 _selectedColor = i;
+                _showMarkerColors = true;
                 _markerMode = true;
               }),
               onClearAll: () => widget.onMarkersChanged([]),
@@ -205,7 +235,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay>
                         child: _PlanetCarousel(
                           planets: _discoveredPlanets,
                           selectedIndex: _planetIndex,
-                          spinCtrl: _spinCtrl,
                           onChanged: (i) {
                             setState(() => _planetIndex = i);
                             HapticFeedback.selectionClick();
@@ -246,7 +275,14 @@ class MiniMapOverlayState extends State<MiniMapOverlay>
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onClose});
+  const _Header({
+    required this.hasHomePlanet,
+    required this.onGoHome,
+    required this.onClose,
+  });
+
+  final bool hasHomePlanet;
+  final VoidCallback onGoHome;
   final VoidCallback onClose;
 
   @override
@@ -255,6 +291,27 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
+          if (hasHomePlanet)
+            GestureDetector(
+              onTap: onGoHome,
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0x33F6D55C),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0x66F6D55C)),
+                ),
+                child: const Icon(
+                  Icons.home_rounded,
+                  color: Color(0xFFF6D55C),
+                  size: 26,
+                ),
+              ),
+            )
+          else
+            const SizedBox(width: 42),
+          const SizedBox(width: 10),
           const Expanded(
             child: Text(
               'STAR MAP',
@@ -290,6 +347,7 @@ class _Header extends StatelessWidget {
 class _MarkerToolbar extends StatelessWidget {
   const _MarkerToolbar({
     required this.markerMode,
+    required this.showMarkerColors,
     required this.selectedColor,
     required this.hasMarkers,
     required this.onToggleMode,
@@ -298,6 +356,7 @@ class _MarkerToolbar extends StatelessWidget {
   });
 
   final bool markerMode;
+  final bool showMarkerColors;
   final int selectedColor;
   final bool hasMarkers;
   final VoidCallback onToggleMode;
@@ -313,7 +372,9 @@ class _MarkerToolbar extends StatelessWidget {
           GestureDetector(
             onTap: onToggleMode,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: markerMode ? Colors.white24 : Colors.white10,
                 borderRadius: BorderRadius.circular(8),
@@ -324,49 +385,36 @@ class _MarkerToolbar extends StatelessWidget {
                       )
                     : null,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.push_pin,
-                    color: markerMode
-                        ? MapMarker.colors[selectedColor]
-                        : Colors.white54,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    markerMode ? 'MARKING' : 'MARK',
-                    style: TextStyle(
-                      color: markerMode ? Colors.white : Colors.white54,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
+              child: Icon(
+                Icons.push_pin,
+                color: markerMode
+                    ? MapMarker.colors[selectedColor]
+                    : Colors.white54,
+                size: 16,
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          for (var i = 0; i < 3; i++) ...[
-            GestureDetector(
-              onTap: () => onSelectColor(i),
-              child: Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: MapMarker.colors[i].withValues(
-                    alpha: selectedColor == i && markerMode ? 0.9 : 0.35,
+          if (showMarkerColors) ...[
+            const SizedBox(width: 8),
+            for (var i = 0; i < 3; i++) ...[
+              GestureDetector(
+                onTap: () => onSelectColor(i),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: MapMarker.colors[i].withValues(
+                      alpha: selectedColor == i && markerMode ? 0.9 : 0.35,
+                    ),
+                    shape: BoxShape.circle,
+                    border: selectedColor == i && markerMode
+                        ? Border.all(color: Colors.white, width: 2)
+                        : null,
                   ),
-                  shape: BoxShape.circle,
-                  border: selectedColor == i && markerMode
-                      ? Border.all(color: Colors.white, width: 2)
-                      : null,
                 ),
               ),
-            ),
-            if (i < 2) const SizedBox(width: 6),
+              if (i < 2) const SizedBox(width: 6),
+            ],
           ],
           const Spacer(),
           if (hasMarkers)
@@ -406,14 +454,12 @@ class _PlanetCarousel extends StatefulWidget {
   const _PlanetCarousel({
     required this.planets,
     required this.selectedIndex,
-    required this.spinCtrl,
     required this.onChanged,
     required this.onNavigate,
   });
 
   final List<CosmicPlanet> planets;
   final int selectedIndex;
-  final AnimationController spinCtrl;
   final ValueChanged<int> onChanged;
   final VoidCallback onNavigate;
 
@@ -505,27 +551,17 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          AnimatedBuilder(
-                            animation: widget.spinCtrl,
-                            builder: (context, _) {
-                              final spin = widget.spinCtrl.value * pi * 2;
-                              final pulse = isCenter
-                                  ? 1.0 + 0.04 * sin(spin * 1.1)
-                                  : 1.0;
-                              final drawSize = size * pulse;
-                              return SizedBox(
-                                width: drawSize,
-                                height: drawSize,
-                                child: CustomPaint(
-                                  painter: _PlanetPreviewPainter(
-                                    planet: planets[index],
-                                    spin: spin,
-                                    highlighted: isCenter,
-                                    explicitRadius: drawSize * 0.38,
-                                  ),
-                                ),
-                              );
-                            },
+                          SizedBox(
+                            width: size,
+                            height: size,
+                            child: CustomPaint(
+                              painter: _PlanetPreviewPainter(
+                                planet: planets[index],
+                                spin: 0,
+                                highlighted: isCenter,
+                                explicitRadius: size * 0.38,
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 6),
                           Text(

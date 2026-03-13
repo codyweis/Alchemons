@@ -277,6 +277,7 @@ class _CosmicSummonScreenState extends State<CosmicSummonScreen>
               party: const [], // no party in space — harvester only
               highlightPartyHUD: false,
               isTutorial: false,
+              showFusionAction: false,
               warnOnRun: true,
               onPreRollShake: () {},
               onPartyCreatureSelected: (c) {

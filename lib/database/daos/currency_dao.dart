@@ -46,11 +46,29 @@ class CurrencyDao extends DatabaseAccessor<AlchemonsDatabase>
   Future<bool> spendResources(Map<String, int> costMap) async {
     // Verify all resources available
     for (final e in costMap.entries) {
-      if (await getResource(e.key) < e.value) return false;
+      final available = switch (e.key) {
+        'gold' => await getGoldBalance(),
+        'silver' => await getSilverBalance(),
+        'soft' => await getSoftBalance(),
+        _ => await getResource(e.key),
+      };
+      if (available < e.value) return false;
     }
     // Deduct
     for (final e in costMap.entries) {
-      await addResource(e.key, -e.value);
+      switch (e.key) {
+        case 'gold':
+          await addGold(-e.value);
+          break;
+        case 'silver':
+          await addSilver(-e.value);
+          break;
+        case 'soft':
+          await addSoft(-e.value);
+          break;
+        default:
+          await addResource(e.key, -e.value);
+      }
     }
     return true;
   }

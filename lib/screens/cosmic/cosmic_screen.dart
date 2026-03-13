@@ -487,6 +487,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       onNearNexus: _onNearNexus,
       onNearBattleRing: _onNearBattleRing,
       onNearBloodRing: _onNearBloodRing,
+      onBattleRingCancelled: _onBattleRingCancelled,
       onNearContestArena: _onNearContestArena,
       onContestHintCollected: _onContestHintCollected,
       onHomePlanetBuilt: _onHomePlanetBuilt,
@@ -1298,16 +1299,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     // Consume one portal key
     await db.inventoryDao.consumeItem(keyInvKey);
 
-    // Navigate to RiftPortalScreen with empty party (harvester-only capture)
     if (!mounted) return;
     _playCosmicSfx(SoundCue.cosmicPortalOpen);
     unawaited(context.read<AudioController>().playPortalMusic());
     final success = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => RiftPortalScreen(
-          faction: faction,
-          party: const [], // no Alchemons in space — harvester only
-        ),
+        builder: (_) => RiftPortalScreen(faction: faction, party: const []),
       ),
     );
     if (mounted) {
@@ -2542,21 +2539,10 @@ class _CosmicScreenState extends State<CosmicScreen>
         return;
       }
 
-      // Use level 9 stat-scaling (index 9 → level 10 equivalent)
-      final levelForStats = 9;
-      const startBase = 1.5;
-      const maxCap = 4.75;
-      final endBase = maxCap / 1.4;
-      final statBase =
-          startBase + (levelForStats * (endBase - startBase) / 9.0);
-      double randStat() {
-        return statBase + rng.nextDouble() * (statBase * 0.4);
-      }
-
-      final speed = randStat();
-      final intelligence = randStat();
-      final strength = randStat();
-      final beauty = randStat();
+      final speed = CosmicBalance.rollArenaStat(10, rng);
+      final intelligence = CosmicBalance.rollArenaStat(10, rng);
+      final strength = CosmicBalance.rollArenaStat(10, rng);
+      final beauty = CosmicBalance.rollArenaStat(10, rng);
 
       final base = catalog.getCreatureById(hydrated.id);
       final typeName = (base?.types.isNotEmpty ?? false)
@@ -2637,18 +2623,12 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
 
-    // Stat scaling: base from 1.5 (level 0), max caps at 4.75 (level 9)
-    const startBase = 1.5;
-    const maxCap = 4.75;
-    final endBase = maxCap / 1.4;
-    final statBase = startBase + (level * (endBase - startBase) / 9.0);
     final rng = Random();
-    double randStat() => statBase + rng.nextDouble() * (statBase * 0.4);
-
-    final speed = randStat();
-    final intelligence = randStat();
-    final strength = randStat();
-    final beauty = randStat();
+    final arenaLevel = level + 1;
+    final speed = CosmicBalance.rollArenaStat(arenaLevel, rng);
+    final intelligence = CosmicBalance.rollArenaStat(arenaLevel, rng);
+    final strength = CosmicBalance.rollArenaStat(arenaLevel, rng);
+    final beauty = CosmicBalance.rollArenaStat(arenaLevel, rng);
 
     // Build a CosmicPartyMember for the opponent
     final base = catalog.getCreatureById(hydrated.id);
@@ -2762,6 +2742,17 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     HapticFeedback.mediumImpact();
     _showQuote('Your Alchemon was defeated! Try again.');
+    setState(() {});
+  }
+
+  void _onBattleRingCancelled() {
+    if (!mounted || _game == null) return;
+    final br = _game!.battleRing;
+    br.inBattle = false;
+    _saveBattleRingState();
+
+    HapticFeedback.mediumImpact();
+    _showQuote('Battle canceled. Your Alchemon retreated.');
     setState(() {});
   }
 
@@ -3171,6 +3162,14 @@ class _CosmicScreenState extends State<CosmicScreen>
       context,
       marketType: _nearMarketPOI!.type,
       meter: _game!.meter,
+      carriedShards: _game!.shipWallet.shards,
+      spendShards: (amount) {
+        if (_game == null || _game!.shipWallet.shards < amount) return false;
+        setState(() {
+          _game!.shipWallet.shards -= amount;
+        });
+        return true;
+      },
     );
   }
 
@@ -3240,8 +3239,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     return CargoUpgrade.capacityForLevel(_cargoLevel);
   }
 
-  void _handleGoHome() {
-    if (_game == null || _homePlanet == null) return;
+  bool _handleGoHome() {
+    if (_game == null || _homePlanet == null) return false;
     // Block teleport when meter is too full
     final meterPct = _game!.meter.fillPct;
     if (meterPct > _teleportCapacity) {
@@ -3250,10 +3249,11 @@ class _CosmicScreenState extends State<CosmicScreen>
         'Too much elemental energy! Fly home or lighten below $capPct%.',
       );
       HapticFeedback.heavyImpact();
-      return;
+      return false;
     }
     _game!.teleportTo(_homePlanet!.position);
     HapticFeedback.lightImpact();
+    return true;
   }
 
   /// Jettison all elemental cargo (meter) into the void.
@@ -4416,10 +4416,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     return (sceneId: 'cosmic_planet', scene: poisonScene);
   }
 
-  List<PartyMember> _buildPlanetEntryParty() {
+  List<PartyMember> _buildCosmicEncounterParty() {
     final members = <PartyMember>[];
+    final seen = <String>{};
     for (final m in _partyMembers) {
       if (m == null) continue;
+      if (!seen.add(m.instanceId)) continue;
       members.add(PartyMember(instanceId: m.instanceId));
     }
     return members;
@@ -4433,7 +4435,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     final shouldShowIntro = !introSeen;
 
     final target = _sceneForElement(element);
-    final party = _buildPlanetEntryParty();
+    final party = _buildCosmicEncounterParty();
     final approachColor = _nearPlanet?.color ?? elementColor(element);
     try {
       if (shouldShowIntro) {
@@ -5541,6 +5543,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                       game: _game!,
                       theme: theme,
                       markers: _mapMarkers,
+                      hasHomePlanet: _homePlanet != null,
                       debugShowAllContestArenasOnMap: _contestDebugShowAllOnMap,
                       debugEnableContestArenaTeleport:
                           _contestDebugAllowMapTeleport,
@@ -5573,6 +5576,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                         );
                         HapticFeedback.lightImpact();
                         _closeMiniMap();
+                      },
+                      onGoHome: () {
+                        if (_handleGoHome()) {
+                          _closeMiniMap();
+                        }
                       },
                       onClose: _closeMiniMap,
                       onMarkersChanged: (markers) {
@@ -6768,10 +6776,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                 cargoLevel: _cargoLevel,
                 isNearHome: _isNearHome,
                 onClose: () => setState(() => _showShipMenu = false),
-                onGoHome: () {
-                  setState(() => _showShipMenu = false);
-                  _handleGoHome();
-                },
                 onBuildHome: () {
                   setState(() => _showShipMenu = false);
                   _handleBuildHomePlanet();

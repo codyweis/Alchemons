@@ -80,18 +80,18 @@ class ImprovedBattleScrollArea extends StatelessWidget {
                 border: Border.all(color: fc.borderAccent),
               ),
               tabs: const [
-                Tab(text: 'SURVIVAL'),
-                Tab(text: 'BOSS'),
                 Tab(text: 'EXPLORE'),
+                Tab(text: 'BOSS'),
+                Tab(text: 'SURVIVAL'),
               ],
             ),
           ),
           Expanded(
             child: TabBarView(
               children: [
-                _buildSurvivalTab(unit, fc),
-                _buildBossTab(bossProfile, battleBasicMove, battleSpecialMove),
                 _buildExploreTab(unit, fc),
+                _buildBossTab(bossProfile, battleBasicMove, battleSpecialMove),
+                _buildSurvivalTab(unit, fc),
               ],
             ),
           ),
@@ -427,68 +427,69 @@ class ImprovedBattleScrollArea extends StatelessWidget {
     switch (family) {
       case 'Horn':
         return const _CosmicFamilyRole(
-          title: 'Frontline Tank',
+          title: 'Charge Bruiser',
           description:
-              'Horns are durable frontline companions with high HP and '
-              'physical defence. Their Strength bonus boosts basic attack '
-              'damage and lets them absorb enemy contact damage. Lower '
-              'range keeps them close to the ship.',
+              'Horns force close fights. They push into short range, soak '
+              'pressure with shields, and convert specials into real charge '
+              'impacts that slam through targets instead of hovering at range.',
         );
       case 'Wing':
         return const _CosmicFamilyRole(
-          title: 'Swift Striker',
+          title: 'Beam Hunter',
           description:
-              'Wings are fast, long-range attackers. High Speed means '
-              'rapid-fire basic attacks, and their Intelligence bonus '
-              'gives them excellent range. Fragile but deadly.',
+              'Wings are long-range pursuit attackers. They hold safer '
+              'spacing, fire quickly, and use piercing beam specials to line '
+              'through packs, bosses, and drifting targets.',
         );
       case 'Let':
         return const _CosmicFamilyRole(
-          title: 'Elemental Caster',
+          title: 'Artillery Bomber',
           description:
-              'Lets channel raw elemental power from a medium range. '
-              'Decent Intelligence gives good reach. Strength is lower, '
-              'so they rely on their special burst for big damage.',
+              'Lets fight like bombardiers. They stay back, lob heavy shots, '
+              'and drop meteor-style specials with impact zones, fragments, '
+              'and strong elemental follow-up effects.',
         );
       case 'Pip':
         return const _CosmicFamilyRole(
-          title: 'Speed Gunner',
+          title: 'Skirmish Dart',
           description:
-              'Pips are extremely fast companions that shred enemies with '
-              'a high attack rate. Their Speed bonus significantly '
-              'reduces cooldowns on both basic and special attacks.',
+              'Pips are close-mid skirmishers. They cycle attacks fast, '
+              'pepper targets with tracking darts, and turn specials into '
+              'ricochet pressure that keeps jumping between enemies.',
         );
       case 'Mane':
         return const _CosmicFamilyRole(
-          title: 'AoE Blaster',
+          title: 'Suppression Barrage',
           description:
-              'Manes balance range and special power. High Beauty boosts '
-              'their burst damage, and good Intelligence gives them wide '
-              'coverage. Great for clearing groups of enemies.',
+              'Manes are forward pressure gunners. They step into medium '
+              'range and unload dense frontal volleys that suppress lanes and '
+              'punish clustered enemies without wasting shots behind them.',
         );
       case 'Kin':
         return const _CosmicFamilyRole(
-          title: 'Balanced Fighter',
+          title: 'Guardian Support',
           description:
-              'Kins are well-rounded companions with no strong weakness. '
-              'They perform consistently in all situations, making them '
-              'a reliable choice for exploration.',
+              'Kins are sustain guardians. Their specials heal, bless, and '
+              'deploy element-shaped guardian constructs such as ship wards, '
+              'escort sentries, snares, hunters, and other persistent support '
+              'tools instead of one generic orbital move.',
         );
       case 'Mystic':
         return const _CosmicFamilyRole(
-          title: 'Arcane Specialist',
+          title: 'Guardian Ultimate',
           description:
-              'Mystics have exceptional range and powerful special bursts. '
-              'They excel at hitting distant targets but are fragile in '
-              'close combat. Keep them protected behind your ship.',
+              'Mystics are single-slot guardian power picks. Their specials '
+              'are intentionally slower and much more powerful, with each '
+              'element behaving like a distinct ultimate rather than a generic '
+              'orbital burst.',
         );
       case 'Mask':
         return const _CosmicFamilyRole(
-          title: 'Strategic Fighter',
+          title: 'Control Trapper',
           description:
-              'Masks are sturdy tactical companions with good defence '
-              'and moderate range. Their balanced stat spread makes '
-              'them adaptable to different encounters.',
+              'Masks shape the battlefield. They bait enemies into taunt '
+              'totems, decoys, and seeker swarms so pressure shifts off your '
+              'ship and into prepared kill zones.',
         );
       default:
         return const _CosmicFamilyRole(
@@ -1320,75 +1321,85 @@ _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
   switch (family) {
     case 'Mane':
       return _CosmicBasicInfo(
-        name: '$element Dual Strike',
-        subtitle: 'Scales with Strength • 2 spread bolts',
+        name: '$element Twin Volley',
+        subtitle: 'Scales with Strength • 2 forward slashes',
         description:
-            'Fires two $element bolts with slight spread. Each deals '
-            '65% damage, covering a wider area per shot. Great for '
-            'hitting groups or fast-moving enemies.',
+            'Fires two forward $element shots with slight spread. The basic '
+            'attack is built for lane pressure and consistent frontal damage, '
+            'not circular spray.',
         icon: Icons.waves,
       );
     case 'Horn':
       return _CosmicBasicInfo(
-        name: '$element Heavy Charge',
-        subtitle: 'Scales with Strength • Slow & powerful',
+        name: '$element Ram Shot',
+        subtitle: 'Scales with Strength • Heavy close-range projectile',
         description:
-            'Launches a single large, slow $element projectile that deals '
-            '160% damage with an oversized hitbox. Slower rate of fire '
-            'but devastating on impact.',
+            'Launches a large, slow $element projectile with an oversized '
+            'hitbox. Horn basics hit hard up close and help keep pressure on '
+            'targets before the shield-charge special lands.',
         icon: Icons.shield,
       );
     case 'Mask':
       return _CosmicBasicInfo(
-        name: '$element Phantom Strike',
-        subtitle: 'Scales with Strength • Piercing bolt',
+        name: '$element Probe Bolt',
+        subtitle: 'Scales with Strength • Fast piercing setup shot',
         description:
-            'Fires a fast $element bolt that pierces through the first '
-            'enemy it hits. Deals 90% damage but can strike multiple '
-            'targets in a line.',
+            'Fires a quick piercing $element bolt to tag targets in a line. '
+            'Mask basics are light pressure tools that set up the family\'s '
+            'trap, lure, and decoy control game.',
         icon: Icons.warning_amber,
       );
     case 'Wing':
       return _CosmicBasicInfo(
-        name: '$element Rapid Flick',
-        subtitle: 'Scales with Strength • 2 quick bolts',
+        name: '$element Feather Burst',
+        subtitle: 'Scales with Strength • 2 rapid pursuit shots',
         description:
-            'Unleashes two rapid small $element bolts in quick succession. '
-            'Each deals 50% damage but fires 50% faster than normal. '
-            'Ideal for sustained pressure.',
+            'Unleashes two quick $element bolts in succession. Wing basics '
+            'keep damage flowing while the companion stays mobile and looks '
+            'for a clean beam line.',
         icon: Icons.arrow_forward,
       );
     case 'Kin':
       return _CosmicBasicInfo(
         name: '$element Guided Bolt',
-        subtitle: 'Scales with Strength • Homing',
+        subtitle: 'Scales with Strength • Reliable homing support fire',
         description:
             'Fires a slower $element bolt that homes toward the nearest '
             'enemy, steering mid-flight. Deals 110% damage and rarely '
-            'misses. Great against evasive targets.',
+            'misses. Kin basics are about consistency while the guardian '
+            'orbits and healing setup come online.',
         icon: Icons.favorite,
       );
     case 'Mystic':
       return _CosmicBasicInfo(
-        name: '$element Arcane Burst',
+        name: '$element Arcane Triad',
         subtitle: 'Scales with Strength • 3 spread bolts',
         description:
-            'Releases three small $element bolts in a spread pattern. '
-            'Each deals 40% damage, but the combined barrage covers '
-            'a wide area. Excellent zone control.',
+            'Releases three small $element bolts in a spread. Mystic basics '
+            'hold space between ultimates, but the family\'s real power is in '
+            'its slower, element-specific guardian special.',
         icon: Icons.auto_awesome,
       );
     case 'Pip':
       return _CosmicBasicInfo(
-        name: '$element Bolt',
-        subtitle: 'Scales with Strength • Fast fire rate',
+        name: '$element Dart Burst',
+        subtitle: 'Scales with Strength • 3 fast tracking darts',
         description:
-            'Fires a standard $element bolt at the nearest enemy. '
-            'Pip\'s extreme Speed means the attack rate is very high, '
-            'compensating for single-bolt damage.',
+            'Fires a quick burst of small $element darts. Pip basics are '
+            'built for high uptime, target pressure, and staying active '
+            'between ricochet specials.',
         icon: Icons.bolt,
       );
-    // Let and default
+    case 'Let':
+      return _CosmicBasicInfo(
+        name: '$element Bomb',
+        subtitle: 'Scales with Strength • Slow artillery shot',
+        description:
+            'Lobs a compact $element bomb with more heft than a standard bolt. '
+            'Let basics reinforce the artillery role and visually preview the '
+            'family\'s meteor-style specials.',
+        icon: Icons.south,
+      );
     default:
       return _CosmicBasicInfo(
         name: '$element Bolt',
@@ -1421,11 +1432,11 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
   switch (family) {
     case 'Horn':
       return _CosmicSpecialInfo(
-        subtitle: 'Shield Charge • Beauty × 2 • 30s',
+        subtitle: 'Shield Charge • Beauty × 2 • Close-range finisher',
         description:
-            'Gains a shield absorbing 25% max HP, then charges at the nearest enemy '
-            'dealing 3× special damage on impact. A nova ring of $element projectiles '
-            'bursts outward on activation.',
+            'Raises a shield, erupts with an elemental burst, then commits to '
+            'a real impact charge. Horn specials are built to connect in melee '
+            'and punish targets with a bruiser-style crash instead of just a dash animation.',
         icon: Icons.shield,
         tags: ['SHIELD', 'CHARGE', 'NOVA', element.toUpperCase()],
       );
@@ -1439,7 +1450,7 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         'Plant',
       ].contains(element);
       return _CosmicSpecialInfo(
-        subtitle: 'Piercing Beam • Beauty × 2 • 30s',
+        subtitle: 'Piercing Beam • Beauty × 2 • Long-range line attack',
         description:
             'Fires a powerful $element beam that pierces through all enemies in its path. '
             '${hasTrail ? 'Leaves a lingering $element damage trail behind the beam. ' : ''}'
@@ -1463,12 +1474,11 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         'Air',
       ].contains(element);
       return _CosmicSpecialInfo(
-        subtitle: 'Meteor Strike • Beauty × 2 • 30s',
+        subtitle: 'Meteor Strike • Beauty × 2 • Heavy artillery cooldown',
         description:
-            'Drops a massive $element meteor at the target dealing 3× special '
-            'damage with a huge impact radius. '
+            'Drops a massive $element meteor on the target with a large impact area. '
             '${hasCluster ? 'The meteor fragments mid-flight, splitting into sub-projectiles. ' : ''}'
-            'Element determines secondary effects like lingering zones, chain bolts, or freeze areas.',
+            'Element determines follow-up effects like fragments, lingering zones, chain bursts, or impact hazards.',
         icon: Icons.south,
         tags: [
           'METEOR',
@@ -1490,12 +1500,12 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
         'Light',
       ].contains(element);
       return _CosmicSpecialInfo(
-        subtitle: 'Ricochet Salvo • Beauty × 2 • 30s',
+        subtitle: 'Ricochet Salvo • Beauty × 2 • Fast cycle skirmish special',
         description:
             'Fires a burst of fast $element projectiles that seek out '
             'different enemies. '
             '${hasBounce ? 'Projectiles ricochet between enemies on hit, chaining damage. ' : 'Projectiles home toward the nearest enemy with strong tracking. '}'
-            'Element determines count, speed, and behavior.',
+            'Element determines count, tracking pattern, and ricochet behavior.',
         icon: Icons.bolt,
         tags: [
           hasBounce ? 'RICOCHET' : 'HOMING',
@@ -1505,13 +1515,13 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
       );
     case 'Mane':
       return _CosmicSpecialInfo(
-        subtitle: 'Barrage Volley • Beauty × 2 • 30s',
+        subtitle: 'Barrage Volley • Beauty × 2 • Forward suppression burst',
         description:
-            'Rapid-fire burst of many $element projectiles in a cone or full '
-            '360°. Sheer volume overwhelms groups of enemies. Element '
-            'determines spread, count, and speed.',
+            'Unloads a dense forward $element barrage meant to suppress what is '
+            'in front of the Mane. Element changes spread, bolt weight, and '
+            'volume, but the move stays focused on frontal pressure.',
         icon: Icons.waves,
-        tags: ['BARRAGE', 'MANY PROJECTILES', element.toUpperCase()],
+        tags: ['BARRAGE', 'SUPPRESSION', element.toUpperCase()],
       );
     case 'Mask':
       final isDecoy = [
@@ -1528,14 +1538,14 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
       ].contains(element);
       return _CosmicSpecialInfo(
         subtitle: isDecoy
-            ? 'Decoy Totem • Beauty × 2 • 30s'
-            : 'Mine Field • Beauty × 2 • 30s',
+            ? 'Decoy Totem • Beauty × 2 • Control setup'
+            : 'Mine Field • Beauty × 2 • Control setup',
         description: isDecoy
             ? 'Deploys $element decoy totems that taunt nearby enemies. Enemies '
                   'attack the decoy instead of you. When destroyed, the decoy '
                   'explodes into a ring of damaging projectiles.'
-            : 'Deploys stationary $element mines around the current position that '
-                  'persist for several seconds and damage any enemy passing through.',
+            : 'Deploys $element control traps and seekers that deny space and '
+                  'pull enemy movement into prepared zones instead of relying on raw burst.',
         icon: isDecoy ? Icons.sports_kabaddi : Icons.warning_amber,
         tags: [
           isDecoy ? 'DECOY' : 'MINES',
@@ -1546,23 +1556,26 @@ _CosmicSpecialInfo _cosmicFamilySpecialInfo(String family, String element) {
       );
     case 'Kin':
       return _CosmicSpecialInfo(
-        subtitle: 'Blessing Pulse • Beauty × 2 • 30s',
+        subtitle: 'Blessing Pulse • Beauty × 2 • Heal + guardian orbit',
         description:
-            'Heals self and spawns orbiting $element projectiles that protect '
-            'the companion before launching at enemies. Also applies a healing- '
-            'over-time blessing. Element determines heal amount and orb count.',
+            'Heals self, applies a blessing-over-time, and deploys a $element '
+            'guardian pattern. Depending on the element, the constructs may '
+            'escort the ship, intercept threats, set snares, stalk targets, '
+            'or establish control zones before expiring.',
         icon: Icons.favorite,
         tags: ['HEAL', 'ORBITAL', 'BLESSING', element.toUpperCase()],
       );
     case 'Mystic':
       return _CosmicSpecialInfo(
-        subtitle: 'Orbital Storm • Beauty × 2 • 30s',
+        subtitle: 'Guardian Ultimate • Beauty × 2 • Long cooldown',
         description:
-            'Summons orbiting $element projectiles that spiral outward before '
-            'homing toward the nearest enemies. Element determines orb count, '
-            'orbit speed, and tracking strength.',
+            'Calls a $element guardian attack built around long-cooldown power. '
+            'Mystic specials stage in orbit first, then break into premium '
+            'element-specific patterns such as mirrored crescents, splits, '
+            'fragments, rebounds, residue trails, or heavy hunter cores. Each '
+            'element is meant to feel like its own ultimate, not just a recolored orbital.',
         icon: Icons.auto_awesome,
-        tags: ['ORBITAL', 'HOMING', 'SPIRALING', element.toUpperCase()],
+        tags: ['GUARDIAN', 'ULTIMATE', 'LONG CD', element.toUpperCase()],
       );
     default:
       return const _CosmicSpecialInfo(
@@ -1589,8 +1602,8 @@ class _ExploreStatEffectsCard extends StatelessWidget {
       children: [
         _statEffect(
           icon: Icons.favorite,
-          stat: 'Strength → HP',
-          effect: 'Determines companion max health and survival',
+          stat: 'STR + INT → HP',
+          effect: 'Both power and intelligence feed companion durability',
           fc: fc,
         ),
         const SizedBox(height: 8),
@@ -1603,15 +1616,15 @@ class _ExploreStatEffectsCard extends StatelessWidget {
         const SizedBox(height: 8),
         _statEffect(
           icon: Icons.auto_awesome,
-          stat: 'Beauty → Burst DMG',
-          effect: 'Increases special burst damage (2× multiplier)',
+          stat: 'Beauty → Special DMG',
+          effect: 'Raises special attack power, including guardian ultimates',
           fc: fc,
         ),
         const SizedBox(height: 8),
         _statEffect(
           icon: Icons.radar,
           stat: 'Intelligence → Range',
-          effect: 'Increases attack and special ability range',
+          effect: 'Increases attack reach and supports survivability scaling',
           fc: fc,
         ),
         const SizedBox(height: 8),
@@ -1624,8 +1637,9 @@ class _ExploreStatEffectsCard extends StatelessWidget {
         const SizedBox(height: 8),
         _statEffect(
           icon: Icons.shield,
-          stat: 'STR + INT → Defence',
-          effect: 'Reduces contact damage taken from enemies',
+          stat: 'Stats → Defence',
+          effect:
+              'Strength helps physical defence, Beauty helps elemental defence',
           fc: fc,
         ),
       ],

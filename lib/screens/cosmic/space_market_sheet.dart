@@ -5,7 +5,7 @@
 //   • Rift Key Shop   — sells faction portal keys
 //
 // Prices mirror the main Research Shop.
-// Shows gold & silver balances in the header.
+// Shows gold, silver, and carried cosmic shards in the header.
 // Supports a 50 % elemental-meter discount: if the player's current
 // alchemical meter has ≥ 50 % of a required element, the item is half price.
 // Discount recipes rotate every 4 hours.
@@ -56,7 +56,7 @@ const _harvesterItems = <_MarketItem>[
     iconColor: Color(0xFFFF5722),
     assetName: 'assets/images/ui/volcanicharvester.png',
     inventoryKey: 'item.harvest_std_volcanic',
-    baseCost: {'soft': 50, 'silver': 999},
+    baseCost: {'shards': 50, 'silver': 999},
     faction: 'volcanic',
   ),
   _MarketItem(
@@ -67,7 +67,7 @@ const _harvesterItems = <_MarketItem>[
     iconColor: Color(0xFF64B5F6),
     assetName: 'assets/images/ui/oceanicharvester.png',
     inventoryKey: 'item.harvest_std_oceanic',
-    baseCost: {'soft': 50, 'silver': 999},
+    baseCost: {'shards': 50, 'silver': 999},
     faction: 'oceanic',
   ),
   _MarketItem(
@@ -78,7 +78,7 @@ const _harvesterItems = <_MarketItem>[
     iconColor: Color(0xFF66BB6A),
     assetName: 'assets/images/ui/verdantharvester.png',
     inventoryKey: 'item.harvest_std_verdant',
-    baseCost: {'soft': 50, 'silver': 999},
+    baseCost: {'shards': 50, 'silver': 999},
     faction: 'verdant',
   ),
   _MarketItem(
@@ -89,7 +89,7 @@ const _harvesterItems = <_MarketItem>[
     iconColor: Color(0xFF8D6E63),
     assetName: 'assets/images/ui/earthenharvester.png',
     inventoryKey: 'item.harvest_std_earthen',
-    baseCost: {'soft': 50, 'silver': 999},
+    baseCost: {'shards': 50, 'silver': 999},
     faction: 'earthen',
   ),
   _MarketItem(
@@ -100,7 +100,7 @@ const _harvesterItems = <_MarketItem>[
     iconColor: Color(0xFFCE93D8),
     assetName: 'assets/images/ui/arcaneharvester.png',
     inventoryKey: 'item.harvest_std_arcane',
-    baseCost: {'soft': 50, 'silver': 999},
+    baseCost: {'shards': 50, 'silver': 999},
     faction: 'arcane',
   ),
   _MarketItem(
@@ -181,11 +181,15 @@ const _riftKeyItems = <_MarketItem>[
 class SpaceMarketSheet extends StatefulWidget {
   final POIType marketType;
   final ElementMeter meter;
+  final int carriedShards;
+  final bool Function(int amount) spendShards;
 
   const SpaceMarketSheet({
     super.key,
     required this.marketType,
     required this.meter,
+    required this.carriedShards,
+    required this.spendShards,
   });
 
   /// Show the market as a modal bottom sheet.
@@ -193,13 +197,20 @@ class SpaceMarketSheet extends StatefulWidget {
     BuildContext context, {
     required POIType marketType,
     required ElementMeter meter,
+    required int carriedShards,
+    required bool Function(int amount) spendShards,
   }) {
     HapticFeedback.mediumImpact();
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => SpaceMarketSheet(marketType: marketType, meter: meter),
+      builder: (_) => SpaceMarketSheet(
+        marketType: marketType,
+        meter: meter,
+        carriedShards: carriedShards,
+        spendShards: spendShards,
+      ),
     );
   }
 
@@ -212,6 +223,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
   late final Map<String, MarketDiscountRecipe> _recipes;
   late final String _title;
   late final Color _accent;
+  late int _carriedShards;
 
   @override
   void initState() {
@@ -221,6 +233,7 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
     _items = isHarvester ? _harvesterItems : _riftKeyItems;
     _title = isHarvester ? 'HARVESTER SHOP' : 'RIFT KEY SHOP';
     _accent = isHarvester ? const Color(0xFFFFB300) : const Color(0xFF7C4DFF);
+    _carriedShards = widget.carriedShards;
 
     // Generate rotating discount recipes (change daily, faction-matched)
     _recipes = MarketRecipeTable.generate(
@@ -269,12 +282,101 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
   bool _hasDiscount(_MarketItem item) =>
       _hasFactionDiscount(item) || _hasElementDiscount(item);
 
+  IconData _iconForCost(String type) {
+    return switch (type) {
+      'gold' => Icons.hexagon_rounded,
+      'silver' => Icons.monetization_on_rounded,
+      'shards' => Icons.diamond_rounded,
+      _ => Icons.hexagon_rounded,
+    };
+  }
+
+  Color _colorForCost(String type, ForgeTokens t) {
+    return switch (type) {
+      'gold' => const Color(0xFFFFD700),
+      'silver' => t.textSecondary,
+      'shards' => const Color(0xFFAB47BC),
+      _ => _accent,
+    };
+  }
+
+  Future<bool> _confirmPurchase(_MarketItem item, Map<String, int> cost) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final theme = context.read<FactionTheme>();
+        final t = ForgeTokens(theme);
+        return AlertDialog(
+          backgroundColor: t.bg1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: _accent.withValues(alpha: 0.35)),
+          ),
+          title: Text(
+            'Confirm Purchase',
+            style: TextStyle(color: t.textPrimary, fontWeight: FontWeight.w700),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.name,
+                style: TextStyle(color: t.textPrimary, fontSize: 14),
+              ),
+              const SizedBox(height: 10),
+              ...cost.entries.map(
+                (entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _iconForCost(entry.key),
+                        size: 16,
+                        color: _colorForCost(entry.key, t),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${entry.value}',
+                        style: TextStyle(color: t.textPrimary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: _accent),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Buy'),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmed == true;
+  }
+
   Future<void> _purchase(_MarketItem item) async {
     final db = context.read<AlchemonsDatabase>();
     final cost = _effectiveCost(item);
 
-    final ok = await db.currencyDao.spendResources(cost);
-    if (!ok) {
+    final balances = await db.currencyDao.getAllCurrencies();
+    final silver = balances['silver'] ?? 0;
+    final gold = balances['gold'] ?? 0;
+    final shardCost = cost['shards'] ?? 0;
+    final silverCost = cost['silver'] ?? 0;
+    final goldCost = cost['gold'] ?? 0;
+
+    final canAfford =
+        _carriedShards >= shardCost && silver >= silverCost && gold >= goldCost;
+    if (!canAfford) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -284,6 +386,23 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
         ),
       );
       return;
+    }
+
+    final confirmed = await _confirmPurchase(item, cost);
+    if (!confirmed) return;
+
+    if (silverCost > 0) {
+      final ok = await db.currencyDao.spendSilver(silverCost);
+      if (!ok) return;
+    }
+    if (goldCost > 0) {
+      final ok = await db.currencyDao.spendGold(goldCost);
+      if (!ok) return;
+    }
+    if (shardCost > 0) {
+      final ok = widget.spendShards(shardCost);
+      if (!ok) return;
+      _carriedShards -= shardCost;
     }
 
     await db.inventoryDao.addItemQty(item.inventoryKey, 1);
@@ -361,7 +480,6 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             children: [
-              // Title
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -387,8 +505,6 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                 ],
               ),
               const SizedBox(height: 10),
-
-              // Currency bar
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -418,8 +534,8 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                     Container(width: 1, height: 16, color: t.borderDim),
                     CurrencyPill(
                       icon: Icons.diamond_rounded,
-                      color: const Color(0xFFB388FF),
-                      amount: c['soft'] ?? 0,
+                      color: const Color(0xFFAB47BC),
+                      amount: _carriedShards,
                     ),
                   ],
                 ),
@@ -449,11 +565,12 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
             // Check affordability
             bool canAfford = true;
             for (final entry in cost.entries) {
-              final have = entry.key == 'gold'
-                  ? (currencies['gold'] ?? 0)
-                  : entry.key == 'silver'
-                  ? (currencies['silver'] ?? 0)
-                  : (currencies[entry.key] ?? 0);
+              final have = switch (entry.key) {
+                'gold' => currencies['gold'] ?? 0,
+                'silver' => currencies['silver'] ?? 0,
+                'shards' => _carriedShards,
+                _ => currencies[entry.key] ?? 0,
+              };
               if (have < entry.value) {
                 canAfford = false;
                 break;
@@ -623,7 +740,6 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                             final cType = e.key.startsWith('res_')
                                 ? e.key
                                 : e.key;
-                            final isGold = cType == 'gold';
                             return Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -640,21 +756,9 @@ class _SpaceMarketSheetState extends State<SpaceMarketSheet> {
                                   ),
                                 if (discounted) const SizedBox(width: 4),
                                 Icon(
-                                  isGold
-                                      ? Icons.hexagon_rounded
-                                      : cType == 'silver'
-                                      ? Icons.monetization_on_rounded
-                                      : cType == 'soft'
-                                      ? Icons.diamond_rounded
-                                      : Icons.hexagon_rounded,
+                                  _iconForCost(cType),
                                   size: 14,
-                                  color: isGold
-                                      ? const Color(0xFFFFD700)
-                                      : cType == 'silver'
-                                      ? Colors.grey
-                                      : cType == 'soft'
-                                      ? const Color(0xFFB388FF)
-                                      : _accent,
+                                  color: _colorForCost(cType, t),
                                 ),
                                 const SizedBox(width: 2),
                                 Text(

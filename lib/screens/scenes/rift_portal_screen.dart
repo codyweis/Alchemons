@@ -295,6 +295,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
               party: widget.party,
               highlightPartyHUD: false,
               isTutorial: false,
+              showFusionAction: false,
               warnOnRun: true,
               onPreRollShake: () {},
               onPartyCreatureSelected: (c) {

@@ -375,9 +375,10 @@ class _ElementalNexusScreenState extends State<ElementalNexusScreen>
                 source: 'elemental_nexus',
               ),
               hydratedWildCreature: _encounterCreature!,
-              party: const [], // harvester-only capture in cosmic
+              party: const [],
               highlightPartyHUD: false,
               isTutorial: false,
+              showFusionAction: false,
               warnOnRun: true,
               onPreRollShake: () {},
               onPartyCreatureSelected: (c) {

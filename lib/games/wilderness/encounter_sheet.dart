@@ -57,6 +57,7 @@ class EncounterOverlay extends StatefulWidget {
   final bool highlightPartyHUD; // 🆕 Tutorial highlighting
   final bool isTutorial; // 🆕 Tutorial mode flag
   final bool warnOnRun; // show a confirmation before running away
+  final bool showFusionAction;
 
   const EncounterOverlay({
     super.key,
@@ -69,6 +70,7 @@ class EncounterOverlay extends StatefulWidget {
     this.highlightPartyHUD = false, // 🆕 Default to false
     this.isTutorial = false, // 🆕 Default to false
     this.warnOnRun = false,
+    this.showFusionAction = true,
   });
 
   @override
@@ -80,7 +82,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   bool _visible = false; // ignore: unused_field
   String? _chosenInstanceId;
   bool _busy = false;
-  String _status = 'Select a party member to act';
+  late String _status;
 
   double? _breedChance; // 0.0–1.0 probability
 
@@ -97,11 +99,17 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   @override
   void initState() {
     super.initState();
+    _status = _supportsFusion
+        ? 'Select a party member to act'
+        : 'Choose an action.';
     // Auto-show on mount
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _show();
     });
   }
+
+  bool get _supportsFusion =>
+      widget.showFusionAction && widget.party.isNotEmpty;
 
   String _familyKeyForCreature(Creature c) {
     if (c.mutationFamily != null && c.mutationFamily!.isNotEmpty) {
@@ -259,30 +267,33 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         ),
 
         // Top-right: Party HUD with optional tutorial highlighting 🆕
-        AnimatedBuilder(
-          animation: _slideController,
-          builder: (_, __) {
-            final slide = Curves.easeOutCubic.transform(_slideController.value);
-            return Positioned(
-              top: 16,
-              right: 16 - (300 * (1 - slide)),
-              child: Opacity(
-                opacity: slide,
-                child: TutorialHighlight(
-                  enabled:
-                      widget.highlightPartyHUD &&
-                      _chosenInstanceId == null, // 🆕
-                  label: 'Select an Alchemon to breed', // 🆕
-                  child: _PartyHUD(
-                    party: widget.party,
-                    chosenInstanceId: _chosenInstanceId,
-                    onSelect: _onSelectPartyCreature,
+        if (_supportsFusion)
+          AnimatedBuilder(
+            animation: _slideController,
+            builder: (_, __) {
+              final slide = Curves.easeOutCubic.transform(
+                _slideController.value,
+              );
+              return Positioned(
+                top: 16,
+                right: 16 - (300 * (1 - slide)),
+                child: Opacity(
+                  opacity: slide,
+                  child: TutorialHighlight(
+                    enabled:
+                        widget.highlightPartyHUD &&
+                        _chosenInstanceId == null, // 🆕
+                    label: 'Select an Alchemon to breed', // 🆕
+                    child: _PartyHUD(
+                      party: widget.party,
+                      chosenInstanceId: _chosenInstanceId,
+                      onSelect: _onSelectPartyCreature,
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
+              );
+            },
+          ),
 
         // Bottom: Action buttons row
         AnimatedBuilder(
@@ -310,6 +321,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                         : null,
                     onRun: () => _handleRun(context),
                     breedChance: _breedChance,
+                    showFusionAction: _supportsFusion,
                   ),
                 ),
               ),
@@ -1050,6 +1062,7 @@ class _ActionPanel extends StatelessWidget {
   final double? breedChance; // 👈 NEW
   final bool isPartySelected;
   final bool isTutorial; // 🆕 Tutorial mode flag
+  final bool showFusionAction;
 
   const _ActionPanel({
     required this.status,
@@ -1060,12 +1073,13 @@ class _ActionPanel extends StatelessWidget {
     required this.isPartySelected,
     this.breedChance,
     this.isTutorial = false, // 🆕 Default to false
+    this.showFusionAction = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
-    final chanceText = breedChance != null
+    final chanceText = showFusionAction && breedChance != null
         ? 'Fusion success: ${(breedChance! * 100).toStringAsFixed(1)}%'
         : null;
 
@@ -1093,15 +1107,16 @@ class _ActionPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            _ActionButton(
-              disabled: !isPartySelected,
-              label: 'FUSION',
-              sublabel: 'ATTEMPT ALCHEMICAL',
-              icon: Icons.science_rounded,
-              accentColor: t.success,
-              onPressed: canAct ? onBreed : null,
-            ),
-            const SizedBox(width: 8),
+            if (showFusionAction)
+              _ActionButton(
+                disabled: !isPartySelected,
+                label: 'FUSION',
+                sublabel: 'ATTEMPT ALCHEMICAL',
+                icon: Icons.science_rounded,
+                accentColor: t.success,
+                onPressed: canAct ? onBreed : null,
+              ),
+            if (showFusionAction) const SizedBox(width: 8),
             if (!isTutorial)
               _ActionButton(
                 label: 'HARVEST',

@@ -22,28 +22,34 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     final strength = member.statStrength.toDouble();
     final beauty = member.statBeauty.toDouble();
 
-    double curve(double x) => pow(x / 2.5, 2.4).toDouble();
-    final intScale = curve(intel);
-    final strScale = curve(strength);
-    final beaScale = curve(beauty);
-    final sStr = strScale * 80;
-    final sBea = beaScale * 80;
-    final sInt = intScale * 70;
-    final level = member.level;
+    final level = CosmicBalance.clampLevel(member.level);
 
-    // HP stays meaningful so the companion can survive
-    final maxHp = (level * 18 + sStr * 2.0).round();
-
-    // ── Damage scaled for cosmic (no enemy DEF) ──
-    // Target: Lv10 / 3.0-stat companion ≈ 4 physAtk, 5 elemAtk
-    final physAtk = max(1, ((sStr * 0.015 + 1.0) * (level / 5)).round());
-    final elemAtk = max(1, ((sBea * 0.06) * (level / 5)).round());
-
-    final physDef = ((sStr + sInt) * 0.20 + level * 0.8).round();
-    final elemDef = ((sBea + sInt) * 0.20 + level * 0.8).round();
-    final cooldownReduction = 0.5 + (speed * 0.12);
-    final critChance = (sStr / 25.0).clamp(0.0, 0.40);
-    final baseRange = 150.0 + intel * 70.0;
+    final maxHp = CosmicBalance.companionMaxHp(
+      level: level,
+      strength: strength,
+      intelligence: intel,
+    );
+    final physAtk = CosmicBalance.companionPhysAtk(
+      level: level,
+      strength: strength,
+    );
+    final elemAtk = CosmicBalance.companionElemAtk(
+      level: level,
+      beauty: beauty,
+    );
+    final physDef = CosmicBalance.companionPhysDef(
+      level: level,
+      strength: strength,
+      intelligence: intel,
+    );
+    final elemDef = CosmicBalance.companionElemDef(
+      level: level,
+      beauty: beauty,
+      intelligence: intel,
+    );
+    final cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
+    final critChance = CosmicBalance.companionCritChance(strength);
+    final baseRange = CosmicBalance.companionBaseRange(intel);
 
     // Species-based scale
     final family = member.family.toLowerCase();
@@ -69,8 +75,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       elemDef: elemDef,
       cooldownReduction: cooldownReduction,
       critChance: critChance,
-      attackRange: baseRange,
-      specialAbilityRange: baseRange * 1.5,
+      attackRange: _familyAttackRange(family, baseRange),
+      specialAbilityRange: _familySpecialRange(family, baseRange),
       speciesScale: specScale,
     );
 
@@ -143,23 +149,34 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     final strength = member.statStrength.toDouble();
     final beauty = member.statBeauty.toDouble();
 
-    double curve(double x) => pow(x / 2.5, 2.4).toDouble();
-    final intScale = curve(intel);
-    final strScale = curve(strength);
-    final beaScale = curve(beauty);
-    final sStr = strScale * 80;
-    final sBea = beaScale * 80;
-    final sInt = intScale * 70;
-    final level = member.level;
+    final level = CosmicBalance.clampLevel(member.level);
 
-    final maxHp = (level * 18 + sStr * 2.0).round();
-    final physAtk = max(1, ((sStr * 0.015 + 1.0) * (level / 5)).round());
-    final elemAtk = max(1, ((sBea * 0.06) * (level / 5)).round());
-    final physDef = ((sStr + sInt) * 0.20 + level * 0.8).round();
-    final elemDef = ((sBea + sInt) * 0.20 + level * 0.8).round();
-    final cooldownReduction = 0.5 + (speed * 0.12);
-    final critChance = (sStr / 25.0).clamp(0.0, 0.40);
-    final baseRange = 150.0 + intel * 70.0;
+    final maxHp = CosmicBalance.companionMaxHp(
+      level: level,
+      strength: strength,
+      intelligence: intel,
+    );
+    final physAtk = CosmicBalance.companionPhysAtk(
+      level: level,
+      strength: strength,
+    );
+    final elemAtk = CosmicBalance.companionElemAtk(
+      level: level,
+      beauty: beauty,
+    );
+    final physDef = CosmicBalance.companionPhysDef(
+      level: level,
+      strength: strength,
+      intelligence: intel,
+    );
+    final elemDef = CosmicBalance.companionElemDef(
+      level: level,
+      beauty: beauty,
+      intelligence: intel,
+    );
+    final cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
+    final critChance = CosmicBalance.companionCritChance(strength);
+    final baseRange = CosmicBalance.companionBaseRange(intel);
 
     final family = member.family.toLowerCase();
     final specScale = (CosmicGame._companionSpeciesScale[family] ?? 1.0) * 1.0;
@@ -179,8 +196,8 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       elemDef: elemDef,
       cooldownReduction: cooldownReduction,
       critChance: critChance,
-      attackRange: baseRange,
-      specialAbilityRange: baseRange * 1.5,
+      attackRange: _familyAttackRange(family, baseRange),
+      specialAbilityRange: _familySpecialRange(family, baseRange),
       speciesScale: specScale,
       invincibleTimer: 1.5,
       visualVariant: member.visualVariant,
@@ -421,6 +438,20 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     _pendingRingMinionCount = 0;
     _pendingRingMinionLevel = 0;
     _pendingRingMinionElement = null;
+  }
+
+  void cancelBattleRingFight() {
+    if (!battleRing.inBattle) return;
+    battleRing.inBattle = false;
+    companionProjectiles.clear();
+    ringOpponentProjectiles.clear();
+    dismissBattleRingOpponent();
+    if (activeCompanion != null &&
+        activeCompanion!.isAlive &&
+        !activeCompanion!.returning) {
+      returnCompanion();
+    }
+    onBattleRingCancelled?.call();
   }
 
   void beginBeautyContestCinematic({
@@ -1033,6 +1064,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         element: comp.member.element,
         damage: max(6.0, comp.elemAtk * 1.5),
         maxHp: comp.maxHp,
+        casterPower: comp.member.statIntelligence.toDouble(),
         targetPos: opp.position,
       );
       companionProjectiles.addAll(result.projectiles);
@@ -1049,6 +1081,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         element: opp.member.element,
         damage: max(6.0, opp.elemAtk * 1.5),
         maxHp: opp.maxHp,
+        casterPower: opp.member.statIntelligence.toDouble(),
         targetPos: comp.position,
       );
       ringOpponentProjectiles.addAll(result.projectiles);
@@ -1065,6 +1098,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         element: comp.member.element,
         damage: max(6.0, comp.elemAtk * 1.4),
         maxHp: comp.maxHp,
+        casterPower: comp.member.statIntelligence.toDouble(),
         targetPos: opp.position,
       );
       companionProjectiles.addAll(result.projectiles);
@@ -1081,6 +1115,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
         element: opp.member.element,
         damage: max(6.0, opp.elemAtk * 1.4),
         maxHp: opp.maxHp,
+        casterPower: opp.member.statIntelligence.toDouble(),
         targetPos: comp.position,
       );
       ringOpponentProjectiles.addAll(result.projectiles);
@@ -1491,12 +1526,13 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     final hp = homePlanet!;
     final vr = hp.visualRadius;
     final rng = _rng;
+    final angleOffset = rng.nextDouble() * pi * 2;
 
     for (var i = 0; i < members.length; i++) {
       final m = members[i];
-      // Place between planet surface and beacon ring
-      final angle = rng.nextDouble() * pi * 2;
-      final dist = vr * 0.3 + rng.nextDouble() * (vr * 0.8);
+      // Assign each garrison a stable orbital lane so they do not stack.
+      final angle = angleOffset + (i / members.length) * pi * 2;
+      final dist = vr + 28.0 + ((i % 2) * 18.0);
       final pos = Offset(
         hp.position.dx + cos(angle) * dist,
         hp.position.dy + sin(angle) * dist,
@@ -1507,14 +1543,18 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
       // Derive combat stats from member
       final atkDmg = 5.0 + m.statStrength * 0.5 + m.level * 0.8;
       final specialDmg = 8.0 + m.statIntelligence * 0.6 + m.level * 1.0;
-      final range = 170.0 + m.statSpeed * 35.0 + m.statIntelligence * 20.0;
-      final specialRange = range * 1.4;
+      final baseRange = 170.0 + m.statSpeed * 35.0 + m.statIntelligence * 20.0;
+      final range = _familyAttackRange(family, baseRange);
+      final specialRange = _familySpecialRange(family, baseRange);
       final garrisonHp = (80 + m.statStrength * 3 + m.level * 5).round();
       _garrison.add(
         _GarrisonCreature(
           member: m,
           position: pos,
-          wanderAngle: rng.nextDouble() * pi * 2,
+          wanderAngle: angle + pi / 2,
+          guardAngle: angle,
+          guardRadius: dist,
+          guardPhase: rng.nextDouble() * pi * 2,
           speciesScale: specScale,
           attackDamage: atkDmg,
           specialDamage: specialDmg,
