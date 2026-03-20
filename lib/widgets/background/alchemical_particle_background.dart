@@ -169,27 +169,25 @@ class _AlchemicalParticleBackgroundState
     final size = _lastSize;
     if (size == null) return;
 
-    setState(() {
-      for (final p in _particles) {
-        p.baseX += p.vx;
-        p.baseY += p.vy;
-        p.angleX += p.speedX;
-        p.angleY += p.speedY;
-        p.x = p.baseX + sin(p.angleX) * p.amplitudeX;
-        p.y = p.baseY + cos(p.angleY) * p.amplitudeY;
+    for (final p in _particles) {
+      p.baseX += p.vx;
+      p.baseY += p.vy;
+      p.angleX += p.speedX;
+      p.angleY += p.speedY;
+      p.x = p.baseX + sin(p.angleX) * p.amplitudeX;
+      p.y = p.baseY + cos(p.angleY) * p.amplitudeY;
 
-        if (p.baseX < -p.amplitudeX) {
-          p.baseX = size.width + p.amplitudeX;
-        } else if (p.baseX > size.width + p.amplitudeX) {
-          p.baseX = -p.amplitudeX;
-        }
-        if (p.baseY < -p.amplitudeY) {
-          p.baseY = size.height + p.amplitudeY;
-        } else if (p.baseY > size.height + p.amplitudeY) {
-          p.baseY = -p.amplitudeY;
-        }
+      if (p.baseX < -p.amplitudeX) {
+        p.baseX = size.width + p.amplitudeX;
+      } else if (p.baseX > size.width + p.amplitudeX) {
+        p.baseX = -p.amplitudeX;
       }
-    });
+      if (p.baseY < -p.amplitudeY) {
+        p.baseY = size.height + p.amplitudeY;
+      } else if (p.baseY > size.height + p.amplitudeY) {
+        p.baseY = -p.amplitudeY;
+      }
+    }
   }
 
   @override
@@ -211,6 +209,7 @@ class _AlchemicalParticleBackgroundState
         final painter = _ParticlePainter(
           particles: _particles,
           globalOpacity: widget.opacity,
+          repaint: _controller,
         );
 
         Widget layer = SizedBox(
@@ -243,18 +242,22 @@ class _ParticlePainter extends CustomPainter {
   final Paint _paint = Paint();
   final double globalOpacity;
 
-  _ParticlePainter({required this.particles, required this.globalOpacity});
+  _ParticlePainter({
+    required this.particles,
+    required this.globalOpacity,
+    required Listenable repaint,
+  }) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.saveLayer(Rect.largest, Paint());
     for (final p in particles) {
       _paint.color = p.color.withValues(alpha: p.opacity * globalOpacity);
       canvas.drawCircle(Offset(p.x, p.y), p.radius, _paint);
     }
-    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _ParticlePainter oldDelegate) => true;
+  bool shouldRepaint(covariant _ParticlePainter oldDelegate) =>
+      oldDelegate.particles != particles ||
+      oldDelegate.globalOpacity != globalOpacity;
 }

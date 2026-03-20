@@ -1,0 +1,44 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "alchemons-auth",
+          "appId": "1:78179819122:android:0162ca3829a87dca7caceb",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "alchemons-auth",
+          "appId": "1:78179819122:ios:8f53643106294f087caceb",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "alchemons-auth",
+          "appId": "1:78179819122:ios:2ae02bccde88e5e17caceb",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "alchemons-auth",
+          "configurations": {
+            "android": "1:78179819122:android:0162ca3829a87dca7caceb",
+            "ios": "1:78179819122:ios:8f53643106294f087caceb",
+            "macos": "1:78179819122:ios:2ae02bccde88e5e17caceb",
+            "web": "1:78179819122:web:037473ba59772e667caceb",
+            "windows": "1:78179819122:web:b4f21ca5e7e4dbd37caceb"
+          }
+        }
+      }
+    }
+  }
+}

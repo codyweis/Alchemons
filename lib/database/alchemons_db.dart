@@ -260,6 +260,20 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
     );
   }
 
+  Future<void> resetToNewGame() async {
+    await transaction(() async {
+      await customStatement('PRAGMA foreign_keys = OFF');
+      try {
+        for (final table in allTables.toList().reversed) {
+          await delete(table).go();
+        }
+        await _seedInitialData();
+      } finally {
+        await customStatement('PRAGMA foreign_keys = ON');
+      }
+    });
+  }
+
   Future<void> _seedInitialData() async {
     // Seed incubator slots
     final slotsToInsert = [

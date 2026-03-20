@@ -315,7 +315,13 @@ class SceneGame extends FlameGame with ScaleDetector {
     for (final entry in desired.entries) {
       final id = entry.key;
       final s = entry.value;
-      if (!_wildBySpawnId.containsKey(id)) {
+      final existing = _wildBySpawnId[id];
+      final needsRefresh =
+          existing == null ||
+          !existing.isMounted ||
+          existing.speciesId != s.speciesId ||
+          existing.rarityLabel != s.rarity.name;
+      if (needsRefresh) {
         await _ensureWildAt(id, s.speciesId, s.rarity);
       }
     }
@@ -341,6 +347,11 @@ class SceneGame extends FlameGame with ScaleDetector {
     );
     final anchor = _spawnPointComps[spawnId];
     if (anchor == null) return;
+
+    // Keep the spawn anchor idempotent even if multiple syncs race or the
+    // encounter at this spawn changes species/rarity while the old component
+    // is still mounted.
+    _wildBySpawnId.remove(spawnId)?.removeFromParent();
 
     Creature? hydrated;
     if (wildVisualResolver != null) {

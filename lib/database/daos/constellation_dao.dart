@@ -89,11 +89,11 @@ class ConstellationDao extends DatabaseAccessor<AlchemonsDatabase>
 
   bool _isMilestoneCount(int count) {
     // Matches BreedingMilestone.milestones counts
-    return const [10, 25, 50, 100, 250, 500].contains(count);
+    return const [5, 10, 25, 50, 75, 100].contains(count);
   }
 
   int _getMilestoneNumber(int count) {
-    const milestones = [10, 25, 50, 100, 250, 500];
+    const milestones = [5, 10, 25, 50, 75, 100];
     return milestones.indexOf(count) + 1;
   }
 

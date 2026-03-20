@@ -115,44 +115,101 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  Future<void> _handleExitAttempt() async {
+    if (_currentSection != NavSection.home) {
+      _goToSection(NavSection.home);
+      return;
+    }
+
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final theme = context.read<FactionTheme>();
+        return AlertDialog(
+          backgroundColor: theme.surface,
+          title: Text(
+            'Exit Alchemons?',
+            style: GoogleFonts.cinzel(
+              color: theme.text,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to leave the game?',
+            style: GoogleFonts.cinzel(
+              color: theme.text.withValues(alpha: 0.82),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Stay',
+                style: GoogleFonts.cinzel(color: theme.textMuted),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(
+                'Exit',
+                style: GoogleFonts.cinzel(color: theme.accent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldExit == true) {
+      await SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
 
-    return Scaffold(
-      extendBody: true,
-      body: IndexedStack(
-        index: _navIndex,
-        children: [
-          TickerMode(
-            enabled: _currentSection == NavSection.home,
-            child: HomeScreen(
-              isActive: _currentSection == NavSection.home,
-              onNavigateSection: _goToSection,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || !mounted) return;
+        await _handleExitAttempt();
+      },
+      child: Scaffold(
+        extendBody: true,
+        body: IndexedStack(
+          index: _navIndex,
+          children: [
+            TickerMode(
+              enabled: _currentSection == NavSection.home,
+              child: HomeScreen(
+                isActive: _currentSection == NavSection.home,
+                onNavigateSection: _goToSection,
+              ),
             ),
-          ),
-          TickerMode(
-            enabled: _currentSection == NavSection.creatures,
-            child: CreaturesScreen(key: _creaturesKey),
-          ),
-          TickerMode(
-            enabled: _currentSection == NavSection.shop,
-            child: const ShopScreen(),
-          ),
-          TickerMode(
-            enabled: _currentSection == NavSection.breed,
-            child: BreedScreen(onGoToSection: _goToSection),
-          ),
-          TickerMode(
-            enabled: _currentSection == NavSection.inventory,
-            child: const InventoryScreen(),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNav(
-        current: _currentSection,
-        onSelect: (s) => _goToSection(s),
-        theme: theme,
+            TickerMode(
+              enabled: _currentSection == NavSection.creatures,
+              child: CreaturesScreen(key: _creaturesKey),
+            ),
+            TickerMode(
+              enabled: _currentSection == NavSection.shop,
+              child: const ShopScreen(),
+            ),
+            TickerMode(
+              enabled: _currentSection == NavSection.breed,
+              child: BreedScreen(onGoToSection: _goToSection),
+            ),
+            TickerMode(
+              enabled: _currentSection == NavSection.inventory,
+              child: const InventoryScreen(),
+            ),
+          ],
+        ),
+        bottomNavigationBar: BottomNav(
+          current: _currentSection,
+          onSelect: (s) => _goToSection(s),
+          theme: theme,
+        ),
       ),
     );
   }
@@ -276,7 +333,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with TickerProviderStateMixin, RouteAware {
+    with TickerProviderStateMixin, RouteAware, WidgetsBindingObserver {
   static const List<String> _coreWildernessBiomes = [
     'valley',
     'sky',
@@ -291,17 +348,22 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _shakeController;
 
   final PushNotificationService _pushNotifications = PushNotificationService();
+  static const String _eggNotificationStateType = 'egg_ready';
+  static const String _harvestNotificationStateType = 'harvest_ready';
   String? _lastEggStateKey;
   String? _lastHarvestStateKey;
   String? _lastWildernessStateKey;
   final Map<int, int> _lastScheduledEggHatchMsBySlot = {};
   Set<int> _lastReadyEggSlotIds = <int>{};
   Set<int> _lastReadyHarvestBiomeIds = <int>{};
+  bool _eggNotificationStateHydrated = false;
+  bool _harvestNotificationStateHydrated = false;
 
   bool _isFieldTutorialActive = false;
   bool _tutorialCheckInProgress =
       false; // prevents double-fire from didUpdateWidget + didPopNext
   bool _arcanePortalUnlocked = false;
+  bool _isAppInForeground = true;
 
   bool _isInitialized = false;
 
@@ -338,6 +400,12 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    _isAppInForeground =
+        lifecycleState == null ||
+        lifecycleState == AppLifecycleState.resumed ||
+        lifecycleState == AppLifecycleState.inactive;
 
     _breathingController = AnimationController(
       duration: const Duration(seconds: 3),
@@ -412,6 +480,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     routeObserver.unsubscribe(this);
     _breathingController.dispose();
     _rotationController.dispose();
@@ -426,6 +495,20 @@ class _HomeScreenState extends State<HomeScreen>
     spawnService.removeListener(_checkWildernessNotifications);
 
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isAppInForeground =
+        state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.inactive;
+  }
+
+  Set<int> _parseNotificationStateIds(String? stateKey, String prefix) {
+    if (stateKey == null || !stateKey.startsWith(prefix)) return <int>{};
+    final rawIds = stateKey.substring(prefix.length);
+    if (rawIds.isEmpty) return <int>{};
+    return rawIds.split(',').map(int.tryParse).whereType<int>().toSet();
   }
 
   Future<void> _checkFieldTutorial() async {
@@ -743,17 +826,26 @@ class _HomeScreenState extends State<HomeScreen>
   // summary notification while ready eggs remain unresolved.
   Future<void> _checkEggNotifications(List<IncubatorSlot> slots) async {
     if (!mounted) return;
+    final db = context.read<AlchemonsDatabase>();
     final enabled = await NotificationPreferencesService()
         .isCultivationsEnabled();
     if (!enabled) {
       _lastEggStateKey = null;
       _lastScheduledEggHatchMsBySlot.clear();
       _lastReadyEggSlotIds.clear();
+      _eggNotificationStateHydrated = false;
+      await db.settingsDao.setNotificationSummaryState(
+        _eggNotificationStateType,
+        null,
+      );
       await _pushNotifications.cancelEggNotification();
       await _pushNotifications.cancelEggReadySummaryNotification();
       _clearNotification(NotificationBannerType.eggReady);
       return;
     }
+
+    final initialSync = !_eggNotificationStateHydrated;
+    _eggNotificationStateHydrated = true;
 
     int readyEggs = 0;
     final nowUtc = DateTime.now().toUtc();
@@ -842,25 +934,41 @@ class _HomeScreenState extends State<HomeScreen>
     if (readyEggs > 0) {
       readySlotIds.sort();
       final readySlotIdSet = readySlotIds.toSet();
-      final hadAnyReadyEggs = _lastReadyEggSlotIds.isNotEmpty;
       final stateKey = 'slots:${readySlotIds.join(",")}';
-
-      // De-dupe: if same stateKey as last emission, do nothing.
-      if (_lastEggStateKey == stateKey) {
-        _lastReadyEggSlotIds = readySlotIdSet;
-        return;
-      }
+      final previousStateKey = initialSync
+          ? await db.settingsDao.getNotificationSummaryState(
+              _eggNotificationStateType,
+            )
+          : _lastEggStateKey;
+      final previousReadySlotIds = initialSync
+          ? _parseNotificationStateIds(previousStateKey, 'slots:')
+          : Set<int>.from(_lastReadyEggSlotIds);
+      final shouldNotify = previousStateKey != stateKey;
       _lastEggStateKey = stateKey;
+      _lastReadyEggSlotIds = readySlotIdSet;
 
-      // Transition behavior:
-      // - none -> some: alert
-      // - some -> changed some: silently update existing notification
-      if (!hadAnyReadyEggs) {
-        await _pushNotifications.showEggReadyNotification(count: readyEggs);
-      } else {
-        await _pushNotifications.showEggReadyNotification(
-          count: readyEggs,
-          silentUpdate: true,
+      if (shouldNotify) {
+        final newlyReadySlotIds = readySlotIdSet.difference(
+          previousReadySlotIds,
+        );
+        if (_isAppInForeground) {
+          await _pushNotifications.cancelEggReadySummaryNotification();
+        } else if (initialSync) {
+          await _pushNotifications.showEggReadyNotification(
+            count: readyEggs,
+            silentUpdate: true,
+          );
+        } else if (newlyReadySlotIds.isNotEmpty) {
+          await _pushNotifications.showEggReadyNotification(
+            count: readyEggs,
+            silentUpdate: previousReadySlotIds.isNotEmpty,
+          );
+        } else {
+          await _pushNotifications.cancelEggReadySummaryNotification();
+        }
+        await db.settingsDao.setNotificationSummaryState(
+          _eggNotificationStateType,
+          stateKey,
         );
       }
 
@@ -876,10 +984,13 @@ class _HomeScreenState extends State<HomeScreen>
           },
         ),
       );
-      _lastReadyEggSlotIds = readySlotIdSet;
     } else {
       _lastEggStateKey = null; // reset de-dupe
       _lastReadyEggSlotIds.clear();
+      await db.settingsDao.setNotificationSummaryState(
+        _eggNotificationStateType,
+        null,
+      );
       await _pushNotifications.cancelEggReadySummaryNotification();
       _clearNotification(NotificationBannerType.eggReady);
     }
@@ -887,19 +998,26 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _checkBiomeNotifications(List<BiomeFarm> biomes) async {
     if (!mounted) return;
+    final db = context.read<AlchemonsDatabase>();
     final enabled = await NotificationPreferencesService()
         .isExtractionsEnabled();
     if (!enabled) {
       _lastHarvestStateKey = null;
       _lastReadyHarvestBiomeIds.clear();
+      _harvestNotificationStateHydrated = false;
+      await db.settingsDao.setNotificationSummaryState(
+        _harvestNotificationStateType,
+        null,
+      );
       await _pushNotifications.cancelHarvestNotification();
       _clearNotification(NotificationBannerType.harvestReady);
       return;
     }
 
+    final initialSync = !_harvestNotificationStateHydrated;
+    _harvestNotificationStateHydrated = true;
     final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
     if (!mounted) return;
-    final db = context.read<AlchemonsDatabase>();
 
     // Build futures for unlocked biomes
     final futures = <Future<({BiomeFarm farm, HarvestJob? job})>>[];
@@ -934,19 +1052,43 @@ class _HomeScreenState extends State<HomeScreen>
     if (readyHarvests > 0) {
       readyBiomeIds.sort();
       final readyBiomeIdSet = readyBiomeIds.toSet();
-      final hadAnyReadyHarvests = _lastReadyHarvestBiomeIds.isNotEmpty;
       final stateKey = 'biomes:${readyBiomeIds.join(",")}';
-
-      if (_lastHarvestStateKey == stateKey) {
-        _lastReadyHarvestBiomeIds = readyBiomeIdSet;
-        return;
-      }
+      final previousStateKey = initialSync
+          ? await db.settingsDao.getNotificationSummaryState(
+              _harvestNotificationStateType,
+            )
+          : _lastHarvestStateKey;
+      final previousReadyBiomeIds = initialSync
+          ? _parseNotificationStateIds(previousStateKey, 'biomes:')
+          : Set<int>.from(_lastReadyHarvestBiomeIds);
+      final shouldNotify = previousStateKey != stateKey;
       _lastHarvestStateKey = stateKey;
+      _lastReadyHarvestBiomeIds = readyBiomeIdSet;
 
-      await _pushNotifications.showHarvestReadyNotification(
-        count: readyHarvests,
-        silentUpdate: hadAnyReadyHarvests,
-      );
+      if (shouldNotify) {
+        final newlyReadyBiomeIds = readyBiomeIdSet.difference(
+          previousReadyBiomeIds,
+        );
+        if (_isAppInForeground) {
+          await _pushNotifications.cancelHarvestSummaryNotification();
+        } else if (initialSync) {
+          await _pushNotifications.showHarvestReadyNotification(
+            count: readyHarvests,
+            silentUpdate: true,
+          );
+        } else if (newlyReadyBiomeIds.isNotEmpty) {
+          await _pushNotifications.showHarvestReadyNotification(
+            count: readyHarvests,
+            silentUpdate: previousReadyBiomeIds.isNotEmpty,
+          );
+        } else {
+          await _pushNotifications.cancelHarvestSummaryNotification();
+        }
+        await db.settingsDao.setNotificationSummaryState(
+          _harvestNotificationStateType,
+          stateKey,
+        );
+      }
 
       _showNotification(
         NotificationBanner(
@@ -963,10 +1105,13 @@ class _HomeScreenState extends State<HomeScreen>
           },
         ),
       );
-      _lastReadyHarvestBiomeIds = readyBiomeIdSet;
     } else {
       _lastHarvestStateKey = null;
       _lastReadyHarvestBiomeIds.clear();
+      await db.settingsDao.setNotificationSummaryState(
+        _harvestNotificationStateType,
+        null,
+      );
       await _pushNotifications.cancelHarvestSummaryNotification();
       _clearNotification(NotificationBannerType.harvestReady);
     }

@@ -10,6 +10,8 @@ part 'settings_dao.g.dart';
 class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     with _$SettingsDaoMixin {
   SettingsDao(super.db);
+  static const String _notificationSummaryStatePrefix =
+      'notification_summary_state_';
 
   // =================== SETTINGS ===================
 
@@ -43,6 +45,22 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     await into(settings).insertOnConflictUpdate(
       SettingsCompanion(key: Value(key), value: Value(value)),
     );
+  }
+
+  Future<String?> getNotificationSummaryState(String type) async {
+    return getSetting('$_notificationSummaryStatePrefix$type');
+  }
+
+  Future<void> setNotificationSummaryState(
+    String type,
+    String? stateKey,
+  ) async {
+    final key = '$_notificationSummaryStatePrefix$type';
+    if (stateKey == null || stateKey.isEmpty) {
+      await deleteSetting(key);
+      return;
+    }
+    await setSetting(key, stateKey);
   }
 
   // =================== BLOB PARTY (OVERLAY) ===================

@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
+import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
@@ -467,6 +468,7 @@ class EggDetailsModal extends StatelessWidget {
     final t = ForgeTokens(theme);
     final skin = elementGroup.skin;
     final source = payload['source'] as String? ?? 'unknown';
+    final parents = _extractParents();
 
     return Container(
       constraints: BoxConstraints(
@@ -578,6 +580,11 @@ class EggDetailsModal extends StatelessWidget {
 
                   // Info sections
                   _buildInfoSection('Source', _formatSource(source), t),
+
+                  if (parents.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _buildParentsSection(parents, t),
+                  ],
 
                   const SizedBox(height: 20),
 
@@ -781,6 +788,132 @@ class EggDetailsModal extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildParentsSection(List<_ParentDetail> parents, ForgeTokens t) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: t.bg2,
+        borderRadius: BorderRadius.circular(2),
+        border: Border.all(color: t.borderDim),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PARENTS',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: t.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.8,
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (var i = 0; i < parents.length; i++) ...[
+            _buildParentRow(parents[i], t),
+            if (i < parents.length - 1) ...[
+              const SizedBox(height: 8),
+              Divider(color: t.borderDim, height: 1),
+              const SizedBox(height: 8),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParentRow(_ParentDetail parent, ForgeTokens t) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                parent.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: t.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (parent.subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  parent.subtitle!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: t.textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<_ParentDetail> _extractParents() {
+    final parentage = payload['parentage'];
+    if (parentage is! Map) return const [];
+
+    final parents = <_ParentDetail>[];
+    final parentA = _parseParent(parentage['parentA'], 'A');
+    final parentB = _parseParent(parentage['parentB'], 'B');
+
+    if (parentA != null) parents.add(parentA);
+    if (parentB != null) parents.add(parentB);
+
+    return parents;
+  }
+
+  _ParentDetail? _parseParent(dynamic raw, String fallbackLabel) {
+    if (raw is! Map) return null;
+
+    try {
+      final snap = ParentSnapshot.fromJson(Map<String, dynamic>.from(raw));
+      final cleanName = snap.name.trim();
+      if (cleanName.isEmpty) return null;
+
+      final parts = <String>[];
+      final types = snap.types.where((type) => type.trim().isNotEmpty).join(' • ');
+      if (types.isNotEmpty) parts.add(types);
+
+      return _ParentDetail(
+        name: cleanName,
+        subtitle: parts.isEmpty ? null : parts.join('  |  '),
+      );
+    } catch (_) {
+      final rawName = (raw['name'] as String?)?.trim() ?? '';
+      if (rawName.isEmpty) return null;
+
+      final rawTypes = (raw['types'] is List)
+          ? (raw['types'] as List)
+                .map((type) => type.toString().trim())
+                .where((type) => type.isNotEmpty)
+                .join(' • ')
+          : '';
+      final parts = <String>[
+        if (rawTypes.isNotEmpty) rawTypes,
+      ];
+
+      return _ParentDetail(
+        name: rawName,
+        subtitle: parts.isEmpty ? null : parts.join('  |  '),
+      );
+    }
   }
 
   String _formatSource(String source) {
@@ -1074,4 +1207,14 @@ class EggDetailsModal extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ParentDetail {
+  final String name;
+  final String? subtitle;
+
+  const _ParentDetail({
+    required this.name,
+    required this.subtitle,
+  });
 }

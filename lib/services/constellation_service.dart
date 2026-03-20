@@ -6,6 +6,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 
 class ConstellationService extends ChangeNotifier {
   final AlchemonsDatabase _db;
+  final List<PendingMilestoneShowcase> _pendingMilestoneShowcases = [];
 
   ConstellationService(this._db) {
     _init();
@@ -32,6 +33,16 @@ class ConstellationService extends ChangeNotifier {
   /// Watch point balance (reactive stream for UI)
   Stream<int> watchPointBalance() {
     return _db.constellationDao.watchPointBalance();
+  }
+
+  PendingMilestoneShowcase? consumePendingMilestoneShowcaseForSpecies(
+    String speciesId,
+  ) {
+    final index = _pendingMilestoneShowcases.indexWhere(
+      (entry) => entry.speciesId == speciesId,
+    );
+    if (index < 0) return null;
+    return _pendingMilestoneShowcases.removeAt(index);
   }
 
   Stream<Set<String>> watchUnlockedSkillIds() {
@@ -104,7 +115,7 @@ class ConstellationService extends ChangeNotifier {
 
   /// Increment breeding count for a species (call when breeding)
   /// Pass the rarity of the creature being bred for accurate point calculation
-  Future<void> incrementBreedCount(
+  Future<PendingMilestoneShowcase?> incrementBreedCount(
     String speciesId, {
     String rarity = 'common',
   }) async {
@@ -136,9 +147,17 @@ class ConstellationService extends ChangeNotifier {
         debugPrint(
           '🎉 Milestone: $speciesId ($rarity) x${result.newCount} → +$pointsToAward points',
         );
+        final showcase = PendingMilestoneShowcase(
+          speciesId: speciesId,
+          milestoneCount: milestone.count,
+          pointsAwarded: pointsToAward,
+        );
+        _pendingMilestoneShowcases.add(showcase);
         notifyListeners();
+        return showcase;
       }
     }
+    return null;
   }
 
   /// Get breeding progress for a species
@@ -291,6 +310,18 @@ class ConstellationService extends ChangeNotifier {
     debugPrint('✅ Retroactive calculation complete');
     notifyListeners();
   }
+}
+
+class PendingMilestoneShowcase {
+  const PendingMilestoneShowcase({
+    required this.speciesId,
+    required this.milestoneCount,
+    required this.pointsAwarded,
+  });
+
+  final String speciesId;
+  final int milestoneCount;
+  final int pointsAwarded;
 }
 
 /// Helper class for UI to display breeding progress

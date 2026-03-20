@@ -27,20 +27,12 @@ class PushNotificationService {
       1200; // 1200-1299 for *scheduled* consolidated eggs by time window
 
   static const int wildernessSpawnBaseId =
-      2000; // 2000-2099 for individual spawns
+      2000; // Legacy 2000-2099 range for scheduled per-biome wilderness alerts
   static const int wildernessConsolidatedId =
       2100; // Single ID for consolidated
   static const int harvestReadyBaseId =
       3000; // 3000-3099 for individual harvests
   static const int harvestConsolidatedId = 3100; // Single ID for consolidated
-  static const List<String> _wildernessBiomeOrder = [
-    'valley',
-    'sky',
-    'volcano',
-    'swamp',
-    'arcane',
-  ];
-
   // Tracking for egg hatch time windows (to suppress multi-spam)
   // Key: normalized hatch time (to minute, ISO string)
   // Value: list of slot indices that hatch in that minute
@@ -342,71 +334,12 @@ class PushNotificationService {
   // WILDERNESS SPAWN NOTIFICATIONS
   // ============================================================================
 
-  Future<void> scheduleWildernessSpawnNotification({
-    required DateTime spawnTime,
-    required String biomeId,
-  }) async {
+  Future<void> cancelLegacyWildernessSpawnNotifications() async {
     if (!_initialized) await initialize();
-    if (!await _prefs.isWildernessEnabled()) return;
-
-    final now = DateTime.now();
-    if (spawnTime.isBefore(now)) {
-      return;
+    for (int i = 0; i < 100; i++) {
+      await _notifications.cancel(wildernessSpawnBaseId + i);
     }
-
-    final biomeNames = {
-      'valley': 'Valley',
-      'sky': 'Sky Peaks',
-      'volcano': 'Volcano',
-      'swamp': 'Swamp',
-      'arcane': 'Arcane',
-    };
-
-    final biomeName = biomeNames[biomeId] ?? biomeId;
-    final scheduledDate = tz.TZDateTime.from(spawnTime, tz.local);
-
-    // Use a stable ID based on biome key, with a deterministic fallback.
-    final biomeIndex = _notificationSlotForKey(
-      key: biomeId,
-      knownOrder: _wildernessBiomeOrder,
-    );
-
-    await _notifications.zonedSchedule(
-      wildernessSpawnBaseId + biomeIndex,
-      'Wild Creatures Detected!',
-      'New specimens spotted in the $biomeName',
-      scheduledDate,
-      _notificationDetails(
-        channelId: 'wilderness_spawns',
-        channelName: 'Wilderness Spawns',
-        channelDescription: 'Notifications when wild creatures spawn',
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      payload: 'wilderness_spawn:$biomeId',
-    );
-
-    debugPrint(
-      '📅 Scheduled wilderness spawn notification for $biomeName at $scheduledDate '
-      '(ID: ${wildernessSpawnBaseId + biomeIndex})',
-    );
-  }
-
-  Future<void> cancelWildernessSpawnNotification({
-    required String biomeId,
-  }) async {
-    if (!_initialized) await initialize();
-
-    final biomeIndex = _notificationSlotForKey(
-      key: biomeId,
-      knownOrder: _wildernessBiomeOrder,
-    );
-    await _notifications.cancel(wildernessSpawnBaseId + biomeIndex);
-    debugPrint(
-      '🔕 Cancelled wilderness spawn notification for $biomeId '
-      '(ID: ${wildernessSpawnBaseId + biomeIndex})',
-    );
+    debugPrint('🔕 Cancelled legacy scheduled wilderness notifications');
   }
 
   Future<void> showWildernessSpawnNotification({
@@ -585,12 +518,12 @@ class PushNotificationService {
         icon: '@mipmap/ic_launcher',
       ),
       iOS: DarwinNotificationDetails(
-        presentAlert: true,
+        presentAlert: !silentUpdate,
         presentBadge: true,
         presentSound: !silentUpdate,
       ),
       macOS: DarwinNotificationDetails(
-        presentAlert: true,
+        presentAlert: !silentUpdate,
         presentBadge: true,
         presentSound: !silentUpdate,
       ),

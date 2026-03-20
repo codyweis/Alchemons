@@ -68,6 +68,7 @@ class BlackMarketService extends ChangeNotifier {
   // Purchases (reset weekly)
   final Set<String> _purchasedToday = {}; // = purchasedThisWeek
   String _lastPurchaseDate = ''; // = lastWeekKey (yyyy-MM-dd of Monday)
+  String _lastGoldExchangeDate = '';
 
   // ----------------- public API -----------
   bool get isOpen => _isOpen;
@@ -77,7 +78,12 @@ class BlackMarketService extends ChangeNotifier {
   List<DailyOffer> get dailyOffers => _dailyOffers;
   List<ExtractionVial> get dailyVials => _dailyVials;
 
-  bool isPurchased(String offerId) => _purchasedToday.contains(offerId);
+  bool isPurchased(String offerId) {
+    if (_isGoldExchangeOffer(offerId)) {
+      return _lastGoldExchangeDate == _currentDayKey();
+    }
+    return _purchasedToday.contains(offerId);
+  }
 
   /// Force a manual check (call when navigating to shop)
   void checkNow() {
@@ -173,6 +179,19 @@ class BlackMarketService extends ChangeNotifier {
   // ----------------- persistence (Settings) --------
   static const String _bmLastWeekKey = 'bm_last_week_key';
   static String _bmPurchasesKeyFor(String weekKey) => 'bm_purchased_$weekKey';
+  static const String _bmLastGoldExchangeDayKey = 'bm_last_gold_exchange_day';
+
+  String _currentDayKey([DateTime? at]) {
+    final now = at ?? DateTime.now();
+    return DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).toIso8601String().substring(0, 10);
+  }
+
+  bool _isGoldExchangeOffer(String offerId) =>
+      offerId.startsWith('gold_exchange_');
 
   Future<void> _initFromSettings() async {
     // load last week; default to this week if not set
@@ -203,6 +222,11 @@ class BlackMarketService extends ChangeNotifier {
         ..addAll(ids);
     }
 
+    final goldExchangeRow = await (_db.select(
+      _db.settings,
+    )..where((t) => t.key.equals(_bmLastGoldExchangeDayKey))).getSingleOrNull();
+    _lastGoldExchangeDate = goldExchangeRow?.value ?? '';
+
     notifyListeners();
   }
 
@@ -221,6 +245,17 @@ class BlackMarketService extends ChangeNotifier {
         .into(_db.settings)
         .insertOnConflictUpdate(
           SettingsCompanion(key: Value(key), value: Value(json)),
+        );
+  }
+
+  Future<void> _saveGoldExchangeDay(String dayKey) async {
+    await _db
+        .into(_db.settings)
+        .insertOnConflictUpdate(
+          SettingsCompanion(
+            key: Value(_bmLastGoldExchangeDayKey),
+            value: Value(dayKey),
+          ),
         );
   }
 
@@ -263,6 +298,15 @@ class BlackMarketService extends ChangeNotifier {
 
   // ----------------- purchase flow -----------------
   Future<bool> purchaseOffer(String offerId) async {
+    if (_isGoldExchangeOffer(offerId)) {
+      final today = _currentDayKey();
+      if (_lastGoldExchangeDate == today) return false;
+      _lastGoldExchangeDate = today;
+      await _saveGoldExchangeDay(today);
+      notifyListeners();
+      return true;
+    }
+
     if (_purchasedToday.contains(offerId)) return false;
 
     _purchasedToday.add(offerId);
@@ -275,16 +319,16 @@ class BlackMarketService extends ChangeNotifier {
   List<DailyOffer> _generateDailyOffers(int seed) {
     final offers = <DailyOffer>[];
 
-    // Offer 1: Currency exchange
-    final goldAmount = (seed % 5) + 1;
+    // Offer 1: Daily gold exchange
+    const goldAmount = 1;
 
     offers.add(
       DailyOffer(
         id: 'gold_exchange_$seed',
         name: 'Gold Exchange',
-        description: 'Convert silver to gold at a premium rate',
+        description: 'Daily exchange: convert 5,000 silver into 1 gold',
         icon: Icons.swap_horiz_rounded,
-        cost: {'silver': goldAmount},
+        cost: {'silver': 5000},
         rewardType: 'currency',
         reward: {'gold': goldAmount},
       ),

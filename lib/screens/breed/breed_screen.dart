@@ -187,6 +187,9 @@ class _BreedScreenState extends State<BreedScreen>
                   ),
                   body: TabBarView(
                     controller: _tabController,
+                    physics: _activeTabIndex == 0
+                        ? const NeverScrollableScrollPhysics()
+                        : const PageScrollPhysics(),
                     children: [
                       TickerMode(
                         enabled: _activeTabIndex == 0,

@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "78179819122",
+    "project_id": "alchemons-auth",
+    "storage_bucket": "alchemons-auth.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:78179819122:android:3135ec6939c5f6057caceb",
+        "android_client_info": {
+          "package_name": "com.example.alchemons"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAyJETaDHCzoDdScQ0qnzPvGo7kwyYS1gk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:78179819122:android:0162ca3829a87dca7caceb",
+        "android_client_info": {
+          "package_name": "com.luck3yapps.alchemons"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAyJETaDHCzoDdScQ0qnzPvGo7kwyYS1gk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

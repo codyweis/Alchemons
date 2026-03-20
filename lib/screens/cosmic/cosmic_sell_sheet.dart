@@ -11,15 +11,15 @@
 //   Mythic   → 20 gold
 //   Variant  → 15 gold
 //   Prismatic bonus: +10 gold base
+//   Planet summon bonus: +50% base value
 //
 // Currency multipliers:
-//   Gold   → 1x
 //   Silver → 10x
 //   Shards → 5x
 //
 // Random ±20 % multiplier on every price.
 // Daily bonus: one random creature gets a 30 % price boost.
-// Player picks currency (gold, silver, or shards).
+// Player picks currency (silver or shards).
 
 import 'dart:math';
 
@@ -62,15 +62,13 @@ int _baseGoldForRarity(String rarity) {
 }
 
 /// Currency the player chose for the sale.
-enum _SaleCurrency { gold, silver, shards }
+enum _SaleCurrency { silver, shards }
 
 /// Currency multiplier relative to base gold price.
 int _currencyMultiplier(_SaleCurrency c) {
   switch (c) {
-    case _SaleCurrency.gold:
-      return 1;
     case _SaleCurrency.silver:
-      return 20;
+      return 10;
     case _SaleCurrency.shards:
       return 5;
   }
@@ -120,7 +118,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
   List<_SellableCreature> _allSellable = [];
   List<_SellableCreature> _filtered = [];
   bool _loading = true;
-  _SaleCurrency _currency = _SaleCurrency.gold;
+  _SaleCurrency _currency = _SaleCurrency.silver;
 
   // Filters
   bool _filterPrismatic = false;
@@ -170,7 +168,8 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
 
       final baseGold = _baseGoldForRarity(base.rarity);
       final prismaticBonus = inst.isPrismaticSkin ? 10 : 0;
-      final raw = baseGold + prismaticBonus;
+      final sourceMultiplier = inst.source == 'planet_summon' ? 1.5 : 1.0;
+      final raw = ((baseGold + prismaticBonus) * sourceMultiplier).round();
 
       // Random ±20 % multiplier
       final multiplier = 0.8 + rng.nextDouble() * 0.4;
@@ -224,10 +223,27 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
     _filtered = result;
   }
 
+  bool _usesGoldPayout(_SellableCreature item) => item.instance.isPrismaticSkin;
+
+  int _goldPayoutFor(_SellableCreature item) =>
+      (item.basePrice / 12).ceil().clamp(1, 6);
+
+  int _displayPriceFor(_SellableCreature item) {
+    if (_usesGoldPayout(item)) return _goldPayoutFor(item);
+    return item.displayPrice(_currency);
+  }
+
+  String _currencyLabelFor(_SellableCreature item) =>
+      _usesGoldPayout(item) ? 'Gold' : _currencyLabel;
+
+  IconData _currencyIconFor(_SellableCreature item) =>
+      _usesGoldPayout(item) ? Icons.hexagon : _currencyIcon;
+
+  Color _currencyColorFor(_SellableCreature item) =>
+      _usesGoldPayout(item) ? const Color(0xFFFFD700) : _currencyColor;
+
   String get _currencyLabel {
     switch (_currency) {
-      case _SaleCurrency.gold:
-        return 'Gold';
       case _SaleCurrency.silver:
         return 'Silver';
       case _SaleCurrency.shards:
@@ -237,8 +253,6 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
 
   IconData get _currencyIcon {
     switch (_currency) {
-      case _SaleCurrency.gold:
-        return Icons.hexagon;
       case _SaleCurrency.silver:
         return Icons.monetization_on;
       case _SaleCurrency.shards:
@@ -248,8 +262,6 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
 
   Color get _currencyColor {
     switch (_currency) {
-      case _SaleCurrency.gold:
-        return const Color(0xFFFFD700);
       case _SaleCurrency.silver:
         return const Color(0xFFC0C0C0);
       case _SaleCurrency.shards:
@@ -258,7 +270,9 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
   }
 
   Future<void> _sell(_SellableCreature item) async {
-    final displayPrice = item.displayPrice(_currency);
+    final displayPrice = _displayPriceFor(item);
+    final payoutLabel = _currencyLabelFor(item);
+    final payoutColor = _currencyColorFor(item);
     // Confirm
     final confirmed = await showDialog<bool>(
       context: context,
@@ -269,7 +283,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          'You will receive $displayPrice $_currencyLabel.',
+          'You will receive $displayPrice $payoutLabel.',
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -279,7 +293,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('SELL', style: TextStyle(color: _currencyColor)),
+            child: Text('SELL', style: TextStyle(color: payoutColor)),
           ),
         ],
       ),
@@ -289,17 +303,20 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
     final db = context.read<AlchemonsDatabase>();
     await db.creatureDao.deleteInstances([item.instance.instanceId]);
 
-    // Credit currency
-    switch (_currency) {
-      case _SaleCurrency.gold:
-        await db.currencyDao.addGold(displayPrice);
-        break;
-      case _SaleCurrency.silver:
-        await db.currencyDao.addSilver(displayPrice);
-        break;
-      case _SaleCurrency.shards:
-        await db.currencyDao.addResource('wallet_astral_shards', displayPrice);
-        break;
+    if (_usesGoldPayout(item)) {
+      await db.currencyDao.addGold(displayPrice);
+    } else {
+      switch (_currency) {
+        case _SaleCurrency.silver:
+          await db.currencyDao.addSilver(displayPrice);
+          break;
+        case _SaleCurrency.shards:
+          await db.currencyDao.addResource(
+            'wallet_astral_shards',
+            displayPrice,
+          );
+          break;
+      }
     }
 
     HapticFeedback.heavyImpact();
@@ -653,12 +670,10 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
   Widget _currencyChip(_SaleCurrency cur) {
     final selected = _currency == cur;
     final label = switch (cur) {
-      _SaleCurrency.gold => 'Gold',
       _SaleCurrency.silver => 'Silver',
       _SaleCurrency.shards => 'Shards',
     };
     final color = switch (cur) {
-      _SaleCurrency.gold => const Color(0xFFFFD700),
       _SaleCurrency.silver => const Color(0xFFC0C0C0),
       _SaleCurrency.shards => const Color(0xFFAB47BC),
     };
@@ -692,6 +707,9 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
   Widget _buildCard(_SellableCreature item) {
     final c = item.creature;
     final inst = item.instance;
+    final price = _displayPriceFor(item);
+    final priceIcon = _currencyIconFor(item);
+    final priceColor = _currencyColorFor(item);
 
     // Element color
     final eColor = _typeColor(c.types.isNotEmpty ? c.types.first : '');
@@ -848,23 +866,21 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: _currencyColor.withValues(alpha: 0.15),
+                  color: priceColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: _currencyColor.withValues(alpha: 0.4),
-                  ),
+                  border: Border.all(color: priceColor.withValues(alpha: 0.4)),
                 ),
                 child: Column(
                   children: [
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(_currencyIcon, size: 12, color: _currencyColor),
+                        Icon(priceIcon, size: 12, color: priceColor),
                         const SizedBox(width: 3),
                         Text(
-                          '${item.displayPrice(_currency)}',
+                          '$price',
                           style: TextStyle(
-                            color: _currencyColor,
+                            color: priceColor,
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
                           ),
@@ -875,7 +891,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                     Text(
                       'SELL',
                       style: TextStyle(
-                        color: _currencyColor.withValues(alpha: 0.7),
+                        color: priceColor.withValues(alpha: 0.7),
                         fontSize: 8,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,

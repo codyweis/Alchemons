@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "prod": "alchemons-auth"
+  },
+  "targets": {},
+  "etags": {}
+}

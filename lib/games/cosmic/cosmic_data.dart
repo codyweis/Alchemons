@@ -151,7 +151,7 @@ class CosmicBalance {
 
   static double shipDamageMultiplier(int level) {
     final safeLevel = level.clamp(0, HomeCustomizationState.maxUpgradeLevel);
-    return 1.0 + safeLevel * 0.12;
+    return 1.0 + safeLevel * 0.08;
   }
 
   static double enemyBaseHealth(EnemyTier tier) => switch (tier) {
@@ -530,9 +530,14 @@ class BattleRing {
   /// Whether all 10 levels are beaten → practice arena.
   bool get isCompleted => currentLevel >= maxLevels;
 
-  /// Gold reward per level (10 gold × level number, 1-based).
-  /// Gold reward per level: fixed 10 gold for completing a level.
-  int get goldReward => isCompleted ? 1000 : 10;
+  /// Gold reward is limited to first clears only.
+  /// Practice matches grant no gold once the arena is complete.
+  int get goldReward {
+    if (isCompleted) return 0;
+    if (currentLevel >= 9) return 5;
+    if (currentLevel >= 6) return 2;
+    return 1;
+  }
 
   /// Opponent rarity for the current level.
   /// Levels 1–3 = common, 4–6 = uncommon, 7–8 = rare, 9–10 = legendary.
@@ -2475,7 +2480,7 @@ class OrbitalSentinel {
   static const int autoReplenishThreshold = 50;
 
   /// Seconds before a destroyed sentinel respawns.
-  static const double respawnCooldown = 4.0;
+  static const double respawnCooldown = 7.0;
 
   /// Seconds for the fade-in animation.
   static const double fadeInDuration = 0.8;

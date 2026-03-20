@@ -395,19 +395,44 @@ class BreedingEngine {
     // MERGE & INCREMENT
     final factionLineage = _mergeLineageCounts(a: parentA, b: parentB);
 
-    // MERGE & INCREMENT — elements
-    final elementLineage = _mergeCounts(
-      aMap: parentA.elementLineage,
-      bMap: parentB.elementLineage,
-      incrementKeys: {primaryElemA, primaryElemB}.whereType<String>().toList(),
-    );
+    // Recipe-born offspring from two elementally pure parents establish a new
+    // pure elemental line for the fused result instead of preserving the
+    // source elements in ancestry forever.
+    final elementLineage =
+        _isRecipeFusionFounder(
+          child: child,
+          p1: p1,
+          p2: p2,
+          parentA: parentA,
+          parentB: parentB,
+        )
+        ? <String, int>{if (child.types.isNotEmpty) child.types.first: 1}
+        : _mergeCounts(
+            aMap: parentA.elementLineage,
+            bMap: parentB.elementLineage,
+            incrementKeys: {
+              primaryElemA,
+              primaryElemB,
+            }.whereType<String>().toList(),
+          );
 
-    // MERGE & INCREMENT — families
-    final familyLineage = _mergeCounts(
-      aMap: parentA.familyLineage,
-      bMap: parentB.familyLineage,
-      incrementKeys: {famA, famB}.toList(),
-    );
+    // Recipe-born offspring from two family-pure parents establish a new
+    // pure family line for the fused result instead of preserving both source
+    // families in ancestry forever.
+    final familyLineage =
+        _isRecipeFamilyFounder(
+          child: child,
+          p1: p1,
+          p2: p2,
+          parentA: parentA,
+          parentB: parentB,
+        )
+        ? <String, int>{_familyOf(child): 1}
+        : _mergeCounts(
+            aMap: parentA.familyLineage,
+            bMap: parentB.familyLineage,
+            incrementKeys: {famA, famB}.toList(),
+          );
 
     // roll variant faction (existing logic)
     final rolledAFaction = _rollVariantFaction(
@@ -1324,6 +1349,69 @@ class BreedingEngine {
     // i.e., lineage map has only one entry and it matches nativeFaction
     return data.factionLineage.keys.length == 1 &&
         data.factionLineage.containsKey(data.nativeFaction);
+  }
+
+  bool _isRecipeFusionFounder({
+    required Creature child,
+    required Creature p1,
+    required Creature p2,
+    required ParentSnapshot parentA,
+    required ParentSnapshot parentB,
+  }) {
+    final childElem = child.types.isNotEmpty ? child.types.first : null;
+    final elemA = p1.types.isNotEmpty ? p1.types.first : null;
+    final elemB = p2.types.isNotEmpty ? p2.types.first : null;
+    if (childElem == null || elemA == null || elemB == null) return false;
+
+    if (childElem == elemA || childElem == elemB) return false;
+
+    if (!_isPureElementLine(parentA, elemA) ||
+        !_isPureElementLine(parentB, elemB)) {
+      return false;
+    }
+
+    final recipe =
+        elementRecipes.recipes[ElementRecipeConfig.keyOf(elemA, elemB)];
+    return recipe != null && recipe.containsKey(childElem);
+  }
+
+  bool _isPureElementLine(ParentSnapshot parent, String currentElement) {
+    final nonZero = parent.elementLineage.entries
+        .where((e) => e.value > 0)
+        .toList();
+    return nonZero.length == 1 && nonZero.first.key == currentElement;
+  }
+
+  bool _isRecipeFamilyFounder({
+    required Creature child,
+    required Creature p1,
+    required Creature p2,
+    required ParentSnapshot parentA,
+    required ParentSnapshot parentB,
+  }) {
+    final childFamily = _familyOf(child);
+    final famA = _familyOf(p1);
+    final famB = _familyOf(p2);
+    if (childFamily == 'Unknown' || famA == 'Unknown' || famB == 'Unknown') {
+      return false;
+    }
+
+    if (childFamily == famA || childFamily == famB) return false;
+
+    if (!_isPureFamilyLine(parentA, famA) ||
+        !_isPureFamilyLine(parentB, famB)) {
+      return false;
+    }
+
+    final recipe = familyRecipes.recipes[FamilyRecipeConfig.keyOf(famA, famB)];
+    return recipe != null && recipe.containsKey(childFamily);
+  }
+
+  bool _isPureFamilyLine(ParentSnapshot parent, String currentFamily) {
+    final nonZero = parent.familyLineage.entries
+        .where((e) => e.value > 0)
+        .toList();
+    return nonZero.length == 1 && nonZero.first.key == currentFamily;
   }
 
   Creature? _tryGlobalMutation(Creature p1, Creature p2) {

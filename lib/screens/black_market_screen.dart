@@ -34,6 +34,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
   final List<CreatureInstance> _selectedForSale = [];
   final Map<String, int> _selectedResources = {}; // resource key -> quantity
   int _totalValue = 0;
+  int _totalGoldValue = 0;
   int _totalResourceValue = 0;
   int _activeTab = 1;
   int _sellSubTab = 0; // 0 = Alchemons, 1 = Resources
@@ -450,7 +451,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     );
   }
 
-  Future<void> _buyVial(
+  Future<bool> _buyVial(
     ExtractionVial vial,
     BlackMarketService marketService,
   ) async {
@@ -469,11 +470,11 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         icon: Icons.warning_rounded,
         color: Colors.orange,
       );
-      return;
+      return false;
     }
 
     // Confirm
-    if (!mounted) return;
+    if (!mounted) return false;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => _PurchaseConfirmationDialog(
@@ -493,7 +494,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         accent: widget.accent,
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted) return false;
 
     // Deduct
     if (usesGold) {
@@ -507,7 +508,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     // Mark 'purchased' so the UI disables the card
     await marketService.purchaseOffer(vial.id);
 
-    if (!mounted) return;
+    if (!mounted) return false;
     HapticFeedback.heavyImpact();
 
     _showToast(
@@ -515,63 +516,135 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
       icon: Icons.check_circle_rounded,
       color: theme.text,
     );
+
+    return true;
   }
 
   void _showVialDetails(ExtractionVial vial) {
-    // Optional: present a bottom sheet with a bigger fusion flourish, lore, etc.
-    // For now, just a simple dialog:
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: const Color(0xFF1A1D23),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: widget.accent.withValues(alpha: 0.5),
-            width: 2,
+      builder: (dialogContext) {
+        final marketService = dialogContext.watch<BlackMarketService>();
+        final db = dialogContext.read<AlchemonsDatabase>();
+        final isPurchased = marketService.isPurchased(vial.id);
+        final usesGold = vial.rarity == VialRarity.legendary;
+        final currencyLabel = usesGold ? 'gold' : 'silver';
+
+        return Dialog(
+          backgroundColor: const Color(0xFF1A1D23),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: widget.accent.withValues(alpha: 0.5),
+              width: 2,
+            ),
           ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                vial.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  vial.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${vial.group.displayName} • ${vial.rarity.name}',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontWeight: FontWeight.w700,
+                const SizedBox(height: 8),
+                Text(
+                  '${vial.group.displayName} • ${vial.rarity.name}',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 160,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: ExtractionVialCard(vial: vial, compact: true),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 160,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: ExtractionVialCard(vial: vial, compact: true),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Price: ${vial.price} ${vial.rarity == VialRarity.mythic ? 'gold' : 'silver'}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
+                const SizedBox(height: 12),
+                StreamBuilder<Map<String, int>>(
+                  stream: db.currencyDao.watchAllCurrencies(),
+                  builder: (context, snap) {
+                    final currencies = snap.data ?? const {'gold': 0, 'silver': 0};
+                    final available = currencies[currencyLabel] ?? 0;
+                    final canAfford = available >= (vial.price ?? 0);
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Price: ${vial.price} $currencyLabel',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'You have: $available $currencyLabel',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: isPurchased
+                                ? null
+                                : () async {
+                                    final purchased = await _buyVial(
+                                      vial,
+                                      marketService,
+                                    );
+                                    if (purchased && dialogContext.mounted) {
+                                      Navigator.of(dialogContext).pop();
+                                    }
+                                  },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: isPurchased
+                                  ? Colors.green.withValues(alpha: 0.75)
+                                  : canAfford
+                                  ? widget.accent
+                                  : Colors.grey.shade700,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: Colors.green.withValues(
+                                alpha: 0.75,
+                              ),
+                              disabledForegroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Text(
+                              isPurchased
+                                  ? 'PURCHASED'
+                                  : canAfford
+                                  ? 'BUY VIAL'
+                                  : 'NOT ENOUGH ${currencyLabel.toUpperCase()}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1133,6 +1206,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     setState(() {
                       _selectedForSale.clear();
                       _totalValue = 0;
+                      _totalGoldValue = 0;
                     });
                     HapticFeedback.lightImpact();
                   },
@@ -1164,7 +1238,8 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             child: _CompactCreatureRow(
               instance: inst,
               species: species,
-              price: price,
+              price: inst.isPrismaticSkin ? _silverToGoldValue(price) : price,
+              usesGold: inst.isPrismaticSkin,
               onRemove: () {
                 setState(() {
                   _selectedForSale.remove(inst);
@@ -1203,22 +1278,50 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     letterSpacing: 0.5,
                   ),
                 ),
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Icon(
-                      Icons.monetization_on_rounded,
-                      size: 18,
-                      color: Colors.grey.shade300,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$_totalValue',
-                      style: TextStyle(
-                        color: Colors.grey.shade300,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
+                    if (_totalValue > 0)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.monetization_on_rounded,
+                            size: 18,
+                            color: Colors.grey.shade300,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '$_totalValue',
+                            style: TextStyle(
+                              color: Colors.grey.shade300,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
+                    if (_totalGoldValue > 0) const SizedBox(height: 4),
+                    if (_totalGoldValue > 0)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.hexagon_rounded,
+                            size: 18,
+                            color: Color(0xFFFFD700),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '$_totalGoldValue',
+                            style: const TextStyle(
+                              color: Color(0xFFFFD700),
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ],
@@ -1597,6 +1700,9 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     return (quantity / 2).floor();
   }
 
+  int _silverToGoldValue(int silverValue) =>
+      (silverValue / 1500).ceil().clamp(2, 999999);
+
   /// Final per-instance sell price with all per-creature modifiers
   /// (rarity/level/tint/prismatic) + Earthen faction perk.
   int _computeInstanceSellPrice(
@@ -1887,21 +1993,31 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     final repo = context.read<CreatureCatalog>();
     final factions = context.read<FactionService>();
 
-    // Per-creature prices *including* Earthen perk
-    final prices = _selectedForSale.map((inst) {
-      final species = repo.getCreatureById(inst.baseId);
-      return _computeInstanceSellPrice(inst, species, factions);
-    }).toList();
-
-    final baseTotal = prices.fold<int>(0, (sum, price) => sum + price);
-    final bulkBonus = BlackMarketConstants.calculateBulkBonus(prices);
-    final preConstellationTotal = baseTotal + bulkBonus;
-
     // 🔮 Apply constellation sale boosts (Extraction tree)
     final constellations = context.read<ConstellationEffectsService>();
     final saleMult = constellations.getAlchemonSaleMultiplier();
+    final silverPrices = <int>[];
+    var goldTotal = 0;
 
-    _totalValue = (preConstellationTotal * saleMult).round();
+    for (final inst in _selectedForSale) {
+      final species = repo.getCreatureById(inst.baseId);
+      final basePrice = _computeInstanceSellPrice(inst, species, factions);
+      if (inst.isPrismaticSkin) {
+        goldTotal += _silverToGoldValue((basePrice * saleMult).round());
+      } else {
+        silverPrices.add(basePrice);
+      }
+    }
+
+    final baseSilverTotal = silverPrices.fold<int>(
+      0,
+      (sum, price) => sum + price,
+    );
+    final silverBulkBonus = BlackMarketConstants.calculateBulkBonus(
+      silverPrices,
+    );
+    _totalValue = ((baseSilverTotal + silverBulkBonus) * saleMult).round();
+    _totalGoldValue = goldTotal;
   }
 
   Future<void> _confirmSale() async {
@@ -1911,7 +2027,8 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
       context: context,
       builder: (ctx) => _SaleConfirmationDialog(
         count: _selectedForSale.length,
-        total: _totalValue,
+        silverTotal: _totalValue,
+        goldTotal: _totalGoldValue,
         accent: widget.accent,
       ),
     );
@@ -1922,11 +2039,17 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
 
     final ids = _selectedForSale.map((i) => i.instanceId).toList();
     await db.creatureDao.deleteInstances(ids);
-    await db.currencyDao.addSilver(_totalValue);
+    if (_totalValue > 0) {
+      await db.currencyDao.addSilver(_totalValue);
+    }
+    if (_totalGoldValue > 0) {
+      await db.currencyDao.addGold(_totalGoldValue);
+    }
 
     setState(() {
       _selectedForSale.clear();
       _totalValue = 0;
+      _totalGoldValue = 0;
     });
 
     if (!mounted) return;
@@ -1944,7 +2067,11 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Sold ${ids.length} specimen(s) for $_totalValue silver',
+                _totalGoldValue > 0 && _totalValue > 0
+                    ? 'Sold ${ids.length} specimen(s) for $_totalValue silver and $_totalGoldValue gold'
+                    : _totalGoldValue > 0
+                    ? 'Sold ${ids.length} specimen(s) for $_totalGoldValue gold'
+                    : 'Sold ${ids.length} specimen(s) for $_totalValue silver',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
@@ -2003,12 +2130,14 @@ class _CompactCreatureRow extends StatelessWidget {
   final CreatureInstance instance;
   final Creature? species;
   final int price;
+  final bool usesGold;
   final VoidCallback onRemove;
 
   const _CompactCreatureRow({
     required this.instance,
     required this.species,
     required this.price,
+    required this.usesGold,
     required this.onRemove,
   });
 
@@ -2080,15 +2209,21 @@ class _CompactCreatureRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  Icons.monetization_on_rounded,
+                  usesGold
+                      ? Icons.hexagon_rounded
+                      : Icons.monetization_on_rounded,
                   size: 14,
-                  color: Colors.grey.shade300,
+                  color: usesGold
+                      ? const Color(0xFFFFD700)
+                      : Colors.grey.shade300,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   '$price',
                   style: TextStyle(
-                    color: Colors.grey.shade300,
+                    color: usesGold
+                        ? const Color(0xFFFFD700)
+                        : Colors.grey.shade300,
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                   ),
@@ -2271,12 +2406,14 @@ class _CompactResourceRow extends StatelessWidget {
 
 class _SaleConfirmationDialog extends StatelessWidget {
   final int count;
-  final int total;
+  final int silverTotal;
+  final int goldTotal;
   final Color accent;
 
   const _SaleConfirmationDialog({
     required this.count,
-    required this.total,
+    required this.silverTotal,
+    required this.goldTotal,
     required this.accent,
   });
 
@@ -2306,7 +2443,11 @@ class _SaleConfirmationDialog extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Sell $count specimen(s) for $total silver?',
+              goldTotal > 0 && silverTotal > 0
+                  ? 'Sell $count specimen(s) for $silverTotal silver and $goldTotal gold?'
+                  : goldTotal > 0
+                  ? 'Sell $count specimen(s) for $goldTotal gold?'
+                  : 'Sell $count specimen(s) for $silverTotal silver?',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 13,

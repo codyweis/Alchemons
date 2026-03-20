@@ -8,8 +8,8 @@ class _HomingMissile {
   Offset position;
   double angle;
   double life = 0.0;
-  static const double speed = 450.0;
-  static const double turnRate = 4.5; // radians/sec
+  static const double speed = 400.0;
+  static const double turnRate = 3.6; // radians/sec
 
   _HomingMissile({required this.position, required this.angle});
 }

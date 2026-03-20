@@ -1231,6 +1231,7 @@ class _BreedingTabState extends State<BreedingTab>
         selectedParent2 = null;
         _updateAnimations();
       });
+
       widget.onBreedingComplete();
     } catch (e) {
       if (e.toString().contains('Incompatible')) return;

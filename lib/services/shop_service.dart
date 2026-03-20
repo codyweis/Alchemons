@@ -238,32 +238,8 @@ class ShopService extends ChangeNotifier {
   static const int kSilverPerGold = 100; // informational
   static const double kFeePct = 0.05; // informational
 
-  static const Set<String> _quantityEligible = {
-    // Devices
-    'device.harvest.std.volcanic',
-    'device.harvest.std.oceanic',
-    'device.harvest.std.verdant',
-    'device.harvest.std.earthen',
-    'device.harvest.std.arcane',
-    'device.harvest.guaranteed',
-    // Currency unit exchangers
-    'fx.silver_to_gold.unit',
-    'fx.gold_to_silver.unit',
-    // Packs/currency packs you already had
-    'small_gold_pack',
-    'medium_gold_pack',
-    'large_gold_pack',
-    'volcanic_bundle',
-    'oceanic_bundle',
-    'pack.elemental',
-  };
-
   bool allowsQuantity(ShopOffer o) {
-    if (o.limit != PurchaseLimit.unlimited) return false;
-    if (_quantityEligible.contains(o.id)) return true;
-    // NEW: allow quantity for any resource→gold unit exchangers
-    if (o.id.startsWith('fx.res_to_gold.')) return true;
-    return false;
+    return o.limit == PurchaseLimit.unlimited;
   }
 
   ShopOffer? getActiveDailyVialOffer() {
@@ -345,7 +321,7 @@ class ShopService extends ChangeNotifier {
       description:
           'Resets your daily boss rematch limit for one boss, allowing you to challenge the Mystic Altar again.',
       icon: Icons.local_drink_rounded,
-      cost: const {'gold': 10},
+      cost: const {'gold': 1},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -426,7 +402,7 @@ class ShopService extends ChangeNotifier {
       description:
           'A premium harvester that guarantees capture of any wild Alchemon regardless of element. Works in the wilderness and cosmic rifts.',
       icon: Icons.shield_rounded,
-      cost: const {'gold': 25},
+      cost: const {'gold': 1},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -454,10 +430,10 @@ class ShopService extends ChangeNotifier {
       id: 'fx.silver_to_gold.unit',
       name: 'Silver → Gold (10g)',
       description:
-          'Exchange 50,000 silver for 10 gold. Use gold for premium items, portal keys, and rare cosmetics.',
+          'Exchange 500,000 silver for 10 gold. Use gold for premium items, portal keys, and rare cosmetics.',
       icon: Icons.currency_exchange_rounded,
       iconColor: const Color(0xFFF59E0B),
-      cost: const {'silver': 50000},
+      cost: const {'silver': 500000},
       reward: const {'gold': 10},
       rewardType: 'currency',
       limit: PurchaseLimit.unlimited,
@@ -672,7 +648,7 @@ class ShopService extends ChangeNotifier {
       icon: Icons.vpn_key_rounded,
       iconColor: const Color(0xFFFF5722),
       assetName: 'assets/images/ui/volcanickey.png',
-      cost: const {'gold': 50},
+      cost: const {'gold': 5},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -686,7 +662,7 @@ class ShopService extends ChangeNotifier {
       icon: Icons.vpn_key_rounded,
       iconColor: const Color(0xFF64B5F6),
       assetName: 'assets/images/ui/oceanickey.png',
-      cost: const {'gold': 50},
+      cost: const {'gold': 5},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -700,7 +676,7 @@ class ShopService extends ChangeNotifier {
       icon: Icons.vpn_key_rounded,
       iconColor: const Color(0xFF66BB6A),
       assetName: 'assets/images/ui/verdantkey.png',
-      cost: const {'gold': 50},
+      cost: const {'gold': 5},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -714,7 +690,7 @@ class ShopService extends ChangeNotifier {
       icon: Icons.vpn_key_rounded,
       iconColor: const Color(0xFF8D6E63),
       assetName: 'assets/images/ui/earthenkey.png',
-      cost: const {'gold': 50},
+      cost: const {'gold': 5},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,
@@ -728,7 +704,7 @@ class ShopService extends ChangeNotifier {
       icon: Icons.vpn_key_rounded,
       iconColor: const Color(0xFFCE93D8),
       assetName: 'assets/images/ui/arcanekey.png',
-      cost: const {'gold': 50},
+      cost: const {'gold': 5},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.unlimited,

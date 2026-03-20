@@ -589,12 +589,6 @@ class _EntryFlashPainter extends CustomPainter {
     }
     if (overlayAlpha <= 0) return;
 
-    canvas.saveLayer(
-      Offset.zero & size,
-      Paint()
-        ..color = Color.fromARGB((overlayAlpha * 255).round(), 255, 255, 255),
-    );
-
     // ── Dark radial base ─────────────────────────────────────────────────────
     canvas.drawRect(
       Offset.zero & size,
@@ -603,8 +597,12 @@ class _EntryFlashPainter extends CustomPainter {
           center: Alignment.center,
           radius: 0.8,
           colors: [
-            Color.lerp(color, Colors.black, 0.3)!.withValues(alpha: 0.85),
-            Colors.black.withValues(alpha: 0.95),
+            Color.lerp(
+              color,
+              Colors.black,
+              0.3,
+            )!.withValues(alpha: 0.85 * overlayAlpha),
+            Colors.black.withValues(alpha: 0.95 * overlayAlpha),
           ],
         ).createShader(Offset.zero & size),
     );
@@ -620,7 +618,7 @@ class _EntryFlashPainter extends CustomPainter {
     if (flashAlpha > 0) {
       canvas.drawRect(
         Offset.zero & size,
-        Paint()..color = Colors.white.withValues(alpha: flashAlpha),
+        Paint()..color = Colors.white.withValues(alpha: flashAlpha * overlayAlpha),
       );
     }
 
@@ -639,7 +637,7 @@ class _EntryFlashPainter extends CustomPainter {
         center,
         ringR,
         Paint()
-          ..color = color.withValues(alpha: ringAlpha)
+          ..color = color.withValues(alpha: ringAlpha * overlayAlpha)
           ..style = PaintingStyle.stroke
           ..strokeWidth = ringWidth
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
@@ -653,12 +651,10 @@ class _EntryFlashPainter extends CustomPainter {
         center,
         maxR * 0.25,
         Paint()
-          ..color = color.withValues(alpha: glowAlpha)
+          ..color = color.withValues(alpha: glowAlpha * overlayAlpha)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60),
       );
     }
-
-    canvas.restore();
   }
 
   @override

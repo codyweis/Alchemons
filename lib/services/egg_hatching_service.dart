@@ -10,6 +10,7 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/screens/breed/utils/breed_utils.dart';
+import 'package:alchemons/screens/breeding_milestones_screen.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
@@ -415,10 +416,13 @@ class EggHatching {
 
     // Track breeding for constellation points
     // (starters and vials don't count toward breeding milestones)
-
+    PendingMilestoneShowcase? milestoneShowcase;
     try {
       final constellationSvc = context.read<ConstellationService>();
-      await constellationSvc.incrementBreedCount(offspring.id);
+      milestoneShowcase = await constellationSvc.incrementBreedCount(
+        offspring.id,
+        rarity: offspring.rarity,
+      );
     } catch (e) {
       // Don't break hatching if constellation tracking fails
       debugPrint('⚠️ Failed to track breeding for constellation: $e');
@@ -536,6 +540,14 @@ class EggHatching {
       _showScorchedDiscoveryOverlay(
         safeContext,
         unlocked: recipeDiscovery.unlocked,
+      );
+    }
+    if (milestoneShowcase != null && safeContext.mounted) {
+      showConstellationMilestoneOverlay(
+        safeContext,
+        speciesId: offspring.id,
+        speciesName: offspring.name,
+        showcase: milestoneShowcase,
       );
     }
   }
@@ -1244,6 +1256,114 @@ class EggHatching {
         ),
       ),
     );
+  }
+
+  static void showConstellationMilestoneOverlay(
+    BuildContext context, {
+    required String speciesId,
+    required String speciesName,
+    required PendingMilestoneShowcase showcase,
+  }) {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    final overlay = rootNav.overlay;
+    if (overlay == null) return;
+
+    void dismissOverlay() {
+      _activeDiscoveryOverlay?.remove();
+      _activeDiscoveryOverlay = null;
+    }
+
+    void openProgress() {
+      dismissOverlay();
+      rootNav.push(
+        MaterialPageRoute(
+          builder: (_) => BreedingMilestoneScreen(speciesId: speciesId),
+        ),
+      );
+    }
+
+    dismissOverlay();
+    final int version = ++_overlayVersion;
+
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (overlayContext) {
+        final top = MediaQuery.of(overlayContext).padding.top + 10;
+        return Positioned(
+          top: top,
+          left: 14,
+          right: 14,
+          child: Material(
+            color: Colors.transparent,
+            child: GestureDetector(
+              onTap: openProgress,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF14192D), Color(0xFF223057)],
+                  ),
+                  border: Border.all(
+                    color: const Color(0xFF7AA7FF).withValues(alpha: .72),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF7AA7FF).withValues(alpha: .22),
+                      blurRadius: 18,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF7AA7FF).withValues(alpha: .16),
+                        border: Border.all(
+                          color: const Color(0xFF7AA7FF).withValues(alpha: .55),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Color(0xFFDDE8FF),
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '$speciesName reached ${showcase.milestoneCount} bred  •  +${showcase.pointsAwarded} constellation points  •  Tap to open progress',
+                        style: const TextStyle(
+                          color: Color(0xFFE2ECFF),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    _activeDiscoveryOverlay = entry;
+    overlay.insert(entry);
+
+    Future<void>.delayed(const Duration(seconds: 4), () {
+      if (_overlayVersion == version) {
+        dismissOverlay();
+      }
+    });
   }
 
   static Widget _buildExtractionHeader(

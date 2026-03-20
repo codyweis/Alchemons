@@ -311,7 +311,7 @@ class LootBoxConfig {
     final pool = contentsForBox(boxKey);
     if (pool.isEmpty) return const [];
 
-    final rolls = 1 + rng.nextInt(2); // 1-2 drops per box
+    final rolls = rng.nextDouble() < 0.2 ? 2 : 1;
     final rewards = <String, int>{};
 
     for (int i = 0; i < rolls; i++) {
@@ -349,22 +349,27 @@ class LootBoxConfig {
     int wave,
     Random rng,
   ) {
-    if (wave < 6) return null;
+    if (wave < 10) return null;
 
     final keys = BossLootKeys.elementRewards.keys
         .map(BossLootKeys.lootBoxKeyForElement)
         .toList();
     final picked = keys[rng.nextInt(keys.length)];
 
-    if (wave >= 26) {
+    if (wave >= 50) {
       return SurvivalLootBoxReward(boxKey: picked, quantity: 2);
     }
-    if (wave >= 16) {
-      return SurvivalLootBoxReward(boxKey: picked, quantity: 1);
+    if (wave >= 35) {
+      return rng.nextDouble() < 0.75
+          ? SurvivalLootBoxReward(boxKey: picked, quantity: 1)
+          : null;
     }
-
-    final chance = 0.5; // wave 6-15
-    if (rng.nextDouble() <= chance) {
+    if (wave >= 20) {
+      return rng.nextDouble() < 0.5
+          ? SurvivalLootBoxReward(boxKey: picked, quantity: 1)
+          : null;
+    }
+    if (wave >= 10 && rng.nextDouble() < 0.25) {
       return SurvivalLootBoxReward(boxKey: picked, quantity: 1);
     }
     return null;
@@ -375,12 +380,12 @@ class LootBoxConfig {
     Random rng,
   ) {
     final difficulty = bossOrder.clamp(1, 17);
-    final silver = 250 + (difficulty * 45) + rng.nextInt(251);
+    final silver = 150 + (difficulty * 25) + rng.nextInt(151);
 
     var gold = 0;
-    final goldChance = 0.12 + (difficulty * 0.018); // 13.8% .. 42.6%
+    final goldChance = 0.02 + (difficulty * 0.004); // 2.4% .. 8.8%
     if (rng.nextDouble() <= goldChance) {
-      gold = 1 + (difficulty >= 10 ? 1 : 0) + (rng.nextDouble() < 0.18 ? 1 : 0);
+      gold = 1;
     }
 
     final rewards = <String, int>{'silver': silver};
@@ -390,16 +395,19 @@ class LootBoxConfig {
 
   static Map<String, int> rollSurvivalBonusCurrency(int wave, Random rng) {
     final difficulty = wave.clamp(1, 60);
-    final silver = 120 + (difficulty * 20) + rng.nextInt(181);
+    final silver = 75 + (difficulty * 12) + rng.nextInt(101);
 
     var gold = 0;
-    final goldChance = wave >= 20
-        ? 0.35
-        : wave >= 12
-        ? 0.2
-        : 0.08;
+    final goldChance = wave >= 40
+        ? 0.08
+        : wave >= 25
+        ? 0.04
+        : 0.01;
     if (rng.nextDouble() <= goldChance) {
-      gold = wave >= 30 ? 2 : 1;
+      gold = 1;
+      if (wave >= 55 && rng.nextDouble() < 0.05) {
+        gold += 1;
+      }
     }
 
     final rewards = <String, int>{'silver': silver};

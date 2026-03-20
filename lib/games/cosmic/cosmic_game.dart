@@ -1217,7 +1217,7 @@ class CosmicGame extends FlameGame with PanDetector {
     // ── ship shooting (primary weapon) ──
     if (_shootCooldown > 0) _shootCooldown -= dt;
     final fireRate = activeWeaponId == 'equip_machinegun'
-        ? 0.10
+        ? 0.12
         : shootInterval;
     if (shooting && !_shipDead && _shootCooldown <= 0) {
       _shootCooldown = fireRate;
@@ -1239,7 +1239,7 @@ class CosmicGame extends FlameGame with PanDetector {
         !_shipDead &&
         _missileShootCooldown <= 0) {
       if (missileAmmo > 0) {
-        _missileShootCooldown = 0.60;
+        _missileShootCooldown = 0.85;
         missileAmmo--;
         _missiles.add(
           _HomingMissile(
@@ -1315,7 +1315,7 @@ class CosmicGame extends FlameGame with PanDetector {
         final edx = m.position.dx - e.position.dx;
         final edy = m.position.dy - e.position.dy;
         if (edx * edx + edy * edy < (e.radius + 6) * (e.radius + 6)) {
-          e.health -= 5.0 * missileMult; // missiles do heavy damage
+          e.health -= 3.8 * missileMult;
           _spawnHitSpark(m.position, const Color(0xFFFF6F00));
           if (!e.provoked &&
               (e.behavior == EnemyBehavior.feeding ||
@@ -1339,14 +1339,14 @@ class CosmicGame extends FlameGame with PanDetector {
         final bdy = m.position.dy - boss.position.dy;
         if (bdx * bdx + bdy * bdy < (boss.radius + 6) * (boss.radius + 6)) {
           if (boss.shieldUp && boss.type == BossType.gunner) {
-            boss.shieldHealth -= 5.0 * missileMult;
+            boss.shieldHealth -= 3.8 * missileMult;
             _spawnHitSpark(m.position, Colors.cyanAccent);
             if (boss.shieldHealth <= 0) {
               boss.shieldUp = false;
               boss.shieldTimer = CosmicBoss.shieldCooldown;
             }
           } else {
-            boss.health -= 5.0 * missileMult;
+            boss.health -= 3.8 * missileMult;
             _spawnHitSpark(m.position, const Color(0xFFFF6F00));
             if (boss.health <= 0) {
               _handleBossKill(boss);
@@ -1375,9 +1375,8 @@ class CosmicGame extends FlameGame with PanDetector {
               (OrbitalSentinel.hitboxRadius + e.radius) *
                   (OrbitalSentinel.hitboxRadius + e.radius)) {
             // Both take damage
-            orbitals[i].health -=
-                0.2; // sentinel takes a hit but survives several
-            e.health -= 3.5; // orbitals deal heavy damage
+            orbitals[i].health -= 0.4;
+            e.health -= 2.2;
             _spawnHitSpark(oPos, const Color(0xFF42A5F5));
             if (!e.provoked &&
                 (e.behavior == EnemyBehavior.feeding ||
@@ -1442,7 +1441,7 @@ class CosmicGame extends FlameGame with PanDetector {
         ammoUpgradeLevel,
       );
       final projDmg =
-          (activeWeaponId == 'equip_machinegun' ? 0.15 : 0.34) * ammoMult;
+          (activeWeaponId == 'equip_machinegun' ? 0.12 : 0.28) * ammoMult;
       for (final rock in asteroidBelt.asteroids) {
         if (rock.destroyed) continue;
         final rdx = p.position.dx - rock.position.dx;
@@ -1486,7 +1485,7 @@ class CosmicGame extends FlameGame with PanDetector {
           if (edx * edx + edy * edy < hitR * hitR) {
             // Machine gun: lower damage per shot but rapid fire
             final eDmg =
-                ((activeWeaponId == 'equip_machinegun' ? 0.35 : 1.0) *
+                ((activeWeaponId == 'equip_machinegun' ? 0.28 : 0.8) *
                     HomeCustomizationState.damageMultiplier(ammoUpgradeLevel)) *
                 kDamageScale;
             enemy.health -= eDmg;
@@ -1533,7 +1532,7 @@ class CosmicGame extends FlameGame with PanDetector {
           final rHitR = rm.radius + Projectile.radius;
           if (rdx * rdx + rdy * rdy < rHitR * rHitR) {
             final projDmg =
-                ((activeWeaponId == 'equip_machinegun' ? 0.35 : 1.0) *
+                ((activeWeaponId == 'equip_machinegun' ? 0.28 : 0.8) *
                     HomeCustomizationState.damageMultiplier(ammoUpgradeLevel)) *
                 kDamageScale;
             rm.health -= projDmg;
@@ -1582,7 +1581,7 @@ class CosmicGame extends FlameGame with PanDetector {
         if (bdx * bdx + bdy * bdy < bHitR * bHitR) {
           // Gunner shield absorbs damage
           final projBossDmg =
-              (1.0 *
+              (0.8 *
                   HomeCustomizationState.damageMultiplier(ammoUpgradeLevel)) *
               kDamageScale;
           if (boss.shieldUp && boss.type == BossType.gunner) {
@@ -4312,10 +4311,8 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    // ── prismatic field (aurora easter-egg) — hidden after reward claimed ──
-    if (!prismaticRewardClaimed) {
-      _renderPrismaticField(canvas, cx, cy, screenW, screenH);
-    }
+    // ── prismatic field (aurora easter-egg) ──
+    _renderPrismaticField(canvas, cx, cy, screenW, screenH);
 
     // ── space POIs ──
     for (final poi in spacePOIs) {

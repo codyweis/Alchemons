@@ -799,7 +799,7 @@ class SpawnDebugPanel extends StatelessWidget {
 
             String timeText;
             if (nextDue == null) {
-              timeText = 'Not scheduled';
+              timeText = 'Calculating...';
             } else {
               final now = DateTime.now().toUtc().millisecondsSinceEpoch;
               final diff = nextDue - now;
@@ -1007,7 +1007,7 @@ class _ScorchedSpawnBox extends StatelessWidget {
   });
 
   String _formatTime(int? dueMs) {
-    if (dueMs == null) return 'Not scheduled';
+    if (dueMs == null) return 'Calculating...';
     final now = DateTime.now().toUtc().millisecondsSinceEpoch;
     final diff = dueMs - now;
     if (diff <= 0) return 'Due now!';

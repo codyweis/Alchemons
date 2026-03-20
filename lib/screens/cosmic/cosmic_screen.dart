@@ -1013,7 +1013,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!mounted) return;
     final db = context.read<AlchemonsDatabase>();
     await db.settingsDao.setCosmicPrismaticRewardClaimed(true);
-    await db.currencyDao.addGold(50);
+    await db.currencyDao.addGold(10);
     if (mounted) setState(() {});
   }
 
@@ -2719,15 +2719,16 @@ class _CosmicScreenState extends State<CosmicScreen>
     br.currentLevel = (br.currentLevel + 1).clamp(0, BattleRing.maxLevels);
     _saveBattleRingState();
 
-    // Award gold
     final db = context.read<AlchemonsDatabase>();
-    db.currencyDao.addGold(goldReward);
+    if (goldReward > 0) {
+      db.currencyDao.addGold(goldReward);
+    }
 
     HapticFeedback.heavyImpact();
-    // If we've reached the practice arena (all levels beaten), show a
-    // distinct completion message.
-    if (br.currentLevel >= BattleRing.maxLevels) {
-      _showQuote('Practice completed! +$goldReward gold');
+    if (completedLevel >= BattleRing.maxLevels) {
+      _showQuote('Practice match complete.');
+    } else if (br.currentLevel >= BattleRing.maxLevels) {
+      _showQuote('Arena completed! +$goldReward gold');
     } else {
       _showQuote('Level ${completedLevel + 1} complete! +$goldReward gold');
     }

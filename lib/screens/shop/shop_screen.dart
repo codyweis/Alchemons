@@ -23,6 +23,7 @@ import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
@@ -510,6 +511,13 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildDailyVialSection(theme, allCurrencies),
 
                       _buildSectionHeader(
+                        'GOLD VAULT',
+                        const Color(0xFFFFD700),
+                        Icons.hexagon_rounded,
+                      ),
+                      _buildGoldVaultSection(theme),
+
+                      _buildSectionHeader(
                         'HARVEST DEVICES',
                         t.textPrimary,
                         Icons.science_rounded,
@@ -658,6 +666,252 @@ class _ShopScreenState extends State<ShopScreen> {
             childAspectRatio: 0.75,
             children: cards,
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGoldVaultSection(FactionTheme theme) {
+    return Consumer<MobileStoreService>(
+      builder: (context, store, _) {
+        final packs = store.packDefinitions;
+
+        Future<void> buyPack(String productId) async {
+          final started = await store.purchaseGoldPack(productId);
+          if (!context.mounted) return;
+          _toast(
+            started
+                ? 'Purchase started'
+                : (store.lastError ?? 'Store unavailable'),
+            icon: started ? Icons.shopping_bag_rounded : Icons.error_rounded,
+            color: started ? const Color(0xFFFFD700) : t.danger,
+          );
+        }
+
+        if (!store.isSupportedPlatform) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: Text(
+              'Gold purchases are available on iOS and Android builds.',
+              style: TextStyle(
+                color: t.textSecondary,
+                fontSize: 10,
+                height: 1.5,
+                letterSpacing: 0.2,
+              ),
+            ),
+          );
+        }
+
+        final cards = packs.map((pack) {
+          final product = store.productFor(pack.productId);
+          final priceLabel =
+              product?.price ?? (store.isLoading ? '...' : 'Unavailable');
+          final canBuy = product != null && store.storeAvailable;
+          final pending = store.isPurchasePending(pack.productId);
+          final accent = switch (pack.badge) {
+            'STARTER' => const Color(0xFFFFE082),
+            'POPULAR' => const Color(0xFFFFD54F),
+            'VALUE' => const Color(0xFFFFB300),
+            _ => const Color(0xFFFF8F00),
+          };
+
+          return GestureDetector(
+            onTap: canBuy && !pending ? () => buyPack(pack.productId) : null,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: accent.withValues(alpha: canBuy ? 0.55 : 0.2),
+                ),
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF1C1510).withValues(alpha: 0.98),
+                    const Color(0xFF0E0B08).withValues(alpha: 0.98),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    right: -16,
+                    top: -16,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accent.withValues(alpha: 0.08),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(99),
+                            border: Border.all(
+                              color: accent.withValues(alpha: 0.28),
+                            ),
+                          ),
+                          child: Text(
+                            pack.badge,
+                            style: TextStyle(
+                              color: accent,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          style: TextStyle(
+                            color: accent,
+                            fontSize: 28,
+                            height: 0.95,
+                            fontWeight: FontWeight.w900,
+                          ),
+                          '${pack.goldAmount}',
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: Colors.white.withValues(alpha: 0.82),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.6,
+                          ),
+                          'GOLD',
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          pack.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: t.textPrimary,
+                            fontSize: 12,
+                            height: 1.1,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: canBuy
+                                ? accent.withValues(alpha: 0.14)
+                                : Colors.white.withValues(alpha: 0.04),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: canBuy
+                                  ? accent.withValues(alpha: 0.35)
+                                  : Colors.white.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (pending)
+                                SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      accent,
+                                    ),
+                                  ),
+                                )
+                              else
+                                Icon(
+                                  Icons.shopping_bag_rounded,
+                                  size: 14,
+                                  color: canBuy
+                                      ? accent
+                                      : Colors.white.withValues(alpha: 0.35),
+                                ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  pending ? 'PROCESSING' : priceLabel,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: canBuy
+                                        ? accent
+                                        : Colors.white.withValues(alpha: 0.4),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (store.lastError != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: Text(
+                  store.lastError!,
+                  style: TextStyle(
+                    color: t.danger,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            if (store.isLoading)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 0.9,
+                  children: cards,
+                ),
+              ),
+          ],
         );
       },
     );
@@ -1383,7 +1637,7 @@ class _ShopScreenState extends State<ShopScreen> {
           child: GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
+            crossAxisCount: 3,
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.75,

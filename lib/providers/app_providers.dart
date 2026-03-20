@@ -8,6 +8,10 @@ import 'package:alchemons/providers/boss_provider.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/breeding_config.dart';
+import 'package:alchemons/services/account_service.dart';
+import 'package:alchemons/services/account_cloud_save_service.dart';
+import 'package:alchemons/services/account_session_service.dart';
+import 'package:alchemons/services/device_identity_service.dart';
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
@@ -15,6 +19,7 @@ import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
+import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/boss_upgrade_service.dart';
@@ -90,6 +95,25 @@ class AppProviders extends StatelessWidget {
         // Database provider
         Provider<AlchemonsDatabase>.value(value: db),
 
+        Provider<DeviceIdentityService>(
+          create: (_) => DeviceIdentityService(),
+        ),
+
+        ChangeNotifierProvider<AccountService>(
+          create: (_) => AccountService(),
+        ),
+
+        ChangeNotifierProvider<AccountSessionService>(
+          create: (ctx) => AccountSessionService(
+            ctx.read<AccountService>(),
+            ctx.read<DeviceIdentityService>(),
+          ),
+        ),
+
+        Provider<AccountCloudSaveService>(
+          create: (_) => AccountCloudSaveService(),
+        ),
+
         ChangeNotifierProvider<AudioController>(
           create: (ctx) => AudioController(ctx.read<AlchemonsDatabase>()),
         ),
@@ -121,6 +145,10 @@ class AppProviders extends StatelessWidget {
 
         ChangeNotifierProvider(
           create: (ctx) => InventoryService(ctx.read<AlchemonsDatabase>()),
+        ),
+
+        ChangeNotifierProvider(
+          create: (ctx) => MobileStoreService(ctx.read<AlchemonsDatabase>()),
         ),
 
         ChangeNotifierProvider<StoryManager>(

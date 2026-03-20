@@ -540,55 +540,41 @@ class _SurvivalGameScreenState extends State<SurvivalGameScreen>
     final popupEntries = <LootOpeningEntry>[];
     final rng = Random();
     final rolledReward = LootBoxConfig.rollSurvivalLootBoxReward(wave, rng);
-    final fallbackBoxKey = BossLootKeys.lootBoxKeyForElement(
-      BossLootKeys.elementRewards.keys.elementAt(
-        rng.nextInt(BossLootKeys.elementRewards.length),
-      ),
-    );
-    final lootReward =
-        rolledReward ??
-        SurvivalLootBoxReward(boxKey: fallbackBoxKey, quantity: 1);
     final registry = buildInventoryRegistry(db);
-    final openedRewards = LootBoxConfig.rollBossLootBoxDropsForQuantity(
-      lootReward.boxKey,
-      lootReward.quantity,
-      rng,
-    );
-    for (final reward in openedRewards) {
-      await db.inventoryDao.addItemQty(reward.key, reward.value);
-    }
-    popupEntries.addAll(
-      openedRewards.map((entry) {
-        final def = registry[entry.key];
-        return LootOpeningEntry(
-          icon: def?.icon ?? Icons.inventory_2_rounded,
-          name: def?.name ?? entry.key,
-          label: 'x${entry.value}',
-          color: _C.amber,
-        );
-      }),
-    );
-    lootRewardLabel = openedRewards
-        .map((entry) {
-          final def = registry[entry.key];
-          return '${def?.name ?? entry.key} x${entry.value}';
-        })
-        .join(', ');
-    lootRewardDetails.addAll(
-      openedRewards.map((entry) {
-        final def = registry[entry.key];
-        return '${def?.name ?? entry.key} ×${entry.value}';
-      }),
-    );
-    if (popupEntries.isEmpty) {
-      popupEntries.add(
-        const LootOpeningEntry(
-          icon: Icons.inventory_2_rounded,
-          name: 'Item',
-          label: 'x1',
-          color: _C.amber,
-        ),
+    if (rolledReward != null) {
+      final openedRewards = LootBoxConfig.rollBossLootBoxDropsForQuantity(
+        rolledReward.boxKey,
+        rolledReward.quantity,
+        rng,
       );
+      for (final reward in openedRewards) {
+        await db.inventoryDao.addItemQty(reward.key, reward.value);
+      }
+      popupEntries.addAll(
+        openedRewards.map((entry) {
+          final def = registry[entry.key];
+          return LootOpeningEntry(
+            icon: def?.icon ?? Icons.inventory_2_rounded,
+            name: def?.name ?? entry.key,
+            label: 'x${entry.value}',
+            color: _C.amber,
+          );
+        }),
+      );
+      lootRewardLabel = openedRewards
+          .map((entry) {
+            final def = registry[entry.key];
+            return '${def?.name ?? entry.key} x${entry.value}';
+          })
+          .join(', ');
+      lootRewardDetails.addAll(
+        openedRewards.map((entry) {
+          final def = registry[entry.key];
+          return '${def?.name ?? entry.key} ×${entry.value}';
+        }),
+      );
+    } else {
+      lootRewardLabel = 'No loot cache recovered';
     }
 
     if (rolledReward != null) {

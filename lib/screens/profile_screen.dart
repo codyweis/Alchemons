@@ -4,15 +4,21 @@
 // Aesthetic: Scorched Forge — matches boss_intro_screen / survival_game_screen
 // Dark metal panels, amber reagent accents, monospace tactical typography.
 
+import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
+import 'package:alchemons/services/account_service.dart';
+import 'package:alchemons/services/account_cloud_save_service.dart';
+import 'package:alchemons/services/account_session_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
+import 'package:alchemons/services/save_transfer_service.dart';
+import 'package:alchemons/utils/app_scaffold_messenger.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
@@ -193,6 +199,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _notificationPrefsLoaded = false;
   CinematicQuality _cinematicQuality = CinematicQuality.high;
   bool _cinematicQualityLoaded = false;
+  bool _saveTransferBusy = false;
 
   @override
   void initState() {
@@ -285,10 +292,701 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await _cinematicQualityService.setQuality(value);
   }
 
+  Future<void> _reloadProfileState() async {
+    if (!mounted) return;
+    setState(() {
+      _load = _fetch();
+    });
+    await _loadNotificationPrefs();
+    await _loadCinematicQuality();
+  }
+
+  Future<void> _createAccount() async {
+    final result = await _showCredentialDialog(
+      title: 'Create Account',
+      submitLabel: 'CREATE',
+      includeDisplayName: true,
+    );
+    if (!mounted || result == null) return;
+
+    _showProgressDialog(
+      title: 'CREATING ACCOUNT',
+      message: 'Setting up your transfer account.',
+    );
+
+    final accountService = context.read<AccountService>();
+    final sessionService = context.read<AccountSessionService>();
+    try {
+      await accountService.createAccount(
+        email: result.email,
+        password: result.password,
+        displayName: result.displayName,
+      );
+      await sessionService.claimCurrentDevice(force: true);
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack('Account created. Save transfer is now unlocked.');
+    } on AccountException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack(error.message, isError: true);
+    } catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack('Account creation failed: $error', isError: true);
+    }
+  }
+
+  Future<void> _signInAccount() async {
+    final result = await _showCredentialDialog(
+      title: 'Sign In',
+      submitLabel: 'SIGN IN',
+    );
+    if (!mounted || result == null) return;
+
+    _showProgressDialog(
+      title: 'SIGNING IN',
+      message: 'Verifying your account for save transfer.',
+    );
+
+    final accountService = context.read<AccountService>();
+    final sessionService = context.read<AccountSessionService>();
+    try {
+      await accountService.signIn(
+        email: result.email,
+        password: result.password,
+      );
+      await sessionService.refresh();
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack('Signed in.');
+    } on AccountException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack(error.message, isError: true);
+    } catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack('Sign in failed: $error', isError: true);
+    }
+  }
+
+  Future<void> _renameAccount(AccountService account) async {
+    final controller = TextEditingController(text: account.displayName);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final t = ForgeTokens(context.read<FactionTheme>());
+        return AlertDialog(
+          backgroundColor: t.bg2,
+          title: Text('Update Account Name', style: _heading(t)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: TextStyle(color: t.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'Display name',
+              hintStyle: TextStyle(color: t.textMuted),
+              filled: true,
+              fillColor: t.bg3,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(color: t.borderDim),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'CANCEL',
+                style: _label(t).copyWith(color: t.textMuted),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: Text(
+                'SAVE',
+                style: _label(t).copyWith(color: t.amberBright),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || name == null || name.isEmpty) return;
+
+    _showProgressDialog(
+      title: 'UPDATING ACCOUNT',
+      message: 'Saving your new account name.',
+    );
+    try {
+      await account.updateDisplayName(name);
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack('Account name updated.');
+    } on AccountException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack(error.message, isError: true);
+    }
+  }
+
+  Future<void> _changePassword(AccountService account) async {
+    final result = await _showPasswordDialog(
+      title: 'Change Password',
+      submitLabel: 'UPDATE',
+      includeNewPassword: true,
+      message: 'Re-enter your current password, then choose a new one.',
+    );
+    if (!mounted || result == null) return;
+
+    _showProgressDialog(
+      title: 'CHANGING PASSWORD',
+      message: 'Updating your account security.',
+    );
+    try {
+      await account.changePassword(
+        currentPassword: result.currentPassword,
+        newPassword: result.newPassword,
+      );
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack('Password updated.');
+    } on AccountException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack(error.message, isError: true);
+    }
+  }
+
+  Future<void> _deleteAccount(AccountService account) async {
+    final result = await _showPasswordDialog(
+      title: 'Delete Account',
+      submitLabel: 'DELETE',
+      message:
+          'This removes your Firebase account. Local game progress on this device is not deleted automatically.',
+    );
+    if (!mounted || result == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final t = ForgeTokens(context.read<FactionTheme>());
+        return AlertDialog(
+          backgroundColor: t.bg2,
+          title: Text('Delete account permanently?', style: _heading(t)),
+          content: Text(
+            'You will lose account-based save transfer access until you create another account.',
+            style: _body(t),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'CANCEL',
+                style: _label(t).copyWith(color: t.textMuted),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                'DELETE',
+                style: _label(t).copyWith(color: Colors.red.shade300),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    _showProgressDialog(
+      title: 'DELETING ACCOUNT',
+      message: 'Removing your account credentials.',
+    );
+    try {
+      await account.deleteAccount(currentPassword: result.currentPassword);
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack('Account deleted.');
+    } on AccountException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack(error.message, isError: true);
+    }
+  }
+
+  Future<void> _signOutAccount(AccountService account) async {
+    try {
+      await account.signOut();
+      _showTransferSnack('Signed out.');
+    } on AccountException catch (error) {
+      _showTransferSnack(error.message, isError: true);
+    }
+  }
+
+  Future<void> _exportSave() async {
+    if (_saveTransferBusy) return;
+    final account = context.read<AccountService>();
+    final session = context.read<AccountSessionService>();
+    if (!account.isSignedIn) {
+      _showTransferSnack(
+        'Sign in with an account before backing up this save.',
+        isError: true,
+      );
+      return;
+    }
+    if (!session.state.activeOnThisDevice) {
+      _showTransferSnack(
+        'This device is not the active device for the signed-in account.',
+        isError: true,
+      );
+      return;
+    }
+    setState(() => _saveTransferBusy = true);
+    _showProgressDialog(
+      title: 'BACKING UP SAVE',
+      message: 'Uploading this device save to your account.',
+    );
+
+    try {
+      final db = context.read<AlchemonsDatabase>();
+      final cloudSave = context.read<AccountCloudSaveService>();
+      final transfer = SaveTransferService(db);
+      final saveCode = await transfer.exportSaveCode(
+        ownerAccountId: account.user!.uid,
+      );
+      final snapshot = await cloudSave.uploadSave(
+        uid: account.user!.uid,
+        sourceDeviceId: session.deviceId!,
+        saveCode: saveCode,
+      );
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showTransferSnack(
+        'Account backup uploaded${snapshot.revision > 0 ? ' (revision ${snapshot.revision})' : ''}. Sign into this account on another device and restore it there.',
+      );
+    } on SaveTransferException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showTransferSnack(error.message, isError: true);
+    } on AccountCloudSaveException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showTransferSnack(error.message, isError: true);
+    } catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showTransferSnack('Save export failed: $error', isError: true);
+    } finally {
+      if (mounted) setState(() => _saveTransferBusy = false);
+    }
+  }
+
+  Future<void> _importSave() async {
+    if (_saveTransferBusy) return;
+    final account = context.read<AccountService>();
+    final session = context.read<AccountSessionService>();
+    if (!account.isSignedIn) {
+      _showTransferSnack(
+        'Sign in with an account before restoring a cloud save.',
+        isError: true,
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final t = ForgeTokens(context.read<FactionTheme>());
+        return AlertDialog(
+          backgroundColor: t.bg2,
+          title: Text('Restore account backup?', style: _heading(t)),
+          content: Text(
+            'This overwrites the progress stored on this device with the latest backup from this account.',
+            style: _body(t),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'CANCEL',
+                style: _label(t).copyWith(color: t.textMuted),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                'RESTORE',
+                style: _label(t).copyWith(color: t.amberBright),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _saveTransferBusy = true);
+    _showProgressDialog(
+      title: 'RESTORING BACKUP',
+      message: 'Downloading the latest account save and moving this account here.',
+    );
+    try {
+      final db = context.read<AlchemonsDatabase>();
+      final cloudSave = context.read<AccountCloudSaveService>();
+      await session.rotateCurrentDeviceId();
+      final transferCode = await cloudSave.downloadSaveCode(account.user!.uid);
+      final transfer = SaveTransferService(db);
+      await transfer.importSaveCode(
+        transferCode,
+        ownerAccountId: account.user!.uid,
+      );
+      await session.claimCurrentDevice(force: true);
+      await session.refresh();
+      await _reloadProfileState();
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showTransferSnack('Account backup restored. This device is now active.');
+    } on SaveTransferException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showTransferSnack(error.message, isError: true);
+    } on AccountCloudSaveException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showTransferSnack(error.message, isError: true);
+    } catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showTransferSnack('Save import failed: $error', isError: true);
+    } finally {
+      if (mounted) setState(() => _saveTransferBusy = false);
+    }
+  }
+
+  Future<void> _activateThisDevice(AccountSessionService session) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final t = ForgeTokens(context.read<FactionTheme>());
+        return AlertDialog(
+          backgroundColor: t.bg2,
+          title: Text('Make this the active device?', style: _heading(t)),
+          content: Text(
+            'This will disable account-based transfer actions on the previously active device.',
+            style: _body(t),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'CANCEL',
+                style: _label(t).copyWith(color: t.textMuted),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                'TAKE OVER',
+                style: _label(t).copyWith(color: t.amberBright),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    _showProgressDialog(
+      title: 'ACTIVATING DEVICE',
+      message: 'Marking this device as the only active device for the account.',
+    );
+
+    try {
+      await session.rotateCurrentDeviceId();
+      await session.claimCurrentDevice(force: true);
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack('This device is now active for the account.');
+    } on AccountSessionException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack(error.message, isError: true);
+    } catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack('Could not activate this device: $error', isError: true);
+    }
+  }
+
+  void _showTransferSnack(String message, {bool isError = false}) {
+    showAppSnack(message, isError: isError, fallbackContext: context);
+  }
+
+  void _showProgressDialog({
+    required String title,
+    required String message,
+  }) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (context) {
+        final t = ForgeTokens(context.read<FactionTheme>());
+        return PopScope(
+          canPop: false,
+          child: AlertDialog(
+            backgroundColor: t.bg2,
+            title: Text(title, style: _heading(t)),
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: t.amberBright,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: Text(message, style: _body(t))),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<_CredentialDialogResult?> _showCredentialDialog({
+    required String title,
+    required String submitLabel,
+    bool includeDisplayName = false,
+  }) async {
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    final nameController = TextEditingController();
+    var obscure = true;
+
+    return showDialog<_CredentialDialogResult>(
+      context: context,
+      builder: (context) {
+        final t = ForgeTokens(context.read<FactionTheme>());
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: t.bg2,
+              title: Text(title, style: _heading(t)),
+              content: SizedBox(
+                width: 440,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (includeDisplayName) ...[
+                      TextField(
+                        controller: nameController,
+                        style: TextStyle(color: t.textPrimary),
+                        decoration: _inputDecoration(t, 'Account name'),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    TextField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      style: TextStyle(color: t.textPrimary),
+                      decoration: _inputDecoration(t, 'Email'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: obscure,
+                      autocorrect: false,
+                      style: TextStyle(color: t.textPrimary),
+                      decoration: _inputDecoration(
+                        t,
+                        'Password',
+                        suffix: IconButton(
+                          onPressed: () {
+                            setDialogState(() {
+                              obscure = !obscure;
+                            });
+                          },
+                          icon: Icon(
+                            obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                            color: t.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'CANCEL',
+                    style: _label(t).copyWith(color: t.textMuted),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(
+                      context,
+                      _CredentialDialogResult(
+                        email: emailController.text.trim(),
+                        password: passwordController.text,
+                        displayName: nameController.text.trim(),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    submitLabel,
+                    style: _label(t).copyWith(color: t.amberBright),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<_PasswordDialogResult?> _showPasswordDialog({
+    required String title,
+    required String submitLabel,
+    required String message,
+    bool includeNewPassword = false,
+  }) async {
+    final currentController = TextEditingController();
+    final nextController = TextEditingController();
+    var obscureCurrent = true;
+    var obscureNew = true;
+
+    return showDialog<_PasswordDialogResult>(
+      context: context,
+      builder: (context) {
+        final t = ForgeTokens(context.read<FactionTheme>());
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: t.bg2,
+              title: Text(title, style: _heading(t)),
+              content: SizedBox(
+                width: 440,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(message, style: _body(t)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: currentController,
+                      obscureText: obscureCurrent,
+                      autocorrect: false,
+                      style: TextStyle(color: t.textPrimary),
+                      decoration: _inputDecoration(
+                        t,
+                        'Current password',
+                        suffix: IconButton(
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureCurrent = !obscureCurrent;
+                            });
+                          },
+                          icon: Icon(
+                            obscureCurrent
+                                ? Icons.visibility_rounded
+                                : Icons.visibility_off_rounded,
+                            color: t.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (includeNewPassword) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: nextController,
+                        obscureText: obscureNew,
+                        autocorrect: false,
+                        style: TextStyle(color: t.textPrimary),
+                        decoration: _inputDecoration(
+                          t,
+                          'New password',
+                          suffix: IconButton(
+                            onPressed: () {
+                              setDialogState(() {
+                                obscureNew = !obscureNew;
+                              });
+                            },
+                            icon: Icon(
+                              obscureNew
+                                  ? Icons.visibility_rounded
+                                  : Icons.visibility_off_rounded,
+                              color: t.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'CANCEL',
+                    style: _label(t).copyWith(color: t.textMuted),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(
+                      context,
+                      _PasswordDialogResult(
+                        currentPassword: currentController.text,
+                        newPassword: nextController.text,
+                      ),
+                    );
+                  },
+                  child: Text(
+                    submitLabel,
+                    style: _label(t).copyWith(color: t.amberBright),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  InputDecoration _inputDecoration(
+    ForgeTokens t,
+    String hint, {
+    Widget? suffix,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: t.textMuted),
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: t.bg3,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(4),
+        borderSide: BorderSide(color: t.borderDim),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(4),
+        borderSide: BorderSide(color: t.borderDim),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(4),
+        borderSide: BorderSide(color: t.borderAccent),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final factionTheme = context.watch<FactionTheme>();
     final audio = context.watch<AudioController>();
+    final account = context.watch<AccountService>();
+    final accountSession = context.watch<AccountSessionService>();
     final t = ForgeTokens(factionTheme);
     final brightness = Theme.of(context).brightness;
 
@@ -437,6 +1135,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
 
                   const SizedBox(height: 24),
+                  const _EtchedDivider(label: 'DIVISION PERKS'),
+                  const SizedBox(height: 14),
+
+                  for (var i = 0; i < perks.length; i++) ...[
+                    _ForgePanel(
+                      accentBar: accentColor.withValues(alpha: 0.75),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.auto_awesome_rounded,
+                                size: 12,
+                                color: accentColor,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  perks[i].title.toUpperCase(),
+                                  style: _label(t).copyWith(
+                                    color: accentColor,
+                                    fontSize: 11,
+                                    letterSpacing: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(perks[i].description, style: _body(t)),
+                        ],
+                      ),
+                    ),
+                    if (i < perks.length - 1) const SizedBox(height: 8),
+                  ],
+
+                  const SizedBox(height: 24),
                   const _EtchedDivider(label: 'COSMIC NOTES'),
                   const SizedBox(height: 14),
 
@@ -445,29 +1181,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.edit_note_rounded,
-                              size: 14,
-                              color: t.teal,
-                            ),
-                            const SizedBox(width: 8),
-                            Text('DISCOVERED HINT NOTES', style: _label(t)),
-                            const Spacer(),
-                            Text(
-                              '${data.cosmicHints.length}',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: t.teal,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
                         if (data.cosmicHints.isEmpty)
                           Text(
                             'No cosmic hint notes discovered yet.',
@@ -478,16 +1191,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             Padding(
                               padding: const EdgeInsets.only(bottom: 6),
                               child: Text(
-                                '• ${hint.text}',
+                                hint.text,
                                 style: _body(t).copyWith(fontSize: 11),
                               ),
-                            ),
-                          if (data.cosmicHints.length > 6)
-                            Text(
-                              '+${data.cosmicHints.length - 6} more archived notes',
-                              style: _body(
-                                t,
-                              ).copyWith(fontSize: 10, color: t.textMuted),
                             ),
                         ],
                       ],
@@ -658,45 +1364,179 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
 
                   const SizedBox(height: 24),
-                  const _EtchedDivider(label: 'DIVISION PERKS'),
+                  const _EtchedDivider(label: 'ACCOUNT'),
                   const SizedBox(height: 14),
 
-                  // ── Perks list ────────────────────────────────────────────
-                  for (var i = 0; i < perks.length; i++) ...[
-                    _ForgePanel(
-                      accentBar: accentColor.withValues(alpha: 0.75),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                  _ForgePanel(
+                    accentBar: account.isSignedIn ? t.teal : t.amber,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              account.isSignedIn
+                                  ? Icons.verified_user_rounded
+                                  : Icons.login_rounded,
+                              size: 14,
+                              color: account.isSignedIn ? t.teal : t.amber,
+                            ),
+                            const SizedBox(width: 8),
+                            Text('TRANSFER ACCOUNT', style: _label(t)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (!account.initialized)
+                          Text(
+                            'Loading account services...',
+                            style: _body(t),
+                          )
+                        else if (!account.isConfigured)
+                          Text(
+                            account.configurationError ??
+                                'Firebase Auth is not configured yet.',
+                            style: _body(t).copyWith(color: t.textMuted),
+                          )
+                        else if (!account.isSignedIn) ...[
+                          Text(
+                            'Sign in to unlock cross-device save transfer. This account is only used for transfer and account recovery.',
+                            style: _body(t),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
                             children: [
-                              Icon(
-                                Icons.auto_awesome_rounded,
-                                size: 12,
-                                color: accentColor,
+                              _ForgeButton(
+                                label: 'SIGN IN',
+                                icon: Icons.login_rounded,
+                                onTap: _signInAccount,
                               ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  perks[i].title.toUpperCase(),
-                                  style: _label(t).copyWith(
-                                    color: accentColor,
-                                    fontSize: 11,
-                                    letterSpacing: 1.3,
-                                  ),
-                                ),
+                              _ForgeButton(
+                                label: 'CREATE ACCOUNT',
+                                icon: Icons.person_add_alt_1_rounded,
+                                onTap: _createAccount,
                               ),
                             ],
                           ),
+                        ] else ...[
+                          _AccountValueRow(
+                            label: 'ACCOUNT NAME',
+                            value: account.displayName,
+                          ),
                           const SizedBox(height: 8),
-                          Text(perks[i].description, style: _body(t)),
+                          _AccountValueRow(
+                            label: 'EMAIL',
+                            value: account.email,
+                          ),
+                          const SizedBox(height: 12),
+                          _AccountValueRow(
+                            label: 'DEVICE STATUS',
+                            value: accountSession.state.activeOnThisDevice
+                                ? 'ACTIVE ON THIS DEVICE'
+                                : 'ACTIVE ON ANOTHER DEVICE',
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              if (!accountSession.state.activeOnThisDevice)
+                                _ForgeButton(
+                                  label: 'USE THIS DEVICE',
+                                  icon: Icons.phonelink_lock_rounded,
+                                  onTap: () => _activateThisDevice(accountSession),
+                                ),
+                              _ForgeButton(
+                                label: 'RENAME',
+                                icon: Icons.badge_rounded,
+                                onTap: () => _renameAccount(account),
+                              ),
+                              _ForgeButton(
+                                label: 'PASSWORD',
+                                icon: Icons.password_rounded,
+                                onTap: () => _changePassword(account),
+                              ),
+                              _ForgeButton(
+                                label: 'SIGN OUT',
+                                icon: Icons.logout_rounded,
+                                onTap: () => _signOutAccount(account),
+                              ),
+                              _ForgeButton(
+                                label: 'DELETE ACCOUNT',
+                                icon: Icons.delete_forever_rounded,
+                                onTap: () => _deleteAccount(account),
+                              ),
+                            ],
+                          ),
                         ],
-                      ),
+                      ],
                     ),
-                    if (i < perks.length - 1) const SizedBox(height: 8),
-                  ],
+                  ),
 
                   const SizedBox(height: 24),
+                  const _EtchedDivider(label: 'ACCOUNT BACKUP'),
+                  const SizedBox(height: 14),
+
+                  _ForgePanel(
+                    accentBar: t.amberBright,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.cloud_upload_rounded,
+                              size: 14,
+                              color: t.amberBright,
+                            ),
+                            const SizedBox(width: 8),
+                            Text('CLOUD SAVE', style: _label(t)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          !account.isSignedIn
+                              ? 'Sign in with your transfer account before backing up or restoring saves.'
+                              : !accountSession.state.activeOnThisDevice
+                              ? 'This account is active on another device. Move the account here from the account-moved screen to restore the latest cloud backup.'
+                              : 'Back up this device save to your account. Then sign into the same account on another device and restore it there.'
+                          ,
+                          style: _body(t),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _ForgeButton(
+                              label: _saveTransferBusy ? 'WORKING...' : 'BACK UP',
+                              icon: Icons.cloud_upload_rounded,
+                              onTap: _saveTransferBusy ||
+                                      !account.initialized ||
+                                      !account.isConfigured ||
+                                      !account.isSignedIn ||
+                                      !accountSession.state.activeOnThisDevice
+                                  ? null
+                                  : _exportSave,
+                            ),
+                            _ForgeButton(
+                              label: _saveTransferBusy ? 'WORKING...' : 'RESTORE',
+                              icon: Icons.cloud_download_rounded,
+                              onTap: _saveTransferBusy ||
+                                      !account.initialized ||
+                                      !account.isConfigured ||
+                                      !account.isSignedIn ||
+                                      !accountSession.state.activeOnThisDevice
+                                  ? null
+                                  : _importSave,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
                   const _EtchedDivider(label: 'STORY'),
                   const SizedBox(height: 14),
 
@@ -937,6 +1777,33 @@ class _NotificationToggleRow extends StatelessWidget {
     );
   }
 }
+
+class _AccountValueRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _AccountValueRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: _label(t)),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: TextStyle(
+            color: t.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
 // ──────────────────────────────────────────────────────────────────────────────
 // DATA
 // ──────────────────────────────────────────────────────────────────────────────
@@ -946,4 +1813,26 @@ class _ProfileData {
   final int discoveredCount;
   final List<CosmicContestHintLore> cosmicHints;
   const _ProfileData(this.faction, this.discoveredCount, this.cosmicHints);
+}
+
+class _CredentialDialogResult {
+  final String email;
+  final String password;
+  final String displayName;
+
+  const _CredentialDialogResult({
+    required this.email,
+    required this.password,
+    this.displayName = '',
+  });
+}
+
+class _PasswordDialogResult {
+  final String currentPassword;
+  final String newPassword;
+
+  const _PasswordDialogResult({
+    required this.currentPassword,
+    this.newPassword = '',
+  });
 }

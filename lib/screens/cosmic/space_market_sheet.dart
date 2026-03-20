@@ -111,7 +111,7 @@ const _harvesterItems = <_MarketItem>[
     iconColor: Color(0xFFFFD700),
     assetName: 'assets/images/ui/universalharvest.png',
     inventoryKey: 'item.harvest_guaranteed',
-    baseCost: {'gold': 25},
+    baseCost: {'gold': 1},
     faction: 'neutral',
   ),
 ];
@@ -125,7 +125,7 @@ const _riftKeyItems = <_MarketItem>[
     iconColor: Color(0xFFFF5722),
     assetName: 'assets/images/ui/volcanickey.png',
     inventoryKey: 'item.portal_key.volcanic',
-    baseCost: {'gold': 50},
+    baseCost: {'gold': 5},
     faction: 'volcanic',
   ),
   _MarketItem(
@@ -136,7 +136,7 @@ const _riftKeyItems = <_MarketItem>[
     iconColor: Color(0xFF64B5F6),
     assetName: 'assets/images/ui/oceanickey.png',
     inventoryKey: 'item.portal_key.oceanic',
-    baseCost: {'gold': 50},
+    baseCost: {'gold': 5},
     faction: 'oceanic',
   ),
   _MarketItem(
@@ -147,7 +147,7 @@ const _riftKeyItems = <_MarketItem>[
     iconColor: Color(0xFF66BB6A),
     assetName: 'assets/images/ui/verdantkey.png',
     inventoryKey: 'item.portal_key.verdant',
-    baseCost: {'gold': 50},
+    baseCost: {'gold': 5},
     faction: 'verdant',
   ),
   _MarketItem(
@@ -158,7 +158,7 @@ const _riftKeyItems = <_MarketItem>[
     iconColor: Color(0xFF8D6E63),
     assetName: 'assets/images/ui/earthenkey.png',
     inventoryKey: 'item.portal_key.earthen',
-    baseCost: {'gold': 50},
+    baseCost: {'gold': 5},
     faction: 'earthen',
   ),
   _MarketItem(
@@ -169,7 +169,7 @@ const _riftKeyItems = <_MarketItem>[
     iconColor: Color(0xFFCE93D8),
     assetName: 'assets/images/ui/arcanekey.png',
     inventoryKey: 'item.portal_key.arcane',
-    baseCost: {'gold': 50},
+    baseCost: {'gold': 5},
     faction: 'arcane',
   ),
 ];

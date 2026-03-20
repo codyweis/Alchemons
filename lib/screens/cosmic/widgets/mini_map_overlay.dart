@@ -833,15 +833,16 @@ class _PlanetPreviewPainter extends CustomPainter {
     final c = Offset(size.width / 2, size.height / 2);
     final r = explicitRadius ?? min(size.width, size.height) * 0.42;
     final col = planet.color;
-    final glowA = highlighted ? 0.11 : 0.05;
+    final glowA = highlighted ? 0.13 : 0.07;
 
-    // Ambient glow
+    // Soft halo without blur to avoid expensive offscreen rasterization.
     canvas.drawCircle(
       c,
       r * (highlighted ? 1.55 : 1.3),
       Paint()
         ..color = col.withValues(alpha: glowA)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, highlighted ? 5 : 3),
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = highlighted ? r * 0.2 : r * 0.14,
     );
 
     switch (planet.element) {
@@ -851,9 +852,7 @@ class _PlanetPreviewPainter extends CustomPainter {
           canvas.drawCircle(
             Offset(c.dx + cos(a) * r * 1.2, c.dy + sin(a) * r * 1.2),
             r * (0.2 + 0.08 * sin(spin * 2 + i)),
-            Paint()
-              ..color = const Color(0xFFFF6D00).withValues(alpha: 0.38)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+            Paint()..color = const Color(0xFFFF6D00).withValues(alpha: 0.22),
           );
         }
         _drawSphere(canvas, c, r, col);
@@ -892,9 +891,7 @@ class _PlanetPreviewPainter extends CustomPainter {
           canvas.drawCircle(
             Offset(c.dx + cos(a) * r * 1.3, c.dy + sin(a) * r * 1.3),
             r * 0.06,
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.72)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+            Paint()..color = Colors.white.withValues(alpha: 0.72),
           );
         }
 
@@ -945,9 +942,7 @@ class _PlanetPreviewPainter extends CustomPainter {
           canvas.drawCircle(
             Offset(c.dx + cos(a) * r * 1.2, c.dy + sin(a) * r * 1.0),
             r * 0.2,
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.16)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+            Paint()..color = Colors.white.withValues(alpha: 0.11),
           );
         }
 
@@ -1058,9 +1053,7 @@ class _PlanetPreviewPainter extends CustomPainter {
           canvas.drawCircle(
             Offset(c.dx + cos(a) * r * 1.25, c.dy + sin(a) * r * 1.05),
             r * 0.22,
-            Paint()
-              ..color = const Color(0xFFBA68C8).withValues(alpha: 0.22)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+            Paint()..color = const Color(0xFFBA68C8).withValues(alpha: 0.16),
           );
         }
 
@@ -1071,9 +1064,7 @@ class _PlanetPreviewPainter extends CustomPainter {
           canvas.drawCircle(
             Offset(c.dx + cos(a) * r * 1.15, c.dy + sin(a) * r * 1.15),
             r * 0.09,
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.65)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+            Paint()..color = Colors.white.withValues(alpha: 0.65),
           );
         }
 
@@ -1554,7 +1545,7 @@ class _MiniMapPainter extends CustomPainter {
     }
 
     // Prismatic field
-    if (game.prismaticField.discovered && !game.prismaticField.rewardClaimed) {
+    if (game.prismaticField.discovered) {
       final pf = game.prismaticField;
       final pfPos = pf.position * scale;
       final pfr = max(6.0, pf.radius * scale);

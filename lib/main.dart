@@ -12,16 +12,24 @@ import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/services/constellation_service.dart';
+import 'package:alchemons/services/account_service.dart';
+import 'package:alchemons/services/account_cloud_save_service.dart';
+import 'package:alchemons/services/account_session_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/save_transfer_service.dart';
+import 'package:alchemons/utils/app_scaffold_messenger.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'database/alchemons_db.dart';
 import 'database/db_helper.dart';
+import 'firebase_options.dart';
 import 'services/game_data_service.dart';
 import 'providers/app_providers.dart';
 import 'screens/home_screen.dart';
@@ -38,6 +46,9 @@ import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   // Increase Flutter image cache to reduce sprite eviction when navigating
   // between screens that load many creature assets.
@@ -108,6 +119,7 @@ class AlchemonsApp extends StatelessWidget {
 
           return MaterialApp(
             title: 'Alchemons',
+            scaffoldMessengerKey: rootScaffoldMessengerKey,
             themeMode: themeNotifier.themeMode,
             theme: lightThemeData,
             darkTheme: darkThemeData,
@@ -388,14 +400,17 @@ class _AppGateState extends State<AppGate> {
         };
 
     // Initialize from DB (loads active spawns & schedules; creates schedules if missing)
-    await spawnService.initializeActiveSpawns(scenes: scenes);
+    await spawnService.initializeActiveSpawns(
+      scenes: scenes,
+      suppressSummaryNotifications: true,
+    );
 
     // debug spawn forcing removed
 
     // Reset any existing long-wait timers and fire overdue scenes — independent, run in parallel
     await Future.wait([
       spawnService.rescheduleAllScenes(),
-      spawnService.processDueScenes(scenes),
+      spawnService.processDueScenes(scenes, suppressSummaryNotifications: true),
     ]);
 
     // Start the background tick owned by the service (default: 10s)
@@ -428,11 +443,226 @@ class _AppGateState extends State<AppGate> {
 
   @override
   Widget build(BuildContext context) {
+    final account = context.watch<AccountService>();
+    final session = context.watch<AccountSessionService>();
+
     if (!_readyToShowShell) {
       // You can make this a nice splash / logo if you want.
       return const Scaffold(backgroundColor: Colors.black);
     }
 
+    if (account.initialized &&
+        account.isSignedIn &&
+        session.state.initialized) {
+      if (!session.state.activeOnThisDevice) {
+        return const _AccountMovedGate();
+      }
+    }
+
     return widget.child;
+  }
+}
+
+class _AccountMovedGate extends StatefulWidget {
+  const _AccountMovedGate();
+
+  @override
+  State<_AccountMovedGate> createState() => _AccountMovedGateState();
+}
+
+class _AccountMovedGateState extends State<_AccountMovedGate> {
+  bool _busy = false;
+
+  Future<void> _restoreAccountHere() async {
+    final account = context.read<AccountService>();
+    final session = context.read<AccountSessionService>();
+    final cloudSave = context.read<AccountCloudSaveService>();
+    final saveTransfer = SaveTransferService(context.read<AlchemonsDatabase>());
+
+    setState(() => _busy = true);
+    try {
+      await session.rotateCurrentDeviceId();
+      final saveCode = await cloudSave.downloadSaveCode(account.user!.uid);
+      await saveTransfer.importSaveCode(
+        saveCode,
+        ownerAccountId: account.user!.uid,
+      );
+      await session.claimCurrentDevice(force: true);
+      await session.refresh();
+      if (!mounted) return;
+      showAppSnack('Account backup restored here. This device is now active.');
+    } catch (error) {
+      if (!mounted) return;
+      showAppSnack(
+        error.toString(),
+        isError: true,
+        fallbackContext: context,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reactivateHere() async {
+    final session = context.read<AccountSessionService>();
+    setState(() => _busy = true);
+    try {
+      await session.rotateCurrentDeviceId();
+      await session.claimCurrentDevice(force: true);
+    } catch (error) {
+      if (!mounted) return;
+      showAppSnack(
+        error.toString(),
+        isError: true,
+        fallbackContext: context,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _startNewGame() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Start new local game?'),
+          content: const Text(
+            'This clears local progress on this device and signs out of the transferred account here.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Start New Game'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+
+    final db = context.read<AlchemonsDatabase>();
+    final account = context.read<AccountService>();
+    final factionSvc = context.read<FactionService>();
+    final navigator = Navigator.of(context);
+
+    setState(() => _busy = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      await db.resetToNewGame();
+      await account.signOut();
+
+      final completed = await navigator.push<bool>(
+        CupertinoPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const StoryIntroScreen(),
+        ),
+      );
+      if (!mounted || completed != true) return;
+
+      final selected = await showDialog<FactionId>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const FactionPickerDialog(),
+      );
+      if (!mounted || selected == null) return;
+
+      await factionSvc.setId(selected);
+      showAppSnack('New local game started.');
+    } catch (error) {
+      if (!mounted) return;
+      showAppSnack(
+        error.toString(),
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = context.watch<AccountSessionService>();
+    final account = context.watch<AccountService>();
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'ACCOUNT MOVED',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'This account is currently active on another device. Restore the latest account backup here to move the account, or reclaim this device using its current local save.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      fontSize: 16,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Signed in as ${account.email}',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.62),
+                      fontSize: 13,
+                    ),
+                  ),
+                  if (session.state.updatedAt != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Last account switch: ${session.state.updatedAt}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.45),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 28),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      FilledButton(
+                        onPressed: _busy ? null : _restoreAccountHere,
+                        child: Text(_busy ? 'Working...' : 'Restore Account Here'),
+                      ),
+                      OutlinedButton(
+                        onPressed: _busy ? null : _reactivateHere,
+                        child: const Text('Reactivate Here'),
+                      ),
+                      TextButton(
+                        onPressed: _busy ? null : _startNewGame,
+                        child: const Text('Start New Game'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

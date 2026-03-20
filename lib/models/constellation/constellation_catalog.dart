@@ -44,8 +44,8 @@ class ConstellationCatalog {
         'Unlock advanced lineage and outcome statistics during analysis',
     tree: ConstellationTree.breeder,
     pointsCost: 1,
-    prerequisites: [],
-    tier: 1,
+    prerequisites: ['breeder_cross_species'],
+    tier: 2,
   );
 
   static const crossSpeciesLineage = ConstellationSkill(
@@ -54,8 +54,8 @@ class ConstellationCatalog {
     description: 'Unlock the ability to breed two different species',
     tree: ConstellationTree.breeder,
     pointsCost: 1,
-    prerequisites: ['breeder_lineage_analyzer'],
-    tier: 2,
+    prerequisites: [],
+    tier: 1,
   );
 
   static const geneAnalyzer = ConstellationSkill(
@@ -487,11 +487,11 @@ class ConstellationCatalog {
   /// All skills in the constellation system
   static const List<ConstellationSkill> allSkills = [
     // Breeder tree
+    crossSpeciesLineage,
     lineageAnalyzer,
     geneAnalyzer,
     potentialAnalyzer,
     acceleratedGestation,
-    crossSpeciesLineage,
     acceleratedGestation2,
     acceleratedGestation3,
     harvestingWildernessSpecimens,

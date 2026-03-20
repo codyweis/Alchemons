@@ -1067,7 +1067,7 @@ extension CosmicGameWorldSystems on CosmicGame {
       }
 
       // Check activation: player enters lair radius
-      if (lair.state == BossLairState.waiting && activeBoss == null) {
+      if (lair.state == BossLairState.waiting) {
         var dx = lair.position.dx - ship.pos.dx;
         var dy = lair.position.dy - ship.pos.dy;
         if (dx > ww / 2) dx -= ww;
@@ -1076,6 +1076,16 @@ extension CosmicGameWorldSystems on CosmicGame {
         if (dy < -wh / 2) dy += wh;
         final dist = sqrt(dx * dx + dy * dy);
         if (dist < BossLair.activationRadius) {
+          final lairBossActive = bossLairs.any(
+            (other) => other.state == BossLairState.fighting,
+          );
+          if (activeBoss != null && !lairBossActive) {
+            // Roaming/discovery bosses should not block an intentional lair
+            // encounter once the player reaches the lair itself.
+            activeBoss = null;
+            bossProjectiles.clear();
+          }
+          if (activeBoss != null) continue;
           _spawnBossFromLair(lair);
         }
       }
@@ -1849,86 +1859,86 @@ extension CosmicGameWorldSystems on CosmicGame {
     canvas.drawImage(img, Offset.zero, Paint());
     canvas.restore();
 
-    // ── Central prismatic ring (drawn every frame at full resolution) ──
-    final ringR = pf.radius * 0.12;
-    final cRingRotation = t * 0.5;
-    canvas.save();
-    canvas.translate(pp.dx, pp.dy);
-    canvas.rotate(cRingRotation);
-    canvas.drawCircle(
-      Offset.zero,
-      ringR,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..shader = ui.Gradient.sweep(
-          Offset.zero,
-          [
-            for (int i = 0; i <= 8; i++)
-              PrismaticField.auroraColors[i % 8].withValues(
-                alpha: 0.35 + 0.15 * sin(t * 1.2 + i * 0.9),
-              ),
-          ],
-          [for (int i = 0; i <= 8; i++) i / 8.0],
-        ),
-    );
-    // Inner glow fill
-    canvas.drawCircle(
-      Offset.zero,
-      ringR,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          Offset.zero,
-          ringR,
-          [
-            PrismaticField.auroraColors[((t * 0.15).floor()) % 8].withValues(
-              alpha: 0.05,
-            ),
-            const Color(0x00000000),
-          ],
-          [0.0, 1.0],
-        ),
-    );
-    canvas.restore();
-    // 3 orbiting dots around the ring
-    for (int d = 0; d < 3; d++) {
-      final dAngle = t * 0.8 + d * pi * 2 / 3;
-      final dx2 = pp.dx + cos(dAngle) * ringR;
-      final dy2 = pp.dy + sin(dAngle) * ringR;
+    // The central summon ring is only present before the reward is claimed.
+    if (!prismaticRewardClaimed) {
+      final ringR = pf.radius * 0.12;
+      final cRingRotation = t * 0.5;
+      canvas.save();
+      canvas.translate(pp.dx, pp.dy);
+      canvas.rotate(cRingRotation);
       canvas.drawCircle(
-        Offset(dx2, dy2),
-        2.0,
+        Offset.zero,
+        ringR,
         Paint()
-          ..color = PrismaticField.auroraColors[(d * 2 + (t * 0.2).floor()) % 8]
-              .withValues(alpha: 0.45),
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0
+          ..shader = ui.Gradient.sweep(
+            Offset.zero,
+            [
+              for (int i = 0; i <= 8; i++)
+                PrismaticField.auroraColors[i % 8].withValues(
+                  alpha: 0.35 + 0.15 * sin(t * 1.2 + i * 0.9),
+                ),
+            ],
+            [for (int i = 0; i <= 8; i++) i / 8.0],
+          ),
       );
+      canvas.drawCircle(
+        Offset.zero,
+        ringR,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            Offset.zero,
+            ringR,
+            [
+              PrismaticField.auroraColors[((t * 0.15).floor()) % 8].withValues(
+                alpha: 0.05,
+              ),
+              const Color(0x00000000),
+            ],
+            [0.0, 1.0],
+          ),
+      );
+      canvas.restore();
+
+      for (int d = 0; d < 3; d++) {
+        final dAngle = t * 0.8 + d * pi * 2 / 3;
+        final dx2 = pp.dx + cos(dAngle) * ringR;
+        final dy2 = pp.dy + sin(dAngle) * ringR;
+        canvas.drawCircle(
+          Offset(dx2, dy2),
+          2.0,
+          Paint()
+            ..color = PrismaticField
+                .auroraColors[(d * 2 + (t * 0.2).floor()) % 8]
+                .withValues(alpha: 0.45),
+        );
+      }
     }
 
     // ── Label (drawn every frame) ──
-    if (!prismaticRewardClaimed) {
-      final ci = ((t * 0.3).floor()) % 8;
-      final labelColor = Color.lerp(
-        PrismaticField.auroraColors[ci],
-        PrismaticField.auroraColors[(ci + 1) % 8],
-        (t * 0.3) % 1.0,
-      )!.withValues(alpha: 0.7);
-      final labelTp = TextPainter(
-        text: TextSpan(
-          text: 'PRISMATIC AURORA',
-          style: TextStyle(
-            color: labelColor,
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 2,
-          ),
+    final ci = ((t * 0.3).floor()) % 8;
+    final labelColor = Color.lerp(
+      PrismaticField.auroraColors[ci],
+      PrismaticField.auroraColors[(ci + 1) % 8],
+      (t * 0.3) % 1.0,
+    )!.withValues(alpha: 0.7);
+    final labelTp = TextPainter(
+      text: TextSpan(
+        text: 'PRISMATIC AURORA',
+        style: TextStyle(
+          color: labelColor,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 2,
         ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      labelTp.paint(
-        canvas,
-        Offset(pp.dx - labelTp.width / 2, pp.dy + pf.radius + 14),
-      );
-    }
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    labelTp.paint(
+      canvas,
+      Offset(pp.dx - labelTp.width / 2, pp.dy + pf.radius + 14),
+    );
   }
 
   /// Renders the expensive blurred aurora layers to a [CosmicGame._prismaticTexSize]²

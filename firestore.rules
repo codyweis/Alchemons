@@ -1,0 +1,140 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isNonEmptyString(value) {
+      return value is string && value.size() > 0;
+    }
+
+    function isOptionalString(value) {
+      return value == null || value is string;
+    }
+
+    function isSessionShape(data) {
+      return data.keys().hasOnly([
+            'activeDeviceId',
+            'activeEmail',
+            'activeDisplayName',
+            'status',
+            'pendingTransferId',
+            'updatedAt',
+          ]) &&
+          isNonEmptyString(data.activeDeviceId) &&
+          ['active', 'transfer_pending'].hasAny([data.status]) &&
+          isOptionalString(data.activeEmail) &&
+          isOptionalString(data.activeDisplayName) &&
+          (data.pendingTransferId == null || isNonEmptyString(data.pendingTransferId)) &&
+          data.updatedAt is timestamp;
+    }
+
+    function isTransferShape(data) {
+      return data.keys().hasOnly([
+            'uid',
+            'sourceDeviceId',
+            'status',
+            'createdAt',
+            'targetDeviceId',
+            'consumedAt',
+            'cancelledAt',
+          ]) &&
+          isNonEmptyString(data.uid) &&
+          isNonEmptyString(data.sourceDeviceId) &&
+          ['open', 'consumed', 'cancelled'].hasAny([data.status]) &&
+          data.createdAt is timestamp &&
+          (data.targetDeviceId == null || isNonEmptyString(data.targetDeviceId)) &&
+          (data.consumedAt == null || data.consumedAt is timestamp) &&
+          (data.cancelledAt == null || data.cancelledAt is timestamp);
+    }
+
+    function isValidSessionWrite(userId) {
+      return isOwner(userId) &&
+          isSessionShape(request.resource.data) &&
+          (
+            !exists(/databases/$(database)/documents/account_sessions/$(userId)) ||
+            resource.data == null ||
+            request.resource.data.status in ['active', 'transfer_pending']
+          );
+    }
+
+    function isCloudSaveShape(data) {
+      return data.keys().hasOnly([
+            'uid',
+            'sourceDeviceId',
+            'saveCode',
+            'revision',
+            'updatedAt',
+          ]) &&
+          isNonEmptyString(data.uid) &&
+          isNonEmptyString(data.sourceDeviceId) &&
+          isNonEmptyString(data.saveCode) &&
+          data.revision is int &&
+          data.revision >= 1 &&
+          data.updatedAt is timestamp;
+    }
+
+    function isValidCloudSaveWrite(userId) {
+      return isOwner(userId) &&
+          request.resource.data.uid == userId &&
+          isCloudSaveShape(request.resource.data);
+    }
+
+    function isValidTransferCreate(transferId) {
+      return isSignedIn() &&
+          isTransferShape(request.resource.data) &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.status == 'open' &&
+          request.resource.data.targetDeviceId == null &&
+          request.resource.data.consumedAt == null &&
+          request.resource.data.cancelledAt == null;
+    }
+
+    function isValidTransferUpdate() {
+      return isSignedIn() &&
+          resource.data.uid == request.auth.uid &&
+          request.resource.data.uid == request.auth.uid &&
+          isTransferShape(request.resource.data) &&
+          (
+            (
+              resource.data.status == 'open' &&
+              request.resource.data.status == 'consumed' &&
+              isNonEmptyString(request.resource.data.targetDeviceId) &&
+              request.resource.data.consumedAt is timestamp &&
+              request.resource.data.cancelledAt == null
+            ) ||
+            (
+              resource.data.status == 'open' &&
+              request.resource.data.status == 'cancelled' &&
+              request.resource.data.targetDeviceId == null &&
+              request.resource.data.consumedAt == null &&
+              request.resource.data.cancelledAt is timestamp
+            )
+          );
+    }
+
+    match /account_sessions/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isValidSessionWrite(userId);
+      allow delete: if false;
+    }
+
+    match /account_transfers/{transferId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isValidTransferCreate(transferId);
+      allow update: if isValidTransferUpdate();
+      allow delete: if false;
+    }
+
+    match /account_cloud_saves/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isValidCloudSaveWrite(userId);
+      allow delete: if false;
+    }
+  }
+}
