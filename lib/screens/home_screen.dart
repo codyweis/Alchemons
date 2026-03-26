@@ -1652,29 +1652,32 @@ class _HomeScreenState extends State<HomeScreen>
                 final t = _shakeController.value;
                 final damp = (1.0 - t);
                 final dx = sin(t * pi * 12) * 18.0 * damp;
-                final dy = cos(t * pi * 10) * 8.0 * damp;
+                final dy = sin(t * pi * 10) * 8.0 * damp;
                 return Transform.translate(
                   offset: Offset(dx, dy),
                   child: child,
                 );
               },
               child: Stack(
+                fit: StackFit.expand,
                 children: [
                   // Background is always the home background here
-                  TickerMode(
-                    enabled: _animationsEnabled,
-                    child: RepaintBoundary(
-                      child: InteractiveBackground(
-                        particleController: _particleController,
-                        rotationController: _rotationController,
-                        waveController: _waveController,
-                        primaryColor: theme.primary,
-                        secondaryColor: theme.secondary,
-                        accentColor: theme.accent,
-                        factionType: currentFaction,
-                        particleSpeed: speeds.particle,
-                        rotationSpeed: speeds.rotation,
-                        elementalSpeed: speeds.elemental,
+                  Positioned.fill(
+                    child: TickerMode(
+                      enabled: _animationsEnabled,
+                      child: RepaintBoundary(
+                        child: InteractiveBackground(
+                          particleController: _particleController,
+                          rotationController: _rotationController,
+                          waveController: _waveController,
+                          primaryColor: theme.primary,
+                          secondaryColor: theme.secondary,
+                          accentColor: theme.accent,
+                          factionType: currentFaction,
+                          particleSpeed: speeds.particle,
+                          rotationSpeed: speeds.rotation,
+                          elementalSpeed: speeds.elemental,
+                        ),
                       ),
                     ),
                   ),

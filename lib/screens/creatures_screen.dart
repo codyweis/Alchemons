@@ -946,6 +946,7 @@ class _FilterBarSolid extends StatelessWidget {
   Widget build(BuildContext context) {
     return SectionCard(
       theme: theme,
+      elevated: true,
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1318,21 +1319,47 @@ class SectionCard extends StatelessWidget {
   final FactionTheme theme;
   final EdgeInsets padding;
   final Widget child;
+  final bool elevated;
   const SectionCard({
     super.key,
     required this.theme,
     required this.child,
     this.padding = const EdgeInsets.all(12),
+    this.elevated = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
-    return Container(
-      color: t.bg1,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(5, 6, 5, 4),
-        child: Container(padding: padding, child: child),
+    final surfaceColor = elevated
+        ? (t.isDark ? const Color(0xFF171C26) : Colors.white)
+        : t.bg1;
+    final surfaceBorder = elevated
+        ? (t.isDark
+              ? t.borderMid.withValues(alpha: 0.9)
+              : Colors.black.withValues(alpha: 0.08))
+        : Colors.transparent;
+    final surfaceShadow = elevated && !t.isDark
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ]
+        : const <BoxShadow>[];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(5, 6, 5, 4),
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: BorderRadius.circular(elevated ? 8 : 0),
+          border: Border.all(color: surfaceBorder),
+          boxShadow: surfaceShadow,
+        ),
+        child: child,
       ),
     );
   }

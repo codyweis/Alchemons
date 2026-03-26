@@ -1,8 +1,10 @@
 // lib/database/daos/creature_dao.dart
 import 'dart:convert';
+import 'dart:math';
 import 'package:drift/drift.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/schema_tables.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 
 part 'creature_dao.g.dart';
 
@@ -452,6 +454,28 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         (createdAtUtc ?? DateTime.now().toUtc()).millisecondsSinceEpoch;
     final maxBars = staminaMax ?? 3;
     final curBars = staminaBars ?? maxBars;
+    final effectiveElementLineage = elementLineage ?? const <String, int>{};
+    final effectiveFamilyLineage = familyLineage ?? const <String, int>{};
+    final purityStatus = classifyPurityFromLineages(
+      elementLineage: effectiveElementLineage,
+      speciesLineage: effectiveFamilyLineage,
+    );
+    final purityBonus = purityStatBonusForStatus(purityStatus);
+
+    final effectiveSpeedPotential = statSpeedPotential ?? 4.0;
+    final effectiveIntelligencePotential = statIntelligencePotential ?? 4.0;
+    final effectiveStrengthPotential = statStrengthPotential ?? 4.0;
+    final effectiveBeautyPotential = statBeautyPotential ?? 4.0;
+
+    double applyBaseBonus(
+      double? base,
+      double potential,
+      String statName,
+      double fallback,
+    ) {
+      final boosted = (base ?? fallback) + purityBonus.forStat(statName);
+      return min(boosted, potential).clamp(0.0, 5.0);
+    }
 
     await into(creatureInstances).insert(
       CreatureInstancesCompanion(
@@ -471,14 +495,32 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         staminaBars: Value(curBars),
         staminaLastUtcMs: Value(nowMs),
         createdAtUtcMs: Value(nowMs),
-        statSpeed: Value(statSpeed ?? 3.0),
-        statIntelligence: Value(statIntelligence ?? 3.0),
-        statStrength: Value(statStrength ?? 3.0),
-        statBeauty: Value(statBeauty ?? 3.0),
-        statSpeedPotential: Value(statSpeedPotential ?? 4.0),
-        statIntelligencePotential: Value(statIntelligencePotential ?? 4.0),
-        statStrengthPotential: Value(statStrengthPotential ?? 4.0),
-        statBeautyPotential: Value(statBeautyPotential ?? 4.0),
+        statSpeed: Value(
+          applyBaseBonus(statSpeed, effectiveSpeedPotential, 'speed', 3.0),
+        ),
+        statIntelligence: Value(
+          applyBaseBonus(
+            statIntelligence,
+            effectiveIntelligencePotential,
+            'intelligence',
+            3.0,
+          ),
+        ),
+        statStrength: Value(
+          applyBaseBonus(
+            statStrength,
+            effectiveStrengthPotential,
+            'strength',
+            3.0,
+          ),
+        ),
+        statBeauty: Value(
+          applyBaseBonus(statBeauty, effectiveBeautyPotential, 'beauty', 3.0),
+        ),
+        statSpeedPotential: Value(effectiveSpeedPotential),
+        statIntelligencePotential: Value(effectiveIntelligencePotential),
+        statStrengthPotential: Value(effectiveStrengthPotential),
+        statBeautyPotential: Value(effectiveBeautyPotential),
         generationDepth: Value(generationDepth),
         factionLineageJson: Value(
           factionLineage == null ? null : jsonEncode(factionLineage),
@@ -490,7 +532,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         familyLineageJson: Value(
           familyLineage == null ? null : jsonEncode(familyLineage),
         ),
-        isPure: Value(isPure),
+        isPure: Value(isPure || purityStatus.isPure),
       ),
     );
 

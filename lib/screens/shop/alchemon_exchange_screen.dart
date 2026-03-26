@@ -9,11 +9,9 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
-import 'package:alchemons/widgets/species_picker_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -613,128 +611,54 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
   }
 
   Future<void> _showInstanceBrowser() async {
-    final db = context.read<AlchemonsDatabase>();
-    final repo = context.read<CreatureCatalog>();
     final theme = context.read<FactionTheme>();
-    final allInstances = await db.creatureDao.listAllInstances();
 
-    final grouped = <String, List<CreatureInstance>>{};
-    for (final inst in allInstances) {
-      if (inst.locked) continue;
-      grouped.putIfAbsent(inst.baseId, () => []).add(inst);
-    }
-
-    if (!mounted) return;
-
-    final selectedSpeciesId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.95,
-        expand: true,
-        builder: (context, scrollController) {
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [t.bg2, t.bg1, t.bg0],
-              ),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(14),
-              ),
-              border: Border.all(color: t.borderDim),
+    final picked = await Navigator.of(context).push<List<CreatureInstance>>(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            AllSpecimensPage(
+              theme: theme,
+              searchHint: 'SELECT SPECIMENS',
+              selectionMode: true,
+              closeReturnsSelection: true,
+              selectedInstanceIds: _selectedForSale
+                  .map((inst) => inst.instanceId)
+                  .toList(),
+              onWillSelectInstance: (inst) async {
+                if (inst.locked) {
+                  _showToast('Locked specimens cannot be exchanged.');
+                  return false;
+                }
+                return true;
+              },
+              onConfirmSelection: (selected) {
+                Navigator.of(context).pop(selected);
+              },
             ),
-            child: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: t.borderMid,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: t.bg3,
-                    border: Border(bottom: BorderSide(color: t.borderDim)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 3,
-                        height: 22,
-                        margin: const EdgeInsets.only(right: 10),
-                        color: t.amber,
-                      ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'SELECT SPECIES',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: _primaryAccent,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.4,
-                              ),
-                            ),
-                            Text(
-                              'Choose which creatures to exchange',
-                              style: TextStyle(
-                                color: t.textSecondary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: t.bg2,
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(color: t.borderDim),
-                          ),
-                          child: Icon(
-                            Icons.close,
-                            color: t.textSecondary,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: SpeciesPickerSheet(grouped: grouped, theme: theme),
-                ),
-              ],
-            ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final tween = Tween(
+            begin: const Offset(0.0, 1.0),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeOutCubic));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
           );
         },
       ),
     );
 
-    if (selectedSpeciesId == null || !mounted) return;
+    if (picked == null || !mounted) return;
 
-    final species = repo.getCreatureById(selectedSpeciesId);
-    final instances = grouped[selectedSpeciesId];
-    if (species == null || instances == null) return;
-
-    _showInstancePicker(species, instances);
+    setState(() {
+      _selectedForSale
+        ..clear()
+        ..addAll(picked);
+      _recalculateTotal();
+    });
+    HapticFeedback.selectionClick();
   }
 
   Future<void> _showVialBrowser() async {
@@ -1069,52 +993,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
       availableQty: item.qty,
       unitSilverValue: _silverValueForVialRarity(rarity),
       source: _VialSaleSource.inventory,
-    );
-  }
-
-  void _showInstancePicker(Creature species, List<CreatureInstance> instances) {
-    final theme = context.read<FactionTheme>();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      isDismissible: true,
-      builder: (_) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return BottomSheetShell(
-              theme: theme,
-              title: 'Select ${species.name}',
-              child: InstancesSheet(
-                species: species,
-                theme: theme,
-                selectionMode: true,
-                initialDetailMode: InstanceDetailMode.stats,
-                selectedInstanceIds: _selectedForSale
-                    .map((e) => e.instanceId)
-                    .toList(),
-                onTap: (inst) {
-                  setState(() {
-                    if (_selectedForSale.any(
-                      (row) => row.instanceId == inst.instanceId,
-                    )) {
-                      _selectedForSale.removeWhere(
-                        (row) => row.instanceId == inst.instanceId,
-                      );
-                    } else {
-                      _selectedForSale.add(inst);
-                    }
-                    _recalculateTotal();
-                  });
-                  setModalState(() {});
-                  HapticFeedback.selectionClick();
-                },
-              ),
-            );
-          },
-        );
-      },
     );
   }
 

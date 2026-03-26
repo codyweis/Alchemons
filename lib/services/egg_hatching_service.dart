@@ -22,6 +22,7 @@ import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/utils/nature_utils.dart';
 import 'package:alchemons/widgets/animations/breed_result_animation.dart';
 import 'package:alchemons/widgets/animations/database_typing_animation.dart';
@@ -725,6 +726,13 @@ class EggHatching {
         .read<AlchemonsDatabase>()
         .creatureDao
         .getInstance(instanceId);
+    final purity = instance == null
+        ? null
+        : classifyInstancePurity(instance, species: offspring);
+    final purityBonus = purity == null
+        ? null
+        : purityStatBonusForStatus(purity);
+    final hasPurityBonus = purityBonus?.hasBonus == true;
 
     if (!context.mounted) return;
     final media = MediaQuery.of(context);
@@ -865,6 +873,21 @@ class EggHatching {
                                       child: _buildPrismaticBadge(),
                                     ),
                                   ),
+                                if (hasPurityBonus && purity != null)
+                                  Positioned(
+                                    bottom: 8,
+                                    right: 8,
+                                    child: AnimatedOpacity(
+                                      opacity: scanComplete ? 1 : 0,
+                                      duration: const Duration(
+                                        milliseconds: 300,
+                                      ),
+                                      child: _buildBadge(
+                                        purity.label.toUpperCase(),
+                                        _purityColor(purity),
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ],
@@ -910,6 +933,29 @@ class EggHatching {
                                           ),
                                           fc: fc,
                                         ),
+                                        if (hasPurityBonus && purity != null)
+                                          _buildTypingAnalysisRow(
+                                            'PURITY',
+                                            purity.label,
+                                            scanComplete,
+                                            primaryColor,
+                                            delay: const Duration(
+                                              milliseconds: 450,
+                                            ),
+                                            fc: fc,
+                                          ),
+                                        if (hasPurityBonus &&
+                                            purityBonus != null)
+                                          _buildTypingAnalysisRow(
+                                            'BASE BONUS',
+                                            purityBonus.summary,
+                                            scanComplete,
+                                            primaryColor,
+                                            delay: const Duration(
+                                              milliseconds: 525,
+                                            ),
+                                            fc: fc,
+                                          ),
                                         if (offspring.description.isNotEmpty)
                                           _buildTypingAnalysisRow(
                                             'NOTES',
@@ -917,7 +963,7 @@ class EggHatching {
                                             scanComplete,
                                             primaryColor,
                                             delay: const Duration(
-                                              milliseconds: 600,
+                                              milliseconds: 700,
                                             ),
                                             fc: fc,
                                           ),
@@ -1286,6 +1332,13 @@ class EggHatching {
         ),
       ),
     );
+  }
+
+  static Color _purityColor(InstancePurityStatus purity) {
+    if (purity.isPure) return Colors.greenAccent.shade400;
+    if (purity.isElementallyPure) return Colors.cyanAccent.shade400;
+    if (purity.isSpeciesPure) return Colors.amberAccent.shade400;
+    return Colors.orangeAccent.shade200;
   }
 
   static void showConstellationMilestoneOverlay(

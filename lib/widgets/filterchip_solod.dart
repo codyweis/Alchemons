@@ -13,6 +13,7 @@ class FilterChipSolid extends StatelessWidget {
   final Color? selectedTextColor;
   final Color? unselectedTextColor;
   final Color? unselectedBorderColor;
+  final Color? unselectedFillColor;
   final double selectedFillOpacity;
   final double labelFontSize;
   const FilterChipSolid({
@@ -27,6 +28,7 @@ class FilterChipSolid extends StatelessWidget {
     this.selectedTextColor,
     this.unselectedTextColor,
     this.unselectedBorderColor,
+    this.unselectedFillColor,
     this.selectedFillOpacity = 0.08,
     this.labelFontSize = 12,
   });
@@ -38,6 +40,9 @@ class FilterChipSolid extends StatelessWidget {
     final resolvedSelectedTextColor = selectedTextColor ?? displayColor;
     final resolvedUnselectedTextColor = unselectedTextColor ?? theme.text;
     final resolvedUnselectedBorderColor = unselectedBorderColor ?? theme.border;
+    final resolvedUnselectedFillColor =
+        unselectedFillColor ??
+        (tokens.isDark ? tokens.bg2 : Colors.white.withValues(alpha: 0.96));
 
     return GestureDetector(
       onTap: onTap,
@@ -48,7 +53,7 @@ class FilterChipSolid extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected
               ? displayColor.withValues(alpha: selectedFillOpacity)
-              : Colors.transparent,
+              : resolvedUnselectedFillColor,
           borderRadius: BorderRadius.circular(3),
           border: Border.all(
             color: selected ? displayColor : resolvedUnselectedBorderColor,

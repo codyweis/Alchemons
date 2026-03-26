@@ -54,6 +54,96 @@ class InstancePurityStatus {
   }
 }
 
+class PurityStatBonus {
+  final double speed;
+  final double intelligence;
+  final double strength;
+  final double beauty;
+
+  const PurityStatBonus({
+    this.speed = 0.0,
+    this.intelligence = 0.0,
+    this.strength = 0.0,
+    this.beauty = 0.0,
+  });
+
+  bool get hasBonus =>
+      speed > 0 || intelligence > 0 || strength > 0 || beauty > 0;
+
+  double forStat(String statName) {
+    switch (statName.toLowerCase()) {
+      case 'speed':
+        return speed;
+      case 'intelligence':
+        return intelligence;
+      case 'strength':
+        return strength;
+      case 'beauty':
+        return beauty;
+      default:
+        return 0.0;
+    }
+  }
+
+  String get summary {
+    final parts = <String>[];
+    if (beauty > 0) parts.add('Beauty +${beauty.toStringAsFixed(2)}');
+    if (strength > 0) parts.add('Strength +${strength.toStringAsFixed(2)}');
+    if (intelligence > 0) {
+      parts.add('Intelligence +${intelligence.toStringAsFixed(2)}');
+    }
+    if (speed > 0) parts.add('Speed +${speed.toStringAsFixed(2)}');
+    return parts.isEmpty ? 'None' : parts.join(', ');
+  }
+
+  String explanationFor(InstancePurityStatus status) {
+    if (!hasBonus) {
+      return 'Mixed lineage grants no purity stat bonus.';
+    }
+    if (status.isPure) {
+      return 'Pure specimens gain +0.25 Beauty, +0.25 Strength, and +0.25 Intelligence to base stats.';
+    }
+    if (status.isElementallyPure) {
+      return 'Elementally pure specimens gain +0.25 Beauty to base stats.';
+    }
+    if (status.isSpeciesPure) {
+      return 'Species pure specimens gain +0.25 Strength to base stats.';
+    }
+    return 'Mixed lineage grants no purity stat bonus.';
+  }
+}
+
+InstancePurityStatus classifyPurityFromLineages({
+  required Map<String, int> elementLineage,
+  required Map<String, int> speciesLineage,
+}) {
+  final normalizedElements = Map<String, int>.from(elementLineage)
+    ..removeWhere((_, value) => value <= 0);
+  final normalizedSpecies = Map<String, int>.from(speciesLineage)
+    ..removeWhere((_, value) => value <= 0);
+  return InstancePurityStatus(
+    elementLineage: normalizedElements,
+    speciesLineage: normalizedSpecies,
+  );
+}
+
+PurityStatBonus purityStatBonusForStatus(InstancePurityStatus status) {
+  if (status.isPure) {
+    return const PurityStatBonus(
+      intelligence: 0.25,
+      strength: 0.25,
+      beauty: 0.25,
+    );
+  }
+  if (status.isElementallyPure) {
+    return const PurityStatBonus(beauty: 0.25);
+  }
+  if (status.isSpeciesPure) {
+    return const PurityStatBonus(strength: 0.25);
+  }
+  return const PurityStatBonus();
+}
+
 InstancePurityStatus classifyInstancePurity(
   CreatureInstance instance, {
   Creature? species,
@@ -68,7 +158,7 @@ InstancePurityStatus classifyInstancePurity(
       ? _normalizedSpeciesLine(species?.mutationFamily)
       : null;
 
-  return InstancePurityStatus(
+  return classifyPurityFromLineages(
     elementLineage: decodePurityLineage(
       instance.elementLineageJson,
       fallbackKey: fallbackElement,

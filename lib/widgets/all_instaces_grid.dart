@@ -13,6 +13,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -39,6 +40,8 @@ class AllCreatureInstances extends StatefulWidget {
   final bool showInternalSearchBar;
   final int clearVersion;
   final ValueChanged<bool>? onResettableStateChanged;
+  final List<String> allowedPrimaryTypes;
+  final ValueChanged<List<CreatureInstance>>? onSelectionChanged;
 
   const AllCreatureInstances({
     super.key,
@@ -54,6 +57,8 @@ class AllCreatureInstances extends StatefulWidget {
     this.showInternalSearchBar = true,
     this.clearVersion = 0,
     this.onResettableStateChanged,
+    this.allowedPrimaryTypes = const [],
+    this.onSelectionChanged,
   });
 
   @override
@@ -80,6 +85,8 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
 
   // Selection state (when in selection mode)
   final Set<String> _localSelections = {};
+  Map<String, CreatureInstance> _allKnownInstancesById = const {};
+  List<String> _lastReportedSelectionIds = const [];
 
   // ordered cycles
   late final List<String> _sizeCycle = sizeLabels.keys.toList(growable: false);
@@ -257,9 +264,23 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
           _localSelections.add(inst.instanceId);
         }
       });
+      _emitSelectionChanged();
     } else if (widget.onTap != null) {
       widget.onTap!(inst);
     }
+  }
+
+  List<CreatureInstance> _currentSelectedInstances() {
+    final orderedSelectionIds = _localSelections.toList();
+    return orderedSelectionIds
+        .map((id) => _allKnownInstancesById[id])
+        .whereType<CreatureInstance>()
+        .toList();
+  }
+
+  void _emitSelectionChanged() {
+    if (!widget.selectionMode || widget.onSelectionChanged == null) return;
+    widget.onSelectionChanged!(_currentSelectedInstances());
   }
 
   bool get _hasAdvancedFilters =>
@@ -354,6 +375,9 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   ) {
     return instances.where((inst) {
       final creature = repo.getCreatureById(inst.baseId);
+      if (!_matchesAllowedPrimaryTypes(creature)) {
+        return false;
+      }
       if (_filterFamily != null &&
           (creature == null || creature.mutationFamily != _filterFamily)) {
         return false;
@@ -364,6 +388,12 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
       }
       return true;
     }).toList();
+  }
+
+  bool _matchesAllowedPrimaryTypes(Creature? creature) {
+    if (widget.allowedPrimaryTypes.isEmpty) return true;
+    if (creature == null || creature.types.isEmpty) return false;
+    return widget.allowedPrimaryTypes.contains(creature.types.first);
   }
 
   List<CreatureInstance> _applyAdvancedFilters(
@@ -454,6 +484,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     final families = <String>{};
     for (final inst in instances) {
       final creature = repo.getCreatureById(inst.baseId);
+      if (!_matchesAllowedPrimaryTypes(creature)) continue;
       final family = creature?.mutationFamily;
       if (family != null && family.isNotEmpty) {
         families.add(family);
@@ -471,7 +502,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     final types = <String>{};
     for (final inst in instances) {
       final creature = repo.getCreatureById(inst.baseId);
-      if (creature != null) {
+      if (_matchesAllowedPrimaryTypes(creature) && creature != null) {
         types.addAll(creature.types);
       }
     }
@@ -493,6 +524,9 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
       initialData: const [],
       builder: (context, snapshot) {
         final allInstances = snapshot.data ?? [];
+        _allKnownInstancesById = {
+          for (final inst in allInstances) inst.instanceId: inst,
+        };
         final familyOptions = _buildFamilyOptions(allInstances, repo);
         final typeOptions = _buildTypeOptions(allInstances, repo);
         final instances = _applyAllFilters(
@@ -500,6 +534,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
           repo,
           effectiveSearchText,
         );
+        final currentSelectionIds = _localSelections.toList();
 
         final hasFiltersActive =
             _hasAdvancedFilters ||
@@ -512,6 +547,17 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             widget.onResettableStateChanged?.call(_hasResettableState);
+          });
+        }
+
+        if (widget.selectionMode &&
+            widget.onSelectionChanged != null &&
+            currentSelectionIds.join('|') !=
+                _lastReportedSelectionIds.join('|')) {
+          _lastReportedSelectionIds = List<String>.from(currentSelectionIds);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _emitSelectionChanged();
           });
         }
 
@@ -549,15 +595,9 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       GestureDetector(
                         onTap: () {
                           if (widget.onConfirmSelection != null) {
-                            final byId = {
-                              for (final inst in instances)
-                                inst.instanceId: inst,
-                            };
-                            final selected = _localSelections
-                                .map((id) => byId[id])
-                                .whereType<CreatureInstance>()
-                                .toList();
-                            widget.onConfirmSelection!(selected);
+                            widget.onConfirmSelection!(
+                              _currentSelectedInstances(),
+                            );
                           }
                         },
                         child: Container(

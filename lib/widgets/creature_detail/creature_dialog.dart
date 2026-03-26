@@ -967,6 +967,13 @@ class _OverviewTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = _C.of(context);
+    final purity = instance == null
+        ? null
+        : classifyInstancePurity(instance!, species: creature);
+    final purityBonus = purity == null
+        ? null
+        : purityStatBonusForStatus(purity);
+    final hasPurityBonus = purityBonus?.hasBonus == true;
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
@@ -998,6 +1005,12 @@ class _OverviewTab extends StatelessWidget {
                       label: 'Special Trait',
                       value: 'Prismatic Phenotype',
                       valueColor: const Color(0xFFE879F9),
+                    ),
+                  if (hasPurityBonus && purity != null)
+                    _DataRow(
+                      label: 'Purity',
+                      value: purity.label,
+                      valueColor: _purityAccent(c, purity),
                     ),
                 ],
               ),
@@ -1235,6 +1248,13 @@ class _OverviewTab extends StatelessWidget {
   String _tintLabel() {
     final mapLabel = tintLabels[creature.genetics?.get('tinting') ?? 'Normal'];
     return mapLabel ?? 'Standard';
+  }
+
+  Color _purityAccent(_C c, InstancePurityStatus purity) {
+    if (purity.isPure) return c.success;
+    if (purity.isElementallyPure) return c.teal;
+    if (purity.isSpeciesPure) return c.amberBright;
+    return c.textMuted;
   }
 }
 
@@ -1923,26 +1943,35 @@ class _BreedingAnalysisSection extends StatelessWidget {
   final String instanceId;
   const _BreedingAnalysisSection({required this.instanceId});
 
-  Future<({CreatureInstance? instance, Map<String, dynamic>? report})>
+  Future<
+    ({
+      CreatureInstance? instance,
+      Creature? species,
+      Map<String, dynamic>? report,
+    })
+  >
   _loadData(BuildContext context) async {
     try {
       final db = context.read<AlchemonsDatabase>();
+      final repo = context.read<CreatureCatalog>();
       final instance = await db.creatureDao.getInstance(instanceId);
       if (instance == null) {
-        return (instance: null, report: null);
+        return (instance: null, species: null, report: null);
       }
+      final species = repo.getCreatureById(instance.baseId);
       if (instance.likelihoodAnalysisJson == null ||
           instance.likelihoodAnalysisJson!.isEmpty) {
-        return (instance: instance, report: null);
+        return (instance: instance, species: species, report: null);
       }
       return (
         instance: instance,
+        species: species,
         report:
             jsonDecode(instance.likelihoodAnalysisJson!)
                 as Map<String, dynamic>,
       );
     } catch (_) {
-      return (instance: null, report: null);
+      return (instance: null, species: null, report: null);
     }
   }
 
@@ -1950,7 +1979,11 @@ class _BreedingAnalysisSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = _C.of(context);
     return FutureBuilder<
-      ({CreatureInstance? instance, Map<String, dynamic>? report})
+      ({
+        CreatureInstance? instance,
+        Creature? species,
+        Map<String, dynamic>? report,
+      })
     >(
       future: _loadData(context),
       builder: (ctx, snap) {
@@ -1962,18 +1995,35 @@ class _BreedingAnalysisSection extends StatelessWidget {
           );
         }
         final instance = snap.data!.instance;
+        final species = snap.data!.species;
         final report = snap.data!.report;
+        final purity = instance == null
+            ? null
+            : classifyInstancePurity(instance, species: species);
+        final purityBonus = purity == null
+            ? null
+            : purityStatBonusForStatus(purity);
+        final hasPurityBonus = purityBonus?.hasBonus == true;
         if (report == null) {
           final hasParentage = _hasActualParentage(instance?.parentageJson);
           final sourceLabel = founderSourceLabel(
             instance?.source ?? '',
           ).toLowerCase();
-          return _DataRow(
-            label: 'Status',
-            value: hasParentage
-                ? 'Breeding record unavailable'
-                : 'No breeding record — founder specimen from $sourceLabel',
-            valueColor: c.textMuted,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DataRow(
+                label: 'Status',
+                value: hasParentage
+                    ? 'Breeding record unavailable'
+                    : 'No breeding record — founder specimen from $sourceLabel',
+                valueColor: c.textMuted,
+              ),
+              if (hasPurityBonus && purity != null && purityBonus != null) ...[
+                const SizedBox(height: 12),
+                _PurityAnalysisCard(purity: purity, bonus: purityBonus),
+              ],
+            ],
           );
         }
         return Column(
@@ -1989,6 +2039,10 @@ class _BreedingAnalysisSection extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _InheritanceMechanicsSection(report: report),
+            if (hasPurityBonus && purity != null && purityBonus != null) ...[
+              const SizedBox(height: 12),
+              _PurityAnalysisCard(purity: purity, bonus: purityBonus),
+            ],
             const SizedBox(height: 12),
             _InheritedTraitsSimple(analysis: report),
           ],
@@ -2050,6 +2104,72 @@ class _InheritanceMechanicsSection extends StatelessWidget {
         const SizedBox(height: 10),
         ...mechanics.map((m) => _MechanicCard(mechanic: m)),
       ],
+    );
+  }
+}
+
+class _PurityAnalysisCard extends StatelessWidget {
+  final InstancePurityStatus purity;
+  final PurityStatBonus bonus;
+
+  const _PurityAnalysisCard({required this.purity, required this.bonus});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _C.of(context);
+    final t = _T(c);
+    final color = purity.isPure
+        ? c.success
+        : purity.isElementallyPure
+        ? c.teal
+        : purity.isSpeciesPure
+        ? c.amberBright
+        : c.textMuted;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: c.bg3,
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: c.borderDim),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.verified_rounded, size: 13, color: color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Purity Bonus: ${purity.label}',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: c.textPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            bonus.summary,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            bonus.explanationFor(purity),
+            style: t.body.copyWith(fontSize: 10),
+          ),
+        ],
+      ),
     );
   }
 }

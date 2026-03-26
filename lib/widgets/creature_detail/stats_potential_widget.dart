@@ -27,11 +27,24 @@ class StatPotentialBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final fc = FC.of(context);
     final ft = FT(fc);
+    final isDark = context.read<FactionTheme>().isDark;
     final currentPercent = (currentValue / 5.0).clamp(0.0, 1.0);
     final potentialPercent = (potential / 5.0).clamp(0.0, 1.0);
     final roomForGrowth = potential - currentValue;
     final isNearMax = roomForGrowth < 0.3;
     final isPerfectPotential = potential >= 4.8;
+    final trackColor = isDark ? fc.bg3 : fc.bg0.withValues(alpha: 0.06);
+    final trackBorderColor = isDark ? fc.borderDim : fc.borderMid;
+    final potentialZoneColor = isPerfectPotential
+        ? FC.purple.withValues(alpha: isDark ? 0.18 : 0.14)
+        : fc.amberBright.withValues(alpha: isDark ? 0.10 : 0.18);
+    final currentFill = [
+      fc.amberGlow,
+      isDark ? fc.amber.withValues(alpha: 0.72) : fc.amber,
+    ];
+    final markerColor = isPerfectPotential
+        ? FC.purple.withValues(alpha: isDark ? 0.85 : 0.70)
+        : fc.amberBright.withValues(alpha: isDark ? 0.90 : 0.75);
 
     return Row(
       children: [
@@ -50,14 +63,18 @@ class StatPotentialBar extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final availableWidth = constraints.maxWidth;
+              final markerLeft = (availableWidth * potentialPercent - 1).clamp(
+                0.0,
+                (availableWidth - 2).clamp(0.0, double.infinity),
+              );
               return Stack(
                 children: [
                   Container(
                     height: 16,
                     decoration: BoxDecoration(
-                      color: fc.bg3,
+                      color: trackColor,
                       borderRadius: BorderRadius.circular(2),
-                      border: Border.all(color: fc.borderDim),
+                      border: Border.all(color: trackBorderColor),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(1),
@@ -65,9 +82,7 @@ class StatPotentialBar extends StatelessWidget {
                         children: [
                           Container(
                             width: availableWidth * potentialPercent,
-                            color: isPerfectPotential
-                                ? FC.purple.withValues(alpha: .18)
-                                : fc.bg2,
+                            color: potentialZoneColor,
                           ),
                         ],
                       ),
@@ -86,18 +101,26 @@ class StatPotentialBar extends StatelessWidget {
                           Container(
                             width: availableWidth * currentPercent,
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  fc.amberGlow,
-                                  fc.amber.withValues(alpha: .7),
-                                ],
-                              ),
+                              gradient: LinearGradient(colors: currentFill),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
+                  if (potentialPercent > 0 && potentialPercent < 1)
+                    Positioned(
+                      left: markerLeft,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 2,
+                        decoration: BoxDecoration(
+                          color: markerColor,
+                          borderRadius: BorderRadius.circular(1),
+                        ),
+                      ),
+                    ),
                 ],
               );
             },

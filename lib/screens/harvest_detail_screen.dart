@@ -10,14 +10,11 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
-import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/utils/harvest_rate.dart';
+import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
-import 'package:alchemons/widgets/bottom_sheet_shell.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
 import 'package:alchemons/widgets/glowing_icon.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -252,7 +249,6 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     List<CreatureEntry> discoveredCreatures,
   ) async {
     final theme = context.read<FactionTheme>();
-    final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
 
     // Get busy instance IDs
@@ -260,103 +256,74 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
     final busyIds = farm.activeJob != null
         ? [farm.activeJob!.creatureInstanceId]
         : <String>[];
-
-    // Get all instances that match the allowed types
-    final allInstances = await db.creatureDao.getAllInstances();
-    final eligibleSpeciesIds = <String>{};
-
-    for (final inst in allInstances) {
-      if (busyIds.contains(inst.instanceId)) continue;
-
-      final base = repo.getCreatureById(inst.baseId);
-      if (base != null &&
-          base.types.isNotEmpty &&
-          widget.biome.elementTypes.contains(base.types.first)) {
-        eligibleSpeciesIds.add(inst.baseId);
-      }
-    }
-
-    if (eligibleSpeciesIds.isEmpty) {
-      _showToast(
-        'No eligible creatures found for this biome.',
-        icon: Icons.error_outline,
-        color: Colors.red.shade400,
-      );
-      return;
-    }
-
-    final available = await db.creatureDao
-        .getSpeciesWithInstances(); // Set<String> baseIds
-
-    final filteredDiscovered = filterByAvailableInstances(
-      discoveredCreatures,
-      available,
-    );
-
-    // Show species picker
-    if (!mounted) return;
-    final selectedSpeciesId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            // Filter to only show eligible species
-            final eligibleDiscovered = filteredDiscovered.where((entry) {
-              final creature = entry.creature; // Get the Creature object
-              final creatureId = creature.id;
-              return eligibleSpeciesIds.contains(creatureId);
-            }).toList();
-
-            return CreatureSelectionSheet(
-              scrollController: scrollController,
-              discoveredCreatures: eligibleDiscovered,
-              onSelectCreature: (creatureId) {
-                Navigator.pop(context, creatureId);
-              },
-              showOnlyAvailableTypes: true,
-            );
-          },
-        );
-      },
-    );
-
-    if (selectedSpeciesId == null) return;
-
-    final selectedSpecies = repo.getCreatureById(selectedSpeciesId);
-    if (selectedSpecies == null) return;
-
-    // Show instance picker with harvest stats
-    if (!mounted) return;
-    final instanceId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => BottomSheetShell(
-        title: 'Choose ${selectedSpecies.name}',
-        theme: theme,
-        child: InstancesSheet(
-          species: selectedSpecies,
+    final stamina = context.read<StaminaService>();
+    final picked = await Navigator.of(context).push<CreatureInstance>(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, animation, secondaryAnimation) => AllSpecimensPage(
           theme: theme,
-          harvestDuration: widget.defaultDuration,
-          busyInstanceIds: busyIds,
-          onTap: (inst) {
-            Navigator.pop(context, inst.instanceId);
+          popOnSelect: true,
+          searchHint: 'SELECT SPECIMEN',
+          allowedPrimaryTypes: widget.biome.elementTypes,
+          onWillSelectInstance: (inst) async {
+            if (busyIds.contains(inst.instanceId)) {
+              _showToast(
+                'That specimen is already extracting.',
+                icon: Icons.block_rounded,
+                color: Colors.orange.shade400,
+              );
+              return false;
+            }
+
+            final base = repo.getCreatureById(inst.baseId);
+            if (base == null ||
+                base.types.isEmpty ||
+                !widget.biome.elementTypes.contains(base.types.first)) {
+              _showToast(
+                'Only ${widget.biome.label.toLowerCase()} specimens can work here.',
+                icon: Icons.filter_alt_off_rounded,
+                color: Colors.orange.shade400,
+              );
+              return false;
+            }
+
+            final refreshed = await stamina.refreshAndGet(inst.instanceId);
+            if ((refreshed?.staminaBars ?? 0) >= 1) {
+              return true;
+            }
+
+            final perBar = stamina.regenPerBar;
+            final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+            final last = refreshed?.staminaLastUtcMs ?? now;
+            final elapsed = now - last;
+            final remMs =
+                perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
+            final mins = (remMs / 60000).ceil();
+            _showToast(
+              'Specimen is resting — next stamina in ~${mins}m',
+              icon: Icons.hourglass_bottom_rounded,
+              color: Colors.orange.shade400,
+            );
+            return false;
           },
         ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final tween = Tween(
+            begin: const Offset(0.0, 1.0),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeOutCubic));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
       ),
     );
 
-    if (instanceId == null) return;
+    if (picked == null || !mounted) return;
 
-    if (!mounted) return;
-    final stamina = context.read<StaminaService>();
-    final inst = await stamina.refreshAndGet(instanceId);
+    final inst = await stamina.refreshAndGet(picked.instanceId);
     if (inst == null) return;
 
     if (inst.staminaBars == 0) {
@@ -376,7 +343,7 @@ class _BiomeDetailScreenState extends State<BiomeDetailScreen>
 
     final ok = await widget.service.startJob(
       biome: widget.biome,
-      creatureInstanceId: instanceId,
+      creatureInstanceId: inst.instanceId,
       duration: widget.defaultDuration,
       ratePerMinute: computeHarvestRatePerMinute(
         inst,

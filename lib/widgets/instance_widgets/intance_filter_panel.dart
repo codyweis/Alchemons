@@ -37,10 +37,14 @@ BoxDecoration _chipBox({
 }) {
   final displayColor = t.readableAccent(activeColor ?? t.amber);
   return BoxDecoration(
-    color: active ? displayColor.withValues(alpha: 0.08) : Colors.transparent,
+    color: active
+        ? displayColor.withValues(alpha: 0.08)
+        : (t.isDark ? t.bg2 : Colors.white.withValues(alpha: 0.96)),
     borderRadius: BorderRadius.circular(3),
     border: Border.all(
-      color: active ? displayColor.withValues(alpha: 0.8) : t.borderDim,
+      color: active
+          ? displayColor.withValues(alpha: 0.8)
+          : (t.isDark ? t.borderDim : t.borderDim.withValues(alpha: 0.9)),
       width: active ? 1.2 : 1.0,
     ),
   );
