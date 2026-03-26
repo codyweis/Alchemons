@@ -188,6 +188,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late Future<_ProfileData> _load;
+  late final PageController _cosmicHintsController;
   final NotificationPreferencesService _notificationPrefs =
       NotificationPreferencesService();
   final CinematicQualityService _cinematicQualityService =
@@ -200,13 +201,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   CinematicQuality _cinematicQuality = CinematicQuality.high;
   bool _cinematicQualityLoaded = false;
   bool _saveTransferBusy = false;
+  int _cosmicHintPage = 0;
 
   @override
   void initState() {
     super.initState();
+    _cosmicHintsController = PageController();
     _load = _fetch();
     _loadNotificationPrefs();
     _loadCinematicQuality();
+  }
+
+  @override
+  void dispose() {
+    _cosmicHintsController.dispose();
+    super.dispose();
   }
 
   Future<_ProfileData> _fetch() async {
@@ -299,6 +308,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
     await _loadNotificationPrefs();
     await _loadCinematicQuality();
+  }
+
+  String _formatCosmicHintText(String text) {
+    final separator = text.indexOf(':');
+    final raw = separator < 0
+        ? text.trim()
+        : text.substring(separator + 1).trim();
+    return raw
+        .replaceFirst(RegExp(r'^[\"\u201C\u201D]+'), '')
+        .replaceFirst(RegExp(r'[\"\u201C\u201D]+$'), '')
+        .trim();
+  }
+
+  Widget _buildCosmicHintsCarousel(
+    ForgeTokens t,
+    List<CosmicContestHintLore> cosmicHints,
+  ) {
+    if (cosmicHints.isEmpty) {
+      return Text(
+        'No cosmic hint notes discovered yet.',
+        style: _body(t).copyWith(fontSize: 11),
+      );
+    }
+
+    final hints = cosmicHints.take(6).toList(growable: false);
+    final currentPage = _cosmicHintPage.clamp(0, hints.length - 1);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 48,
+          child: PageView.builder(
+            controller: _cosmicHintsController,
+            itemCount: hints.length,
+            onPageChanged: (index) {
+              if (!mounted) return;
+              setState(() => _cosmicHintPage = index);
+            },
+            itemBuilder: (context, index) {
+              final hint = hints[index];
+              return SizedBox.expand(
+                child: Text(
+                  _formatCosmicHintText(hint.text),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.left,
+                  style: _body(t).copyWith(fontSize: 10, height: 1.35),
+                ),
+              );
+            },
+          ),
+        ),
+        if (hints.length > 1) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(hints.length, (index) {
+              final selected = index == currentPage;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: selected ? 18 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: selected ? t.teal : t.borderDim,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              );
+            }),
+          ),
+        ],
+      ],
+    );
   }
 
   Future<void> _createAccount() async {
@@ -621,7 +704,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _saveTransferBusy = true);
     _showProgressDialog(
       title: 'RESTORING BACKUP',
-      message: 'Downloading the latest account save and moving this account here.',
+      message:
+          'Downloading the latest account save and moving this account here.',
     );
     try {
       final db = context.read<AlchemonsDatabase>();
@@ -705,7 +789,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _showTransferSnack(error.message, isError: true);
     } catch (error) {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack('Could not activate this device: $error', isError: true);
+      _showTransferSnack(
+        'Could not activate this device: $error',
+        isError: true,
+      );
     }
   }
 
@@ -713,10 +800,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showAppSnack(message, isError: isError, fallbackContext: context);
   }
 
-  void _showProgressDialog({
-    required String title,
-    required String message,
-  }) {
+  void _showProgressDialog({required String title, required String message}) {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -803,7 +887,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             });
                           },
                           icon: Icon(
-                            obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                            obscure
+                                ? Icons.visibility_rounded
+                                : Icons.visibility_off_rounded,
                             color: t.textSecondary,
                           ),
                         ),
@@ -1044,37 +1130,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       Text('PROFILE', style: _heading(t)),
                       const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: accentColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(2),
-                          border: Border.all(
-                            color: accentColor.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: Text(
-                          data.faction!.name.toUpperCase(),
-                          style: _label(t).copyWith(color: accentColor),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
                       GestureDetector(
                         onTap: _openEncyclopedia,
                         child: Container(
-                          padding: const EdgeInsets.all(8),
+                          width: 58,
+                          height: 58,
                           decoration: BoxDecoration(
                             color: t.bg2,
                             borderRadius: BorderRadius.circular(3),
-                            border: Border.all(color: t.borderDim),
+                            border: Border.all(
+                              color: t.borderAccent.withValues(alpha: 0.8),
+                              width: 1.2,
+                            ),
                           ),
                           child: Icon(
                             Icons.menu_book_rounded,
-                            size: 22,
-                            color: t.textSecondary,
+                            size: 28,
+                            color: t.amberBright,
                           ),
                         ),
                       ),
@@ -1171,34 +1243,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     if (i < perks.length - 1) const SizedBox(height: 8),
                   ],
-
-                  const SizedBox(height: 24),
-                  const _EtchedDivider(label: 'COSMIC NOTES'),
-                  const SizedBox(height: 14),
-
-                  _ForgePanel(
-                    accentBar: t.teal,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (data.cosmicHints.isEmpty)
-                          Text(
-                            'No cosmic hint notes discovered yet.',
-                            style: _body(t).copyWith(fontSize: 11),
-                          )
-                        else ...[
-                          for (final hint in data.cosmicHints.take(6))
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Text(
-                                hint.text,
-                                style: _body(t).copyWith(fontSize: 11),
-                              ),
-                            ),
-                        ],
-                      ],
-                    ),
-                  ),
 
                   const SizedBox(height: 24),
                   const _EtchedDivider(label: 'GENERAL SETTINGS'),
@@ -1387,10 +1431,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 8),
                         if (!account.initialized)
-                          Text(
-                            'Loading account services...',
-                            style: _body(t),
-                          )
+                          Text('Loading account services...', style: _body(t))
                         else if (!account.isConfigured)
                           Text(
                             account.configurationError ??
@@ -1445,7 +1486,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 _ForgeButton(
                                   label: 'USE THIS DEVICE',
                                   icon: Icons.phonelink_lock_rounded,
-                                  onTap: () => _activateThisDevice(accountSession),
+                                  onTap: () =>
+                                      _activateThisDevice(accountSession),
                                 ),
                               _ForgeButton(
                                 label: 'RENAME',
@@ -1500,8 +1542,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ? 'Sign in with your transfer account before backing up or restoring saves.'
                               : !accountSession.state.activeOnThisDevice
                               ? 'This account is active on another device. Move the account here from the account-moved screen to restore the latest cloud backup.'
-                              : 'Back up this device save to your account. Then sign into the same account on another device and restore it there.'
-                          ,
+                              : 'Back up this device save to your account. Then sign into the same account on another device and restore it there.',
                           style: _body(t),
                         ),
                         const SizedBox(height: 12),
@@ -1510,9 +1551,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           runSpacing: 8,
                           children: [
                             _ForgeButton(
-                              label: _saveTransferBusy ? 'WORKING...' : 'BACK UP',
+                              label: _saveTransferBusy
+                                  ? 'WORKING...'
+                                  : 'BACK UP',
                               icon: Icons.cloud_upload_rounded,
-                              onTap: _saveTransferBusy ||
+                              onTap:
+                                  _saveTransferBusy ||
                                       !account.initialized ||
                                       !account.isConfigured ||
                                       !account.isSignedIn ||
@@ -1521,9 +1565,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   : _exportSave,
                             ),
                             _ForgeButton(
-                              label: _saveTransferBusy ? 'WORKING...' : 'RESTORE',
+                              label: _saveTransferBusy
+                                  ? 'WORKING...'
+                                  : 'RESTORE',
                               icon: Icons.cloud_download_rounded,
-                              onTap: _saveTransferBusy ||
+                              onTap:
+                                  _saveTransferBusy ||
                                       !account.initialized ||
                                       !account.isConfigured ||
                                       !account.isSignedIn ||
@@ -1537,7 +1584,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 24),
                   const _EtchedDivider(label: 'STORY'),
+                  const SizedBox(height: 14),
+
+                  _ForgePanel(
+                    accentBar: t.teal,
+                    padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'COSMIC NOTES',
+                          style: _label(t).copyWith(color: t.teal),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildCosmicHintsCarousel(t, data.cosmicHints),
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 14),
 
                   // ── Replay intro ──────────────────────────────────────────

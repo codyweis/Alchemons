@@ -127,6 +127,16 @@ class BreedingLikelihoodAnalyzer {
         ? BreedingType.sameSpecies
         : BreedingType.crossSpecies;
 
+    if (_usesRecipeDrivenSameSpeciesPath(p1, p2)) {
+      return _analyzeRecipeDrivenSameSpeciesBreeding(
+        p1,
+        p2,
+        offspring,
+        parentA: parentA,
+        parentB: parentB,
+      );
+    }
+
     if (breedingType == BreedingType.sameSpecies) {
       return _analyzeSameSpeciesBreeding(
         p1,
@@ -169,6 +179,112 @@ class BreedingLikelihoodAnalyzer {
       offspring,
       parentA: snapA,
       parentB: snapB,
+    );
+  }
+
+  BreedingAnalysisReport _analyzeRecipeDrivenSameSpeciesBreeding(
+    Creature p1,
+    Creature p2,
+    Creature baby, {
+    ParentSnapshot? parentA,
+    ParentSnapshot? parentB,
+  }) {
+    final mechanics = <InheritanceMechanic>[];
+    final specials = <InheritanceMechanic>[];
+    final surprises = <String>[];
+
+    final speciesPct = _crossSpeciesOutcomePct(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      parentA: parentA,
+      parentB: parentB,
+    );
+
+    mechanics.add(
+      InheritanceMechanic(
+        category: 'Species',
+        result: baby.name,
+        mechanism: baby.id == p1.id
+            ? 'Same-species Let breeding resolved back to the parent species'
+            : 'Same-species Let breeding followed the normal recipe path',
+        percentage: speciesPct,
+        likelihood: _likelihoodFor(speciesPct),
+      ),
+    );
+
+    if (speciesPct < 25.0) {
+      surprises.add('Less common species outcome');
+    }
+
+    _appendFamilyMechanic(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+      parentA: parentA,
+      parentB: parentB,
+    );
+
+    _appendElementMechanic(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+      parentA: parentA,
+      parentB: parentB,
+    );
+
+    _appendGeneticMechanics(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+    );
+
+    _appendNatureMechanic(
+      p1: p1,
+      p2: p2,
+      baby: baby,
+      mechanicsOut: mechanics,
+      surprisesOut: surprises,
+    );
+
+    _maybeAppendPrismatic(
+      baby: baby,
+      specialsOut: specials,
+      surprisesOut: surprises,
+    );
+
+    _maybeAppendVariantFaction(
+      baby: baby,
+      specialsOut: specials,
+      surprisesOut: surprises,
+    );
+
+    final outcomeCategory = _categorizeCrossSpeciesOutcome(
+      surprises,
+      mechanics,
+      specials,
+    );
+    final outcomeExplanation = _explainCrossSpeciesOutcome(
+      surprises,
+      mechanics,
+      specials,
+    );
+
+    return BreedingAnalysisReport(
+      breedingType: BreedingType.sameSpecies,
+      summaryLine:
+          '${p1.name} × ${p2.name} → ${baby.name}: Same-species Let recipe path',
+      inheritanceMechanics: mechanics,
+      specialEvents: specials,
+      outcomeCategory: outcomeCategory,
+      outcomeExplanation: outcomeExplanation,
+      overallLikelihood: _overallLikelihoodFromMechanics(mechanics),
     );
   }
 
@@ -1082,6 +1198,12 @@ class BreedingLikelihoodAnalyzer {
           return elementSet.contains(primary) && c.rarity == targetRarity;
         })
         .toList(growable: false);
+  }
+
+  bool _usesRecipeDrivenSameSpeciesPath(Creature p1, Creature p2) {
+    final fam1 = p1.mutationFamily ?? 'Unknown';
+    final fam2 = p2.mutationFamily ?? 'Unknown';
+    return p1.id == p2.id && fam1 == 'Let' && fam2 == 'Let';
   }
 
   int _rarityRank(String rarity) {

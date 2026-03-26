@@ -4,6 +4,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -364,7 +365,7 @@ class TeamSlotFilled extends StatelessWidget {
     final base = repo.getCreatureById(instance.baseId);
     final name = base?.name ?? instance.baseId;
 
-    return GestureDetector(
+    return FastLongPressDetector(
       onTap: onRemove,
       onLongPress: base == null
           ? null

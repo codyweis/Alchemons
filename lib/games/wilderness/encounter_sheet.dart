@@ -120,6 +120,22 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     return letters.toUpperCase();
   }
 
+  double _computeWildBreedChance(
+    db.CreatureInstance instance,
+    WildernessService wilderness,
+    ConstellationEffectsService constellation,
+  ) {
+    final totalLuck = instance.statBeauty / 100.0;
+    final harvestBonus = constellation.getWildernessHarvestBonus();
+
+    return wilderness.computeBreedChance(
+      base: widget.encounter.baseBreedChance,
+      partyLuck: totalLuck,
+      matchupMult: 1.0,
+      wildernessBonus: harvestBonus,
+    );
+  }
+
   Future<void> _showCrossSpeciesLockedDialog(
     BuildContext context,
     String familyA,
@@ -332,6 +348,38 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     );
   }
 
+  Widget _buildWildSprite(Creature wildCreature, {double size = 120}) {
+    if (wildCreature.spriteData != null) {
+      final sheet = sheetFromCreature(wildCreature);
+      final visuals = visualsFromInstance(wildCreature, null);
+      return SizedBox(
+        width: size,
+        height: size,
+        child: CreatureSprite(
+          spritePath: sheet.path,
+          totalFrames: sheet.totalFrames,
+          rows: sheet.rows,
+          frameSize: sheet.frameSize,
+          stepTime: sheet.stepTime,
+          scale: visuals.scale,
+          saturation: visuals.saturation,
+          brightness: visuals.brightness,
+          hueShift: visuals.hueShiftDeg,
+          isPrismatic: visuals.isPrismatic,
+          tint: visuals.tint,
+          alchemyEffect: visuals.alchemyEffect,
+          variantFaction: visuals.variantFaction,
+        ),
+      );
+    }
+
+    return Icon(
+      Icons.pets,
+      color: Colors.white.withValues(alpha: .8),
+      size: 64,
+    );
+  }
+
   Future<void> _onSelectPartyCreature(String instanceId) async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
@@ -352,13 +400,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     );
 
     final wilderness = WildernessService(db, staminaService);
-
-    final totalLuck = instRow.statBeauty / 100.0;
-    final p = wilderness.computeBreedChance(
-      base: widget.encounter.baseBreedChance,
-      partyLuck: totalLuck,
-      matchupMult: 1.0,
-    );
+    if (!mounted) return;
+    final constellation = context.read<ConstellationEffectsService>();
+    final p = _computeWildBreedChance(instRow, wilderness, constellation);
 
     setState(() {
       _status = 'Selected ${hydrated.name}. Choose an action.';
@@ -416,15 +460,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       // --------------------------------------------------------------
       if (!ctx.mounted) return;
       final constellation = ctx.read<ConstellationEffectsService>();
-      final harvestBonus = constellation.getWildernessHarvestBonus();
-      final totalLuck = instance.statBeauty / 100.0;
-
-      final p = wilderness.computeBreedChance(
-        base: widget.encounter.baseBreedChance,
-        partyLuck: totalLuck,
-        matchupMult: 1.0,
-        wildernessBonus: harvestBonus,
-      );
+      final p = _computeWildBreedChance(instance, wilderness, constellation);
 
       final spent = await wilderness.trySpendForAttempt(_chosenInstanceId!);
       if (spent == null) {
@@ -464,49 +500,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         }
 
         Widget wildSprite() {
-          final hydrated = repo.getCreatureById(widget.encounter.wildBaseId);
-          if (hydrated?.spriteData != null) {
-            final sheet = sheetFromCreature(hydrated!);
-            final visuals = visualsFromInstance(hydrated, null);
-            return SizedBox(
-              width: 120,
-              height: 120,
-              child: CreatureSprite(
-                spritePath: sheet.path,
-                totalFrames: sheet.totalFrames,
-                rows: sheet.rows,
-                frameSize: sheet.frameSize,
-                stepTime: sheet.stepTime,
-                scale: visuals.scale,
-                saturation: visuals.saturation,
-                brightness: visuals.brightness,
-                hueShift: visuals.hueShiftDeg,
-                isPrismatic: visuals.isPrismatic,
-                tint: visuals.tint,
-              ),
-            );
-          }
-
-          if (speciesB.spriteData != null) {
-            final sheet = sheetFromCreature(speciesB);
-            return SizedBox(
-              width: 120,
-              height: 120,
-              child: CreatureSprite(
-                spritePath: sheet.path,
-                totalFrames: sheet.totalFrames,
-                rows: sheet.rows,
-                frameSize: sheet.frameSize,
-                stepTime: sheet.stepTime,
-              ),
-            );
-          }
-
-          return Icon(
-            Icons.pets,
-            color: Colors.white.withValues(alpha: .8),
-            size: 64,
-          );
+          return _buildWildSprite(speciesB);
         }
 
         // 🆕 Show cinematic FIRST, then hide overlay
@@ -552,37 +546,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       }
 
       // 🎬 Show harvest cinematic with sprite
-      final repo = ctx.read<CreatureCatalog>();
-
       Widget wildSprite() {
-        final hydrated = repo.getCreatureById(widget.encounter.wildBaseId);
-        if (hydrated?.spriteData != null) {
-          final sheet = sheetFromCreature(hydrated!);
-          final visuals = visualsFromInstance(hydrated, null);
-          return SizedBox(
-            width: 120,
-            height: 120,
-            child: CreatureSprite(
-              spritePath: sheet.path,
-              totalFrames: sheet.totalFrames,
-              rows: sheet.rows,
-              frameSize: sheet.frameSize,
-              stepTime: sheet.stepTime,
-              scale: visuals.scale,
-              saturation: visuals.saturation,
-              brightness: visuals.brightness,
-              hueShift: visuals.hueShiftDeg,
-              isPrismatic: visuals.isPrismatic,
-              tint: visuals.tint,
-            ),
-          );
-        }
-
-        return Icon(
-          Icons.pets,
-          color: Colors.white.withValues(alpha: .8),
-          size: 64,
-        );
+        return _buildWildSprite(wildCreature);
       }
 
       Color colorOf(Creature? c, Color fallback) =>
@@ -972,7 +937,7 @@ class _PartyHUD extends StatelessWidget {
   }
 }
 
-class _PartyMemberCard extends StatelessWidget {
+class _PartyMemberCard extends StatefulWidget {
   final PartyMember member;
   final bool selected;
   final VoidCallback onTap;
@@ -984,15 +949,49 @@ class _PartyMemberCard extends StatelessWidget {
   });
 
   @override
+  State<_PartyMemberCard> createState() => _PartyMemberCardState();
+}
+
+class _PartyMemberCardState extends State<_PartyMemberCard> {
+  Future<CreatureInstance?>? _instanceFuture;
+  String? _futureForInstanceId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureInstanceFuture();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PartyMemberCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.member.instanceId != widget.member.instanceId) {
+      _ensureInstanceFuture(force: true);
+    }
+  }
+
+  void _ensureInstanceFuture({bool force = false}) {
+    if (!force &&
+        _instanceFuture != null &&
+        _futureForInstanceId == widget.member.instanceId) {
+      return;
+    }
+    _futureForInstanceId = widget.member.instanceId;
+    _instanceFuture = context.read<AlchemonsDatabase>().creatureDao.getInstance(
+      widget.member.instanceId,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final db = context.read<AlchemonsDatabase>();
+    _ensureInstanceFuture();
     final repo = context.read<CreatureCatalog>();
     final stamina = context.read<StaminaService>();
 
     final t = ForgeTokens(context.read<FactionTheme>());
 
     return FutureBuilder<CreatureInstance?>(
-      future: db.creatureDao.getInstance(member.instanceId),
+      future: _instanceFuture,
       builder: (context, snap) {
         final inst = snap.data;
         final base = inst == null ? null : repo.getCreatureById(inst.baseId);
@@ -1001,19 +1000,19 @@ class _PartyMemberCard extends StatelessWidget {
             : null;
 
         return GestureDetector(
-          onTap: onTap,
+          onTap: widget.onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             width: 56,
             padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: selected ? t.amber.withValues(alpha: 0.12) : t.bg2,
+              color: widget.selected ? t.amber.withValues(alpha: 0.12) : t.bg2,
               borderRadius: BorderRadius.circular(3),
               border: Border.all(
-                color: selected ? t.amber : t.borderDim,
-                width: selected ? 1.5 : 1,
+                color: widget.selected ? t.amber : t.borderDim,
+                width: widget.selected ? 1.5 : 1,
               ),
-              boxShadow: selected
+              boxShadow: widget.selected
                   ? [
                       BoxShadow(
                         color: t.amber.withValues(alpha: 0.28),

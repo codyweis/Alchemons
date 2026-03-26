@@ -156,9 +156,6 @@ class ImprovedBattleScrollArea extends StatelessWidget {
               specialMoveSummary: BattleMove.specialSummaryForCombatant(
                 bossProfile,
               ),
-              bossGimmickSummary: BattleMove.bossGimmickSummaryForCombatant(
-                bossProfile,
-              ),
             ),
           ),
         ],
@@ -543,19 +540,22 @@ class _BossCombatProfileCard extends StatelessWidget {
   final String basicMoveName;
   final String specialMoveName;
   final String specialMoveSummary;
-  final String bossGimmickSummary;
 
   const _BossCombatProfileCard({
     required this.profile,
     required this.basicMoveName,
     required this.specialMoveName,
     required this.specialMoveSummary,
-    required this.bossGimmickSummary,
   });
 
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
+    final specialCooldownTurns = BattleMove.specialCooldownForFamily(
+      profile.family,
+    );
+    final specialRecoveryPerBasic =
+        BattleMove.specialRecoveryPerBasicForCombatant(profile);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -591,16 +591,102 @@ class _BossCombatProfileCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        _moveLine('Boss Special', '', fc),
+        _moveLine('Basic Action CD', '2 turns', fc),
+        const SizedBox(height: 6),
+        _moveLine('Special Action CD', '3 turns', fc),
+        const SizedBox(height: 6),
+        _moveLine(
+          'Special CD',
+          '$specialCooldownTurns turn${specialCooldownTurns == 1 ? '' : 's'}',
+          fc,
+        ),
+        const SizedBox(height: 6),
+        _moveLine('CD / Basic', '$specialRecoveryPerBasic turn(s) recovered', fc),
+        const SizedBox(height: 6),
+        _moveLine('Special Unlock', 'Level 5', fc),
+        const SizedBox(height: 4),
         Padding(
           padding: const EdgeInsets.only(left: 90),
           child: Text(
-            bossGimmickSummary,
+            'Boss mode uses commitment cooldowns: specials lock longer and cooldown recovery comes from basic attacks and certain abilities.',
             style: TextStyle(
               color: fc.textSecondary,
               fontSize: 11,
               height: 1.3,
             ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'STAT SCALING',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: fc.textMuted,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.0,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: fc.bg2.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: fc.borderDim),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _scalingRow(
+                stat: 'SPD',
+                title: 'Tempo + Cooldown',
+                effect:
+                    'Turn order priority, plus extra special recovery on basics at SPD 2.0 / 3.0 / 4.0 / 4.8.',
+                fc: fc,
+              ),
+              const SizedBox(height: 6),
+              _scalingRow(
+                stat: 'INT',
+                title: 'Elemental Power',
+                effect:
+                    'Raises elemental attack and boosts DoT/regen effect scaling.',
+                fc: fc,
+              ),
+              const SizedBox(height: 6),
+              _scalingRow(
+                stat: 'BEAUTY',
+                title: 'Elemental Defense',
+                effect: 'Raises elemental defense and adds to physical defense.',
+                fc: fc,
+              ),
+              const SizedBox(height: 6),
+              _scalingRow(
+                stat: 'STR',
+                title: 'Physical Core',
+                effect: 'Raises max HP, physical attack, and physical defense.',
+                fc: fc,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Cooldown scaling note: only SPD affects baseline cooldown recovery tiers in Boss mode.',
+                style: TextStyle(
+                  color: fc.textSecondary,
+                  fontSize: 10,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'SPD tiers: +1 recovery at 2.0, +1 at 3.0, +1 at 4.0, +1 at 4.8.',
+                style: TextStyle(
+                  color: fc.textMuted,
+                  fontSize: 10,
+                  height: 1.3,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -667,6 +753,65 @@ class _BossCombatProfileCard extends StatelessWidget {
               fontSize: 11,
               fontWeight: FontWeight.w800,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _scalingRow({
+    required String stat,
+    required String title,
+    required String effect,
+    required FC fc,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: fc.bg3,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: fc.borderDim),
+          ),
+          child: Text(
+            stat,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: fc.textPrimary,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: fc.amberBright,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                effect,
+                style: TextStyle(
+                  color: fc.textSecondary,
+                  fontSize: 11,
+                  height: 1.3,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -798,7 +943,7 @@ class _DynamicBasicAttackCard extends StatelessWidget {
       case 'Dark':
         return Colors.deepPurple;
       case 'Light':
-        return Colors.yellow;
+        return const Color(0xFFB45309);
       case 'Blood':
         return Colors.red;
       default:

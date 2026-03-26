@@ -1,5 +1,6 @@
 // lib/services/constellation_service.dart
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
+import 'package:alchemons/constants/creature_details_tutorials.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -7,6 +8,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 class ConstellationService extends ChangeNotifier {
   final AlchemonsDatabase _db;
   final List<PendingMilestoneShowcase> _pendingMilestoneShowcases = [];
+  bool _compatMigrationRunning = false;
 
   ConstellationService(this._db) {
     _init();
@@ -21,6 +23,30 @@ class ConstellationService extends ChangeNotifier {
     _db.constellationDao.watchUnlockedSkillIds().listen((_) {
       notifyListeners();
     });
+
+    await _backfillSpecimenExchangeUnlock();
+  }
+
+  Future<void> _backfillSpecimenExchangeUnlock() async {
+    if (_compatMigrationRunning) return;
+    _compatMigrationRunning = true;
+    try {
+      final unlocked = await _db.constellationDao.getUnlockedSkillIds();
+      const newRootId = 'extraction_alchemon_exchange';
+      const oldSecondNodeId = 'extraction_resource_alchemy';
+
+      if (unlocked.contains(newRootId) || !unlocked.contains(oldSecondNodeId)) {
+        return;
+      }
+
+      await _db.constellationDao.unlockSkill(newRootId, 0);
+      debugPrint(
+        '✨ Backfilled constellation skill: Specimen Exchange (compatibility grant)',
+      );
+      notifyListeners();
+    } finally {
+      _compatMigrationRunning = false;
+    }
   }
 
   // ==================== POINTS ====================
@@ -105,10 +131,17 @@ class ConstellationService extends ChangeNotifier {
 
     // Record unlock
     await _db.constellationDao.unlockSkill(skillId, skill.pointsCost);
+    await _queueCreatureDetailsTutorial(skillId);
 
     debugPrint('✨ Unlocked constellation skill: ${skill.name}');
     notifyListeners();
     return true;
+  }
+
+  Future<void> _queueCreatureDetailsTutorial(String skillId) async {
+    final target = creatureDetailsTutorialTargetForSkill(skillId);
+    if (target == null) return;
+    await _db.settingsDao.setSetting(target.settingKey, '1');
   }
 
   // ==================== BREEDING & MILESTONES ====================

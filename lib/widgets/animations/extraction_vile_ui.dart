@@ -38,8 +38,6 @@ class RarityFX {
 
 /// Keep rarity FX local to UI so you don’t duplicate enums.
 extension VialRarityFx on VialRarity {
-  String get label => kRarityOrder[index];
-
   RarityFX get fx {
     switch (this) {
       case VialRarity.common:
@@ -144,7 +142,7 @@ class ExtractionVialCard extends StatelessWidget {
     final fx = vial.rarity.fx;
     final (aType, bType) = vial.group.particleTypes;
     final nameTag = vial.group.displayName.trim();
-    final rarityTag = vial.rarity.name.trim().toUpperCase();
+    final rarityTag = vial.rarity.badgeLabel.trim().toUpperCase();
     final hasNameTag = nameTag.isNotEmpty;
     final hasRarityTag = rarityTag.isNotEmpty;
 

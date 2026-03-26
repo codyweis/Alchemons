@@ -666,6 +666,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
       InvKeys.alchemyVolcanicAura => 'volcanic_aura',
       InvKeys.alchemyVoidRift => 'void_rift',
       InvKeys.alchemyPrismaticCascade => 'prismatic_cascade',
+      InvKeys.alchemyRitualGold => 'ritual_gold',
       InvKeys.alchemyBeautyRadiance => 'beauty_radiance',
       InvKeys.alchemySpeedFlux => 'speed_flux',
       InvKeys.alchemyStrengthForge => 'strength_forge',

@@ -11,6 +11,7 @@ import 'package:alchemons/widgets/animations/sprite_effects/beauty_radiance.dart
 import 'package:alchemons/widgets/animations/sprite_effects/intelligence_halo.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/ritual_gold.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/speed_flux.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/strength_forge.dart';
 import 'package:alchemons/utils/effect_size.dart';
@@ -209,10 +210,12 @@ class _CreatureSpriteState extends State<CreatureSprite>
       }
     }
 
+    final effectiveTint = widget.tint ?? _deriveVariantTint();
+
     // optional overall tint (rarely needed, skip for non-prismatic albino)
-    if (widget.tint != null && !(_isAlbino && !widget.isPrismatic)) {
+    if (effectiveTint != null && !(_isAlbino && !widget.isPrismatic)) {
       sprite = ColorFiltered(
-        colorFilter: ColorFilter.mode(widget.tint!, BlendMode.modulate),
+        colorFilter: ColorFilter.mode(effectiveTint, BlendMode.modulate),
         child: sprite,
       );
     }
@@ -242,6 +245,12 @@ class _CreatureSpriteState extends State<CreatureSprite>
     }
 
     return scaled;
+  }
+
+  Color? _deriveVariantTint() {
+    final faction = widget.variantFaction?.trim();
+    if (faction == null || faction.isEmpty) return null;
+    return FactionColors.of(faction);
   }
 
   Widget _buildEffectLayer(String effect) {
@@ -279,6 +288,8 @@ class _CreatureSpriteState extends State<CreatureSprite>
                   : prismaticCascadeSizeFromWidgetSize(slotSize))
             : prismaticCascadeSizeFromDisplayBase(displayBase);
         return PrismaticCascade(size: eff);
+      case 'ritual_gold':
+        return RitualGold(size: widgetEff ?? displayEff);
       case 'beauty_radiance':
         final eff = slotSize != null
             ? effectSizeFromWidgetSize(slotSize)
@@ -463,6 +474,8 @@ class InstanceSprite extends StatelessWidget {
         return VoidRift(size: widgetEff * 0.8);
       case 'prismatic_cascade':
         return PrismaticCascade(size: prismaticCascadeSizeFromWidgetSize(size));
+      case 'ritual_gold':
+        return RitualGold(size: widgetEff);
       case 'beauty_radiance':
         return BeautyRadiance(size: widgetEff);
       case 'speed_flux':

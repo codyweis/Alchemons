@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/nature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -11,35 +13,69 @@ import 'package:flutter/services.dart' show rootBundle;
 
 enum EncyclopediaRecipeKind { family, element }
 
+class EncyclopediaOutcomeEntry {
+  final String result;
+  final int weight;
+
+  const EncyclopediaOutcomeEntry({required this.result, required this.weight});
+}
+
 class EncyclopediaRecipeEntry {
   final EncyclopediaRecipeKind kind;
   final String pairKey;
   final String parentA;
   final String parentB;
-  final String result;
-  final int topWeight;
+  final List<EncyclopediaOutcomeEntry> outcomes;
 
   const EncyclopediaRecipeEntry({
     required this.kind,
     required this.pairKey,
     required this.parentA,
     required this.parentB,
-    required this.result,
-    required this.topWeight,
+    required this.outcomes,
+  });
+
+  String get result => outcomes.first.result;
+
+  int get topWeight => outcomes.first.weight;
+
+  String outcomePathKey(String result) => '$pairKey::$result';
+
+  bool definesOutcome(String value) {
+    final normalized = value.trim().toLowerCase();
+    return outcomes.any(
+      (entry) => entry.result.trim().toLowerCase() == normalized,
+    );
+  }
+}
+
+class EncyclopediaNatureEntry {
+  final NatureDef nature;
+  final int observedCount;
+
+  const EncyclopediaNatureEntry({
+    required this.nature,
+    required this.observedCount,
   });
 }
 
 class AlchemicalEncyclopediaSnapshot {
   final List<EncyclopediaRecipeEntry> familyRecipes;
   final List<EncyclopediaRecipeEntry> elementRecipes;
+  final List<EncyclopediaNatureEntry> natureEntries;
   final Set<String> discoveredFamilyKeys;
   final Set<String> discoveredElementKeys;
+  final Set<String> discoveredFamilyOutcomeKeys;
+  final Set<String> discoveredElementOutcomeKeys;
 
   const AlchemicalEncyclopediaSnapshot({
     required this.familyRecipes,
     required this.elementRecipes,
+    required this.natureEntries,
     required this.discoveredFamilyKeys,
     required this.discoveredElementKeys,
+    required this.discoveredFamilyOutcomeKeys,
+    required this.discoveredElementOutcomeKeys,
   });
 
   bool isDiscovered(EncyclopediaRecipeEntry entry) {
@@ -71,8 +107,11 @@ class EncyclopediaDiscoveryResult {
 }
 
 class AlchemicalEncyclopediaService {
-  static const String _familyDiscoveredKey = 'enc.family.discovered.v1';
-  static const String _elementDiscoveredKey = 'enc.element.discovered.v1';
+  static const String _legacyFamilyDiscoveredKey = 'enc.family.discovered.v1';
+  static const String _legacyElementDiscoveredKey = 'enc.element.discovered.v1';
+  static const String _familyDiscoveredKey = 'enc.family.outcomes.v2';
+  static const String _elementDiscoveredKey = 'enc.element.outcomes.v2';
+  static const String _natureDiscoveredKey = 'enc.nature.discovered.v1';
 
   static Future<_RecipeCatalog>? _catalogFuture;
 
@@ -80,17 +119,36 @@ class AlchemicalEncyclopediaService {
     required AlchemonsDatabase db,
   }) async {
     final catalog = await _loadCatalog();
-    final discoveredFamily = await _readDiscoveredSet(db, _familyDiscoveredKey);
-    final discoveredElement = await _readDiscoveredSet(
+    final discoveredFamilyOutcomeKeys = await _readDiscoveredOutcomeSet(
       db,
-      _elementDiscoveredKey,
+      currentKey: _familyDiscoveredKey,
+      legacyPairKey: _legacyFamilyDiscoveredKey,
+      recipesByPair: catalog.familyByPair,
     );
+    final discoveredElementOutcomeKeys = await _readDiscoveredOutcomeSet(
+      db,
+      currentKey: _elementDiscoveredKey,
+      legacyPairKey: _legacyElementDiscoveredKey,
+      recipesByPair: catalog.elementByPair,
+    );
+    final discoveredFamily = _pairKeysFromOutcomeKeys(
+      catalog.familyRecipes,
+      discoveredFamilyOutcomeKeys,
+    );
+    final discoveredElement = _pairKeysFromOutcomeKeys(
+      catalog.elementRecipes,
+      discoveredElementOutcomeKeys,
+    );
+    final natureEntries = await _loadNatureEntries(db);
 
     return AlchemicalEncyclopediaSnapshot(
       familyRecipes: catalog.familyRecipes,
       elementRecipes: catalog.elementRecipes,
+      natureEntries: natureEntries,
       discoveredFamilyKeys: discoveredFamily,
       discoveredElementKeys: discoveredElement,
+      discoveredFamilyOutcomeKeys: discoveredFamilyOutcomeKeys,
+      discoveredElementOutcomeKeys: discoveredElementOutcomeKeys,
     );
   }
 
@@ -121,10 +179,17 @@ class AlchemicalEncyclopediaService {
     final childFamily = _familyFromCreature(offspring);
 
     final catalog = await _loadCatalog();
-    final discoveredFamily = await _readDiscoveredSet(db, _familyDiscoveredKey);
-    final discoveredElement = await _readDiscoveredSet(
+    final discoveredFamily = await _readDiscoveredOutcomeSet(
       db,
-      _elementDiscoveredKey,
+      currentKey: _familyDiscoveredKey,
+      legacyPairKey: _legacyFamilyDiscoveredKey,
+      recipesByPair: catalog.familyByPair,
+    );
+    final discoveredElement = await _readDiscoveredOutcomeSet(
+      db,
+      currentKey: _elementDiscoveredKey,
+      legacyPairKey: _legacyElementDiscoveredKey,
+      recipesByPair: catalog.elementByPair,
     );
 
     final unlocked = <EncyclopediaRecipeEntry>[];
@@ -136,10 +201,12 @@ class AlchemicalEncyclopediaService {
         childElement != null) {
       final pairKey = ElementRecipeConfig.keyOf(parentAElement, parentBElement);
       final candidate = catalog.elementByPair[pairKey];
+      final outcomeKey = candidate?.outcomePathKey(childElement);
       if (candidate != null &&
-          candidate.result == childElement &&
-          !discoveredElement.contains(pairKey)) {
-        discoveredElement.add(pairKey);
+          candidate.definesOutcome(childElement) &&
+          outcomeKey != null &&
+          !discoveredElement.contains(outcomeKey)) {
+        discoveredElement.add(outcomeKey);
         unlocked.add(candidate);
         elementChanged = true;
       }
@@ -148,10 +215,12 @@ class AlchemicalEncyclopediaService {
     if (parentAFamily != null && parentBFamily != null && childFamily != null) {
       final pairKey = FamilyRecipeConfig.keyOf(parentAFamily, parentBFamily);
       final candidate = catalog.familyByPair[pairKey];
+      final outcomeKey = candidate?.outcomePathKey(childFamily);
       if (candidate != null &&
-          candidate.result == childFamily &&
-          !discoveredFamily.contains(pairKey)) {
-        discoveredFamily.add(pairKey);
+          candidate.definesOutcome(childFamily) &&
+          outcomeKey != null &&
+          !discoveredFamily.contains(outcomeKey)) {
+        discoveredFamily.add(outcomeKey);
         unlocked.add(candidate);
         familyChanged = true;
       }
@@ -232,13 +301,16 @@ class AlchemicalEncyclopediaService {
       final dist = recipe.value;
       if (dist is! Map<String, dynamic>) continue;
 
-      final top = _strictTopNewResult(
+      final outcomes = _definedOutcomes(
         dist,
-        parentA: parentA,
-        parentB: parentB,
         norm: norm,
+        excludedResults:
+            kind == EncyclopediaRecipeKind.family ||
+                kind == EncyclopediaRecipeKind.element
+            ? {parentA, parentB}
+            : const <String>{},
       );
-      if (top == null) continue;
+      if (outcomes.isEmpty) continue;
 
       final pairKey = keyOf(parentA, parentB);
       final pairParts = pairKey.split('+');
@@ -247,8 +319,7 @@ class AlchemicalEncyclopediaService {
         pairKey: pairKey,
         parentA: pairParts[0],
         parentB: pairParts[1],
-        result: top.result,
-        topWeight: top.weight,
+        outcomes: outcomes,
       );
     }
 
@@ -263,31 +334,36 @@ class AlchemicalEncyclopediaService {
     return out;
   }
 
-  static ({String result, int weight})? _strictTopNewResult(
+  static List<EncyclopediaOutcomeEntry> _definedOutcomes(
     Map<String, dynamic> distribution, {
-    required String parentA,
-    required String parentB,
     required String Function(String) norm,
+    Set<String> excludedResults = const <String>{},
   }) {
-    if (distribution.isEmpty) return null;
+    if (distribution.isEmpty) return const [];
 
+    final excluded = excludedResults.map((e) => e.trim().toLowerCase()).toSet();
     final normalized = <String, int>{};
     for (final entry in distribution.entries) {
       final weight = (entry.value as num?)?.toInt() ?? 0;
       if (weight <= 0) continue;
       final key = norm(entry.key);
+      if (excluded.contains(key.trim().toLowerCase())) continue;
       normalized[key] = (normalized[key] ?? 0) + weight;
     }
-    if (normalized.isEmpty) return null;
+    if (normalized.isEmpty) return const [];
 
-    final maxWeight = normalized.values.reduce(max);
-    final top = normalized.entries.where((e) => e.value == maxWeight).toList();
-    if (top.length != 1) return null;
-
-    final topResult = top.first.key;
-    if (topResult == parentA || topResult == parentB) return null;
-
-    return (result: topResult, weight: maxWeight);
+    final outcomes = normalized.entries
+        .map(
+          (entry) =>
+              EncyclopediaOutcomeEntry(result: entry.key, weight: entry.value),
+        )
+        .toList(growable: false);
+    outcomes.sort((a, b) {
+      final byWeight = b.weight.compareTo(a.weight);
+      if (byWeight != 0) return byWeight;
+      return a.result.compareTo(b.result);
+    });
+    return List.unmodifiable(outcomes);
   }
 
   static String? _primaryElement(List<String> types) {
@@ -358,6 +434,44 @@ class AlchemicalEncyclopediaService {
     return <String>{};
   }
 
+  static Future<Set<String>> _readDiscoveredOutcomeSet(
+    AlchemonsDatabase db, {
+    required String currentKey,
+    required String legacyPairKey,
+    required Map<String, EncyclopediaRecipeEntry> recipesByPair,
+  }) async {
+    final current = await _readDiscoveredSet(db, currentKey);
+    final legacyPairs = await _readDiscoveredSet(db, legacyPairKey);
+    if (legacyPairs.isEmpty) return current;
+
+    final merged = {...current};
+    for (final pairKey in legacyPairs) {
+      final recipe = recipesByPair[pairKey];
+      if (recipe == null) continue;
+      merged.add(recipe.outcomePathKey(recipe.result));
+    }
+    if (merged.length != current.length || !merged.containsAll(current)) {
+      await _writeDiscoveredSet(db, currentKey, merged);
+    }
+    return merged;
+  }
+
+  static Set<String> _pairKeysFromOutcomeKeys(
+    List<EncyclopediaRecipeEntry> recipes,
+    Set<String> discoveredOutcomeKeys,
+  ) {
+    final discoveredPairs = <String>{};
+    for (final recipe in recipes) {
+      final hasAny = recipe.outcomes.any(
+        (outcome) => discoveredOutcomeKeys.contains(
+          recipe.outcomePathKey(outcome.result),
+        ),
+      );
+      if (hasAny) discoveredPairs.add(recipe.pairKey);
+    }
+    return discoveredPairs;
+  }
+
   static Future<void> _writeDiscoveredSet(
     AlchemonsDatabase db,
     String key,
@@ -365,6 +479,40 @@ class AlchemicalEncyclopediaService {
   ) async {
     final list = values.toList()..sort();
     await db.settingsDao.setSetting(key, jsonEncode(list));
+  }
+
+  static Future<List<EncyclopediaNatureEntry>> _loadNatureEntries(
+    AlchemonsDatabase db,
+  ) async {
+    final stored = await _readDiscoveredSet(db, _natureDiscoveredKey);
+    final instances = await db.creatureDao.listAllInstances();
+    final observedCounts = <String, int>{};
+
+    for (final instance in instances) {
+      final natureId = instance.natureId?.trim();
+      if (natureId == null || natureId.isEmpty) continue;
+      observedCounts[natureId] = (observedCounts[natureId] ?? 0) + 1;
+    }
+
+    final merged = {...stored, ...observedCounts.keys};
+    if (merged.length != stored.length || !merged.containsAll(stored)) {
+      await _writeDiscoveredSet(db, _natureDiscoveredKey, merged);
+    }
+
+    final entries = <EncyclopediaNatureEntry>[];
+    for (final natureId in merged) {
+      final nature = NatureCatalog.byId(natureId);
+      if (nature == null) continue;
+      entries.add(
+        EncyclopediaNatureEntry(
+          nature: nature,
+          observedCount: observedCounts[natureId] ?? 0,
+        ),
+      );
+    }
+
+    entries.sort((a, b) => a.nature.id.compareTo(b.nature.id));
+    return List.unmodifiable(entries);
   }
 }
 

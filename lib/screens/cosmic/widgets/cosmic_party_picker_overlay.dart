@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 
 class CosmicPartyPickerOverlay extends StatefulWidget {
@@ -136,6 +137,16 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
           return b.statStrength.compareTo(a.statStrength);
         case SortBy.statBeauty:
           return b.statBeauty.compareTo(a.statBeauty);
+        case SortBy.potentialSpeed:
+          return b.statSpeedPotential.compareTo(a.statSpeedPotential);
+        case SortBy.potentialIntelligence:
+          return b.statIntelligencePotential.compareTo(
+            a.statIntelligencePotential,
+          );
+        case SortBy.potentialStrength:
+          return b.statStrengthPotential.compareTo(a.statStrengthPotential);
+        case SortBy.potentialBeauty:
+          return b.statBeautyPotential.compareTo(a.statBeautyPotential);
       }
     });
 
@@ -855,7 +866,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
       visuals = visualsFromInstance(species, ci);
     }
 
-    return GestureDetector(
+    return FastLongPressDetector(
       onTap: hasStamina
           ? () async {
               await widget.onAssign(_assigningSlot, ci.instanceId);
@@ -929,10 +940,7 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   // Stat value for active sort
-                  if (_sortBy == SortBy.statSpeed ||
-                      _sortBy == SortBy.statStrength ||
-                      _sortBy == SortBy.statIntelligence ||
-                      _sortBy == SortBy.statBeauty)
+                  if (_sortBy.isStatSort)
                     Padding(
                       padding: const EdgeInsets.only(top: 1),
                       child: Text(
@@ -1161,6 +1169,14 @@ class CosmicPartyPickerOverlayState extends State<CosmicPartyPickerOverlay> {
         return 'INT ${ci.statIntelligence.toStringAsFixed(1)}';
       case SortBy.statBeauty:
         return 'BEA ${ci.statBeauty.toStringAsFixed(1)}';
+      case SortBy.potentialSpeed:
+        return 'PSPD ${ci.statSpeedPotential.toStringAsFixed(1)}';
+      case SortBy.potentialStrength:
+        return 'PSTR ${ci.statStrengthPotential.toStringAsFixed(1)}';
+      case SortBy.potentialIntelligence:
+        return 'PINT ${ci.statIntelligencePotential.toStringAsFixed(1)}';
+      case SortBy.potentialBeauty:
+        return 'PBEA ${ci.statBeautyPotential.toStringAsFixed(1)}';
       default:
         return '';
     }

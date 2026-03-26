@@ -6,7 +6,11 @@
 //
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/database/daos/creature_dao.dart';
+import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
+import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -14,6 +18,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 
@@ -49,6 +54,7 @@ class InstanceCard extends StatelessWidget {
 
   final bool isSelected;
   final int? selectionNumber;
+  final SortBy? activeSortBy;
 
   final Duration? harvestDuration;
   final int Function(CreatureInstance)? calculateHarvestRate;
@@ -63,6 +69,7 @@ class InstanceCard extends StatelessWidget {
     this.onLongPress,
     this.isSelected = false,
     this.selectionNumber,
+    this.activeSortBy,
     this.harvestDuration,
     this.calculateHarvestRate,
   });
@@ -81,8 +88,29 @@ class InstanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
+    final hasPotentialAnalyzer = context
+        .watch<ConstellationEffectsService>()
+        .hasPotentialAnalyzer();
     final genetics = decodeGenetics(instance.geneticsJson);
     final sd = species.spriteData;
+    final rarityColor = BreedConstants.getRarityColor(species.rarity);
+    final sortBadgeColor = switch (activeSortBy?.statFamily) {
+      'speed' => const Color(0xFFFDE047),
+      'intelligence' => const Color(0xFFC084FC),
+      'strength' => const Color(0xFFF87171),
+      'beauty' => const Color(0xFFF9A8D4),
+      _ => t.amberBright,
+    };
+    final showSortBadge = activeSortBy?.isStatSort == true;
+    final topLeftLabel = showSortBadge
+        ? '${activeSortBy!.shortLabel} ${activeSortBy!.valueForInstance(instance).toStringAsFixed(1)}'
+        : 'LV ${instance.level}';
+    final topLeftTextColor = showSortBadge
+        ? t.readableAccent(sortBadgeColor)
+        : t.amberBright;
+    final topLeftBorderColor = showSortBadge
+        ? topLeftTextColor.withValues(alpha: 0.85)
+        : rarityColor.withValues(alpha: 0.85);
 
     final bottomBlock = _isHarvestMode
         ? _HarvestBlock(
@@ -93,28 +121,32 @@ class InstanceCard extends StatelessWidget {
             selectionNumber: selectionNumber,
           )
         : switch (detailMode) {
-            InstanceDetailMode.info => _InfoBlock(
+            InstanceDetailMode.info => _StatsBlock(
               instance: instance,
               isSelected: isSelected,
               selectionNumber: selectionNumber,
               creatureName: species.name,
+              showPotentials: hasPotentialAnalyzer,
             ),
             InstanceDetailMode.stats => _StatsBlock(
               instance: instance,
               isSelected: isSelected,
               selectionNumber: selectionNumber,
+              creatureName: species.name,
+              showPotentials: hasPotentialAnalyzer,
             ),
             InstanceDetailMode.genetics => _GeneticsBlock(
               instance: instance,
               genetics: genetics,
               isSelected: isSelected,
               selectionNumber: selectionNumber,
+              creatureName: species.name,
             ),
           };
 
     final selColor = isSelected ? _selectionColor(t) : t.borderDim;
 
-    return GestureDetector(
+    return FastLongPressDetector(
       onTap: onTap,
       onLongPress: onLongPress,
       child: AnimatedContainer(
@@ -162,51 +194,93 @@ class InstanceCard extends StatelessWidget {
                                     ),
                             ),
                           ),
-                          // Favorite star — top left
-                          if (instance.isFavorite)
-                            Positioned(
-                              top: 0,
-                              left: 0,
-                              child: Icon(
-                                Icons.star_rounded,
-                                color: const Color(0xFFE91E63),
-                                size: 14,
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: t.bg0.withValues(alpha: 0.82),
+                                borderRadius: BorderRadius.circular(2),
+                                border: Border.all(color: topLeftBorderColor),
+                              ),
+                              child: Text(
+                                topLeftLabel,
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: topLeftTextColor,
+                                  fontSize: showSortBadge ? 7 : 8,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
                             ),
-                          // Selection number badge — top right
-                          if (isSelected && selectionNumber != null)
+                          ),
+                          if (instance.isFavorite ||
+                              (isSelected && selectionNumber != null))
                             Positioned(
                               top: 0,
                               right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 5,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: selColor,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.merge_type_rounded,
-                                      color: t.bg0,
-                                      size: 9,
-                                    ),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      '$selectionNumber',
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        color: t.bg0,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w900,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  if (instance.isFavorite)
+                                    Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: t.bg0.withValues(alpha: 0.82),
+                                        borderRadius: BorderRadius.circular(2),
+                                        border: Border.all(
+                                          color: const Color(
+                                            0xFFE91E63,
+                                          ).withValues(alpha: 0.45),
+                                        ),
+                                      ),
+                                      child: const Icon(
+                                        Icons.star_rounded,
+                                        size: 10,
+                                        color: Color(0xFFE91E63),
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  if (instance.isFavorite &&
+                                      isSelected &&
+                                      selectionNumber != null)
+                                    const SizedBox(height: 4),
+                                  if (isSelected && selectionNumber != null)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: selColor,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.merge_type_rounded,
+                                            color: t.bg0,
+                                            size: 9,
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            '$selectionNumber',
+                                            style: TextStyle(
+                                              fontFamily: 'monospace',
+                                              color: t.bg0,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                         ],
@@ -215,15 +289,19 @@ class InstanceCard extends StatelessWidget {
 
                     const SizedBox(height: 5),
 
+                    if (!_isHarvestMode &&
+                        detailMode == InstanceDetailMode.genetics) ...[
+                      _CardNameLine(
+                        instance: instance,
+                        creatureName: species.name,
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+
                     // Stamina for genetics mode
                     if (!_isHarvestMode &&
                         detailMode == InstanceDetailMode.genetics) ...[
-                      ExcludeSemantics(
-                        child: StaminaBadge(
-                          instanceId: instance.instanceId,
-                          showCountdown: true,
-                        ),
-                      ),
+                      _InlineStaminaSummary(instance: instance),
                       const SizedBox(height: 4),
                     ],
 
@@ -240,28 +318,32 @@ class InstanceCard extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// INFO BLOCK
+// STATS BLOCK
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _InfoBlock extends StatelessWidget {
+class _StatsBlock extends StatelessWidget {
   final CreatureInstance instance;
   final bool isSelected;
   final int? selectionNumber;
   final String creatureName;
+  final bool showPotentials;
 
-  const _InfoBlock({
+  const _StatsBlock({
     required this.instance,
     required this.isSelected,
     required this.selectionNumber,
     required this.creatureName,
+    required this.showPotentials,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
-    final hasNick = instance.nickname?.trim().isNotEmpty == true;
-    final nick = hasNick ? instance.nickname!.trim() : creatureName;
-    final variant = instance.variantFaction ?? '';
+    final stamina = context.read<StaminaService>();
+    final state = stamina.computeState(instance);
+    final bars = state.bars.clamp(0, state.max);
+    final max = state.max <= 0 ? 1 : state.max;
+    final staminaTextColor = t.readableAccent(const Color(0xFF86EFAC));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -271,174 +353,155 @@ class _InfoBlock extends StatelessWidget {
           _ParentChip(selectionNumber: selectionNumber!),
           const SizedBox(height: 4),
         ],
-        // Name + lock
+        _CardNameLine(instance: instance, creatureName: creatureName),
+        const SizedBox(height: 4),
         Row(
           children: [
-            Icon(
-              instance.locked ? Icons.lock_rounded : Icons.lock_open_rounded,
-              size: 10,
-              color: instance.locked ? t.amberBright : t.textMuted,
+            StaminaBar(
+              current: bars,
+              max: max,
+              size: 6,
+              gap: 2,
+              fillColor: const Color(0xFF22C55E),
+              emptyColor: Colors.black26,
+              radius: const BorderRadius.all(Radius.circular(2)),
             ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                nick.toUpperCase(),
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textPrimary,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.4,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 5),
+            Text(
+              '$bars/$max',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: staminaTextColor,
+                fontSize: 8,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
               ),
             ),
           ],
         ),
-        // Variant
-        if (variant.isNotEmpty) ...[
-          const SizedBox(height: 3),
-          Row(
-            children: [
-              Icon(Icons.science_rounded, size: 10, color: t.teal),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  variant.trim().toUpperCase(),
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.teal,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ],
         const SizedBox(height: 4),
-        ExcludeSemantics(
-          child: StaminaBadge(
-            instanceId: instance.instanceId,
-            showCountdown: true,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _StatTile(
+                color: const Color(0xFFFDE047),
+                label: 'SPD',
+                currentValue: instance.statSpeed,
+                potentialValue: showPotentials
+                    ? instance.statSpeedPotential
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _StatTile(
+                color: const Color(0xFFC084FC),
+                label: 'INT',
+                currentValue: instance.statIntelligence,
+                potentialValue: showPotentials
+                    ? instance.statIntelligencePotential
+                    : null,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 3),
-        // Level
-        _MiniRow(
-          icon: Icons.bar_chart_rounded,
-          color: t.amberBright,
-          label: 'LV ${instance.level}',
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: _StatTile(
+                color: const Color(0xFFF87171),
+                label: 'STR',
+                currentValue: instance.statStrength,
+                potentialValue: showPotentials
+                    ? instance.statStrengthPotential
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _StatTile(
+                color: const Color(0xFFF9A8D4),
+                label: 'BEA',
+                currentValue: instance.statBeauty,
+                potentialValue: showPotentials
+                    ? instance.statBeautyPotential
+                    : null,
+              ),
+            ),
+          ],
         ),
-        if (instance.isPrismaticSkin == true) ...[
-          const SizedBox(height: 3),
-          const _PrismaticChip(),
-        ],
       ],
     );
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// STATS BLOCK
-// ──────────────────────────────────────────────────────────────────────────────
+class _StatTile extends StatelessWidget {
+  final Color color;
+  final String label;
+  final double currentValue;
+  final double? potentialValue;
 
-class _StatsBlock extends StatelessWidget {
-  final CreatureInstance instance;
-  final bool isSelected;
-  final int? selectionNumber;
-
-  const _StatsBlock({
-    required this.instance,
-    required this.isSelected,
-    required this.selectionNumber,
+  const _StatTile({
+    required this.color,
+    required this.label,
+    required this.currentValue,
+    required this.potentialValue,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (isSelected && selectionNumber != null) ...[
-          _ParentChip(selectionNumber: selectionNumber!),
-          const SizedBox(height: 3),
+    final displayColor = t.readableAccent(color);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      decoration: BoxDecoration(
+        color: t.bg0.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: displayColor.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: displayColor.withValues(alpha: 0.8),
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  potentialValue == null
+                      ? currentValue.toStringAsFixed(1)
+                      : '${currentValue.toStringAsFixed(1)} / ${potentialValue!.toStringAsFixed(1)}',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: displayColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                    height: 1,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ],
-        _MiniRow(
-          icon: Icons.bar_chart_rounded,
-          color: t.amberBright,
-          label: 'LV ${instance.level}  ·  ${instance.xp.toInt()} XP',
-        ),
-        const SizedBox(height: 3),
-        _StatLine(
-          icon: Icons.speed,
-          color: const Color(0xFFFDE047),
-          label: 'SPD',
-          value: instance.statSpeed,
-        ),
-        _StatLine(
-          icon: Icons.psychology,
-          color: const Color(0xFFC084FC),
-          label: 'INT',
-          value: instance.statIntelligence,
-        ),
-        _StatLine(
-          icon: Icons.fitness_center,
-          color: const Color(0xFFF87171),
-          label: 'STR',
-          value: instance.statStrength,
-        ),
-        _StatLine(
-          icon: Icons.favorite,
-          color: const Color(0xFFF9A8D4),
-          label: 'BEA',
-          value: instance.statBeauty,
-        ),
-        if (instance.isPrismaticSkin == true) ...[
-          const SizedBox(height: 3),
-          const _PrismaticChip(),
-        ],
-      ],
+      ),
     );
   }
-}
-
-class _StatLine extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String label;
-  final double value;
-  const _StatLine({
-    required this.icon,
-    required this.color,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 1),
-    child: Row(
-      children: [
-        Icon(icon, size: 10, color: color),
-        const SizedBox(width: 4),
-        Text(
-          '$label  ${value.toStringAsFixed(2)}',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: color.withValues(alpha: 0.9),
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.3,
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -450,26 +513,25 @@ class _GeneticsBlock extends StatelessWidget {
   final Genetics? genetics;
   final bool isSelected;
   final int? selectionNumber;
+  final String creatureName;
 
   const _GeneticsBlock({
     required this.instance,
     required this.genetics,
     required this.isSelected,
     required this.selectionNumber,
+    required this.creatureName,
   });
 
   String _sizeName() =>
       sizeLabels[genetics?.get('size') ?? 'normal'] ?? 'Standard';
   String _tintName() =>
       tintLabels[genetics?.get('tinting') ?? 'normal'] ?? 'Standard';
-  IconData _sizeIcon() =>
-      sizeIcons[genetics?.get('size') ?? 'normal'] ?? Icons.circle;
-  IconData _tintIcon() =>
-      tintIcons[genetics?.get('tinting') ?? 'normal'] ?? Icons.palette_outlined;
 
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
+    final variant = instance.variantFaction?.trim() ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -482,21 +544,16 @@ class _GeneticsBlock extends StatelessWidget {
           const _PrismaticChip(),
           const SizedBox(height: 3),
         ],
-        _MiniRow(
-          icon: _sizeIcon(),
-          color: t.amberBright,
-          label: _sizeName().toUpperCase(),
-        ),
+        if (variant.isNotEmpty) ...[
+          _MiniRow(color: t.teal, label: variant.toUpperCase()),
+          const SizedBox(height: 2),
+        ],
+        _MiniRow(color: t.amberBright, label: _sizeName().toUpperCase()),
         const SizedBox(height: 2),
-        _MiniRow(
-          icon: _tintIcon(),
-          color: t.amberBright,
-          label: _tintName().toUpperCase(),
-        ),
+        _MiniRow(color: t.amberBright, label: _tintName().toUpperCase()),
         if (instance.natureId?.isNotEmpty == true) ...[
           const SizedBox(height: 2),
           _MiniRow(
-            icon: Icons.psychology_rounded,
             color: t.textSecondary,
             label: instance.natureId!.toUpperCase(),
           ),
@@ -534,18 +591,12 @@ class _HarvestBlock extends StatelessWidget {
     final genetics = decodeGenetics(instance.geneticsJson);
     final sizeKey = genetics?.get('size') ?? 'normal';
     final sizeName = sizeLabels[sizeKey] ?? sizeKey;
-    final sizeIcon = sizeIcons[sizeKey] ?? Icons.straighten_rounded;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        ExcludeSemantics(
-          child: StaminaBadge(
-            instanceId: instance.instanceId,
-            showCountdown: true,
-          ),
-        ),
+        _InlineStaminaSummary(instance: instance),
         const SizedBox(height: 4),
         if (isSelected && selectionNumber != null) ...[
           _ParentChip(selectionNumber: selectionNumber!),
@@ -555,15 +606,11 @@ class _HarvestBlock extends StatelessWidget {
           const _PrismaticChip(),
           const SizedBox(height: 3),
         ],
-        // Level + total in one row
+        // Total output row
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _MiniRow(
-              icon: Icons.bar_chart_rounded,
-              color: t.amberBright,
-              label: 'LV ${instance.level}',
-            ),
+            const SizedBox.shrink(),
             Row(
               children: [
                 Icon(Icons.inventory_2_rounded, size: 10, color: t.amberBright),
@@ -586,14 +633,9 @@ class _HarvestBlock extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _MiniRow(
-              icon: sizeIcon,
-              color: t.textSecondary,
-              label: sizeName.toUpperCase(),
-            ),
+            _MiniRow(color: t.textSecondary, label: sizeName.toUpperCase()),
             if (instance.natureId?.isNotEmpty == true)
               _MiniRow(
-                icon: Icons.psychology_rounded,
                 color: t.textSecondary,
                 label: instance.natureId!.toUpperCase(),
               ),
@@ -609,23 +651,18 @@ class _HarvestBlock extends StatelessWidget {
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _MiniRow extends StatelessWidget {
-  final IconData icon;
   final Color color;
   final String label;
-  const _MiniRow({
-    required this.icon,
-    required this.color,
-    required this.label,
-  });
+  const _MiniRow({required this.color, required this.label});
 
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.read<FactionTheme>());
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 10, color: color),
-        const SizedBox(width: 4),
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: Text(
             label,
             style: TextStyle(
@@ -710,6 +747,71 @@ class _PrismaticChip extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _CardNameLine extends StatelessWidget {
+  const _CardNameLine({required this.instance, required this.creatureName});
+
+  final CreatureInstance instance;
+  final String creatureName;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    final hasNick = instance.nickname?.trim().isNotEmpty == true;
+    final nick = hasNick ? instance.nickname!.trim() : creatureName;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            nick.toUpperCase(),
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: t.textPrimary,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InlineStaminaSummary extends StatelessWidget {
+  const _InlineStaminaSummary({required this.instance});
+
+  final CreatureInstance instance;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    final stamina = context.read<StaminaService>();
+    final state = stamina.computeState(instance);
+    final bars = state.bars.clamp(0, state.max);
+    final max = state.max <= 0 ? 1 : state.max;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.local_fire_department, size: 12, color: t.success),
+        const SizedBox(width: 4),
+        StaminaBar(
+          current: bars,
+          max: max,
+          size: 7,
+          gap: 2,
+          fillColor: t.success,
+          emptyColor: t.bg0,
+          radius: const BorderRadius.all(Radius.circular(2)),
+        ),
+      ],
+    );
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

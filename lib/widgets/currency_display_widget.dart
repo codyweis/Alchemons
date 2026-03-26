@@ -63,6 +63,49 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
     widget.onTap?.call();
   }
 
+  bool _isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  Color _goldColor(BuildContext context) =>
+      _isDark(context) ? const Color(0xFFFFD700) : const Color(0xFF8A5A00);
+
+  Color _silverColor(BuildContext context) =>
+      _isDark(context) ? const Color(0xFFC0C0C0) : const Color(0xFF5F6772);
+
+  Color _backgroundColor(BuildContext context) => _isDark(context)
+      ? Colors.black.withValues(alpha: 0.25)
+      : Colors.white.withValues(alpha: 0.78);
+
+  Color _borderColor(BuildContext context, Color accent) => _isDark(context)
+      ? accent.withValues(alpha: 0.3)
+      : accent.withValues(alpha: 0.45);
+
+  Color _dividerColor(BuildContext context) => _isDark(context)
+      ? Colors.white.withValues(alpha: 0.2)
+      : Colors.black.withValues(alpha: 0.16);
+
+  List<BoxShadow> _shadow(BuildContext context, Color accent) =>
+      _isDark(context)
+      ? [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.1),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ]
+      : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+          BoxShadow(
+            color: accent.withValues(alpha: 0.08),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ];
+
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
@@ -82,19 +125,13 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
           return Container(
             padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.25),
+              color: _backgroundColor(context),
               borderRadius: BorderRadius.circular(radius),
               border: Border.all(
-                color: accent.withValues(alpha: 0.3),
+                color: _borderColor(context, accent),
                 width: 1,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                  spreadRadius: 1,
-                ),
-              ],
+              boxShadow: _shadow(context, accent),
             ),
             child: StreamBuilder<Map<String, int>>(
               stream: db.currencyDao.watchAllCurrencies(),
@@ -141,26 +178,23 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
   }
 
   Widget _buildFullView(int gold, int silver) {
+    final dividerColor = _dividerColor(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         _CurrencyPill(
           icon: Icons.hexagon_rounded,
           amount: gold,
-          color: const Color(0xFFFFD700),
+          color: _goldColor(context),
           formatter: _formatCurrency,
         ),
         const SizedBox(width: 8),
-        Container(
-          width: 1,
-          height: 20,
-          color: Colors.white.withValues(alpha: 0.2),
-        ),
+        Container(width: 1, height: 20, color: dividerColor),
         const SizedBox(width: 8),
         _CurrencyPill(
           icon: Icons.monetization_on_rounded,
           amount: silver,
-          color: const Color(0xFFC0C0C0),
+          color: _silverColor(context),
           formatter: _formatCurrency,
         ),
       ],
@@ -169,8 +203,8 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
 
   /// Condensed view — numbers only, no icon circles.
   Widget _buildCondensedView(int gold, int silver) {
-    const goldColor = Color(0xFFFFD700);
-    const silverColor = Color(0xFFC0C0C0);
+    final goldColor = _goldColor(context);
+    final silverColor = _silverColor(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -178,7 +212,7 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
         const SizedBox(width: 3),
         Text(
           _formatCurrency(gold),
-          style: const TextStyle(
+          style: TextStyle(
             color: goldColor,
             fontSize: 12,
             fontWeight: FontWeight.w900,
@@ -186,17 +220,13 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget>
           ),
         ),
         const SizedBox(width: 8),
-        Container(
-          width: 1,
-          height: 14,
-          color: Colors.white.withValues(alpha: 0.2),
-        ),
+        Container(width: 1, height: 14, color: _dividerColor(context)),
         const SizedBox(width: 8),
         Icon(Icons.monetization_on_rounded, size: 11, color: silverColor),
         const SizedBox(width: 3),
         Text(
           _formatCurrency(silver),
-          style: const TextStyle(
+          style: TextStyle(
             color: silverColor,
             fontSize: 12,
             fontWeight: FontWeight.w900,

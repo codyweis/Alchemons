@@ -71,6 +71,17 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
         });
       } else if (event is TurnStateChangedEvent) {
         setState(() {});
+        if (event.state == BattleState.playerTurn) {
+          final idx = selectedCreatureIndex;
+          final hasValidSelection =
+              idx != null &&
+              idx >= 0 &&
+              idx < widget.playerTeam.length &&
+              widget.playerTeam[idx].canAct;
+          if (!hasValidSelection) {
+            _selectFirstReadyCreature();
+          }
+        }
       } else if (event is AttackExecutedEvent) {
         setState(() {
           _addToFeed(event.result.messages, _FeedSource.team);
@@ -82,16 +93,12 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
           // If the selected creature was killed, deselect it
           if (selectedCreatureIndex != null &&
               widget.playerTeam[selectedCreatureIndex!].isDead) {
-            // Find next alive creature to auto-select
-            final nextAlive = widget.playerTeam.indexWhere((c) => c.canAct);
-            if (nextAlive >= 0) {
-              selectedCreatureIndex = nextAlive;
-              game.post(() => game.selectCreature(nextAlive));
-            } else {
-              selectedCreatureIndex = null;
-            }
+            selectedCreatureIndex = null;
           }
         });
+        if (selectedCreatureIndex == null) {
+          _selectFirstReadyCreature();
+        }
       } else if (event is StatusEffectEvent) {
         setState(() {
           _addToFeed(
@@ -309,7 +316,10 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     if (game.state != BattleState.playerTurn) return;
 
     final creature = widget.playerTeam[selectedCreatureIndex!];
-    if (creature.isDead) return;
+    if (creature.isDead) {
+      _selectFirstReadyCreature();
+      return;
+    }
     if (!creature.canAct) {
       _selectFirstReadyCreature(showHint: true);
       return;
@@ -324,7 +334,10 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     if (game.state != BattleState.playerTurn) return;
 
     final creature = widget.playerTeam[selectedCreatureIndex!];
-    if (creature.isDead) return;
+    if (creature.isDead) {
+      _selectFirstReadyCreature();
+      return;
+    }
     if (!creature.canAct) {
       _selectFirstReadyCreature(showHint: true);
       return;
@@ -364,7 +377,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  '${creature.name} special on cooldown (${creature.specialCooldown} turn${creature.specialCooldown == 1 ? '' : 's'} left)',
+                  '${creature.name} special on cooldown (${creature.specialCooldown} turn${creature.specialCooldown == 1 ? '' : 's'} left). Use basics to recover.',
                   style: TextStyle(fontSize: 14),
                 ),
               ),
@@ -426,6 +439,7 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
   @override
   Widget build(BuildContext context) {
     return ParticleBackgroundScaffold(
+      backgroundColor: Colors.black,
       whiteBackground: false,
       body: Scaffold(
         backgroundColor: Colors.transparent,
@@ -1129,7 +1143,8 @@ class _BattleScreenFlameState extends State<BattleScreenFlame>
     } else if (!hasSpecial) {
       specialSubtitle = 'Lv 5 Required';
     } else if (selected.specialCooldown > 0) {
-      specialSubtitle = 'Cooldown: ${selected.specialCooldown} turns';
+      specialSubtitle =
+          'Cooldown: ${selected.specialCooldown} turns • Recover via basics';
     } else {
       specialSubtitle = 'Special Ready';
     }

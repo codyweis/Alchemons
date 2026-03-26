@@ -12,6 +12,20 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/tutorial_step.dart';
 
+class _ConstellationPalette {
+  static const bg0 = Color(0xFF080A0E);
+  static const bg1 = Color(0xFF0E1117);
+  static const bg2 = Color(0xFF141820);
+  static const bg3 = Color(0xFF1C2230);
+  static const border = Color(0xFF252D3A);
+  static const borderSoft = Color(0xFF3A3020);
+  static const text = Color(0xFFE8DCC8);
+  static const textSoft = Color(0xFFB6C0CC);
+  static const textMuted = Color(0xFF8A7B6A);
+  static const teal = Color(0xFF0EA5E9);
+  static const success = Color(0xFF16A34A);
+}
+
 class ConstellationScreen extends StatefulWidget {
   const ConstellationScreen({super.key});
 
@@ -19,34 +33,19 @@ class ConstellationScreen extends StatefulWidget {
   State<ConstellationScreen> createState() => _ConstellationScreenState();
 }
 
-class _ConstellationScreenState extends State<ConstellationScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _ConstellationScreenState extends State<ConstellationScreen> {
   ConstellationTree _selectedTree = ConstellationTree.breeder;
   ConstellationGame? _game;
   bool _gameInitialized = false;
   bool _finaleHandled =
       false; // Track if we've checked/played finale this session
+  bool _treeAvailabilityInitialized = false;
+  bool _isTreeRevealPlaying = false;
+  Set<ConstellationTree> _availableTrees = const {ConstellationTree.breeder};
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: 3,
-      vsync: this,
-      initialIndex: 1, // <-- start on middle tab (BREEDER)
-    );
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging && _gameInitialized) {
-        final newTree = _getTreeForIndex(_tabController.index);
-        if (newTree != _selectedTree) {
-          setState(() {
-            _selectedTree = newTree;
-          });
-          _game?.transitionToTree(newTree);
-        }
-      }
-    });
     // Check and show constellation tutorial once after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeShowConstellationTutorial();
@@ -55,21 +54,31 @@ class _ConstellationScreenState extends State<ConstellationScreen>
 
   @override
   void dispose() {
-    _tabController.dispose();
     super.dispose();
   }
 
-  ConstellationTree _getTreeForIndex(int index) {
-    switch (index) {
-      case 0:
-        return ConstellationTree.combat; // left tab
-      case 1:
-        return ConstellationTree.breeder; // middle tab
-      case 2:
-        return ConstellationTree.extraction; // right tab
-      default:
-        return ConstellationTree.breeder;
-    }
+  void _selectTree(ConstellationTree tree) {
+    if (!_gameInitialized) return;
+    if (!_availableTrees.contains(tree) || tree == _selectedTree) return;
+
+    setState(() {
+      _selectedTree = tree;
+    });
+    _game?.transitionToTree(tree);
+  }
+
+  void _handleTreeTap(ConstellationTree tree) {
+    HapticFeedback.selectionClick();
+    _selectTree(tree);
+  }
+
+  void _openProgressOverview() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ConstellationProgressOverviewScreen(),
+      ),
+    );
   }
 
   // Tutorial state
@@ -93,19 +102,19 @@ class _ConstellationScreenState extends State<ConstellationScreen>
       barrierDismissible: true,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: theme.surface,
+          backgroundColor: _ConstellationPalette.bg1,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: theme.primary.withValues(alpha: 0.3)),
+            side: const BorderSide(color: _ConstellationPalette.border),
           ),
           title: Row(
             children: [
               Icon(Icons.auto_awesome, color: theme.primary),
               const SizedBox(width: 8),
               Text(
-                'Constellations 101',
+                'Constellations',
                 style: TextStyle(
-                  color: theme.text,
+                  color: _ConstellationPalette.text,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -116,9 +125,9 @@ class _ConstellationScreenState extends State<ConstellationScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Earn constellation points, spend them to unlock powerful skills, and explore three trees: Breeder, Combat and Extraction.',
+                'Earn constellation points, spend them to unlock powerful skills, and reveal three trees in order: Alchemy, Explorer, then Combat.',
                 style: TextStyle(
-                  color: theme.textMuted,
+                  color: _ConstellationPalette.textSoft,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -171,11 +180,11 @@ class _ConstellationScreenState extends State<ConstellationScreen>
   String _getTreeName(ConstellationTree tree) {
     switch (tree) {
       case ConstellationTree.breeder:
-        return 'BREEDER';
+        return 'ALCHEMY';
       case ConstellationTree.combat:
         return 'COMBAT';
       case ConstellationTree.extraction:
-        return 'EXTRACTION';
+        return 'EXPLORER';
     }
   }
 
@@ -201,6 +210,17 @@ class _ConstellationScreenState extends State<ConstellationScreen>
     }
   }
 
+  Color _getTreeAccentColor(FactionTheme theme, ConstellationTree tree) {
+    switch (tree) {
+      case ConstellationTree.breeder:
+        return _ConstellationPalette.teal;
+      case ConstellationTree.combat:
+        return theme.primary;
+      case ConstellationTree.extraction:
+        return theme.secondary;
+    }
+  }
+
   (int unlocked, int total) _getTreeProgress(
     ConstellationTree tree,
     Set<String> unlockedSkills,
@@ -210,6 +230,93 @@ class _ConstellationScreenState extends State<ConstellationScreen>
         .where((s) => unlockedSkills.contains(s.id))
         .length;
     return (unlockedCount, treeSkills.length);
+  }
+
+  Set<ConstellationTree> _deriveAvailableTrees(Set<String> unlockedSkills) {
+    final breederUnlocked = _getTreeProgress(
+      ConstellationTree.breeder,
+      unlockedSkills,
+    ).$1;
+    final extractionUnlocked = _getTreeProgress(
+      ConstellationTree.extraction,
+      unlockedSkills,
+    ).$1;
+
+    final trees = <ConstellationTree>{ConstellationTree.breeder};
+    if (breederUnlocked >= 4) {
+      trees.add(ConstellationTree.extraction);
+    }
+    if (extractionUnlocked >= 1) {
+      trees.add(ConstellationTree.combat);
+    }
+    return trees;
+  }
+
+  void _syncTreeAvailability(Set<String> unlockedSkills) {
+    final nextAvailableTrees = _deriveAvailableTrees(unlockedSkills);
+
+    if (!_treeAvailabilityInitialized) {
+      _treeAvailabilityInitialized = true;
+      _availableTrees = nextAvailableTrees;
+      if (!_availableTrees.contains(_selectedTree)) {
+        _selectedTree = ConstellationTree.breeder;
+      }
+      return;
+    }
+
+    final newlyAvailableTrees = nextAvailableTrees.difference(_availableTrees);
+    if (newlyAvailableTrees.isEmpty) {
+      _availableTrees = nextAvailableTrees;
+      if (!_availableTrees.contains(_selectedTree)) {
+        _selectedTree = ConstellationTree.breeder;
+      }
+      return;
+    }
+
+    _availableTrees = nextAvailableTrees;
+
+    if (_isTreeRevealPlaying || !mounted) return;
+
+    final revealTree =
+        newlyAvailableTrees.contains(ConstellationTree.extraction)
+        ? ConstellationTree.extraction
+        : ConstellationTree.combat;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _playTreeReveal(revealTree);
+    });
+  }
+
+  Future<void> _playTreeReveal(ConstellationTree tree) async {
+    if (_isTreeRevealPlaying || !_availableTrees.contains(tree) || !mounted) {
+      return;
+    }
+
+    _isTreeRevealPlaying = true;
+    setState(() {
+      _selectedTree = tree;
+    });
+
+    HapticFeedback.heavyImpact();
+    _game?.setVisibleTrees(_availableTrees);
+    await _game?.playTreeRevealSequence(tree);
+
+    if (mounted) {
+      final label = _getTreeName(tree);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$label tree revealed'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: _getTreeAccentColor(
+            context.read<FactionTheme>(),
+            tree,
+          ),
+        ),
+      );
+    }
+
+    _isTreeRevealPlaying = false;
   }
 
   /// Check if all skills are unlocked and handle finale accordingly
@@ -255,63 +362,117 @@ class _ConstellationScreenState extends State<ConstellationScreen>
     final constellationService = context.watch<ConstellationService>();
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: StreamBuilder<int>(
-        stream: constellationService.watchPointBalance(),
-        builder: (context, pointsSnapshot) {
-          final points = pointsSnapshot.data ?? 0;
+      backgroundColor: _ConstellationPalette.bg0,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              _ConstellationPalette.bg0,
+              _ConstellationPalette.bg1,
+              _ConstellationPalette.bg0,
+            ],
+          ),
+        ),
+        child: StreamBuilder<int>(
+          stream: constellationService.watchPointBalance(),
+          builder: (context, pointsSnapshot) {
+            final points = pointsSnapshot.data ?? 0;
 
-          return StreamBuilder<Set<String>>(
-            stream: constellationService.watchUnlockedSkillIds(),
-            builder: (context, unlockedSnapshot) {
-              final unlockedSkills = unlockedSnapshot.data ?? {};
+            return StreamBuilder<Set<String>>(
+              stream: constellationService.watchUnlockedSkillIds(),
+              builder: (context, unlockedSnapshot) {
+                final unlockedSkills = unlockedSnapshot.data ?? {};
+                if (unlockedSnapshot.hasData) {
+                  _syncTreeAvailability(unlockedSkills);
+                }
 
-              // Initialize game only once with all trees
-              if (_game == null) {
-                _game = ConstellationGame(
-                  selectedTree: _selectedTree,
-                  unlockedSkills: unlockedSkills,
-                  onSkillTapped: (skill) =>
-                      _handleSkillTap(context, skill, constellationService),
-                  primaryColor: theme.primary,
-                  secondaryColor: theme.secondary,
-                );
-                _gameInitialized = true;
+                // Initialize game only once with all trees
+                if (_game == null) {
+                  _game = ConstellationGame(
+                    selectedTree: _selectedTree,
+                    unlockedSkills: unlockedSkills,
+                    visibleTrees: _availableTrees,
+                    onSkillTapped: (skill) =>
+                        _handleSkillTap(context, skill, constellationService),
+                    primaryColor: theme.primary,
+                    secondaryColor: theme.secondary,
+                  );
+                  _gameInitialized = true;
 
-                // Check if we need to handle the finale after the game loads
-                Future.delayed(const Duration(milliseconds: 500), () {
+                  // Check if we need to handle the finale after the game loads
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    _checkAndHandleFinale(unlockedSkills, constellationService);
+                  });
+                } else {
+                  // Update existing game with new unlocks
+                  _game!.updateUnlockedSkills(unlockedSkills);
+                  _game!.setVisibleTrees(_availableTrees);
+
+                  // Check finale whenever unlocks change
                   _checkAndHandleFinale(unlockedSkills, constellationService);
-                });
-              } else {
-                // Update existing game with new unlocks
-                _game!.updateUnlockedSkills(unlockedSkills);
+                }
 
-                // Check finale whenever unlocks change
-                _checkAndHandleFinale(unlockedSkills, constellationService);
-              }
-
-              return Stack(
-                children: [
-                  // Flame game - now persistent across tree switches
-                  GameWidget(game: _game!),
-
-                  // UI Overlay
-                  SafeArea(
-                    bottom: false,
-                    child: Column(
-                      children: [
-                        _buildHeader(theme, points, unlockedSkills),
-                        _buildTreeSelector(theme, unlockedSkills),
-                        const Spacer(),
-                        _buildTreeInfo(theme, unlockedSkills),
-                      ],
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: const Alignment(0, -0.35),
+                              radius: 1.05,
+                              colors: [
+                                theme.primary.withValues(alpha: 0.12),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
+                    Positioned.fill(child: GameWidget(game: _game!)),
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                _ConstellationPalette.bg0.withValues(
+                                  alpha: 0.8,
+                                ),
+                                Colors.transparent,
+                                Colors.transparent,
+                                _ConstellationPalette.bg0.withValues(
+                                  alpha: 0.92,
+                                ),
+                              ],
+                              stops: const [0.0, 0.18, 0.62, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SafeArea(
+                      bottom: false,
+                      child: Column(
+                        children: [
+                          _buildHeader(theme, points, unlockedSkills),
+                          _buildTreeSelector(theme, unlockedSkills),
+                          const Spacer(),
+                          _buildTreeInfo(theme, unlockedSkills),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -326,154 +487,104 @@ class _ConstellationScreenState extends State<ConstellationScreen>
     final progress = total > 0 ? unlocked / total : 0.0;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(4, 10, 12, 12),
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 9),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.95),
-            Colors.black.withValues(alpha: 0.75),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.65, 1.0],
-        ),
-        border: Border(
-          bottom: BorderSide(
-            color: theme.primary.withValues(alpha: 0.15),
-            width: 1,
+        color: _ConstellationPalette.bg1.withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: _ConstellationPalette.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.28),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
-        ),
+        ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          IconButton(
-            onPressed: () => VoidPortal.pop(context),
-            icon: Icon(
-              Icons.arrow_back_ios_rounded,
-              color: Colors.white70,
-              size: 18,
-            ),
-          ),
-          // Title + overall progress
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'CONSTELLATION ALCHEMY',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.8,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Row(
+          Row(
+            children: [
+              _ConstellationIconButton(
+                theme: theme,
+                icon: Icons.arrow_back_ios_new_rounded,
+                onTap: () => VoidPortal.pop(context),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '$unlocked / $total',
+                      'CONSTELLATION ALCHEMY',
                       style: TextStyle(
-                        color: theme.primary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'skills',
-                      style: TextStyle(
-                        color: theme.textMuted,
-                        fontSize: 10,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: theme.primary.withValues(
-                            alpha: 0.12,
-                          ),
-                          valueColor: AlwaysStoppedAnimation(
-                            theme.primary.withValues(alpha: 0.7),
-                          ),
-                          minHeight: 3,
-                        ),
+                        fontFamily: 'monospace',
+                        color: _ConstellationPalette.text,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          // Skills list button
-          IconButton(
-            onPressed: () =>
-                _showUnlockedSkillsSheet(context, theme, unlockedSkills),
-            icon: Icon(Icons.grid_view_rounded, color: theme.primary, size: 20),
-          ),
-          // Points display
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ConstellationProgressOverviewScreen(),
-                ),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    theme.primary.withValues(alpha: 0.22),
-                    theme.secondary.withValues(alpha: 0.12),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: theme.primary.withValues(alpha: 0.55),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.primary.withValues(alpha: 0.18),
-                    blurRadius: 10,
-                    spreadRadius: 0,
-                  ),
-                ],
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '$points',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      height: 1.0,
-                    ),
-                  ),
-                  const SizedBox(width: 3),
-                  Text(
-                    'pts',
-                    style: TextStyle(
-                      color: theme.primary.withValues(alpha: 0.8),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
+              const SizedBox(width: 10),
+              _ConstellationIconButton(
+                theme: theme,
+                icon: Icons.grid_view_rounded,
+                onTap: () =>
+                    _showUnlockedSkillsSheet(context, theme, unlockedSkills),
               ),
-            ),
+              const SizedBox(width: 8),
+              _ConstellationPointsButton(
+                theme: theme,
+                points: points,
+                onTap: _openProgressOverview,
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Row(
+            children: [
+              Text(
+                '$unlocked / $total',
+                style: TextStyle(
+                  color: theme.primary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'skills',
+                style: TextStyle(
+                  color: _ConstellationPalette.textMuted,
+                  fontSize: 10,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${(progress * 100).round()}%',
+                style: TextStyle(
+                  color: _ConstellationPalette.teal,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 4,
+                    backgroundColor: _ConstellationPalette.bg3,
+                    valueColor: AlwaysStoppedAnimation(theme.primary),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -481,96 +592,54 @@ class _ConstellationScreenState extends State<ConstellationScreen>
   }
 
   Widget _buildTreeSelector(FactionTheme theme, Set<String> unlockedSkills) {
-    final combatProgress = _getTreeProgress(
+    const trees = [
       ConstellationTree.combat,
-      unlockedSkills,
-    );
-    final breederProgress = _getTreeProgress(
       ConstellationTree.breeder,
-      unlockedSkills,
-    );
-    final extractionProgress = _getTreeProgress(
       ConstellationTree.extraction,
-      unlockedSkills,
-    );
+    ];
 
-    Widget treeTab(String label, IconData icon, (int, int) progress) {
-      final (unlocked, total) = progress;
-      return Tab(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 14),
-              const SizedBox(height: 2),
-              Text(label),
-              const SizedBox(height: 3),
-              SizedBox(
-                width: 40,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: total > 0 ? unlocked / total : 0,
-                    backgroundColor: Colors.white.withValues(alpha: 0.1),
-                    valueColor: AlwaysStoppedAnimation(
-                      theme.primary.withValues(alpha: 0.7),
-                    ),
-                    minHeight: 2.5,
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: _ConstellationPalette.bg1.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: _ConstellationPalette.border),
+      ),
+      child: Row(
+        children: List.generate(trees.length, (index) {
+          final tree = trees[index];
+          final progress = _getTreeProgress(tree, unlockedSkills);
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: index == 0 ? 0 : 4,
+                right: index == trees.length - 1 ? 0 : 4,
+              ),
+              child: Opacity(
+                opacity: _availableTrees.contains(tree) ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_availableTrees.contains(tree),
+                  child: _ConstellationTreeButton(
+                    theme: theme,
+                    label: _getTreeName(tree),
+                    icon: _getTreeIcon(tree),
+                    accent: _getTreeAccentColor(theme, tree),
+                    progress: progress,
+                    selected: _selectedTree == tree,
+                    onTap: () => _handleTreeTap(tree),
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.65),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.border.withValues(alpha: 0.4),
-          width: 1,
-        ),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        indicatorSize: TabBarIndicatorSize.tab,
-        indicator: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              theme.primary.withValues(alpha: 0.28),
-              theme.secondary.withValues(alpha: 0.15),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: theme.primary.withValues(alpha: 0.45),
-            width: 1.5,
-          ),
-        ),
-        dividerColor: Colors.transparent,
-        labelColor: Colors.white,
-        unselectedLabelColor: theme.textMuted,
-        labelStyle: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.9,
-        ),
-        tabs: [
-          treeTab('COMBAT', Icons.shield_outlined, combatProgress),
-          treeTab('BREEDER', Icons.biotech_outlined, breederProgress),
-          treeTab('EXPLORER', Icons.diamond_outlined, extractionProgress),
-        ],
+            ),
+          );
+        }),
       ),
     );
   }
 
   Widget _buildTreeInfo(FactionTheme theme, Set<String> unlockedSkills) {
+    final accent = _getTreeAccentColor(theme, _selectedTree);
     final (treeUnlocked, treeTotal) = _getTreeProgress(
       _selectedTree,
       unlockedSkills,
@@ -578,151 +647,116 @@ class _ConstellationScreenState extends State<ConstellationScreen>
     final treeProgress = treeTotal > 0 ? treeUnlocked / treeTotal : 0.0;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.92),
-            Colors.black.withValues(alpha: 0.7),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: theme.primary.withValues(alpha: 0.2),
-          width: 1,
-        ),
+        color: _ConstellationPalette.bg1.withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: _ConstellationPalette.border),
         boxShadow: [
           BoxShadow(
-            color: theme.primary.withValues(alpha: 0.08),
-            blurRadius: 12,
+            color: Colors.black.withValues(alpha: 0.24),
+            blurRadius: 16,
             offset: const Offset(0, -2),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Thin top accent bar that looks like an energy meter
-            Stack(
+            Row(
               children: [
                 Container(
-                  height: 3,
-                  color: theme.primary.withValues(alpha: 0.1),
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: accent.withValues(alpha: 0.35)),
+                  ),
+                  child: Icon(_getTreeIcon(_selectedTree), color: accent),
                 ),
-                FractionallySizedBox(
-                  widthFactor: treeProgress,
-                  child: Container(
-                    height: 3,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          theme.primary.withValues(alpha: 0.4),
-                          theme.primary,
-                        ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _getTreeName(_selectedTree),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: accent,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
+                        ),
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _getTreeDescription(_selectedTree),
+                        style: TextStyle(
+                          color: _ConstellationPalette.textMuted,
+                          fontSize: 10,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _ConstellationIconButton(
+                  theme: theme,
+                  icon: Icons.lightbulb_outline_rounded,
+                  onTap: () => _showEarnPointsDialog(theme),
+                  iconColor: accent,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  '$treeUnlocked / $treeTotal',
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  ' skills',
+                  style: TextStyle(
+                    color: _ConstellationPalette.textMuted,
+                    fontSize: 10,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  treeUnlocked == treeTotal ? 'MAXED' : 'ACTIVE',
+                  style: TextStyle(
+                    color: treeUnlocked == treeTotal
+                        ? _ConstellationPalette.success
+                        : _ConstellationPalette.teal,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: treeProgress,
+                      minHeight: 4,
+                      backgroundColor: _ConstellationPalette.bg3,
+                      valueColor: AlwaysStoppedAnimation(accent),
                     ),
                   ),
                 ),
               ],
-            ),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-              child: Row(
-                children: [
-                  // Tree icon
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: theme.primary.withValues(alpha: 0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Icon(
-                      _getTreeIcon(_selectedTree),
-                      color: theme.primary,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Tree name + description + progress
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              _getTreeName(_selectedTree),
-                              style: TextStyle(
-                                color: theme.primary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              '$treeUnlocked / $treeTotal',
-                              style: TextStyle(
-                                color: theme.primary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            Text(
-                              ' skills',
-                              style: TextStyle(
-                                color: theme.textMuted,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _getTreeDescription(_selectedTree),
-                          style: TextStyle(
-                            color: theme.textMuted,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  // Hint button
-                  GestureDetector(
-                    onTap: () => _showEarnPointsDialog(theme),
-                    child: Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: theme.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: theme.primary.withValues(alpha: 0.25),
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.lightbulb_outline,
-                        color: theme.primary,
-                        size: 17,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -738,58 +772,54 @@ class _ConstellationScreenState extends State<ConstellationScreen>
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: theme.isDark ? const Color(0xFF0E1118) : theme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: theme.primary.withValues(alpha: 0.5),
-              width: 2,
-            ),
+            color: _ConstellationPalette.bg1,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _ConstellationPalette.borderSoft),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Earn Skill Points',
-                      style: TextStyle(
-                        color: theme.primary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ],
+              Text(
+                'EARN CONSTELLATION POINTS',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: theme.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                ),
               ),
+              const SizedBox(height: 10),
+              Container(height: 1, color: _ConstellationPalette.border),
               const SizedBox(height: 16),
               Text(
-                'Extract Alchemons to earn skill points.',
+                'Breed creatures and complete their milestone progress to earn constellation points. Spend those points here to unlock passive upgrades across the sky map.',
                 style: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 14,
+                  color: _ConstellationPalette.textSoft,
+                  fontSize: 13,
                   height: 1.5,
                 ),
               ),
+              const SizedBox(height: 12),
+              _ConstellationInlineHint(
+                theme: theme,
+                icon: Icons.egg_alt_outlined,
+                label:
+                    'Breeding milestones award the points, not extraction taps.',
+              ),
               const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.primary,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'Got It!',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                ),
+              _ConstellationDialogButton(
+                theme: theme,
+                label: 'GOT IT',
+                onTap: () => Navigator.pop(context),
               ),
             ],
           ),
@@ -830,31 +860,32 @@ class _ConstellationScreenState extends State<ConstellationScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.8,
+        initialChildSize: 0.82,
         minChildSize: 0.5,
         maxChildSize: 0.95,
         builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: theme.isDark ? const Color(0xFF0E1118) : theme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(color: theme.border),
+          decoration: const BoxDecoration(
+            color: _ConstellationPalette.bg1,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+            border: Border.fromBorderSide(
+              BorderSide(color: _ConstellationPalette.border),
+            ),
           ),
           child: Column(
             children: [
-              // Handle bar
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 8),
-                width: 40,
+                width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: theme.textMuted.withValues(alpha: 0.3),
+                  color: _ConstellationPalette.textMuted.withValues(
+                    alpha: 0.35,
+                  ),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-
-              // Header - more compact
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                 child: Row(
                   children: [
                     Expanded(
@@ -864,8 +895,9 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                           Text(
                             'UNLOCKED SKILLS',
                             style: TextStyle(
-                              color: theme.text,
-                              fontSize: 16,
+                              fontFamily: 'monospace',
+                              color: _ConstellationPalette.text,
+                              fontSize: 14,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 1.0,
                             ),
@@ -874,40 +906,40 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                           Text(
                             '${unlockedSkills.length} of ${ConstellationCatalog.allSkills.length} total',
                             style: TextStyle(
-                              color: theme.textMuted,
-                              fontSize: 11,
+                              color: _ConstellationPalette.textMuted,
+                              fontSize: 10,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close, color: theme.textMuted, size: 20),
-                      padding: EdgeInsets.all(8),
-                      constraints: BoxConstraints(),
+                    _ConstellationInlineBadge(
+                      label:
+                          '${unlockedSkills.length}/${ConstellationCatalog.allSkills.length}',
+                      color: theme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    _ConstellationIconButton(
+                      theme: theme,
+                      icon: Icons.close_rounded,
+                      onTap: () => Navigator.pop(context),
                     ),
                   ],
                 ),
               ),
-
-              // Skills list
               Expanded(
                 child: ListView(
                   controller: scrollController,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   children: [
                     if (breederSkills.isNotEmpty) ...[
                       _buildTreeSection(
-                        'BREEDER',
+                        'ALCHEMY',
                         'Genetics & Breeding Mastery',
                         breederSkills,
                         theme,
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                     ],
                     if (combatSkills.isNotEmpty) ...[
                       _buildTreeSection(
@@ -916,46 +948,53 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                         combatSkills,
                         theme,
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                     ],
                     if (extractionSkills.isNotEmpty) ...[
                       _buildTreeSection(
-                        'EXTRACTION',
+                        'EXPLORER',
                         'Resources & Convenience',
                         extractionSkills,
                         theme,
                       ),
                     ],
                     if (unlockedSkills.isEmpty)
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(48),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.lock_outline,
-                                size: 64,
-                                color: theme.textMuted.withValues(alpha: 0.3),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No skills unlocked yet',
-                                style: TextStyle(
-                                  color: theme.textMuted,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Start unlocking skills to see them here',
-                                style: TextStyle(
-                                  color: theme.textMuted.withValues(alpha: 0.7),
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: _ConstellationPalette.bg2,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: _ConstellationPalette.border,
                           ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              size: 42,
+                              color: _ConstellationPalette.textMuted,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No skills unlocked yet',
+                              style: TextStyle(
+                                color: _ConstellationPalette.text,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Unlock nodes in the constellation trees to see them listed here.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _ConstellationPalette.textSoft,
+                                fontSize: 12,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                   ],
@@ -974,122 +1013,116 @@ class _ConstellationScreenState extends State<ConstellationScreen>
     List<ConstellationSkill> skills,
     FactionTheme theme,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section header - more compact
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                theme.primary.withValues(alpha: 0.15),
-                theme.secondary.withValues(alpha: 0.08),
+    final sectionTree = switch (title) {
+      'COMBAT' => ConstellationTree.combat,
+      'EXPLORER' => ConstellationTree.extraction,
+      _ => ConstellationTree.breeder,
+    };
+    final accent = _getTreeAccentColor(theme, sectionTree);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _ConstellationPalette.bg2,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: _ConstellationPalette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: const BoxDecoration(
+              color: _ConstellationPalette.bg3,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(5)),
+            ),
+            child: Row(
+              children: [
+                Container(width: 3, height: 12, color: accent),
+                const SizedBox(width: 8),
+                Text(
+                  '$title • ${skills.length}',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: accent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                  ),
+                ),
               ],
             ),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: theme.primary.withValues(alpha: 0.25),
-              width: 1,
-            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  color: theme.primary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '(${skills.length})',
-                style: TextStyle(
-                  color: theme.textMuted,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-
-        // Skills cards - much more compact
-        ...skills.map(
-          (skill) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: theme.primary.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: theme.border.withValues(alpha: 0.2),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  // Smaller icon
-                  Icon(Icons.check_circle, color: theme.primary, size: 16),
-                  const SizedBox(width: 10),
-
-                  // Text content
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          skill.name,
-                          style: TextStyle(
-                            color: theme.text,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          skill.description,
-                          style: TextStyle(
-                            color: theme.textMuted,
-                            fontSize: 11,
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
-                    ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: _ConstellationPalette.textMuted,
+                    fontSize: 11,
                   ),
-
-                  // Smaller tier badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'T${skill.tier}',
-                      style: TextStyle(
-                        color: theme.primary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
+                ),
+                const SizedBox(height: 10),
+                ...skills.map(
+                  (skill) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _ConstellationPalette.bg3,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: _ConstellationPalette.border),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.check_circle_rounded,
+                            color: accent,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  skill.name,
+                                  style: const TextStyle(
+                                    color: _ConstellationPalette.text,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  skill.description,
+                                  style: const TextStyle(
+                                    color: _ConstellationPalette.textSoft,
+                                    fontSize: 11,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _ConstellationInlineBadge(
+                            label: 'T${skill.tier}',
+                            color: accent,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1123,6 +1156,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
     FactionTheme theme, {
     required bool isUnlocked,
   }) {
+    final accent = isUnlocked ? theme.primary : _ConstellationPalette.textSoft;
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -1130,21 +1164,18 @@ class _ConstellationScreenState extends State<ConstellationScreen>
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: theme.isDark ? const Color(0xFF0E1118) : theme.surface,
-            borderRadius: BorderRadius.circular(16),
+            color: _ConstellationPalette.bg1,
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isUnlocked
-                  ? theme.primary.withValues(alpha: 0.45)
-                  : theme.border.withValues(alpha: 0.5),
-              width: 1.5,
+                  ? theme.primary.withValues(alpha: 0.35)
+                  : _ConstellationPalette.border,
             ),
             boxShadow: [
               BoxShadow(
-                color: isUnlocked
-                    ? theme.primary.withValues(alpha: 0.15)
-                    : Colors.black.withValues(alpha: 0.5),
+                color: Colors.black.withValues(alpha: 0.4),
                 blurRadius: 24,
-                spreadRadius: 2,
+                offset: const Offset(0, 12),
               ),
             ],
           ),
@@ -1159,13 +1190,15 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: isUnlocked
-                          ? theme.primary.withValues(alpha: 0.2)
-                          : theme.textMuted.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+                          ? theme.primary.withValues(alpha: 0.14)
+                          : _ConstellationPalette.bg3,
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(
                       isUnlocked ? Icons.check_circle : Icons.lock_outline,
-                      color: isUnlocked ? theme.primary : theme.textMuted,
+                      color: isUnlocked
+                          ? theme.primary
+                          : _ConstellationPalette.textSoft,
                       size: 20,
                     ),
                   ),
@@ -1176,31 +1209,16 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                       children: [
                         Text(
                           skill.name,
-                          style: TextStyle(
-                            color: theme.text,
+                          style: const TextStyle(
+                            color: _ConstellationPalette.text,
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        Container(
-                          margin: const EdgeInsets.only(top: 3),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'TIER ${skill.tier}  •  ${skill.pointsCost} pts',
-                            style: TextStyle(
-                              color: theme.primary,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
+                        const SizedBox(height: 6),
+                        _ConstellationInlineBadge(
+                          label: 'T${skill.tier} • ${skill.pointsCost} PTS',
+                          color: accent,
                         ),
                       ],
                     ),
@@ -1209,14 +1227,14 @@ class _ConstellationScreenState extends State<ConstellationScreen>
               ),
 
               const SizedBox(height: 14),
-              Container(height: 1, color: theme.border.withValues(alpha: 0.3)),
+              Container(height: 1, color: _ConstellationPalette.border),
               const SizedBox(height: 14),
 
               // Description
               Text(
                 skill.description,
-                style: TextStyle(
-                  color: theme.textMuted,
+                style: const TextStyle(
+                  color: _ConstellationPalette.textSoft,
                   fontSize: 13,
                   height: 1.5,
                 ),
@@ -1228,7 +1246,8 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                 Text(
                   'PREREQUISITES',
                   style: TextStyle(
-                    color: theme.primary,
+                    fontFamily: 'monospace',
+                    color: accent,
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.0,
@@ -1243,14 +1262,14 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                       children: [
                         Icon(
                           Icons.chevron_right,
-                          color: theme.primary.withValues(alpha: 0.6),
+                          color: accent.withValues(alpha: 0.7),
                           size: 14,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           prereq?.name ?? prereqId,
-                          style: TextStyle(
-                            color: theme.textMuted,
+                          style: const TextStyle(
+                            color: _ConstellationPalette.textSoft,
                             fontSize: 12,
                           ),
                         ),
@@ -1262,29 +1281,11 @@ class _ConstellationScreenState extends State<ConstellationScreen>
 
               const SizedBox(height: 20),
 
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: TextButton.styleFrom(
-                    backgroundColor: theme.primary.withValues(alpha: 0.1),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(
-                        color: theme.primary.withValues(alpha: 0.3),
-                      ),
-                    ),
-                  ),
-                  child: Text(
-                    'CLOSE',
-                    style: TextStyle(
-                      color: theme.primary,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ),
+              _ConstellationDialogButton(
+                theme: theme,
+                label: 'CLOSE',
+                onTap: () => Navigator.pop(context),
+                accent: accent,
               ),
             ],
           ),
@@ -1306,17 +1307,14 @@ class _ConstellationScreenState extends State<ConstellationScreen>
         child: Container(
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
-            color: theme.isDark ? const Color(0xFF0E1118) : theme.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: theme.primary.withValues(alpha: 0.45),
-              width: 1.5,
-            ),
+            color: _ConstellationPalette.bg1,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _ConstellationPalette.borderSoft),
             boxShadow: [
               BoxShadow(
-                color: theme.primary.withValues(alpha: 0.2),
+                color: Colors.black.withValues(alpha: 0.4),
                 blurRadius: 24,
-                spreadRadius: 2,
+                offset: const Offset(0, 12),
               ),
             ],
           ),
@@ -1330,33 +1328,28 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                 children: [
                   Text(
                     skill.name,
-                    style: TextStyle(
-                      color: theme.text,
+                    style: const TextStyle(
+                      color: _ConstellationPalette.text,
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    'TIER ${skill.tier}',
-                    style: TextStyle(
-                      color: theme.primary.withValues(alpha: 0.7),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.0,
-                    ),
+                  _ConstellationInlineBadge(
+                    label: 'T${skill.tier}',
+                    color: theme.primary,
                   ),
                 ],
               ),
 
               const SizedBox(height: 14),
-              Container(height: 1, color: theme.border.withValues(alpha: 0.3)),
+              Container(height: 1, color: _ConstellationPalette.border),
               const SizedBox(height: 14),
 
               Text(
                 skill.description,
-                style: TextStyle(
-                  color: theme.textMuted,
+                style: const TextStyle(
+                  color: _ConstellationPalette.textSoft,
                   fontSize: 13,
                   height: 1.5,
                 ),
@@ -1371,23 +1364,16 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.primary.withValues(alpha: 0.15),
-                      theme.secondary.withValues(alpha: 0.08),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: theme.primary.withValues(alpha: 0.35),
-                  ),
+                  color: _ConstellationPalette.bg3,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: _ConstellationPalette.borderSoft),
                 ),
                 child: Row(
                   children: [
                     Text(
                       '${skill.pointsCost} skill points',
-                      style: TextStyle(
-                        color: theme.text,
+                      style: const TextStyle(
+                        color: _ConstellationPalette.text,
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1396,10 +1382,11 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                     Text(
                       'COST',
                       style: TextStyle(
-                        color: theme.textMuted,
+                        color: theme.primary,
+                        fontFamily: 'monospace',
                         fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.1,
                       ),
                     ),
                   ],
@@ -1412,32 +1399,21 @@ class _ConstellationScreenState extends State<ConstellationScreen>
               Row(
                 children: [
                   Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(
-                            color: theme.border.withValues(alpha: 0.4),
-                          ),
-                        ),
-                      ),
-                      child: Text(
-                        'CANCEL',
-                        style: TextStyle(
-                          color: theme.textMuted,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
+                    child: _ConstellationDialogButton(
+                      theme: theme,
+                      label: 'CANCEL',
+                      onTap: () => Navigator.pop(context),
+                      filled: false,
+                      accent: _ConstellationPalette.textSoft,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () async {
+                    child: _ConstellationDialogButton(
+                      theme: theme,
+                      label: 'UNLOCK',
+                      onTap: () async {
                         final success = await service.unlockSkill(skill.id);
                         if (context.mounted) {
                           Navigator.pop(context);
@@ -1448,7 +1424,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                               SnackBar(
                                 content: Row(
                                   children: [
-                                    Icon(
+                                    const Icon(
                                       Icons.check_circle,
                                       color: Colors.white,
                                     ),
@@ -1484,22 +1460,7 @@ class _ConstellationScreenState extends State<ConstellationScreen>
                           }
                         }
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.primary,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        'UNLOCK',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
+                      accent: theme.primary,
                     ),
                   ),
                 ],
@@ -1507,6 +1468,313 @@ class _ConstellationScreenState extends State<ConstellationScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ConstellationIconButton extends StatelessWidget {
+  final FactionTheme theme;
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? iconColor;
+
+  const _ConstellationIconButton({
+    required this.theme,
+    required this.icon,
+    required this.onTap,
+    this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: _ConstellationPalette.bg2,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: _ConstellationPalette.border),
+        ),
+        child: Icon(
+          icon,
+          color: iconColor ?? _ConstellationPalette.text,
+          size: 16,
+        ),
+      ),
+    );
+  }
+}
+
+class _ConstellationPointsButton extends StatelessWidget {
+  final FactionTheme theme;
+  final int points;
+  final VoidCallback onTap;
+
+  const _ConstellationPointsButton({
+    required this.theme,
+    required this.points,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: _ConstellationPalette.bg2,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: _ConstellationPalette.borderSoft),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '$points',
+              style: const TextStyle(
+                color: _ConstellationPalette.text,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                height: 1,
+              ),
+            ),
+            Text(
+              'PTS',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: theme.primary,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConstellationInlineBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _ConstellationInlineBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: _ConstellationPalette.bg2,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+class _ConstellationTreeButton extends StatelessWidget {
+  final FactionTheme theme;
+  final String label;
+  final IconData icon;
+  final Color accent;
+  final (int, int) progress;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ConstellationTreeButton({
+    required this.theme,
+    required this.label,
+    required this.icon,
+    required this.accent,
+    required this.progress,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final (unlocked, total) = progress;
+    final value = total > 0 ? unlocked / total : 0.0;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? accent.withValues(alpha: 0.12)
+              : _ConstellationPalette.bg2,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: selected
+                ? accent.withValues(alpha: 0.6)
+                : _ConstellationPalette.border,
+            width: selected ? 1.2 : 1,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.14),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: selected ? accent : _ConstellationPalette.textMuted,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: selected
+                    ? _ConstellationPalette.text
+                    : _ConstellationPalette.text,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.7,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              '$unlocked / $total',
+              style: TextStyle(
+                color: selected
+                    ? _ConstellationPalette.text
+                    : _ConstellationPalette.textMuted,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 5),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: value,
+                minHeight: 4,
+                backgroundColor: _ConstellationPalette.bg3,
+                valueColor: AlwaysStoppedAnimation(accent),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConstellationDialogButton extends StatelessWidget {
+  final FactionTheme theme;
+  final String label;
+  final VoidCallback onTap;
+  final bool filled;
+  final Color? accent;
+
+  const _ConstellationDialogButton({
+    required this.theme,
+    required this.label,
+    required this.onTap,
+    this.filled = true,
+    this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final buttonColor = accent ?? theme.primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: filled
+              ? buttonColor.withValues(alpha: 0.16)
+              : _ConstellationPalette.bg2,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: filled ? buttonColor : _ConstellationPalette.border,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: filled
+                ? buttonColor
+                : (accent ?? _ConstellationPalette.textSoft),
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConstellationInlineHint extends StatelessWidget {
+  final FactionTheme theme;
+  final IconData icon;
+  final String label;
+
+  const _ConstellationInlineHint({
+    required this.theme,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: _ConstellationPalette.bg2,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: _ConstellationPalette.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: _ConstellationPalette.teal, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: _ConstellationPalette.textSoft,
+                fontSize: 11,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

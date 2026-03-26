@@ -1,9 +1,8 @@
 // brewing_card_widget.dart (NurseryBrewingCard)
-
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
@@ -45,7 +44,7 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
   @override
   void initState() {
     super.initState();
-    _extractParentTypes();
+    _extractParticleTypes();
 
     _glowController = AnimationController(
       vsync: this,
@@ -63,42 +62,18 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
     super.dispose();
   }
 
-  void _extractParentTypes() {
-    try {
-      if (widget.egg.payloadJson == null || widget.egg.payloadJson!.isEmpty) {
-        return;
-      }
-      final payload =
-          jsonDecode(widget.egg.payloadJson!) as Map<String, dynamic>;
-      final parentage = payload['parentage'] as Map<String, dynamic>?;
-
-      if (parentage != null) {
-        final parent1 = parentage['parentA'] as Map<String, dynamic>?;
-        final parent2 = parentage['parentB'] as Map<String, dynamic>?;
-
-        final types = <String>[];
-
-        if (parent1 != null) {
-          final p1Types = parent1['types'] as List<dynamic>?;
-          if (p1Types != null && p1Types.isNotEmpty) {
-            types.add(p1Types.first.toString());
-          }
-        }
-
-        if (parent2 != null) {
-          final p2Types = parent2['types'] as List<dynamic>?;
-          if (p2Types != null && p2Types.isNotEmpty) {
-            types.add(p2Types.first.toString());
-          }
-        }
-
-        if (types.isNotEmpty) {
-          _parentTypes = types;
-        }
-      }
-    } catch (e) {
-      // ignore parse errors; particles are cosmetic
+  @override
+  void didUpdateWidget(covariant NurseryBrewingCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.egg.payloadJson != widget.egg.payloadJson) {
+      _extractParticleTypes();
     }
+  }
+
+  void _extractParticleTypes() {
+    final payload = parseEggPayload(widget.egg);
+    final types = extractParticleTypeIdsFromPayload(payload);
+    _parentTypes = types.isEmpty ? null : types;
   }
 
   double _ease(double p, {double gamma = 2.0}) {
@@ -167,7 +142,7 @@ class _NurseryBrewingCardState extends State<NurseryBrewingCard>
             return Container(
               decoration: BoxDecoration(
                 color: theme!.brightness == Brightness.light
-                    ? const Color.fromARGB(255, 18, 18, 18)
+                    ? Colors.white
                     : Colors.black,
                 borderRadius: BorderRadius.circular(5),
                 border: Border.all(

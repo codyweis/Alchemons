@@ -225,8 +225,8 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
               child: Column(
                 children: [
                   if (_discoveredPlanets.isNotEmpty)
-                    Expanded(
-                      flex: 1,
+                    SizedBox(
+                      height: 146,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -292,25 +292,13 @@ class _Header extends StatelessWidget {
       child: Row(
         children: [
           if (hasHomePlanet)
-            GestureDetector(
+            _MapHeaderButton(
+              icon: Icons.home_rounded,
               onTap: onGoHome,
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: const Color(0x33F6D55C),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0x66F6D55C)),
-                ),
-                child: const Icon(
-                  Icons.home_rounded,
-                  color: Color(0xFFF6D55C),
-                  size: 26,
-                ),
-              ),
+              accent: const Color(0xFFF6D55C),
             )
           else
-            const SizedBox(width: 42),
+            const SizedBox(width: 48),
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
@@ -323,18 +311,41 @@ class _Header extends StatelessWidget {
               ),
             ),
           ),
-          GestureDetector(
+          _MapHeaderButton(
+            icon: Icons.close_rounded,
             onTap: onClose,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white12,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.close, color: Colors.white70, size: 20),
-            ),
+            accent: Colors.white,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MapHeaderButton extends StatelessWidget {
+  const _MapHeaderButton({
+    required this.icon,
+    required this.onTap,
+    required this.accent,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: const Color(0xFF121A24).withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: accent.withValues(alpha: 0.34), width: 1.2),
+        ),
+        child: Icon(icon, color: accent.withValues(alpha: 0.92), size: 24),
       ),
     );
   }
@@ -469,19 +480,17 @@ class _PlanetCarousel extends StatefulWidget {
 
 class _PlanetCarouselState extends State<_PlanetCarousel> {
   late final PageController _ctrl;
-  double _page = 0;
 
-  static const double _centerSize = 125.0;
-  static const double _sideSize = 55.0;
+  static const double _centerSize = 78.0;
+  static const double _sideSize = 32.0;
 
   @override
   void initState() {
     super.initState();
-    _page = widget.selectedIndex.toDouble();
     _ctrl = PageController(
       initialPage: widget.selectedIndex,
       viewportFraction: 0.34,
-    )..addListener(_onScroll);
+    );
   }
 
   @override
@@ -498,17 +507,8 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
 
   @override
   void dispose() {
-    _ctrl
-      ..removeListener(_onScroll)
-      ..dispose();
+    _ctrl.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_ctrl.hasClients) return;
-    final p = _ctrl.page ?? _page;
-    if ((p - _page).abs() < 0.001) return;
-    setState(() => _page = p);
   }
 
   @override
@@ -521,79 +521,72 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Expanded(
-          child: PageView.builder(
-            controller: _ctrl,
-            itemCount: planets.length,
-            onPageChanged: widget.onChanged,
-            itemBuilder: (context, index) {
-              final rawDist = (_page - index).abs().clamp(0.0, 1.0);
-              final eased = Curves.easeOutCubic.transform(1.0 - rawDist);
-              final isCenter = index == _page.round();
+          child: AnimatedBuilder(
+            animation: _ctrl,
+            builder: (context, child) {
+              final currentPage = _ctrl.hasClients
+                  ? (_ctrl.page ?? widget.selectedIndex.toDouble())
+                  : widget.selectedIndex.toDouble();
 
-              final size = _sideSize + (_centerSize - _sideSize) * eased;
-              final vertLift = (1.0 - eased) * 22.0;
-              final opacity = 0.28 + eased * 0.72;
+              return Column(
+                children: [
+                  Expanded(
+                    child: RepaintBoundary(
+                      child: PageView.builder(
+                        controller: _ctrl,
+                        itemCount: planets.length,
+                        onPageChanged: widget.onChanged,
+                        itemBuilder: (context, index) {
+                          final rawDist = (currentPage - index).abs().clamp(
+                            0.0,
+                            1.0,
+                          );
+                          final eased = Curves.easeOutCubic.transform(
+                            1.0 - rawDist,
+                          );
+                          final isCenter = index == currentPage.round();
 
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => isCenter
-                    ? widget.onNavigate()
-                    : _ctrl.animateToPage(
-                        index,
-                        duration: const Duration(milliseconds: 260),
-                        curve: Curves.easeOutCubic,
-                      ),
-                child: Center(
-                  child: Transform.translate(
-                    offset: Offset(0, vertLift),
-                    child: Opacity(
-                      opacity: opacity,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: size,
-                            height: size,
-                            child: CustomPaint(
-                              painter: _PlanetPreviewPainter(
-                                planet: planets[index],
-                                spin: 0,
-                                highlighted: isCenter,
-                                explicitRadius: size * 0.38,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            planetName(planets[index].element).toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: isCenter ? Colors.white : Colors.white38,
-                              fontSize: isCenter ? 11.0 : 8.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ],
+                          final size =
+                              _sideSize + (_centerSize - _sideSize) * eased;
+                          final vertLift = (1.0 - eased) * 8.0;
+                          final alpha = 0.28 + eased * 0.72;
+
+                          return _PlanetCarouselCard(
+                            planet: planets[index],
+                            size: size,
+                            alpha: alpha,
+                            isCenter: isCenter,
+                            verticalLift: vertLift,
+                            onTap: () => isCenter
+                                ? widget.onNavigate()
+                                : _ctrl.animateToPage(
+                                    index,
+                                    duration: const Duration(milliseconds: 260),
+                                    curve: Curves.easeOutCubic,
+                                  ),
+                          );
+                        },
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 2),
+                  _PipRow(
+                    count: planets.length,
+                    page: currentPage,
+                    color: selected.color,
+                  ),
+                ],
               );
             },
           ),
         ),
-        const SizedBox(height: 6),
-        _PipRow(count: planets.length, page: _page, color: selected.color),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
         GestureDetector(
           onTap: widget.onNavigate,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
-            height: 30,
-            padding: const EdgeInsets.symmetric(horizontal: 18),
+            height: 26,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
               color: selected.color.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(8),
@@ -605,15 +598,15 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.navigation_rounded, color: selected.color, size: 13),
-                const SizedBox(width: 7),
+                Icon(Icons.navigation_rounded, color: selected.color, size: 11),
+                const SizedBox(width: 5),
                 Text(
                   'NAVIGATE TO PLANET',
                   style: TextStyle(
                     color: selected.color,
-                    fontSize: 10,
+                    fontSize: 8,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 0.9,
+                    letterSpacing: 0.7,
                   ),
                 ),
               ],
@@ -621,6 +614,148 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PlanetCarouselCard extends StatelessWidget {
+  const _PlanetCarouselCard({
+    required this.planet,
+    required this.size,
+    required this.alpha,
+    required this.isCenter,
+    required this.verticalLift,
+    required this.onTap,
+  });
+
+  final CosmicPlanet planet;
+  final double size;
+  final double alpha;
+  final bool isCenter;
+  final double verticalLift;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isCenter
+        ? Colors.white.withValues(alpha: alpha)
+        : Colors.white.withValues(alpha: 0.38 * alpha);
+    final showDetailedPreview = isCenter || size >= 70;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Center(
+        child: Transform.translate(
+          offset: Offset(0, verticalLift),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RepaintBoundary(
+                child: SizedBox(
+                  width: size,
+                  height: size,
+                  child: showDetailedPreview
+                      ? CustomPaint(
+                          painter: _PlanetPreviewPainter(
+                            planet: planet,
+                            spin: 0,
+                            highlighted: isCenter,
+                            explicitRadius: size * 0.38,
+                            alpha: alpha,
+                          ),
+                        )
+                      : _PlanetPreviewDisc(
+                          color: planet.color,
+                          size: size,
+                          alpha: alpha,
+                        ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              SizedBox(
+                width: size + 12,
+                child: Text(
+                  planetName(planet.element).toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: isCenter ? 8.5 : 6.8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: isCenter ? 0.8 : 0.55,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlanetPreviewDisc extends StatelessWidget {
+  const _PlanetPreviewDisc({
+    required this.color,
+    required this.size,
+    required this.alpha,
+  });
+
+  final Color color;
+  final double size;
+  final double alpha;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = size * 0.38;
+    return Center(
+      child: SizedBox(
+        width: radius * 2.8,
+        height: radius * 2.8,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: radius * 2.5,
+              height: radius * 2.5,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: color.withValues(alpha: 0.10 * alpha),
+                  width: radius * 0.22,
+                ),
+              ),
+            ),
+            Container(
+              width: radius * 2,
+              height: radius * 2,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    Color.lerp(
+                      color,
+                      Colors.white,
+                      0.32,
+                    )!.withValues(alpha: alpha),
+                    color.withValues(alpha: alpha),
+                    Color.lerp(
+                      color,
+                      Colors.black,
+                      0.45,
+                    )!.withValues(alpha: alpha),
+                  ],
+                  stops: const [0.0, 0.58, 1.0],
+                  center: const Alignment(-0.35, -0.35),
+                  radius: 1.05,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -651,9 +786,7 @@ class _PipRow extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: List.generate(count, (i) {
         final t = (1.0 - (page - i).abs()).clamp(0.0, 1.0);
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
+        return Container(
           width: 6.0 + t * 16.0,
           height: 5,
           margin: const EdgeInsets.symmetric(horizontal: 2.5),
@@ -795,12 +928,14 @@ class _PlanetPreviewPainter extends CustomPainter {
     required this.spin,
     this.highlighted = false,
     this.explicitRadius,
+    this.alpha = 1.0,
   });
 
   final CosmicPlanet planet;
   final double spin;
   final bool highlighted;
   final double? explicitRadius;
+  final double alpha;
 
   // Shared helper — draws a sphere with radial gradient shading.
   static void _drawSphere(
@@ -810,16 +945,18 @@ class _PlanetPreviewPainter extends CustomPainter {
     Color color, {
     double highlight = 0.4,
     double shadow = 0.6,
+    double alpha = 1.0,
   }) {
+    final baseColor = color.withValues(alpha: color.a * alpha);
     c.drawCircle(
       p,
       r,
       Paint()
         ..shader = RadialGradient(
           colors: [
-            Color.lerp(color, Colors.white, highlight)!,
-            color,
-            Color.lerp(color, Colors.black, shadow)!,
+            Color.lerp(baseColor, Colors.white, highlight)!,
+            baseColor,
+            Color.lerp(baseColor, Colors.black, shadow)!,
           ],
           stops: const [0.0, 0.55, 1.0],
           center: const Alignment(-0.35, -0.35),
@@ -834,238 +971,360 @@ class _PlanetPreviewPainter extends CustomPainter {
     final r = explicitRadius ?? min(size.width, size.height) * 0.42;
     final col = planet.color;
     final glowA = highlighted ? 0.13 : 0.07;
+    final showDetail = highlighted || r >= 30;
 
     // Soft halo without blur to avoid expensive offscreen rasterization.
     canvas.drawCircle(
       c,
       r * (highlighted ? 1.55 : 1.3),
       Paint()
-        ..color = col.withValues(alpha: glowA)
+        ..color = col.withValues(alpha: glowA * alpha)
         ..style = PaintingStyle.stroke
         ..strokeWidth = highlighted ? r * 0.2 : r * 0.14,
     );
 
     switch (planet.element) {
       case 'Fire':
-        for (var i = 0; i < 6; i++) {
-          final a = spin * 0.8 + i * pi / 3;
-          canvas.drawCircle(
-            Offset(c.dx + cos(a) * r * 1.2, c.dy + sin(a) * r * 1.2),
-            r * (0.2 + 0.08 * sin(spin * 2 + i)),
-            Paint()..color = const Color(0xFFFF6D00).withValues(alpha: 0.22),
-          );
+        if (showDetail) {
+          for (var i = 0; i < 6; i++) {
+            final a = spin * 0.8 + i * pi / 3;
+            canvas.drawCircle(
+              Offset(c.dx + cos(a) * r * 1.2, c.dy + sin(a) * r * 1.2),
+              r * (0.2 + 0.08 * sin(spin * 2 + i)),
+              Paint()
+                ..color = const Color(
+                  0xFFFF6D00,
+                ).withValues(alpha: 0.22 * alpha),
+            );
+          }
         }
-        _drawSphere(canvas, c, r, col);
+        _drawSphere(canvas, c, r, col, alpha: alpha);
 
       case 'Lava':
-        _drawSphere(canvas, c, r, const Color(0xFF3E2723), highlight: 0.2);
-        final crack = Paint()
-          ..color = const Color(0xFFFFAB40).withValues(alpha: 0.6)
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = 1.5;
-        for (var i = 0; i < 4; i++) {
-          final a = i * (pi * 2 / 4) + spin * 0.2;
-          canvas.drawLine(
-            Offset(c.dx + cos(a) * r * 0.2, c.dy + sin(a) * r * 0.2),
-            Offset(
-              c.dx + cos(a + 0.5) * r * 0.82,
-              c.dy + sin(a + 0.5) * r * 0.82,
-            ),
-            crack,
-          );
+        _drawSphere(
+          canvas,
+          c,
+          r,
+          const Color(0xFF3E2723),
+          highlight: 0.2,
+          alpha: alpha,
+        );
+        if (showDetail) {
+          final crack = Paint()
+            ..color = const Color(0xFFFFAB40).withValues(alpha: 0.6 * alpha)
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 1.5;
+          for (var i = 0; i < 4; i++) {
+            final a = i * (pi * 2 / 4) + spin * 0.2;
+            canvas.drawLine(
+              Offset(c.dx + cos(a) * r * 0.2, c.dy + sin(a) * r * 0.2),
+              Offset(
+                c.dx + cos(a + 0.5) * r * 0.82,
+                c.dy + sin(a + 0.5) * r * 0.82,
+              ),
+              crack,
+            );
+          }
         }
 
       case 'Lightning':
-        _drawSphere(canvas, c, r, const Color(0xFF1A237E), highlight: 0.5);
-        canvas.drawCircle(
+        _drawSphere(
+          canvas,
           c,
-          r * (1.2 + 0.08 * sin(spin * 2.0)),
-          Paint()
-            ..color = const Color(0xFF90CAF9).withValues(alpha: 0.28)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4,
+          r,
+          const Color(0xFF1A237E),
+          highlight: 0.5,
+          alpha: alpha,
         );
-        for (var i = 0; i < 7; i++) {
-          final a = spin * (0.9 + i * 0.08) + i * (pi * 2 / 7);
+        if (showDetail) {
           canvas.drawCircle(
-            Offset(c.dx + cos(a) * r * 1.3, c.dy + sin(a) * r * 1.3),
-            r * 0.06,
-            Paint()..color = Colors.white.withValues(alpha: 0.72),
+            c,
+            r * (1.2 + 0.08 * sin(spin * 2.0)),
+            Paint()
+              ..color = const Color(0xFF90CAF9).withValues(alpha: 0.28 * alpha)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.4,
           );
+          for (var i = 0; i < 7; i++) {
+            final a = spin * (0.9 + i * 0.08) + i * (pi * 2 / 7);
+            canvas.drawCircle(
+              Offset(c.dx + cos(a) * r * 1.3, c.dy + sin(a) * r * 1.3),
+              r * 0.06,
+              Paint()..color = Colors.white.withValues(alpha: 0.72 * alpha),
+            );
+          }
         }
 
       case 'Water':
-        _drawSphere(canvas, c, r, const Color(0xFF0D47A1), highlight: 0.35);
-        canvas.save();
-        canvas.clipPath(Path()..addOval(Rect.fromCircle(center: c, radius: r)));
-        for (var i = 0; i < 5; i++) {
-          final y = c.dy - r + (2 * r) * (i + 0.5) / 5;
-          final p = Path()..moveTo(c.dx - r - 8, y);
-          for (var x = -r - 8.0; x <= r + 8; x += 4) {
-            p.lineTo(
-              c.dx + x,
-              y + sin((x / r) * pi * 2 + spin * 1.1 + i) * r * 0.07,
+        _drawSphere(
+          canvas,
+          c,
+          r,
+          const Color(0xFF0D47A1),
+          highlight: 0.35,
+          alpha: alpha,
+        );
+        if (showDetail) {
+          canvas.save();
+          canvas.clipPath(
+            Path()..addOval(Rect.fromCircle(center: c, radius: r)),
+          );
+          for (var i = 0; i < 5; i++) {
+            final y = c.dy - r + (2 * r) * (i + 0.5) / 5;
+            final p = Path()..moveTo(c.dx - r - 8, y);
+            for (var x = -r - 8.0; x <= r + 8; x += 4) {
+              p.lineTo(
+                c.dx + x,
+                y + sin((x / r) * pi * 2 + spin * 1.1 + i) * r * 0.07,
+              );
+            }
+            p
+              ..lineTo(c.dx + r + 8, c.dy + r + 8)
+              ..lineTo(c.dx - r - 8, c.dy + r + 8)
+              ..close();
+            canvas.drawPath(
+              p,
+              Paint()
+                ..color = Colors.white.withValues(
+                  alpha: (0.08 + i * 0.03) * alpha,
+                ),
             );
           }
-          p
-            ..lineTo(c.dx + r + 8, c.dy + r + 8)
-            ..lineTo(c.dx - r - 8, c.dy + r + 8)
-            ..close();
-          canvas.drawPath(
-            p,
-            Paint()..color = Colors.white.withValues(alpha: 0.08 + i * 0.03),
-          );
+          canvas.restore();
         }
-        canvas.restore();
 
       case 'Ice':
-        _drawSphere(canvas, c, r, const Color(0xFFB3E5FC), shadow: 0.45);
-        for (var i = 0; i < 5; i++) {
-          final a = i * 1.2 + spin * 0.07;
-          canvas.drawLine(
-            Offset(c.dx + cos(a) * r * 0.15, c.dy + sin(a) * r * 0.15),
-            Offset(
-              c.dx + cos(a + 0.7) * r * 0.82,
-              c.dy + sin(a + 0.7) * r * 0.82,
-            ),
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.45)
-              ..strokeWidth = 1.0,
-          );
+        _drawSphere(
+          canvas,
+          c,
+          r,
+          const Color(0xFFB3E5FC),
+          shadow: 0.45,
+          alpha: alpha,
+        );
+        if (showDetail) {
+          for (var i = 0; i < 5; i++) {
+            final a = i * 1.2 + spin * 0.07;
+            canvas.drawLine(
+              Offset(c.dx + cos(a) * r * 0.15, c.dy + sin(a) * r * 0.15),
+              Offset(
+                c.dx + cos(a + 0.7) * r * 0.82,
+                c.dy + sin(a + 0.7) * r * 0.82,
+              ),
+              Paint()
+                ..color = Colors.white.withValues(alpha: 0.45 * alpha)
+                ..strokeWidth = 1.0,
+            );
+          }
         }
 
       case 'Steam':
-        _drawSphere(canvas, c, r, const Color(0xFF607D8B), highlight: 0.35);
-        for (var i = 0; i < 7; i++) {
-          final a = i * 0.9 + spin * 0.6;
-          canvas.drawCircle(
-            Offset(c.dx + cos(a) * r * 1.2, c.dy + sin(a) * r * 1.0),
-            r * 0.2,
-            Paint()..color = Colors.white.withValues(alpha: 0.11),
-          );
+        _drawSphere(
+          canvas,
+          c,
+          r,
+          const Color(0xFF607D8B),
+          highlight: 0.35,
+          alpha: alpha,
+        );
+        if (showDetail) {
+          for (var i = 0; i < 7; i++) {
+            final a = i * 0.9 + spin * 0.6;
+            canvas.drawCircle(
+              Offset(c.dx + cos(a) * r * 1.2, c.dy + sin(a) * r * 1.0),
+              r * 0.2,
+              Paint()..color = Colors.white.withValues(alpha: 0.11 * alpha),
+            );
+          }
         }
 
       case 'Earth':
-        _drawSphere(canvas, c, r, const Color(0xFF5D4037), highlight: 0.28);
-        final rng = Random(planet.element.hashCode);
-        for (var i = 0; i < 6; i++) {
-          final a = rng.nextDouble() * pi * 2;
-          final d = r * (0.2 + rng.nextDouble() * 0.55);
-          canvas.drawCircle(
-            Offset(c.dx + cos(a) * d, c.dy + sin(a) * d),
-            r * (0.1 + rng.nextDouble() * 0.12),
-            Paint()..color = const Color(0xFF8BC34A).withValues(alpha: 0.5),
-          );
+        _drawSphere(
+          canvas,
+          c,
+          r,
+          const Color(0xFF5D4037),
+          highlight: 0.28,
+          alpha: alpha,
+        );
+        if (showDetail) {
+          final rng = Random(planet.element.hashCode);
+          for (var i = 0; i < 6; i++) {
+            final a = rng.nextDouble() * pi * 2;
+            final d = r * (0.2 + rng.nextDouble() * 0.55);
+            canvas.drawCircle(
+              Offset(c.dx + cos(a) * d, c.dy + sin(a) * d),
+              r * (0.1 + rng.nextDouble() * 0.12),
+              Paint()
+                ..color = const Color(
+                  0xFF8BC34A,
+                ).withValues(alpha: 0.5 * alpha),
+            );
+          }
         }
 
       case 'Mud':
-        _drawSphere(canvas, c, r, const Color(0xFF4E342E), highlight: 0.18);
-        for (var i = 0; i < 7; i++) {
-          final a = i * (pi * 2 / 7) + spin * 0.2;
-          canvas.drawCircle(
-            Offset(c.dx + cos(a) * r * 0.58, c.dy + sin(a) * r * 0.58),
-            r * 0.07,
-            Paint()..color = Colors.black.withValues(alpha: 0.28),
-          );
+        _drawSphere(
+          canvas,
+          c,
+          r,
+          const Color(0xFF4E342E),
+          highlight: 0.18,
+          alpha: alpha,
+        );
+        if (showDetail) {
+          for (var i = 0; i < 7; i++) {
+            final a = i * (pi * 2 / 7) + spin * 0.2;
+            canvas.drawCircle(
+              Offset(c.dx + cos(a) * r * 0.58, c.dy + sin(a) * r * 0.58),
+              r * 0.07,
+              Paint()..color = Colors.black.withValues(alpha: 0.28 * alpha),
+            );
+          }
         }
 
       case 'Dust':
-        _drawSphere(canvas, c, r, col, shadow: 0.42);
-        canvas
-          ..save()
-          ..translate(c.dx, c.dy)
-          ..scale(1.0, 0.35)
-          ..drawCircle(
-            Offset.zero,
-            r * 1.9,
-            Paint()
-              ..color = col.withValues(alpha: 0.4)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2,
-          )
-          ..restore();
+        _drawSphere(canvas, c, r, col, shadow: 0.42, alpha: alpha);
+        if (showDetail) {
+          canvas
+            ..save()
+            ..translate(c.dx, c.dy)
+            ..scale(1.0, 0.35)
+            ..drawCircle(
+              Offset.zero,
+              r * 1.9,
+              Paint()
+                ..color = col.withValues(alpha: 0.4 * alpha)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 2,
+            )
+            ..restore();
+        }
 
       case 'Crystal':
-        _drawSphere(canvas, c, r, col, highlight: 0.62, shadow: 0.3);
-        for (var i = 0; i < 6; i++) {
-          final a = i * (pi * 2 / 6) + spin * 0.12;
-          final p1 = Offset(c.dx + cos(a) * r * 0.2, c.dy + sin(a) * r * 0.2);
-          final p2 = Offset(
-            c.dx + cos(a + 0.22) * r * 0.74,
-            c.dy + sin(a + 0.22) * r * 0.74,
-          );
-          final p3 = Offset(
-            c.dx + cos(a - 0.22) * r * 0.74,
-            c.dy + sin(a - 0.22) * r * 0.74,
-          );
-          canvas.drawPath(
-            Path()
-              ..moveTo(p1.dx, p1.dy)
-              ..lineTo(p2.dx, p2.dy)
-              ..lineTo(p3.dx, p3.dy)
-              ..close(),
-            Paint()..color = Colors.white.withValues(alpha: 0.18),
-          );
+        _drawSphere(
+          canvas,
+          c,
+          r,
+          col,
+          highlight: 0.62,
+          shadow: 0.3,
+          alpha: alpha,
+        );
+        if (showDetail) {
+          for (var i = 0; i < 6; i++) {
+            final a = i * (pi * 2 / 6) + spin * 0.12;
+            final p1 = Offset(c.dx + cos(a) * r * 0.2, c.dy + sin(a) * r * 0.2);
+            final p2 = Offset(
+              c.dx + cos(a + 0.22) * r * 0.74,
+              c.dy + sin(a + 0.22) * r * 0.74,
+            );
+            final p3 = Offset(
+              c.dx + cos(a - 0.22) * r * 0.74,
+              c.dy + sin(a - 0.22) * r * 0.74,
+            );
+            canvas.drawPath(
+              Path()
+                ..moveTo(p1.dx, p1.dy)
+                ..lineTo(p2.dx, p2.dy)
+                ..lineTo(p3.dx, p3.dy)
+                ..close(),
+              Paint()..color = Colors.white.withValues(alpha: 0.18 * alpha),
+            );
+          }
         }
 
       case 'Air':
-        _drawSphere(canvas, c, r, col, highlight: 0.55, shadow: 0.2);
-        for (var i = 0; i < 4; i++) {
-          final y = c.dy - r * 0.55 + i * r * 0.38;
-          final p = Path()..moveTo(c.dx - r, y);
-          for (var s = 0; s <= 18; s++) {
-            final fx = s / 18;
-            p.lineTo(
-              c.dx - r + fx * r * 2,
-              y + sin(fx * pi * 3 + spin * 1.2 + i) * r * 0.07,
+        _drawSphere(
+          canvas,
+          c,
+          r,
+          col,
+          highlight: 0.55,
+          shadow: 0.2,
+          alpha: alpha,
+        );
+        if (showDetail) {
+          for (var i = 0; i < 4; i++) {
+            final y = c.dy - r * 0.55 + i * r * 0.38;
+            final p = Path()..moveTo(c.dx - r, y);
+            for (var s = 0; s <= 18; s++) {
+              final fx = s / 18;
+              p.lineTo(
+                c.dx - r + fx * r * 2,
+                y + sin(fx * pi * 3 + spin * 1.2 + i) * r * 0.07,
+              );
+            }
+            canvas.drawPath(
+              p,
+              Paint()
+                ..color = Colors.white.withValues(alpha: 0.2 * alpha)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0,
             );
           }
-          canvas.drawPath(
-            p,
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.2)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.0,
-          );
         }
 
       case 'Plant':
-        _drawSphere(canvas, c, r, const Color(0xFF33691E), highlight: 0.25);
-        for (var i = 0; i < 5; i++) {
-          final a = i * (pi * 2 / 5) + spin * 0.2;
-          canvas.drawLine(
-            Offset(c.dx + cos(a) * r * 0.92, c.dy + sin(a) * r * 0.92),
-            Offset(
-              c.dx + cos(a + 0.4) * r * 1.25,
-              c.dy + sin(a + 0.4) * r * 1.25,
-            ),
-            Paint()
-              ..color = const Color(0xFF66BB6A).withValues(alpha: 0.7)
-              ..strokeWidth = 1.2,
-          );
+        _drawSphere(
+          canvas,
+          c,
+          r,
+          const Color(0xFF33691E),
+          highlight: 0.25,
+          alpha: alpha,
+        );
+        if (showDetail) {
+          for (var i = 0; i < 5; i++) {
+            final a = i * (pi * 2 / 5) + spin * 0.2;
+            canvas.drawLine(
+              Offset(c.dx + cos(a) * r * 0.92, c.dy + sin(a) * r * 0.92),
+              Offset(
+                c.dx + cos(a + 0.4) * r * 1.25,
+                c.dy + sin(a + 0.4) * r * 1.25,
+              ),
+              Paint()
+                ..color = const Color(0xFF66BB6A).withValues(alpha: 0.7 * alpha)
+                ..strokeWidth = 1.2,
+            );
+          }
         }
 
       case 'Poison':
-        _drawSphere(canvas, c, r, col, highlight: 0.22);
-        for (var i = 0; i < 6; i++) {
-          final a = i * 1.05 + spin * 0.35;
-          canvas.drawCircle(
-            Offset(c.dx + cos(a) * r * 1.25, c.dy + sin(a) * r * 1.05),
-            r * 0.22,
-            Paint()..color = const Color(0xFFBA68C8).withValues(alpha: 0.16),
-          );
+        _drawSphere(canvas, c, r, col, highlight: 0.22, alpha: alpha);
+        if (showDetail) {
+          for (var i = 0; i < 6; i++) {
+            final a = i * 1.05 + spin * 0.35;
+            canvas.drawCircle(
+              Offset(c.dx + cos(a) * r * 1.25, c.dy + sin(a) * r * 1.05),
+              r * 0.22,
+              Paint()
+                ..color = const Color(
+                  0xFFBA68C8,
+                ).withValues(alpha: 0.16 * alpha),
+            );
+          }
         }
 
       case 'Spirit':
-        _drawSphere(canvas, c, r, const Color(0xFF303F9F), highlight: 0.42);
-        for (var i = 0; i < 5; i++) {
-          final a = spin * 0.7 + i * (pi * 2 / 5);
-          canvas.drawCircle(
-            Offset(c.dx + cos(a) * r * 1.15, c.dy + sin(a) * r * 1.15),
-            r * 0.09,
-            Paint()..color = Colors.white.withValues(alpha: 0.65),
-          );
+        _drawSphere(
+          canvas,
+          c,
+          r,
+          const Color(0xFF303F9F),
+          highlight: 0.42,
+          alpha: alpha,
+        );
+        if (showDetail) {
+          for (var i = 0; i < 5; i++) {
+            final a = spin * 0.7 + i * (pi * 2 / 5);
+            canvas.drawCircle(
+              Offset(c.dx + cos(a) * r * 1.15, c.dy + sin(a) * r * 1.15),
+              r * 0.09,
+              Paint()..color = Colors.white.withValues(alpha: 0.65 * alpha),
+            );
+          }
         }
 
       case 'Dark':
@@ -1076,15 +1335,18 @@ class _PlanetPreviewPainter extends CustomPainter {
           const Color(0xFF1A0930),
           highlight: 0.12,
           shadow: 0.72,
+          alpha: alpha,
         );
-        canvas.drawCircle(
-          c,
-          r * 1.32,
-          Paint()
-            ..color = const Color(0xFF6A0DAD).withValues(alpha: 0.28)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4,
-        );
+        if (showDetail) {
+          canvas.drawCircle(
+            c,
+            r * 1.32,
+            Paint()
+              ..color = const Color(0xFF6A0DAD).withValues(alpha: 0.28 * alpha)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.4,
+          );
+        }
 
       case 'Light':
         _drawSphere(
@@ -1094,31 +1356,45 @@ class _PlanetPreviewPainter extends CustomPainter {
           const Color(0xFFFFF8E1),
           highlight: 0.7,
           shadow: 0.22,
+          alpha: alpha,
         );
-        for (var i = 0; i < 8; i++) {
-          final a = i * (pi * 2 / 8) + spin * 0.08;
-          canvas.drawLine(
-            Offset(c.dx + cos(a) * r * 1.05, c.dy + sin(a) * r * 1.05),
-            Offset(c.dx + cos(a) * r * 1.42, c.dy + sin(a) * r * 1.42),
-            Paint()
-              ..color = const Color(0xFFFFECB3).withValues(alpha: 0.55)
-              ..strokeWidth = 1.2,
-          );
+        if (showDetail) {
+          for (var i = 0; i < 8; i++) {
+            final a = i * (pi * 2 / 8) + spin * 0.08;
+            canvas.drawLine(
+              Offset(c.dx + cos(a) * r * 1.05, c.dy + sin(a) * r * 1.05),
+              Offset(c.dx + cos(a) * r * 1.42, c.dy + sin(a) * r * 1.42),
+              Paint()
+                ..color = const Color(
+                  0xFFFFECB3,
+                ).withValues(alpha: 0.55 * alpha)
+                ..strokeWidth = 1.2,
+            );
+          }
         }
 
       case 'Blood':
-        _drawSphere(canvas, c, r, const Color(0xFF8B0000), highlight: 0.25);
-        canvas.drawCircle(
+        _drawSphere(
+          canvas,
           c,
-          r * (1.2 + 0.06 * sin(spin * 1.5)),
-          Paint()
-            ..color = const Color(0xFFD32F2F).withValues(alpha: 0.35)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6,
+          r,
+          const Color(0xFF8B0000),
+          highlight: 0.25,
+          alpha: alpha,
         );
+        if (showDetail) {
+          canvas.drawCircle(
+            c,
+            r * (1.2 + 0.06 * sin(spin * 1.5)),
+            Paint()
+              ..color = const Color(0xFFD32F2F).withValues(alpha: 0.35 * alpha)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.6,
+          );
+        }
 
       default:
-        _drawSphere(canvas, c, r, col);
+        _drawSphere(canvas, c, r, col, alpha: alpha);
     }
 
     if (highlighted) {
@@ -1126,7 +1402,7 @@ class _PlanetPreviewPainter extends CustomPainter {
         c,
         r * 1.07,
         Paint()
-          ..color = Colors.white.withValues(alpha: 0.10)
+          ..color = Colors.white.withValues(alpha: 0.10 * alpha)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 0.6,
       );
@@ -1138,6 +1414,7 @@ class _PlanetPreviewPainter extends CustomPainter {
     if (old.planet.element != planet.element) return true;
     if (old.highlighted != highlighted) return true;
     if (old.explicitRadius != explicitRadius) return true;
+    if (old.alpha != alpha) return true;
     if (!highlighted && !old.highlighted) return false;
     return old.spin != spin;
   }

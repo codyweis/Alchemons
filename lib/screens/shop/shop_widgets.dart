@@ -36,18 +36,34 @@ class CurrencyPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
+    final displayColor = t.readableAccent(color);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 6),
-        Text(
-          _format(amount),
-          style: TextStyle(
-            color: color,
-            fontSize: 13,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.3,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: displayColor.withValues(alpha: theme.isDark ? 0.14 : 0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: displayColor.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: displayColor),
+              const SizedBox(width: 6),
+              Text(
+                _format(amount),
+                style: TextStyle(
+                  color: displayColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -72,6 +88,8 @@ Future<bool> showItemDetailDialog({
 }) async {
   final displayCost = effectiveCost ?? offer.cost;
   final t = ForgeTokens(theme);
+  final primaryAccent = t.readableAccent(t.amberBright);
+  final secondaryAccent = t.readableAccent(t.amber);
   return await showDialog<bool>(
         context: context,
         builder: (ctx) => Dialog(
@@ -203,7 +221,7 @@ Future<bool> showItemDetailDialog({
                         children: [
                           Icon(
                             Icons.inventory_2_rounded,
-                            color: t.amber,
+                            color: secondaryAccent,
                             size: 13,
                           ),
                           const SizedBox(width: 6),
@@ -211,7 +229,7 @@ Future<bool> showItemDetailDialog({
                             'IN INVENTORY: $inventoryQty',
                             style: TextStyle(
                               fontFamily: 'monospace',
-                              color: t.amber,
+                              color: secondaryAccent,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.4,
@@ -337,7 +355,7 @@ Future<bool> showItemDetailDialog({
                                             ? Icons.shopping_bag_outlined
                                             : Icons.block_rounded,
                                         color: canAfford
-                                            ? t.amberBright
+                                            ? primaryAccent
                                             : t.danger.withValues(alpha: 0.7),
                                         size: 15,
                                       ),
@@ -349,7 +367,7 @@ Future<bool> showItemDetailDialog({
                                         style: TextStyle(
                                           fontFamily: 'monospace',
                                           color: canAfford
-                                              ? t.amberBright
+                                              ? primaryAccent
                                               : t.danger.withValues(alpha: 0.7),
                                           fontSize: 11,
                                           fontWeight: FontWeight.w800,
@@ -421,6 +439,23 @@ class _ForgeCostRow extends StatelessWidget {
     required this.theme,
   });
 
+  String? _assetForType() {
+    switch (type) {
+      case 'res_volcanic':
+        return 'assets/images/ui/volcanic.png';
+      case 'res_oceanic':
+        return 'assets/images/ui/oceanic.png';
+      case 'res_verdant':
+        return 'assets/images/ui/verdant.png';
+      case 'res_earthen':
+        return 'assets/images/ui/earthen.png';
+      case 'res_arcane':
+        return 'assets/images/ui/arcane.png';
+      default:
+        return null;
+    }
+  }
+
   (IconData, String, Color) _info(String t) {
     switch (t) {
       case 'gold':
@@ -456,6 +491,7 @@ class _ForgeCostRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
     final (icon, label, color) = _info(type);
+    final assetPath = _assetForType();
     final hasEnough = current >= amount;
 
     return Container(
@@ -471,7 +507,18 @@ class _ForgeCostRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 15, color: color),
+          SizedBox(
+            width: 15,
+            height: 15,
+            child: assetPath != null
+                ? Image.asset(
+                    assetPath,
+                    fit: BoxFit.contain,
+                    color: hasEnough ? null : const Color(0xFFEF4444),
+                    colorBlendMode: hasEnough ? null : BlendMode.modulate,
+                  )
+                : Icon(icon, size: 15, color: color),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -664,6 +711,7 @@ class GameShopCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(theme);
     Color? overlayColor;
     if (!enabled) {
       overlayColor = Colors.transparent;
@@ -679,7 +727,7 @@ class GameShopCard extends StatelessWidget {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: theme.surface.withValues(alpha: 0.1),
+        color: theme.surface.withValues(alpha: theme.isDark ? 0.1 : 0.72),
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
           color: !enabled
@@ -698,7 +746,9 @@ class GameShopCard extends StatelessWidget {
               // Image / Preview area - SIMPLIFIED
               Expanded(
                 child: Container(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: theme.isDark
+                      ? Colors.black.withValues(alpha: 0.05)
+                      : t.bg2.withValues(alpha: 0.8),
                   child: _buildOfferPreview(offer, size: 64.0, theme: theme),
                 ),
               ),
@@ -724,7 +774,9 @@ class GameShopCard extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Icon(
                   !enabled ? Icons.check_circle : Icons.lock,
-                  color: Colors.white.withValues(alpha: 0.8),
+                  color: theme.isDark
+                      ? Colors.white.withValues(alpha: 0.8)
+                      : t.textPrimary.withValues(alpha: 0.8),
                   size: 32,
                 ),
               ),
@@ -738,17 +790,21 @@ class GameShopCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(
-                  color: theme.accent.withValues(alpha: 0.9),
+                  color: theme.isDark
+                      ? theme.accent.withValues(alpha: 0.9)
+                      : theme.accent.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: theme.isDark
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : theme.accent.withValues(alpha: 0.35),
                     width: 1,
                   ),
                 ),
                 child: Text(
                   statusText!,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: theme.isDark ? Colors.white : theme.accent,
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
                   ),
@@ -820,18 +876,20 @@ class MiniCostChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    final displayColor = t.readableAccent(resource.color);
     final hasEnough = current >= required;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: hasEnough
-            ? resource.color.withValues(alpha: 0.15)
+            ? displayColor.withValues(alpha: 0.12)
             : Colors.red.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: hasEnough
-              ? resource.color.withValues(alpha: 0.4)
+              ? displayColor.withValues(alpha: 0.4)
               : Colors.red.withValues(alpha: 0.4),
         ),
       ),
@@ -841,13 +899,13 @@ class MiniCostChip extends StatelessWidget {
           Icon(
             resource.icon,
             size: 10,
-            color: hasEnough ? resource.color : Colors.red.shade300,
+            color: hasEnough ? displayColor : Colors.red.shade300,
           ),
           const SizedBox(width: 3),
           Text(
             '$required',
             style: TextStyle(
-              color: hasEnough ? resource.color : Colors.red.shade300,
+              color: hasEnough ? displayColor : Colors.red.shade300,
               fontSize: 10,
               fontWeight: FontWeight.w800,
             ),
@@ -877,6 +935,7 @@ class TabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -895,12 +954,12 @@ class TabButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: isActive ? accent : Colors.white60),
+            Icon(icon, size: 18, color: isActive ? accent : t.textMuted),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: isActive ? accent : Colors.white60,
+                color: isActive ? accent : t.textMuted,
                 fontSize: 13,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.5,
@@ -928,14 +987,16 @@ class CostChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
+    final t = ForgeTokens(theme);
     final hasEnough = available >= amount;
-    final (icon, color) = _getCurrencyDisplay(currencyType, theme);
+    final (icon, rawColor) = _getCurrencyDisplay(currencyType, theme);
+    final color = t.readableAccent(rawColor);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: hasEnough
-            ? Colors.transparent
+            ? color.withValues(alpha: theme.isDark ? 0.0 : 0.12)
             : Colors.red.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
@@ -982,7 +1043,7 @@ class CostChip extends StatelessWidget {
       case 'res_arcane':
         return (Icons.auto_awesome_rounded, Colors.purple.shade400);
       default:
-        return (Icons.circle, Colors.white70);
+        return (Icons.circle, theme.textMuted);
     }
   }
 }
@@ -997,22 +1058,23 @@ class EmptySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.3), // Already transparent, good
+        color: t.bg2.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: t.borderDim),
       ),
       child: Center(
         child: Column(
           children: [
-            Icon(icon, size: 32, color: Colors.white.withValues(alpha: 0.3)),
+            Icon(icon, size: 32, color: t.textMuted),
             const SizedBox(height: 8),
             Text(
               message,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
+                color: t.textSecondary,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
@@ -1540,6 +1602,8 @@ Future<int?> showPurchaseConfirmationDialog({
 }) async {
   int qty = 1;
   final shopService = context.read<ShopService>();
+  final t = ForgeTokens(theme);
+  final primaryAccent = t.readableAccent(t.amberBright);
   final canQty = shopService.allowsQuantity(offer);
 
   Map<String, int> previewCost() {
@@ -1610,7 +1674,7 @@ Future<int?> showPurchaseConfirmationDialog({
       widgets.add(
         Text(
           'Rewards not specified',
-          style: TextStyle(color: Colors.white54, fontSize: 12),
+          style: TextStyle(color: t.textMuted, fontSize: 12),
         ),
       );
     }
@@ -1622,10 +1686,10 @@ Future<int?> showPurchaseConfirmationDialog({
     builder: (ctx) {
       return StatefulBuilder(
         builder: (ctx, setState) => Dialog(
-          backgroundColor: const Color(0xFF0D0D1A),
+          backgroundColor: t.bg1,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
-            side: const BorderSide(color: Color(0xFFD4AF37), width: 1),
+            side: BorderSide(color: t.borderAccent, width: 1),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
@@ -1638,9 +1702,9 @@ Future<int?> showPurchaseConfirmationDialog({
                   Text(
                     'CONFIRM PURCHASE',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
-                      color: Color(0xFFD4AF37),
+                      color: primaryAccent,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 3,
@@ -1661,9 +1725,9 @@ Future<int?> showPurchaseConfirmationDialog({
                         child: Text(
                           offer.name + (canQty && qty > 1 ? '  ×$qty' : ''),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'monospace',
-                            color: Colors.white,
+                            color: t.textPrimary,
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1,
@@ -1676,9 +1740,9 @@ Future<int?> showPurchaseConfirmationDialog({
                   Text(
                     offer.description,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
-                      color: Colors.white38,
+                      color: t.textSecondary,
                       fontSize: 10,
                       height: 1.6,
                       letterSpacing: 0.3,
@@ -1693,9 +1757,9 @@ Future<int?> showPurchaseConfirmationDialog({
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white12),
+                        border: Border.all(color: t.borderDim),
                         borderRadius: BorderRadius.circular(3),
-                        color: Colors.white.withValues(alpha: 0.03),
+                        color: t.bg2,
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1707,15 +1771,15 @@ Future<int?> showPurchaseConfirmationDialog({
                             child: Icon(
                               Icons.remove_rounded,
                               size: 18,
-                              color: qty > 1 ? Colors.white70 : Colors.white24,
+                              color: qty > 1 ? t.textPrimary : t.textMuted,
                             ),
                           ),
                           const SizedBox(width: 20),
                           Text(
                             'x$qty',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: 'monospace',
-                              color: Colors.white,
+                              color: t.textPrimary,
                               fontWeight: FontWeight.w900,
                               fontSize: 14,
                               letterSpacing: 1,
@@ -1726,10 +1790,10 @@ Future<int?> showPurchaseConfirmationDialog({
                             onTap: () {
                               if (qty < 999) setState(() => qty++);
                             },
-                            child: const Icon(
+                            child: Icon(
                               Icons.add_rounded,
                               size: 18,
-                              color: Colors.white70,
+                              color: t.textPrimary,
                             ),
                           ),
                         ],
@@ -1776,16 +1840,16 @@ Future<int?> showPurchaseConfirmationDialog({
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
-                              border: Border.all(color: Colors.white24),
+                              border: Border.all(color: t.borderDim),
                               borderRadius: BorderRadius.circular(3),
-                              color: Colors.white.withValues(alpha: 0.04),
+                              color: t.bg2,
                             ),
-                            child: const Text(
+                            child: Text(
                               'CANCEL',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontFamily: 'monospace',
-                                color: Colors.white38,
+                                color: t.textSecondary,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 12,
                                 letterSpacing: 2,
@@ -1802,28 +1866,24 @@ Future<int?> showPurchaseConfirmationDialog({
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: const Color(0xFFD4AF37),
+                                color: t.borderAccent,
                                 width: 1,
                               ),
                               borderRadius: BorderRadius.circular(3),
-                              color: const Color(
-                                0xFFD4AF37,
-                              ).withValues(alpha: 0.15),
+                              color: t.amberDim.withValues(alpha: 0.18),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(
-                                    0xFFD4AF37,
-                                  ).withValues(alpha: 0.2),
+                                  color: t.amber.withValues(alpha: 0.2),
                                   blurRadius: 10,
                                 ),
                               ],
                             ),
-                            child: const Text(
+                            child: Text(
                               'CONFIRM',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontFamily: 'monospace',
-                                color: Color(0xFFD4AF37),
+                                color: primaryAccent,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 12,
                                 letterSpacing: 2,
@@ -1935,7 +1995,7 @@ class DialogResourceDisplay extends StatelessWidget {
     switch (type) {
       // Currencies
       case 'gold':
-        return (Icons.hexagon_rounded, 'Gold', Colors.amber);
+        return (Icons.hexagon_rounded, 'Gold', const Color(0xFFB45309));
       case 'silver':
         return (Icons.monetization_on_rounded, 'Silver', Colors.grey.shade300);
       case 'soft':
@@ -1956,7 +2016,7 @@ class DialogResourceDisplay extends StatelessWidget {
       case 'res_arcane':
         return (Icons.auto_awesome_rounded, 'Arcane', Colors.purple.shade400);
       default:
-        return (Icons.circle, type, Colors.white);
+        return (Icons.circle, type, const Color(0xFF475569));
     }
   }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
+import 'package:alchemons/widgets/filterchip_solod.dart';
 import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dart';
 import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
 import 'package:flutter/material.dart';
@@ -10,11 +11,15 @@ import 'package:provider/provider.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/settings_dao.dart';
+import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 
 class AllCreatureInstances extends StatefulWidget {
@@ -30,6 +35,10 @@ class AllCreatureInstances extends StatefulWidget {
 
   /// When true, only show favorited instances.
   final bool favoritesOnly;
+  final String? searchTextOverride;
+  final bool showInternalSearchBar;
+  final int clearVersion;
+  final ValueChanged<bool>? onResettableStateChanged;
 
   const AllCreatureInstances({
     super.key,
@@ -41,6 +50,10 @@ class AllCreatureInstances extends StatefulWidget {
     this.maxSelections = 0,
     this.onConfirmSelection,
     this.favoritesOnly = false,
+    this.searchTextOverride,
+    this.showInternalSearchBar = true,
+    this.clearVersion = 0,
+    this.onResettableStateChanged,
   });
 
   @override
@@ -58,9 +71,12 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   String? _filterSize;
   String? _filterTint;
   String? _filterNature;
+  String? _filterType;
+  String? _filterFamily;
   bool _filterPrismatic = false;
   bool _filterFavorites = false;
   String? _filterVariant;
+  InstancePurityFilter _filterPurity = InstancePurityFilter.all;
 
   // Selection state (when in selection mode)
   final Set<String> _localSelections = {};
@@ -101,6 +117,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   late SettingsDao _settings;
   async.Timer? _saveTimer;
   async.Timer? _searchDebounce;
+  bool? _lastReportedResettableState;
 
   String get _prefsKey => 'all_instances_filters';
 
@@ -111,8 +128,12 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     'filterSize': _filterSize,
     'filterTint': _filterTint,
     'filterNature': _filterNature,
+    'filterType': _filterType,
+    'filterFamily': _filterFamily,
     'filterPrismatic': _filterPrismatic,
+    'filterFavorites': _filterFavorites,
     'filterVariant': _filterVariant,
+    'filterPurity': _filterPurity.name,
     'detailMode': _detailMode.name,
   };
 
@@ -126,12 +147,23 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     _filterSize = p['filterSize'];
     _filterTint = p['filterTint'];
     _filterNature = p['filterNature'];
+    _filterType = p['filterType'];
+    _filterFamily = p['filterFamily'] ?? p['filterSpeciesId'];
     _filterPrismatic = p['filterPrismatic'] ?? _filterPrismatic;
+    _filterFavorites =
+        p['filterFavorites'] ?? (p['filterLocked'] ?? _filterFavorites);
     _filterVariant = p['filterVariant'];
+    _filterPurity = InstancePurityFilter.values.firstWhere(
+      (e) => e.name == (p['filterPurity'] ?? _filterPurity.name),
+      orElse: () => InstancePurityFilter.all,
+    );
     _detailMode = InstanceDetailMode.values.firstWhere(
       (e) => e.name == (p['detailMode'] ?? _detailMode.name),
-      orElse: () => InstanceDetailMode.info,
+      orElse: () => InstanceDetailMode.stats,
     );
+    if (_detailMode == InstanceDetailMode.info) {
+      _detailMode = InstanceDetailMode.stats;
+    }
   }
 
   void _queueSave() {
@@ -151,8 +183,11 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   @override
   void initState() {
     super.initState();
-    _detailMode = InstanceDetailMode.info;
+    _detailMode = InstanceDetailMode.stats;
     _searchController = TextEditingController();
+    if (widget.searchTextOverride != null) {
+      _searchController.text = widget.searchTextOverride!;
+    }
     // Initialize with passed selections only when in selection mode
     if (widget.selectionMode) {
       _localSelections.addAll(widget.selectedInstanceIds);
@@ -168,10 +203,23 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
       if (!mounted || raw == null || raw.isEmpty) return;
       final map = jsonDecode(raw) as Map<String, dynamic>;
       setState(() => _fromPrefs(map));
-      if (mounted) {
+      if (mounted && widget.searchTextOverride == null) {
         _searchController.text = _searchText;
       }
     }();
+  }
+
+  @override
+  void didUpdateWidget(covariant AllCreatureInstances oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.clearVersion != oldWidget.clearVersion) {
+      _mutate(() => _resetAllControls(clearSearch: true));
+    }
+    if (widget.searchTextOverride != oldWidget.searchTextOverride &&
+        widget.searchTextOverride != null &&
+        widget.searchTextOverride != _searchController.text) {
+      _searchController.text = widget.searchTextOverride!;
+    }
   }
 
   @override
@@ -211,6 +259,43 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
       });
     } else if (widget.onTap != null) {
       widget.onTap!(inst);
+    }
+  }
+
+  bool get _hasAdvancedFilters =>
+      _filterPrismatic ||
+      _filterFavorites ||
+      _filterPurity != InstancePurityFilter.all ||
+      _filterVariant != null ||
+      _filterSize != null ||
+      _filterTint != null ||
+      _filterNature != null;
+
+  bool get _hasBrowseChipSelection =>
+      _filterType != null || _filterFamily != null;
+
+  bool get _hasResettableState {
+    final effectiveSearchText = widget.searchTextOverride ?? _searchText;
+    return _hasAdvancedFilters ||
+        _hasBrowseChipSelection ||
+        effectiveSearchText.trim().isNotEmpty ||
+        _sortBy != SortBy.newest;
+  }
+
+  void _resetAllControls({required bool clearSearch}) {
+    _filterPrismatic = false;
+    _filterFavorites = false;
+    _filterType = null;
+    _filterFamily = null;
+    _filterVariant = null;
+    _filterPurity = InstancePurityFilter.all;
+    _filterSize = null;
+    _filterTint = null;
+    _filterNature = null;
+    _sortBy = SortBy.newest;
+    if (clearSearch) {
+      _searchText = '';
+      _searchController.clear();
     }
   }
 
@@ -263,38 +348,172 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     }).toList();
   }
 
+  List<CreatureInstance> _applySpeciesAndTypeFilters(
+    List<CreatureInstance> instances,
+    CreatureCatalog repo,
+  ) {
+    return instances.where((inst) {
+      final creature = repo.getCreatureById(inst.baseId);
+      if (_filterFamily != null &&
+          (creature == null || creature.mutationFamily != _filterFamily)) {
+        return false;
+      }
+      if (_filterType != null &&
+          (creature == null || !creature.types.contains(_filterType))) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<CreatureInstance> _applyAdvancedFilters(
+    List<CreatureInstance> instances,
+    CreatureCatalog repo,
+  ) {
+    return instances.where((inst) {
+      if ((widget.favoritesOnly || _filterFavorites) && !inst.isFavorite) {
+        return false;
+      }
+      if (_filterPrismatic && !inst.isPrismaticSkin) {
+        return false;
+      }
+      if (_filterNature != null && inst.natureId != _filterNature) {
+        return false;
+      }
+      final species = repo.getCreatureById(inst.baseId);
+      if (!matchesPurityFilter(inst, filter: _filterPurity, species: species)) {
+        return false;
+      }
+      if (_filterVariant != null) {
+        if (_filterVariant == '__NON__') {
+          if (inst.variantFaction != null) return false;
+        } else if (inst.variantFaction != _filterVariant) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+  }
+
+  void _sortInstances(List<CreatureInstance> instances) {
+    int compareNums(num a, num b) => a.compareTo(b);
+
+    instances.sort((a, b) {
+      final primary = switch (_sortBy) {
+        SortBy.newest => compareNums(b.createdAtUtcMs, a.createdAtUtcMs),
+        SortBy.oldest => compareNums(a.createdAtUtcMs, b.createdAtUtcMs),
+        SortBy.levelHigh => compareNums(b.level, a.level),
+        SortBy.levelLow => compareNums(a.level, b.level),
+        SortBy.statSpeed => compareNums(b.statSpeed, a.statSpeed),
+        SortBy.statIntelligence => compareNums(
+          b.statIntelligence,
+          a.statIntelligence,
+        ),
+        SortBy.statStrength => compareNums(b.statStrength, a.statStrength),
+        SortBy.statBeauty => compareNums(b.statBeauty, a.statBeauty),
+        SortBy.potentialSpeed => compareNums(
+          b.statSpeedPotential,
+          a.statSpeedPotential,
+        ),
+        SortBy.potentialIntelligence => compareNums(
+          b.statIntelligencePotential,
+          a.statIntelligencePotential,
+        ),
+        SortBy.potentialStrength => compareNums(
+          b.statStrengthPotential,
+          a.statStrengthPotential,
+        ),
+        SortBy.potentialBeauty => compareNums(
+          b.statBeautyPotential,
+          a.statBeautyPotential,
+        ),
+      };
+
+      if (primary != 0) return primary;
+      return compareNums(b.createdAtUtcMs, a.createdAtUtcMs);
+    });
+  }
+
+  List<CreatureInstance> _applyAllFilters(
+    List<CreatureInstance> instances,
+    CreatureCatalog repo,
+    String effectiveSearchText,
+  ) {
+    var filtered = _applyAdvancedFilters(instances, repo);
+    filtered = _applySpeciesAndTypeFilters(filtered, repo);
+    filtered = _applyClientSideFilters(filtered);
+    filtered = _applySearchFilter(filtered, repo, effectiveSearchText);
+    _sortInstances(filtered);
+    return filtered;
+  }
+
+  List<String> _buildFamilyOptions(
+    List<CreatureInstance> instances,
+    CreatureCatalog repo,
+  ) {
+    final families = <String>{};
+    for (final inst in instances) {
+      final creature = repo.getCreatureById(inst.baseId);
+      final family = creature?.mutationFamily;
+      if (family != null && family.isNotEmpty) {
+        families.add(family);
+      }
+    }
+    return CreatureFilterUtils.speciesFilters
+        .where((family) => family != 'All' && families.contains(family))
+        .toList(growable: false);
+  }
+
+  Map<String, String> _buildTypeOptions(
+    List<CreatureInstance> instances,
+    CreatureCatalog repo,
+  ) {
+    final types = <String>{};
+    for (final inst in instances) {
+      final creature = repo.getCreatureById(inst.baseId);
+      if (creature != null) {
+        types.addAll(creature.types);
+      }
+    }
+    final sorted = types.toList()..sort();
+    return {for (final type in sorted) type: type};
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
+    final hasPotentialAnalyzer = context
+        .watch<ConstellationEffectsService>()
+        .hasPotentialAnalyzer();
+    final effectiveSearchText = widget.searchTextOverride ?? _searchText;
 
     return StreamBuilder<List<CreatureInstance>>(
-      // DB-level filtering where possible
-      stream: db.creatureDao.watchFilteredInstances(
-        searchText: null,
-        filterNature: _filterNature,
-        filterPrismatic: _filterPrismatic,
-        filterVariant: _filterVariant,
-        filterFavoritesOnly: widget.favoritesOnly || _filterFavorites,
-        sortBy: _sortBy,
-      ),
+      stream: db.creatureDao.watchAllInstances(),
       initialData: const [],
       builder: (context, snapshot) {
-        var instances = snapshot.data ?? [];
-
-        // Apply client-side filters for genetics (size/tint)
-        instances = _applyClientSideFilters(instances);
-        instances = _applySearchFilter(instances, repo, _searchText);
+        final allInstances = snapshot.data ?? [];
+        final familyOptions = _buildFamilyOptions(allInstances, repo);
+        final typeOptions = _buildTypeOptions(allInstances, repo);
+        final instances = _applyAllFilters(
+          allInstances,
+          repo,
+          effectiveSearchText,
+        );
 
         final hasFiltersActive =
-            _filterPrismatic ||
-            _filterFavorites ||
-            _filterVariant != null ||
-            _filterSize != null ||
-            _filterTint != null ||
-            _filterNature != null ||
-            _searchText.trim().isNotEmpty ||
+            _hasAdvancedFilters ||
+            _hasBrowseChipSelection ||
+            effectiveSearchText.trim().isNotEmpty ||
             _sortBy != SortBy.newest;
+
+        if (_lastReportedResettableState != _hasResettableState) {
+          _lastReportedResettableState = _hasResettableState;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            widget.onResettableStateChanged?.call(_hasResettableState);
+          });
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -330,11 +549,13 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       GestureDetector(
                         onTap: () {
                           if (widget.onConfirmSelection != null) {
-                            final selected = instances
-                                .where(
-                                  (i) =>
-                                      _localSelections.contains(i.instanceId),
-                                )
+                            final byId = {
+                              for (final inst in instances)
+                                inst.instanceId: inst,
+                            };
+                            final selected = _localSelections
+                                .map((id) => byId[id])
+                                .whereType<CreatureInstance>()
                                 .toList();
                             widget.onConfirmSelection!(selected);
                           }
@@ -364,172 +585,177 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
               const SizedBox(height: 8),
             ],
 
-            // Search and filters bar
+            // Top controls
             Container(
-              padding: const EdgeInsets.only(
-                left: 12,
-                right: 12,
-                top: 9,
-                bottom: 3,
-              ),
-              child: Row(
-                children: [
-                  // Search box with debounce
-                  Expanded(
-                    child: Container(
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: widget.theme.surfaceAlt,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: widget.theme.text.withValues(alpha: .35),
-                          width: 1,
-                        ),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.search_rounded,
-                            size: 14,
-                            color: widget.theme.textMuted,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              style: TextStyle(
-                                color: widget.theme.text,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              decoration: InputDecoration(
-                                isCollapsed: true,
-                                border: InputBorder.none,
-                                hintText: 'Search all specimens...',
-                                hintStyle: TextStyle(
-                                  color: widget.theme.textMuted.withValues(alpha: .6),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              onChanged: (val) {
-                                _searchDebounce?.cancel();
-                                _searchDebounce = async.Timer(
-                                  const Duration(milliseconds: 300),
-                                  () => _mutate(() => _searchText = val),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
+              padding: const EdgeInsets.only(top: 9, bottom: 3),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _TopControlChip(
+                      label: _sortBy == SortBy.oldest ? 'OLDEST' : 'NEWEST',
+                      accentColor: widget.theme.primary,
+                      labelFontSize: 9.72,
+                      selected:
+                          _sortBy == SortBy.newest || _sortBy == SortBy.oldest,
+                      onTap: () => _mutate(() {
+                        _sortBy = _sortBy == SortBy.oldest
+                            ? SortBy.newest
+                            : SortBy.oldest;
+                      }),
+                      theme: widget.theme,
                     ),
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  // Detail mode toggle
-                  GestureDetector(
-                    onTap: () => _mutate(() {
-                      _detailMode = switch (_detailMode) {
-                        InstanceDetailMode.info => InstanceDetailMode.stats,
-                        InstanceDetailMode.stats => InstanceDetailMode.genetics,
-                        InstanceDetailMode.genetics => InstanceDetailMode.info,
-                      };
-                    }),
-                    child: Container(
-                      height: 34,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: widget.theme.primary.withValues(alpha: .18),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: widget.theme.primary.withValues(alpha: .5),
-                          width: 1,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _detailMode == InstanceDetailMode.info
-                              ? 'INFO'
-                              : _detailMode == InstanceDetailMode.stats
-                              ? 'STATS'
-                              : 'GENETICS',
-                          style: TextStyle(
-                            color: widget.theme.text,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: .5,
-                          ),
-                        ),
-                      ),
+                    _TopControlChip(
+                      label: _sortBy == SortBy.levelLow ? 'LV ↓' : 'LV ↑',
+                      accentColor: const Color(0xFFFDE047),
+                      labelFontSize: 9.72,
+                      selected:
+                          _sortBy == SortBy.levelHigh ||
+                          _sortBy == SortBy.levelLow,
+                      onTap: () => _mutate(() {
+                        _sortBy = _sortBy == SortBy.levelLow
+                            ? SortBy.levelHigh
+                            : SortBy.levelLow;
+                      }),
+                      theme: widget.theme,
                     ),
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  // Filters pill
-                  GestureDetector(
-                    onTap: () => _mutate(() {
-                      _filtersOpen = !_filtersOpen;
-                    }),
-                    child: Container(
-                      height: 34,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: hasFiltersActive
-                            ? widget.theme.primary.withValues(alpha: .18)
-                            : widget.theme.surfaceAlt,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: hasFiltersActive
-                              ? widget.theme.primary.withValues(alpha: .5)
-                              : widget.theme.text.withValues(alpha: .35),
-                          width: 1,
+                    _TopControlChip(
+                      label: switch (_sortBy) {
+                        _ when _sortBy.isStatSort => '${_sortBy.shortLabel} ↓',
+                        _ => 'STAT',
+                      },
+                      accentColor: switch (_sortBy) {
+                        _ when _sortBy.statFamily == 'intelligence' =>
+                          const Color(0xFFC084FC),
+                        _ when _sortBy.statFamily == 'strength' => const Color(
+                          0xFFF87171,
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.filter_list_rounded,
-                            size: 14,
-                            color: hasFiltersActive
-                                ? widget.theme.primary
-                                : widget.theme.text,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Filters',
-                            style: TextStyle(
-                              color: hasFiltersActive
-                                  ? widget.theme.primary
-                                  : widget.theme.text,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            _filtersOpen
-                                ? Icons.keyboard_arrow_up_rounded
-                                : Icons.keyboard_arrow_down_rounded,
-                            size: 16,
-                            color: hasFiltersActive
-                                ? widget.theme.primary
-                                : widget.theme.text,
-                          ),
-                        ],
-                      ),
+                        _ when _sortBy.statFamily == 'beauty' => const Color(
+                          0xFFF9A8D4,
+                        ),
+                        _ when _sortBy.statFamily == 'speed' => const Color(
+                          0xFFFDE047,
+                        ),
+                        _ => widget.theme.textMuted,
+                      },
+                      labelFontSize: 9.72,
+                      selected: _sortBy.isStatSort,
+                      onTap: () => _mutate(() {
+                        _sortBy = _sortBy.nextStatSort(
+                          includePotential: hasPotentialAnalyzer,
+                        );
+                      }),
+                      theme: widget.theme,
                     ),
-                  ),
-                ],
+                    _TopControlChip(
+                      label: _detailMode == InstanceDetailMode.genetics
+                          ? 'GENETICS'
+                          : 'STATS',
+                      accentColor: _detailMode == InstanceDetailMode.genetics
+                          ? const Color(0xFFC084FC)
+                          : const Color(0xFFFDE047),
+                      labelFontSize: 9.72,
+                      selected: true,
+                      onTap: () => _mutate(() {
+                        _detailMode = _detailMode == InstanceDetailMode.genetics
+                            ? InstanceDetailMode.stats
+                            : InstanceDetailMode.genetics;
+                      }),
+                      theme: widget.theme,
+                    ),
+                    _TopControlChip(
+                      label: 'FILTERS',
+                      accentColor: widget.theme.primary,
+                      labelFontSize: 9.72,
+                      selected: _filtersOpen,
+                      trailing: Icon(
+                        _filtersOpen
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 12,
+                        color: _filtersOpen
+                            ? widget.theme.primary
+                            : widget.theme.text,
+                      ),
+                      onTap: () => _mutate(() {
+                        _filtersOpen = !_filtersOpen;
+                      }),
+                      theme: widget.theme,
+                    ),
+                    if (widget.searchTextOverride == null)
+                      _TopControlChip(
+                        label: 'CLEAR',
+                        accentColor: const Color(0xFFEF4444),
+                        selected: _hasResettableState,
+                        onTap: () =>
+                            _mutate(() => _resetAllControls(clearSearch: true)),
+                        theme: widget.theme,
+                      ),
+                  ],
+                ),
               ),
             ),
 
             // Filter panel
             if (_filtersOpen) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (familyOptions.isNotEmpty)
+                      SizedBox(
+                        height: 34,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: familyOptions.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 6),
+                          itemBuilder: (_, index) {
+                            return FilterChipSolid(
+                              label: familyOptions[index],
+                              color: widget.theme.primary,
+                              selected: _filterFamily == familyOptions[index],
+                              onTap: () => _mutate(() {
+                                _filterFamily =
+                                    _filterFamily == familyOptions[index]
+                                    ? null
+                                    : familyOptions[index];
+                              }),
+                            );
+                          },
+                        ),
+                      ),
+                    if (familyOptions.isNotEmpty && typeOptions.isNotEmpty)
+                      const SizedBox(height: 6),
+                    if (typeOptions.isNotEmpty)
+                      SizedBox(
+                        height: 34,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: typeOptions.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 6),
+                          itemBuilder: (_, index) {
+                            final entry = typeOptions.entries.elementAt(index);
+                            return FilterChipSolid(
+                              label: entry.value,
+                              color: BreedConstants.getTypeColor(entry.key),
+                              selected: _filterType == entry.key,
+                              onTap: () => _mutate(() {
+                                _filterType = _filterType == entry.key
+                                    ? null
+                                    : entry.key;
+                              }),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 10),
               InstanceFiltersPanel(
                 theme: widget.theme,
@@ -559,23 +785,19 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                 onCycleVariant: () => _mutate(
                   () => _filterVariant = _cycleNextVariant(_filterVariant),
                 ),
+                purityFilter: _filterPurity,
+                onCyclePurity: () =>
+                    _mutate(() => _filterPurity = _filterPurity.next()),
                 filterNature: _filterNature,
                 onPickNature: (val) => _mutate(() => _filterNature = val),
                 natureOptions: _buildNatureOptions(),
                 filterFavorites: _filterFavorites,
                 onToggleFavorites: () =>
                     _mutate(() => _filterFavorites = !_filterFavorites),
-                onClearAll: () => _mutate(() {
-                  _filterPrismatic = false;
-                  _filterFavorites = false;
-                  _filterVariant = null;
-                  _filterSize = null;
-                  _filterTint = null;
-                  _filterNature = null;
-                  _searchText = '';
-                  _searchController.clear();
-                  _sortBy = SortBy.newest;
-                }),
+                showSortRow: false,
+                showClearChip: false,
+                onClearAll: () =>
+                    _mutate(() => _resetAllControls(clearSearch: true)),
               ),
             ],
 
@@ -632,6 +854,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                             instance: inst,
                             theme: widget.theme,
                             detailMode: _detailMode,
+                            activeSortBy: _sortBy,
                             isSelected: isSelected,
                             selectionNumber: selectionNumber,
                             onTap: () => _handleInstanceTap(inst),
@@ -655,6 +878,42 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
           ],
         );
       },
+    );
+  }
+}
+
+class _TopControlChip extends StatelessWidget {
+  const _TopControlChip({
+    required this.label,
+    required this.accentColor,
+    required this.selected,
+    required this.onTap,
+    required this.theme,
+    this.labelFontSize = 12,
+    this.trailing,
+  });
+
+  final String label;
+  final Color accentColor;
+  final bool selected;
+  final VoidCallback onTap;
+  final FactionTheme theme;
+  final double labelFontSize;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilterChipSolid(
+      label: label,
+      color: accentColor,
+      selected: selected,
+      onTap: onTap,
+      trailing: trailing,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      unselectedTextColor: theme.text,
+      unselectedBorderColor: theme.border,
+      selectedFillOpacity: 0.12,
+      labelFontSize: labelFontSize,
     );
   }
 }

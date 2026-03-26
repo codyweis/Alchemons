@@ -6,6 +6,7 @@ import 'package:alchemons/games/sprite_effects/sprite_elemental_aura_component.d
 import 'package:alchemons/games/sprite_effects/sprite_glow_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_intelligence_halo_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_prismatic_cascade_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_ritual_gold_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_speed_flux_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_strength_forge_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_void_rift_component.dart';
@@ -126,6 +127,8 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
         return PrismaticCascadeComponent(
           baseSize: prismaticSize.clamp(30.0, 128.0),
         );
+      case 'ritual_gold':
+        return RitualGoldComponent(baseSize: baseSize);
       case 'beauty_radiance':
         return BeautyRadianceComponent(baseSize: baseSize);
       case 'speed_flux':

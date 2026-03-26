@@ -11,7 +11,6 @@ import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 
 class GameModeScreen extends StatelessWidget {
   const GameModeScreen({super.key});
@@ -32,10 +31,10 @@ class GameModeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
+    final theme = FactionTheme.scorchForge();
 
     return ParticleBackgroundScaffold(
-      whiteBackground: theme.brightness == Brightness.light,
+      whiteBackground: false,
       body: Scaffold(
         backgroundColor: Colors.transparent,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

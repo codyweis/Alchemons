@@ -12,6 +12,7 @@ import 'package:alchemons/widgets/animations/sprite_effects/beauty_radiance.dart
 import 'package:alchemons/widgets/animations/sprite_effects/intelligence_halo.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/orbiting_particles.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/prismatic_cascade.dart';
+import 'package:alchemons/widgets/animations/sprite_effects/ritual_gold.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/speed_flux.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/strength_forge.dart';
 import 'package:alchemons/utils/effect_size.dart';
@@ -65,12 +66,15 @@ class ShopService extends ChangeNotifier {
   static const speedContestEffectOfferId = 'effects.speed_flux';
   static const strengthContestEffectOfferId = 'effects.strength_forge';
   static const intelligenceContestEffectOfferId = 'effects.intelligence_halo';
+  static const ritualGoldEffectOfferId = 'effects.ritual_gold';
+  static const elementalCreatorOfferId = 'unlock.elemental_creator';
 
   static const Map<String, String> _contestEffectUnlockSettingByOfferId = {
     beautyContestEffectOfferId: 'shop_unlock.effect.beauty_radiance',
     speedContestEffectOfferId: 'shop_unlock.effect.speed_flux',
     strengthContestEffectOfferId: 'shop_unlock.effect.strength_forge',
     intelligenceContestEffectOfferId: 'shop_unlock.effect.intelligence_halo',
+    ritualGoldEffectOfferId: 'shop_unlock.effect.ritual_gold',
   };
 
   // Track purchases
@@ -142,6 +146,11 @@ class ShopService extends ChangeNotifier {
         return SizedBox.square(
           dimension: size,
           child: PrismaticCascade(size: effectSizeFromWidgetSize(size)),
+        );
+      case InvKeys.alchemyRitualGold:
+        return SizedBox.square(
+          dimension: size,
+          child: RitualGold(size: effectSizeFromWidgetSize(size)),
         );
       case InvKeys.alchemyBeautyRadiance:
         return SizedBox.square(
@@ -273,7 +282,7 @@ class ShopService extends ChangeNotifier {
       id: offerId,
       name: 'Daily Vial - ${group.displayName}',
       description:
-          'A common-grade extraction vial. Today\'s element: ${group.displayName}.',
+          'A ${rarity.grade} extraction vial. Today\'s element: ${group.displayName}.',
       icon: Icons.science_rounded,
       assetName: null, // You can add specific vial images later
       cost: cost,
@@ -327,6 +336,26 @@ class ShopService extends ChangeNotifier {
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.bossRefresh,
       assetName: 'assets/images/ui/boss-summon.png',
+    ),
+    ShopOffer(
+      id: elementalCreatorOfferId,
+      name: 'Elemental Essence Creator',
+      description:
+          'Consume Alchemons into elemental material to enhance other Alchemons.',
+      icon: Icons.auto_fix_high_rounded,
+      cost: const {
+        'silver': 5000,
+        'res_volcanic': 200,
+        'res_oceanic': 200,
+        'res_verdant': 200,
+        'res_earthen': 200,
+        'res_arcane': 200,
+      },
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+      inventoryKey: InvKeys.elementalCreator,
+      assetName: 'assets/images/ui/enhanceicon.png',
     ),
     // --- NEW: Devices (standard per element) ---
     ShopOffer(
@@ -591,6 +620,19 @@ class ShopService extends ChangeNotifier {
       inventoryKey: InvKeys.alchemyPrismaticCascade,
     ),
     ShopOffer(
+      id: ritualGoldEffectOfferId,
+      name: 'Golden Rite',
+      description:
+          'Pureblood Rite completion effect. Projects a gold ritual chamber behind your Alchemon.',
+      icon: Icons.auto_fix_high_rounded,
+      iconColor: const Color(0xFFE5B74E),
+      cost: const {'gold': 5},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.unlimited,
+      inventoryKey: InvKeys.alchemyRitualGold,
+    ),
+    ShopOffer(
       id: beautyContestEffectOfferId,
       name: 'Beauty Radiance',
       description:
@@ -719,7 +761,7 @@ class ShopService extends ChangeNotifier {
           'Forged in the Void — an orb crackling with dark energy runes.',
       icon: Icons.nightlight_round,
       iconColor: const Color(0xFFBB00FF),
-      cost: const {'gold': 200},
+      cost: const {'gold': 50},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -730,7 +772,7 @@ class ShopService extends ChangeNotifier {
       description: 'A radiant sphere of starlight — pulsing with cosmic power.',
       icon: Icons.auto_awesome_rounded,
       iconColor: const Color(0xFFFFD700),
-      cost: const {'gold': 200},
+      cost: const {'gold': 1},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -741,7 +783,7 @@ class ShopService extends ChangeNotifier {
       description: 'Molten iron and dragonfire — enemies burn near the orb.',
       icon: Icons.local_fire_department_rounded,
       iconColor: const Color(0xFFFF4500),
-      cost: const {'gold': 200},
+      cost: const {'gold': 1},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -752,7 +794,7 @@ class ShopService extends ChangeNotifier {
       description: 'An ancient ice crystal with jagged frost shards.',
       icon: Icons.ac_unit_rounded,
       iconColor: const Color(0xFF88DDFF),
-      cost: const {'gold': 300},
+      cost: const {'gold': 50},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -763,7 +805,7 @@ class ShopService extends ChangeNotifier {
       description: 'A ghostly sphere that phases between realms.',
       icon: Icons.blur_on_rounded,
       iconColor: const Color(0xFF7BFFCE),
-      cost: const {'gold': 300},
+      cost: const {'gold': 50},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -774,7 +816,7 @@ class ShopService extends ChangeNotifier {
       description: 'A crystalline prism refracting all light.',
       icon: Icons.diamond_rounded,
       iconColor: const Color(0xFFFF69B4),
-      cost: const {'gold': 400},
+      cost: const {'gold': 50},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -785,7 +827,7 @@ class ShopService extends ChangeNotifier {
       description: 'A living orb of tangled vines and blossoms.',
       icon: Icons.eco_rounded,
       iconColor: const Color(0xFF32CD32),
-      cost: const {'gold': 300},
+      cost: const {'gold': 50},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -1140,6 +1182,10 @@ class ShopService extends ChangeNotifier {
         await _db.settingsDao.setMustPickFaction(true);
         return true;
 
+      case elementalCreatorOfferId:
+        await _db.inventoryDao.addItemQty(InvKeys.elementalCreator, qty);
+        return true;
+
       case 'effects.alchemy_glow':
         await _db.inventoryDao.addItemQty(InvKeys.alchemyGlow, qty);
         return true;
@@ -1155,6 +1201,9 @@ class ShopService extends ChangeNotifier {
         return true;
       case 'effects.prismatic_cascade':
         await _db.inventoryDao.addItemQty(InvKeys.alchemyPrismaticCascade, qty);
+        return true;
+      case ritualGoldEffectOfferId:
+        await _db.inventoryDao.addItemQty(InvKeys.alchemyRitualGold, qty);
         return true;
       case beautyContestEffectOfferId:
         await _db.inventoryDao.addItemQty(InvKeys.alchemyBeautyRadiance, qty);
@@ -1179,7 +1228,6 @@ class ShopService extends ChangeNotifier {
           await _db.incubatorDao.purchaseFusionSlot();
         }
         return true;
-
       // Exchange handled elsewhere
       case 'fx.silver_to_gold.unit':
       case 'fx.gold_to_silver.unit':
@@ -1345,6 +1393,9 @@ class ShopService extends ChangeNotifier {
     if (key == null) return 0;
     return _inventoryCache[key] ?? 0;
   }
+
+  bool hasElementalCreatorUnlocked() =>
+      (_purchaseCounts[elementalCreatorOfferId] ?? 0) > 0;
 
   int getPurchaseCount(String offerId) => _purchaseCounts[offerId] ?? 0;
 }

@@ -15,8 +15,9 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/screens/black_market_screen.dart';
-import 'package:alchemons/screens/faction_picker.dart';
+import 'package:alchemons/screens/shop/alchemon_exchange_screen.dart';
 import 'package:alchemons/screens/shop/shop_widgets.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
@@ -29,6 +30,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/black_market_button.dart';
+import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/element_resource_widget.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -119,6 +121,8 @@ class _ShopScreenState extends State<ShopScreen> {
 
   void _toast(String msg, {IconData icon = Icons.check_rounded, Color? color}) {
     if (!mounted) return;
+    final backgroundColor = color ?? t.amber;
+    final foregroundColor = t.onColor(backgroundColor);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -129,7 +133,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 color: t.bg1,
                 borderRadius: BorderRadius.circular(2),
               ),
-              child: Icon(icon, color: color ?? t.amberBright, size: 13),
+              child: Icon(icon, color: foregroundColor, size: 13),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -137,7 +141,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 msg.toUpperCase(),
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: t.bg0,
+                  color: foregroundColor,
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
@@ -146,7 +150,7 @@ class _ShopScreenState extends State<ShopScreen> {
             ),
           ],
         ),
-        backgroundColor: color ?? t.amber,
+        backgroundColor: backgroundColor,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
@@ -169,13 +173,7 @@ class _ShopScreenState extends State<ShopScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              StreamBuilder<Map<String, int>>(
-                stream: db.currencyDao.watchAllCurrencies(),
-                builder: (context, snap) {
-                  final c = snap.data ?? {'gold': 0, 'silver': 0, 'soft': 0};
-                  return _buildHeader(theme, c);
-                },
-              ),
+              _buildHeader(theme),
               Expanded(child: _buildShopContent(theme, db)),
             ],
           ),
@@ -186,7 +184,7 @@ class _ShopScreenState extends State<ShopScreen> {
 
   // ── HEADER ─────────────────────────────────────────────────────────────────
 
-  Widget _buildHeader(FactionTheme theme, Map<String, int> allCurrencies) {
+  Widget _buildHeader(FactionTheme theme) {
     return Container(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: t.borderDim)),
@@ -198,7 +196,6 @@ class _ShopScreenState extends State<ShopScreen> {
           Row(
             children: [
               _buildBlackMarketFloatingButton(context, theme.accent),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -230,6 +227,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   ],
                 ),
               ),
+              _buildExchangeFloatingButton(context),
             ],
           ),
 
@@ -244,24 +242,25 @@ class _ShopScreenState extends State<ShopScreen> {
               border: Border.all(color: t.borderAccent.withValues(alpha: 0.5)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                CurrencyPill(
-                  icon: Icons.hexagon_rounded,
-                  color: const Color(0xFFFFD700),
-                  amount: allCurrencies['gold'] ?? 0,
+                Flexible(
+                  flex: 3,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: CurrencyDisplayWidget(accentColor: t.borderAccent),
+                  ),
                 ),
-                Container(width: 1, height: 16, color: t.borderDim),
-                CurrencyPill(
-                  icon: Icons.monetization_on_rounded,
-                  color: t.textSecondary,
-                  amount: allCurrencies['silver'] ?? 0,
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 4,
+                  child: SizedBox(
+                    height: 58,
+                    child: ResourceCollectionWidget(theme: theme),
+                  ),
                 ),
               ],
             ),
           ),
-
-          ResourceCollectionWidget(theme: theme),
         ],
       ),
     );
@@ -270,6 +269,7 @@ class _ShopScreenState extends State<ShopScreen> {
   // ── SECTION HEADER ─────────────────────────────────────────────────────────
 
   Widget _buildSectionHeader(String title, Color accent, IconData icon) {
+    final displayAccent = t.readableAccent(accent);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 0),
       child: Row(
@@ -278,16 +278,16 @@ class _ShopScreenState extends State<ShopScreen> {
           Container(
             width: 3,
             height: 16,
-            color: accent,
+            color: displayAccent,
             margin: const EdgeInsets.only(right: 10),
           ),
-          Icon(icon, color: accent, size: 14),
+          Icon(icon, color: displayAccent, size: 14),
           const SizedBox(width: 8),
           Text(
             title,
             style: TextStyle(
               fontFamily: 'monospace',
-              color: accent,
+              color: displayAccent,
               fontSize: 10,
               fontWeight: FontWeight.w900,
               letterSpacing: 2.2,
@@ -295,7 +295,10 @@ class _ShopScreenState extends State<ShopScreen> {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Container(height: 1, color: accent.withValues(alpha: 0.2)),
+            child: Container(
+              height: 1,
+              color: displayAccent.withValues(alpha: 0.2),
+            ),
           ),
         ],
       ),
@@ -428,7 +431,9 @@ class _ShopScreenState extends State<ShopScreen> {
                     Positioned.fill(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
+                          color: theme.isDark
+                              ? Colors.black.withValues(alpha: 0.65)
+                              : theme.surface.withValues(alpha: 0.92),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Column(
@@ -511,6 +516,17 @@ class _ShopScreenState extends State<ShopScreen> {
                       _buildDailyVialSection(theme, allCurrencies),
 
                       _buildSectionHeader(
+                        'SPECIAL UNLOCKS',
+                        t.amberBright,
+                        Icons.auto_awesome_rounded,
+                      ),
+                      _buildSpecialUnlocksGrid(
+                        theme,
+                        allCurrencies,
+                        resourceBalances,
+                      ),
+
+                      _buildSectionHeader(
                         'GOLD VAULT',
                         const Color(0xFFFFD700),
                         Icons.hexagon_rounded,
@@ -552,7 +568,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       ),
 
                       _buildSectionHeader(
-                        'EXCHANGE',
+                        'SELL',
                         t.textPrimary,
                         Icons.currency_exchange_rounded,
                       ),
@@ -579,13 +595,6 @@ class _ShopScreenState extends State<ShopScreen> {
                         Icons.blur_circular_rounded,
                       ),
                       _buildSurvivalOrbGrid(theme, allCurrencies),
-
-                      _buildSectionHeader(
-                        'SPECIAL UNLOCKS',
-                        t.amberBright,
-                        Icons.auto_awesome_rounded,
-                      ),
-                      _buildSpecialUnlocksGrid(theme, allCurrencies),
 
                       // 'COSMIC EXPLORATION' removed — discovery will occur in-world
                     ],
@@ -675,6 +684,7 @@ class _ShopScreenState extends State<ShopScreen> {
     return Consumer<MobileStoreService>(
       builder: (context, store, _) {
         final packs = store.packDefinitions;
+        final goldAccent = t.readableAccent(const Color(0xFFFFD700));
 
         Future<void> buyPack(String productId) async {
           final started = await store.purchaseGoldPack(productId);
@@ -684,7 +694,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 ? 'Purchase started'
                 : (store.lastError ?? 'Store unavailable'),
             icon: started ? Icons.shopping_bag_rounded : Icons.error_rounded,
-            color: started ? const Color(0xFFFFD700) : t.danger,
+            color: started ? goldAccent : t.danger,
           );
         }
 
@@ -709,12 +719,33 @@ class _ShopScreenState extends State<ShopScreen> {
               product?.price ?? (store.isLoading ? '...' : 'Unavailable');
           final canBuy = product != null && store.storeAvailable;
           final pending = store.isPurchasePending(pack.productId);
-          final accent = switch (pack.badge) {
+          final accent = t.readableAccent(switch (pack.badge) {
             'STARTER' => const Color(0xFFFFE082),
             'POPULAR' => const Color(0xFFFFD54F),
             'VALUE' => const Color(0xFFFFB300),
             _ => const Color(0xFFFF8F00),
-          };
+          });
+          final cardGradient = theme.isDark
+              ? [
+                  const Color(0xFF1C1510).withValues(alpha: 0.98),
+                  const Color(0xFF0E0B08).withValues(alpha: 0.98),
+                ]
+              : [
+                  theme.surfaceAlt.withValues(alpha: 0.98),
+                  theme.surface.withValues(alpha: 0.98),
+                ];
+          final mutedTextColor = theme.isDark
+              ? Colors.white.withValues(alpha: 0.82)
+              : t.textSecondary;
+          final disabledBgColor = theme.isDark
+              ? Colors.white.withValues(alpha: 0.04)
+              : t.bg2;
+          final disabledBorderColor = theme.isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : t.borderDim;
+          final disabledTextColor = theme.isDark
+              ? Colors.white.withValues(alpha: 0.4)
+              : t.textMuted;
 
           return GestureDetector(
             onTap: canBuy && !pending ? () => buyPack(pack.productId) : null,
@@ -727,10 +758,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   color: accent.withValues(alpha: canBuy ? 0.55 : 0.2),
                 ),
                 gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF1C1510).withValues(alpha: 0.98),
-                    const Color(0xFF0E0B08).withValues(alpha: 0.98),
-                  ],
+                  colors: cardGradient,
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -790,7 +818,7 @@ class _ShopScreenState extends State<ShopScreen> {
                         Text(
                           style: TextStyle(
                             fontFamily: 'monospace',
-                            color: Colors.white.withValues(alpha: 0.82),
+                            color: mutedTextColor,
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.6,
@@ -819,12 +847,12 @@ class _ShopScreenState extends State<ShopScreen> {
                           decoration: BoxDecoration(
                             color: canBuy
                                 ? accent.withValues(alpha: 0.14)
-                                : Colors.white.withValues(alpha: 0.04),
+                                : disabledBgColor,
                             borderRadius: BorderRadius.circular(4),
                             border: Border.all(
                               color: canBuy
                                   ? accent.withValues(alpha: 0.35)
-                                  : Colors.white.withValues(alpha: 0.08),
+                                  : disabledBorderColor,
                             ),
                           ),
                           child: Row(
@@ -845,9 +873,7 @@ class _ShopScreenState extends State<ShopScreen> {
                                 Icon(
                                   Icons.shopping_bag_rounded,
                                   size: 14,
-                                  color: canBuy
-                                      ? accent
-                                      : Colors.white.withValues(alpha: 0.35),
+                                  color: canBuy ? accent : disabledTextColor,
                                 ),
                               const SizedBox(width: 6),
                               Expanded(
@@ -857,9 +883,7 @@ class _ShopScreenState extends State<ShopScreen> {
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: canBuy
-                                        ? accent
-                                        : Colors.white.withValues(alpha: 0.4),
+                                    color: canBuy ? accent : disabledTextColor,
                                     fontSize: 10,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 0.8,
@@ -1559,9 +1583,13 @@ class _ShopScreenState extends State<ShopScreen> {
   Widget _buildSpecialUnlocksGrid(
     FactionTheme theme,
     Map<String, int> allCurrencies,
+    Map<String, int> resourceBalances,
   ) {
     return Consumer<ShopService>(
       builder: (context, shopService, _) {
+        final mergedBalances = <String, int>{}
+          ..addAll(allCurrencies)
+          ..addAll(resourceBalances);
         final specialOffers = ShopService.allOffers.where((o) {
           return o.id.startsWith('unlock.') || o.id == 'boost.faction_change';
         }).toList();
@@ -1592,34 +1620,55 @@ class _ShopScreenState extends State<ShopScreen> {
           specialOffers.removeWhere((o) => !shopService.canPurchase(o.id));
         }
 
+        final elementalCreatorIndex = specialOffers.indexWhere(
+          (o) => o.id == ShopService.elementalCreatorOfferId,
+        );
+        ShopOffer? elementalCreator;
+        if (elementalCreatorIndex != -1) {
+          elementalCreator = specialOffers.removeAt(elementalCreatorIndex);
+        }
+
         if (specialOffers.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(12),
-            child: EmptySection(
-              message: 'All special items unlocked',
-              icon: Icons.check_circle_outline_rounded,
-            ),
-          );
+          if (elementalCreator != null) {
+            specialOffers.insert(0, elementalCreator);
+          } else {
+            return const Padding(
+              padding: EdgeInsets.all(12),
+              child: EmptySection(
+                message: 'All special items unlocked',
+                icon: Icons.check_circle_outline_rounded,
+              ),
+            );
+          }
+        }
+
+        if (elementalCreator != null) {
+          specialOffers.insert(0, elementalCreator);
         }
 
         final cards = specialOffers.map((offer) {
           final canPurchase = shopService.canPurchase(offer.id);
           final effectiveCost = shopService.getEffectiveCost(offer);
           final canAffordUnit = effectiveCost.entries.every(
-            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+            (e) => (mergedBalances[e.key] ?? 0) >= e.value,
           );
-          final costWidgets = <Widget>[
-            for (final entry in effectiveCost.entries)
-              CostChip(
-                currencyType: entry.key,
-                amount: entry.value,
-                available: allCurrencies[entry.key] ?? 0,
-              ),
-          ];
+          final costWidgets = offer.id == ShopService.elementalCreatorOfferId
+              ? _buildElementalCreatorTileCostIcons(
+                  effectiveCost,
+                  mergedBalances,
+                )
+              : <Widget>[
+                  for (final entry in effectiveCost.entries)
+                    CostChip(
+                      currencyType: entry.key,
+                      amount: entry.value,
+                      available: mergedBalances[entry.key] ?? 0,
+                    ),
+                ];
           return GestureDetector(
             onTap: () => canPurchase
-                ? _handlePurchase(context, offer, allCurrencies, canAffordUnit)
-                : _showDetails(context, offer, allCurrencies, canAffordUnit),
+                ? _handlePurchase(context, offer, mergedBalances, canAffordUnit)
+                : _showDetails(context, offer, mergedBalances, canAffordUnit),
             child: GameShopCard(
               key: ValueKey('special-${offer.id}'),
               title: offer.name,
@@ -1646,6 +1695,62 @@ class _ShopScreenState extends State<ShopScreen> {
         );
       },
     );
+  }
+
+  List<Widget> _buildElementalCreatorTileCostIcons(
+    Map<String, int> effectiveCost,
+    Map<String, int> allCurrencies,
+  ) {
+    final widgets = <Widget>[];
+
+    final silverCost = effectiveCost['silver'];
+    if (silverCost != null) {
+      widgets.add(
+        CostChip(
+          currencyType: 'silver',
+          amount: silverCost,
+          available: allCurrencies['silver'] ?? 0,
+        ),
+      );
+    }
+
+    widgets.addAll(
+      effectiveCost.entries
+          .where((entry) => ElementResources.byKey.containsKey(entry.key))
+          .map((entry) {
+            final resource = ElementResources.byKey[entry.key]!;
+            final available = allCurrencies[entry.key] ?? 0;
+            final hasEnough = available >= entry.value;
+            final accent = t.readableAccent(resource.color);
+
+            return Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: hasEnough
+                    ? accent.withValues(alpha: 0.16)
+                    : Colors.red.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: hasEnough
+                      ? accent.withValues(alpha: 0.42)
+                      : Colors.red.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Image.asset(
+                  'assets/images/ui/${resource.biomeId}.png',
+                  fit: BoxFit.contain,
+                  color: hasEnough ? null : Colors.red.shade300,
+                  colorBlendMode: hasEnough ? null : BlendMode.modulate,
+                ),
+              ),
+            );
+          }),
+    );
+
+    return widgets;
   }
 
   // ── DIALOGS & PURCHASE FLOWS (logic unchanged) ─────────────────────────────
@@ -1825,13 +1930,8 @@ class _ShopScreenState extends State<ShopScreen> {
         icon: Icons.flag_rounded,
         color: const Color(0xFF7C3AED),
       );
-      if (!context.mounted) return;
-      await Navigator.of(context).push(
-        CupertinoPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => const FactionPickerDialog(),
-        ),
-      );
+      // The app shell watches `require_faction_picker` and opens the picker.
+      // Pushing it here as well stacks two pickers and makes the user choose twice.
     }
   }
 
@@ -1860,6 +1960,101 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
+  Widget _buildExchangeFloatingButton(BuildContext context) {
+    return Consumer<ConstellationEffectsService>(
+      builder: (context, constellations, _) {
+        final unlocked = constellations.canSellAlchemonsInShop();
+        final actionAccent = t.readableAccent(t.amberBright);
+
+        return GestureDetector(
+          onTap: () {
+            if (!unlocked) {
+              _toast(
+                'Unlock Specimen Exchange in the Explorer tree',
+                icon: Icons.lock_rounded,
+                color: t.amber,
+              );
+              return;
+            }
+
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const AlchemonExchangeScreen(),
+              ),
+            );
+          },
+          child: SizedBox(
+            width: 75,
+            height: 75,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: unlocked
+                          ? [actionAccent, t.readableAccent(t.amber)]
+                          : [t.bg2, t.bg1],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: unlocked ? actionAccent : t.borderDim,
+                      width: 1.5,
+                    ),
+                    boxShadow: unlocked
+                        ? [
+                            BoxShadow(
+                              color: t.amber.withValues(alpha: 0.28),
+                              blurRadius: 18,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Icon(
+                    unlocked ? Icons.sell_rounded : Icons.lock_rounded,
+                    color: unlocked ? t.onColor(actionAccent) : t.textMuted,
+                    size: 28,
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: t.bg0.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(
+                        color: unlocked ? actionAccent : t.borderDim,
+                      ),
+                    ),
+                    child: Text(
+                      'SELL',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: unlocked ? actionAccent : t.textMuted,
+                        fontSize: 7,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // ── MARKET CLOSED DIALOG ───────────────────────────────────────────────────
 
   void _showMarketClosedDialog(
@@ -1870,6 +2065,7 @@ class _ShopScreenState extends State<ShopScreen> {
     final timeUntil = marketService.getTimeUntilOpen();
     final hoursUntil = timeUntil.inHours;
     final minutesUntil = timeUntil.inMinutes % 60;
+    final timerAccent = t.readableAccent(t.amberBright);
 
     showDialog(
       context: context,
@@ -1938,7 +2134,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       : '${minutesUntil}M',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: t.amberBright,
+                    color: timerAccent,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 4.0,

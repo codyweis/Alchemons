@@ -10,6 +10,7 @@ import 'package:alchemons/games/sprite_effects/sprite_elemental_aura_component.d
 import 'package:alchemons/games/sprite_effects/sprite_glow_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_intelligence_halo_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_prismatic_cascade_component.dart';
+import 'package:alchemons/games/sprite_effects/sprite_ritual_gold_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_speed_flux_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_strength_forge_component.dart';
 import 'package:alchemons/games/sprite_effects/sprite_void_rift_component.dart';
@@ -156,6 +157,9 @@ class CreatureBattleSpriteWithVisuals extends PositionComponent
         effectComponent = PrismaticCascadeComponent(
           baseSize: prismaticBase * 0.5,
         );
+        break;
+      case 'ritual_gold':
+        effectComponent = RitualGoldComponent(baseSize: effectBase * 0.92);
         break;
       case 'beauty_radiance':
         effectComponent = BeautyRadianceComponent(baseSize: effectBase);

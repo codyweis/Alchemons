@@ -1,6 +1,7 @@
 // lib/screens/field_screen.dart
 import 'dart:math' as math;
 import 'package:alchemons/screens/competition_hub_screen.dart';
+import 'package:alchemons/screens/extraction_hub_screen.dart';
 import 'package:alchemons/screens/harvest_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
 import 'package:alchemons/screens/harvest_screen.dart' show BiomeHarvestScreen;
@@ -63,7 +64,7 @@ class _FieldScreenState extends State<FieldScreen>
     } else {
       Navigator.of(context).push(
         CupertinoPageRoute(
-          builder: (_) => const BiomeHarvestScreen(),
+          builder: (_) => const ExtractionHubScreen(),
           fullscreenDialog: true,
         ),
       );
@@ -118,7 +119,9 @@ class _FieldScreenState extends State<FieldScreen>
                         title: 'Resource Harvesting',
                         subtitle: 'Gather field materials & samples',
                         icon: Icons.agriculture_rounded,
-                        color: Colors.greenAccent.shade400.withValues(alpha: 0.8),
+                        color: Colors.greenAccent.shade400.withValues(
+                          alpha: 0.8,
+                        ),
                         pillA: 'Open',
                         pillB: 'Extract',
                         onTap: _goHarvest,
@@ -128,7 +131,9 @@ class _FieldScreenState extends State<FieldScreen>
                         title: 'Competitions',
                         subtitle: 'Battle in elemental arenas',
                         icon: Icons.emoji_events_rounded,
-                        color: Colors.amberAccent.shade200.withValues(alpha: 0.9),
+                        color: Colors.amberAccent.shade200.withValues(
+                          alpha: 0.9,
+                        ),
                         pillA: 'Open',
                         pillB: 'Ranked',
                         onTap: _goCompetitions,
@@ -321,7 +326,9 @@ class _FieldActionCardState extends State<_FieldActionCard> {
                           _MiniPillClean(
                             text: widget.pillB,
                             color: theme.textMuted.withValues(alpha: 0.18),
-                            borderColor: theme.textMuted.withValues(alpha: 0.32),
+                            borderColor: theme.textMuted.withValues(
+                              alpha: 0.32,
+                            ),
                             textColor: theme.textMuted,
                           ),
                         ],

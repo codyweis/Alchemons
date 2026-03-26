@@ -18,7 +18,8 @@ import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/screens/shop/shop_widgets.dart';
+import 'package:alchemons/widgets/currency_display_widget.dart';
+import 'package:alchemons/widgets/element_resource_widget.dart';
 
 /// Helper to get images for inventory items from ShopService
 class InventoryImageHelper {
@@ -201,7 +202,6 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 
   Widget _buildHeader(FactionTheme theme) {
-    final db = context.read<AlchemonsDatabase>();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Column(
@@ -223,41 +223,34 @@ class _InventoryScreenState extends State<InventoryScreen>
             ],
           ),
           const SizedBox(height: 6),
-          // Currency summary row
-          StreamBuilder<Map<String, int>>(
-            stream: db.currencyDao.watchAllCurrencies(),
-            builder: (context, snap) {
-              final c = snap.data ?? {'gold': 0, 'silver': 0};
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.surface.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: theme.accentSoft.withValues(alpha: 0.3),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: theme.surface.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: theme.accentSoft.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Flexible(
+                  flex: 3,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: CurrencyDisplayWidget(accentColor: theme.accentSoft),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    CurrencyPill(
-                      icon: Icons.hexagon_rounded,
-                      color: const Color(0xFFFFD700),
-                      amount: c['gold'] ?? 0,
-                    ),
-                    Container(width: 1, height: 14, color: theme.border),
-                    CurrencyPill(
-                      icon: Icons.monetization_on_rounded,
-                      color: theme.textMuted,
-                      amount: c['silver'] ?? 0,
-                    ),
-                  ],
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 4,
+                  child: SizedBox(
+                    height: 58,
+                    child: ResourceCollectionWidget(theme: theme),
+                  ),
                 ),
-              );
-            },
+              ],
+            ),
           ),
         ],
       ),
@@ -1259,6 +1252,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       InvKeys.alchemyVolcanicAura => 'volcanic_aura',
       InvKeys.alchemyVoidRift => 'void_rift',
       InvKeys.alchemyPrismaticCascade => 'prismatic_cascade',
+      InvKeys.alchemyRitualGold => 'ritual_gold',
       InvKeys.alchemyBeautyRadiance => 'beauty_radiance',
       InvKeys.alchemySpeedFlux => 'speed_flux',
       InvKeys.alchemyStrengthForge => 'strength_forge',

@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
+import 'package:alchemons/widgets/nursery/cultivation_dialog_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -193,23 +195,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
       final payloadStr = slot.payloadJson;
       if (payloadStr == null || payloadStr.isEmpty) return null;
       final payload = jsonDecode(payloadStr) as Map<String, dynamic>;
-      final parentage = payload['parentage'] as Map<String, dynamic>?;
-      if (parentage == null) return null;
-
-      final parent1 = parentage['parentA'] as Map<String, dynamic>?;
-      final parent2 = parentage['parentB'] as Map<String, dynamic>?;
-
-      final types = <String>[];
-      final p1Types = parent1?['types'] as List<dynamic>?;
-      final p2Types = parent2?['types'] as List<dynamic>?;
-
-      if (p1Types != null && p1Types.isNotEmpty) {
-        types.add(p1Types.first.toString());
-      }
-      if (p2Types != null && p2Types.isNotEmpty) {
-        types.add(p2Types.first.toString());
-      }
-
+      final types = extractParticleTypeIdsFromPayload(payload);
       return types.isEmpty ? null : types;
     } catch (_) {
       return null;
@@ -221,6 +207,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
     final db = context.read<AlchemonsDatabase>();
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
+    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
 
     return AnimatedBuilder(
       animation: _introCtrl,
@@ -289,7 +276,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                               ),
                             )
                           else
-                            Container(color: theme.surface),
+                            Container(color: dialogSurface),
 
                           // Vignette
                           Container(
@@ -401,107 +388,114 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                     // ── INFO + ACTIONS PANEL ──────────────────────────────
                     Container(
                       decoration: BoxDecoration(
-                        color: t.bg1,
+                        color: dialogSurface,
                         border: Border(
                           left: BorderSide(color: t.borderMid, width: 1),
                           right: BorderSide(color: t.borderMid, width: 1),
                           bottom: BorderSide(color: t.borderMid, width: 1),
                         ),
                       ),
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Heading row
-                          Row(
-                            children: [
-                              Container(
-                                width: 3,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: rarityColor,
-                                  borderRadius: BorderRadius.circular(2),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: rarityColor.withValues(alpha: .5),
-                                      blurRadius: 8,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   children: [
-                                    Text(
-                                      'IN CULTIVATION',
-                                      style: TextStyle(
-                                        color: theme.text,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 1.4,
+                                    Container(
+                                      width: 3,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: rarityColor,
+                                        borderRadius: BorderRadius.circular(2),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: rarityColor.withValues(
+                                              alpha: .5,
+                                            ),
+                                            blurRadius: 8,
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    AnimatedBuilder(
-                                      animation: _progressCtrl,
-                                      builder: (context, _) {
-                                        Duration remaining;
-                                        if (hatchDelay != null) {
-                                          final v = _progressCtrl.value.clamp(
-                                            0.0,
-                                            1.0,
-                                          );
-                                          final leftMs =
-                                              ((1.0 - v) *
-                                                      hatchDelay.inMilliseconds)
-                                                  .clamp(
-                                                    0.0,
-                                                    hatchDelay.inMilliseconds
-                                                        .toDouble(),
-                                                  )
-                                                  .round();
-                                          remaining = Duration(
-                                            milliseconds: leftMs,
-                                          );
-                                        } else {
-                                          remaining = _remainingFor(_slot!);
-                                        }
-                                        return Text(
-                                          BreedConstants.formatRemaining(
-                                            remaining,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'IN CULTIVATION',
+                                            style: TextStyle(
+                                              color: theme.text,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 1.4,
+                                            ),
                                           ),
-                                          style: TextStyle(
-                                            color: rarityColor,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: .4,
+                                          const SizedBox(height: 2),
+                                          AnimatedBuilder(
+                                            animation: _progressCtrl,
+                                            builder: (context, _) {
+                                              Duration remaining;
+                                              if (hatchDelay != null) {
+                                                final v = _progressCtrl.value
+                                                    .clamp(0.0, 1.0);
+                                                final leftMs =
+                                                    ((1.0 - v) *
+                                                            hatchDelay
+                                                                .inMilliseconds)
+                                                        .clamp(
+                                                          0.0,
+                                                          hatchDelay
+                                                              .inMilliseconds
+                                                              .toDouble(),
+                                                        )
+                                                        .round();
+                                                remaining = Duration(
+                                                  milliseconds: leftMs,
+                                                );
+                                              } else {
+                                                remaining = _remainingFor(
+                                                  _slot!,
+                                                );
+                                              }
+                                              return Text(
+                                                BreedConstants.formatRemaining(
+                                                  remaining,
+                                                ),
+                                                style: TextStyle(
+                                                  color: rarityColor,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w900,
+                                                  letterSpacing: .4,
+                                                ),
+                                              );
+                                            },
                                           ),
-                                        );
-                                      },
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 18),
-                          Container(
-                            height: 1,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  rarityColor.withValues(alpha: .35),
-                                  Colors.transparent,
-                                ],
-                              ),
+                                const SizedBox(height: 18),
+                                Container(
+                                  height: 1,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        rarityColor.withValues(alpha: .35),
+                                        Colors.transparent,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 18),
-
-                          // Action buttons
                           FutureBuilder<int>(
                             future: context
                                 .read<AlchemonsDatabase>()
@@ -510,22 +504,27 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                             builder: (context, snap) {
                               final qty = snap.data ?? 0;
                               final canUseInstant = !isReady && qty > 0;
-                              return Column(
+                              return CultivationDialogActionArea(
+                                tokens: t,
                                 children: [
-                                  _SlotActionButton(
+                                  CultivationDialogButton(
+                                    tokens: t,
                                     label: 'ACCELERATE CULTIVATION',
                                     icon: Icons.speed_rounded,
-                                    accentColor: const Color(0xFFF97316),
-                                    filled: true,
+                                    accentColor: t.amberBright,
+                                    emphasis:
+                                        CultivationDialogButtonEmphasis.primary,
                                     onTap: widget.onAccelerate,
                                   ),
                                   if (canUseInstant) ...[
                                     const SizedBox(height: 10),
-                                    _SlotActionButton(
+                                    CultivationDialogButton(
+                                      tokens: t,
                                       label: 'USE INSTANT HATCH ×$qty',
                                       icon: Icons.flash_on_rounded,
-                                      accentColor: const Color(0xFF22C55E),
-                                      filled: true,
+                                      accentColor: t.success,
+                                      emphasis: CultivationDialogButtonEmphasis
+                                          .primary,
                                       onTap: widget.onInstantHatch,
                                     ),
                                   ],
@@ -533,21 +532,21 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                                   Row(
                                     children: [
                                       Expanded(
-                                        child: _SlotActionButton(
+                                        child: CultivationDialogButton(
+                                          tokens: t,
                                           label: 'STORE',
                                           icon: Icons.inventory_2_rounded,
-                                          accentColor: const Color(0xFF3B82F6),
-                                          filled: false,
+                                          accentColor: t.teal,
                                           onTap: widget.onReturn,
                                         ),
                                       ),
                                       const SizedBox(width: 10),
                                       Expanded(
-                                        child: _SlotActionButton(
+                                        child: CultivationDialogButton(
+                                          tokens: t,
                                           label: 'CLOSE',
                                           icon: Icons.close_rounded,
-                                          accentColor: theme.textMuted,
-                                          filled: false,
+                                          accentColor: t.textSecondary,
                                           onTap: widget.onClose,
                                         ),
                                       ),
@@ -603,98 +602,3 @@ class _InProgressPill extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ACTION BUTTON
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SlotActionButton extends StatelessWidget {
-  const _SlotActionButton({
-    required this.label,
-    required this.icon,
-    required this.accentColor,
-    required this.filled,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color accentColor;
-  final bool filled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(4);
-    final textColor = filled ? const Color(0xFFE8DCC8) : accentColor;
-    final iconColor = filled ? const Color(0xFFE8DCC8) : accentColor;
-
-    return Material(
-      color: Colors.transparent,
-      borderRadius: radius,
-      child: InkWell(
-        borderRadius: radius,
-        onTap: onTap,
-        splashColor: accentColor.withValues(alpha: .18),
-        highlightColor: accentColor.withValues(alpha: .08),
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            gradient: filled
-                ? LinearGradient(
-                    colors: [
-                      accentColor.withValues(alpha: .85),
-                      Color.lerp(accentColor, const Color(0xFF0E1117), .45)!,
-                    ],
-                  )
-                : null,
-            color: filled
-                ? null
-                : const Color(0xFF141820).withValues(alpha: .8),
-            border: Border.all(
-              color: filled
-                  ? accentColor.withValues(alpha: .45)
-                  : accentColor.withValues(alpha: .35),
-            ),
-            boxShadow: filled
-                ? [
-                    BoxShadow(
-                      color: accentColor.withValues(alpha: .2),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .28),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 15, color: iconColor),
-                const SizedBox(width: 7),
-                Flexible(
-                  child: Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: textColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.9,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

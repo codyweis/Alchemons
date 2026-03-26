@@ -88,6 +88,7 @@ class SceneGame extends FlameGame with ScaleDetector {
   final Map<String, PositionComponent> _spawnPointComps = {};
 
   final Map<String, WildMonComponent> _wildBySpawnId = {};
+  final Map<String, int> _wildRenderVersionBySpawnId = {};
   String? _currentEncounterSpawnId; // keep this to track which one is engaged
   _ShipBeaconComponent? _shipBeacon;
   String? _pendingShipSpawnId;
@@ -341,6 +342,9 @@ class SceneGame extends FlameGame with ScaleDetector {
     String speciesId,
     EncounterRarity rarity,
   ) async {
+    final renderVersion = (_wildRenderVersionBySpawnId[spawnId] ?? 0) + 1;
+    _wildRenderVersionBySpawnId[spawnId] = renderVersion;
+
     final sp = scene.spawnPoints.firstWhere(
       (s) => s.id == spawnId,
       orElse: () => throw 'Unknown spawnId $spawnId',
@@ -356,6 +360,9 @@ class SceneGame extends FlameGame with ScaleDetector {
     Creature? hydrated;
     if (wildVisualResolver != null) {
       hydrated = await wildVisualResolver!(speciesId, rarity);
+    }
+    if (_wildRenderVersionBySpawnId[spawnId] != renderVersion) {
+      return;
     }
     if (hydrated == null) {
       debugPrint(
@@ -383,11 +390,17 @@ class SceneGame extends FlameGame with ScaleDetector {
           ..anchor = Anchor.center
           ..position = Vector2.zero();
 
+    if (_wildRenderVersionBySpawnId[spawnId] != renderVersion) {
+      return;
+    }
+
     anchor.add(comp);
     _wildBySpawnId[spawnId] = comp;
   }
 
   void clearWildAt(String spawnId) {
+    _wildRenderVersionBySpawnId[spawnId] =
+        (_wildRenderVersionBySpawnId[spawnId] ?? 0) + 1;
     _wildBySpawnId.remove(spawnId)?.removeFromParent();
   }
 

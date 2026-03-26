@@ -101,6 +101,72 @@ void _drawPrismaticCascadeCanvas(
   }
 }
 
+void _drawRitualGoldCanvas(
+  Canvas canvas,
+  double radius,
+  double elapsed,
+  double opacity,
+) {
+  final orbit = elapsed * (2 * pi / 5.6);
+  final pulse = 0.94 + 0.10 * sin(elapsed * 3.2);
+
+  canvas.drawCircle(
+    Offset.zero,
+    radius * 1.34 * pulse,
+    Paint()
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFFFFE4A3).withValues(alpha: 0.22 * opacity),
+              const Color(0xFFC99B2E).withValues(alpha: 0.14 * opacity),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.56, 1.0],
+          ).createShader(
+            Rect.fromCircle(center: Offset.zero, radius: radius * 1.34),
+          ),
+  );
+
+  for (final factor in [1.02, 0.76]) {
+    canvas.drawCircle(
+      Offset.zero,
+      radius * factor,
+      Paint()
+        ..color = const Color(0xFFE9C76B).withValues(alpha: 0.42 * opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius * (factor > 0.9 ? 0.08 : 0.05)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.04),
+    );
+  }
+
+  void drawRuneRing(double ringRadius, double rotation, int count) {
+    for (var i = 0; i < count; i++) {
+      final angle = rotation + (i / count) * pi * 2;
+      final p = Offset(cos(angle) * ringRadius, sin(angle) * ringRadius);
+      canvas.save();
+      canvas.translate(p.dx, p.dy);
+      canvas.rotate(angle + pi * 0.5);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset.zero,
+            width: radius * 0.08,
+            height: radius * 0.20,
+          ),
+          Radius.circular(radius * 0.025),
+        ),
+        Paint()
+          ..color = const Color(0xFFF5D989).withValues(alpha: 0.34 * opacity)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.018),
+      );
+      canvas.restore();
+    }
+  }
+
+  drawRuneRing(radius * 0.92, orbit, 14);
+  drawRuneRing(radius * 0.62, -orbit * 0.84, 10);
+}
+
 double _cosmicEffectRadius({
   required double spriteScale,
   required double baseSpriteSize,
@@ -682,6 +748,9 @@ void _drawAlchemyEffectCanvas({
         elapsed,
         opacity,
       );
+      break;
+    case 'ritual_gold':
+      _drawRitualGoldCanvas(canvas, effectRadius, elapsed, opacity);
       break;
     case 'beauty_radiance':
       _drawBeautyRadianceCanvas(canvas, effectRadius, elapsed, opacity);

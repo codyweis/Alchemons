@@ -48,6 +48,7 @@ const Map<ConstellationTree, List<String>> kTreeStoryFragments = {
     'The arena stayed silent, but the sky learned your name.',
   ],
   ConstellationTree.extraction: [
+    'In the hush before barter,',
     'The first heartbeat',
     'or waking breath,',
     'the moment marking',
@@ -63,7 +64,8 @@ const Map<ConstellationTree, List<String>> kTreeStoryFragments = {
 
 class ConstellationGame extends FlameGame with ScaleDetector {
   ConstellationTree selectedTree;
-  final Set<String> unlockedSkills;
+  Set<String> _unlockedSkills;
+  Set<ConstellationTree> _visibleTrees;
   final Function(ConstellationSkill) onSkillTapped;
   final Color primaryColor;
   final Color secondaryColor;
@@ -82,6 +84,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   static const double _maxScale = 2.0;
 
   bool _isTransitioning = false;
+  ConstellationTree? _queuedTree;
   Vector2? _lastFocalPoint;
 
   bool _finaleTriggered = false;
@@ -97,11 +100,13 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
   ConstellationGame({
     required this.selectedTree,
-    required this.unlockedSkills,
+    required Set<String> unlockedSkills,
+    required Set<ConstellationTree> visibleTrees,
     required this.onSkillTapped,
     required this.primaryColor,
     required this.secondaryColor,
-  });
+  }) : _unlockedSkills = Set<String>.from(unlockedSkills),
+       _visibleTrees = Set<ConstellationTree>.from(visibleTrees);
 
   @override
   Future<void> onLoad() async {
@@ -187,14 +192,16 @@ class ConstellationGame extends FlameGame with ScaleDetector {
         final x = startX + (i * horizontalSpacing);
         final y = baseY - (tier * verticalSpacing);
 
-        final isUnlocked = unlockedSkills.contains(skill.id);
-        final canUnlock = skill.canUnlock(unlockedSkills) && !isUnlocked;
+        final isUnlocked = _unlockedSkills.contains(skill.id);
+        final canUnlock = skill.canUnlock(_unlockedSkills) && !isUnlocked;
 
         final node = SkillNode(
+          tree: tree,
           skill: skill,
           position: treeOffset + Vector2(x, y),
           isUnlocked: isUnlocked,
           canUnlock: canUnlock,
+          isTreeVisible: _visibleTrees.contains(tree),
           primaryColor: primaryColor,
           secondaryColor: secondaryColor,
           onTap: () => onSkillTapped(skill),
@@ -212,15 +219,17 @@ class ConstellationGame extends FlameGame with ScaleDetector {
         final toNode = tempNodes[skill.id];
 
         if (fromNode != null && toNode != null) {
-          final isUnlocked = unlockedSkills.contains(skill.id);
-          final canUnlock = skill.canUnlock(unlockedSkills) && !isUnlocked;
+          final isUnlocked = _unlockedSkills.contains(skill.id);
+          final canUnlock = skill.canUnlock(_unlockedSkills) && !isUnlocked;
 
           final connectionKey = '${prereqId}_${skill.id}';
           final connection = ConnectionLine(
+            tree: tree,
             from: fromNode,
             to: toNode,
             isActive: isUnlocked,
             canActivate: canUnlock,
+            isTreeVisible: _visibleTrees.contains(tree),
             primaryColor: primaryColor,
             connectionIndex: connectionIndex,
             storyText: _storyFragmentForConnection(tree, connectionIndex),
@@ -274,14 +283,16 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       );
       final worldPos = treeOffset + localPos;
 
-      final isUnlocked = unlockedSkills.contains(skill.id);
-      final canUnlock = skill.canUnlock(unlockedSkills) && !isUnlocked;
+      final isUnlocked = _unlockedSkills.contains(skill.id);
+      final canUnlock = skill.canUnlock(_unlockedSkills) && !isUnlocked;
 
       final node = SkillNode(
+        tree: ConstellationTree.combat,
         skill: skill,
         position: worldPos,
         isUnlocked: isUnlocked,
         canUnlock: canUnlock,
+        isTreeVisible: _visibleTrees.contains(ConstellationTree.combat),
         primaryColor: primaryColor,
         secondaryColor: secondaryColor,
         onTap: () => onSkillTapped(skill),
@@ -298,15 +309,17 @@ class ConstellationGame extends FlameGame with ScaleDetector {
         final toNode = tempNodes[skill.id];
 
         if (fromNode != null && toNode != null) {
-          final isUnlocked = unlockedSkills.contains(skill.id);
-          final canUnlock = skill.canUnlock(unlockedSkills) && !isUnlocked;
+          final isUnlocked = _unlockedSkills.contains(skill.id);
+          final canUnlock = skill.canUnlock(_unlockedSkills) && !isUnlocked;
 
           final connectionKey = '${prereqId}_${skill.id}';
           final connection = ConnectionLine(
+            tree: ConstellationTree.combat,
             from: fromNode,
             to: toNode,
             isActive: isUnlocked,
             canActivate: canUnlock,
+            isTreeVisible: _visibleTrees.contains(ConstellationTree.combat),
             primaryColor: primaryColor,
             connectionIndex: connectionIndex,
             storyText: _storyFragmentForConnection(
@@ -329,9 +342,15 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   }
 
   Future<void> transitionToTree(ConstellationTree tree) async {
-    if (_isTransitioning || tree == selectedTree) return;
+    if (!_visibleTrees.contains(tree)) return;
+    if (_isTransitioning) {
+      _queuedTree = tree;
+      return;
+    }
+    if (tree == selectedTree) return;
 
     _isTransitioning = true;
+    _queuedTree = null;
     selectedTree = tree;
 
     final targetPosition = _treePositions[tree]!;
@@ -345,6 +364,12 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     await Future.delayed(const Duration(milliseconds: 800));
     _isTransitioning = false;
+
+    final queuedTree = _queuedTree;
+    _queuedTree = null;
+    if (queuedTree != null && queuedTree != selectedTree) {
+      await transitionToTree(queuedTree);
+    }
   }
 
   @override
@@ -385,7 +410,9 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   }
 
   void updateUnlockedSkills(Set<String> newUnlockedSkills) {
-    final newlyUnlocked = newUnlockedSkills.difference(unlockedSkills);
+    final priorUnlockedSkills = _unlockedSkills;
+    final newlyUnlocked = newUnlockedSkills.difference(priorUnlockedSkills);
+    _unlockedSkills = Set<String>.from(newUnlockedSkills);
 
     for (final entry in _nodes.entries) {
       final node = entry.value;
@@ -409,6 +436,30 @@ class ConstellationGame extends FlameGame with ScaleDetector {
         }
       }
     }
+  }
+
+  void setVisibleTrees(Set<ConstellationTree> trees) {
+    _visibleTrees = Set<ConstellationTree>.from(trees);
+
+    for (final node in _nodes.values) {
+      node.setTreeVisible(_visibleTrees.contains(node.tree));
+    }
+
+    for (final connection in _connections.values) {
+      connection.setTreeVisible(_visibleTrees.contains(connection.tree));
+    }
+
+    if (!_visibleTrees.contains(selectedTree)) {
+      selectedTree = ConstellationTree.breeder;
+      camera.viewfinder.position = _treePositions[selectedTree]!;
+    }
+  }
+
+  Future<void> playTreeRevealSequence(ConstellationTree tree) async {
+    if (!_visibleTrees.contains(tree)) return;
+    _startScreenShake(intensity: 8.0, duration: 0.85);
+    await Future.delayed(const Duration(milliseconds: 850));
+    await transitionToTree(tree);
   }
 
   Future<void> triggerFinale() async {
@@ -567,6 +618,7 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
 /// Individual skill node with improved particle system
 class SkillNode extends PositionComponent with TapCallbacks {
+  final ConstellationTree tree;
   final ConstellationSkill skill;
   final Color primaryColor;
   final Color secondaryColor;
@@ -575,6 +627,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
   bool isUnlocked;
   bool canUnlock;
+  bool isTreeVisible;
 
   late CircleComponent _outerRing;
   late CircleComponent _innerCore;
@@ -588,10 +641,12 @@ class SkillNode extends PositionComponent with TapCallbacks {
   double _pulseTime = 0.0;
 
   SkillNode({
+    required this.tree,
     required this.skill,
     required Vector2 position,
     required this.isUnlocked,
     required this.canUnlock,
+    required this.isTreeVisible,
     required this.primaryColor,
     required this.secondaryColor,
     required this.onTap,
@@ -662,6 +717,8 @@ class SkillNode extends PositionComponent with TapCallbacks {
   void update(double dt) {
     super.update(dt);
 
+    if (!isTreeVisible) return;
+
     // Update pulse animation
     if (canUnlock) {
       _pulseTime += dt;
@@ -677,6 +734,7 @@ class SkillNode extends PositionComponent with TapCallbacks {
 
   @override
   void render(Canvas canvas) {
+    if (!isTreeVisible) return;
     super.render(canvas);
 
     final center = size / 2;
@@ -859,8 +917,13 @@ class SkillNode extends PositionComponent with TapCallbacks {
     }
   }
 
+  void setTreeVisible(bool visible) {
+    isTreeVisible = visible;
+  }
+
   @override
   void onTapUp(TapUpEvent event) {
+    if (!isTreeVisible) return;
     onTap();
   }
 }
@@ -908,10 +971,12 @@ class _NodeParticle {
 
 /// Connection line with smoother animations
 class ConnectionLine extends Component {
+  final ConstellationTree tree;
   final SkillNode from;
   final SkillNode to;
   bool isActive;
   bool canActivate;
+  bool isTreeVisible;
   final Color primaryColor;
   final int connectionIndex;
   final String? storyText;
@@ -951,10 +1016,12 @@ class ConnectionLine extends Component {
   final Paint _storyBorderPaint = Paint()..style = PaintingStyle.stroke;
 
   ConnectionLine({
+    required this.tree,
     required this.from,
     required this.to,
     required this.isActive,
     required this.canActivate,
+    required this.isTreeVisible,
     required this.primaryColor,
     required this.connectionIndex,
     this.storyText,
@@ -1018,6 +1085,8 @@ class ConnectionLine extends Component {
   void update(double dt) {
     super.update(dt);
 
+    if (!isTreeVisible) return;
+
     if (!_isAnimating) return;
 
     final frameDt = math.min(dt, 1 / 30);
@@ -1067,6 +1136,7 @@ class ConnectionLine extends Component {
 
   @override
   void render(Canvas canvas) {
+    if (!isTreeVisible) return;
     final fromPos = from.position;
     final toPos = to.position;
 
@@ -1143,8 +1213,8 @@ class ConnectionLine extends Component {
       140.0,
     );
 
-    final baseDistance = (lineLength * 0.42).clamp(130.0, 230.0);
-    final safeDistance = baseDistance + (textHeight * 0.35);
+    final baseDistance = (lineLength * 0.46).clamp(150.0, 270.0);
+    final safeDistance = baseDistance + (textHeight * 0.5);
 
     final rightCandidate = midPoint + perpendicular * safeDistance;
     final leftCandidate = midPoint - perpendicular * safeDistance;
@@ -1159,8 +1229,8 @@ class ConnectionLine extends Component {
       sideSign = connectionIndex.isEven ? 1.0 : -1.0;
     }
 
-    final lane = (connectionIndex % 3) - 1;
-    final alongOffset = direction * (lane * 22.0);
+    final lane = (connectionIndex % 5) - 2;
+    final alongOffset = direction * (lane * 32.0);
     final storyPos =
         midPoint +
         perpendicular * (safeDistance * sideSign) +
@@ -1204,6 +1274,10 @@ class ConnectionLine extends Component {
       storyPos,
       anchor: Anchor.center,
     );
+  }
+
+  void setTreeVisible(bool visible) {
+    isTreeVisible = visible;
   }
 }
 

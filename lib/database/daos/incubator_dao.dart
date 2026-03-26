@@ -2,6 +2,7 @@
 import 'package:drift/drift.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/schema_tables.dart';
+import 'package:alchemons/services/cold_storage_service.dart';
 
 part 'incubator_dao.g.dart';
 
@@ -116,7 +117,19 @@ class IncubatorDao extends DatabaseAccessor<AlchemonsDatabase>
   // =================== EGG INVENTORY ===================
 
   Stream<List<Egg>> watchInventory() =>
-      (select(eggs)..orderBy([(t) => OrderingTerm.asc(t.rarity)])).watch();
+      (select(eggs)..orderBy([(t) => OrderingTerm.asc(t.rarity)])).watch().map((
+        rows,
+      ) {
+        final nowUtc = DateTime.now().toUtc();
+        return rows
+            .map(
+              (egg) => ColdStorageService.normalizeEggForDisplay(
+                egg,
+                nowUtc: nowUtc,
+              ),
+            )
+            .toList();
+      });
 
   /// place in storage
   Future<void> enqueueEgg({
@@ -127,6 +140,10 @@ class IncubatorDao extends DatabaseAccessor<AlchemonsDatabase>
     required Duration remaining,
     String? payloadJson,
   }) async {
+    final normalizedPayloadJson = ColdStorageService.ensureColdStoragePayload(
+      payloadJson,
+      activeRemaining: remaining.isNegative ? Duration.zero : remaining,
+    );
     await into(eggs).insertOnConflictUpdate(
       EggsCompanion(
         eggId: Value(eggId),
@@ -134,7 +151,7 @@ class IncubatorDao extends DatabaseAccessor<AlchemonsDatabase>
         bonusVariantId: Value(bonusVariantId),
         rarity: Value(rarity),
         remainingMs: Value(remaining.inMilliseconds),
-        payloadJson: Value(payloadJson),
+        payloadJson: Value(normalizedPayloadJson),
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
 
 class FeaturedCreaturePresentation extends StatelessWidget {
@@ -105,7 +106,7 @@ class FeaturedHeroInteractive extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return FastLongPressDetector(
       onTap: onTapDetails,
       onLongPress: onLongPressChoose,
       child: Container(

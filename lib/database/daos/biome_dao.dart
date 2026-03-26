@@ -78,6 +78,52 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
     );
   }
 
+  Future<void> syncHarvestNotifications() async {
+    final nextNotification = await _nextPendingHarvestNotification();
+    if (nextNotification == null) {
+      await _pushNotifications.cancelHarvestScheduledNotification();
+      return;
+    }
+
+    await _pushNotifications.scheduleHarvestReadyNotification(
+      readyTime: nextNotification.readyTime,
+      biomeId: nextNotification.biomeId,
+    );
+  }
+
+  Future<({String biomeId, DateTime readyTime})?>
+  _nextPendingHarvestNotification() async {
+    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+    ({String biomeId, int endUtcMs})? earliestPending;
+
+    for (final biome in Biome.values) {
+      final farm = await getBiomeByBiomeId(biome.id);
+      if (farm == null || !farm.unlocked) continue;
+
+      final job = await getActiveJobForBiome(farm.id);
+      if (job == null) continue;
+
+      final endUtcMs = job.startUtcMs + job.durationMs;
+      if (endUtcMs <= nowMs) {
+        return null;
+      }
+
+      if (earliestPending == null || endUtcMs < earliestPending.endUtcMs) {
+        earliestPending = (biomeId: biome.id, endUtcMs: endUtcMs);
+      }
+    }
+
+    if (earliestPending == null) return null;
+
+    return (
+      biomeId: earliestPending.biomeId,
+      readyTime: DateTime.fromMillisecondsSinceEpoch(
+        earliestPending.endUtcMs,
+        isUtc: true,
+      ).toLocal(),
+    );
+  }
+
   Future<bool> startBiomeJob({
     required String biomeId,
     required String jobId,
@@ -120,21 +166,10 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
       ),
     );
 
-    final completionTime = startTime
-        .add(duration)
-        .toLocal(); // <-- Add .toLocal()
-
-    await _pushNotifications.scheduleHarvestReadyNotification(
-      readyTime: completionTime,
-      biomeId: biomeId,
-    );
+    await syncHarvestNotifications();
 
     return true;
   }
-
-  // Track last notification schedule time per biome to debounce
-  static final Map<String, DateTime> _lastNotificationSchedule = {};
-  static const Duration _notificationDebounceThreshold = Duration(seconds: 5);
 
   Future<bool> nudgeBiomeJob(String biomeId, int deltaMs) async {
     final farm = await getBiomeByBiomeId(biomeId);
@@ -157,26 +192,7 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
       BiomeJobsCompanion(startUtcMs: Value(newStart)),
     );
 
-    // Only reschedule notification if enough time has passed since last schedule
-    // This prevents excessive rescheduling during rapid tapping
-    final now = DateTime.now();
-    final lastSchedule = _lastNotificationSchedule[biomeId];
-    final shouldReschedule =
-        lastSchedule == null ||
-        now.difference(lastSchedule) > _notificationDebounceThreshold;
-
-    if (shouldReschedule) {
-      final newCompletionTime = DateTime.fromMillisecondsSinceEpoch(
-        newStart + job.durationMs,
-        isUtc: true,
-      ).toLocal();
-
-      await _pushNotifications.scheduleHarvestReadyNotification(
-        readyTime: newCompletionTime,
-        biomeId: biomeId,
-      );
-      _lastNotificationSchedule[biomeId] = now;
-    }
+    await syncHarvestNotifications();
 
     return true;
   }
@@ -203,11 +219,7 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
     await db.currencyDao.addResource(resKey, payout);
     await (delete(biomeJobs)..where((t) => t.jobId.equals(job.jobId))).go();
 
-    // Cancel the notification since harvest was collected
-    await _pushNotifications.cancelHarvestNotification(biomeId: biomeId);
-
-    // Clear debounce cache
-    _lastNotificationSchedule.remove(biomeId);
+    await syncHarvestNotifications();
 
     return payout;
   }
@@ -221,10 +233,6 @@ class BiomeDao extends DatabaseAccessor<AlchemonsDatabase>
 
     await (delete(biomeJobs)..where((t) => t.jobId.equals(job.jobId))).go();
 
-    // Cancel the notification
-    await _pushNotifications.cancelHarvestNotification(biomeId: biomeId);
-
-    // Clear debounce cache
-    _lastNotificationSchedule.remove(biomeId);
+    await syncHarvestNotifications();
   }
 }

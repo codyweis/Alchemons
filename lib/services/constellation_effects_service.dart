@@ -201,6 +201,11 @@ class ConstellationEffectsService extends ChangeNotifier {
     return _unlockedSkillIds.contains('extraction_resource_alchemy');
   }
 
+  /// Check if Alchemons can be sold from the Research Shop exchange.
+  bool canSellAlchemonsInShop() {
+    return _unlockedSkillIds.contains('extraction_alchemon_exchange');
+  }
+
   /// Get shop price reduction (percentage)
   double getShopPriceReduction() {
     return _unlockedSkillIds.contains('extraction_marketplace_insight')

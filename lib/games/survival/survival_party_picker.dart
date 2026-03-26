@@ -10,6 +10,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
@@ -180,6 +181,7 @@ class _SurvivalFormationSelectorScreenState
   String? _filterTint;
   String? _filterVariant;
   String? _filterNature;
+  InstancePurityFilter _filterPurity = InstancePurityFilter.all;
 
   final List<String> _selectedCreatures = [];
 
@@ -815,6 +817,10 @@ class _SurvivalFormationSelectorScreenState
           _ => null,
         };
       }),
+      purityFilter: _filterPurity,
+      onCyclePurity: () => setState(() {
+        _filterPurity = _filterPurity.next();
+      }),
       filterNature: _filterNature,
       onPickNature: (nature) => setState(() => _filterNature = nature),
       natureOptions: const {
@@ -830,6 +836,7 @@ class _SurvivalFormationSelectorScreenState
         _filterSize = null;
         _filterTint = null;
         _filterVariant = null;
+        _filterPurity = InstancePurityFilter.all;
         _filterNature = null;
       }),
     );
@@ -956,9 +963,9 @@ class _SurvivalFormationSelectorScreenState
     List<CreatureInstance> instances,
   ) {
     var filtered = instances;
+    final repo = context.read<CreatureCatalog>();
 
     if (_searchQuery.isNotEmpty) {
-      final repo = context.read<CreatureCatalog>();
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((instance) {
         final species = repo.getCreatureById(instance.baseId);
@@ -993,6 +1000,12 @@ class _SurvivalFormationSelectorScreenState
     if (_filterNature != null) {
       filtered = filtered.where((i) => i.natureId == _filterNature).toList();
     }
+    if (_filterPurity != InstancePurityFilter.all) {
+      filtered = filtered.where((i) {
+        final species = repo.getCreatureById(i.baseId);
+        return matchesPurityFilter(i, filter: _filterPurity, species: species);
+      }).toList();
+    }
 
     filtered.sort((a, b) {
       switch (_sortBy) {
@@ -1012,6 +1025,16 @@ class _SurvivalFormationSelectorScreenState
           return b.statStrength.compareTo(a.statStrength);
         case SortBy.statBeauty:
           return b.statBeauty.compareTo(a.statBeauty);
+        case SortBy.potentialSpeed:
+          return b.statSpeedPotential.compareTo(a.statSpeedPotential);
+        case SortBy.potentialIntelligence:
+          return b.statIntelligencePotential.compareTo(
+            a.statIntelligencePotential,
+          );
+        case SortBy.potentialStrength:
+          return b.statStrengthPotential.compareTo(a.statStrengthPotential);
+        case SortBy.potentialBeauty:
+          return b.statBeautyPotential.compareTo(a.statBeautyPotential);
       }
     });
 

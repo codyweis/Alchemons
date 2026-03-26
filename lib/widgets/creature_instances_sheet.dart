@@ -24,6 +24,7 @@ import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/harvest_rate.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 
@@ -67,7 +68,7 @@ class InstancesSheet extends StatefulWidget {
     required this.onTap,
     this.selectedInstanceIds = const [],
     this.selectionMode = false,
-    this.initialDetailMode = InstanceDetailMode.info,
+    this.initialDetailMode = InstanceDetailMode.stats,
     this.harvestDuration,
     this.busyInstanceIds,
     this.requireStamina = false,
@@ -92,6 +93,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
   bool _filterPrismatic = false;
   bool _filterFavorites = false;
   String? _filterVariant;
+  InstancePurityFilter _filterPurity = InstancePurityFilter.all;
 
   late final List<String> _sizeCycle = sizeLabels.keys.toList(growable: false);
   late final List<String> _tintCycle = tintLabels.keys.toList(growable: false);
@@ -132,6 +134,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
     'filterNature': _filterNature,
     'filterPrismatic': _filterPrismatic,
     'filterVariant': _filterVariant,
+    'filterPurity': _filterPurity.name,
     'detailMode': _detailMode.name,
   };
 
@@ -147,10 +150,17 @@ class _InstancesSheetState extends State<InstancesSheet> {
     _filterNature = p['filterNature'];
     _filterPrismatic = p['filterPrismatic'] ?? _filterPrismatic;
     _filterVariant = p['filterVariant'];
+    _filterPurity = InstancePurityFilter.values.firstWhere(
+      (e) => e.name == (p['filterPurity'] ?? _filterPurity.name),
+      orElse: () => InstancePurityFilter.all,
+    );
     _detailMode = InstanceDetailMode.values.firstWhere(
       (e) => e.name == (p['detailMode'] ?? _detailMode.name),
-      orElse: () => widget.initialDetailMode,
+      orElse: () => InstanceDetailMode.stats,
     );
+    if (_detailMode == InstanceDetailMode.info) {
+      _detailMode = InstanceDetailMode.stats;
+    }
   }
 
   void _queueSave() {
@@ -254,6 +264,13 @@ class _InstancesSheetState extends State<InstancesSheet> {
               if (_filterPrismatic && inst.isPrismaticSkin != true) {
                 return false;
               }
+              if (!matchesPurityFilter(
+                inst,
+                filter: _filterPurity,
+                species: widget.species,
+              )) {
+                return false;
+              }
               final hasVariant = inst.variantFaction?.isNotEmpty == true;
               if (_filterVariant == '__NON__') {
                 if (hasVariant) return false;
@@ -302,6 +319,28 @@ class _InstancesSheetState extends State<InstancesSheet> {
                 visible.sort(
                   (a, b) => b.statIntelligence.compareTo(a.statIntelligence),
                 );
+              case SortBy.potentialSpeed:
+                visible.sort(
+                  (a, b) =>
+                      b.statSpeedPotential.compareTo(a.statSpeedPotential),
+                );
+              case SortBy.potentialIntelligence:
+                visible.sort(
+                  (a, b) => b.statIntelligencePotential.compareTo(
+                    a.statIntelligencePotential,
+                  ),
+                );
+              case SortBy.potentialStrength:
+                visible.sort(
+                  (a, b) => b.statStrengthPotential.compareTo(
+                    a.statStrengthPotential,
+                  ),
+                );
+              case SortBy.potentialBeauty:
+                visible.sort(
+                  (a, b) =>
+                      b.statBeautyPotential.compareTo(a.statBeautyPotential),
+                );
             }
 
             final hasFiltersActive = _isHarvestMode
@@ -311,6 +350,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       _sortBy != SortBy.newest
                 : _filterPrismatic ||
                       _filterFavorites ||
+                      _filterPurity != InstancePurityFilter.all ||
                       _filterVariant != null ||
                       _filterSize != null ||
                       _filterTint != null ||
@@ -360,6 +400,9 @@ class _InstancesSheetState extends State<InstancesSheet> {
                         () =>
                             _filterVariant = _cycleNextVariant(_filterVariant),
                       ),
+                      purityFilter: _filterPurity,
+                      onCyclePurity: () =>
+                          _mutate(() => _filterPurity = _filterPurity.next()),
                       filterNature: _filterNature,
                       onPickNature: (val) => _mutate(() => _filterNature = val),
                       natureOptions: _buildNatureOptions(),
@@ -369,6 +412,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                       onClearAll: () => _mutate(() {
                         _filterPrismatic = false;
                         _filterFavorites = false;
+                        _filterPurity = InstancePurityFilter.all;
                         _filterVariant = null;
                         _filterSize = null;
                         _filterTint = null;
@@ -420,6 +464,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
                               instance: inst,
                               theme: widget.theme,
                               detailMode: _detailMode,
+                              activeSortBy: _sortBy,
                               isSelected: isSelected,
                               selectionNumber: selectionNumber,
                               harvestDuration: widget.harvestDuration,
@@ -546,23 +591,23 @@ class _InstancesSheetState extends State<InstancesSheet> {
 
   Widget _buildDetailModeToggle() {
     final label = switch (_detailMode) {
-      InstanceDetailMode.info => 'INFO',
       InstanceDetailMode.stats => 'STATS',
       InstanceDetailMode.genetics => 'GENES',
+      InstanceDetailMode.info => 'STATS',
     };
     // Each mode gets a distinct accent so it's not just a text change
     final color = switch (_detailMode) {
-      InstanceDetailMode.info => t.textSecondary,
       InstanceDetailMode.stats => t.amberBright,
       InstanceDetailMode.genetics => const Color(0xFF34D399), // teal-green
+      InstanceDetailMode.info => t.amberBright,
     };
 
     return GestureDetector(
       onTap: () => _mutate(() {
         _detailMode = switch (_detailMode) {
-          InstanceDetailMode.info => InstanceDetailMode.stats,
           InstanceDetailMode.stats => InstanceDetailMode.genetics,
-          InstanceDetailMode.genetics => InstanceDetailMode.info,
+          InstanceDetailMode.genetics => InstanceDetailMode.stats,
+          InstanceDetailMode.info => InstanceDetailMode.genetics,
         };
       }),
       child: AnimatedContainer(
@@ -572,11 +617,7 @@ class _InstancesSheetState extends State<InstancesSheet> {
         decoration: BoxDecoration(
           color: t.bg3,
           borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: _detailMode == InstanceDetailMode.info
-                ? t.borderDim
-                : color.withValues(alpha: 0.5),
-          ),
+          border: Border.all(color: color.withValues(alpha: 0.5)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

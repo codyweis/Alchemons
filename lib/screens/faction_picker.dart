@@ -307,6 +307,10 @@ class _FactionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.watch<FactionTheme>());
+    final accentTextColor = t.readableAccent(data.primaryColor);
+    final bodyTextColor = t.isDark
+        ? t.textSecondary
+        : t.textPrimary.withValues(alpha: 0.82);
 
     return Stack(
       children: [
@@ -353,7 +357,7 @@ class _FactionCard extends StatelessWidget {
                     fontFamily: 'monospace',
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
-                    color: data.primaryColor,
+                    color: accentTextColor,
                     letterSpacing: 1.6,
                   ),
                   textAlign: TextAlign.center,
@@ -391,7 +395,7 @@ class _FactionCard extends StatelessWidget {
                           data.description,
                           style: TextStyle(
                             fontSize: 12,
-                            color: t.textSecondary,
+                            color: bodyTextColor,
                             height: 1.45,
                           ),
                           textAlign: TextAlign.center,
@@ -478,6 +482,8 @@ class _PerksSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accentTextColor = tokens.readableAccent(color);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -493,7 +499,7 @@ class _PerksSection extends StatelessWidget {
                 fontFamily: 'monospace',
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
-                color: color.withValues(alpha: 0.95),
+                color: accentTextColor,
                 letterSpacing: 1.8,
               ),
             ),
@@ -535,6 +541,11 @@ class _PerkCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accentTextColor = tokens.readableAccent(color);
+    final bodyTextColor = tokens.isDark
+        ? tokens.textSecondary
+        : tokens.textPrimary.withValues(alpha: 0.82);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Column(
@@ -576,7 +587,7 @@ class _PerkCard extends StatelessWidget {
                     fontFamily: 'monospace',
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: color,
+                    color: accentTextColor,
                     letterSpacing: 1.0,
                   ),
                 ),
@@ -592,7 +603,7 @@ class _PerkCard extends StatelessWidget {
               perk.description,
               style: TextStyle(
                 fontSize: 11,
-                color: tokens.textSecondary,
+                color: bodyTextColor,
                 height: 1.4,
               ),
             ),
@@ -696,6 +707,8 @@ class _ConfirmButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accentTextColor = tokens.readableAccent(color);
+
     return GestureDetector(
       onTap: onPressed,
       child: Container(
@@ -723,14 +736,14 @@ class _ConfirmButton extends StatelessWidget {
                 fontFamily: 'monospace',
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: color,
+                color: accentTextColor,
                 letterSpacing: 1.8,
               ),
             ),
             const SizedBox(width: 8),
             Icon(
               Icons.arrow_forward_rounded,
-              color: tokens.amberBright,
+              color: accentTextColor,
               size: 18,
             ),
           ],

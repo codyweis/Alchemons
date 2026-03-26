@@ -8,6 +8,7 @@ import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 
 class ChamberPickerOverlay extends StatefulWidget {
   const ChamberPickerOverlay({
@@ -41,6 +42,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
   String? _filterTint;
   String? _filterVariant;
   String? _filterNature;
+  InstancePurityFilter _filterPurity = InstancePurityFilter.all;
 
   @override
   void initState() {
@@ -69,8 +71,8 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
     List<CreatureInstance> instances,
   ) {
     var filtered = instances;
+    final catalog = context.read<CreatureCatalog>();
     if (_searchQuery.isNotEmpty) {
-      final catalog = context.read<CreatureCatalog>();
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((instance) {
         final species = catalog.getCreatureById(instance.baseId);
@@ -104,6 +106,12 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
     if (_filterNature != null) {
       filtered = filtered.where((i) => i.natureId == _filterNature).toList();
     }
+    if (_filterPurity != InstancePurityFilter.all) {
+      filtered = filtered.where((i) {
+        final species = catalog.getCreatureById(i.baseId);
+        return matchesPurityFilter(i, filter: _filterPurity, species: species);
+      }).toList();
+    }
     filtered.sort((a, b) {
       switch (_sortBy) {
         case SortBy.newest:
@@ -122,6 +130,16 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
           return b.statStrength.compareTo(a.statStrength);
         case SortBy.statBeauty:
           return b.statBeauty.compareTo(a.statBeauty);
+        case SortBy.potentialSpeed:
+          return b.statSpeedPotential.compareTo(a.statSpeedPotential);
+        case SortBy.potentialIntelligence:
+          return b.statIntelligencePotential.compareTo(
+            a.statIntelligencePotential,
+          );
+        case SortBy.potentialStrength:
+          return b.statStrengthPotential.compareTo(a.statStrengthPotential);
+        case SortBy.potentialBeauty:
+          return b.statBeautyPotential.compareTo(a.statBeautyPotential);
       }
     });
     return filtered;
@@ -408,6 +426,10 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                     _ => null,
                   };
                 }),
+                purityFilter: _filterPurity,
+                onCyclePurity: () => setState(() {
+                  _filterPurity = _filterPurity.next();
+                }),
                 filterNature: _filterNature,
                 onPickNature: (n) => setState(() => _filterNature = n),
                 natureOptions: const {
@@ -423,6 +445,7 @@ class ChamberPickerOverlayState extends State<ChamberPickerOverlay> {
                   _filterSize = null;
                   _filterTint = null;
                   _filterVariant = null;
+                  _filterPurity = InstancePurityFilter.all;
                   _filterNature = null;
                 }),
               ),

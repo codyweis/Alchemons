@@ -150,6 +150,20 @@ class FeedResult {
   );
 }
 
+class EnhancementTransferProfile {
+  final String highestStatName;
+  final double highestStatValue;
+  final String lowestStatName;
+  final double lowestStatValue;
+
+  const EnhancementTransferProfile({
+    required this.highestStatName,
+    required this.highestStatValue,
+    required this.lowestStatName,
+    required this.lowestStatValue,
+  });
+}
+
 extension CreatureInstanceServiceFeeding on CreatureInstanceService {
   // ---------------------------------------------------------------------------
   // Feeding rules & XP helpers
@@ -180,12 +194,17 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     return sameFamily && samePrimaryType;
   }
 
-  /// XP curve for level cap 10
+  /// XP curve for level cap 10.
+  ///
+  /// Front-loads progress through level 5, then steepens levels 6-10 while
+  /// preserving the overall cost of 42 level-1 same-species fodders.
   static int xpNeededForLevel(int level) {
-    // Tuned so ~100 level-1 creatures reaches level 10
-    const base = 50.0;
-    const growth = 1.25; // 25% per level
-    return (base * pow(growth, max(0, level - 1))).round();
+    const xpTable = <int>[42, 50, 60, 70, 130, 165, 205, 250, 318];
+    final index = max(0, level - 1);
+    if (index >= xpTable.length) {
+      return xpTable.last;
+    }
+    return xpTable[index];
   }
 
   /// Computes XP provided by a single fodder instance (base, before species/family).
@@ -253,9 +272,43 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     return natureMult * constellationMult;
   }
 
-  /// Calculate stat gains from feeding WITH REDUCED SPECIALIZATION PRESSURE
-  /// - Grants +0.1 to fodder's highest stat
-  /// - Applies -0.01 penalty to target's lowest stat (much gentler)
+  static EnhancementTransferProfile analyzeEnhancementMaterial(
+    db.CreatureInstance material,
+  ) {
+    final materialStats = {
+      'speed': material.statSpeed,
+      'intelligence': material.statIntelligence,
+      'strength': material.statStrength,
+      'beauty': material.statBeauty,
+    };
+
+    var highestStatName = 'speed';
+    var highestStatValue = material.statSpeed;
+    var lowestStatName = 'speed';
+    var lowestStatValue = material.statSpeed;
+
+    materialStats.forEach((name, value) {
+      if (value > highestStatValue) {
+        highestStatValue = value;
+        highestStatName = name;
+      }
+      if (value < lowestStatValue) {
+        lowestStatValue = value;
+        lowestStatName = name;
+      }
+    });
+
+    return EnhancementTransferProfile(
+      highestStatName: highestStatName,
+      highestStatValue: highestStatValue,
+      lowestStatName: lowestStatName,
+      lowestStatValue: lowestStatValue,
+    );
+  }
+
+  /// Calculate stat gains from feeding.
+  /// - Grants +0.1 to the sacrificed specimen's highest stat
+  /// - Applies -0.01 to the sacrificed specimen's lowest stat
   /// - Uses 0.01 increments for fine control
   /// - CONSTELLATION BONUSES: add per-fodder bonuses
   /// - All stats & potentials are hard-capped in [0, 5].
@@ -271,7 +324,6 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       'beauty': 0.0,
     };
 
-    // Current target stats for finding lowest
     var currentTargetStats = {
       'speed': target.statSpeed,
       'intelligence': target.statIntelligence,
@@ -280,48 +332,26 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     };
 
     for (final fodder in fodders) {
-      // Find highest stat in this fodder
-      final fodderStats = {
-        'speed': fodder.statSpeed,
-        'intelligence': fodder.statIntelligence,
-        'strength': fodder.statStrength,
-        'beauty': fodder.statBeauty,
-      };
-
-      String highestStatName = 'speed';
-      double highestStatValue = fodder.statSpeed;
-
-      fodderStats.forEach((name, value) {
-        if (value > highestStatValue) {
-          highestStatValue = value;
-          highestStatName = name;
-        }
-      });
+      final profile = analyzeEnhancementMaterial(fodder);
 
       // Always grant +0.1 to fodder's highest stat
       const double gain = 0.1;
-      gains[highestStatName] = (gains[highestStatName] ?? 0) + gain;
+      gains[profile.highestStatName] =
+          (gains[profile.highestStatName] ?? 0) + gain;
 
-      // REDUCED SPECIALIZATION PRESSURE: Find lowest stat and apply small penalty
-      String lowestStatName = 'speed';
-      double lowestStatValue = currentTargetStats['speed']!;
-
-      currentTargetStats.forEach((name, value) {
-        if (value < lowestStatValue) {
-          lowestStatValue = value;
-          lowestStatName = name;
-        }
-      });
-
-      // Apply -0.01 penalty to lowest stat
+      // Apply -0.01 to the sacrificed specimen's lowest stat
       const double penalty = 0.01;
-      gains[lowestStatName] = (gains[lowestStatName] ?? 0) - penalty;
+      gains[profile.lowestStatName] =
+          (gains[profile.lowestStatName] ?? 0) - penalty;
 
       // Update current stats for next iteration (simulate the change)
-      currentTargetStats[highestStatName] =
-          (currentTargetStats[highestStatName]! + gain).clamp(0.0, 5.0);
-      currentTargetStats[lowestStatName] =
-          (currentTargetStats[lowestStatName]! - penalty).clamp(0.0, 5.0);
+      currentTargetStats[profile.highestStatName] =
+          (currentTargetStats[profile.highestStatName]! + gain).clamp(0.0, 5.0);
+      currentTargetStats[profile.lowestStatName] =
+          (currentTargetStats[profile.lowestStatName]! - penalty).clamp(
+            0.0,
+            5.0,
+          );
     }
 
     // Apply constellation bonuses
@@ -378,7 +408,9 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
         fodders.add(f);
       }
     }
-    if (fodders.isEmpty) return FeedResult.fail('No compatible fodder');
+    if (fodders.isEmpty) {
+      return FeedResult.fail('No compatible enhancement material');
+    }
 
     // Base XP (after species/family)
     final baseTotalXp = _computeBaseTotalXp(
@@ -472,7 +504,9 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
         fodders.add(f);
       }
     }
-    if (fodders.isEmpty) return FeedResult.fail('No compatible fodder');
+    if (fodders.isEmpty) {
+      return FeedResult.fail('No compatible enhancement material');
+    }
 
     // Base XP (after species/family)
     final baseTotalXp = _computeBaseTotalXp(

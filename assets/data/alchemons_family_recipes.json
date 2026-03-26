@@ -13,7 +13,7 @@
 
     "mane+horn": { "horn": 30, "mane": 30, "mask": 20, "wing": 20 },
 
-    "mask+kin": { "wing": 50, "mask": 20, "kin": 20, "mane": 10 },
-    "mask+wing": { "kin": 50, "mask": 20, "wing": 20, "mane": 10 }
+    "mask+kin": { "wing": 40, "mask": 20, "kin": 20, "mane": 20 },
+    "mask+wing": { "kin": 40, "mask": 20, "wing": 20, "mane": 20 }
   }
 }

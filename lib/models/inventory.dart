@@ -454,6 +454,7 @@ class InvKeys {
   static const alchemyVolcanicAura = 'alchemy.volcanic_aura';
   static const alchemyVoidRift = 'alchemy.void_rift';
   static const alchemyPrismaticCascade = 'alchemy.prismatic_cascade';
+  static const alchemyRitualGold = 'alchemy.ritual_gold';
   static const alchemyBeautyRadiance = 'alchemy.beauty_radiance';
   static const alchemySpeedFlux = 'alchemy.speed_flux';
   static const alchemyStrengthForge = 'alchemy.strength_forge';
@@ -461,6 +462,7 @@ class InvKeys {
   static const staminaPotion = 'item.stamina_potion';
   static const bossRefresh = 'item.boss_refresh';
   static const bossSummon = 'item.boss_summon';
+  static const elementalCreator = 'item.elemental_creator';
 
   // ── Portal Keys (one per rift faction) ────────────────────────────────────
   static const portalKeyVolcanic = 'item.portal_key.volcanic';
@@ -564,6 +566,13 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
           'Bathe your Alchemon in a full-spectrum prismatic light cascade — the rarest cosmetic in existence.',
       icon: Icons.lens_blur_rounded,
     ),
+    InvKeys.alchemyRitualGold: InventoryItemDef(
+      key: InvKeys.alchemyRitualGold,
+      name: 'Golden Rite',
+      description:
+          'A luminous ritual circle of gold and ash, unlocked by completing the Pureblood Rite.',
+      icon: Icons.auto_fix_high_rounded,
+    ),
     InvKeys.alchemyBeautyRadiance: InventoryItemDef(
       key: InvKeys.alchemyBeautyRadiance,
       name: 'Beauty Radiance',
@@ -612,6 +621,17 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       description:
           'Instantly challenges a defeated boss to a rematch, bypassing the daily cooldown.',
       icon: Icons.whatshot_rounded,
+      canUse: false,
+    ),
+    InvKeys.elementalCreator: InventoryItemDef(
+      key: InvKeys.elementalCreator,
+      name: 'Elemental Essence Creator',
+      description:
+          'Consume Alchemons into elemental material to enhance other Alchemons.',
+      icon: Icons.auto_fix_high_rounded,
+      stackable: false,
+      isKeyItem: true,
+      canDispose: false,
       canUse: false,
     ),
 

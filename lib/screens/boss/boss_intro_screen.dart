@@ -32,8 +32,10 @@ import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -343,6 +345,51 @@ String _bossProgressIdForOrder(int order) =>
 String _dailyRematchKeyForBoss(int order) =>
     'boss_daily_rematch_date_utc_$order';
 
+class _BossRematchScale {
+  final double hpScale;
+  final double atkScale;
+  final double defScale;
+  final double spdScale;
+  final int hpFlat;
+  final int atkFlat;
+  final int defFlat;
+  final int spdFlat;
+
+  const _BossRematchScale({
+    required this.hpScale,
+    required this.atkScale,
+    required this.defScale,
+    required this.spdScale,
+    required this.hpFlat,
+    required this.atkFlat,
+    required this.defFlat,
+    required this.spdFlat,
+  });
+}
+
+class _ScaleAnchor {
+  final int order;
+  final double value;
+  const _ScaleAnchor(this.order, this.value);
+}
+
+double _lerpScale(double a, double b, double t) => a + ((b - a) * t);
+
+double _scaleFromAnchors(int order, List<_ScaleAnchor> anchors) {
+  if (anchors.isEmpty) return 1.0;
+  if (order <= anchors.first.order) return anchors.first.value;
+  for (var i = 0; i < anchors.length - 1; i++) {
+    final left = anchors[i];
+    final right = anchors[i + 1];
+    if (order <= right.order) {
+      final span = (right.order - left.order).toDouble();
+      final t = span <= 0 ? 0.0 : (order - left.order) / span;
+      return _lerpScale(left.value, right.value, t);
+    }
+  }
+  return anchors.last.value;
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // MAIN SCREEN
 // ──────────────────────────────────────────────────────────────────────────────
@@ -358,6 +405,7 @@ class _BossBattleScreenState extends State<BossBattleScreen>
   late final PageController _bossPageController;
   double _bossPage = 0;
   bool _didInitialSync = false;
+  bool _bossStoryCheckStarted = false;
 
   // Tracks which boss orders were rematched this session (so the cooldown
   // shows instantly without waiting for the FutureBuilder to re-query DB).
@@ -370,6 +418,64 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     _bossPageController.addListener(() {
       setState(() => _bossPage = _bossPageController.page ?? 0);
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowBossGauntletStoryIntro();
+    });
+  }
+
+  Future<void> _maybeShowBossGauntletStoryIntro() async {
+    if (_bossStoryCheckStarted || !mounted) return;
+    _bossStoryCheckStarted = true;
+
+    final db = context.read<AlchemonsDatabase>();
+    final hasSeen = await db.settingsDao.hasSeenBossGauntletStoryIntro();
+    if (hasSeen || !mounted) return;
+
+    final acceptedFirst = await LandscapeDialog.show(
+      context,
+      title: 'Not Admired',
+      icon: Icons.auto_awesome_rounded,
+      typewriter: true,
+      message:
+          'They were not placed here to be admired.\n\n'
+          'Each one keeps watch over a relic, and each relic is less an object than a sealed instruction living inside bone, hide, ash, and light.',
+    );
+    if (acceptedFirst != true || !mounted) return;
+
+    final acceptedSecond = await LandscapeDialog.show(
+      context,
+      title: 'Take Shape',
+      icon: Icons.science_rounded,
+      typewriter: true,
+      message:
+          'Ordinary extraction only skims the surface.\n\n'
+          'To break a warden is to see how an element was persuaded to take shape, how force became pattern, and how pattern learned to remain alive.',
+    );
+    if (acceptedSecond != true || !mounted) return;
+
+    final acceptedThird = await LandscapeDialog.show(
+      context,
+      title: 'Forget What They Were',
+      icon: Icons.precision_manufacturing_rounded,
+      typewriter: true,
+      message:
+          'So you do not enter for conquest alone.\n\n'
+          'You enter to harvest what remains when a guardian fails, and to carry those fragments back into creation before they forget what they were.',
+    );
+    if (acceptedThird != true || !mounted) return;
+
+    await LandscapeDialog.show(
+      context,
+      title: 'Stand In Front Of It',
+      icon: Icons.visibility_outlined,
+      typewriter: true,
+      message:
+          'Perhaps you are seeking power.\nPerhaps proof.\nPerhaps the memory of the hands that built this place.\n\n'
+          'Whatever answer waits here, the wardens were made to stand in front of it.',
+    );
+
+    if (!mounted) return;
+    await db.settingsDao.setBossGauntletStoryIntroSeen();
   }
 
   @override
@@ -644,16 +750,19 @@ class _BossBattleScreenState extends State<BossBattleScreen>
     final gimmickSummary = BattleMove.bossGimmickSummaryForCombatant(
       bossProfile,
     );
+    final rematchScale = _rematchScaleForOrder(boss.order);
     final dispHp = isEnraged
-        ? (boss.hp * 1.7).round() + (boss.order * 40)
+        ? (boss.hp * rematchScale.hpScale).round() + rematchScale.hpFlat
         : boss.hp;
     final dispAtk = isEnraged
-        ? (boss.atk * 1.45).round() + (boss.order * 2)
+        ? (boss.atk * rematchScale.atkScale).round() + rematchScale.atkFlat
         : boss.atk;
     final dispDef = isEnraged
-        ? (boss.def * 1.45).round() + (boss.order * 2)
+        ? (boss.def * rematchScale.defScale).round() + rematchScale.defFlat
         : boss.def;
-    final dispSpd = isEnraged ? (boss.spd * 1.25).round() + 1 : boss.spd;
+    final dispSpd = isEnraged
+        ? (boss.spd * rematchScale.spdScale).round() + rematchScale.spdFlat
+        : boss.spd;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -995,9 +1104,9 @@ class _BossBattleScreenState extends State<BossBattleScreen>
         ? const Color(0xFFF97316) // orange
         : _C.success;
 
-    return GestureDetector(
+    return FastLongPressDetector(
       onLongPress: () {
-        final theme = context.read<FactionTheme>();
+        final theme = FactionTheme.scorchForge();
         showQuickInstanceDialog(
           context: context,
           theme: theme,
@@ -1263,18 +1372,66 @@ class _BossBattleScreenState extends State<BossBattleScreen>
   // ── BATTLE LOGIC (unchanged from original) ──────────────────────────────────
 
   Boss _toLateGameBoss(Boss base) {
+    final s = _rematchScaleForOrder(base.order);
     return Boss(
       id: base.id,
       name: base.name,
       element: base.element,
       recommendedLevel: base.recommendedLevel < 10 ? 10 : base.recommendedLevel,
-      hp: (base.hp * 1.7).round() + (base.order * 40),
-      atk: (base.atk * 1.45).round() + (base.order * 2),
-      def: (base.def * 1.45).round() + (base.order * 2),
-      spd: (base.spd * 1.25).round() + 1,
+      hp: (base.hp * s.hpScale).round() + s.hpFlat,
+      atk: (base.atk * s.atkScale).round() + s.atkFlat,
+      def: (base.def * s.defScale).round() + s.defFlat,
+      spd: (base.spd * s.spdScale).round() + s.spdFlat,
       moveset: base.moveset,
       tier: base.tier,
       order: base.order,
+    );
+  }
+
+  _BossRematchScale _rematchScaleForOrder(int order) {
+    // Dungeon rematches target endgame pressure:
+    // early bosses are heavily elevated; late bosses are only slightly elevated.
+    final hpScale = _scaleFromAnchors(order, const [
+      _ScaleAnchor(1, 3.30),
+      _ScaleAnchor(4, 2.25),
+      _ScaleAnchor(8, 1.46),
+      _ScaleAnchor(12, 1.02),
+      _ScaleAnchor(17, 0.95),
+    ]);
+    final atkScale = _scaleFromAnchors(order, const [
+      _ScaleAnchor(1, 1.42),
+      _ScaleAnchor(4, 1.32),
+      _ScaleAnchor(8, 1.20),
+      _ScaleAnchor(12, 1.05),
+      _ScaleAnchor(17, 1.00),
+    ]);
+    final defScale = _scaleFromAnchors(order, const [
+      _ScaleAnchor(1, 1.32),
+      _ScaleAnchor(4, 1.24),
+      _ScaleAnchor(8, 1.14),
+      _ScaleAnchor(12, 1.05),
+      _ScaleAnchor(17, 1.00),
+    ]);
+    final spdScale = _scaleFromAnchors(order, const [
+      _ScaleAnchor(1, 1.20),
+      _ScaleAnchor(4, 1.16),
+      _ScaleAnchor(8, 1.12),
+      _ScaleAnchor(12, 1.07),
+      _ScaleAnchor(17, 1.03),
+    ]);
+    final hpFlat = order <= 4 ? 40 : (order <= 8 ? 20 : 0);
+    final atkFlat = order <= 4 ? 3 : (order <= 8 ? 2 : (order <= 12 ? 1 : 0));
+    final defFlat = order <= 4 ? 2 : (order <= 8 ? 1 : 0);
+    final spdFlat = order <= 6 ? 1 : 0;
+    return _BossRematchScale(
+      hpScale: hpScale,
+      atkScale: atkScale,
+      defScale: defScale,
+      spdScale: spdScale,
+      hpFlat: hpFlat,
+      atkFlat: atkFlat,
+      defFlat: defFlat,
+      spdFlat: spdFlat,
     );
   }
 
@@ -1856,30 +2013,7 @@ class _BossCarouselCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 4),
-                          // Level tag
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _C.amberDim.withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(2),
-                              border: Border.all(color: _C.borderAccent),
-                            ),
-                            child: Text(
-                              'REC. LV ${boss.recommendedLevel}',
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                color: _C.amberBright,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           // Mini stats
                           Builder(
                             builder: (_) {
@@ -2328,15 +2462,6 @@ class _BossHistoryRow extends StatelessWidget {
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.8,
-                        ),
-                      ),
-                      Text(
-                        '  LV ${boss.recommendedLevel}',
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          color: _C.textMuted,
-                          fontSize: 9,
-                          letterSpacing: 0.5,
                         ),
                       ),
                     ],

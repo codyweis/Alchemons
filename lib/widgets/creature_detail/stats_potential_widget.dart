@@ -14,14 +14,13 @@ class StatPotentialBar extends StatelessWidget {
   final String statName;
   final double currentValue;
   final double potential;
-  final IconData icon;
 
-  const StatPotentialBar({super.key, 
+  const StatPotentialBar({
+    super.key,
     this.theme,
     required this.statName,
     required this.currentValue,
     required this.potential,
-    required this.icon,
   });
 
   @override
@@ -36,12 +35,15 @@ class StatPotentialBar extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(icon, size: 14, color: fc.amberDim),
-        const SizedBox(width: 8),
-
         SizedBox(
-          width: 85,
-          child: Text(statName.toUpperCase(), style: ft.label),
+          width: 112,
+          child: Text(
+            statName.toUpperCase(),
+            style: ft.label,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+          ),
         ),
 
         Expanded(
@@ -329,28 +331,24 @@ class StatPotentialBlock extends StatelessWidget {
               statName: 'Speed',
               currentValue: instance.statSpeed,
               potential: instance.statSpeedPotential,
-              icon: Icons.flash_on,
             ),
             const SizedBox(height: 8),
             StatPotentialBar(
               statName: 'Intelligence',
               currentValue: instance.statIntelligence,
               potential: instance.statIntelligencePotential,
-              icon: Icons.psychology,
             ),
             const SizedBox(height: 8),
             StatPotentialBar(
               statName: 'Strength',
               currentValue: instance.statStrength,
               potential: instance.statStrengthPotential,
-              icon: Icons.fitness_center,
             ),
             const SizedBox(height: 8),
             StatPotentialBar(
               statName: 'Beauty',
               currentValue: instance.statBeauty,
               potential: instance.statBeautyPotential,
-              icon: Icons.auto_awesome,
             ),
 
             const SizedBox(height: 12),

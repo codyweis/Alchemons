@@ -2,6 +2,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/filterchip_solod.dart';
+import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,6 +16,8 @@ import 'package:alchemons/widgets/creature_image.dart';
 // VIEW MODES
 // ------------------------------------
 enum InstanceDetailMode { info, stats, genetics }
+
+enum SelectionSheetView { species, allInstances }
 
 class CreatureSelectionSheet extends StatefulWidget {
   final List<CreatureEntry> discoveredCreatures;
@@ -33,9 +36,15 @@ class CreatureSelectionSheet extends StatefulWidget {
   // NEW: filter options
   final bool showOnlyAvailableTypes;
   final bool showSearch;
+  final bool showSpeciesFilterRows;
+  final bool startInAllInstancesView;
+  final bool immersiveSheetStyle;
 
   // NEW: pass selected instances to show in AllCreatureInstances
   final List<String> selectedInstanceIds;
+  final bool allInstancesSelectionMode;
+  final int allInstancesMaxSelections;
+  final void Function(List<CreatureInstance>)? onConfirmAllInstancesSelection;
 
   const CreatureSelectionSheet({
     super.key,
@@ -51,7 +60,13 @@ class CreatureSelectionSheet extends StatefulWidget {
     this.initialDetailMode = InstanceDetailMode.stats,
     this.showOnlyAvailableTypes = false,
     this.showSearch = true,
+    this.showSpeciesFilterRows = true,
+    this.startInAllInstancesView = false,
+    this.immersiveSheetStyle = false,
     this.selectedInstanceIds = const [], // NEW
+    this.allInstancesSelectionMode = false,
+    this.allInstancesMaxSelections = 0,
+    this.onConfirmAllInstancesSelection,
   });
 
   @override
@@ -72,7 +87,13 @@ class CreatureSelectionSheet extends StatefulWidget {
     InstanceDetailMode initialDetailMode = InstanceDetailMode.stats,
     bool showOnlyAvailableTypes = false,
     bool showSearch = true,
+    bool showSpeciesFilterRows = true,
+    bool startInAllInstancesView = false,
+    bool immersiveSheetStyle = false,
     List<String> selectedInstanceIds = const [], // NEW
+    bool allInstancesSelectionMode = false,
+    int allInstancesMaxSelections = 0,
+    void Function(List<CreatureInstance>)? onConfirmAllInstancesSelection,
   }) {
     return showModalBottomSheet<T>(
       context: context,
@@ -98,7 +119,13 @@ class CreatureSelectionSheet extends StatefulWidget {
               initialDetailMode: initialDetailMode,
               showOnlyAvailableTypes: showOnlyAvailableTypes,
               showSearch: showSearch,
+              showSpeciesFilterRows: showSpeciesFilterRows,
+              startInAllInstancesView: startInAllInstancesView,
+              immersiveSheetStyle: immersiveSheetStyle,
               selectedInstanceIds: selectedInstanceIds, // NEW
+              allInstancesSelectionMode: allInstancesSelectionMode,
+              allInstancesMaxSelections: allInstancesMaxSelections,
+              onConfirmAllInstancesSelection: onConfirmAllInstancesSelection,
             );
           },
         );
@@ -121,6 +148,7 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
   late String _selectedSpecies; // NEW
 
   late InstanceDetailMode _detailMode;
+  late SelectionSheetView _currentView;
 
   @override
   void initState() {
@@ -130,6 +158,9 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
     _selectedSort = _lastSelectedSort;
     _detailMode = widget.initialDetailMode;
     _selectedSpecies = _lastSelectedSpecies;
+    _currentView = widget.startInAllInstancesView
+        ? SelectionSheetView.allInstances
+        : SelectionSheetView.species;
   }
 
   @override
@@ -156,274 +187,262 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<FactionTheme>();
+    final showingAllInstances = _currentView == SelectionSheetView.allInstances;
+    final outerPadding = widget.immersiveSheetStyle
+        ? EdgeInsets.zero
+        : const EdgeInsets.all(12);
+    final borderRadius = widget.immersiveSheetStyle
+        ? BorderRadius.zero
+        : BorderRadius.circular(10);
+    final bottomInset = widget.immersiveSheetStyle ? 92.0 : 0.0;
 
     final filteredCreatures = _filterAndSortCreatures(
       widget.discoveredCreatures,
     );
 
     return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: theme.textMuted, width: 1),
-          color: theme.surface,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            _DragHandle(theme: theme),
-            const SizedBox(height: 8),
-            widget.customHeader ??
-                _DefaultHeader(
-                  title: widget.title ?? 'Select Specimens',
-                  showViewToggle: widget.showViewToggle,
-                  onOpenAllInstances: () {
-                    _openAllInstancesView(context, theme);
-                  },
-                  theme: theme,
-                  showDetailModeToggle: widget.isInstanceMode,
-                  detailMode: _detailMode,
-                  onToggleDetailMode: () {
-                    setState(() {
-                      _detailMode = _detailMode == InstanceDetailMode.stats
-                          ? InstanceDetailMode.genetics
-                          : _detailMode == InstanceDetailMode.genetics
-                          ? InstanceDetailMode.info
-                          : InstanceDetailMode.stats;
-                    });
-                  },
-                  selectedSort: !widget.isInstanceMode ? _selectedSort : null,
-                  onSortChanged: !widget.isInstanceMode
-                      ? (val) => setState(() => _selectedSort = val)
-                      : null,
-                ),
-            const SizedBox(height: 8),
-
-            // Search bar
-            if (widget.showSearch) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    // Favorites toggle
-                    GestureDetector(
-                      onTap: () {
-                        setState(
-                          () => _showFavoritesOnly = !_showFavoritesOnly,
-                        );
-                      },
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: _showFavoritesOnly
-                              ? const Color(0xFFE91E63).withValues(alpha: 0.15)
-                              : theme.surfaceAlt,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _showFavoritesOnly
-                                ? const Color(0xFFE91E63).withValues(alpha: 0.6)
-                                : theme.border.withValues(alpha: .5),
-                            width: 1,
-                          ),
-                        ),
-                        child: Icon(
-                          _showFavoritesOnly
-                              ? Icons.star_rounded
-                              : Icons.star_outline_rounded,
-                          size: 20,
-                          color: _showFavoritesOnly
-                              ? const Color(0xFFE91E63)
-                              : theme.textMuted,
-                        ),
+      padding: outerPadding,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: theme.textMuted, width: 1),
+              color: theme.surface,
+              borderRadius: borderRadius,
+            ),
+            child: Padding(
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: Column(
+                children: [
+                  if (!widget.immersiveSheetStyle) ...[
+                    const SizedBox(height: 12),
+                    _DragHandle(theme: theme),
+                    const SizedBox(height: 8),
+                  ] else
+                    SizedBox(height: MediaQuery.of(context).padding.top),
+                  widget.customHeader ??
+                      _DefaultHeader(
+                        title: widget.title ?? 'Select Specimens',
+                        showViewToggle: widget.showViewToggle,
+                        onToggleView: _toggleView,
+                        theme: theme,
+                        showingAllInstances: showingAllInstances,
+                        compact: widget.immersiveSheetStyle,
+                        showDetailModeToggle:
+                            widget.isInstanceMode && !showingAllInstances,
+                        detailMode: _detailMode,
+                        onToggleDetailMode: () {
+                          setState(() {
+                            _detailMode =
+                                _detailMode == InstanceDetailMode.genetics
+                                ? InstanceDetailMode.stats
+                                : InstanceDetailMode.genetics;
+                          });
+                        },
+                        selectedSort:
+                            !widget.isInstanceMode && !showingAllInstances
+                            ? _selectedSort
+                            : null,
+                        onSortChanged: !widget.isInstanceMode
+                            ? (val) => setState(() => _selectedSort = val)
+                            : null,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Search field
-                    Expanded(
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: theme.surfaceAlt,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: theme.border.withValues(alpha: .5),
-                            width: 1,
-                          ),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.search_rounded,
-                              size: 18,
-                              color: theme.textMuted,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: _searchController,
-                                style: TextStyle(
-                                  color: theme.text,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
+                  SizedBox(height: widget.immersiveSheetStyle ? 4 : 8),
+
+                  // Search bar
+                  if (!showingAllInstances && widget.showSearch) ...[
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: widget.immersiveSheetStyle ? 8 : 16,
+                      ),
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              setState(
+                                () => _showFavoritesOnly = !_showFavoritesOnly,
+                              );
+                            },
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: _showFavoritesOnly
+                                    ? const Color(
+                                        0xFFE91E63,
+                                      ).withValues(alpha: 0.15)
+                                    : theme.surfaceAlt,
+                                borderRadius: BorderRadius.circular(
+                                  widget.immersiveSheetStyle ? 6 : 12,
                                 ),
-                                decoration: InputDecoration(
-                                  isCollapsed: true,
-                                  border: InputBorder.none,
-                                  hintText: 'Search specimens...',
-                                  hintStyle: TextStyle(
-                                    color: theme.textMuted.withValues(alpha: .6),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
+                                border: Border.all(
+                                  color: _showFavoritesOnly
+                                      ? const Color(
+                                          0xFFE91E63,
+                                        ).withValues(alpha: 0.6)
+                                      : theme.border.withValues(alpha: .5),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Icon(
+                                _showFavoritesOnly
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
+                                size: 20,
+                                color: _showFavoritesOnly
+                                    ? const Color(0xFFE91E63)
+                                    : theme.textMuted,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Container(
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: theme.surfaceAlt,
+                                borderRadius: BorderRadius.circular(
+                                  widget.immersiveSheetStyle ? 6 : 12,
+                                ),
+                                border: Border.all(
+                                  color: theme.border.withValues(alpha: .5),
+                                  width: 1,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.search_rounded,
+                                    size: 18,
+                                    color: theme.textMuted,
                                   ),
-                                ),
-                                onChanged: (val) {
-                                  setState(() {
-                                    _searchQuery = val;
-                                  });
-                                },
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _searchController,
+                                      style: TextStyle(
+                                        color: theme.text,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      decoration: InputDecoration(
+                                        isCollapsed: true,
+                                        border: InputBorder.none,
+                                        hintText: 'Search specimens...',
+                                        hintStyle: TextStyle(
+                                          color: theme.textMuted.withValues(
+                                            alpha: .6,
+                                          ),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      onChanged: (val) {
+                                        setState(() {
+                                          _searchQuery = val;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  if (_searchQuery.isNotEmpty)
+                                    GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _searchQuery = '';
+                                          _searchController.clear();
+                                        });
+                                      },
+                                      child: Icon(
+                                        Icons.clear_rounded,
+                                        size: 18,
+                                        color: theme.textMuted,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            if (_searchQuery.isNotEmpty)
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _searchQuery = '';
-                                    _searchController.clear();
-                                  });
-                                },
-                                child: Icon(
-                                  Icons.clear_rounded,
-                                  size: 18,
-                                  color: theme.textMuted,
-                                ),
-                              ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
+                    SizedBox(height: widget.immersiveSheetStyle ? 8 : 12),
                   ],
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
 
-            // Type filter chips (hide in instance mode)
-            if (!widget.isInstanceMode) ...[
-              _FilterSortRow(
-                selectedFilter: _selectedFilter,
-                onFilterChanged: (val) => setState(() => _selectedFilter = val),
-                theme: theme,
-                availableTypes: _getAvailableTypes(),
-                showOnlyAvailableTypes: widget.showOnlyAvailableTypes,
-              ),
-              const SizedBox(height: 8),
+                  if (!showingAllInstances &&
+                      !widget.isInstanceMode &&
+                      widget.showSpeciesFilterRows) ...[
+                    _FilterSortRow(
+                      selectedFilter: _selectedFilter,
+                      onFilterChanged: (val) =>
+                          setState(() => _selectedFilter = val),
+                      theme: theme,
+                      availableTypes: _getAvailableTypes(),
+                      showOnlyAvailableTypes: widget.showOnlyAvailableTypes,
+                    ),
+                    const SizedBox(height: 8),
+                    _SpeciesFilterRow(
+                      selectedSpecies: _selectedSpecies,
+                      onSpeciesChanged: (val) =>
+                          setState(() => _selectedSpecies = val),
+                      theme: theme,
+                    ),
+                    SizedBox(height: widget.immersiveSheetStyle ? 8 : 12),
+                  ],
 
-              // NEW: Species filter row
-              _SpeciesFilterRow(
-                selectedSpecies: _selectedSpecies,
-                onSpeciesChanged: (val) =>
-                    setState(() => _selectedSpecies = val),
-                theme: theme,
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            Expanded(
-              child: _CreatureGrid(
-                creatures: filteredCreatures,
-                onSelectCreature: widget.onSelectCreature,
-                scrollController: widget.scrollController,
-                theme: theme,
-                emptyStateMessage: widget.emptyStateMessage,
-                isInstanceMode: widget.isInstanceMode,
-                detailMode: _detailMode,
+                  Expanded(
+                    child: showingAllInstances
+                        ? AllCreatureInstances(
+                            theme: theme,
+                            selectedInstanceIds: widget.selectedInstanceIds,
+                            selectionMode: widget.allInstancesSelectionMode,
+                            maxSelections: widget.allInstancesMaxSelections,
+                            onConfirmSelection:
+                                widget.onConfirmAllInstancesSelection,
+                            onTap: (inst) {
+                              if (widget.onSelectInstance != null) {
+                                widget.onSelectInstance!(inst);
+                              } else {
+                                widget.onSelectCreature(inst.baseId);
+                              }
+                            },
+                          )
+                        : _CreatureGrid(
+                            creatures: filteredCreatures,
+                            onSelectCreature: widget.onSelectCreature,
+                            scrollController: widget.scrollController,
+                            theme: theme,
+                            emptyStateMessage: widget.emptyStateMessage,
+                            isInstanceMode: widget.isInstanceMode,
+                            detailMode: _detailMode,
+                          ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          if (widget.immersiveSheetStyle)
+            Positioned(
+              bottom: 16,
+              child: FloatingCloseButton(
+                onTap: () => Navigator.of(context).pop(),
+                theme: theme,
+              ),
+            ),
+        ],
       ),
     );
   }
 
-  void _openAllInstancesView(BuildContext context, FactionTheme theme) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          backgroundColor: theme.surface,
-          body: SafeArea(
-            child: Column(
-              children: [
-                // Header
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                  decoration: BoxDecoration(
-                    color: theme.surface,
-                    border: Border(
-                      bottom: BorderSide(color: theme.border, width: 1.5),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: theme.surfaceAlt,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: theme.border),
-                          ),
-                          child: Icon(
-                            Icons.arrow_back_rounded,
-                            color: theme.text,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'ALL SPECIMENS',
-                          style: TextStyle(
-                            color: theme.text,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: .8,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // AllCreatureInstances content
-                Expanded(
-                  child: AllCreatureInstances(
-                    theme: theme,
-                    selectedInstanceIds:
-                        widget.selectedInstanceIds, // Pass through selections
-                    onTap: (inst) {
-                      // Close the full screen view
-                      Navigator.pop(context);
-
-                      // If onSelectInstance callback is provided, use it
-                      // Otherwise fall back to onSelectCreature (opens InstancesSheet)
-                      if (widget.onSelectInstance != null) {
-                        widget.onSelectInstance!(inst);
-                      } else {
-                        widget.onSelectCreature(inst.baseId);
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  void _toggleView() {
+    setState(() {
+      _currentView = _currentView == SelectionSheetView.allInstances
+          ? SelectionSheetView.species
+          : SelectionSheetView.allInstances;
+    });
   }
 
   Set<String> _getAvailableTypes() {
@@ -458,12 +477,10 @@ class _CreatureSelectionSheetState extends State<CreatureSelectionSheet> {
       }).toList();
     }
 
-    // Filter by type
     // Filter by type & species & favorites
     var filtered = creatures.where((creatureData) {
       final c = creatureData.creature;
 
-      // FAVORITES filter
       if (_showFavoritesOnly && !_favoriteSpecies.contains(c.id)) {
         return false;
       }
@@ -530,8 +547,10 @@ class _DragHandle extends StatelessWidget {
 class _DefaultHeader extends StatelessWidget {
   final String title;
   final bool showViewToggle;
-  final VoidCallback onOpenAllInstances;
+  final VoidCallback onToggleView;
   final FactionTheme theme;
+  final bool showingAllInstances;
+  final bool compact;
 
   final bool showDetailModeToggle;
   final InstanceDetailMode detailMode;
@@ -543,8 +562,10 @@ class _DefaultHeader extends StatelessWidget {
   const _DefaultHeader({
     required this.title,
     required this.showViewToggle,
-    required this.onOpenAllInstances,
+    required this.onToggleView,
     required this.theme,
+    required this.showingAllInstances,
+    this.compact = false,
     this.showDetailModeToggle = false,
     this.detailMode = InstanceDetailMode.stats,
     this.onToggleDetailMode = _noop,
@@ -557,9 +578,14 @@ class _DefaultHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 8 : 16,
+        0,
+        compact ? 8 : 16,
+        compact ? 6 : 12,
+      ),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(compact ? 8 : 12),
         child: Row(
           children: [
             Expanded(
@@ -572,7 +598,7 @@ class _DefaultHeader extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: theme.text,
-                      fontSize: 14,
+                      fontSize: compact ? 13 : 14,
                       fontWeight: FontWeight.w900,
                       letterSpacing: .8,
                     ),
@@ -582,7 +608,7 @@ class _DefaultHeader extends StatelessWidget {
                     'Research database',
                     style: TextStyle(
                       color: theme.textMuted,
-                      fontSize: 11,
+                      fontSize: compact ? 10 : 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -599,10 +625,10 @@ class _DefaultHeader extends StatelessWidget {
                     horizontal: 10,
                     vertical: 6,
                   ),
-                  margin: const EdgeInsets.only(right: 8),
+                  margin: EdgeInsets.only(right: compact ? 6 : 8),
                   decoration: BoxDecoration(
                     color: theme.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(compact ? 4 : 8),
                     border: Border.all(color: theme.accent),
                   ),
                   child: Row(
@@ -633,16 +659,14 @@ class _DefaultHeader extends StatelessWidget {
                     horizontal: 10,
                     vertical: 6,
                   ),
-                  margin: const EdgeInsets.only(right: 8),
+                  margin: EdgeInsets.only(right: compact ? 6 : 8),
                   decoration: BoxDecoration(
                     color: theme.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(compact ? 4 : 8),
                     border: Border.all(color: theme.accent),
                   ),
                   child: Text(
-                    detailMode == InstanceDetailMode.info
-                        ? 'INFO'
-                        : detailMode == InstanceDetailMode.stats
+                    detailMode == InstanceDetailMode.stats
                         ? 'STATS'
                         : 'GENETICS',
                     style: TextStyle(
@@ -658,15 +682,17 @@ class _DefaultHeader extends StatelessWidget {
             // View All button (replaces grid/list toggle)
             if (showViewToggle)
               GestureDetector(
-                onTap: onOpenAllInstances,
+                onTap: onToggleView,
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: theme.surfaceAlt.withValues(alpha: .5),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(compact ? 4 : 8),
                   ),
                   child: Icon(
-                    Icons.grid_view_rounded,
+                    showingAllInstances
+                        ? Icons.category_rounded
+                        : Icons.grid_view_rounded,
                     color: theme.accent,
                     size: 22,
                   ),
@@ -817,7 +843,10 @@ class _CreatureGridCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.surface,
           borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: typeColor.withValues(alpha: .45), width: .5),
+          border: Border.all(
+            color: typeColor.withValues(alpha: .45),
+            width: .5,
+          ),
         ),
         padding: const EdgeInsets.all(8),
         child: Column(

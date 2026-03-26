@@ -15,6 +15,87 @@ enum SortBy {
   statIntelligence,
   statStrength,
   statBeauty,
+  potentialSpeed,
+  potentialIntelligence,
+  potentialStrength,
+  potentialBeauty,
+}
+
+extension SortByX on SortBy {
+  bool get isBaseStatSort => switch (this) {
+    SortBy.statSpeed ||
+    SortBy.statIntelligence ||
+    SortBy.statStrength ||
+    SortBy.statBeauty => true,
+    _ => false,
+  };
+
+  bool get isPotentialSort => switch (this) {
+    SortBy.potentialSpeed ||
+    SortBy.potentialIntelligence ||
+    SortBy.potentialStrength ||
+    SortBy.potentialBeauty => true,
+    _ => false,
+  };
+
+  bool get isStatSort => isBaseStatSort || isPotentialSort;
+
+  String get shortLabel => switch (this) {
+    SortBy.statSpeed => 'SPD',
+    SortBy.statIntelligence => 'INT',
+    SortBy.statStrength => 'STR',
+    SortBy.statBeauty => 'BEA',
+    SortBy.potentialSpeed => 'PSPD',
+    SortBy.potentialIntelligence => 'PINT',
+    SortBy.potentialStrength => 'PSTR',
+    SortBy.potentialBeauty => 'PBEA',
+    SortBy.levelHigh || SortBy.levelLow => 'LV',
+    SortBy.newest => 'NEWEST',
+    SortBy.oldest => 'OLDEST',
+  };
+
+  String? get statFamily => switch (this) {
+    SortBy.statSpeed || SortBy.potentialSpeed => 'speed',
+    SortBy.statIntelligence || SortBy.potentialIntelligence => 'intelligence',
+    SortBy.statStrength || SortBy.potentialStrength => 'strength',
+    SortBy.statBeauty || SortBy.potentialBeauty => 'beauty',
+    _ => null,
+  };
+
+  double valueForInstance(CreatureInstance instance) => switch (this) {
+    SortBy.statSpeed => instance.statSpeed,
+    SortBy.statIntelligence => instance.statIntelligence,
+    SortBy.statStrength => instance.statStrength,
+    SortBy.statBeauty => instance.statBeauty,
+    SortBy.potentialSpeed => instance.statSpeedPotential,
+    SortBy.potentialIntelligence => instance.statIntelligencePotential,
+    SortBy.potentialStrength => instance.statStrengthPotential,
+    SortBy.potentialBeauty => instance.statBeautyPotential,
+    _ => 0,
+  };
+
+  SortBy nextStatSort({required bool includePotential}) {
+    final cycle = includePotential
+        ? const [
+            SortBy.statSpeed,
+            SortBy.potentialSpeed,
+            SortBy.statIntelligence,
+            SortBy.potentialIntelligence,
+            SortBy.statStrength,
+            SortBy.potentialStrength,
+            SortBy.statBeauty,
+            SortBy.potentialBeauty,
+          ]
+        : const [
+            SortBy.statSpeed,
+            SortBy.statIntelligence,
+            SortBy.statStrength,
+            SortBy.statBeauty,
+          ];
+    final index = cycle.indexOf(this);
+    if (index < 0) return cycle.first;
+    return cycle[(index + 1) % cycle.length];
+  }
 }
 
 @DriftAccessor(tables: [PlayerCreatures, CreatureInstances, FeedEvents])
@@ -38,6 +119,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     bool filterPrismatic = false,
     String? filterVariant,
     bool filterFavoritesOnly = false,
+    bool filterLockedOnly = false,
     SortBy sortBy = SortBy.newest,
   }) {
     // Start with base query
@@ -51,6 +133,10 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         // Favorites filter
         if (filterFavoritesOnly) {
           conditions.add(t.isFavorite.equals(true));
+        }
+
+        if (filterLockedOnly) {
+          conditions.add(t.locked.equals(true));
         }
 
         // Prismatic filter
@@ -111,6 +197,14 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
               return OrderingTerm.desc(t.statStrength);
             case SortBy.statBeauty:
               return OrderingTerm.desc(t.statBeauty);
+            case SortBy.potentialSpeed:
+              return OrderingTerm.desc(t.statSpeedPotential);
+            case SortBy.potentialIntelligence:
+              return OrderingTerm.desc(t.statIntelligencePotential);
+            case SortBy.potentialStrength:
+              return OrderingTerm.desc(t.statStrengthPotential);
+            case SortBy.potentialBeauty:
+              return OrderingTerm.desc(t.statBeautyPotential);
           }
         },
       ]);
@@ -482,9 +576,14 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
   }
 
   Future<void> setFavorite(String instanceId, bool favorite) async {
-    await (update(creatureInstances)
-          ..where((t) => t.instanceId.equals(instanceId)))
-        .write(CreatureInstancesCompanion(isFavorite: Value(favorite)));
+    await (update(
+      creatureInstances,
+    )..where((t) => t.instanceId.equals(instanceId))).write(
+      CreatureInstancesCompanion(
+        isFavorite: Value(favorite),
+        locked: Value(favorite),
+      ),
+    );
   }
 
   /// Species (baseIds) that have at least one favorited instance.

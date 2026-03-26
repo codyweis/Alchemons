@@ -38,6 +38,7 @@ class _FeedingScreenState extends State<FeedingScreen>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late final ScrollController _speciesScrollCtrl;
+  FeedingSpeciesSort _speciesSort = FeedingSpeciesSort.name;
 
   bool _showAllInstances = false;
 
@@ -93,7 +94,7 @@ class _FeedingScreenState extends State<FeedingScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'This screen lets you power up your creatures by consuming others of the same species.',
+                'Enhancement dismantles spare Alchemons of the same species into elemental essence, then channels that essence into another specimen to increase its XP and stat growth.',
                 style: TextStyle(
                   color: t.textSecondary,
                   fontSize: 12,
@@ -119,14 +120,23 @@ class _FeedingScreenState extends State<FeedingScreen>
               TutorialStep(
                 theme: theme,
                 icon: Icons.local_fire_department_rounded,
-                title: 'Step 3 – Select Fodder',
+                title: 'Step 3 – Select Elemental Enhancements',
                 body:
-                    'Choose other specimens of the same species to consume. '
+                    'Choose other specimens of the same species to convert into elemental material. '
                     'They will be permanently lost in exchange for XP and stat growth.',
               ),
               const SizedBox(height: 8),
               Text(
-                'Tip: You can long-press a specimen to inspect its details before using it as fodder.',
+                'Tip: You can long-press a specimen to inspect its details before using it as enhancement material.',
+                style: TextStyle(
+                  color: t.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tip: Alchemons can be enhanced to a maximum level of 10. During elemental dissonance, the sacrificed specimen\'s highest and lowest stats are morphed into the power-up and penalty applied to the target Alchemon.',
                 style: TextStyle(
                   color: t.textSecondary,
                   fontSize: 11,
@@ -312,6 +322,8 @@ class _FeedingScreenState extends State<FeedingScreen>
       targetSpeciesId: _targetSpeciesId,
       targetInstanceId: _targetInstanceId,
       selectedFodder: _selectedFodder,
+      speciesSort: _speciesSort,
+      onSpeciesSortChanged: (sort) => setState(() => _speciesSort = sort),
     );
 
     if (_showAllInstances) {

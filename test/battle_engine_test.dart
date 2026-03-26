@@ -103,14 +103,14 @@ void main() {
     });
 
     test('Basic moves are correct for each family', () {
-      expect(BattleMove.getBasicMove('Let').name, 'Sprite-hit');
-      expect(BattleMove.getBasicMove('Pip').name, 'Pip-bite');
-      expect(BattleMove.getBasicMove('Mane').name, 'Vine-whip');
-      expect(BattleMove.getBasicMove('Horn').name, 'Horn-bash');
-      expect(BattleMove.getBasicMove('Mask').name, 'Hex-bolt');
-      expect(BattleMove.getBasicMove('Wing').name, 'Wing-slash');
-      expect(BattleMove.getBasicMove('Kin').name, 'Kin-stomp');
-      expect(BattleMove.getBasicMove('Mystic').name, 'Mystic-pulse');
+      expect(BattleMove.getBasicMove('Let').name, 'Catalyst Strike');
+      expect(BattleMove.getBasicMove('Pip').name, 'Reagent Strike');
+      expect(BattleMove.getBasicMove('Mane').name, 'Aether Strike');
+      expect(BattleMove.getBasicMove('Horn').name, 'Crucible Strike');
+      expect(BattleMove.getBasicMove('Mask').name, 'Sigil Strike');
+      expect(BattleMove.getBasicMove('Wing').name, 'Flux Strike');
+      expect(BattleMove.getBasicMove('Kin').name, 'Alloy Strike');
+      expect(BattleMove.getBasicMove('Mystic').name, 'Quintessence Strike');
 
       debugPrint('✅ All basic moves correct!');
     });

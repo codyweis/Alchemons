@@ -33,6 +33,9 @@ extension ShakeExt on PositionComponent {
 
 /// Main Flame game for battle scene
 class BattleGame extends FlameGame with TapCallbacks {
+  static const int _basicActionCooldownTurns = 2;
+  static const int _specialActionCooldownTurns = 3;
+
   final BattleCombatant boss;
   final List<BattleCombatant> playerTeam;
   final Function(BattleGameEvent) onGameEvent;
@@ -62,15 +65,73 @@ class BattleGame extends FlameGame with TapCallbacks {
   Color backgroundColor() => const Color(0x00000000);
 
   void _setBattleState(BattleState newState) {
+    if (state == BattleState.gameOver && newState != BattleState.gameOver) {
+      return;
+    }
     state = newState;
     onGameEvent(TurnStateChangedEvent(newState));
   }
 
+  void _emitTerminalEvent(BattleGameEvent event) {
+    if (state == BattleState.gameOver) return;
+    _setBattleState(BattleState.gameOver);
+    onGameEvent(event);
+  }
+
   CreatureBattleSpriteWithVisuals? _spriteForTeamIndex(int index) {
     for (final sprite in playerSprites) {
-      if (sprite.index == index) return sprite;
+      if (sprite.index == index && sprite.isMounted) return sprite;
     }
     return null;
+  }
+
+  Vector2 _teamSlotPosition(int index) {
+    final spacing = size.x / (playerTeam.length + 1);
+    return Vector2(spacing * (index + 1), size.y * 0.7);
+  }
+
+  Future<void> _restoreRevivedSprites() async {
+    for (var i = 0; i < playerTeam.length; i++) {
+      final combatant = playerTeam[i];
+      if (!combatant.isAlive) continue;
+
+      CreatureBattleSpriteWithVisuals? existing;
+      for (final sprite in playerSprites) {
+        if (sprite.index == i) {
+          existing = sprite;
+          break;
+        }
+      }
+
+      final needsRespawn =
+          existing == null ||
+          !existing.isMounted ||
+          existing.position.y > size.y + 10;
+      if (!needsRespawn) continue;
+
+      if (existing != null && existing.isMounted) {
+        existing.removeFromParent();
+      }
+
+      final sheet = combatant.sheetDef;
+      final visuals = combatant.spriteVisuals;
+      if (sheet == null || visuals == null) continue;
+
+      playerSprites.removeWhere((s) => s.index == i);
+
+      final sprite = CreatureBattleSpriteWithVisuals(
+        combatant: combatant,
+        position: _teamSlotPosition(i),
+        index: i,
+        sheet: sheet,
+        visuals: visuals,
+        alchemyEffect: combatant.instanceRef?.alchemyEffect,
+      );
+      playerSprites.add(sprite);
+      playerSprites.sort((a, b) => a.index.compareTo(b.index));
+      await add(sprite);
+      sprite.playSpawnAnimation();
+    }
   }
 
   /// Queue a command to run on the game thread during the next update
@@ -115,11 +176,7 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     // Players - evenly spaced and centered as a group
     playerSprites = [];
-    final totalWidth = size.x;
     final teamCount = playerTeam.length;
-
-    // Calculate spacing to center the entire team
-    final spacing = totalWidth / (teamCount + 1);
 
     for (int i = 0; i < playerTeam.length; i++) {
       final bc = playerTeam[i];
@@ -130,11 +187,9 @@ class BattleGame extends FlameGame with TapCallbacks {
         continue;
       }
 
-      // Position each creature with equal spacing
-      final xPos = spacing * (i + 1);
       final sprite = CreatureBattleSpriteWithVisuals(
         combatant: bc,
-        position: Vector2(xPos, size.y * 0.7),
+        position: _teamSlotPosition(i),
         index: i,
         sheet: sheet,
         visuals: visuals,
@@ -219,8 +274,8 @@ class BattleGame extends FlameGame with TapCallbacks {
       }
       onGameEvent(AttackExecutedEvent(blocked));
 
-      // Set action cooldown even if blocked
-      attacker.actionCooldown = 2;
+      // Turn is consumed even if blocked.
+      _applyActionCommitment(attacker, move, specialCommitted: false);
 
       // Boss still gets a turn when player action is skipped
       await Future.delayed(Duration(milliseconds: 350));
@@ -235,7 +290,7 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     final prevented = _resolveBossDefensiveReaction(attacker, move);
     if (prevented != null) {
-      attacker.actionCooldown = 2;
+      _applyActionCommitment(attacker, move, specialCommitted: false);
       onGameEvent(AttackExecutedEvent(prevented));
       await Future.delayed(Duration(milliseconds: 350));
       await executeBossAttack();
@@ -267,8 +322,8 @@ class BattleGame extends FlameGame with TapCallbacks {
       );
     }
 
-    // Set action cooldown after acting
-    attacker.actionCooldown = 2;
+    // Specials commit harder, and only basics recover special cooldown.
+    _applyActionCommitment(attacker, move, specialCommitted: move.isSpecial);
 
     // Shake camera on hit
     if (result.damage > 0) {
@@ -292,6 +347,8 @@ class BattleGame extends FlameGame with TapCallbacks {
     bossSprite.updateHpBar();
     bossSprite.updateStatusIcons();
 
+    await _restoreRevivedSprites();
+
     // Update all player sprites (shields, regen, etc. from team specials)
     for (final sprite in playerSprites) {
       sprite.updateStatusIcons();
@@ -305,7 +362,7 @@ class BattleGame extends FlameGame with TapCallbacks {
     if (boss.isDead) {
       await bossSprite.playDeathAnimation();
       await Future.delayed(Duration(milliseconds: 400));
-      onGameEvent(VictoryEvent());
+      _emitTerminalEvent(VictoryEvent());
       return;
     }
 
@@ -313,7 +370,7 @@ class BattleGame extends FlameGame with TapCallbacks {
       attackerSprite?.playDeathAnimation();
       if (playerTeam.every((c) => c.isDead)) {
         await Future.delayed(Duration(milliseconds: 400));
-        onGameEvent(DefeatEvent());
+        _emitTerminalEvent(DefeatEvent());
         return;
       }
     }
@@ -325,6 +382,9 @@ class BattleGame extends FlameGame with TapCallbacks {
 
   Future<void> executeBossAttack() async {
     _setBattleState(BattleState.bossTurn);
+
+    // Boss cooldown economy advances on boss turns (not on player actions).
+    boss.tickSpecialCooldown();
 
     if (_darkBanishCooldownTurns > 0) {
       _darkBanishCooldownTurns--;
@@ -368,7 +428,7 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     if (aliveCreatures.isEmpty) {
       if (playerTeam.every((c) => c.isDead)) {
-        onGameEvent(DefeatEvent());
+        _emitTerminalEvent(DefeatEvent());
         return;
       }
 
@@ -447,6 +507,9 @@ class BattleGame extends FlameGame with TapCallbacks {
     // Typed boss moveset actions
     if (selectedType == BossMoveType.aoe) {
       await _executeBossAoeAttack(bossMove, damageMultiplier: damageMultiplier);
+      if (state == BattleState.gameOver) {
+        return;
+      }
       if (playerTeam.every((c) => c.isDead)) {
         return;
       }
@@ -504,6 +567,7 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     if (selectedType == BossMoveType.special) {
       var result = _executeBossSpecialMove(bossMove, target);
+      final hadShieldBefore = (target.shieldHp ?? 0) > 0;
       if (result.damage > 0) {
         result = _applyBossMoveRiders(
           move: bossMove,
@@ -511,6 +575,41 @@ class BattleGame extends FlameGame with TapCallbacks {
           baseResult: result,
           damageMultiplier: damageMultiplier,
         );
+        final reflectMessages = <String>[];
+        final reflected = _applyPlayerShieldReflect(
+          target: target,
+          hadShieldBefore: hadShieldBefore,
+          incomingDamage: result.damage,
+          messages: reflectMessages,
+        );
+        if (reflected > 0) {
+          bossSprite.showDamage(reflected, 1.0);
+        }
+        if (reflectMessages.isNotEmpty) {
+          result = BattleResult(
+            damage: result.damage,
+            isCritical: result.isCritical,
+            typeMultiplier: result.typeMultiplier,
+            messages: [...result.messages, ...reflectMessages],
+            targetDefeated: result.targetDefeated,
+          );
+        }
+        final venomMessages = <String>[];
+        _applyPoisonHornTauntRetaliation(
+          target: target,
+          hadShieldBefore: hadShieldBefore,
+          incomingDamage: result.damage,
+          messages: venomMessages,
+        );
+        if (venomMessages.isNotEmpty) {
+          result = BattleResult(
+            damage: result.damage,
+            isCritical: result.isCritical,
+            typeMultiplier: result.typeMultiplier,
+            messages: [...result.messages, ...venomMessages],
+            targetDefeated: result.targetDefeated,
+          );
+        }
       }
       _bossTurnCount++;
       onGameEvent(BossAttackExecutedEvent(result, targetIndex));
@@ -538,7 +637,14 @@ class BattleGame extends FlameGame with TapCallbacks {
 
       if (playerTeam.every((c) => c.isDead)) {
         await Future.delayed(Duration(seconds: 1));
-        onGameEvent(DefeatEvent());
+        _emitTerminalEvent(DefeatEvent());
+        return;
+      }
+
+      if (boss.isDead) {
+        await bossSprite.playDeathAnimation();
+        await Future.delayed(Duration(milliseconds: 400));
+        _emitTerminalEvent(VictoryEvent());
         return;
       }
 
@@ -549,6 +655,7 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     // Calculate damage
     final action = BattleAction(actor: boss, move: bossMove, target: target);
+    final hadShieldBefore = (target.shieldHp ?? 0) > 0;
     var result = BattleEngine.executeAction(action);
     result = _applyBossMoveRiders(
       move: bossMove,
@@ -556,6 +663,41 @@ class BattleGame extends FlameGame with TapCallbacks {
       baseResult: result,
       damageMultiplier: damageMultiplier,
     );
+    final reflectMessages = <String>[];
+    final reflected = _applyPlayerShieldReflect(
+      target: target,
+      hadShieldBefore: hadShieldBefore,
+      incomingDamage: result.damage,
+      messages: reflectMessages,
+    );
+    if (reflected > 0) {
+      bossSprite.showDamage(reflected, 1.0);
+    }
+    if (reflectMessages.isNotEmpty) {
+      result = BattleResult(
+        damage: result.damage,
+        isCritical: result.isCritical,
+        typeMultiplier: result.typeMultiplier,
+        messages: [...result.messages, ...reflectMessages],
+        targetDefeated: result.targetDefeated,
+      );
+    }
+    final venomMessages = <String>[];
+    _applyPoisonHornTauntRetaliation(
+      target: target,
+      hadShieldBefore: hadShieldBefore,
+      incomingDamage: result.damage,
+      messages: venomMessages,
+    );
+    if (venomMessages.isNotEmpty) {
+      result = BattleResult(
+        damage: result.damage,
+        isCritical: result.isCritical,
+        typeMultiplier: result.typeMultiplier,
+        messages: [...result.messages, ...venomMessages],
+        targetDefeated: result.targetDefeated,
+      );
+    }
     _bossTurnCount++;
 
     // Shake camera
@@ -584,6 +726,7 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     // Wait then update icons
     await Future.delayed(Duration(milliseconds: 200));
+    bossSprite.updateStatusIcons();
     for (final sprite in playerSprites) {
       sprite.updateStatusIcons();
     }
@@ -599,7 +742,14 @@ class BattleGame extends FlameGame with TapCallbacks {
     // Check if all defeated
     if (playerTeam.every((c) => c.isDead)) {
       await Future.delayed(Duration(seconds: 1));
-      onGameEvent(DefeatEvent());
+      _emitTerminalEvent(DefeatEvent());
+      return;
+    }
+
+    if (boss.isDead) {
+      await bossSprite.playDeathAnimation();
+      await Future.delayed(Duration(milliseconds: 400));
+      _emitTerminalEvent(VictoryEvent());
       return;
     }
 
@@ -842,7 +992,7 @@ class BattleGame extends FlameGame with TapCallbacks {
       case 'empower':
         final selfDamage = max(1, (boss.maxHp * 0.10).round());
         boss.takeDamage(selfDamage);
-        boss.applyStatModifier(StatModifier(type: 'attack_up', duration: 4));
+        boss.applyStatModifier(StatModifier(type: 'attack_up', duration: 3));
         messages.add('${boss.name} sacrificed $selfDamage HP to gain power!');
         break;
       default:
@@ -918,19 +1068,22 @@ class BattleGame extends FlameGame with TapCallbacks {
     var healScale = 0.18;
     if (moveName == 'regen') {
       healScale = 0.12;
+      final regenTick = BattleEngine.calculateRegenHealingTick(
+        source: boss,
+        target: boss,
+        basePct: 0.04,
+        statScale: 0.16,
+        maxPct: 0.09,
+      );
       boss.applyStatusEffect(
-        StatusEffect(
-          type: 'regen',
-          damagePerTurn: -max(1, (boss.maxHp * 0.06).round()),
-          duration: 3,
-        ),
+        StatusEffect(type: 'regen', damagePerTurn: -regenTick, duration: 3),
       );
       messages.add('${boss.name} began regenerating over time.');
     } else if (moveName == 'genesis') {
-      healScale = 0.25;
-      boss.applyStatModifier(StatModifier(type: 'attack_up', duration: 2));
-      boss.applyStatModifier(StatModifier(type: 'defense_up', duration: 2));
-      boss.applyStatModifier(StatModifier(type: 'speed_up', duration: 2));
+      healScale = 0.16;
+      boss.applyStatModifier(StatModifier(type: 'attack_up', duration: 1));
+      boss.applyStatModifier(StatModifier(type: 'defense_up', duration: 1));
+      boss.applyStatModifier(StatModifier(type: 'speed_up', duration: 1));
       messages.add('${boss.name} gained a radiant boon.');
     }
 
@@ -957,6 +1110,7 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     switch (moveName) {
       case 'sink':
+        _startBossSpecialCooldown();
         _mudSinkPendingStrike = true;
         boss.applyStatusEffect(
           StatusEffect(type: 'submerged', damagePerTurn: 0, duration: 2),
@@ -971,6 +1125,7 @@ class BattleGame extends FlameGame with TapCallbacks {
           targetDefeated: false,
         );
       case 'mirage':
+        _startBossSpecialCooldown();
         _dustMirageCharges = max(_dustMirageCharges, 1);
         boss.applyStatusEffect(
           StatusEffect(type: 'mirage', damagePerTurn: 0, duration: 2),
@@ -989,6 +1144,10 @@ class BattleGame extends FlameGame with TapCallbacks {
           BattleAction(actor: boss, move: move, target: target),
         );
     }
+  }
+
+  void _startBossSpecialCooldown() {
+    boss.specialCooldown = BattleMove.specialCooldownForFamily(boss.family);
   }
 
   Future<void> _executeBossAoeAttack(
@@ -1011,6 +1170,7 @@ class BattleGame extends FlameGame with TapCallbacks {
       final targetIndex = entry.key;
       final target = entry.value;
       final sprite = _spriteForTeamIndex(targetIndex);
+      final hadShieldBefore = (target.shieldHp ?? 0) > 0;
 
       var result = BattleEngine.executeAction(
         BattleAction(actor: boss, move: move, target: target),
@@ -1021,6 +1181,41 @@ class BattleGame extends FlameGame with TapCallbacks {
         baseResult: result,
         damageMultiplier: damageMultiplier,
       );
+      final reflectMessages = <String>[];
+      final reflected = _applyPlayerShieldReflect(
+        target: target,
+        hadShieldBefore: hadShieldBefore,
+        incomingDamage: result.damage,
+        messages: reflectMessages,
+      );
+      if (reflected > 0) {
+        bossSprite.showDamage(reflected, 1.0);
+      }
+      if (reflectMessages.isNotEmpty) {
+        result = BattleResult(
+          damage: result.damage,
+          isCritical: result.isCritical,
+          typeMultiplier: result.typeMultiplier,
+          messages: [...result.messages, ...reflectMessages],
+          targetDefeated: result.targetDefeated,
+        );
+      }
+      final venomMessages = <String>[];
+      _applyPoisonHornTauntRetaliation(
+        target: target,
+        hadShieldBefore: hadShieldBefore,
+        incomingDamage: result.damage,
+        messages: venomMessages,
+      );
+      if (venomMessages.isNotEmpty) {
+        result = BattleResult(
+          damage: result.damage,
+          isCritical: result.isCritical,
+          typeMultiplier: result.typeMultiplier,
+          messages: [...result.messages, ...venomMessages],
+          targetDefeated: result.targetDefeated,
+        );
+      }
 
       maxDamage = max(maxDamage, result.damage);
       totalDamage += result.damage;
@@ -1036,10 +1231,14 @@ class BattleGame extends FlameGame with TapCallbacks {
 
       onGameEvent(BossAttackExecutedEvent(result, targetIndex));
       await Future.delayed(Duration(milliseconds: 90));
+
+      if (boss.isDead) {
+        break;
+      }
     }
 
     if (move.name.toLowerCase() == 'void-pulse' && totalDamage > 0) {
-      final heal = max(1, (totalDamage * 0.35).round());
+      final heal = max(1, (totalDamage * 0.25).round());
       boss.heal(heal);
       onGameEvent(
         StatusEffectEvent([
@@ -1053,6 +1252,7 @@ class BattleGame extends FlameGame with TapCallbacks {
     }
 
     await Future.delayed(Duration(milliseconds: 200));
+    bossSprite.updateStatusIcons();
     for (final sprite in playerSprites) {
       sprite.updateStatusIcons();
     }
@@ -1067,7 +1267,14 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     if (playerTeam.every((c) => c.isDead)) {
       await Future.delayed(Duration(seconds: 1));
-      onGameEvent(DefeatEvent());
+      _emitTerminalEvent(DefeatEvent());
+      return;
+    }
+
+    if (boss.isDead) {
+      await bossSprite.playDeathAnimation();
+      await Future.delayed(Duration(milliseconds: 400));
+      _emitTerminalEvent(VictoryEvent());
     }
   }
 
@@ -1117,7 +1324,7 @@ class BattleGame extends FlameGame with TapCallbacks {
 
     if (damage > 0 && _bossElementLower == 'blood') {
       final missingHpRatio = max(0.0, 1.0 - boss.hpPercent);
-      final bonusRatio = 0.15 + (missingHpRatio * 0.5);
+      final bonusRatio = 0.08 + (missingHpRatio * 0.28);
       final extra = max(1, (damage * bonusRatio).round());
       target.takeDamage(extra);
       damage += extra;
@@ -1131,7 +1338,13 @@ class BattleGame extends FlameGame with TapCallbacks {
           target.applyStatusEffect(
             StatusEffect(
               type: 'burn',
-              damagePerTurn: max(1, (target.maxHp * 0.06).round()),
+              damagePerTurn: BattleEngine.calculateDotDamage(
+                source: boss,
+                target: target,
+                basePct: 0.04,
+                statScale: 0.20,
+                maxPct: 0.085,
+              ),
               duration: 3,
             ),
           );
@@ -1190,7 +1403,13 @@ class BattleGame extends FlameGame with TapCallbacks {
           target.applyStatusEffect(
             StatusEffect(
               type: 'poison',
-              damagePerTurn: max(1, (target.maxHp * 0.08).round()),
+              damagePerTurn: BattleEngine.calculatePoisonDotDamage(
+                source: boss,
+                target: target,
+                basePct: 0.05,
+                elemScale: 0.22,
+                maxPct: 0.095,
+              ),
               duration: 3,
             ),
           );
@@ -1203,7 +1422,13 @@ class BattleGame extends FlameGame with TapCallbacks {
           target.applyStatusEffect(
             StatusEffect(
               type: 'burn',
-              damagePerTurn: max(1, (target.maxHp * 0.05).round()),
+              damagePerTurn: BattleEngine.calculateDotDamage(
+                source: boss,
+                target: target,
+                basePct: 0.03,
+                statScale: 0.18,
+                maxPct: 0.075,
+              ),
               duration: 2,
             ),
           );
@@ -1248,7 +1473,13 @@ class BattleGame extends FlameGame with TapCallbacks {
           target.applyStatusEffect(
             StatusEffect(
               type: 'curse',
-              damagePerTurn: max(1, (target.maxHp * 0.06).round()),
+              damagePerTurn: BattleEngine.calculateDotDamage(
+                source: boss,
+                target: target,
+                basePct: 0.045,
+                statScale: 0.20,
+                maxPct: 0.095,
+              ),
               duration: 2,
             ),
           );
@@ -1276,7 +1507,7 @@ class BattleGame extends FlameGame with TapCallbacks {
         break;
       case 'life-drain':
         if (damage > 0) {
-          final heal = max(1, (damage * 0.35).round());
+          final heal = max(1, (damage * 0.25).round());
           boss.heal(heal);
           messages.add('${boss.name} drained $heal HP.');
         }
@@ -1286,7 +1517,14 @@ class BattleGame extends FlameGame with TapCallbacks {
           target.applyStatusEffect(
             StatusEffect(
               type: 'bleed',
-              damagePerTurn: max(1, (target.maxHp * 0.06).round()),
+              damagePerTurn: BattleEngine.calculateDotDamage(
+                source: boss,
+                target: target,
+                basePct: 0.04,
+                statScale: 0.20,
+                maxPct: 0.09,
+                usePhysicalStat: true,
+              ),
               duration: 3,
             ),
           );
@@ -1370,7 +1608,13 @@ class BattleGame extends FlameGame with TapCallbacks {
       attacker.applyStatusEffect(
         StatusEffect(
           type: 'burn',
-          damagePerTurn: max(1, (attacker.maxHp * 0.05).round()),
+          damagePerTurn: BattleEngine.calculateDotDamage(
+            source: boss,
+            target: attacker,
+            basePct: 0.03,
+            statScale: 0.18,
+            maxPct: 0.075,
+          ),
           duration: 3,
         ),
       );
@@ -1391,12 +1635,62 @@ class BattleGame extends FlameGame with TapCallbacks {
         boss.hpPercent <= 0.5) {
       _lightAegisTriggered = true;
       boss.shieldHp =
-          (boss.shieldHp ?? 0) + max(1, (boss.maxHp * 0.25).round());
+          (boss.shieldHp ?? 0) + max(1, (boss.maxHp * 0.15).round());
       boss.applyStatModifier(StatModifier(type: 'defense_up', duration: 3));
       messages.add('Radiant Aegis awakened around ${boss.name}!');
     }
 
     return reflectedDamage;
+  }
+
+  int _applyPlayerShieldReflect({
+    required BattleCombatant target,
+    required bool hadShieldBefore,
+    required int incomingDamage,
+    required List<String> messages,
+  }) {
+    if (!hadShieldBefore) return 0;
+    if (incomingDamage <= 0) return 0;
+    if (!target.statusEffects.containsKey('fortress_reflect')) return 0;
+
+    final shieldStillUp = (target.shieldHp ?? 0) > 0;
+    final ratio = shieldStillUp ? 0.30 : 0.18;
+    final reflected = max(1, (incomingDamage * ratio).round());
+    boss.takeDamage(reflected);
+    messages.add('${target.name} reflected $reflected damage with Fortress!');
+    return reflected;
+  }
+
+  void _applyPoisonHornTauntRetaliation({
+    required BattleCombatant target,
+    required bool hadShieldBefore,
+    required int incomingDamage,
+    required List<String> messages,
+  }) {
+    if (incomingDamage <= 0) return;
+    if (target.family != 'Horn') return;
+    if (!hadShieldBefore) return;
+    final isHoldingTaunt =
+        boss.tauntTargetId == target.id &&
+        boss.statusEffects.containsKey('taunt');
+    if (!isHoldingTaunt) return;
+    if (_rng.nextDouble() >= 0.28) return;
+
+    boss.applyStatusEffect(
+      StatusEffect(
+        type: 'poison',
+        damagePerTurn: BattleEngine.calculatePoisonDotDamage(
+          source: target,
+          target: boss,
+          basePct: 0.035,
+          elemScale: 0.20,
+          maxPct: 0.08,
+        ),
+        duration: 3,
+      ),
+    );
+    messages.add('${target.name}\'s Fortress spikes released a toxin burst!');
+    messages.add('${boss.name} was poisoned!');
   }
 
   void _attemptDarkBanish(List<String> messages) {
@@ -1427,12 +1721,12 @@ class BattleGame extends FlameGame with TapCallbacks {
         .toList();
     final selected = topThreats[_rng.nextInt(topThreats.length)];
     selected.applyStatusEffect(
-      StatusEffect(type: 'banished', damagePerTurn: 0, duration: 6),
+      StatusEffect(type: 'banished', damagePerTurn: 0, duration: 4),
     );
     selected.actionCooldown = max(selected.actionCooldown, 1);
-    _darkBanishCooldownTurns = 4;
+    _darkBanishCooldownTurns = 6;
     messages.add(
-      '${selected.name} was banished into the void for 5 turns (highest damage threat).',
+      '${selected.name} was banished into the void for 4 turns (highest damage threat).',
     );
   }
 
@@ -1472,8 +1766,13 @@ class BattleGame extends FlameGame with TapCallbacks {
   }
 
   Future<void> processEndOfTurn() async {
-    // Process DoT, regen, etc for all combatants
-    for (final combatant in [...playerTeam, boss]) {
+    // Process DoT, regen, etc for all combatants.
+    final defeatedPlayerIndexes = <int>{};
+
+    for (final entry in playerTeam.asMap().entries) {
+      final index = entry.key;
+      final combatant = entry.value;
+      final wasAlive = combatant.isAlive;
       final wasBanished = combatant.isBanished;
       final wasSubmerged = combatant.statusEffects.containsKey('submerged');
       final messages = List<String>.from(
@@ -1487,17 +1786,61 @@ class BattleGame extends FlameGame with TapCallbacks {
       }
 
       if (messages.isNotEmpty) {
-        onGameEvent(
-          StatusEffectEvent(messages, isBossSource: identical(combatant, boss)),
-        );
+        onGameEvent(StatusEffectEvent(messages, isBossSource: false));
+        await Future.delayed(Duration(milliseconds: 800));
+      }
+
+      if (wasAlive && combatant.isDead) {
+        defeatedPlayerIndexes.add(index);
+      }
+    }
+
+    final bossWasAlive = boss.isAlive;
+    {
+      final wasBanished = boss.isBanished;
+      final wasSubmerged = boss.statusEffects.containsKey('submerged');
+      final messages = List<String>.from(
+        BattleEngine.processEndOfTurnEffects(boss),
+      );
+      if (wasBanished && !boss.isBanished && boss.isAlive) {
+        messages.add('${boss.name} returned from the void!');
+      }
+      if (wasSubmerged && !boss.statusEffects.containsKey('submerged')) {
+        messages.add('${boss.name} resurfaced!');
+      }
+
+      if (messages.isNotEmpty) {
+        onGameEvent(StatusEffectEvent(messages, isBossSource: true));
         await Future.delayed(Duration(milliseconds: 800));
       }
     }
 
-    // Tick cooldowns for all player creatures
+    await _restoreRevivedSprites();
+
+    if (bossWasAlive && boss.isDead) {
+      await bossSprite.playDeathAnimation();
+      await Future.delayed(Duration(milliseconds: 400));
+      _emitTerminalEvent(VictoryEvent());
+      return;
+    }
+
+    if (defeatedPlayerIndexes.isNotEmpty) {
+      for (final index in defeatedPlayerIndexes) {
+        _spriteForTeamIndex(index)?.playDeathAnimation();
+      }
+      await Future.delayed(Duration(milliseconds: 750));
+    }
+
+    if (playerTeam.every((c) => c.isDead)) {
+      await Future.delayed(Duration(milliseconds: 400));
+      _emitTerminalEvent(DefeatEvent());
+      return;
+    }
+
+    // Tick action cooldowns for all player creatures.
+    // Special cooldowns recover via each creature's own basic actions.
     for (final creature in playerTeam) {
       creature.tickActionCooldown();
-      creature.tickSpecialCooldown();
     }
 
     // Safety: if all non-banished allies are on cooldown, reset their action cooldowns.
@@ -1568,6 +1911,30 @@ class BattleGame extends FlameGame with TapCallbacks {
       if (c.isAlive) c.actionCooldown = 0;
     }
     _autoSelectNextCreature();
+  }
+
+  void _applyActionCommitment(
+    BattleCombatant attacker,
+    BattleMove move, {
+    required bool specialCommitted,
+  }) {
+    attacker.actionCooldown = _actionCooldownForMove(
+      isSpecialCommitted: specialCommitted,
+    );
+    if (!move.isSpecial && attacker.specialCooldown > 0) {
+      final recoveryTicks = BattleMove.specialRecoveryPerBasicForCombatant(
+        attacker,
+      );
+      for (var i = 0; i < recoveryTicks && attacker.specialCooldown > 0; i++) {
+        attacker.tickSpecialCooldown();
+      }
+    }
+  }
+
+  int _actionCooldownForMove({required bool isSpecialCommitted}) {
+    return isSpecialCommitted
+        ? _specialActionCooldownTurns
+        : _basicActionCooldownTurns;
   }
 }
 

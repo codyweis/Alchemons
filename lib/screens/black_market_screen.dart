@@ -69,21 +69,14 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             child: Column(
               children: [
                 _buildTopBar(),
-                if (_activeTab == 0) _buildPremiumBanner(marketService),
                 _buildTabSelector(),
-                if (_activeTab == 0)
-                  _buildSellSubTabSelector(canSellResources: canSellResources),
                 Expanded(
                   child: _activeTab == 0
-                      ? (_sellSubTab == 0
-                            ? (_selectedForSale.isEmpty
-                                  ? _buildEmptyState()
-                                  : _buildSelectedCreatures())
-                            : (!canSellResources
-                                  ? _buildLockedResourceState()
-                                  : (_selectedResources.isEmpty
-                                        ? _buildEmptyResourceState()
-                                        : _buildSelectedResources())))
+                      ? (!canSellResources
+                            ? _buildLockedResourceState()
+                            : (_selectedResources.isEmpty
+                                  ? _buildEmptyResourceState()
+                                  : _buildSelectedResources()))
                       : _buildBuySection(marketService),
                 ),
                 if (_activeTab == 0)
@@ -120,7 +113,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Not accepting resources for some reason.',
+              'Unlock "Valuable Resources" in the Extraction tree to sell resources here.',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.3),
                 fontSize: 13,
@@ -134,6 +127,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildSellSubTabSelector({required bool canSellResources}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -481,7 +475,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
         offer: DailyOffer(
           id: vial.id,
           name: vial.name,
-          description: '${vial.group.displayName} • ${vial.rarity.name}',
+          description: '${vial.group.displayName} • ${vial.rarity.label}',
           icon: Icons.science_rounded,
           cost: {costType: vial.price!},
           rewardType: 'item',
@@ -554,7 +548,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${vial.group.displayName} • ${vial.rarity.name}',
+                  '${vial.group.displayName} • ${vial.rarity.label}',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontWeight: FontWeight.w700,
@@ -572,7 +566,8 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                 StreamBuilder<Map<String, int>>(
                   stream: db.currencyDao.watchAllCurrencies(),
                   builder: (context, snap) {
-                    final currencies = snap.data ?? const {'gold': 0, 'silver': 0};
+                    final currencies =
+                        snap.data ?? const {'gold': 0, 'silver': 0};
                     final available = currencies[currencyLabel] ?? 0;
                     final canAfford = available >= (vial.price ?? 0);
 
@@ -821,112 +816,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     );
   }
 
-  Widget _buildPremiumBanner(BlackMarketService marketService) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                const Color(0xFF1B140E).withValues(alpha: 0.96),
-                const Color(0xFF0D0A08).withValues(alpha: 0.96),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: const Color(0xFF6B4C20).withValues(alpha: 0.9),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF000000).withValues(alpha: 0.35),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD97706).withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color(0xFFF59E0B).withValues(alpha: 0.65),
-                    width: 1.2,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.local_fire_department_rounded,
-                  color: Color(0xFFF59E0B),
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "WEEKLY PREMIUM",
-                      style: TextStyle(
-                        color: Color(0xFFE8DCC8),
-                        fontSize: 11,
-                        fontFamily: 'monospace',
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.9,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${marketService.premiumRarity.toUpperCase()} ${marketService.premiumType.toUpperCase()}',
-                      style: const TextStyle(
-                        color: Color(0xFFF59E0B),
-                        fontSize: 13,
-                        fontFamily: 'monospace',
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF162215).withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: const Color(0xFF2E7D32).withValues(alpha: 0.75),
-                  ),
-                ),
-                child: Text(
-                  '+${((marketService.premiumBonus - 1) * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(
-                    color: Color(0xFF8BC34A),
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
+  // ignore: unused_element
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
@@ -1163,6 +1053,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildSelectedCreatures() {
     final repo = context.read<CreatureCatalog>();
 
@@ -1333,11 +1224,8 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
   }
 
   Widget _buildBottomActions({required bool canSellResources}) {
-    final isAlchemonsTab = _sellSubTab == 0;
-    final hasSelection = isAlchemonsTab
-        ? _selectedForSale.isNotEmpty
-        : _selectedResources.isNotEmpty;
-    final canInteract = isAlchemonsTab || canSellResources;
+    final hasSelection = _selectedResources.isNotEmpty;
+    final canInteract = canSellResources;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1364,9 +1252,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                       );
                       HapticFeedback.mediumImpact();
                     }
-                  : (isAlchemonsTab
-                        ? _showInstanceBrowser
-                        : _showResourceBrowser),
+                  : _showResourceBrowser,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
@@ -1384,17 +1270,13 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        isAlchemonsTab
-                            ? Icons.add_shopping_cart_rounded
-                            : Icons.science_rounded,
+                        Icons.science_rounded,
                         color: const Color(0xFFD8BFD8),
                         size: 22,
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        isAlchemonsTab
-                            ? 'SELECT SPECIMENS'
-                            : 'SELECT RESOURCES',
+                        'SELECT RESOURCES',
                         style: const TextStyle(
                           color: Color(0xFFD8BFD8),
                           fontSize: 14,
@@ -1421,7 +1303,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
                         );
                         HapticFeedback.mediumImpact();
                       }
-                    : (isAlchemonsTab ? _confirmSale : _confirmResourceSale),
+                    : _confirmResourceSale,
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1812,6 +1694,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
   }
 
   // Rest of your methods remain the same...
+  // ignore: unused_element
   void _showInstanceBrowser() async {
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
@@ -2020,6 +1903,7 @@ class _BlackMarketScreenState extends State<BlackMarketScreen>
     _totalGoldValue = goldTotal;
   }
 
+  // ignore: unused_element
   Future<void> _confirmSale() async {
     if (_selectedForSale.isEmpty) return;
 

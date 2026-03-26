@@ -2,11 +2,11 @@
 class BlackMarketConstants {
   // Base silver values by rarity
   static const Map<String, int> baseValues = {
-    'common': 10,
-    'uncommon': 25,
-    'rare': 50,
-    'epic': 100,
-    'legendary': 250,
+    'common': 50,
+    'uncommon': 75,
+    'rare': 100,
+    'epic': 150,
+    'legendary': 200,
     'mythic': 500,
   };
 
@@ -23,6 +23,7 @@ class BlackMarketConstants {
   };
 
   static const Map<String, double> tintMultipliers = {'vibrant': 1.5};
+  static const double alchemonSilverSaleMultiplier = 1.3;
 
   // Calculate total sell price
   static int calculateSellPrice({
@@ -52,5 +53,9 @@ class BlackMarketConstants {
       bonus += (prices[i] * 0.05 * i).round();
     }
     return bonus;
+  }
+
+  static int applySilverSaleBoost(int silverValue) {
+    return (silverValue * alchemonSilverSaleMultiplier).round();
   }
 }

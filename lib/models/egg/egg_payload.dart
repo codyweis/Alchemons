@@ -14,6 +14,7 @@ class EggPayload {
   final String baseId;
   final String rarity;
   final String source; // 'breeding', 'wild', 'starter', 'quest', etc.
+  final String? vialName;
 
   // Creature attributes
   final String? natureId;
@@ -37,6 +38,7 @@ class EggPayload {
     required this.baseId,
     required this.rarity,
     required this.source,
+    this.vialName,
     this.natureId,
     this.isPrismaticSkin = false,
     required this.genetics,
@@ -52,6 +54,7 @@ class EggPayload {
       'baseId': baseId,
       'rarity': rarity,
       'source': source,
+      if (vialName != null) 'vialName': vialName,
       'natureId': natureId,
       'isPrismaticSkin': isPrismaticSkin,
       'genetics': genetics,
@@ -71,6 +74,7 @@ class EggPayload {
       baseId: json['baseId'] as String,
       rarity: json['rarity'] as String,
       source: json['source'] as String? ?? 'unknown',
+      vialName: (json['vialName'] as String?) ?? (json['name'] as String?),
       natureId: json['natureId'] as String?,
       isPrismaticSkin: json['isPrismaticSkin'] as bool? ?? false,
       genetics: Map<String, String>.from(json['genetics'] as Map? ?? {}),
@@ -235,6 +239,11 @@ class EggPayloadFactory {
   }) {
     final rng = _random;
     final statRange = _getStatRangeForRarity(creature.rarity);
+    final primaryElement = creature.types.isNotEmpty
+        ? creature.types.first
+        : null;
+    final nativeFaction = elementalGroupNameOf(creature);
+    final family = creature.mutationFamily;
     // If the creature already has stats set (e.g. nexus fixed-stat encounters),
     // honour them instead of re-rolling from rarity ranges.
     final hasFixedStats = creature.stats != null;
@@ -276,17 +285,17 @@ class EggPayloadFactory {
               strength: _rollInRange(rng, statRange.potMin, statRange.potMax),
               beauty: _rollInRange(rng, statRange.potMin, statRange.potMax),
             ),
-      parentage: ParentageData(
-        parentA: _createStarterParent(creature.types.first),
-        parentB: _createStarterParent(creature.types.first),
-      ),
+      parentage: null,
       lineage: LineageData(
         generationDepth: 0,
-        nativeFaction: elementalGroupNameOf(creature),
+        nativeFaction: nativeFaction,
         variantFaction: null,
-        factionLineage: {elementalGroupNameOf(creature): 1},
-        elementLineage: {creature.types.first: 1},
-        familyLineage: {},
+        factionLineage: {nativeFaction: 1},
+        elementLineage: {
+          if (primaryElement != null && primaryElement.isNotEmpty)
+            primaryElement: 1,
+        },
+        familyLineage: {if (family != null && family.isNotEmpty) family: 1},
         isPure: true,
       ),
     );
@@ -337,27 +346,23 @@ class EggPayloadFactory {
     final rng = Random(actualSeed);
 
     final factionType = _factionKey(faction);
-
-    String elementType;
-    switch (factionType) {
-      case 'volcanic':
-        elementType = 'Fire';
-        break;
-      case 'oceanic':
-        elementType = 'Water';
-        break;
-      case 'earthen':
-        elementType = 'Earth';
-        break;
-      case 'verdant':
-        elementType = 'Air';
-        break;
-      default:
-        elementType = 'Neutral';
-    }
+    final starter = repository.getCreatureById(baseId);
+    final elementType = starter?.types.isNotEmpty == true
+        ? starter!.types.first
+        : switch (factionType) {
+            'volcanic' => 'Fire',
+            'oceanic' => 'Water',
+            'earthen' => 'Earth',
+            'verdant' => 'Air',
+            _ => 'Neutral',
+          };
+    final nativeFaction = starter != null
+        ? elementalGroupNameOf(starter)
+        : factionType;
+    final family = starter?.mutationFamily;
     return EggPayload(
       baseId: baseId,
-      rarity: 'Common',
+      rarity: starter?.rarity ?? 'Common',
       source: 'starter',
       natureId: NatureCatalogWeighted.weightedRandom(rng).id,
       isPrismaticSkin: false,
@@ -378,17 +383,14 @@ class EggPayloadFactory {
         strength: _lowRoll(rng, min: 1, max: 2),
         beauty: _lowRoll(rng, min: 1, max: 2),
       ),
-      parentage: ParentageData(
-        parentA: _createStarterParent(elementType),
-        parentB: _createStarterParent(elementType),
-      ),
+      parentage: null,
       lineage: LineageData(
         generationDepth: 0,
-        nativeFaction: _factionKey(faction),
+        nativeFaction: nativeFaction,
         variantFaction: null,
-        factionLineage: {_factionKey(faction): 1},
-        elementLineage: {},
-        familyLineage: {},
+        factionLineage: {nativeFaction: 1},
+        elementLineage: {if (elementType.isNotEmpty) elementType: 1},
+        familyLineage: {if (family != null && family.isNotEmpty) family: 1},
         isPure: true,
       ),
     );
@@ -435,8 +437,13 @@ class EggPayloadFactory {
     );
   }
 
-  EggPayload createVialPayload(Creature creature) {
+  EggPayload createVialPayload(Creature creature, {String? vialName}) {
     final rng = _random;
+    final primaryElement = creature.types.isNotEmpty
+        ? creature.types.first
+        : null;
+    final nativeFaction = elementalGroupNameOf(creature);
+    final family = creature.mutationFamily;
 
     // Vials get random nature
     final nature = NatureCatalogWeighted.weightedRandom(rng);
@@ -448,6 +455,7 @@ class EggPayloadFactory {
       baseId: creature.id,
       rarity: creature.rarity,
       source: 'vial', // Track that this came from a vial
+      vialName: vialName,
       natureId: nature.id,
       isPrismaticSkin: false,
       genetics: creature.genetics?.variants ?? {},
@@ -457,10 +465,7 @@ class EggPayloadFactory {
         strength: _rollInRange(rng, statRange.min, statRange.max),
         beauty: _rollInRange(rng, statRange.min, statRange.max),
       ),
-      parentage: ParentageData(
-        parentA: _createStarterParent(creature.types.first),
-        parentB: _createStarterParent(creature.types.first),
-      ),
+      parentage: null,
       potentials: CreatureStatPotentials(
         speed: _rollInRange(rng, statRange.potMin, statRange.potMax),
         intelligence: _rollInRange(rng, statRange.potMin, statRange.potMax),
@@ -469,11 +474,14 @@ class EggPayloadFactory {
       ),
       lineage: LineageData(
         generationDepth: 0, // Vials are Gen 0
-        nativeFaction: elementalGroupNameOf(creature),
+        nativeFaction: nativeFaction,
         variantFaction: null,
-        factionLineage: {elementalGroupNameOf(creature): 1},
-        elementLineage: {creature.types.first: 1},
-        familyLineage: {}, // Fill if you have family data
+        factionLineage: {nativeFaction: 1},
+        elementLineage: {
+          if (primaryElement != null && primaryElement.isNotEmpty)
+            primaryElement: 1,
+        },
+        familyLineage: {if (family != null && family.isNotEmpty) family: 1},
         isPure: true, // Vials are pure
       ),
     );
@@ -501,21 +509,6 @@ class EggPayloadFactory {
   }
 
   // Helper methods
-
-  ParentSnapshot _createStarterParent(String elementType) {
-    return ParentSnapshot(
-      types: [elementType],
-      instanceId: '',
-      baseId: '',
-      name: '',
-      rarity: '',
-      image: '',
-      generationDepth: 0,
-      factionLineage: {},
-      nativeFaction: '',
-      variantFaction: '',
-    );
-  }
 
   LineageData _extractLineageData(Creature creature) {
     final lineage = creature.lineageData;

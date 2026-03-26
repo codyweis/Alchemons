@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -197,9 +196,7 @@ class _EnhancementDisplayState extends State<EnhancementDisplay>
   }
 
   int _getXpNeeded(int level) {
-    const base = 100.0;
-    const growth = 1.12;
-    return (base * pow(growth, max(0, level - 1))).round();
+    return CreatureInstanceServiceFeeding.xpNeededForLevel(level);
   }
 
   // live helpers (used only AFTER animation)

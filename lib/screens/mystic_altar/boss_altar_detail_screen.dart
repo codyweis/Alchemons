@@ -12,6 +12,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/boss/boss_model.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:flutter/material.dart';
@@ -66,6 +67,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
   bool _hasKey = false;
   bool _loading = true;
   bool _summoning = false;
+  bool _storyCheckStarted = false;
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -83,7 +85,10 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     );
     _snapAnim = AlwaysStoppedAnimation(_wheelOffset);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadState());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadState();
+      _maybeShowBossRelicStoryIntro();
+    });
   }
 
   @override
@@ -128,6 +133,49 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         _loading = false;
       });
     }
+  }
+
+  Future<void> _maybeShowBossRelicStoryIntro() async {
+    if (_storyCheckStarted || !mounted) return;
+    _storyCheckStarted = true;
+
+    final db = context.read<AlchemonsDatabase>();
+    final hasSeen = await db.settingsDao.hasSeenBossRelicScreenStoryIntro();
+    if (hasSeen || !mounted) return;
+
+    final acceptedFirst = await LandscapeDialog.show(
+      context,
+      title: 'Set It In The Hollow',
+      icon: Icons.album_outlined,
+      typewriter: true,
+      message:
+          'The relic does not belong on a shelf.\n\n'
+          'It wants a hollow, a socket, a wound shaped closely enough to remember the creature that kept it.',
+    );
+    if (acceptedFirst != true || !mounted) return;
+
+    final acceptedSecond = await LandscapeDialog.show(
+      context,
+      title: 'Nothing Ends Empty',
+      icon: Icons.change_history_rounded,
+      typewriter: true,
+      message:
+          'A defeated warden leaves more than remains.\n\n'
+          'It leaves an arrangement, and arrangements like this are rarely built for mourning alone.',
+    );
+    if (acceptedSecond != true || !mounted) return;
+
+    await LandscapeDialog.show(
+      context,
+      title: 'Call It Back Differently',
+      icon: Icons.auto_fix_high_rounded,
+      typewriter: true,
+      message:
+          'Place what was taken. Shape what is missing. Offer the altar enough living pattern, and it may return something that remembers the boss without obeying it.',
+    );
+
+    if (!mounted) return;
+    await db.settingsDao.setBossRelicScreenStoryIntroSeen();
   }
 
   // ── helpers ────────────────────────────────────────────────────────────────

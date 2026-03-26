@@ -11,6 +11,7 @@ class SideDockFloating extends StatelessWidget {
   final bool highlightField; // NEW: Add highlight parameter
   final bool showHarvestDot; // NEW
   final bool lockNonField;
+  final bool lockEnhance;
   //battle
   final VoidCallback onBattle;
   final VoidCallback onBoss;
@@ -26,6 +27,7 @@ class SideDockFloating extends StatelessWidget {
     this.highlightField = false, // NEW: Default to false
     this.showHarvestDot = false,
     this.lockNonField = false,
+    this.lockEnhance = false,
     required this.onBattle,
     required this.onBoss,
     this.onMysticAltar,
@@ -71,19 +73,20 @@ class SideDockFloating extends StatelessWidget {
 
         const SizedBox(height: 10),
 
-        // ENHANCE: lock when lockNonField == true
-        lockWrap(
-          locked: lockNonField,
-          child: _FloatingSideButton(
-            size: 70,
-            theme: theme,
-            label: 'Enhance',
-            assetPath: 'assets/images/ui/enhanceicon.png',
-            onTap: onEnhance,
+        if (!lockEnhance) ...[
+          // ENHANCE: hidden until unlocked, but still lockable during tutorials
+          lockWrap(
+            locked: lockNonField,
+            child: _FloatingSideButton(
+              size: 70,
+              theme: theme,
+              label: 'Enhance',
+              assetPath: 'assets/images/ui/enhanceicon.png',
+              onTap: onEnhance,
+            ),
           ),
-        ),
-
-        const SizedBox(height: 10),
+          const SizedBox(height: 10),
+        ],
 
         lockWrap(
           locked: lockNonField,

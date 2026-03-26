@@ -1,6 +1,8 @@
 // screens/breed/breed_screen.dart
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
+import 'package:alchemons/services/cold_storage_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
@@ -13,9 +15,15 @@ import 'package:alchemons/screens/breed/nursery_tab.dart';
 import 'package:provider/provider.dart';
 
 class BreedScreen extends StatefulWidget {
-  const BreedScreen({super.key, this.title = 'Alchemons', this.onGoToSection});
+  const BreedScreen({
+    super.key,
+    this.title = 'Alchemons',
+    this.onGoToSection,
+    this.isActive = false,
+  });
   final String title;
   final ValueChanged<NavSection>? onGoToSection;
+  final bool isActive;
 
   @override
   State<BreedScreen> createState() => _BreedScreenState();
@@ -23,14 +31,22 @@ class BreedScreen extends StatefulWidget {
 
 class _BreedScreenState extends State<BreedScreen>
     with SingleTickerProviderStateMixin {
+  static const _tabAnimationDuration = Duration(milliseconds: 180);
+
   late TabController _tabController;
   int _activeTabIndex = 0;
+  bool _coldStorageIntroCheckInFlight = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      animationDuration: _tabAnimationDuration,
+    );
     _tabController.addListener(_handleTabChange);
+    _maybeShowColdStorageIntroIfEligible();
   }
 
   @override
@@ -44,11 +60,115 @@ class _BreedScreenState extends State<BreedScreen>
     final nextIndex = _tabController.index;
     if (nextIndex != _activeTabIndex) {
       setState(() => _activeTabIndex = nextIndex);
+      _maybeShowColdStorageIntroIfEligible();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant BreedScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive && widget.isActive) {
+      _maybeShowColdStorageIntroIfEligible();
     }
   }
 
   void _goCreatureScreen() {
     widget.onGoToSection?.call(NavSection.creatures);
+  }
+
+  void _maybeShowColdStorageIntroIfEligible() {
+    if (!mounted || !widget.isActive || _activeTabIndex != 0) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _maybeShowColdStorageIntro();
+    });
+  }
+
+  Future<void> _maybeShowColdStorageIntro() async {
+    if (_coldStorageIntroCheckInFlight) return;
+    _coldStorageIntroCheckInFlight = true;
+
+    final db = context.read<AlchemonsDatabase>();
+    try {
+      final seen = await db.settingsDao.getSetting(
+        ColdStorageService.introSeenSettingKey,
+      );
+      if (seen == '1' || !mounted || !widget.isActive || _activeTabIndex != 0) {
+        return;
+      }
+
+      final storedEggs = await db.incubatorDao.watchInventory().first;
+      if (!mounted ||
+          !widget.isActive ||
+          _activeTabIndex != 0 ||
+          storedEggs.isEmpty) {
+        return;
+      }
+
+      final theme = context.read<FactionTheme>();
+      final t = ForgeTokens(theme);
+      final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          backgroundColor: dialogSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: BorderSide(color: t.borderAccent, width: 1.5),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Cold Storage',
+                  style: TextStyle(
+                    color: t.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Cold storage still cultivates your vials, but at a 5x slower pace. An 8 hour cultivation becomes 40 hours while stored, and moving a vial back to a chamber resumes its active cultivation time.',
+                  style: TextStyle(
+                    color: t.textSecondary,
+                    fontSize: 13,
+                    height: 1.45,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: Text(
+                      'Got it',
+                      style: TextStyle(
+                        color: t.amberBright,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      if (!mounted) return;
+      await db.settingsDao.setSetting(
+        ColdStorageService.introSeenSettingKey,
+        '1',
+      );
+    } finally {
+      _coldStorageIntroCheckInFlight = false;
+    }
   }
 
   Future<void> _handleExtractionComplete() async {
@@ -189,14 +309,18 @@ class _BreedScreenState extends State<BreedScreen>
                     controller: _tabController,
                     physics: _activeTabIndex == 0
                         ? const NeverScrollableScrollPhysics()
-                        : const PageScrollPhysics(),
+                        : const _SnappyTabPagePhysics(),
                     children: [
                       TickerMode(
                         enabled: _activeTabIndex == 0,
                         child: NurseryTab(
                           maxSeenNowUtc: DateTime.now().toUtc(),
                           onHatchComplete: _handleExtractionComplete,
-                          onRequestAddEgg: () => _tabController.animateTo(1),
+                          onRequestAddEgg: () => _tabController.animateTo(
+                            1,
+                            duration: _tabAnimationDuration,
+                            curve: Curves.easeOutCubic,
+                          ),
                         ),
                       ),
                       TickerMode(
@@ -217,3 +341,19 @@ class _BreedScreenState extends State<BreedScreen>
 }
 
 void _noop() {}
+
+class _SnappyTabPagePhysics extends PageScrollPhysics {
+  const _SnappyTabPagePhysics({super.parent});
+
+  @override
+  _SnappyTabPagePhysics applyTo(ScrollPhysics? ancestor) {
+    return _SnappyTabPagePhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  SpringDescription get spring => SpringDescription.withDampingRatio(
+    mass: 0.7,
+    stiffness: 260,
+    ratio: 1.02,
+  );
+}

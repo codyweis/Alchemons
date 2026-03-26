@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
+import 'package:alchemons/services/cold_storage_service.dart';
+import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,6 +33,25 @@ class StorageSection extends StatefulWidget {
 
 class _StorageSectionState extends State<StorageSection> {
   ElementalGroup? _selectedFaction;
+  Timer? _clock;
+  DateTime _nowUtc = DateTime.now().toUtc();
+
+  @override
+  void initState() {
+    super.initState();
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _nowUtc = DateTime.now().toUtc();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _clock?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +73,7 @@ class _StorageSectionState extends State<StorageSection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             widget.buildSectionHeader(
-              'STORAGE',
+              'COLD STORAGE',
               Icons.inventory_2_rounded,
               widget.primaryColor,
             ),
@@ -152,8 +174,8 @@ class _StorageSectionState extends State<StorageSection> {
               Expanded(
                 child: Text(
                   _selectedFaction == null
-                      ? 'No specimens in storage'
-                      : 'No ${_selectedFaction!.displayName} specimens',
+                      ? 'No specimens in cold storage'
+                      : 'No ${_selectedFaction!.displayName} specimens in cold storage',
                   style: TextStyle(
                     color: const Color(0xFFB6C0CC),
                     fontSize: 13,
@@ -192,26 +214,89 @@ class _StorageSectionState extends State<StorageSection> {
         itemCount: items.length,
         itemBuilder: (context, i) => SizedBox(
           height: rowHeight,
-          child: StorageEggCard(egg: items[i], quality: widget.quality),
+          child: StorageEggCard(
+            egg: items[i],
+            quality: widget.quality,
+            nowUtc: _nowUtc,
+          ),
         ),
       ),
     );
   }
 }
 
-class StorageEggCard extends StatelessWidget {
+class StorageEggCard extends StatefulWidget {
   final Egg egg;
   final CinematicQuality quality;
+  final DateTime nowUtc;
 
-  const StorageEggCard({super.key, required this.egg, required this.quality});
+  const StorageEggCard({
+    super.key,
+    required this.egg,
+    required this.quality,
+    required this.nowUtc,
+  });
+
+  @override
+  State<StorageEggCard> createState() => _StorageEggCardState();
+}
+
+class _StorageEggCardState extends State<StorageEggCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _syncReadyAnimation();
+  }
+
+  @override
+  void didUpdateWidget(covariant StorageEggCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.egg != widget.egg || oldWidget.nowUtc != widget.nowUtc) {
+      _syncReadyAnimation();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  void _syncReadyAnimation() {
+    final isReady = ColdStorageService.isReady(
+      widget.egg,
+      nowUtc: widget.nowUtc,
+    );
+    if (isReady) {
+      if (!_pulseController.isAnimating) {
+        _pulseController.repeat(reverse: true);
+      }
+    } else {
+      _pulseController.stop();
+      _pulseController.value = 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final egg = widget.egg;
     final payload = parseEggPayload(egg);
     final elementGroup = getElementalGroupFromPayload(payload);
     final skin = elementGroup.skin;
     final media = MediaQuery.of(context);
     final deferEffects = Scrollable.recommendDeferredLoadingForContext(context);
+    final displayRemaining = ColdStorageService.coldStorageRemainingFromEgg(
+      egg,
+      nowUtc: widget.nowUtc,
+    );
+    final isReady = ColdStorageService.isReady(egg, nowUtc: widget.nowUtc);
 
     final shortestSide = media.size.shortestSide;
     int particleCount;
@@ -227,7 +312,7 @@ class StorageEggCard extends StatelessWidget {
       particleCount = 0;
     }
 
-    final qualityMultiplier = switch (quality) {
+    final qualityMultiplier = switch (widget.quality) {
       CinematicQuality.high => 1.0,
       CinematicQuality.balanced => 0.5,
     };
@@ -235,83 +320,104 @@ class StorageEggCard extends StatelessWidget {
 
     final showParticles =
         TickerMode.of(context) && !media.disableAnimations && particleCount > 0;
+    final particleSpeed = isReady ? 0.8 + (_pulseController.value * 1.3) : 0.45;
+    final borderColor = isReady
+        ? const Color(0xFFFFD700)
+        : Colors.white.withValues(alpha: 0.12);
 
     return GestureDetector(
       onTap: () => _showEggDetails(context),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [skin.frameStart, skin.frameEnd],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: skin.frameEnd.withValues(alpha: 0.25),
-              blurRadius: 16,
-              spreadRadius: 1,
+      child: ListenableBuilder(
+        listenable: _pulseController,
+        builder: (context, child) {
+          final pulse = _pulseController.value;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [skin.frameStart, skin.frameEnd],
+              ),
+              border: Border.all(
+                color: borderColor,
+                width: isReady ? 1.4 : 0.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: (isReady ? borderColor : skin.frameEnd).withValues(
+                    alpha: isReady ? 0.3 + (pulse * 0.25) : 0.25,
+                  ),
+                  blurRadius: isReady ? 18 + (pulse * 10) : 16,
+                  spreadRadius: isReady ? 1 + (pulse * 1.2) : 1,
+                ),
+              ],
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Stack(
-            children: [
-              // Background gradient
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 1.0,
-                      colors: [
-                        skin.fill,
-                        Colors.black.withValues(alpha: 0.08),
-                        Colors.black.withValues(alpha: 0.18),
-                      ],
-                      stops: const [0.2, 0.7, 1.0],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: 1.0,
+                          colors: [
+                            skin.fill,
+                            Colors.black.withValues(alpha: 0.08),
+                            Colors.black.withValues(alpha: 0.18),
+                          ],
+                          stops: const [0.2, 0.7, 1.0],
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-
-              // Particle system
-              if (showParticles)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: AlchemyBrewingParticleSystem(
-                      parentATypeId: elementGroup.particleTypes.$1,
-                      parentBTypeId: elementGroup.particleTypes.$2,
-                      particleCount: particleCount,
-                      speedMultiplier: 0.45,
-                      fusion: false,
-                      useSimpleFusion: true,
+                  if (showParticles)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: AlchemyBrewingParticleSystem(
+                          parentATypeId: elementGroup.particleTypes.$1,
+                          parentBTypeId: elementGroup.particleTypes.$2,
+                          particleCount: isReady
+                              ? particleCount + 1
+                              : particleCount,
+                          speedMultiplier: particleSpeed,
+                          fusion: isReady,
+                          useSimpleFusion: true,
+                        ),
+                      ),
+                    ),
+                  if (isReady)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: _ReadyPulse(pulse: pulse),
+                    ),
+                  Positioned.fill(
+                    child: Center(
+                      child: _ProgressBadge(
+                        egg: egg,
+                        remaining: displayRemaining,
+                        accent: isReady
+                            ? const Color(0xFFFFD700)
+                            : elementGroup.color,
+                      ),
                     ),
                   ),
-                ),
-              // Progress ring with % left (replaces egg icon)
-              Positioned.fill(
-                child: Center(
-                  child: _ProgressBadge(
-                    remainingMs: egg.remainingMs,
-                    payload: payload,
-                    accent: elementGroup.color,
-                  ),
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  // NEW (Correct)
   void _showEggDetails(BuildContext context) {
-    final payload = parseEggPayload(egg);
+    final payload = parseEggPayload(widget.egg);
     final elementGroup = getElementalGroupFromPayload(payload);
 
     showModalBottomSheet(
@@ -319,7 +425,8 @@ class StorageEggCard extends StatelessWidget {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => EggDetailsModal(
-        egg: egg,
+        hostContext: this.context,
+        egg: widget.egg,
         payload: payload,
         elementGroup: elementGroup,
       ),
@@ -337,34 +444,22 @@ String _fmtShort(Duration d) {
 }
 
 class _ProgressBadge extends StatelessWidget {
-  final int remainingMs;
-  final Map<String, dynamic> payload;
+  final Egg egg;
+  final Duration remaining;
   final Color accent;
 
   const _ProgressBadge({
-    required this.remainingMs,
-    required this.payload,
+    required this.egg,
+    required this.remaining,
     required this.accent,
   });
 
-  int? _tryGetTotalMs(Map<String, dynamic> p) {
-    // Try a few common keys the game might use
-    final candidates = [
-      p['totalMs'],
-      p['durationMs'],
-      p['hatchDurationMs'],
-      (p['incubation'] is Map ? (p['incubation'] as Map)['durationMs'] : null),
-    ];
-    for (final c in candidates) {
-      if (c is num && c > 0) return c.toInt();
-    }
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final totalMs = _tryGetTotalMs(payload);
-    final rem = Duration(milliseconds: remainingMs);
+    final totalMs = ColdStorageService.totalDisplayDurationMs(egg);
+    final rem = remaining;
+    final remainingMs = rem.inMilliseconds;
+    final isReady = rem <= Duration.zero;
 
     final double? percentLeft = (totalMs != null && totalMs > 0)
         ? (remainingMs / totalMs).clamp(0.0, 1.0)
@@ -377,7 +472,9 @@ class _ProgressBadge extends StatelessWidget {
     return Semantics(
       label: 'Time remaining',
       value: totalMs != null
-          ? '${(percentLeft! * 100).round()} percent left'
+          ? isReady
+                ? 'Ready'
+                : '${(percentLeft! * 100).round()} percent left'
           : _fmtShort(rem),
       child: SizedBox(
         width: size,
@@ -422,7 +519,9 @@ class _ProgressBadge extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  percentLeft != null
+                  isReady
+                      ? 'READY'
+                      : percentLeft != null
                       ? '${(percentLeft * 100).round()}%'
                       : _fmtShort(rem),
                   style: const TextStyle(
@@ -433,7 +532,11 @@ class _ProgressBadge extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  percentLeft != null ? 'left' : 'remaining',
+                  isReady
+                      ? 'extract'
+                      : percentLeft != null
+                      ? 'left'
+                      : 'remaining',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 9,
@@ -451,12 +554,14 @@ class _ProgressBadge extends StatelessWidget {
 }
 
 class EggDetailsModal extends StatelessWidget {
+  final BuildContext hostContext;
   final Egg egg;
   final Map<String, dynamic> payload;
   final ElementalGroup elementGroup;
 
   const EggDetailsModal({
     super.key,
+    required this.hostContext,
     required this.egg,
     required this.payload,
     required this.elementGroup,
@@ -466,16 +571,21 @@ class EggDetailsModal extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
+    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
     final skin = elementGroup.skin;
     final source = payload['source'] as String? ?? 'unknown';
     final parents = _extractParents();
+    final displayRemaining = ColdStorageService.coldStorageRemainingFromEgg(
+      egg,
+    );
+    final isReady = ColdStorageService.isReady(egg);
 
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
       decoration: BoxDecoration(
-        color: t.bg1,
+        color: dialogSurface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
         border: Border(top: BorderSide(color: t.borderAccent, width: 1.5)),
       ),
@@ -542,7 +652,12 @@ class EggDetailsModal extends StatelessWidget {
                   Center(
                     child: SizedBox(
                       height: 240,
-                      child: _buildLargeVialDisplay(skin, t),
+                      child: _buildLargeVialDisplay(
+                        skin,
+                        t,
+                        displayRemaining,
+                        isReady,
+                      ),
                     ),
                   ),
 
@@ -614,12 +729,53 @@ class EggDetailsModal extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      // ADD TO CHAMBER
-                      Expanded(
+                      if (isReady) ...[
+                        Flexible(
+                          flex: 3,
+                          child: GestureDetector(
+                            onTap: () => _extractFromStorage(context, t),
+                            child: Container(
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFFFD700,
+                                ).withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(2),
+                                border: Border.all(
+                                  color: const Color(0xFFFFD700),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFFFFD700,
+                                    ).withValues(alpha: 0.18),
+                                    blurRadius: 12,
+                                  ),
+                                ],
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                'EXTRACT',
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: Color(0xFFFFD700),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.4,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      Flexible(
+                        flex: isReady ? 2 : 3,
                         child: GestureDetector(
                           onTap: () => _addToIncubator(context, t),
                           child: Container(
-                            height: 44,
+                            height: isReady ? 38 : 44,
                             decoration: BoxDecoration(
                               color: t.amberDim.withValues(alpha: 0.35),
                               borderRadius: BorderRadius.circular(2),
@@ -632,26 +788,15 @@ class EggDetailsModal extends StatelessWidget {
                               ],
                             ),
                             alignment: Alignment.center,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.bubble_chart_rounded,
-                                  color: t.amberBright,
-                                  size: 15,
-                                ),
-                                const SizedBox(width: 7),
-                                Text(
-                                  'ADD TO CHAMBER',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: t.amberBright,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.4,
-                                  ),
-                                ),
-                              ],
+                            child: Text(
+                              'ADD TO CHAMBER',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.amberBright,
+                                fontSize: isReady ? 10 : 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: isReady ? 1.1 : 1.4,
+                              ),
                             ),
                           ),
                         ),
@@ -667,7 +812,42 @@ class EggDetailsModal extends StatelessWidget {
     );
   }
 
-  Widget _buildLargeVialDisplay(ElementalGroupSkin skin, ForgeTokens t) {
+  Future<void> _extractFromStorage(BuildContext context, ForgeTokens t) async {
+    Navigator.pop(context);
+
+    final result = await EggHatching.performStorageHatching(
+      context: hostContext,
+      egg: egg,
+    );
+
+    if (!hostContext.mounted || result.success || result.message == null) {
+      return;
+    }
+
+    ScaffoldMessenger.of(hostContext).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 2),
+        content: Row(
+          children: [
+            Icon(result.icon ?? Icons.error_rounded, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(result.message!)),
+          ],
+        ),
+        backgroundColor: result.color ?? t.danger,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  Widget _buildLargeVialDisplay(
+    ElementalGroupSkin skin,
+    ForgeTokens t,
+    Duration displayRemaining,
+    bool isReady,
+  ) {
+    final borderColor = isReady ? const Color(0xFFFFD700) : t.borderAccent;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(4),
@@ -676,12 +856,14 @@ class EggDetailsModal extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [skin.frameStart, skin.frameEnd],
         ),
-        border: Border.all(color: t.borderAccent, width: 1),
+        border: Border.all(color: borderColor, width: isReady ? 1.5 : 1),
         boxShadow: [
           BoxShadow(
-            color: skin.frameEnd.withValues(alpha: 0.25),
-            blurRadius: 16,
-            spreadRadius: 1,
+            color: (isReady ? borderColor : skin.frameEnd).withValues(
+              alpha: isReady ? 0.45 : 0.25,
+            ),
+            blurRadius: isReady ? 24 : 16,
+            spreadRadius: isReady ? 2 : 1,
           ),
         ],
       ),
@@ -713,13 +895,19 @@ class EggDetailsModal extends StatelessWidget {
                 child: AlchemyBrewingParticleSystem(
                   parentATypeId: elementGroup.particleTypes.$1,
                   parentBTypeId: elementGroup.particleTypes.$2,
-                  particleCount: 18,
-                  speedMultiplier: 0.45,
-                  fusion: false,
+                  particleCount: isReady ? 22 : 18,
+                  speedMultiplier: isReady ? 1.0 : 0.45,
+                  fusion: isReady,
                   useSimpleFusion: true,
                 ),
               ),
             ),
+            if (isReady)
+              const Positioned(
+                top: 10,
+                right: 10,
+                child: _ReadyPulse(pulse: 1),
+              ),
             // Time remaining badge
             Positioned(
               bottom: 8,
@@ -734,7 +922,7 @@ class EggDetailsModal extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  _fmtShort(Duration(milliseconds: egg.remainingMs)),
+                  isReady ? 'READY' : _fmtShort(displayRemaining),
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     color: Colors.white,
@@ -888,7 +1076,9 @@ class EggDetailsModal extends StatelessWidget {
       if (cleanName.isEmpty) return null;
 
       final parts = <String>[];
-      final types = snap.types.where((type) => type.trim().isNotEmpty).join(' • ');
+      final types = snap.types
+          .where((type) => type.trim().isNotEmpty)
+          .join(' • ');
       if (types.isNotEmpty) parts.add(types);
 
       return _ParentDetail(
@@ -905,9 +1095,7 @@ class EggDetailsModal extends StatelessWidget {
                 .where((type) => type.isNotEmpty)
                 .join(' • ')
           : '';
-      final parts = <String>[
-        if (rawTypes.isNotEmpty) rawTypes,
-      ];
+      final parts = <String>[if (rawTypes.isNotEmpty) rawTypes];
 
       return _ParentDetail(
         name: rawName,
@@ -981,9 +1169,8 @@ class EggDetailsModal extends StatelessWidget {
     }
 
     // Calculate hatch time from remaining duration
-    final hatchAt = DateTime.now().toUtc().add(
-      Duration(milliseconds: egg.remainingMs),
-    );
+    final activeRemaining = ColdStorageService.activeRemainingFromEgg(egg);
+    final hatchAt = DateTime.now().toUtc().add(activeRemaining);
 
     // Place in incubator slot
     await db.incubatorDao.placeEgg(
@@ -993,7 +1180,7 @@ class EggDetailsModal extends StatelessWidget {
       bonusVariantId: egg.bonusVariantId,
       rarity: egg.rarity,
       hatchAtUtc: hatchAt,
-      payloadJson: egg.payloadJson,
+      payloadJson: ColdStorageService.clearColdStoragePayload(egg.payloadJson),
     );
 
     // Remove from storage
@@ -1044,10 +1231,12 @@ class EggDetailsModal extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, ForgeTokens t) async {
+    final theme = context.read<FactionTheme>();
+    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => Dialog(
-        backgroundColor: t.bg1,
+        backgroundColor: dialogSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(4),
           side: BorderSide(color: t.borderAccent, width: 1.5),
@@ -1209,12 +1398,39 @@ class EggDetailsModal extends StatelessWidget {
   }
 }
 
+class _ReadyPulse extends StatelessWidget {
+  final double pulse;
+
+  const _ReadyPulse({required this.pulse});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = 9 + (pulse * 8);
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const RadialGradient(
+          colors: [Color(0xFFFFF7C2), Color(0xFFFFD700), Color(0x00FFD700)],
+          stops: [0.0, 0.42, 1.0],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFFD700).withValues(alpha: 0.55),
+            blurRadius: 12 + (pulse * 6),
+            spreadRadius: 1 + pulse,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ParentDetail {
   final String name;
   final String? subtitle;
 
-  const _ParentDetail({
-    required this.name,
-    required this.subtitle,
-  });
+  const _ParentDetail({required this.name, required this.subtitle});
 }

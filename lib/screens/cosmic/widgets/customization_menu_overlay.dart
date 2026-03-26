@@ -133,18 +133,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                         ),
                       ),
                     ),
-                    GestureDetector(
+                    _OverlayHeaderButton(
+                      icon: Icons.close_rounded,
                       onTap: widget.onClose,
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.close,
-                          color: CosmicScreenStyles.textSecondary,
-                          size: 16,
-                        ),
-                      ),
                     ),
                   ],
                 ),
@@ -326,13 +317,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                           ),
                         ),
                       ),
-                      GestureDetector(
+                      _OverlayHeaderButton(
+                        icon: Icons.close_rounded,
                         onTap: () => Navigator.of(ctx).pop(),
-                        child: const Icon(
-                          Icons.close,
-                          color: CosmicScreenStyles.textMuted,
-                          size: 14,
-                        ),
+                        compact: true,
                       ),
                     ],
                   ),
@@ -1801,6 +1789,57 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OverlayHeaderButton extends StatelessWidget {
+  const _OverlayHeaderButton({
+    required this.icon,
+    required this.onTap,
+    this.compact = false,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = compact ? 34.0 : 44.0;
+    final iconSize = compact ? 18.0 : 22.0;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: 0.10),
+              CosmicScreenStyles.bg3.withValues(alpha: 0.92),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(compact ? 10 : 14),
+          border: Border.all(
+            color: CosmicScreenStyles.borderAccent.withValues(alpha: 0.55),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.22),
+              blurRadius: compact ? 8 : 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Icon(
+          icon,
+          color: CosmicScreenStyles.textPrimary.withValues(alpha: 0.9),
+          size: iconSize,
         ),
       ),
     );

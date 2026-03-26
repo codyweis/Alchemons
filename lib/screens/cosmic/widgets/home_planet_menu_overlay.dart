@@ -43,281 +43,297 @@ class HomePlanetMenuOverlay extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      child: Container(
-        color: CosmicScreenStyles.bg0.withValues(alpha: 0.92),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 360),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: CosmicScreenStyles.bg1,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: CosmicScreenStyles.borderDim),
-                  boxShadow: [
-                    BoxShadow(
-                      color: col.withValues(alpha: 0.10),
-                      blurRadius: 30,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    // Corner notches
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      child: _cornerNotch(col, topLeft: true),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: _cornerNotch(col, topLeft: false),
-                    ),
-
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // ── Header with planet orb ──
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: RadialGradient(
-                                  colors: [
-                                    Color.lerp(col, Colors.white, 0.3)!,
-                                    col,
-                                    Color.lerp(col, Colors.black, 0.4)!,
-                                  ],
-                                  stops: const [0.0, 0.55, 1.0],
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: col.withValues(alpha: 0.5),
-                                    blurRadius: 8,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Text(
-                              'HOME BASE',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: CosmicScreenStyles.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 3.0,
-                              ),
-                            ),
-                          ],
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onClose,
+        child: Container(
+          color: CosmicScreenStyles.bg0.withValues(alpha: 0.92),
+          child: SafeArea(
+            child: Center(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {},
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 32,
+                    horizontal: 20,
+                  ),
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 360),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: CosmicScreenStyles.bg1,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: CosmicScreenStyles.borderDim),
+                      boxShadow: [
+                        BoxShadow(
+                          color: col.withValues(alpha: 0.10),
+                          blurRadius: 30,
+                          spreadRadius: 2,
                         ),
-                        const SizedBox(height: 10),
-                        _etchedDivider(col),
-                        const SizedBox(height: 16),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        // Corner notches
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          child: _cornerNotch(col, topLeft: true),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: _cornerNotch(col, topLeft: false),
+                        ),
 
-                        const SizedBox(height: 12),
-
-                        // ── Planet Composition ──
-                        _forgeSection(
-                          'PLANET',
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: col,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: col.withValues(alpha: 0.5),
-                                          blurRadius: 4,
-                                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // ── Header with planet orb ──
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: RadialGradient(
+                                      colors: [
+                                        Color.lerp(col, Colors.white, 0.3)!,
+                                        col,
+                                        Color.lerp(col, Colors.black, 0.4)!,
                                       ],
+                                      stops: const [0.0, 0.55, 1.0],
                                     ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: col.withValues(alpha: 0.5),
+                                        blurRadius: 8,
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '${_fmt(totalDeposited)} ELEMENTS',
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: CosmicScreenStyles.textSecondary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.2,
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'HOME BASE',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: CosmicScreenStyles.textPrimary,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 3.0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            _etchedDivider(col),
+                            const SizedBox(height: 16),
+
+                            const SizedBox(height: 12),
+
+                            // ── Planet Composition ──
+                            _forgeSection(
+                              'PLANET',
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 10,
+                                        height: 10,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: col,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: col.withValues(alpha: 0.5),
+                                              blurRadius: 4,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '${_fmt(totalDeposited)} ELEMENTS',
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          color:
+                                              CosmicScreenStyles.textSecondary,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (sortedMix.isNotEmpty) ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(1),
+                                        border: Border.all(
+                                          color: CosmicScreenStyles.borderDim,
+                                          width: 0.5,
+                                        ),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(1),
+                                        child: Row(
+                                          children: sortedMix.take(7).map((e) {
+                                            final pct = totalDeposited > 0
+                                                ? e.value / totalDeposited
+                                                : 0.0;
+                                            return Expanded(
+                                              flex: (pct * 100).round().clamp(
+                                                1,
+                                                100,
+                                              ),
+                                              child: Container(
+                                                color: elementColor(e.key),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                  ],
+                                  if (sortedMix.isEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: const Text(
+                                        'Deposit elements to change your planet colour.',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: CosmicScreenStyles.textMuted,
+                                          fontSize: 10,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
-                              if (sortedMix.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                Container(
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(1),
-                                    border: Border.all(
-                                      color: CosmicScreenStyles.borderDim,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(1),
-                                    child: Row(
-                                      children: sortedMix.take(7).map((e) {
-                                        final pct = totalDeposited > 0
-                                            ? e.value / totalDeposited
-                                            : 0.0;
-                                        return Expanded(
-                                          flex: (pct * 100).round().clamp(
-                                            1,
-                                            100,
+                              accent: col,
+                            ),
+                            const SizedBox(height: 12),
+
+                            // ── Element Storage ──
+                            _forgeSection(
+                              'ELEMENT STORAGE',
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (storageEntries.isEmpty)
+                                    const Text(
+                                      'No elements stored yet.',
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        color: CosmicScreenStyles.textMuted,
+                                        fontSize: 10,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    )
+                                  else
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: storageEntries.take(12).map((
+                                        e,
+                                      ) {
+                                        final ec = elementColor(e.key);
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
                                           ),
-                                          child: Container(
-                                            color: elementColor(e.key),
+                                          decoration: BoxDecoration(
+                                            color: ec.withValues(alpha: 0.10),
+                                            borderRadius: BorderRadius.circular(
+                                              2,
+                                            ),
+                                            border: Border.all(
+                                              color: ec.withValues(alpha: 0.40),
+                                              width: 0.8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${e.key} ${_fmt(e.value)}',
+                                            style: TextStyle(
+                                              fontFamily: 'monospace',
+                                              color: ec,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.5,
+                                            ),
                                           ),
                                         );
                                       }).toList(),
                                     ),
-                                  ),
-                                ),
-                              ],
-                              if (sortedMix.isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 6),
-                                  child: const Text(
-                                    'Deposit elements to change your planet colour.',
-                                    style: TextStyle(
-                                      fontFamily: 'monospace',
-                                      color: CosmicScreenStyles.textMuted,
-                                      fontSize: 10,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          accent: col,
-                        ),
-                        const SizedBox(height: 12),
+                                ],
+                              ),
+                              accent: CosmicScreenStyles.teal,
+                            ),
+                            const SizedBox(height: 16),
 
-                        // ── Element Storage ──
-                        _forgeSection(
-                          'ELEMENT STORAGE',
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (storageEntries.isEmpty)
-                                const Text(
-                                  'No elements stored yet.',
+                            // ── Actions ──
+                            _forgeSection(
+                              'ACTIONS',
+                              Column(
+                                children: [
+                                  _homeAction(
+                                    icon: Icons.auto_awesome,
+                                    label: 'CUSTOMIZE',
+                                    onTap: onCustomize,
+                                    primary: true,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _homeAction(
+                                    icon: Icons.shield,
+                                    label: 'GARRISON',
+                                    onTap: onGarrison,
+                                  ),
+                                ],
+                              ),
+                              accent: CosmicScreenStyles.amberBright,
+                            ),
+                            const SizedBox(height: 16),
+
+                            // ── Close ──
+                            GestureDetector(
+                              onTap: onClose,
+                              child: Container(
+                                width: double.infinity,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: Border.all(
+                                    color: CosmicScreenStyles.borderAccent
+                                        .withValues(alpha: 0.6),
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: const Text(
+                                  'CLOSE',
                                   style: TextStyle(
                                     fontFamily: 'monospace',
-                                    color: CosmicScreenStyles.textMuted,
-                                    fontSize: 10,
-                                    fontStyle: FontStyle.italic,
+                                    color: CosmicScreenStyles.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.8,
                                   ),
-                                )
-                              else
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: storageEntries.take(12).map((e) {
-                                    final ec = elementColor(e.key);
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: ec.withValues(alpha: 0.10),
-                                        borderRadius: BorderRadius.circular(2),
-                                        border: Border.all(
-                                          color: ec.withValues(alpha: 0.40),
-                                          width: 0.8,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        '${e.key} ${_fmt(e.value)}',
-                                        style: TextStyle(
-                                          fontFamily: 'monospace',
-                                          color: ec,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
                                 ),
-                            ],
-                          ),
-                          accent: CosmicScreenStyles.teal,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // ── Actions ──
-                        _forgeSection(
-                          'ACTIONS',
-                          Column(
-                            children: [
-                              _homeAction(
-                                icon: Icons.auto_awesome,
-                                label: 'CUSTOMIZE',
-                                onTap: onCustomize,
-                                primary: true,
-                              ),
-                              const SizedBox(height: 8),
-                              _homeAction(
-                                icon: Icons.shield,
-                                label: 'GARRISON',
-                                onTap: onGarrison,
-                              ),
-                            ],
-                          ),
-                          accent: CosmicScreenStyles.amberBright,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // ── Close ──
-                        GestureDetector(
-                          onTap: onClose,
-                          child: Container(
-                            width: double.infinity,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(
-                                color: CosmicScreenStyles.borderAccent
-                                    .withValues(alpha: 0.6),
                               ),
                             ),
-                            alignment: Alignment.center,
-                            child: const Text(
-                              'CLOSE',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: CosmicScreenStyles.textSecondary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.8,
-                              ),
-                            ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

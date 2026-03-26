@@ -29,6 +29,7 @@ class FC {
   Color get amberBright => _t.amberBright;
   Color get amberDim => _t.amberDim;
   Color get amberGlow => _t.amberGlow;
+  Color get onAccent => _t.onAccent;
 
   // Status (game-semantic, fixed)
   Color get teal => _t.teal;
@@ -47,6 +48,8 @@ class FC {
   Color get borderDim => _t.borderDim;
   Color get borderMid => _t.borderMid;
   Color get borderAccent => _t.borderAccent;
+
+  Color onColor(Color background) => _t.onColor(background);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

@@ -65,6 +65,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   static const _seedKey = 'cosmic_world_seed_v2';
   static const _planetPathwayIntroSeenKey =
       'cosmic_planet_pathway_intro_seen_v1';
+  static const _planetRecipeArrivalIntroSeenKey =
+      'cosmic_planet_recipe_arrival_intro_seen_v1';
 
   late int _worldSeed;
   late CosmicWorld _world;
@@ -79,6 +81,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   // Recipe & storage state
   CosmicPlanet? _nearPlanet;
+  bool _showingPlanetRecipeArrivalIntro = false;
   CosmicRecipeState _recipeState = CosmicRecipeState.fresh();
   ElementStorage _elementStorage = ElementStorage();
   bool _showElementsCaptured = false;
@@ -147,6 +150,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   // Joystick toggle (on by default)
   bool _showJoystick = true;
+  bool _largeJoystick = false;
 
   // Tap-to-shoot toggle (off by default)
   bool _tapToShoot = false;
@@ -402,6 +406,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Load joystick preference
     _showJoystick = prefs.getBool('cosmic_joystick_enabled') ?? true;
+    _largeJoystick = prefs.getBool('cosmic_large_joystick') ?? false;
 
     // Load tap-to-shoot preference
     _tapToShoot = prefs.getBool('cosmic_tap_to_shoot') ?? false;
@@ -1222,11 +1227,37 @@ class _CosmicScreenState extends State<CosmicScreen>
           // animate planet-meter in/out
           if (planet != null) {
             _planetMeterCtrl.forward(from: 0.0);
+            unawaited(_maybeShowPlanetRecipeArrivalIntro(planet));
           } else {
             _planetMeterCtrl.reverse();
           }
         }
       });
+    }
+  }
+
+  Future<void> _maybeShowPlanetRecipeArrivalIntro(CosmicPlanet planet) async {
+    if (_showingPlanetRecipeArrivalIntro || !mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final introSeen = prefs.getBool(_planetRecipeArrivalIntroSeenKey) ?? false;
+    if (introSeen || !mounted || _nearPlanet != planet) return;
+
+    _showingPlanetRecipeArrivalIntro = true;
+    try {
+      await LandscapeDialog.show(
+        context,
+        title: 'The Planet Whispers a Pattern',
+        message:
+            'Something in this sphere remembers an older design. An alchemical recipe lies veiled here. Gather the essences it asks for, and when the pattern is whole, let the summon answer.',
+        typewriter: true,
+        kind: LandscapeDialogKind.info,
+        showIcon: false,
+        primaryLabel: 'Heed the Sign',
+      );
+      await prefs.setBool(_planetRecipeArrivalIntroSeenKey, true);
+    } finally {
+      _showingPlanetRecipeArrivalIntro = false;
     }
   }
 
@@ -5240,6 +5271,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 left: 12,
                 child: SafeArea(
                   child: VirtualJoystick(
+                    sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
                     onDirectionChanged: (dir) {
                       _game?.joystickDirection = dir;
                     },
@@ -6253,7 +6285,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 !_anyOverlayOpen)
               Positioned(
                 bottom: 20,
-                left: _showJoystick ? 120 : 0,
+                left: _showJoystick ? (_largeJoystick ? 146.0 : 120.0) : 0,
                 right: _showJoystick ? 74 : 0,
                 child: SafeArea(
                   child: Center(
@@ -6822,6 +6854,7 @@ class _CosmicScreenState extends State<CosmicScreen>
             if (_showSettingsMenu)
               _CosmicSettingsOverlay(
                 joystickEnabled: _showJoystick,
+                largeJoystickEnabled: _largeJoystick,
                 tapToShootEnabled: _tapToShoot,
                 boostToggleEnabled: _boostToggleMode,
                 onClose: () => setState(() => _showSettingsMenu = false),
@@ -6833,6 +6866,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                   setState(() => _showJoystick = v);
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setBool('cosmic_joystick_enabled', v);
+                },
+                onToggleLargeJoystick: (v) async {
+                  setState(() => _largeJoystick = v);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('cosmic_large_joystick', v);
                 },
                 onToggleTapToShoot: (v) async {
                   setState(() {
@@ -7046,21 +7084,25 @@ class _BloodRitualSpaceOverlayPainter extends CustomPainter {
 class _CosmicSettingsOverlay extends StatelessWidget {
   const _CosmicSettingsOverlay({
     required this.joystickEnabled,
+    required this.largeJoystickEnabled,
     required this.tapToShootEnabled,
     required this.boostToggleEnabled,
     required this.onClose,
     required this.onLeaveSpace,
     required this.onToggleJoystick,
+    required this.onToggleLargeJoystick,
     required this.onToggleTapToShoot,
     required this.onToggleBoostToggle,
   });
 
   final bool joystickEnabled;
+  final bool largeJoystickEnabled;
   final bool tapToShootEnabled;
   final bool boostToggleEnabled;
   final VoidCallback onClose;
   final VoidCallback onLeaveSpace;
   final ValueChanged<bool> onToggleJoystick;
+  final ValueChanged<bool> onToggleLargeJoystick;
   final ValueChanged<bool> onToggleTapToShoot;
   final ValueChanged<bool> onToggleBoostToggle;
 
@@ -7068,85 +7110,100 @@ class _CosmicSettingsOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.black.withValues(alpha: 0.7),
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 360),
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF10151E),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: 24,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.settings_rounded, color: Colors.white70),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'SETTINGS',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: onClose,
-                    icon: const Icon(Icons.close_rounded),
-                    color: Colors.white60,
-                    splashRadius: 18,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onClose,
+        child: Center(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 360),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10151E),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 24,
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              _SettingsToggleRow(
-                icon: Icons.gamepad_rounded,
-                label: 'Joystick',
-                value: joystickEnabled,
-                onChanged: onToggleJoystick,
-              ),
-              const SizedBox(height: 8),
-              _SettingsToggleRow(
-                icon: Icons.touch_app_rounded,
-                label: 'Tap To Shoot',
-                value: tapToShootEnabled,
-                onChanged: onToggleTapToShoot,
-              ),
-              const SizedBox(height: 8),
-              _SettingsToggleRow(
-                icon: Icons.local_fire_department_rounded,
-                label: 'Boost Toggle',
-                value: boostToggleEnabled,
-                onChanged: onToggleBoostToggle,
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: onLeaveSpace,
-                  icon: const Icon(Icons.logout_rounded),
-                  label: const Text('Leave Space'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.redAccent,
-                    side: BorderSide(
-                      color: Colors.redAccent.withValues(alpha: 0.6),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.settings_rounded, color: Colors.white70),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'SETTINGS',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: onClose,
+                        icon: const Icon(Icons.close_rounded),
+                        color: Colors.white60,
+                        splashRadius: 18,
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  _SettingsToggleRow(
+                    icon: Icons.gamepad_rounded,
+                    label: 'Joystick',
+                    value: joystickEnabled,
+                    onChanged: onToggleJoystick,
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsToggleRow(
+                    icon: Icons.open_in_full_rounded,
+                    label: 'Large Joystick',
+                    value: largeJoystickEnabled,
+                    onChanged: onToggleLargeJoystick,
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsToggleRow(
+                    icon: Icons.touch_app_rounded,
+                    label: 'Tap To Shoot',
+                    value: tapToShootEnabled,
+                    onChanged: onToggleTapToShoot,
+                  ),
+                  const SizedBox(height: 8),
+                  _SettingsToggleRow(
+                    icon: Icons.local_fire_department_rounded,
+                    label: 'Boost Toggle',
+                    value: boostToggleEnabled,
+                    onChanged: onToggleBoostToggle,
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onLeaveSpace,
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Leave Space'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                        side: BorderSide(
+                          color: Colors.redAccent.withValues(alpha: 0.6),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

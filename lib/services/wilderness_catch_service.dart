@@ -135,19 +135,19 @@ class CatchService {
     double baseRate;
     switch (rarity.toLowerCase()) {
       case 'common':
-        baseRate = 0.40;
+        baseRate = 0.75;
         break;
       case 'uncommon':
-        baseRate = 0.25;
+        baseRate = 0.50;
         break;
       case 'rare':
-        baseRate = 0.15;
+        baseRate = 0.40;
         break;
       case 'epic':
         baseRate = 0.10;
         break;
       case 'legendary':
-        baseRate = 0.05;
+        baseRate = 0.20;
         break;
       case 'mythic':
         baseRate = 0.02;

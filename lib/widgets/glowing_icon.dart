@@ -1,4 +1,5 @@
 import 'dart:ui'; // for BackdropFilter
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 
 class GlowingIcon extends StatelessWidget {
@@ -104,6 +105,8 @@ class GlowingIcon extends StatelessWidget {
     // If we have title/message, show the built-in glass dialog
     if (dialogTitle != null || dialogMessage != null) {
       final accent = dialogAccentColor ?? color;
+      final forgeTheme = FactionTheme.scorchForge();
+      final t = ForgeTokens(forgeTheme);
       showDialog(
         context: context,
         barrierColor: barrierColor ?? Colors.black.withValues(alpha: 0.7),
@@ -112,85 +115,113 @@ class GlowingIcon extends StatelessWidget {
             backgroundColor: Colors.transparent,
             insetPadding: const EdgeInsets.all(16),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(4),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0B0F14).withValues(alpha: 0.94),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: accent.withValues(alpha: .4), width: 2),
+                    color: t.bg1.withValues(alpha: 0.96),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: t.borderAccent.withValues(alpha: 0.9),
+                      width: 1.1,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: accent.withValues(alpha: .25),
-                        blurRadius: 20,
-                        spreadRadius: 2,
+                        color: Colors.black.withValues(alpha: 0.4),
+                        blurRadius: 24,
+                        offset: const Offset(0, 12),
+                      ),
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.14),
+                        blurRadius: 18,
                       ),
                     ],
                   ),
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(icon, color: accent, size: 20),
+                          Container(
+                            width: 3,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: accent,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Icon(icon, color: accent, size: 18),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              dialogTitle ?? 'Info',
-                              style: const TextStyle(
-                                color: Color(0xFFE8EAED),
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.6,
-                                fontSize: 18,
+                              (dialogTitle ?? 'Info').toUpperCase(),
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.textPrimary,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                                fontSize: 13,
                               ),
                             ),
                           ),
                           IconButton(
                             onPressed: () => Navigator.of(ctx).pop(),
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.close_rounded,
                               size: 18,
-                              color: Color(0xFFE8EAED),
+                              color: t.textSecondary,
                             ),
                           ),
                         ],
                       ),
+                      Container(height: 1, color: t.borderMid),
                       if ((dialogMessage ?? '').isNotEmpty) ...[
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         Text(
                           dialogMessage!,
-                          style: const TextStyle(
-                            color: Color(0xFFB6C0CC),
-                            fontSize: 16,
+                          style: TextStyle(
+                            color: t.textSecondary,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            height: 1.3,
+                            height: 1.4,
                           ),
                         ),
                       ],
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       Align(
                         alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: accent,
+                        child: GestureDetector(
+                          onTap: () => Navigator.of(ctx).pop(),
+                          child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 14,
                               vertical: 10,
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  t.amberDim.withValues(alpha: 0.44),
+                                  accent.withValues(alpha: 0.18),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(3),
+                              border: Border.all(
+                                color: accent.withValues(alpha: 0.6),
+                              ),
                             ),
-                          ),
-                          child: const Text(
-                            'Got it',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
+                            child: Text(
+                              'GOT IT',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.amberBright,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 10,
+                                letterSpacing: 1.1,
+                              ),
                             ),
                           ),
                         ),

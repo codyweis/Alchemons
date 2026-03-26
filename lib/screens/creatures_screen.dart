@@ -14,19 +14,17 @@ import 'package:alchemons/screens/breeding_milestones_screen.dart';
 import 'package:alchemons/screens/progress_overview_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
-import 'package:alchemons/utils/creature_filter_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
-import 'package:alchemons/widgets/all_instaces_grid.dart';
+import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/creature_image.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:alchemons/widgets/filterchip_solod.dart';
-import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/silhouette_widget.dart';
 import 'package:flame/image_composition.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/utils/faction_util.dart';
@@ -89,7 +87,11 @@ class CreaturesScreenState extends State<CreaturesScreen>
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
-  void unfocusSearch() => _searchFocus.unfocus();
+  void unfocusSearch() {
+    _searchFocus.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
   Timer? _debounce;
   StreamSubscription<Map<String, int>>? _instanceCountsSub;
   Map<String, int> _instanceCounts = const {};
@@ -97,6 +99,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
   bool _creaturesTutorialChecked = false;
   bool _highlightAllInstances = false;
   bool _tutorialScheduled = false;
+  bool _showCatalogView = false;
 
   String _scope = 'Catalogued';
   String _sort = 'Acquisition Order';
@@ -257,18 +260,19 @@ class CreaturesScreenState extends State<CreaturesScreen>
               const SizedBox(height: 8),
               _TutorialRow(
                 icon: Icons.category_rounded,
-                title: 'TAP A SPECIES',
+                title: 'SPECIES CATALOG',
                 body:
-                    'Tap a species to view its specimens, animations, '
-                    'and detailed stats.',
+                    'Use the top-left button to switch to the species catalog, '
+                    'then tap a species to view its specimens and details.',
               ),
               const SizedBox(height: 8),
               _TutorialRow(
                 icon: Icons.grid_view_rounded,
                 title: 'ALL SPECIMENS VIEW',
                 body:
-                    'Use the grid button at the top left to open a global '
-                    'specimen list across all species.',
+                    'This screen now opens on the full specimen list by '
+                    'default. Use the top-left button to switch between '
+                    'specimens and species.',
               ),
               const SizedBox(height: 18),
               GestureDetector(
@@ -344,6 +348,27 @@ class CreaturesScreenState extends State<CreaturesScreen>
 
             final filtered = _filterAndSort(entries, _instanceCounts);
 
+            if (!_showCatalogView) {
+              return AllSpecimensPage(
+                theme: theme,
+                showFloatingCloseButton: false,
+                leadingIcon: Icons.category_rounded,
+                leadingTooltip: 'Species Catalog',
+                onLeadingTap: () {
+                  unfocusSearch();
+                  setState(() => _showCatalogView = true);
+                },
+                onInstanceTap: (inst) {
+                  final creature = context
+                      .read<CreatureCatalog>()
+                      .getCreatureById(inst.baseId);
+                  if (creature != null) {
+                    _openDetailsForInstance(creature, inst);
+                  }
+                },
+              );
+            }
+
             return ParticleBackgroundScaffold(
               whiteBackground: theme.brightness == Brightness.light,
               body: Scaffold(
@@ -357,8 +382,10 @@ class CreaturesScreenState extends State<CreaturesScreen>
                       _SolidHeader(
                         theme: theme,
                         highlightAllInstances: _highlightAllInstances,
-                        onOpenAllInstances: () => _showAllInstancesView(theme),
-                        onOpenFavorites: () => _showFavoritesView(theme),
+                        onOpenAllInstances: () {
+                          unfocusSearch();
+                          setState(() => _showCatalogView = false);
+                        },
                       ),
                       SliverToBoxAdapter(
                         child: _StatsHeaderSolid(
@@ -378,16 +405,12 @@ class CreaturesScreenState extends State<CreaturesScreen>
                           sort: _sort,
                           isGrid: _isGrid,
                           showCounts: _showCounts,
-                          typeFilter: _typeFilter,
                           onQueryChanged: _onQueryChanged,
                           onScopeChanged: _cycleScope,
                           onSortTap: _cycleSort,
                           onToggleView: () => _mutate(() => _isGrid = !_isGrid),
                           onToggleCounts: () =>
                               _mutate(() => _showCounts = !_showCounts),
-                          onTypeChanged: (typ) => _mutate(
-                            () => _typeFilter = (typ == 'All') ? null : typ,
-                          ),
                         ),
                       ),
                       if (filtered.isEmpty)
@@ -435,6 +458,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
   }
 
   void _handleTap(Creature species, bool isDiscovered, FactionTheme theme) {
+    unfocusSearch();
     if (isDiscovered) {
       _showInstancesSheet(species, theme);
     } else {
@@ -566,13 +590,10 @@ class CreaturesScreenState extends State<CreaturesScreen>
         _ => true,
       };
     });
-    final typed = _typeFilter == null
-        ? scoped
-        : scoped.where((m) => m.creature.types.contains(_typeFilter));
     final q = _query.toLowerCase();
     final searched = q.isEmpty
-        ? typed
-        : typed.where((m) {
+        ? scoped
+        : scoped.where((m) {
             final c = m.creature;
             return c.id.toLowerCase().contains(q) ||
                 c.name.toLowerCase().contains(q) ||
@@ -618,6 +639,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
   };
 
   void _showInstancesSheet(Creature species, FactionTheme theme) {
+    unfocusSearch();
     final t = ForgeTokens(theme);
     showModalBottomSheet(
       context: context,
@@ -660,72 +682,12 @@ class CreaturesScreenState extends State<CreaturesScreen>
   }
 
   void _openDetailsForInstance(Creature species, CreatureInstance inst) {
+    unfocusSearch();
     CreatureDetailsDialog.show(
       context,
       species,
       true,
       instanceId: inst.instanceId,
-    );
-  }
-
-  void _showAllInstancesView(FactionTheme theme) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 300),
-        reverseTransitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            AllInstancesPage(
-              theme: theme,
-              onInstanceTap: (inst) {
-                final repo = context.read<CreatureCatalog>();
-                final creature = repo.getCreatureById(inst.baseId);
-                if (creature != null) {
-                  Navigator.pop(context);
-                  _openDetailsForInstance(creature, inst);
-                }
-              },
-            ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final tween = Tween(
-            begin: const Offset(0.0, 1.0),
-            end: Offset.zero,
-          ).chain(CurveTween(curve: Curves.easeOutCubic));
-          return SlideTransition(
-            position: animation.drive(tween),
-            child: child,
-          );
-        },
-      ),
-    );
-  }
-
-  void _showFavoritesView(FactionTheme theme) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 300),
-        reverseTransitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (context, animation, secondaryAnimation) => _FavoritesPage(
-          theme: theme,
-          onInstanceTap: (inst) {
-            final repo = context.read<CreatureCatalog>();
-            final creature = repo.getCreatureById(inst.baseId);
-            if (creature != null) {
-              Navigator.pop(context);
-              _openDetailsForInstance(creature, inst);
-            }
-          },
-        ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final tween = Tween(
-            begin: const Offset(0.0, 1.0),
-            end: Offset.zero,
-          ).chain(CurveTween(curve: Curves.easeOutCubic));
-          return SlideTransition(
-            position: animation.drive(tween),
-            child: child,
-          );
-        },
-      ),
     );
   }
 }
@@ -738,12 +700,10 @@ class _SolidHeader extends StatelessWidget {
   final FactionTheme theme;
   final bool highlightAllInstances;
   final VoidCallback onOpenAllInstances;
-  final VoidCallback onOpenFavorites;
 
   const _SolidHeader({
     required this.theme,
     required this.onOpenAllInstances,
-    required this.onOpenFavorites,
     this.highlightAllInstances = false,
   });
 
@@ -767,6 +727,8 @@ class _SolidHeader extends StatelessWidget {
             // All instances button — highlights briefly after tutorial
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: highlightAllInstances
                     ? t.amber.withValues(alpha: 0.15)
@@ -777,41 +739,23 @@ class _SolidHeader extends StatelessWidget {
                   width: highlightAllInstances ? 1.5 : 1.0,
                 ),
               ),
-              child: GestureDetector(
-                onTap: onOpenAllInstances,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  alignment: Alignment.center,
-                  child: Icon(
-                    Icons.grid_view_rounded,
-                    size: 18,
-                    color: highlightAllInstances
-                        ? t.amberBright
-                        : t.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 8),
-
-            // Favorites button
-            GestureDetector(
-              onTap: onOpenFavorites,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: t.bg2,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
                   borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: t.borderDim),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.star_rounded,
-                  size: 18,
-                  color: const Color(0xFFE91E8C),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onOpenAllInstances();
+                  },
+                  child: Center(
+                    child: Icon(
+                      Icons.grid_view_rounded,
+                      size: 18,
+                      color: highlightAllInstances
+                          ? t.amberBright
+                          : t.textSecondary,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -976,13 +920,11 @@ class _FilterBarSolid extends StatelessWidget {
   final String sort;
   final bool isGrid;
   final bool showCounts;
-  final String? typeFilter;
   final ValueChanged<String> onQueryChanged;
   final VoidCallback onScopeChanged;
   final VoidCallback onSortTap;
   final VoidCallback onToggleView;
   final VoidCallback onToggleCounts;
-  final ValueChanged<String> onTypeChanged;
 
   const _FilterBarSolid({
     required this.theme,
@@ -993,19 +935,15 @@ class _FilterBarSolid extends StatelessWidget {
     required this.sort,
     required this.isGrid,
     required this.showCounts,
-    required this.typeFilter,
     required this.onQueryChanged,
     required this.onScopeChanged,
     required this.onSortTap,
     required this.onToggleView,
     required this.onToggleCounts,
-    required this.onTypeChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    final types = CreatureFilterUtils.filterOptions;
     return SectionCard(
       theme: theme,
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
@@ -1053,29 +991,6 @@ class _FilterBarSolid extends StatelessWidget {
                 onTap: onSortTap,
               ),
             ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 36,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: types.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
-              itemBuilder: (_, i) {
-                final typeLabel = types[i];
-                final selected = (typeFilter ?? 'All') == typeLabel;
-                final color = typeLabel == 'All'
-                    ? t.amberBright
-                    : BreedConstants.getTypeColor(typeLabel);
-                return FilterChipSolid(
-                  label: typeLabel,
-                  color: color,
-                  selected: selected,
-                  onTap: () => onTypeChanged(typeLabel),
-                );
-              },
-            ),
           ),
         ],
       ),
@@ -1922,143 +1837,6 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// ALL INSTANCES PAGE
-// ──────────────────────────────────────────────────────────────────────────────
-
-class AllInstancesPage extends StatelessWidget {
-  final FactionTheme theme;
-  final ValueChanged<CreatureInstance> onInstanceTap;
-
-  const AllInstancesPage({
-    super.key,
-    required this.theme,
-    required this.onInstanceTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    return Scaffold(
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: FloatingCloseButton(
-        onTap: () => Navigator.of(context).pop(),
-        theme: theme,
-      ),
-      backgroundColor: t.bg0,
-      appBar: AppBar(
-        backgroundColor: t.bg1,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: GestureDetector(
-          onTap: () => Navigator.of(context).pop(),
-          child: Container(
-            margin: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: t.bg2,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: t.borderDim),
-            ),
-            child: Icon(Icons.close_rounded, color: t.textSecondary, size: 16),
-          ),
-        ),
-        title: Row(
-          children: [
-            Container(
-              width: 4,
-              height: 14,
-              color: t.amber,
-              margin: const EdgeInsets.only(right: 8),
-            ),
-            const Text('ALL SPECIMENS', style: _T.heading),
-          ],
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: t.borderDim),
-        ),
-      ),
-      body: SafeArea(
-        child: AllCreatureInstances(
-          theme: theme,
-          onTap: (inst) => onInstanceTap(inst),
-        ),
-      ),
-    );
-  }
-}
-
-class LoadingScaffold extends StatelessWidget {
-  const LoadingScaffold({super.key});
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    return Scaffold(
-      backgroundColor: t.bg0,
-      body: const Center(child: CircularProgressIndicator.adaptive()),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// FAVORITES PAGE
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _FavoritesPage extends StatelessWidget {
-  final FactionTheme theme;
-  final ValueChanged<CreatureInstance> onInstanceTap;
-
-  const _FavoritesPage({required this.theme, required this.onInstanceTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(theme);
-    return Scaffold(
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: FloatingCloseButton(
-        onTap: () => Navigator.of(context).pop(),
-        theme: theme,
-      ),
-      backgroundColor: t.bg0,
-      appBar: AppBar(
-        backgroundColor: t.bg1,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: GestureDetector(
-          onTap: () => Navigator.of(context).pop(),
-          child: Container(
-            margin: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: t.bg2,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: t.borderDim),
-            ),
-            child: Icon(Icons.close_rounded, color: t.textSecondary, size: 16),
-          ),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.star_rounded, size: 16, color: const Color(0xFFE91E8C)),
-            const SizedBox(width: 8),
-            const Text('FAVORITES', style: _T.heading),
-          ],
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: t.borderDim),
-        ),
-      ),
-      body: SafeArea(
-        child: AllCreatureInstances(
-          theme: theme,
-          favoritesOnly: true,
-          onTap: (inst) => onInstanceTap(inst),
         ),
       ),
     );

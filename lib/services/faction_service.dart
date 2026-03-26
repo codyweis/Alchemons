@@ -74,7 +74,7 @@ class FactionService extends ChangeNotifier {
       perks: [
         PerkInfo(
           code: "FireBreeder",
-          title: "Fire Breeder",
+          title: "Fire Alchemy",
           description:
               "50% chance to get half off extraction timers when using two fire specimens",
         ),
@@ -94,7 +94,7 @@ class FactionService extends ChangeNotifier {
       perks: [
         PerkInfo(
           code: "WaterBreeder",
-          title: "Water Breeder",
+          title: "Water Alchemy",
           description:
               "50% chance Water specimens don't lose stamina when breeding together",
         ),

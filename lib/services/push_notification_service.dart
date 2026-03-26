@@ -30,8 +30,8 @@ class PushNotificationService {
       2000; // Legacy 2000-2099 range for scheduled per-biome wilderness alerts
   static const int wildernessConsolidatedId =
       2100; // Single ID for consolidated
-  static const int harvestReadyBaseId =
-      3000; // 3000-3099 for individual harvests
+  static const int harvestScheduledId =
+      3000; // Single scheduled reminder for the next pending harvest
   static const int harvestConsolidatedId = 3100; // Single ID for consolidated
   // Tracking for egg hatch time windows (to suppress multi-spam)
   // Key: normalized hatch time (to minute, ISO string)
@@ -404,15 +404,8 @@ class PushNotificationService {
     }
     final scheduledDate = tz.TZDateTime.from(localReadyTime, tz.local);
 
-    // Use a stable ID based on biome type (0-99 range).
-    final biomeNames = ['valley', 'sky', 'volcano', 'swamp'];
-    final biomeIndex = _notificationSlotForKey(
-      key: biomeId,
-      knownOrder: biomeNames,
-    );
-
     await _notifications.zonedSchedule(
-      harvestReadyBaseId + biomeIndex,
+      harvestScheduledId,
       'Harvest Complete!',
       'Your alchemical harvest is ready for collection',
       scheduledDate,
@@ -429,7 +422,7 @@ class PushNotificationService {
 
     debugPrint(
       '📅 Scheduled harvest ready notification for $biomeId at $scheduledDate '
-      '(ID: ${harvestReadyBaseId + biomeIndex})',
+      '(ID: $harvestScheduledId)',
     );
   }
 
@@ -468,23 +461,21 @@ class PushNotificationService {
     debugPrint('🔕 Cancelled harvest summary notification');
   }
 
+  Future<void> cancelHarvestScheduledNotification() async {
+    if (!_initialized) await initialize();
+    await _notifications.cancel(harvestScheduledId);
+
+    // Cleanup any legacy per-biome harvest schedules from older builds.
+    for (int i = 1; i < 100; i++) {
+      await _notifications.cancel(harvestScheduledId + i);
+    }
+
+    debugPrint('🔕 Cancelled scheduled harvest notifications');
+  }
+
   Future<void> cancelHarvestNotification({String? biomeId}) async {
-    if (biomeId != null) {
-      final biomeNames = ['valley', 'sky', 'volcano', 'swamp'];
-      final biomeIndex = _notificationSlotForKey(
-        key: biomeId,
-        knownOrder: biomeNames,
-      );
-      await _notifications.cancel(harvestReadyBaseId + biomeIndex);
-      debugPrint(
-        '🔕 Cancelled harvest notification for $biomeId '
-        '(ID: ${harvestReadyBaseId + biomeIndex})',
-      );
-    } else {
-      // Cancel all harvest notifications (individual + consolidated)
-      for (int i = 0; i < 100; i++) {
-        await _notifications.cancel(harvestReadyBaseId + i);
-      }
+    await cancelHarvestScheduledNotification();
+    if (biomeId == null) {
       await _notifications.cancel(harvestConsolidatedId);
       debugPrint('🔕 Cancelled all harvest notifications');
     }
@@ -528,22 +519,6 @@ class PushNotificationService {
         presentSound: !silentUpdate,
       ),
     );
-  }
-
-  // Stable 0-99 notification slot for known keys, with deterministic fallback.
-  int _notificationSlotForKey({
-    required String key,
-    required List<String> knownOrder,
-  }) {
-    final knownIndex = knownOrder.indexOf(key);
-    if (knownIndex >= 0) return knownIndex;
-
-    final knownCount = knownOrder.length.clamp(0, 99);
-    final dynamicSlots = 100 - knownCount;
-    final hash = key.codeUnits.fold<int>(0, (acc, u) => (acc * 31 + u) % 100);
-
-    if (dynamicSlots <= 0) return hash;
-    return knownCount + (hash % dynamicSlots);
   }
 
   // Cancel all notifications

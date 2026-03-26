@@ -1150,17 +1150,22 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     );
                   },
                 ),
-                IgnorePointer(
-                  child: AlchemicalParticleBackground(
-                    opacity: switch (widget.sceneId) {
-                      'poison' => widget.isCosmicPlanetEntry ? 0.35 : 0.45,
-                      _ when widget.isCosmicPlanetEntry => 0.55,
-                      _ => 0.9,
-                    },
-                    backgroundColor: Colors.transparent,
-                    colors: _particlePaletteForScene(),
+                if (!(widget.sceneId == 'arcane' && _inEncounter))
+                  IgnorePointer(
+                    child: AlchemicalParticleBackground(
+                      opacity: switch (widget.sceneId) {
+                        'poison' => widget.isCosmicPlanetEntry ? 0.35 : 0.45,
+                        _ when widget.isCosmicPlanetEntry => 0.55,
+                        _ => 0.9,
+                      },
+                      densityMultiplier: switch (widget.sceneId) {
+                        'arcane' => 0.5,
+                        _ => 1.0,
+                      },
+                      backgroundColor: Colors.transparent,
+                      colors: _particlePaletteForScene(),
+                    ),
                   ),
-                ),
                 if (_inEncounter && _wildCreature != null)
                   EncounterOverlay(
                     encounter: WildEncounter(
@@ -1186,8 +1191,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                     onClosedWithResult: (success) async {
                       final id = _usedSpawnPointId;
 
-                      _exitEncounter();
-
                       if (success && id != null) {
                         _game.clearWildAt(id);
                         _removeTransientSpawn(id);
@@ -1196,9 +1199,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                             !widget.isTutorial) {
                           await _spawnService.removeSpawn(widget.sceneId, id);
                         }
-                        _syncSpawnsFromService();
-
                         _usedSpawnPointId = null;
+                        _exitEncounter(clearSpawnId: id);
+                        _syncSpawnsFromService();
 
                         // 🆕 Handle tutorial completion AFTER everything
                         if (!widget.isTutorial || !mounted) return;
@@ -1229,6 +1232,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                             }
                           });
                         }
+                      } else {
+                        _exitEncounter();
                       }
                     },
                   ),

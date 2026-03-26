@@ -7,6 +7,7 @@ import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/creature_image.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -48,7 +49,7 @@ class StageHeader extends StatelessWidget {
     final canGoBack = stage != 'species';
     final (title, subtitle) = _getStageText();
     final step = _stageIndex();
-    const stepLabels = ['SPECIES', 'SPECIMEN', 'FODDER'];
+    const stepLabels = ['SPECIES', 'SPECIMEN', 'MATERIAL'];
 
     return Container(
       decoration: BoxDecoration(
@@ -217,10 +218,10 @@ class StageHeader extends StatelessWidget {
         return ('All Specimens', 'Select the specimen to enhance');
       case 'fodder':
         return (
-          'Select Fodder',
+          'Select Elemental Enhancements',
           selectedCount > 0
               ? '$selectedCount selected'
-              : 'Choose specimens to feed',
+              : 'Choose specimens to convert into elemental material',
         );
       default:
         return ('', null);
@@ -470,7 +471,7 @@ class CurrentStatsDisplay extends StatelessWidget {
       ),
       child: Row(
         children: [
-          GestureDetector(
+          FastLongPressDetector(
             onLongPress: () {
               showQuickInstanceDialog(
                 context: context,
@@ -510,34 +511,38 @@ class CurrentStatsDisplay extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              StatMiniBar(
-                label: 'SPD',
-                value: instance.statSpeed,
-                potential: instance.statSpeedPotential,
-                theme: theme,
-              ),
-              StatMiniBar(
-                label: 'INT',
-                value: instance.statIntelligence,
-                potential: instance.statIntelligencePotential,
-                theme: theme,
-              ),
-              StatMiniBar(
-                label: 'STR',
-                value: instance.statStrength,
-                potential: instance.statStrengthPotential,
-                theme: theme,
-              ),
-              StatMiniBar(
-                label: 'BEA',
-                value: instance.statBeauty,
-                potential: instance.statBeautyPotential,
-                theme: theme,
-              ),
-            ],
+          SizedBox(
+            width: 128,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                StatMiniBar(
+                  label: 'SPD',
+                  value: instance.statSpeed,
+                  potential: instance.statSpeedPotential,
+                  theme: theme,
+                ),
+                StatMiniBar(
+                  label: 'INT',
+                  value: instance.statIntelligence,
+                  potential: instance.statIntelligencePotential,
+                  theme: theme,
+                ),
+                StatMiniBar(
+                  label: 'STR',
+                  value: instance.statStrength,
+                  potential: instance.statStrengthPotential,
+                  theme: theme,
+                ),
+                StatMiniBar(
+                  label: 'BEA',
+                  value: instance.statBeauty,
+                  potential: instance.statBeautyPotential,
+                  theme: theme,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -570,54 +575,69 @@ class StatMiniBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: t.textSecondary,
-              fontSize: 8,
-              fontWeight: FontWeight.w700,
+          SizedBox(
+            width: 24,
+            child: Text(
+              label,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: t.textSecondary,
+                fontSize: 8,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'monospace',
+              ),
             ),
           ),
-          const SizedBox(width: 4),
-          Container(
-            width: 60,
-            height: 8,
-            decoration: BoxDecoration(
-              color: t.bg1,
-              borderRadius: const BorderRadius.all(Radius.circular(4)),
-            ),
-            child: Stack(
-              children: [
-                FractionallySizedBox(
-                  widthFactor: potentialPercentage,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: t.borderMid,
-                      borderRadius: const BorderRadius.all(Radius.circular(4)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Container(
+              height: 8,
+              decoration: BoxDecoration(
+                color: t.bg1,
+                borderRadius: const BorderRadius.all(Radius.circular(4)),
+              ),
+              child: Stack(
+                children: [
+                  FractionallySizedBox(
+                    widthFactor: potentialPercentage,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: t.borderMid,
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(4),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                FractionallySizedBox(
-                  widthFactor: percentage,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: t.amber,
-                      borderRadius: const BorderRadius.all(Radius.circular(4)),
+                  FractionallySizedBox(
+                    widthFactor: percentage,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: t.amber,
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(4),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: 4),
-          Text(
-            value.toStringAsFixed(1),
-            style: TextStyle(
-              color: t.textPrimary,
-              fontSize: 8,
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 28,
+            child: Text(
+              value.toStringAsFixed(1),
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: t.textPrimary,
+                fontSize: 8,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'monospace',
+              ),
             ),
           ),
         ],
@@ -1105,7 +1125,7 @@ class _EnhanceButtonState extends State<EnhanceButton>
                     Text(
                       widget.selectedCount > 0
                           ? 'ENHANCE (${widget.selectedCount})'
-                          : 'SELECT FODDER',
+                          : 'SELECT ENHANCEMENTS',
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: canTap ? fc.bg0 : fc.textMuted,

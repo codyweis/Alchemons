@@ -370,14 +370,24 @@ class ConstellationCatalog {
 
   // ==================== EXTRACTION & RESOURCE TREE ====================
 
+  static const alchemonExchange = ConstellationSkill(
+    id: 'extraction_alchemon_exchange',
+    name: 'Specimen Exchange',
+    description: 'Unlock specimen selling in the Research Shop',
+    tree: ConstellationTree.extraction,
+    pointsCost: 2,
+    prerequisites: [],
+    tier: 1,
+  );
+
   static const resourceAlchemy = ConstellationSkill(
     id: 'extraction_resource_alchemy',
     name: 'Valuable Resources',
     description: 'Elemental resources can be sold at the Black Market',
     tree: ConstellationTree.extraction,
     pointsCost: 4,
-    prerequisites: [],
-    tier: 1,
+    prerequisites: ['extraction_alchemon_exchange'],
+    tier: 2,
   );
 
   static const marketplaceInsight = ConstellationSkill(
@@ -387,7 +397,7 @@ class ConstellationCatalog {
     tree: ConstellationTree.extraction,
     pointsCost: 6,
     prerequisites: ['extraction_resource_alchemy'],
-    tier: 2,
+    tier: 3,
   );
 
   static const wildernessPreview = ConstellationSkill(
@@ -398,7 +408,7 @@ class ConstellationCatalog {
     tree: ConstellationTree.extraction,
     pointsCost: 10,
     prerequisites: ['extraction_marketplace_insight'],
-    tier: 3,
+    tier: 4,
   );
 
   static const instantReload = ConstellationSkill(
@@ -408,7 +418,7 @@ class ConstellationCatalog {
     tree: ConstellationTree.extraction,
     pointsCost: 14,
     prerequisites: ['extraction_wilderness_preview'],
-    tier: 4,
+    tier: 5,
   );
 
   static const allDayBlackMarket = ConstellationSkill(
@@ -418,7 +428,7 @@ class ConstellationCatalog {
     tree: ConstellationTree.extraction,
     pointsCost: 18,
     prerequisites: ['extraction_instant_reload'],
-    tier: 5,
+    tier: 6,
   );
 
   // more for sales
@@ -429,7 +439,7 @@ class ConstellationCatalog {
     tree: ConstellationTree.extraction,
     pointsCost: 10,
     prerequisites: ['extraction_all_day_market'],
-    tier: 6,
+    tier: 7,
   );
 
   static const salePriceBoost2 = ConstellationSkill(
@@ -439,7 +449,7 @@ class ConstellationCatalog {
     tree: ConstellationTree.extraction,
     pointsCost: 14,
     prerequisites: ['extraction_sale_boost_1'],
-    tier: 7,
+    tier: 8,
   );
 
   static const salePriceBoost3 = ConstellationSkill(
@@ -449,7 +459,7 @@ class ConstellationCatalog {
     tree: ConstellationTree.extraction,
     pointsCost: 18,
     prerequisites: ['extraction_sale_boost_2'],
-    tier: 8,
+    tier: 9,
   );
 
   // xp boost
@@ -460,7 +470,7 @@ class ConstellationCatalog {
     tree: ConstellationTree.extraction,
     pointsCost: 8,
     prerequisites: ['extraction_all_day_market'],
-    tier: 6,
+    tier: 7,
   );
 
   static const xpBoost2 = ConstellationSkill(
@@ -470,7 +480,7 @@ class ConstellationCatalog {
     tree: ConstellationTree.extraction,
     pointsCost: 12,
     prerequisites: ['exraction_xp_boost_1'],
-    tier: 7,
+    tier: 8,
   );
 
   static const xpBoost3 = ConstellationSkill(
@@ -480,7 +490,7 @@ class ConstellationCatalog {
     tree: ConstellationTree.extraction,
     pointsCost: 16,
     prerequisites: ['exraction_xp_boost_2'],
-    tier: 8,
+    tier: 9,
   );
   // ==================== CATALOG ACCESS ====================
 
@@ -521,6 +531,7 @@ class ConstellationCatalog {
     speedBoost5,
 
     // Extraction tree
+    alchemonExchange,
     resourceAlchemy,
     marketplaceInsight,
     wildernessPreview,

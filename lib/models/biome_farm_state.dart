@@ -17,6 +17,23 @@ class BiomeFarmState {
     this.activeJob,
   });
 
+  BiomeFarmState copyWith({
+    Biome? biome,
+    bool? unlocked,
+    int? level,
+    String? activeElementId,
+    HarvestJob? activeJob,
+    bool clearActiveJob = false,
+  }) {
+    return BiomeFarmState(
+      biome: biome ?? this.biome,
+      unlocked: unlocked ?? this.unlocked,
+      level: level ?? this.level,
+      activeElementId: activeElementId ?? this.activeElementId,
+      activeJob: clearActiveJob ? null : (activeJob ?? this.activeJob),
+    );
+  }
+
   bool get hasActive => activeJob != null;
 
   bool get completed {
@@ -60,6 +77,22 @@ class HarvestJob {
     required this.durationMs,
     required this.ratePerMinute,
   });
+
+  HarvestJob copyWith({
+    String? jobId,
+    String? creatureInstanceId,
+    int? startUtcMs,
+    int? durationMs,
+    int? ratePerMinute,
+  }) {
+    return HarvestJob(
+      jobId: jobId ?? this.jobId,
+      creatureInstanceId: creatureInstanceId ?? this.creatureInstanceId,
+      startUtcMs: startUtcMs ?? this.startUtcMs,
+      durationMs: durationMs ?? this.durationMs,
+      ratePerMinute: ratePerMinute ?? this.ratePerMinute,
+    );
+  }
 
   factory HarvestJob.fromMap(Map<String, dynamic> map) {
     return HarvestJob(

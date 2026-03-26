@@ -216,6 +216,36 @@ class EggHatching {
     return HatchingResult.success();
   }
 
+  static Future<HatchingResult> performStorageHatching({
+    required BuildContext context,
+    required Egg egg,
+    Map<String, bool> undiscoveredCache = const {},
+  }) async {
+    final db = context.read<AlchemonsDatabase>();
+    final tempSlot = IncubatorSlot(
+      id: -1,
+      unlocked: true,
+      eggId: egg.eggId,
+      resultCreatureId: egg.resultCreatureId,
+      bonusVariantId: egg.bonusVariantId,
+      rarity: egg.rarity,
+      hatchAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+      payloadJson: egg.payloadJson,
+    );
+
+    final result = await performHatching(
+      context: context,
+      slot: tempSlot,
+      undiscoveredCache: Map<String, bool>.from(undiscoveredCache),
+    );
+
+    if (result.success) {
+      await db.incubatorDao.removeFromInventory(egg.eggId);
+    }
+
+    return result;
+  }
+
   /// Extract a creature directly from a vial (shop purchase)
   static Future<HatchingResult> extractViaVial({
     required BuildContext context,
@@ -269,7 +299,7 @@ class EggHatching {
         eligibleCreatures[Random().nextInt(eligibleCreatures.length)];
 
     // Create standardized payload using factory
-    final payload = payloadFactory.createVialPayload(offspring);
+    final payload = payloadFactory.createVialPayload(offspring, vialName: name);
     final payloadJson = payload.toJsonString();
 
     final eggId = db.creatureDao.makeInstanceId('EGG');
@@ -296,7 +326,7 @@ class EggHatching {
 
       return HatchingResult(
         success: true,
-        message: 'Incubator full — specimen transferred to storage',
+        message: 'Incubator full — specimen transferred to cold storage',
         icon: Icons.inventory_2_rounded,
         color: FC.orange,
       );
@@ -584,8 +614,8 @@ class EggHatching {
     final elem = primaryElement();
     final fam = familyId();
 
-    // Wild founder
-    const depth = 1;
+    // Founder specimens start at generation 0.
+    const depth = 0;
 
     final factionLineage = <String, int>{if (native != 'Unknown') native: 1};
     final elementLineage = <String, int>{if (elem != null) elem: 1};

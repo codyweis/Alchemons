@@ -20,7 +20,7 @@ class Factions {
   static const volcanic = FactionDef(FactionId.volcanic, 'Volcanic', '🔥', [
     FactionPerk(
       'FireBreeder',
-      'Fire Breeder',
+      'Fire Alchemy',
       '50% chance to get half off extraction timers when using two fire specimens',
     ),
     FactionPerk(
@@ -33,7 +33,7 @@ class Factions {
   static const oceanic = FactionDef(FactionId.oceanic, 'Oceanic', '🌊', [
     FactionPerk(
       'WaterBreeder',
-      'Water Breeder',
+      'Water Alchemy',
       '50% chance Water specimens don\'t lose stamina when breeding together',
     ),
     FactionPerk(

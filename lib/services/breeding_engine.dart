@@ -4,7 +4,7 @@
 //
 // Flow:
 //   0. global mutation (1% rarity bump + fused element)
-//   1. same-species clone
+//   1. same-species clone (except Lets, which follow normal recipe flow)
 //   2. hybrid:
 //        2a. roll family (biased toward less-rare parent + nature bias)
 //        2b. roll element (penalize fusion if cross-family + no recipe +
@@ -228,8 +228,9 @@ class BreedingEngine {
       _log('[Breeding] Step0 miss');
     }
 
-    // STEP 2: identical species just clones the line
-    if (p1.id == p2.id) {
+    // STEP 2: identical species usually clone the line, except Lets which
+    // intentionally fall through to the authored family recipe flow.
+    if (p1.id == p2.id && !_shouldUseRecipePathForSameSpecies(p1, p2)) {
       _log('[Breeding] Step2: same-species → ${p1.id}');
       final pure = _finalizeChild(
         p1,
@@ -242,6 +243,9 @@ class BreedingEngine {
       _log('[Breeding] RESULT (pure): ${pure.id}');
       _log('[Breeding] === BREED END ===');
       return BreedingResult(creature: pure);
+    }
+    if (p1.id == p2.id) {
+      _log('[Breeding] Step2 bypassed: same-species recipe path');
     }
 
     // STEP 3: hybrid
@@ -1345,8 +1349,16 @@ class BreedingEngine {
   // ── 2.8 Low-level / math / misc utils ───────────────────────────────────
 
   bool _computeIsPure(OffspringLineageData data) {
-    // Pure if it only ever bred within its own native faction
-    // i.e., lineage map has only one entry and it matches nativeFaction
+    final pureElement =
+        data.elementLineage.values.where((v) => v > 0).length == 1;
+    final pureSpecies =
+        data.familyLineage.values.where((v) => v > 0).length == 1;
+
+    if (data.elementLineage.isNotEmpty || data.familyLineage.isNotEmpty) {
+      return pureElement && pureSpecies;
+    }
+
+    // Legacy fallback for older saves that only carried faction lineage.
     return data.factionLineage.keys.length == 1 &&
         data.factionLineage.containsKey(data.nativeFaction);
   }
@@ -1545,6 +1557,13 @@ class BreedingEngine {
     final key = FamilyRecipeConfig.keyOf(famA, famB);
     final recipe = familyRecipes.recipes[key];
     return recipe != null && recipe.isNotEmpty;
+  }
+
+  bool _shouldUseRecipePathForSameSpecies(Creature p1, Creature p2) {
+    if (p1.id != p2.id) return false;
+    final fam1 = _familyOf(p1);
+    final fam2 = _familyOf(p2);
+    return fam1 == 'Let' && fam2 == 'Let' && _hasFamilyRecipe(fam1, fam2);
   }
 
   OutcomeDistribution<String> _applySameTypeNatureBias(

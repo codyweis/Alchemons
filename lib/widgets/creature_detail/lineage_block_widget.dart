@@ -1,9 +1,10 @@
-import 'dart:convert';
 import 'dart:math' as math;
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/widgets/creature_detail/detail_helper_widgets.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
@@ -16,51 +17,58 @@ class LineageBlock extends StatelessWidget {
   // ignore: unused_field
   final FactionTheme? theme;
   final CreatureInstance instance;
+  final Creature? creature;
 
-  const LineageBlock({super.key, this.theme, required this.instance});
+  const LineageBlock({
+    super.key,
+    this.theme,
+    required this.instance,
+    this.creature,
+  });
 
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
     final ft = FT(fc);
-    final genDepth = instance.generationDepth;
-    final isPure = instance.isPure == true;
-
-    if (genDepth == 0) {
-      return Text(
-        'This is a first generation and elementally pure Alchemon.',
-        style: ft.body.copyWith(fontSize: 11, height: 1.3),
-      );
-    }
-
-    final purityLabel = isPure ? 'Elementally Pure' : 'Cross-faction Lineage';
-    final purityColor = isPure ? Colors.green : Colors.orange;
-    final purityDesc = isPure
-        ? 'All recorded ancestors share the same elemental lineage.'
-        : 'Ancestry includes multiple elemental factions.';
-
-    // Decode maps from the instance (new columns, may be null for old saves)
-    // Decode maps from the instance (new columns, may be null for old saves)
-    final Map<String, int> elementMap = _decodeLineageMapGeneric(
-      _tryGet(instance, 'elementLineageJson'),
-    );
-    final Map<String, int> familyMap = _decodeFamilyLineageMap(
+    final purity = classifyInstancePurity(instance, species: creature);
+    final elementMap = purity.elementLineage;
+    final familyMap = _decodeFamilyLineageMap(
       _tryGet(instance, 'familyLineageJson'),
+      fallbackFamily: instance.generationDepth == 0
+          ? creature?.mutationFamily
+          : null,
     );
-    // If your instance type already exposes elementLineageJson/familyLineageJson,
-    // replace _tryGet(...) with instance.elementLineageJson / instance.familyLineageJson.
+
+    final (purityIcon, purityColor) = switch (purity.label) {
+      'Pure' => (Icons.verified_rounded, Colors.green),
+      'Elementally Pure' => (Icons.water_drop, Colors.cyan),
+      'Species Pure' => (Icons.pets_rounded, Colors.amber),
+      _ => (Icons.hub_rounded, Colors.orange),
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Generation
         LabeledInlineValue(
           label: 'Generation',
-          valueText: genDepth.toString(),
+          valueText: generationLabel(instance.generationDepth),
           valueColor: theme?.text ?? fc.textPrimary,
         ),
+        LabeledInlineValue(
+          label: 'Origin',
+          valueText: founderSourceLabel(instance.source),
+          valueColor: theme?.text ?? fc.textPrimary,
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 2, bottom: 6),
+          child: Text(
+            instance.generationDepth == 0
+                ? 'Founders start the line, but purity is tracked separately from generation.'
+                : 'Purity reflects the recorded ancestry of this line, not just its generation.',
+            style: ft.body.copyWith(fontSize: 10, height: 1.3),
+          ),
+        ),
 
-        // Purity descriptor
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
@@ -74,16 +82,10 @@ class LineageBlock extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          isPure
-                              ? Icons.water_drop
-                              : Icons.local_fire_department,
-                          size: 12,
-                          color: purityColor,
-                        ),
+                        Icon(purityIcon, size: 12, color: purityColor),
                         const SizedBox(width: 6),
                         Text(
-                          purityLabel,
+                          purity.label,
                           style: TextStyle(
                             fontFamily: 'monospace',
                             color: purityColor,
@@ -96,7 +98,7 @@ class LineageBlock extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      purityDesc,
+                      purity.description,
                       style: ft.body.copyWith(fontSize: 10, height: 1.3),
                     ),
                   ],
@@ -120,7 +122,7 @@ class LineageBlock extends StatelessWidget {
         ],
 
         if (familyMap.isNotEmpty) ...[
-          _SectionHeader('Family Ancestry'),
+          _SectionHeader('Species Lineage'),
           const SizedBox(height: 6),
           _LineageRow(
             data: familyMap,
@@ -146,37 +148,18 @@ class LineageBlock extends StatelessWidget {
     }
   }
 
-  // Generic decoder for maps like faction/element lineage (no normalization)
-  static Map<String, int> _decodeLineageMapGeneric(String? raw) {
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final m = (jsonDecode(raw) as Map).map(
-        (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-      );
-      m.removeWhere((_, v) => v <= 0);
-      return Map<String, int>.from(m);
-    } catch (_) {
-      return {};
-    }
-  }
-
   // Family-only decoder that normalizes to 3-letter codes (LET/WNG/…)
-  static Map<String, int> _decodeFamilyLineageMap(String? raw) {
-    if (raw == null || raw.isEmpty) return {};
-    try {
-      final mm = (jsonDecode(raw) as Map).map(
-        (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-      )..removeWhere((_, v) => v <= 0);
-
-      final out = <String, int>{};
-      mm.forEach((k, v) {
-        final code = FamilyColors.code(k); // normalize to 'LET','WNG',…
-        out[code] = (out[code] ?? 0) + v;
-      });
-      return out;
-    } catch (_) {
-      return {};
-    }
+  static Map<String, int> _decodeFamilyLineageMap(
+    String? raw, {
+    String? fallbackFamily,
+  }) {
+    final parsed = decodePurityLineage(raw, fallbackKey: fallbackFamily);
+    final out = <String, int>{};
+    parsed.forEach((k, v) {
+      final code = FamilyColors.code(k);
+      out[code] = (out[code] ?? 0) + v;
+    });
+    return out;
   }
 }
 

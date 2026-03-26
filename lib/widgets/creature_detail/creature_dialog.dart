@@ -7,18 +7,22 @@
 //
 
 import 'dart:convert';
+import 'dart:async';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/constants/creature_details_tutorials.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/components.dart';
 
-import 'package:alchemons/widgets/creature_detail/detail_helper_widgets.dart';
 import 'package:alchemons/widgets/creature_detail/lineage_block_widget.dart';
 import 'package:alchemons/widgets/creature_detail/outcome_widget.dart';
 import 'package:alchemons/widgets/creature_detail/parent_display_widget.dart';
 import 'package:alchemons/widgets/creature_detail/stats_potential_widget.dart';
 import 'package:alchemons/widgets/creature_detail/unknow_helper.dart';
+import 'package:alchemons/widgets/tutorial_step.dart';
+import 'package:alchemons/widgets/stamina_bar.dart';
+import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
@@ -30,6 +34,7 @@ import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 
 import '../../models/creature.dart';
@@ -42,6 +47,7 @@ class _C {
   _C(FactionTheme theme) : _t = ForgeTokens(theme);
   final ForgeTokens _t;
   static _C of(BuildContext context) => _C(context.read<FactionTheme>());
+  bool get isDark => _t.isDark;
 
   Color get bg0 => _t.bg0;
   Color get bg1 => _t.bg1;
@@ -60,6 +66,8 @@ class _C {
   Color get borderDim => _t.borderDim;
   Color get borderMid => _t.borderMid;
   Color get borderAccent => _t.borderAccent;
+  Color get onAccent => _t.onAccent;
+  Color onColor(Color background) => _t.onColor(background);
 }
 
 class _T {
@@ -347,9 +355,16 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   late TabController _tabController;
   late PageController _pageController;
   late ScrollController _analysisScrollController;
+  final GlobalKey _behaviorSectionKey = GlobalKey();
+  final GlobalKey _potentialSectionKey = GlobalKey();
+  final GlobalKey _lineageSectionKey = GlobalKey();
+  final GlobalKey _breedingAnalysisSectionKey = GlobalKey();
 
   late Creature _effectiveCreature;
   bool _hydratingInstance = false;
+  bool _showingAnalyzerTutorial = false;
+  Set<CreatureDetailsTutorialTarget> _activeTutorialTargets =
+      <CreatureDetailsTutorialTarget>{};
 
   final Set<String> _expandedParents = {};
   int _currentImageIndex = 0;
@@ -374,6 +389,9 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     );
     _pageController = PageController(viewportFraction: 1.0);
     _analysisScrollController = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowPendingAnalyzerTutorials();
+    });
     if (widget.instanceId != null) {
       _hydrateFromInstance(widget.instanceId!);
     }
@@ -400,6 +418,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
       if (mounted) {
         _hydratingInstance = false;
         setState(() {});
+        unawaited(_maybeShowPendingAnalyzerTutorials());
       }
     }
   }
@@ -442,100 +461,162 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     }
   }
 
-  Future<void> _toggleLock() async {
-    final c = _C.of(context);
-    final i = _instance;
-    if (i == null) return;
+  Future<void> _maybeShowPendingAnalyzerTutorials() async {
+    if (!mounted || _showingAnalyzerTutorial) return;
+
     final db = context.read<AlchemonsDatabase>();
-    await db.creatureDao.setLocked(i.instanceId, !i.locked);
-    await _hydrateFromInstance(i.instanceId);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          !i.locked ? 'SPECIMEN LOCKED' : 'SPECIMEN UNLOCKED',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: c.bg0,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
-            fontSize: 11,
-          ),
-        ),
-        backgroundColor: c.amber,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
-        duration: const Duration(milliseconds: 1200),
-      ),
+    final pendingEntries = await Future.wait(
+      CreatureDetailsTutorialTarget.values.map((target) async {
+        final isPending =
+            await db.settingsDao.getSetting(target.settingKey) == '1';
+        return (target: target, isPending: isPending);
+      }),
     );
+
+    final eligibleTargets =
+        pendingEntries
+            .where((entry) => entry.isPending)
+            .map((entry) => entry.target)
+            .where(
+              (target) =>
+                  !target.requiresInstance ||
+                  (_instance != null && widget.instanceId != null),
+            )
+            .toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+    if (eligibleTargets.isEmpty) return;
+
+    _showingAnalyzerTutorial = true;
+    if (mounted) {
+      setState(() {
+        _activeTutorialTargets = {
+          ..._activeTutorialTargets,
+          ...eligibleTargets,
+        };
+      });
+    }
+
+    if (widget.isDiscovered &&
+        _tabController.length > 1 &&
+        _tabController.index != 1) {
+      _tabController.animateTo(1);
+      await Future<void>.delayed(const Duration(milliseconds: 240));
+    }
+
+    if (!mounted) return;
+    await _showAnalyzerTutorialDialog(eligibleTargets);
+    if (!mounted) return;
+
+    for (final target in eligibleTargets) {
+      await db.settingsDao.deleteSetting(target.settingKey);
+    }
+
+    await _scrollToTutorialTarget(eligibleTargets.first);
+    _showingAnalyzerTutorial = false;
   }
 
-  Future<void> _toggleFavorite() async {
+  Future<void> _showAnalyzerTutorialDialog(
+    List<CreatureDetailsTutorialTarget> targets,
+  ) async {
     final c = _C.of(context);
-    final i = _instance;
-    if (i == null) return;
-    final db = context.read<AlchemonsDatabase>();
-    await db.creatureDao.setFavorite(i.instanceId, !i.isFavorite);
-    await _hydrateFromInstance(i.instanceId);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          !i.isFavorite ? 'ADDED TO FAVORITES' : 'REMOVED FROM FAVORITES',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: c.bg0,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
-            fontSize: 11,
-          ),
-        ),
-        backgroundColor: !i.isFavorite
-            ? const Color(0xFFE91E63)
-            : c.textSecondary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
-        duration: const Duration(milliseconds: 1200),
-      ),
-    );
-  }
-
-  Future<void> _editNickname() async {
-    final c = _C.of(context);
-    final i = _instance;
-    if (i == null) return;
-
-    final controller = TextEditingController(text: i.nickname ?? '');
-    final newName = await showDialog<String?>(
+    final theme = context.read<FactionTheme>();
+    await showDialog<void>(
       context: context,
-      builder: (ctx) => _NicknameDialog(controller: controller),
-    );
-
-    if (newName == null) return;
-    if (!mounted) return;
-    final db = context.read<AlchemonsDatabase>();
-    final normalized = newName.isEmpty ? null : newName;
-    await db.creatureDao.setNickname(i.instanceId, normalized);
-    await _hydrateFromInstance(i.instanceId);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          normalized == null ? 'DESIGNATION CLEARED' : 'DESIGNATION SAVED',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: c.bg0,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.0,
-            fontSize: 11,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: c.bg1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: c.borderDim),
           ),
-        ),
-        backgroundColor: c.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
-        duration: const Duration(milliseconds: 1200),
-      ),
+          titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+          contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          title: Row(
+            children: [
+              Icon(Icons.auto_awesome_rounded, color: c.amberBright),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  targets.length == 1
+                      ? '${targets.first.title} Unlocked'
+                      : 'New Creature Analysis Unlocked',
+                  style: TextStyle(
+                    color: c.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Creature Details has new analysis data. The highlighted panels below are where those unlocks now appear.',
+                style: TextStyle(
+                  color: c.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...targets.map(
+                (target) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: TutorialStep(
+                    theme: theme,
+                    icon: Icons.visibility_rounded,
+                    title: target.title,
+                    body: target.tutorialBody,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'Show me',
+                style: TextStyle(
+                  color: c.amberBright,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  Future<void> _scrollToTutorialTarget(
+    CreatureDetailsTutorialTarget target,
+  ) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final key = switch (target) {
+        CreatureDetailsTutorialTarget.geneAnalyzer => _behaviorSectionKey,
+        CreatureDetailsTutorialTarget.potentialAnalyzer => _potentialSectionKey,
+        CreatureDetailsTutorialTarget.lineageAnalyzer =>
+          _effectiveCreature.parentage != null
+              ? _breedingAnalysisSectionKey
+              : _lineageSectionKey,
+      };
+      final sectionContext = key.currentContext;
+      if (sectionContext == null) return;
+      Scrollable.ensureVisible(
+        sectionContext,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        alignment: 0.08,
+      );
+    });
   }
 
   // ── BUILD ──────────────────────────────────────────────────────────────────
@@ -555,6 +636,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     required CreatureInstance? instance,
   }) {
     final c = _C.of(context);
+    final shellColor = c.isDark ? c.bg1 : Colors.white;
     final discovered = widget.isDiscovered;
 
     return Dialog(
@@ -564,7 +646,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
         width: MediaQuery.of(context).size.width,
         height: MediaQuery.of(context).size.height * 0.88,
         decoration: BoxDecoration(
-          color: c.bg1,
+          color: shellColor,
           borderRadius: BorderRadius.circular(4),
           border: Border.all(color: c.borderAccent, width: 1.5),
           boxShadow: [
@@ -585,12 +667,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
           children: [
             _HeaderBar(
               creature: effective,
-              level: _instanceLevel,
-              instance: instance,
               onClose: () => Navigator.of(context).pop(),
-              onToggleLock: instance == null ? null : _toggleLock,
-              onEditNickname: instance == null ? null : _editNickname,
-              onToggleFavorite: instance == null ? null : _toggleFavorite,
             ),
             if (discovered) _TabSelector(tabController: _tabController),
             Expanded(
@@ -608,7 +685,6 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                               '${effective.id}-${hydrating ? 'loading' : 'ready'}',
                             ),
                             creature: effective,
-                            instanceId: widget.instanceId,
                             instanceLevel: _instanceLevel,
                             instance: instance,
                             pageController: _pageController,
@@ -624,6 +700,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                           creature: effective,
                           isInstance: instance != null,
                           instance: instance,
+                          highlightedTargets: _activeTutorialTargets,
                           isExpandedMap: _expandedParents,
                           onToggleParent: (parentKey) {
                             double? oldOffset;
@@ -646,6 +723,11 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                             }
                           },
                           instanceId: widget.instanceId,
+                          behaviorSectionKey: _behaviorSectionKey,
+                          potentialSectionKey: _potentialSectionKey,
+                          lineageSectionKey: _lineageSectionKey,
+                          breedingAnalysisSectionKey:
+                              _breedingAnalysisSectionKey,
                         ),
                         // BATTLE
                         if (instance != null)
@@ -670,163 +752,14 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// NICKNAME DIALOG
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _NicknameDialog extends StatelessWidget {
-  final TextEditingController controller;
-  const _NicknameDialog({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final t = _T(c);
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 320),
-        decoration: BoxDecoration(
-          color: c.bg1,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: c.borderAccent),
-          boxShadow: [
-            BoxShadow(color: c.amber.withValues(alpha: 0.10), blurRadius: 20),
-          ],
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 3,
-                  height: 14,
-                  color: c.amber,
-                  margin: const EdgeInsets.only(right: 8),
-                ),
-                Text('SET DESIGNATION', style: t.heading),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Container(
-              decoration: BoxDecoration(
-                color: c.bg2,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: c.borderDim),
-              ),
-              child: TextField(
-                controller: controller,
-                maxLength: 24,
-                autofocus: true,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: c.textPrimary,
-                  fontSize: 13,
-                  letterSpacing: 0.5,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'NICKNAME  (BLANK TO CLEAR)',
-                  hintStyle: t.label.copyWith(letterSpacing: 0.8),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                  counterStyle: t.label.copyWith(fontSize: 9),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _SmallButton(
-                    label: 'Cancel',
-                    onTap: () => Navigator.pop(context, null),
-                    secondary: true,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _SmallButton(
-                    label: 'Save',
-                    onTap: () => Navigator.pop(context, controller.text.trim()),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SmallButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  final bool secondary;
-  const _SmallButton({
-    required this.label,
-    required this.onTap,
-    this.secondary = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = _C.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 38,
-        decoration: BoxDecoration(
-          color: secondary ? Colors.transparent : c.amber,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: secondary ? c.borderAccent.withValues(alpha: 0.6) : c.amber,
-          ),
-        ),
-        child: Center(
-          child: Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.6,
-              color: secondary ? c.textSecondary : c.bg0,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
 // HEADER BAR
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _HeaderBar extends StatelessWidget {
   final Creature creature;
-  final CreatureInstance? instance;
-  final int? level;
   final VoidCallback onClose;
-  final VoidCallback? onToggleLock;
-  final VoidCallback? onEditNickname;
-  final VoidCallback? onToggleFavorite;
 
-  const _HeaderBar({
-    required this.creature,
-    required this.level,
-    required this.onClose,
-    this.instance,
-    this.onToggleLock,
-    this.onEditNickname,
-    this.onToggleFavorite,
-  });
+  const _HeaderBar({required this.creature, required this.onClose});
 
   Color _rarityColor(String rarity, _C c) {
     switch (rarity.toLowerCase()) {
@@ -844,9 +777,6 @@ class _HeaderBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = _C.of(context);
-    final t = _T(c);
-    final hasNickname = instance?.nickname?.trim().isNotEmpty == true;
-    final displayName = hasNickname ? instance!.nickname! : creature.name;
     final rarityColor = _rarityColor(creature.rarity, c);
 
     return Container(
@@ -862,46 +792,27 @@ class _HeaderBar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Display name row
-                GestureDetector(
-                  onTap: onEditNickname,
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          displayName.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: c.textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2.0,
-                          ),
-                        ),
-                      ),
-                      if (instance != null) ...[
-                        const SizedBox(width: 6),
-                        Icon(Icons.edit_rounded, color: c.textMuted, size: 11),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Sub-row: species name (if nicknamed) + tags
                 Row(
                   children: [
-                    if (hasNickname) ...[
-                      Text(
+                    Flexible(
+                      child: Text(
                         creature.name.toUpperCase(),
-                        style: t.label.copyWith(
-                          color: c.textMuted,
-                          fontSize: 9,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: c.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2.0,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                    ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
                     _TagBadge(label: creature.rarity, color: rarityColor),
                     const SizedBox(width: 6),
                     ...creature.types
@@ -918,89 +829,10 @@ class _HeaderBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // Right — level + lock + close
+          // Right — close
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Level
-              if (level != null) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: c.amberDim.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(color: c.borderAccent),
-                  ),
-                  child: Text(
-                    'LV $level',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: c.amberBright,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
-              // Favorite + Lock
-              if (instance != null) ...[
-                GestureDetector(
-                  onTap: onToggleFavorite,
-                  child: Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: instance!.isFavorite
-                          ? const Color(0xFFE91E63).withValues(alpha: 0.2)
-                          : c.bg3,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(
-                        color: instance!.isFavorite
-                            ? const Color(0xFFE91E63).withValues(alpha: 0.6)
-                            : c.borderDim,
-                      ),
-                    ),
-                    child: Icon(
-                      instance!.isFavorite
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
-                      color: instance!.isFavorite
-                          ? const Color(0xFFE91E63)
-                          : c.textMuted,
-                      size: 15,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: onToggleLock,
-                  child: Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: instance!.locked
-                          ? c.amberDim.withValues(alpha: 0.3)
-                          : c.bg3,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(
-                        color: instance!.locked ? c.borderAccent : c.borderDim,
-                      ),
-                    ),
-                    child: Icon(
-                      instance!.locked
-                          ? Icons.lock_rounded
-                          : Icons.lock_open_rounded,
-                      color: instance!.locked ? c.amberBright : c.textMuted,
-                      size: 15,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
-              // Close
               GestureDetector(
                 onTap: onClose,
                 child: Container(
@@ -1116,7 +948,6 @@ class _LockedTabPlaceholder extends StatelessWidget {
 
 class _OverviewTab extends StatelessWidget {
   final Creature creature;
-  final String? instanceId;
   final int? instanceLevel;
   final CreatureInstance? instance;
   final PageController pageController;
@@ -1126,7 +957,6 @@ class _OverviewTab extends StatelessWidget {
   const _OverviewTab({
     super.key,
     required this.creature,
-    required this.instanceId,
     required this.instanceLevel,
     required this.instance,
     required this.pageController,
@@ -1145,16 +975,13 @@ class _OverviewTab extends StatelessWidget {
         children: [
           // ── Sprite hero ─────────────────────────────────────────────────────
           _buildSpriteHero(c),
+          if (instance != null) ...[
+            const SizedBox(height: 10),
+            _StaminaRestoreButton(instanceId: instance!.instanceId),
+          ],
           const SizedBox(height: 20),
 
-          // ── Specimen status (instance only) ─────────────────────────────────
           if (instance != null) ...[
-            _ForgeSection(
-              title: 'Specimen Status',
-              accentColor: c.success,
-              child: _buildSpecimenStatus(c),
-            ),
-            const SizedBox(height: 10),
             _ForgeSection(
               title: 'Genetic Profile',
               child: Column(
@@ -1325,11 +1152,20 @@ class _OverviewTab extends StatelessWidget {
         // Prismatic shimmer badge (top-left)
         if (creature.isPrismaticSkin == true)
           Positioned(
-            top: 10,
+            top: instanceLevel != null ? 44 : 10,
             left: 10,
             child: _TagBadge(
               label: 'Prismatic',
               color: const Color(0xFFE879F9),
+            ),
+          ),
+        if (instanceLevel != null)
+          Positioned(
+            top: 10,
+            left: 10,
+            child: _HeroCornerBadge(
+              label: 'LV $instanceLevel',
+              color: c.amberBright,
             ),
           ),
         // Variant faction badge (top-right)
@@ -1381,43 +1217,15 @@ class _OverviewTab extends StatelessWidget {
               },
             ),
           ),
-      ],
-    );
-  }
-
-  Widget _buildSpecimenStatus(_C c) {
-    return Column(
-      children: [
-        if (instanceLevel != null)
-          _DataRow(
-            label: 'Level',
-            value: '$instanceLevel',
-            valueColor: c.amberBright,
+        if (instance != null)
+          Positioned(
+            left: 10,
+            bottom: 10,
+            child: _HeroStaminaBadge(instanceId: instance!.instanceId),
           ),
-        _DataRow(
-          label: 'Designation',
-          value: instance!.nickname?.isNotEmpty == true
-              ? instance!.nickname!
-              : '—',
-        ),
-        _DataRow(
-          label: 'Security',
-          value: instance!.locked ? 'Locked' : 'Unlocked',
-          valueColor: instance!.locked ? c.amberBright : c.textSecondary,
-        ),
-        // Stamina inline row (uses existing widget, theme-adapted)
-        StaminaInlineRow(
-          theme: _fakeTheme(),
-          label: 'Energy Level',
-          instanceId: instance!.instanceId,
-        ),
-        _StaminaRestoreButton(instanceId: instance!.instanceId),
       ],
     );
   }
-
-  // StaminaInlineRow still expects FactionTheme — we create a thin shim
-  FactionTheme _fakeTheme() => FactionTheme.scorchForge();
 
   String _sizeLabel() {
     final mapLabel = sizeLabels[creature.genetics?.get('size') ?? 'Normal'];
@@ -1427,6 +1235,67 @@ class _OverviewTab extends StatelessWidget {
   String _tintLabel() {
     final mapLabel = tintLabels[creature.genetics?.get('tinting') ?? 'Normal'];
     return mapLabel ?? 'Standard';
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// HERO BADGES
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _HeroCornerBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _HeroCornerBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _C.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: c.bg1.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: color.withValues(alpha: 0.7)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.18),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.0,
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroStaminaBadge extends StatelessWidget {
+  final String instanceId;
+
+  const _HeroStaminaBadge({required this.instanceId});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _C.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: c.bg1.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: c.borderAccent.withValues(alpha: 0.75)),
+      ),
+      child: StaminaBadge(instanceId: instanceId, showCountdown: false),
+    );
   }
 }
 
@@ -1521,26 +1390,25 @@ class _StaminaRestoreButton extends StatelessWidget {
   }
 
   Future<void> _use(BuildContext context) async {
+    final c = _C.of(context);
     final db = context.read<AlchemonsDatabase>();
     await db.inventoryDao.addItemQty(InvKeys.staminaPotion, -1);
     final staminaService = StaminaService(db);
     await staminaService.restoreToFull(instanceId);
     if (context.mounted) {
+      final backgroundColor = c.amber;
+      final foregroundColor = c.onColor(backgroundColor);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(
-                Icons.local_drink_rounded,
-                color: Color(0xFFF59E0B),
-                size: 16,
-              ),
-              SizedBox(width: 8),
+              Icon(Icons.local_drink_rounded, color: foregroundColor, size: 16),
+              const SizedBox(width: 8),
               Text(
                 'STAMINA RESTORED',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: Color(0xFFE8DCC8),
+                  color: foregroundColor,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
@@ -1548,11 +1416,11 @@ class _StaminaRestoreButton extends StatelessWidget {
               ),
             ],
           ),
-          backgroundColor: const Color(0xFF0E1117),
+          backgroundColor: backgroundColor,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(3),
-            side: const BorderSide(color: Color(0xFF6B4C20), width: 1),
+            side: BorderSide(color: c.borderAccent, width: 1),
           ),
           duration: const Duration(seconds: 2),
         ),
@@ -1648,20 +1516,30 @@ class _AnalysisTab extends StatelessWidget {
   final Creature creature;
   final bool isInstance;
   final CreatureInstance? instance;
+  final Set<CreatureDetailsTutorialTarget> highlightedTargets;
   final Set<String> isExpandedMap;
   final void Function(String parentKey) onToggleParent;
   final String? instanceId;
   final Parentage? parentage;
+  final GlobalKey behaviorSectionKey;
+  final GlobalKey potentialSectionKey;
+  final GlobalKey lineageSectionKey;
+  final GlobalKey breedingAnalysisSectionKey;
 
   const _AnalysisTab({
     required this.controller,
     required this.creature,
     required this.isInstance,
     required this.instance,
+    required this.highlightedTargets,
     required this.isExpandedMap,
     required this.onToggleParent,
     required this.instanceId,
     required this.parentage,
+    required this.behaviorSectionKey,
+    required this.potentialSectionKey,
+    required this.lineageSectionKey,
+    required this.breedingAnalysisSectionKey,
   });
 
   @override
@@ -1672,6 +1550,18 @@ class _AnalysisTab extends StatelessWidget {
     final hasLineageAnalyzer = constellation.hasLineageAnalyzer();
     final hasGeneAnalyzer = constellation.hasGeneAnalyzer();
     final hasPotentialAnalyzer = constellation.hasPotentialAnalyzer();
+    final highlightGene = highlightedTargets.contains(
+      CreatureDetailsTutorialTarget.geneAnalyzer,
+    );
+    final highlightPotential = highlightedTargets.contains(
+      CreatureDetailsTutorialTarget.potentialAnalyzer,
+    );
+    final highlightLineage = highlightedTargets.contains(
+      CreatureDetailsTutorialTarget.lineageAnalyzer,
+    );
+    final showBreedingAnalysis =
+        parentage != null && isInstance && instanceId != null;
+    final highlightLineageOverview = highlightLineage && !showBreedingAnalysis;
 
     return SingleChildScrollView(
       controller: controller,
@@ -1681,11 +1571,16 @@ class _AnalysisTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Behavioral Analysis
-          _AnalysisSection(
-            title: 'Behavioral Analysis',
-            child: _BehaviorBlock(
-              creature: creature,
-              showNatureDetails: hasGeneAnalyzer,
+          _HighlightedAnalysisSection(
+            sectionKey: behaviorSectionKey,
+            enabled: highlightGene,
+            label: CreatureDetailsTutorialTarget.geneAnalyzer.highlightLabel,
+            child: _AnalysisSection(
+              title: 'Behavioral Analysis',
+              child: _BehaviorBlock(
+                creature: creature,
+                showNatureDetails: hasGeneAnalyzer,
+              ),
             ),
           ),
           const SizedBox(height: 18),
@@ -1699,31 +1594,48 @@ class _AnalysisTab extends StatelessWidget {
 
           // Stat Potentials
           if (isInstance && instanceId != null) ...[
-            hasPotentialAnalyzer
-                ? _AnalysisSection(
-                    title: 'Stat Potentials',
-                    accentColor: c.teal,
-                    child: StatPotentialBlock(
-                      theme: fTheme,
-                      instanceId: instanceId!,
+            _HighlightedAnalysisSection(
+              sectionKey: potentialSectionKey,
+              enabled: highlightPotential,
+              label: CreatureDetailsTutorialTarget
+                  .potentialAnalyzer
+                  .highlightLabel,
+              child: hasPotentialAnalyzer
+                  ? _AnalysisSection(
+                      title: 'Stat Potentials',
+                      accentColor: c.teal,
+                      child: StatPotentialBlock(
+                        theme: fTheme,
+                        instanceId: instanceId!,
+                      ),
+                    )
+                  : _AnalysisSection(
+                      title: 'Stat Potentials',
+                      child: _GatedContent(
+                        message:
+                            'Detailed stat potentials are currently obscured.',
+                      ),
                     ),
-                  )
-                : _AnalysisSection(
-                    title: 'Stat Potentials',
-                    child: _GatedContent(
-                      message:
-                          'Detailed stat potentials are currently obscured.',
-                    ),
-                  ),
+            ),
             const SizedBox(height: 18),
           ],
 
           // Lineage
           if (isInstance && instance != null) ...[
-            _AnalysisSection(
-              title: 'Lineage',
-              accentColor: c.teal,
-              child: LineageBlock(theme: fTheme, instance: instance!),
+            _HighlightedAnalysisSection(
+              sectionKey: lineageSectionKey,
+              enabled: highlightLineageOverview,
+              label:
+                  CreatureDetailsTutorialTarget.lineageAnalyzer.highlightLabel,
+              child: _AnalysisSection(
+                title: 'Lineage',
+                accentColor: c.teal,
+                child: LineageBlock(
+                  theme: fTheme,
+                  instance: instance!,
+                  creature: creature,
+                ),
+              ),
             ),
             const SizedBox(height: 18),
           ],
@@ -1760,22 +1672,58 @@ class _AnalysisTab extends StatelessWidget {
           ],
 
           // Breeding analysis
-          if (parentage != null && isInstance && instanceId != null) ...[
-            hasLineageAnalyzer
-                ? _AnalysisSection(
-                    title: 'Breeding Analysis',
-                    accentColor: const Color(0xFFA855F7),
-                    child: _BreedingAnalysisSection(instanceId: instanceId!),
-                  )
-                : _AnalysisSection(
-                    title: 'Breeding Analysis',
-                    child: _GatedContent(
-                      message:
-                          'Advanced lineage and outcome statistics obscured.',
+          if (showBreedingAnalysis) ...[
+            _HighlightedAnalysisSection(
+              sectionKey: breedingAnalysisSectionKey,
+              enabled: highlightLineage,
+              label:
+                  CreatureDetailsTutorialTarget.lineageAnalyzer.highlightLabel,
+              child: hasLineageAnalyzer
+                  ? _AnalysisSection(
+                      title: 'Breeding Analysis',
+                      accentColor: const Color(0xFFA855F7),
+                      child: _BreedingAnalysisSection(instanceId: instanceId!),
+                    )
+                  : _AnalysisSection(
+                      title: 'Breeding Analysis',
+                      child: _GatedContent(
+                        message:
+                            'Advanced lineage and outcome statistics obscured.',
+                      ),
                     ),
-                  ),
+            ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// HIGHLIGHTED ANALYSIS SECTION
+// ──────────────────────────────────────────────────────────────────────────────
+
+class _HighlightedAnalysisSection extends StatelessWidget {
+  final GlobalKey sectionKey;
+  final bool enabled;
+  final String label;
+  final Widget child;
+
+  const _HighlightedAnalysisSection({
+    required this.sectionKey,
+    required this.enabled,
+    required this.label,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyedSubtree(
+      key: sectionKey,
+      child: TutorialHighlight(
+        enabled: enabled,
+        label: enabled ? label : null,
+        child: child,
       ),
     );
   }
@@ -1885,12 +1833,33 @@ class _BehaviorBlock extends StatelessWidget {
         case 'xp_gain_mult':
           effects.add('XP gain +${((value - 1) * 100).round()}%');
           break;
+        case 'stat_speed_bonus':
+          effects.add('Speed +${_formatNatureStatBonus(value)}');
+          break;
+        case 'stat_intelligence_bonus':
+          effects.add('Intelligence +${_formatNatureStatBonus(value)}');
+          break;
+        case 'stat_strength_bonus':
+          effects.add('Strength +${_formatNatureStatBonus(value)}');
+          break;
+        case 'stat_beauty_bonus':
+          effects.add('Beauty +${_formatNatureStatBonus(value)}');
+          break;
         default:
-          effects.add('$key: ${value}x');
+          effects.add('${_humanizeNatureKey(key)}: $value');
       }
     });
     return effects.join(', ');
   }
+
+  String _formatNatureStatBonus(num value) =>
+      value.toStringAsFixed(value % 1 == 0 ? 0 : 1);
+
+  String _humanizeNatureKey(String key) => key
+      .split('_')
+      .where((part) => part.isNotEmpty)
+      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1954,35 +1923,59 @@ class _BreedingAnalysisSection extends StatelessWidget {
   final String instanceId;
   const _BreedingAnalysisSection({required this.instanceId});
 
-  Future<Map<String, dynamic>?> _loadReport(BuildContext context) async {
+  Future<({CreatureInstance? instance, Map<String, dynamic>? report})>
+  _loadData(BuildContext context) async {
     try {
       final db = context.read<AlchemonsDatabase>();
       final instance = await db.creatureDao.getInstance(instanceId);
-      if (instance?.likelihoodAnalysisJson == null ||
-          instance!.likelihoodAnalysisJson!.isEmpty) {
-        return null;
+      if (instance == null) {
+        return (instance: null, report: null);
       }
-      return jsonDecode(instance.likelihoodAnalysisJson!)
-          as Map<String, dynamic>;
+      if (instance.likelihoodAnalysisJson == null ||
+          instance.likelihoodAnalysisJson!.isEmpty) {
+        return (instance: instance, report: null);
+      }
+      return (
+        instance: instance,
+        report:
+            jsonDecode(instance.likelihoodAnalysisJson!)
+                as Map<String, dynamic>,
+      );
     } catch (_) {
-      return null;
+      return (instance: null, report: null);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final c = _C.of(context);
-    return FutureBuilder<Map<String, dynamic>?>(
-      future: _loadReport(context),
+    return FutureBuilder<
+      ({CreatureInstance? instance, Map<String, dynamic>? report})
+    >(
+      future: _loadData(context),
       builder: (ctx, snap) {
-        if (!snap.hasData || snap.data == null) {
+        if (!snap.hasData) {
           return _DataRow(
             label: 'Status',
-            value: 'No breeding record — wild-caught or starter specimen',
+            value: 'No breeding record available',
             valueColor: c.textMuted,
           );
         }
-        final report = snap.data!;
+        final instance = snap.data!.instance;
+        final report = snap.data!.report;
+        if (report == null) {
+          final hasParentage = _hasActualParentage(instance?.parentageJson);
+          final sourceLabel = founderSourceLabel(
+            instance?.source ?? '',
+          ).toLowerCase();
+          return _DataRow(
+            label: 'Status',
+            value: hasParentage
+                ? 'Breeding record unavailable'
+                : 'No breeding record — founder specimen from $sourceLabel',
+            valueColor: c.textMuted,
+          );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2272,13 +2265,31 @@ String _formatSource(String source) {
       return 'Boss Summon';
     case 'breeding_vial':
     case 'vial':
-      return 'Vial Bred';
+      return 'Vial Extraction';
     case 'starter':
       return 'Starter';
     case 'quest':
       return 'Quest Reward';
     default:
       return 'Discovery';
+  }
+}
+
+bool _hasActualParentage(String? parentageJson) {
+  if (parentageJson == null || parentageJson.trim().isEmpty) return false;
+  try {
+    final decoded = jsonDecode(parentageJson);
+    if (decoded is! Map<String, dynamic>) return false;
+
+    bool hasBaseId(dynamic raw) {
+      if (raw is! Map) return false;
+      final baseId = raw['baseId'];
+      return baseId is String && baseId.trim().isNotEmpty;
+    }
+
+    return hasBaseId(decoded['parentA']) && hasBaseId(decoded['parentB']);
+  } catch (_) {
+    return false;
   }
 }
 

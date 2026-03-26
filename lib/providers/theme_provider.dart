@@ -6,7 +6,9 @@ import '../database/alchemons_db.dart';
 
 // --- ADDED: Font map ---
 final Map<String, TextTheme Function(TextTheme)> appFontMap = {
+  'Aboreto': GoogleFonts.aboretoTextTheme,
   'ABeeZee': GoogleFonts.aBeeZeeTextTheme,
+  'IM Fell English': GoogleFonts.imFellEnglishTextTheme,
   'Lato': GoogleFonts.latoTextTheme,
   'Roboto': GoogleFonts.robotoTextTheme,
   'Montserrat': GoogleFonts.montserratTextTheme,
@@ -21,7 +23,7 @@ class ThemeNotifier extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
 
   // --- ADDED: Font state ---
-  String _fontName = 'ABeeZee'; // Default
+  String _fontName = 'Aboreto'; // Default
   String get fontName => _fontName;
 
   TextTheme Function(TextTheme) get currentTextThemeFn {

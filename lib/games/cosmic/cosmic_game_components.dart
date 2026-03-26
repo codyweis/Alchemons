@@ -7,7 +7,8 @@ part of 'cosmic_game.dart';
 class _HomingMissile {
   Offset position;
   double angle;
-  double life = 0.0;
+  static const double maxLife = 3.0;
+  double life = maxLife;
   static const double speed = 400.0;
   static const double turnRate = 3.6; // radians/sec
 

@@ -6,11 +6,8 @@ import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
-import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/bottom_sheet_shell.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
+import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
 import 'package:flutter/material.dart';
@@ -86,7 +83,7 @@ class _BreedingTabState extends State<BreedingTab>
             'same lineage family.\n\n'
             'To attempt breeding between $familyA and $familyB specimens, '
             'you must first unlock the Cross-Species Lineage node in the '
-            'Breeder constellation.',
+            'Alchemy constellation.',
             style: TextStyle(color: theme.text),
           ),
           actions: [
@@ -536,9 +533,10 @@ class _BreedingTabState extends State<BreedingTab>
                   // CLOSE BUTTON (ONLY WHEN FILLED)
                   if (!isEmpty)
                     Positioned(
-                      right: 0,
-                      top: -10,
+                      right: -8,
+                      top: -18,
                       child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () {
                           setState(() {
                             if (slotIndex == 1) {
@@ -549,27 +547,34 @@ class _BreedingTabState extends State<BreedingTab>
                             _updateAnimations();
                           });
                         },
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: .7),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.red.withValues(alpha: .6),
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.red.withValues(alpha: .4),
-                                blurRadius: 8,
-                                spreadRadius: 1,
+                        child: SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Center(
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: .78),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.red.withValues(alpha: .68),
+                                  width: 1.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.withValues(alpha: .38),
+                                    blurRadius: 10,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.close,
-                            color: Colors.red,
-                            size: 14,
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.red,
+                                size: 14,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -1199,7 +1204,7 @@ class _BreedingTabState extends State<BreedingTab>
 
           if (result.placement == EggPlacement.storage) {
             _showToast(
-              'Incubator full — specimen transferred to storage',
+              'Incubator full — specimen transferred to cold storage',
               icon: Icons.inventory_2_rounded,
               color: Colors.orange,
             );
@@ -1207,7 +1212,6 @@ class _BreedingTabState extends State<BreedingTab>
             _showToast(
               'Specimen placed in incubation chamber ${(result.slotId ?? 0) + 1}',
               icon: Icons.science_rounded,
-              color: const Color.fromARGB(255, 239, 255, 92),
             );
           }
 
@@ -1294,253 +1298,125 @@ class _BreedingTabState extends State<BreedingTab>
   // targetSlot == null => pick both (quick-select flow)
   // targetSlot != null => pick only that slot and close.
   void _showBreedingPicker({int? targetSlot}) async {
-    final pickBoth = targetSlot == null;
-    final db = context.read<AlchemonsDatabase>();
-    final available = await db.creatureDao.getSpeciesWithInstances();
+    var nextParent1 = selectedParent1;
+    var nextParent2 = selectedParent2;
 
-    final filteredDiscovered = filterByAvailableInstances(
-      widget.discoveredCreatures,
-      available,
-    );
+    if (targetSlot != null) {
+      final picked = await _pickBreedingInstance(
+        searchHint: targetSlot == 1 ? 'SELECT SPECIMEN A' : 'SELECT SPECIMEN B',
+        selectedIds: [
+          if (nextParent1 != null) nextParent1.instanceId,
+          if (nextParent2 != null) nextParent2.instanceId,
+        ],
+        blockedIds: [
+          if (targetSlot == 1 && nextParent2 != null) nextParent2.instanceId,
+          if (targetSlot == 2 && nextParent1 != null) nextParent1.instanceId,
+        ],
+      );
+      if (picked == null) return;
 
-    if (!mounted) return;
+      if (targetSlot == 1) {
+        nextParent1 = picked;
+      } else {
+        nextParent2 = picked;
+      }
+      _applyBreedingPicks(nextParent1, nextParent2);
+      return;
+    }
 
-    // Seed from current selections so tapping a filled slot continues naturally
-    CreatureInstance? tempPick1 = selectedParent1;
-    CreatureInstance? tempPick2 = selectedParent2;
+    if (nextParent1 == null) {
+      final picked = await _pickBreedingInstance(
+        searchHint: 'SELECT SPECIMEN A',
+        selectedIds: [if (nextParent2 != null) nextParent2.instanceId],
+        blockedIds: [if (nextParent2 != null) nextParent2.instanceId],
+      );
+      if (picked == null) return;
+      nextParent1 = picked;
+      _applyBreedingPicks(nextParent1, nextParent2);
+    }
 
-    if (!context.mounted) return;
+    if (nextParent2 == null) {
+      final picked = await _pickBreedingInstance(
+        searchHint: 'SELECT SPECIMEN B',
+        selectedIds: [nextParent1.instanceId],
+        blockedIds: [nextParent1.instanceId],
+      );
+      if (picked == null) {
+        _applyBreedingPicks(nextParent1, nextParent2);
+        return;
+      }
+      nextParent2 = picked;
+    }
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) {
-        return StatefulBuilder(
-          builder: (_, setSheetState) {
-            String sheetTitle() {
-              if (!pickBoth) {
-                return targetSlot == 1
-                    ? 'Select Specimen A'
-                    : 'Select Specimen B';
-              }
-              final needsA = tempPick1 == null;
-              final needsB = tempPick1 != null && tempPick2 == null;
-              if (needsA) return 'Select Specimen A';
-              if (needsB) return 'Specimen A Selected • Select Specimen B';
-              return 'Both Selected';
-            }
+    _applyBreedingPicks(nextParent1, nextParent2);
+  }
 
-            List<String> blockedIds() {
-              if (pickBoth) {
-                return [
-                  if (tempPick1 != null) tempPick1!.instanceId,
-                  if (tempPick2 != null) tempPick2!.instanceId,
-                ];
-              }
-              if (targetSlot == 1) {
-                return [if (tempPick2 != null) tempPick2!.instanceId];
-              }
-              return [if (tempPick1 != null) tempPick1!.instanceId];
-            }
-
-            bool applyPickedInstance(CreatureInstance instance) {
-              if (!pickBoth) {
-                if (targetSlot == 1) {
-                  tempPick1 = instance;
-                } else {
-                  tempPick2 = instance;
-                }
-                _applyBreedingPicks(tempPick1, tempPick2);
-                if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                return true;
-              }
-
-              if (tempPick1 == null) {
-                tempPick1 = instance;
-                setSheetState(() {});
-                return false;
-              } else {
-                tempPick2 ??= instance;
-              }
-
-              if (tempPick1 != null && tempPick2 != null) {
-                _applyBreedingPicks(tempPick1, tempPick2);
-                if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                return true;
-              }
-
-              setSheetState(() {});
-              return false;
-            }
-
-            return DraggableScrollableSheet(
-              initialChildSize: 0.7,
-              minChildSize: 0.4,
-              maxChildSize: 0.9,
-              expand: false,
-              builder: (_, scrollController) {
-                return CreatureSelectionSheet(
-                  scrollController: scrollController,
-                  discoveredCreatures: filteredDiscovered,
-                  showOnlyAvailableTypes: true,
-                  title: sheetTitle(),
-                  selectedInstanceIds: [
-                    if (tempPick1 != null) tempPick1!.instanceId,
-                    if (tempPick2 != null) tempPick2!.instanceId,
-                  ],
-                  onSelectInstance: (instance) async {
-                    // --- Toggle off if already selected (dual-pick only) ---
-                    if (pickBoth) {
-                      if (tempPick1?.instanceId == instance.instanceId) {
-                        tempPick1 = null;
-                        setSheetState(() {});
-                        return;
-                      }
-                      if (tempPick2?.instanceId == instance.instanceId) {
-                        tempPick2 = null;
-                        setSheetState(() {});
-                        return;
-                      }
-                    }
-
-                    // --- Stamina check ---
-                    final stamina = context.read<StaminaService>();
-                    final refreshed = await stamina.refreshAndGet(
-                      instance.instanceId,
-                    );
-                    if ((refreshed?.staminaBars ?? 0) < 1) {
-                      final perBar = stamina.regenPerBar;
-                      final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-                      final last = refreshed?.staminaLastUtcMs ?? now;
-                      final elapsed = now - last;
-                      final remMs =
-                          perBar.inMilliseconds -
-                          (elapsed % perBar.inMilliseconds);
-                      final mins = (remMs / 60000).ceil();
-                      if (!mounted) return;
-                      _showToast(
-                        'Specimen is resting — next stamina in ~${mins}m',
-                        icon: Icons.hourglass_bottom_rounded,
-                        color: Colors.orange,
-                        fromTop: true,
-                      );
-                      return;
-                    }
-
-                    final blocked = blockedIds();
-                    if (blocked.contains(instance.instanceId)) {
-                      return;
-                    }
-
-                    applyPickedInstance(instance);
-                  },
-                  onSelectCreature: (creatureId) async {
-                    // Species-grid tap → open instance picker ON TOP (stacked)
-                    final repo = context.read<CreatureCatalog>();
-                    final species = repo.getCreatureById(creatureId);
-                    if (species == null) return;
-
-                    _showInstancePickerStacked(
-                      species: species,
-                      blockedIds: blockedIds(),
-                      selectedIds: [
-                        if (tempPick1 != null) tempPick1!.instanceId,
-                        if (tempPick2 != null) tempPick2!.instanceId,
-                      ],
-                      onPicked: (inst) {
-                        return applyPickedInstance(inst);
-                      },
-                    );
-                  },
-                );
-              },
-            );
-          },
-        );
-      },
+  Future<CreatureInstance?> _pickBreedingInstance({
+    required String searchHint,
+    required List<String> selectedIds,
+    required List<String> blockedIds,
+  }) {
+    final theme = context.read<FactionTheme>();
+    return Navigator.of(context).push<CreatureInstance>(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            AllSpecimensPage(
+              theme: theme,
+              popOnSelect: true,
+              searchHint: searchHint,
+              selectedInstanceIds: selectedIds,
+              onWillSelectInstance: (inst) =>
+                  _validateBreedingSelection(inst, blockedIds: blockedIds),
+            ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final tween = Tween(
+            begin: const Offset(0.0, 1.0),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeOutCubic));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+      ),
     );
   }
 
-  /// Opens an instance picker that stacks ON TOP of the main breeding sheet.
-  /// When the user picks one, it pops itself and calls [onPicked].
-  void _showInstancePickerStacked({
-    required Creature species,
+  Future<bool> _validateBreedingSelection(
+    CreatureInstance instance, {
     required List<String> blockedIds,
-    required List<String> selectedIds,
-    required bool Function(CreatureInstance inst) onPicked,
-  }) {
-    final theme = context.read<FactionTheme>();
-    var liveSelectedIds = List<String>.from(selectedIds);
+  }) async {
+    if (blockedIds.contains(instance.instanceId)) {
+      _showToast(
+        'That specimen is already selected',
+        icon: Icons.block_rounded,
+        color: Colors.orange,
+        fromTop: true,
+      );
+      return false;
+    }
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (pickerCtx) {
-        return StatefulBuilder(
-          builder: (context, setPickerState) {
-            return BottomSheetShell(
-              theme: theme,
-              title: '${species.name} Specimens',
-              child: InstancesSheet(
-                species: species,
-                theme: theme,
-                selectedInstanceIds: liveSelectedIds,
-                onTap: (CreatureInstance inst) async {
-                  // --- Already-selected guard ---
-                  if (blockedIds.contains(inst.instanceId)) {
-                    return;
-                  }
-                  if (liveSelectedIds.contains(inst.instanceId)) {
-                    return;
-                  }
+    final stamina = context.read<StaminaService>();
+    final refreshed = await stamina.refreshAndGet(instance.instanceId);
+    if ((refreshed?.staminaBars ?? 0) >= 1) {
+      return true;
+    }
 
-                  // --- Stamina check ---
-                  final stamina = context.read<StaminaService>();
-                  final refreshed = await stamina.refreshAndGet(
-                    inst.instanceId,
-                  );
-                  if ((refreshed?.staminaBars ?? 0) < 1) {
-                    final perBar = stamina.regenPerBar;
-                    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-                    final last = refreshed?.staminaLastUtcMs ?? now;
-                    final elapsed = now - last;
-                    final remMs =
-                        perBar.inMilliseconds -
-                        (elapsed % perBar.inMilliseconds);
-                    final mins = (remMs / 60000).ceil();
-                    if (!mounted) return;
-                    _showToast(
-                      'Specimen is resting — next stamina in ~${mins}m',
-                      icon: Icons.hourglass_bottom_rounded,
-                      color: Colors.orange,
-                      fromTop: true,
-                    );
-                    return;
-                  }
-
-                  if (!mounted) return;
-                  final shouldClose = onPicked(inst);
-                  if (shouldClose) {
-                    if (pickerCtx.mounted) {
-                      Navigator.of(pickerCtx).pop();
-                    }
-                    return;
-                  }
-
-                  if (!liveSelectedIds.contains(inst.instanceId)) {
-                    setPickerState(() {
-                      liveSelectedIds = [...liveSelectedIds, inst.instanceId];
-                    });
-                  }
-                },
-              ),
-            );
-          },
-        );
-      },
+    final perBar = stamina.regenPerBar;
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final last = refreshed?.staminaLastUtcMs ?? now;
+    final elapsed = now - last;
+    final remMs = perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
+    final mins = (remMs / 60000).ceil();
+    _showToast(
+      'Specimen is resting — next stamina in ~${mins}m',
+      icon: Icons.hourglass_bottom_rounded,
+      color: Colors.orange,
+      fromTop: true,
     );
+    return false;
   }
 
   void _showToast(
@@ -1557,39 +1433,90 @@ class _BreedingTabState extends State<BreedingTab>
     messenger.showSnackBar(
       SnackBar(
         content: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                theme.surface.withValues(alpha: .98),
-                theme.surfaceAlt.withValues(alpha: .96),
+                theme.surface.withValues(alpha: .985),
+                theme.surfaceAlt.withValues(alpha: .965),
               ],
             ),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: accent.withValues(alpha: .8), width: 1.2),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: accent.withValues(alpha: .82),
+              width: 1.2,
+            ),
             boxShadow: [
               BoxShadow(
-                color: accent.withValues(alpha: .2),
+                color: accent.withValues(alpha: .18),
                 blurRadius: 14,
-                spreadRadius: 1,
-                offset: const Offset(0, 4),
+                spreadRadius: 0,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: accent, size: 18),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: theme.surfaceAlt.withValues(alpha: .9),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(
+                    color: accent.withValues(alpha: .55),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(icon, color: accent, size: 16),
+              ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  message,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: theme.text,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'BREEDING STATUS',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: accent,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      message,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: theme.text,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 4,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: .9),
+                  borderRadius: BorderRadius.circular(99),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withValues(alpha: .3),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1597,13 +1524,13 @@ class _BreedingTabState extends State<BreedingTab>
         ),
         elevation: 0,
         backgroundColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
         padding: EdgeInsets.zero,
         margin: fromTop
             ? const EdgeInsets.only(top: 24, left: 16, right: 16)
-            : const EdgeInsets.all(16),
+            : const EdgeInsets.fromLTRB(16, 0, 16, 18),
       ),
     );
   }

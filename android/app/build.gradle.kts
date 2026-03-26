@@ -34,6 +34,20 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "app"
+    productFlavors {
+        create("standard") {
+            dimension = "app"
+            applicationId = "com.example.alchemons"
+            manifestPlaceholders["appLabel"] = "Alchemons"
+        }
+        create("creator") {
+            dimension = "app"
+            applicationId = "com.luck3yapps.alchemons"
+            manifestPlaceholders["appLabel"] = "Alchemons Creator"
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

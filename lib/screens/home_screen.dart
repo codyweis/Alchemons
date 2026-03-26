@@ -2,6 +2,8 @@
 import 'dart:async' as async;
 import 'dart:math';
 
+import 'package:alchemons/screens/extraction_hub_screen.dart';
+import 'package:alchemons/screens/pureblood_rite_screen.dart';
 import 'package:lottie/lottie.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/navigation/world_transition.dart';
@@ -19,6 +21,7 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -47,14 +50,13 @@ import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
 import 'package:alchemons/screens/feeding/feeding_screen.dart';
-import 'package:alchemons/screens/harvest_screen.dart';
 import 'package:alchemons/screens/profile_screen.dart';
 import 'package:alchemons/screens/shop/shop_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/widgets/background/interactive_background_widget.dart';
-import 'package:alchemons/widgets/element_resource_widget.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
@@ -197,7 +199,10 @@ class _MainShellState extends State<MainShell> {
             ),
             TickerMode(
               enabled: _currentSection == NavSection.breed,
-              child: BreedScreen(onGoToSection: _goToSection),
+              child: BreedScreen(
+                onGoToSection: _goToSection,
+                isActive: _currentSection == NavSection.breed,
+              ),
             ),
             TickerMode(
               enabled: _currentSection == NavSection.inventory,
@@ -313,6 +318,177 @@ class _AnimatedCosmicOrbState extends State<_AnimatedCosmicOrb>
         return Transform.scale(scale: s, child: child);
       },
       child: const CosmicOrbWidget(),
+    );
+  }
+}
+
+class _AnimatedPurebloodRiteIcon extends StatefulWidget {
+  const _AnimatedPurebloodRiteIcon({
+    required this.enabled,
+    required this.onTap,
+    this.onPulse,
+  });
+
+  final bool enabled;
+  final VoidCallback onTap;
+  final VoidCallback? onPulse;
+
+  @override
+  State<_AnimatedPurebloodRiteIcon> createState() =>
+      _AnimatedPurebloodRiteIconState();
+}
+
+class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
+    with SingleTickerProviderStateMixin {
+  static const String _seenKey = 'pureblood_rite_home_seen';
+
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  bool _checkingSeen = false;
+  bool _resolvedSeen = false;
+  bool _isPulsing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.18), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.18, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutCubic));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _maybePulseOnFirstShow();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedPurebloodRiteIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.enabled && widget.enabled) {
+      _maybePulseOnFirstShow();
+    }
+  }
+
+  Future<void> _maybePulseOnFirstShow() async {
+    if (!widget.enabled || _checkingSeen || _resolvedSeen) {
+      return;
+    }
+
+    _checkingSeen = true;
+    try {
+      final db = context.read<AlchemonsDatabase>();
+      final seen = await db.settingsDao.getSetting(_seenKey) == '1';
+      if (!mounted) {
+        return;
+      }
+
+      if (seen) {
+        _resolvedSeen = true;
+        return;
+      }
+
+      await db.settingsDao.setSetting(_seenKey, '1');
+      _resolvedSeen = true;
+      if (!mounted || !widget.enabled) {
+        return;
+      }
+      await _playPulse();
+    } finally {
+      _checkingSeen = false;
+    }
+  }
+
+  Future<void> _playPulse() async {
+    if (_isPulsing || !mounted) {
+      return;
+    }
+
+    _isPulsing = true;
+    widget.onPulse?.call();
+    try {
+      _ctrl.stop();
+      _ctrl.reset();
+      await _ctrl.forward();
+      await Future.delayed(const Duration(milliseconds: 160));
+      if (!mounted) {
+        return;
+      }
+      _ctrl.reset();
+      await _ctrl.forward();
+    } catch (_) {
+      // Ignore animation interruptions during navigation/lifecycle changes.
+    } finally {
+      _isPulsing = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<FactionTheme>();
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        final pulse = sin(_ctrl.value * pi).clamp(0.0, 1.0);
+        return Transform.scale(
+          scale: _scale.value,
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(
+                          0xFFB91C1C,
+                        ).withValues(alpha: 0.28 + pulse * 0.30),
+                        blurRadius: 22 + pulse * 14,
+                        spreadRadius: 2 + pulse * 3,
+                      ),
+                    ],
+                  ),
+                  child: Image.asset(
+                    'assets/images/ui/sacrificeicon.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                Transform.translate(
+                  offset: const Offset(0, -6),
+                  child: Text(
+                    'RITE',
+                    style: TextStyle(
+                      color: Color.lerp(
+                        theme.text,
+                        const Color(0xFFFFC9C9),
+                        pulse,
+                      ),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -646,6 +822,7 @@ class _HomeScreenState extends State<HomeScreen>
     await _pushNotifications.initialize();
     try {
       if (!mounted) return;
+      final db = context.read<AlchemonsDatabase>();
       final factionSvc = context.read<FactionService>();
 
       await factionSvc.loadId();
@@ -702,6 +879,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Recreate per-egg schedules on cold start
       await _rehydrateEggSchedules();
+      await db.biomeDao.syncHarvestNotifications();
     } catch (e, st) {
       debugPrint('Error during app initialization: $e');
       debugPrint('Error during app initialization: $e\n$st');
@@ -1100,7 +1278,7 @@ class _HomeScreenState extends State<HomeScreen>
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const BiomeHarvestScreen()),
+              MaterialPageRoute(builder: (_) => const ExtractionHubScreen()),
             );
           },
         ),
@@ -1460,6 +1638,13 @@ class _HomeScreenState extends State<HomeScreen>
             final factionSvc = context.watch<FactionService>();
             final currentFaction = factionSvc.current ?? FactionId.oceanic;
             final speeds = _speedFor(currentFaction);
+            final hasLineageAnalyzer = context
+                .select<ConstellationEffectsService, bool>(
+                  (service) => service.hasLineageAnalyzer(),
+                );
+            final enhanceUnlocked = context.select<ShopService, bool>(
+              (shop) => shop.hasElementalCreatorUnlocked(),
+            );
 
             return AnimatedBuilder(
               animation: _shakeController,
@@ -1570,6 +1755,7 @@ class _HomeScreenState extends State<HomeScreen>
                       child: SideDockFloating(
                         theme: theme,
                         lockNonField: _isFieldTutorialActive,
+                        lockEnhance: !enhanceUnlocked,
                         showHarvestDot:
                             !_isFieldTutorialActive &&
                             context.select<HarvestService, bool>(
@@ -1591,7 +1777,7 @@ class _HomeScreenState extends State<HomeScreen>
                             );
                           }
                         },
-                        onEnhance: _isFieldTutorialActive
+                        onEnhance: _isFieldTutorialActive || !enhanceUnlocked
                             ? () {}
                             : () {
                                 HapticFeedback.mediumImpact();
@@ -1610,7 +1796,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 Navigator.push(
                                   context,
                                   CupertinoPageRoute(
-                                    builder: (_) => const BiomeHarvestScreen(),
+                                    builder: (_) => const ExtractionHubScreen(),
                                     fullscreenDialog: true,
                                   ),
                                 );
@@ -1673,13 +1859,33 @@ class _HomeScreenState extends State<HomeScreen>
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 _AnimatedCosmicOrb(onPulse: _playHomeShake),
-                                const SizedBox(height: 10),
-                                ConstellationPointsWidget(),
+                                const SizedBox(height: 4),
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Transform.translate(
+                                      offset: const Offset(0, 6),
+                                      child: const ConstellationPointsWidget(),
+                                    ),
+                                    Transform.translate(
+                                      offset: const Offset(0, -6),
+                                      child: Text(
+                                        'UPGRADE',
+                                        style: TextStyle(
+                                          color: theme.text,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.1,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                                 if (context
                                         .watch<BossProgressNotifier>()
                                         .totalBossesDefeated >
                                     0) ...[
-                                  const SizedBox(height: 10),
+                                  const SizedBox(height: 4),
                                   GestureDetector(
                                     onTap: () {
                                       HapticFeedback.heavyImpact();
@@ -1688,12 +1894,43 @@ class _HomeScreenState extends State<HomeScreen>
                                         page: const MysticAltarScreen(),
                                       );
                                     },
-                                    child: Image.asset(
-                                      'assets/images/ui/relicicon.png',
-                                      width: 80,
-                                      height: 80,
-                                      fit: BoxFit.contain,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Image.asset(
+                                          'assets/images/ui/relicicon.png',
+                                          width: 80,
+                                          height: 80,
+                                          fit: BoxFit.contain,
+                                        ),
+                                        Transform.translate(
+                                          offset: const Offset(0, -6),
+                                          child: Text(
+                                            'RELICS',
+                                            style: TextStyle(
+                                              color: theme.text,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 1.1,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
+                                  ),
+                                ],
+                                if (hasLineageAnalyzer) ...[
+                                  const SizedBox(height: 4),
+                                  _AnimatedPurebloodRiteIcon(
+                                    enabled: _animationsEnabled,
+                                    onPulse: _playHomeShake,
+                                    onTap: () {
+                                      HapticFeedback.heavyImpact();
+                                      VoidPortal.push(
+                                        context,
+                                        page: const PurebloodRiteScreen(),
+                                      );
+                                    },
                                   ),
                                 ],
                               ],
@@ -1856,15 +2093,14 @@ class _HomeScreenState extends State<HomeScreen>
                 },
               ),
 
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Opacity(
-                  opacity: _isFieldTutorialActive ? 0.35 : 1.0,
-                  child: IgnorePointer(
-                    ignoring: _isFieldTutorialActive,
-                    child: ResourceCollectionWidget(theme: theme),
-                  ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Opacity(
+                opacity: _isFieldTutorialActive ? 0.35 : 1.0,
+                child: IgnorePointer(
+                  ignoring: _isFieldTutorialActive,
+                  child: CurrencyDisplayWidget(),
                 ),
               ),
             ),
@@ -1900,14 +2136,6 @@ class _HomeScreenState extends State<HomeScreen>
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.4,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Opacity(
-              opacity: _isFieldTutorialActive ? 0.35 : 1.0,
-              child: IgnorePointer(
-                ignoring: _isFieldTutorialActive,
-                child: CurrencyDisplayWidget(),
               ),
             ),
           ],

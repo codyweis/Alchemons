@@ -1,24 +1,32 @@
 import 'package:flutter/material.dart';
 
 class VirtualJoystick extends StatefulWidget {
-  const VirtualJoystick({super.key, required this.onDirectionChanged});
+  const VirtualJoystick({
+    super.key,
+    required this.onDirectionChanged,
+    this.sizeMultiplier = 1.0,
+  });
 
   /// Called with a normalised direction (magnitude 0-1), or null when released.
   final ValueChanged<Offset?> onDirectionChanged;
+  final double sizeMultiplier;
 
   @override
   State<VirtualJoystick> createState() => VirtualJoystickState();
 }
 
 class VirtualJoystickState extends State<VirtualJoystick> {
-  static const double _baseRadius = 52;
-  static const double _knobRadius = 20;
+  static const double _defaultBaseRadius = 52;
+  static const double _defaultKnobRadius = 20;
 
   Offset _knobOffset = Offset.zero;
   bool _active = false;
 
+  double get _baseRadius => _defaultBaseRadius * widget.sizeMultiplier;
+  double get _knobRadius => _defaultKnobRadius * widget.sizeMultiplier;
+
   void _handlePointer(Offset localPos) {
-    final center = const Offset(_baseRadius, _baseRadius);
+    final center = Offset(_baseRadius, _baseRadius);
     var delta = localPos - center;
     final dist = delta.distance;
     if (dist > _baseRadius - _knobRadius) {
@@ -149,7 +157,10 @@ class _JoystickPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_JoystickPainter old) =>
-      old.knobOffset != knobOffset || old.active != active;
+      old.knobOffset != knobOffset ||
+      old.active != active ||
+      old.baseRadius != baseRadius ||
+      old.knobRadius != knobRadius;
 }
 
 // ─────────────────────────────────────────────────────────

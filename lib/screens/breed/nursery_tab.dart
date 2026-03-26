@@ -429,7 +429,6 @@ class _NurseryTabState extends State<NurseryTab> {
     } else {
       unawaited(
         _showDialogWithPausedBackground<void>(
-          barrierDismissible: false,
           barrierColor: Colors.black87,
           builder: (context) => _SlotInfoDialogWrapper(
             slot: slot,
@@ -472,7 +471,6 @@ class _NurseryTabState extends State<NurseryTab> {
         .hasCompletedExtractionTutorial();
     if (!mounted) return;
     await _showDialogWithPausedBackground<void>(
-      barrierDismissible: false,
       barrierColor: Colors.black87,
       builder: (context) => ExtractionDialog(
         slot: slot,
@@ -497,6 +495,7 @@ class _NurseryTabState extends State<NurseryTab> {
   void _showDiscardConfirmation(IncubatorSlot slot) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
+    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
     unawaited(
       _showDialogWithPausedBackground<void>(
         barrierColor: Colors.black87,
@@ -506,7 +505,7 @@ class _NurseryTabState extends State<NurseryTab> {
             constraints: const BoxConstraints(maxWidth: 380),
             child: Container(
               decoration: BoxDecoration(
-                color: t.bg1,
+                color: dialogSurface,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: t.danger.withValues(alpha: .45)),
               ),
@@ -673,6 +672,7 @@ class _NurseryTabState extends State<NurseryTab> {
   ) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
+    final dialogSurface = theme.isDark ? t.bg1 : Colors.white;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -684,7 +684,7 @@ class _NurseryTabState extends State<NurseryTab> {
           borderRadius: BorderRadius.circular(6),
           child: Container(
             decoration: BoxDecoration(
-              color: t.bg1,
+              color: dialogSurface,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: t.borderMid),
             ),
@@ -987,8 +987,8 @@ class _NurseryTabState extends State<NurseryTab> {
     if (slot.eggId == null || slot.hatchAtUtcMs == null) return;
 
     final confirmed = await _showConfirmDialog(
-      'Store',
-      'Transfer this specimen back to storage? Development will continue there.',
+      'Cold Storage',
+      'Transfer this specimen to cold storage? Cultivation will continue there at a 5x slower pace.',
     );
 
     if (!mounted || !confirmed) return;
@@ -1008,7 +1008,7 @@ class _NurseryTabState extends State<NurseryTab> {
 
     if (mounted) {
       _showToast(
-        'Specimen returned to storage',
+        'Specimen moved to cold storage',
         icon: Icons.inventory_2_rounded,
         color: Colors.orange.shade600,
       );

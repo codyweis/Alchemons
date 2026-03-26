@@ -1,5 +1,6 @@
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/show_quick_instance_dialog.dart';
@@ -8,9 +9,12 @@ import 'package:alchemons/widgets/creature_instances_sheet.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
+import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
 
 import 'feeding_widgets.dart';
+
+enum FeedingSpeciesSort { name, amount }
 
 class FeedingStageBuilders {
   final BuildContext context;
@@ -25,6 +29,8 @@ class FeedingStageBuilders {
   final String? targetSpeciesId;
   final String? targetInstanceId;
   final Set<String> selectedFodder;
+  final FeedingSpeciesSort speciesSort;
+  final ValueChanged<FeedingSpeciesSort> onSpeciesSortChanged;
 
   const FeedingStageBuilders({
     required this.context,
@@ -39,6 +45,8 @@ class FeedingStageBuilders {
     required this.targetSpeciesId,
     required this.targetInstanceId,
     required this.selectedFodder,
+    required this.speciesSort,
+    required this.onSpeciesSortChanged,
   });
 
   List<Map<String, dynamic>> buildSpeciesListData({
@@ -56,6 +64,23 @@ class FeedingStageBuilders {
       if (creature == null) continue;
       result.add({'creature': creature, 'count': countBySpecies[speciesId]});
     }
+    result.sort((a, b) {
+      final creatureA = a['creature'] as Creature;
+      final creatureB = b['creature'] as Creature;
+      final countA = a['count'] as int;
+      final countB = b['count'] as int;
+
+      return switch (speciesSort) {
+        FeedingSpeciesSort.amount =>
+          countB != countA
+              ? countB.compareTo(countA)
+              : creatureA.name.compareTo(creatureB.name),
+        FeedingSpeciesSort.name =>
+          creatureA.name != creatureB.name
+              ? creatureA.name.compareTo(creatureB.name)
+              : countB.compareTo(countA),
+      };
+    });
     return result;
   }
 
@@ -101,52 +126,104 @@ class FeedingStageBuilders {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(5, 0, 5, 5),
-          child: Container(
-            decoration: BoxDecoration(
-              color: t.bg1,
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(color: t.borderDim, width: 1),
-            ),
-            child: TextField(
-              controller: searchController,
-              onChanged: onSearchQueryChanged,
-              style: TextStyle(
-                color: t.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: t.bg1,
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: t.borderDim, width: 1),
+                  ),
+                  child: TextField(
+                    controller: searchController,
+                    onChanged: onSearchQueryChanged,
+                    style: TextStyle(
+                      color: t.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search species...',
+                      hintStyle: TextStyle(
+                        color: t.textSecondary.withValues(alpha: .7),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: t.textSecondary,
+                        size: 20,
+                      ),
+                      suffixIcon: searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.clear_rounded,
+                                color: t.textSecondary,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                searchController.clear();
+                                onSearchQueryChanged('');
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              decoration: InputDecoration(
-                hintText: 'Search species...',
-                hintStyle: TextStyle(
-                  color: t.textSecondary.withValues(alpha: .7),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-                prefixIcon: Icon(
-                  Icons.search_rounded,
-                  color: t.textSecondary,
-                  size: 20,
-                ),
-                suffixIcon: searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(
-                          Icons.clear_rounded,
+              const SizedBox(width: 6),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(5),
+                  onTap: () {
+                    onSpeciesSortChanged(
+                      speciesSort == FeedingSpeciesSort.name
+                          ? FeedingSpeciesSort.amount
+                          : FeedingSpeciesSort.name,
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: t.bg1,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(color: t.borderDim, width: 1),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.sort_rounded,
                           color: t.textSecondary,
-                          size: 20,
+                          size: 16,
                         ),
-                        onPressed: () {
-                          searchController.clear();
-                          onSearchQueryChanged('');
-                        },
-                      )
-                    : null,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
+                        const SizedBox(width: 6),
+                        Text(
+                          speciesSort == FeedingSpeciesSort.amount
+                              ? 'Amount'
+                              : 'Name',
+                          style: TextStyle(
+                            color: t.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
         if (searchQuery.isNotEmpty)
@@ -251,7 +328,7 @@ class FeedingStageBuilders {
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Text(
-            'No available fodder specimens.\nThey might be locked or already selected.',
+            'No available enhancement specimens.\nThey might be locked or already selected.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: t.textSecondary,
@@ -276,18 +353,20 @@ class FeedingStageBuilders {
         final inst = candidates[i];
         final isSelected = selectedFodder.contains(inst.instanceId);
         final baseCreature = repo.getCreatureById(inst.baseId);
-
-        final stats = {
-          'SPD': inst.statSpeed,
-          'INT': inst.statIntelligence,
-          'STR': inst.statStrength,
-          'BEA': inst.statBeauty,
+        final transfer =
+            CreatureInstanceServiceFeeding.analyzeEnhancementMaterial(inst);
+        final statLabels = {
+          'speed': 'SPD',
+          'intelligence': 'INT',
+          'strength': 'STR',
+          'beauty': 'BEA',
         };
-        final highestEntry = stats.entries.reduce(
-          (a, b) => a.value > b.value ? a : b,
-        );
+        final highestLabel =
+            statLabels[transfer.highestStatName] ?? transfer.highestStatName;
+        final lowestLabel =
+            statLabels[transfer.lowestStatName] ?? transfer.lowestStatName;
 
-        return GestureDetector(
+        return FastLongPressDetector(
           onTap: () => onFodderToggle(inst.instanceId),
           onLongPress: baseCreature == null
               ? null
@@ -306,7 +385,9 @@ class FeedingStageBuilders {
                 width: double.infinity,
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: isSelected ? fc.amberDim.withValues(alpha: 0.2) : t.bg1,
+                  color: isSelected
+                      ? fc.amberDim.withValues(alpha: 0.2)
+                      : t.bg1,
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
                     color: isSelected ? fc.amberGlow : t.borderDim,
@@ -369,7 +450,7 @@ class FeedingStageBuilders {
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 5,
-                        vertical: 2,
+                        vertical: 4,
                       ),
                       decoration: BoxDecoration(
                         color: isSelected
@@ -377,13 +458,63 @@ class FeedingStageBuilders {
                             : t.bg2,
                         borderRadius: BorderRadius.circular(3),
                       ),
-                      child: Text(
-                        '${highestEntry.key} ${highestEntry.value.toStringAsFixed(1)}',
-                        style: TextStyle(
-                          color: isSelected ? fc.amberBright : fc.amber,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: t.success.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(3),
+                                border: Border.all(
+                                  color: t.success.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Text(
+                                highestLabel,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: t.success,
+                                  fontSize: 7.5,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: t.danger.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(3),
+                                border: Border.all(
+                                  color: t.danger.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Text(
+                                lowestLabel,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: t.danger,
+                                  fontSize: 7.5,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

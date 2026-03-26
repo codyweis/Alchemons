@@ -53,6 +53,7 @@ class AlchemicalParticleBackground extends StatefulWidget {
     this.colors,
     this.backgroundColor,
     this.whiteBackground = false, // NEW PARAM
+    this.densityMultiplier = 1.0,
   });
 
   /// Global alpha for the whole layer (0..1)
@@ -67,6 +68,9 @@ class AlchemicalParticleBackground extends StatefulWidget {
   /// Convenience flag to render a white background.
   /// If [backgroundColor] is provided, it takes precedence.
   final bool whiteBackground; // NEW PARAM
+
+  /// Scale the particle count without changing the visual system behavior.
+  final double densityMultiplier;
 
   @override
   State<AlchemicalParticleBackground> createState() =>
@@ -131,9 +135,10 @@ class _AlchemicalParticleBackgroundState
     final palette = widget.colors ?? _particleColors;
     if (_isInitialized) return;
 
-    final particleCount = (size.width * size.height * 0.0002)
-        .clamp(150, 500)
-        .toInt();
+    final particleCount =
+        ((size.width * size.height * 0.0002) * widget.densityMultiplier)
+            .clamp(40, 500)
+            .toInt();
 
     for (int i = 0; i < particleCount; i++) {
       _particles.add(

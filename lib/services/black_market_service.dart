@@ -56,11 +56,6 @@ class BlackMarketService extends ChangeNotifier {
   bool _isOpen = false;
   Timer? _checkTimer;
 
-  // Premium (weekly)
-  String _premiumRarity = '';
-  String _premiumType = '';
-  double _premiumBonus = 1.0;
-
   // Offers/Vials (weekly; names kept to avoid refactors)
   List<DailyOffer> _dailyOffers = [];
   List<ExtractionVial> _dailyVials = [];
@@ -72,9 +67,6 @@ class BlackMarketService extends ChangeNotifier {
 
   // ----------------- public API -----------
   bool get isOpen => _isOpen;
-  String get premiumRarity => _premiumRarity;
-  String get premiumType => _premiumType;
-  double get premiumBonus => _premiumBonus;
   List<DailyOffer> get dailyOffers => _dailyOffers;
   List<ExtractionVial> get dailyVials => _dailyVials;
 
@@ -276,20 +268,6 @@ class BlackMarketService extends ChangeNotifier {
 
   void _updateWeeklyContent() {
     final seed = _weeklySeed();
-    final weeklyRng = math.Random(seed);
-
-    // Weekly premium
-    final element = Elements.values.map((r) => r.name).toList();
-    _premiumRarity = element[seed % element.length];
-
-    final species = CreatureFamily.values
-        .map((f) => f.displayName)
-        .where((s) => s != CreatureFamily.mystic.displayName)
-        .toList();
-    _premiumType = species[(seed ~/ 3) % species.length];
-
-    // Weekly random premium multiplier: 150%..300% (x1.5..x3.0)
-    _premiumBonus = 1.5 + (weeklyRng.nextDouble() * 1.5);
 
     // Weekly offers & vials (names kept)
     _dailyOffers = _generateDailyOffers(seed);

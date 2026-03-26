@@ -304,20 +304,25 @@ class ForgeTokens {
 
   Color get bg2 => isDark ? const Color(0xFF141820) : _theme.surfaceAlt;
 
-  Color get bg3 =>
-      isDark ? const Color(0xFF1C2230) : _theme.surfaceAlt.withValues(alpha: 0.6);
+  Color get bg3 => isDark
+      ? const Color(0xFF1C2230)
+      : _theme.surfaceAlt.withValues(alpha: 0.82);
 
   // ── Accent (amber in dark, faction accent in light) ────────────────────────
-  Color get amber => isDark ? const Color(0xFFD97706) : _theme.accent;
-  Color get amberBright => isDark ? const Color(0xFFF59E0B) : _theme.accent;
-  Color get amberDim => isDark ? const Color(0xFF92400E) : _theme.accentSoft;
-  Color get amberGlow =>
-      isDark ? const Color(0xFFFFB020) : _theme.accent.withValues(alpha: 0.5);
+  Color get amber =>
+      isDark ? const Color(0xFFD97706) : readableAccent(_theme.accent);
+  Color get amberBright =>
+      isDark ? const Color(0xFFF59E0B) : readableAccent(_theme.accent);
+  Color get amberDim =>
+      isDark ? const Color(0xFF92400E) : readableAccent(_theme.accentSoft);
+  Color get amberGlow => isDark
+      ? const Color(0xFFFFB020)
+      : readableAccent(_theme.accent).withValues(alpha: 0.85);
 
   // ── Text ───────────────────────────────────────────────────────────────────
   Color get textPrimary => isDark ? const Color(0xFFE8DCC8) : _theme.text;
   Color get textSecondary =>
-      isDark ? const Color(0xFF8A7B6A) : _theme.text.withValues(alpha: 0.65);
+      isDark ? const Color(0xFF8A7B6A) : _theme.text.withValues(alpha: 0.78);
   Color get textMuted => isDark ? const Color(0xFF4A3F35) : _theme.textMuted;
 
   // ── Borders ────────────────────────────────────────────────────────────────
@@ -333,6 +338,28 @@ class ForgeTokens {
   Color get successDim => const Color(0xFF14532D);
   Color get danger => const Color(0xFFC0392B);
   Color get teal => isDark ? const Color(0xFF0EA5E9) : _theme.secondary;
+
+  Color onColor(
+    Color background, {
+    Color light = Colors.white,
+    Color dark = const Color(0xFF0F1221),
+  }) {
+    return ThemeData.estimateBrightnessForColor(background) == Brightness.dark
+        ? light
+        : dark;
+  }
+
+  Color get onAccent => onColor(amberBright);
+
+  Color readableAccent(Color color) {
+    if (isDark) return color;
+    final hsl = HSLColor.fromColor(color);
+    if (hsl.lightness <= 0.55) return color;
+    return hsl
+        .withLightness(0.38)
+        .withSaturation((hsl.saturation + 0.10).clamp(0.0, 1.0))
+        .toColor();
+  }
 }
 
 // ======= Legacy shims (back-compat) =======
@@ -379,7 +406,10 @@ extension FactionThemeX on FactionTheme {
     color: surfaceAlt,
     borderRadius: BorderRadius.circular(5),
     boxShadow: [
-      BoxShadow(color: rim.withValues(alpha: isDark ? 0.16 : 0.12), blurRadius: 18),
+      BoxShadow(
+        color: rim.withValues(alpha: isDark ? 0.16 : 0.12),
+        blurRadius: 18,
+      ),
     ],
   );
 }

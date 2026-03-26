@@ -4,6 +4,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
@@ -22,12 +23,16 @@ Future<void> showQuickInstanceDialog({
 }) async {
   final genetics = decodeGenetics(instance.geneticsJson);
   final t = ForgeTokens(theme);
+  final shellColor = theme.isDark ? t.bg1 : Colors.white;
 
   await showDialog(
     context: context,
     barrierColor: Colors.black.withValues(alpha: .8),
     builder: (ctx) {
       final db = ctx.read<AlchemonsDatabase>();
+      final hasPotentialAnalyzer = ctx
+          .watch<ConstellationEffectsService>()
+          .hasPotentialAnalyzer();
 
       // ── helpers ──────────────────────────────────────────────────────────
       Widget sectionLabel(IconData icon, String label) => Row(
@@ -52,6 +57,7 @@ Future<void> showQuickInstanceDialog({
         required String label,
         required double value,
         required Color color,
+        double? potentialValue,
       }) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
@@ -75,7 +81,9 @@ Future<void> showQuickInstanceDialog({
             ),
             const Spacer(),
             Text(
-              value.toStringAsFixed(1),
+              potentialValue == null
+                  ? value.toStringAsFixed(1)
+                  : '${value.toStringAsFixed(1)}/${potentialValue.toStringAsFixed(1)}',
               style: TextStyle(
                 fontFamily: 'monospace',
                 color: color,
@@ -119,7 +127,7 @@ Future<void> showQuickInstanceDialog({
         child: Container(
           width: 360,
           decoration: BoxDecoration(
-            color: t.bg1,
+            color: shellColor,
             borderRadius: BorderRadius.circular(3),
             border: Border.all(color: t.borderAccent, width: 1),
             boxShadow: [
@@ -473,6 +481,9 @@ Future<void> showQuickInstanceDialog({
                             label: 'Speed',
                             value: instance.statSpeed,
                             color: const Color(0xFF60A5FA),
+                            potentialValue: hasPotentialAnalyzer
+                                ? instance.statSpeedPotential
+                                : null,
                           ),
                           const SizedBox(height: 5),
                           statRow(
@@ -480,6 +491,9 @@ Future<void> showQuickInstanceDialog({
                             label: 'Intelligence',
                             value: instance.statIntelligence,
                             color: const Color(0xFFC084FC),
+                            potentialValue: hasPotentialAnalyzer
+                                ? instance.statIntelligencePotential
+                                : null,
                           ),
                           const SizedBox(height: 5),
                           statRow(
@@ -487,6 +501,9 @@ Future<void> showQuickInstanceDialog({
                             label: 'Strength',
                             value: instance.statStrength,
                             color: const Color(0xFFF87171),
+                            potentialValue: hasPotentialAnalyzer
+                                ? instance.statStrengthPotential
+                                : null,
                           ),
                           const SizedBox(height: 5),
                           statRow(
@@ -494,6 +511,9 @@ Future<void> showQuickInstanceDialog({
                             label: 'Beauty',
                             value: instance.statBeauty,
                             color: const Color(0xFFF9A8D4),
+                            potentialValue: hasPotentialAnalyzer
+                                ? instance.statBeautyPotential
+                                : null,
                           ),
                         ],
                       ),

@@ -67,11 +67,11 @@ class LandscapeDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       child: Container(
-        constraints: const BoxConstraints(
+        constraints: BoxConstraints(
           maxWidth: 600, // Limit width for landscape
-          maxHeight: 280, // Compact height for landscape
+          maxHeight: MediaQuery.of(context).size.height * 0.7,
         ),
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(2),
@@ -101,15 +101,15 @@ class LandscapeDialog extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.w300,
-                      letterSpacing: 2.5,
+                      letterSpacing: 2.0,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // Divider
             Container(
@@ -117,7 +117,7 @@ class LandscapeDialog extends StatelessWidget {
               height: 1,
               color: Colors.white.withValues(alpha: 0.25),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // Message body (constrained for landscape)
             Flexible(
@@ -141,7 +141,7 @@ class LandscapeDialog extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // Action buttons
             Row(
