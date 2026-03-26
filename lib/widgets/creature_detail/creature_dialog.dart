@@ -352,6 +352,9 @@ class CreatureDetailsDialog extends StatefulWidget {
 
 class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     with SingleTickerProviderStateMixin {
+  static const _tabSwipeDuration = Duration(milliseconds: 150);
+  static const _tabSwipePhysics = _CreatureDetailsTabPhysics();
+
   late TabController _tabController;
   late PageController _pageController;
   late ScrollController _analysisScrollController;
@@ -386,6 +389,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
       length: widget.isDiscovered ? 3 : 1,
       vsync: this,
       initialIndex: _initialTabIndex(),
+      animationDuration: _tabSwipeDuration,
     );
     _pageController = PageController(viewportFraction: 1.0);
     _analysisScrollController = ScrollController();
@@ -501,7 +505,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
         _tabController.length > 1 &&
         _tabController.index != 1) {
       _tabController.animateTo(1);
-      await Future<void>.delayed(const Duration(milliseconds: 240));
+      await Future<void>.delayed(_tabSwipeDuration);
     }
 
     if (!mounted) return;
@@ -671,9 +675,10 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
             ),
             if (discovered) _TabSelector(tabController: _tabController),
             Expanded(
-              child: discovered
+                child: discovered
                   ? TabBarView(
                       controller: _tabController,
+                      physics: _tabSwipePhysics,
                       children: [
                         // OVERVIEW
                         AnimatedSwitcher(
@@ -903,6 +908,31 @@ class _TabSelector extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CreatureDetailsTabPhysics extends ScrollPhysics {
+  const _CreatureDetailsTabPhysics({super.parent});
+
+  @override
+  _CreatureDetailsTabPhysics applyTo(ScrollPhysics? ancestor) {
+    return _CreatureDetailsTabPhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  double? get dragStartDistanceMotionThreshold => 12;
+
+  @override
+  double get minFlingDistance => 18;
+
+  @override
+  double get minFlingVelocity => 700;
+
+  @override
+  SpringDescription get spring => SpringDescription.withDampingRatio(
+    mass: 0.5,
+    stiffness: 220,
+    ratio: 1.12,
+  );
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

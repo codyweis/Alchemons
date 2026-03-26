@@ -359,7 +359,7 @@ class _NurseryTabState extends State<NurseryTab> {
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon, Color color) {
+  Widget _buildSectionHeader(String title, IconData _, Color color) {
     return Row(
       children: [
         // Vertical accent bar with glow
@@ -377,17 +377,6 @@ class _NurseryTabState extends State<NurseryTab> {
               ),
             ],
           ),
-        ),
-        const SizedBox(width: 10),
-        // Icon badge
-        Container(
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: color.withValues(alpha: .25), width: 1),
-          ),
-          child: Icon(icon, color: color, size: 12),
         ),
         const SizedBox(width: 10),
         // Title

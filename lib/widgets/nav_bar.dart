@@ -74,7 +74,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
       'assets/images/ui/dexicon_light.png',
       'assets/images/ui/dexicon.png',
       'assets/images/ui/homeicon2.png',
-      'assets/images/ui/breedicon.png',
+      'assets/images/ui/extrastorage.png',
       'assets/images/ui/shopicon2.png',
     ];
 
@@ -208,7 +208,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                   ),
                   _buildNavButton(
                     section: NavSection.breed,
-                    icon: 'assets/images/ui/breedicon.png',
+                    icon: 'assets/images/ui/extrastorage.png',
                     label: 'FUSION',
                     theme: theme,
                     isDisabled: isDisabled,

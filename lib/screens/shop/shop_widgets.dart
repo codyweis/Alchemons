@@ -616,6 +616,23 @@ Widget _buildOfferPreview(
     }
   }
 
+  if (offer.id.startsWith('unlock.storage_cap.') && offer.assetName != null) {
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.asset(
+          offer.assetName!,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => Icon(
+            offer.icon,
+            size: size * 0.8,
+            color: offer.iconColor ?? theme.text,
+          ),
+        ),
+      ),
+    );
+  }
+
   // 2. Try static image
   if (offer.assetName != null) {
     return Center(
@@ -696,6 +713,7 @@ class GameShopCard extends StatelessWidget {
   final bool enabled;
   final bool canAfford;
   final List<Widget> costWidgets;
+  final String? displayLabel;
   final String? statusText;
 
   const GameShopCard({
@@ -706,8 +724,16 @@ class GameShopCard extends StatelessWidget {
     required this.enabled,
     required this.canAfford,
     required this.costWidgets,
+    this.displayLabel,
     this.statusText,
   });
+
+  String get _cardLabel => (displayLabel ?? title).toUpperCase();
+
+  double get _cardLabelFontSize => 8.0;
+
+  EdgeInsets get _cardLabelPadding =>
+      const EdgeInsets.symmetric(horizontal: 6, vertical: 3);
 
   @override
   Widget build(BuildContext context) {
@@ -749,7 +775,49 @@ class GameShopCard extends StatelessWidget {
                   color: theme.isDark
                       ? Colors.black.withValues(alpha: 0.05)
                       : t.bg2.withValues(alpha: 0.8),
-                  child: _buildOfferPreview(offer, size: 64.0, theme: theme),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: _buildOfferPreview(
+                          offer,
+                          size: 64.0,
+                          theme: theme,
+                        ),
+                      ),
+                      if (_cardLabel.isNotEmpty)
+                        Positioned(
+                          left: 8,
+                          right: 8,
+                          bottom: 8,
+                          child: Container(
+                            padding: _cardLabelPadding,
+                            decoration: BoxDecoration(
+                              color: theme.isDark
+                                  ? t.bg0.withValues(alpha: 0.88)
+                                  : Colors.white.withValues(alpha: 0.88),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: theme.accent.withValues(alpha: 0.28),
+                              ),
+                            ),
+                            child: Text(
+                              _cardLabel,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.textPrimary,
+                                fontSize: _cardLabelFontSize,
+                                fontWeight: FontWeight.w800,
+                                height: 1.1,
+                                letterSpacing: 0.7,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
 

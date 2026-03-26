@@ -20,6 +20,7 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
+import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
@@ -258,26 +259,6 @@ class EggHatching {
     final repo = context.read<CreatureCatalog>();
     final payloadFactory = context.read<EggPayloadFactory>();
 
-    // Consume the vial first
-    final vialRarity = switch (rarity) {
-      'Common' => VialRarity.common,
-      'Uncommon' => VialRarity.uncommon,
-      'Rare' => VialRarity.rare,
-      'Legendary' => VialRarity.legendary,
-      'Mythic' => VialRarity.mythic,
-      _ => VialRarity.common,
-    };
-
-    final consumed = await db.inventoryDao.consumeVial(name, group, vialRarity);
-    if (!consumed) {
-      return HatchingResult(
-        success: false,
-        message: 'Vial not found in inventory',
-        icon: Icons.error_rounded,
-        color: Colors.red,
-      );
-    }
-
     // Get eligible creatures for this group and rarity
     final eligibleCreatures = repo.creatures.where((c) {
       final types = group.elementTypes;
@@ -299,6 +280,26 @@ class EggHatching {
     final offspring =
         eligibleCreatures[Random().nextInt(eligibleCreatures.length)];
 
+    // Consume the vial only once we know it can produce a valid specimen.
+    final vialRarity = switch (rarity) {
+      'Common' => VialRarity.common,
+      'Uncommon' => VialRarity.uncommon,
+      'Rare' => VialRarity.rare,
+      'Legendary' => VialRarity.legendary,
+      'Mythic' => VialRarity.mythic,
+      _ => VialRarity.common,
+    };
+
+    final consumed = await db.inventoryDao.consumeVial(name, group, vialRarity);
+    if (!consumed) {
+      return HatchingResult(
+        success: false,
+        message: 'Vial not found in inventory',
+        icon: Icons.error_rounded,
+        color: Colors.red,
+      );
+    }
+
     // Create standardized payload using factory
     final payload = payloadFactory.createVialPayload(offspring, vialName: name);
     final payloadJson = payload.toJsonString();
@@ -312,10 +313,19 @@ class EggHatching {
       offspring,
       bothParentsFire: false,
     );
-    // Try to place in incubator
     final free = await db.incubatorDao.firstFreeSlot();
 
     if (free == null) {
+      if (!await ColdStorageService.hasCapacity(db)) {
+        await db.inventoryDao.addVial(name, group, vialRarity);
+        return HatchingResult(
+          success: false,
+          message: await ColdStorageService.buildFullMessage(db),
+          icon: Icons.inventory_2_rounded,
+          color: Colors.orange,
+        );
+      }
+
       // Queue it
       await db.incubatorDao.enqueueEgg(
         eggId: eggId,

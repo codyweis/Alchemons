@@ -1195,11 +1195,11 @@ class _BreedingTabState extends State<BreedingTab>
 
           if (!result.success) {
             _showToast(
-              'Genetic incompatibility detected',
+              result.message ?? 'Breeding failed',
               icon: Icons.warning_rounded,
               color: Colors.orange,
             );
-            throw Exception('Incompatible');
+            throw Exception(result.message ?? 'Breeding failed');
           }
 
           if (result.placement == EggPlacement.storage) {

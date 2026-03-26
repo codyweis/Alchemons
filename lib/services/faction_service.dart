@@ -115,7 +115,8 @@ class FactionService extends ChangeNotifier {
         PerkInfo(
           code: "AirDrop",
           title: "AirDrop",
-          description: "50% discount on additional extraction chambers",
+          description:
+              "50% discount on additional extraction chambers and storage upgrades",
         ),
         PerkInfo(
           code: "VerdantHarvester",
@@ -317,7 +318,8 @@ class FactionService extends ChangeNotifier {
   // AIR FACTION PERKS
   // ---------------------------------------------------------------------------
 
-  /// AirDrop (Perk 1): 50% discount on additional extraction chambers.
+  /// AirDrop (Perk 1): 50% discount on additional extraction chambers and
+  /// storage upgrades.
   double get airBubbleSlotCostMultiplier {
     if (!isAir() || !perk1Active) return 1.0;
     return 0.5;

@@ -410,6 +410,15 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     });
   }
 
+  /// Live count of currently owned prismatic instances.
+  Stream<int> watchPrismaticInstanceCount() {
+    final countExp = creatureInstances.instanceId.count();
+    final q = (selectOnly(creatureInstances)
+      ..addColumns([countExp])
+      ..where(creatureInstances.isPrismaticSkin.equals(true)));
+    return q.watchSingle().map((row) => row.read(countExp) ?? 0);
+  }
+
   Future<bool> canAddInstance(
     String baseId, {
     int cap = defaultSpeciesCap,

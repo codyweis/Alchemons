@@ -1182,13 +1182,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         Row(
                           children: [
-                            Icon(
-                              Icons.catching_pokemon_rounded,
-                              size: 12,
-                              color: t.teal,
-                            ),
-                            const SizedBox(width: 6),
-                            Text('CREATURES DISCOVERED', style: _label(t)),
+                            Text('ALCHEMONS DISCOVERED', style: _label(t)),
                             const Spacer(),
                             Text(
                               '${data.discoveredCount}',

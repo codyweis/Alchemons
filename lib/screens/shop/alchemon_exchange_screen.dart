@@ -10,6 +10,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
+import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:flutter/material.dart';
@@ -664,16 +665,15 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
   Future<void> _showVialBrowser() async {
     final db = context.read<AlchemonsDatabase>();
     final theme = context.read<FactionTheme>();
-    final repo = context.read<CreatureCatalog>();
     final items = await db.inventoryDao.watchItemInventory().first;
-    final storedEggs = await db.incubatorDao.watchInventory().first;
+    final storedEggs = await db.select(db.eggs).get();
     final vials =
         <_VialPickerEntry>[
           ...items
               .where((item) => item.key.startsWith('vial.'))
               .map(_parseVialInventoryItem)
               .whereType<_VialPickerEntry>(),
-          ..._parseStoredVialEntries(storedEggs, repo),
+          ..._parseStoredVialEntries(storedEggs),
         ]..sort((a, b) {
           final sourceCompare = a.source.index.compareTo(b.source.index);
           if (sourceCompare != 0) return sourceCompare;
@@ -683,7 +683,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
             b.group.displayName,
           );
           if (groupCompare != 0) return groupCompare;
-          return a.name.compareTo(b.name);
+          return a.displayName.compareTo(b.displayName);
         });
 
     if (vials.isEmpty) {
@@ -733,25 +733,12 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                             ),
                           ),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: vial.group.color.withValues(
-                                    alpha: 0.14,
-                                  ),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: vial.group.color.withValues(
-                                      alpha: 0.45,
-                                    ),
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.science_rounded,
-                                  color: vial.group.color,
-                                ),
+                              _VialPreviewCard(
+                                vial: vial.previewVial,
+                                width: 78,
+                                height: 96,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -759,7 +746,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      vial.name,
+                                      vial.displayName,
                                       style: TextStyle(
                                         color: t.textPrimary,
                                         fontSize: 13,
@@ -768,7 +755,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      '${vial.rarity.label} • ${vial.group.displayName} • ${vial.availableQty} available • ${vial.sourceLabel}',
+                                      vial.rarity.label,
                                       style: TextStyle(
                                         color: t.textMuted,
                                         fontSize: 11,
@@ -897,52 +884,28 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
     );
   }
 
-  List<_VialPickerEntry> _parseStoredVialEntries(
-    List<Egg> eggs,
-    CreatureCatalog repo,
-  ) {
-    final grouped = <String, _StoredVialAccumulator>{};
+  List<_VialPickerEntry> _parseStoredVialEntries(List<Egg> eggs) {
+    return eggs
+        .map((egg) {
+          final payload = parseEggPayload(egg);
 
-    for (final egg in eggs) {
-      final payload = parseEggPayload(egg);
-      if ((payload['source'] as String?) != 'vial') continue;
+          final rarityName = (payload['rarity'] as String? ?? egg.rarity)
+              .toLowerCase();
+          final rarity = _vialRarityFromString(rarityName);
+          final group = getElementalGroupFromPayload(payload);
 
-      final baseId = payload['baseId'] as String? ?? egg.resultCreatureId;
-      final creature = repo.getCreatureById(baseId);
-      final rarityName = (payload['rarity'] as String? ?? egg.rarity)
-          .toLowerCase();
-      final rarity = _vialRarityFromString(rarityName);
-      final group = getElementalGroupFromPayload(payload);
-      final name = creature != null
-          ? '${creature.name} Vial'
-          : getEggLabel(payload);
-      final groupKey = 'storage:$baseId:${rarity.name}:${group.name}';
-
-      final bucket = grouped.putIfAbsent(
-        groupKey,
-        () => _StoredVialAccumulator(
-          key: groupKey,
-          name: name,
-          group: group,
-          rarity: rarity,
-        ),
-      );
-      bucket.eggIds.add(egg.eggId);
-    }
-
-    return grouped.values
-        .map(
-          (entry) => _VialPickerEntry(
-            key: entry.key,
-            name: entry.name,
-            group: entry.group,
-            rarity: entry.rarity,
-            availableQty: entry.eggIds.length,
-            unitSilverValue: _silverValueForVialRarity(entry.rarity),
+          return _VialPickerEntry(
+            key: 'storage:${egg.eggId}',
+            name: '${group.displayName} Vial',
+            group: group,
+            rarity: rarity,
+            availableQty: 1,
+            unitSilverValue: _silverValueForVialRarity(rarity),
             source: _VialSaleSource.storage,
-            storageEggIds: List<String>.from(entry.eggIds),
-          ),
-        )
+            storageEggIds: [egg.eggId],
+          );
+        })
+        .whereType<_VialPickerEntry>()
         .toList();
   }
 
@@ -1183,29 +1146,14 @@ class _ExchangeVialRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: vial.group.color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: vial.group.color.withValues(alpha: 0.35),
-              ),
-            ),
-            child: Icon(
-              Icons.science_rounded,
-              color: vial.group.color,
-              size: 20,
-            ),
-          ),
+          _VialPreviewCard(vial: vial.previewVial, width: 72, height: 88),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  vial.name,
+                  vial.displayName,
                   style: TextStyle(
                     color: theme.text,
                     fontSize: 13,
@@ -1214,7 +1162,7 @@ class _ExchangeVialRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${vial.rarity.label} • ${vial.group.displayName} • x${vial.selectedQty} • ${vial.sourceLabel}',
+                  '${vial.rarity.label} • x${vial.selectedQty}',
                   style: TextStyle(
                     color: theme.textMuted,
                     fontSize: 11,
@@ -1424,6 +1372,17 @@ class _VialPickerEntry {
 
   String get sourceLabel =>
       source == _VialSaleSource.inventory ? 'Inventory' : 'Storage';
+
+  String get displayName => '${group.displayName} Vial';
+
+  ExtractionVial get previewVial => ExtractionVial(
+    id: key,
+    name: displayName,
+    group: group,
+    rarity: rarity,
+    quantity: availableQty,
+    price: null,
+  );
 }
 
 class _SelectedVialSale {
@@ -1451,19 +1410,42 @@ class _SelectedVialSale {
 
   String get sourceLabel =>
       source == _VialSaleSource.inventory ? 'Inventory' : 'Storage';
+
+  String get displayName => '${group.displayName} Vial';
+
+  ExtractionVial get previewVial => ExtractionVial(
+    id: key,
+    name: displayName,
+    group: group,
+    rarity: rarity,
+    quantity: selectedQty,
+    price: null,
+  );
 }
 
-class _StoredVialAccumulator {
-  final String key;
-  final String name;
-  final ElementalGroup group;
-  final VialRarity rarity;
-  final List<String> eggIds;
+class _VialPreviewCard extends StatelessWidget {
+  final ExtractionVial vial;
+  final double width;
+  final double height;
 
-  _StoredVialAccumulator({
-    required this.key,
-    required this.name,
-    required this.group,
-    required this.rarity,
-  }) : eggIds = [];
+  const _VialPreviewCard({
+    required this.vial,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: height,
+      child: IgnorePointer(
+        child: ExtractionVialCard(
+          vial: vial,
+          compact: true,
+          showTags: false,
+        ),
+      ),
+    );
+  }
 }

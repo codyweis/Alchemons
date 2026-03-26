@@ -8,11 +8,59 @@ class ColdStorageService {
 
   static const int slowdownFactor = 5;
   static const String introSeenSettingKey = 'cold_storage_intro_seen_v1';
+  static const String capacitySettingKey = 'cold_storage_capacity';
+  static const int baseCapacity = 5;
+  static const List<int> upgradeCapSteps = [10, 15, 20];
 
   static const String _payloadKey = 'coldStorage';
   static const String _enteredAtUtcMsKey = 'enteredAtUtcMs';
   static const String _activeRemainingAtEntryMsKey = 'activeRemainingAtEntryMs';
   static const String _slowdownFactorKey = 'slowdownFactor';
+
+  static int normalizeCapacity(int value) {
+    return value.clamp(baseCapacity, upgradeCapSteps.last);
+  }
+
+  static Future<int> getCapacity(AlchemonsDatabase db) async {
+    final raw = await db.settingsDao.getSetting(capacitySettingKey);
+    final parsed = int.tryParse(raw ?? '');
+    final capacity = normalizeCapacity(parsed ?? baseCapacity);
+
+    if (raw == null || parsed == null || capacity != parsed) {
+      await db.settingsDao.setSetting(capacitySettingKey, capacity.toString());
+    }
+
+    return capacity;
+  }
+
+  static Future<void> setCapacity(AlchemonsDatabase db, int capacity) async {
+    final normalized = normalizeCapacity(capacity);
+    await db.settingsDao.setSetting(capacitySettingKey, normalized.toString());
+  }
+
+  static Future<int> getStoredCount(AlchemonsDatabase db) async {
+    final eggs = await db.select(db.eggs).get();
+    return eggs.length;
+  }
+
+  static Future<(int used, int capacity)> getUsage(AlchemonsDatabase db) async {
+    final used = await getStoredCount(db);
+    final capacity = await getCapacity(db);
+    return (used, capacity);
+  }
+
+  static Future<bool> hasCapacity(
+    AlchemonsDatabase db, {
+    int additional = 1,
+  }) async {
+    final (used, capacity) = await getUsage(db);
+    return used + additional <= capacity;
+  }
+
+  static Future<String> buildFullMessage(AlchemonsDatabase db) async {
+    final (used, capacity) = await getUsage(db);
+    return 'Cold storage full ($used/$capacity). Free up space or buy a storage upgrade in Special Items.';
+  }
 
   static Egg normalizeEggForDisplay(Egg egg, {DateTime? nowUtc}) {
     final normalizedPayloadJson = ensureColdStoragePayload(

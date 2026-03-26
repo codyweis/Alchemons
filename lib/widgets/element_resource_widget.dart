@@ -15,7 +15,16 @@ import 'package:alchemons/models/element_resource.dart';
 
 class ResourceCollectionWidget extends StatefulWidget {
   final FactionTheme theme;
-  const ResourceCollectionWidget({super.key, required this.theme});
+  final double horizontalPadding;
+  final bool alignToEnd;
+
+  const ResourceCollectionWidget({
+    super.key,
+    required this.theme,
+    this.horizontalPadding = 12,
+    this.alignToEnd = false,
+  });
+
   @override
   State<ResourceCollectionWidget> createState() =>
       _ResourceCollectionWidgetState();
@@ -82,33 +91,61 @@ class _ResourceCollectionWidgetState extends State<ResourceCollectionWidget>
                   animation: _t,
                   builder: (context, _) {
                     final height = lerpDouble(60, 80, _t.value)!;
-
-                    return SizedBox(
-                      height: height,
-                      child: ListView.separated(
-                        key: const PageStorageKey('resource-strip-clean'),
-                        scrollDirection: Axis.horizontal,
-                        shrinkWrap: true,
-                        physics: const BouncingScrollPhysics(
-                          parent: AlwaysScrollableScrollPhysics(),
-                        ),
-                        padding: EdgeInsets.fromLTRB(
-                          lerpDouble(12, 12, _t.value)!,
-                          lerpDouble(6, 10, _t.value)!,
-                          lerpDouble(12, 12, _t.value)!,
-                          lerpDouble(6, 10, _t.value)!,
-                        ),
-                        itemBuilder: (context, i) => _ResourcePill(
+                    final minContentWidth =
+                        widget.alignToEnd && constraints.hasBoundedWidth
+                        ? constraints.maxWidth
+                        : 0.0;
+                    final children = <Widget>[
+                      for (int i = 0; i < res.length; i++) ...[
+                        _ResourcePill(
                           key: ValueKey(res[i].id),
                           r: res[i],
                           t: _t.value,
                           theme: widget.theme,
                         ),
-                        separatorBuilder: (_, __) => SizedBox(
-                          width: lerpDouble(compactSpacing, 0, _t.value)!,
+                        if (i != res.length - 1)
+                          SizedBox(
+                            width: lerpDouble(compactSpacing, 0, _t.value)!,
+                          ),
+                      ],
+                    ];
+
+                    return SizedBox(
+                      height: height,
+                      child: SingleChildScrollView(
+                        key: const PageStorageKey('resource-strip-clean'),
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
                         ),
-                        itemCount: res.length,
-                        cacheExtent: 1000,
+                        padding: EdgeInsets.fromLTRB(
+                          lerpDouble(
+                            widget.horizontalPadding,
+                            widget.horizontalPadding,
+                            _t.value,
+                          )!,
+                          lerpDouble(6, 10, _t.value)!,
+                          lerpDouble(
+                            widget.horizontalPadding,
+                            widget.horizontalPadding,
+                            _t.value,
+                          )!,
+                          lerpDouble(6, 10, _t.value)!,
+                        ),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: minContentWidth,
+                          ),
+                          child: Row(
+                            mainAxisSize: widget.alignToEnd
+                                ? MainAxisSize.max
+                                : MainAxisSize.min,
+                            mainAxisAlignment: widget.alignToEnd
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.start,
+                            children: children,
+                          ),
+                        ),
                       ),
                     );
                   },

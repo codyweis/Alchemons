@@ -294,14 +294,8 @@ class InstanceCard extends StatelessWidget {
                       _CardNameLine(
                         instance: instance,
                         creatureName: species.name,
+                        trailing: _CompactStaminaSummary(instance: instance),
                       ),
-                      const SizedBox(height: 4),
-                    ],
-
-                    // Stamina for genetics mode
-                    if (!_isHarvestMode &&
-                        detailMode == InstanceDetailMode.genetics) ...[
-                      _InlineStaminaSummary(instance: instance),
                       const SizedBox(height: 4),
                     ],
 
@@ -338,13 +332,6 @@ class _StatsBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    final stamina = context.read<StaminaService>();
-    final state = stamina.computeState(instance);
-    final bars = state.bars.clamp(0, state.max);
-    final max = state.max <= 0 ? 1 : state.max;
-    final staminaTextColor = t.readableAccent(const Color(0xFF86EFAC));
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -353,31 +340,10 @@ class _StatsBlock extends StatelessWidget {
           _ParentChip(selectionNumber: selectionNumber!),
           const SizedBox(height: 4),
         ],
-        _CardNameLine(instance: instance, creatureName: creatureName),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            StaminaBar(
-              current: bars,
-              max: max,
-              size: 6,
-              gap: 2,
-              fillColor: const Color(0xFF22C55E),
-              emptyColor: Colors.black26,
-              radius: const BorderRadius.all(Radius.circular(2)),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              '$bars/$max',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: staminaTextColor,
-                fontSize: 8,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.4,
-              ),
-            ),
-          ],
+        _CardNameLine(
+          instance: instance,
+          creatureName: creatureName,
+          trailing: _CompactStaminaSummary(instance: instance),
         ),
         const SizedBox(height: 4),
         Row(
@@ -750,10 +716,15 @@ class _PrismaticChip extends StatelessWidget {
 }
 
 class _CardNameLine extends StatelessWidget {
-  const _CardNameLine({required this.instance, required this.creatureName});
+  const _CardNameLine({
+    required this.instance,
+    required this.creatureName,
+    this.trailing,
+  });
 
   final CreatureInstance instance;
   final String creatureName;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -775,6 +746,49 @@ class _CardNameLine extends StatelessWidget {
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (trailing != null) ...[const SizedBox(width: 6), trailing!],
+      ],
+    );
+  }
+}
+
+class _CompactStaminaSummary extends StatelessWidget {
+  const _CompactStaminaSummary({required this.instance});
+
+  final CreatureInstance instance;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(context.read<FactionTheme>());
+    final stamina = context.read<StaminaService>();
+    final state = stamina.computeState(instance);
+    final bars = state.bars.clamp(0, state.max);
+    final max = state.max <= 0 ? 1 : state.max;
+    final textColor = t.readableAccent(const Color(0xFF86EFAC));
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        StaminaBar(
+          current: bars,
+          max: max,
+          size: 5,
+          gap: 1.5,
+          fillColor: const Color(0xFF22C55E),
+          emptyColor: Colors.black26,
+          radius: const BorderRadius.all(Radius.circular(2)),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$bars/$max',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: textColor,
+            fontSize: 8,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.3,
           ),
         ),
       ],

@@ -233,33 +233,21 @@ class _ShopScreenState extends State<ShopScreen> {
 
           const SizedBox(height: 10),
 
-          // Currency bar — transparent glass plate style preserved
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: t.bg2.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: t.borderAccent.withValues(alpha: 0.5)),
-            ),
-            child: Row(
-              children: [
-                Flexible(
-                  flex: 3,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: CurrencyDisplayWidget(accentColor: t.borderAccent),
+          Row(
+            children: [
+              CurrencyDisplayWidget(accentColor: t.borderAccent),
+              const SizedBox(width: 4),
+              Expanded(
+                child: SizedBox(
+                  height: 58,
+                  child: ResourceCollectionWidget(
+                    theme: theme,
+                    horizontalPadding: 0,
+                    alignToEnd: true,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 4,
-                  child: SizedBox(
-                    height: 58,
-                    child: ResourceCollectionWidget(theme: theme),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1594,26 +1582,41 @@ class _ShopScreenState extends State<ShopScreen> {
           return o.id.startsWith('unlock.') || o.id == 'boost.faction_change';
         }).toList();
 
-        const fusionIds = [
-          'unlock.fusion_slot.1',
-          'unlock.fusion_slot.2',
-          'unlock.fusion_slot.3',
-          'unlock.fusion_slot.4',
-          'unlock.fusion_slot.5',
+        const sequentialSpecialIds = [
+          <String>[
+            'unlock.storage_cap.1',
+            'unlock.storage_cap.2',
+            'unlock.storage_cap.3',
+          ],
+          <String>[
+            'unlock.fusion_slot.1',
+            'unlock.fusion_slot.2',
+            'unlock.fusion_slot.3',
+            'unlock.fusion_slot.4',
+            'unlock.fusion_slot.5',
+          ],
         ];
-        String? nextFusionId;
-        for (final id in fusionIds) {
-          if (shopService.canPurchase(id)) {
-            nextFusionId = id;
-            break;
+
+        final nextSequentialOffers = <ShopOffer>[];
+        for (final ids in sequentialSpecialIds) {
+          String? nextId;
+          for (final id in ids) {
+            if (shopService.canPurchase(id)) {
+              nextId = id;
+              break;
+            }
+          }
+
+          specialOffers.removeWhere((o) => ids.contains(o.id));
+          if (nextId != null) {
+            nextSequentialOffers.add(
+              ShopService.allOffers.firstWhere((o) => o.id == nextId),
+            );
           }
         }
-        specialOffers.removeWhere((o) => fusionIds.contains(o.id));
-        if (nextFusionId != null) {
-          final next = ShopService.allOffers.firstWhere(
-            (o) => o.id == nextFusionId,
-          );
-          specialOffers.insert(0, next);
+
+        for (final offer in nextSequentialOffers.reversed) {
+          specialOffers.insert(0, offer);
         }
 
         if (!_showPurchased) {
@@ -1674,6 +1677,7 @@ class _ShopScreenState extends State<ShopScreen> {
               title: offer.name,
               theme: theme,
               costWidgets: costWidgets,
+              displayLabel: _specialUnlockLabel(offer),
               enabled: canPurchase,
               canAfford: canAffordUnit,
               offer: offer,
@@ -1695,6 +1699,13 @@ class _ShopScreenState extends State<ShopScreen> {
         );
       },
     );
+  }
+
+  String? _specialUnlockLabel(ShopOffer offer) {
+    if (offer.id.startsWith('unlock.storage_cap.')) return 'STORAGE';
+    if (offer.id.startsWith('unlock.fusion_slot.')) return 'CHAMBERS';
+    if (offer.id == 'boost.faction_change') return 'FACTION';
+    return null;
   }
 
   List<Widget> _buildElementalCreatorTileCostIcons(

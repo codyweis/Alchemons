@@ -11,14 +11,11 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
-import 'package:alchemons/utils/creature_instance_uti.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/utils/harvest_rate.dart';
+import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
-import 'package:alchemons/widgets/bottom_sheet_shell.dart';
-import 'package:alchemons/widgets/creature_instances_sheet.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/floating_close_button_widget.dart';
 import 'package:alchemons/widgets/fx/alchemy_tap_fx.dart';
@@ -63,7 +60,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
     final db = context.read<AlchemonsDatabase>();
     final hasSeen = await db.settingsDao.hasSeenBiomeHarvestTutorial();
     if (hasSeen || !mounted) return;
-    final theme = FactionTheme.scorchForge();
+    final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
     await showDialog<void>(
       context: context,
@@ -77,8 +74,10 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
             border: Border.all(color: t.borderAccent, width: 1.2),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.42),
-                blurRadius: 24,
+                color: Colors.black.withValues(
+                  alpha: theme.isDark ? 0.42 : 0.08,
+                ),
+                blurRadius: theme.isDark ? 24 : 16,
                 offset: const Offset(0, 12),
               ),
             ],
@@ -249,8 +248,8 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
 
   @override
   Widget build(BuildContext context) {
-    final forgeTheme = FactionTheme.scorchForge();
-    final t = ForgeTokens(forgeTheme);
+    final theme = context.watch<FactionTheme>();
+    final t = ForgeTokens(theme);
     return Scaffold(
       extendBody: true,
       backgroundColor: t.bg0,
@@ -273,7 +272,13 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [t.bg0, t.bg1, t.bg0],
+                          colors: theme.isDark
+                              ? [t.bg0, t.bg1, t.bg0]
+                              : [
+                                  theme.backgroundGradient.first,
+                                  theme.backgroundGradient.last,
+                                  t.bg0,
+                                ],
                         ),
                       ),
                     ),
@@ -308,8 +313,10 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                               border: Border.all(color: t.borderDim),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.35),
-                                  blurRadius: 18,
+                                  color: Colors.black.withValues(
+                                    alpha: theme.isDark ? 0.35 : 0.06,
+                                  ),
+                                  blurRadius: theme.isDark ? 18 : 14,
                                   offset: const Offset(0, 10),
                                 ),
                               ],
@@ -370,7 +377,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                   if (completedCount > 0)
                                     _CollectAllBanner(
                                       count: completedCount,
-                                      theme: forgeTheme,
+                                      theme: theme,
                                       onCollectAll: () => _collectAll(farms),
                                     ),
                                   Expanded(
@@ -392,10 +399,10 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                             crossAxisCount;
                                         final childAspectRatio =
                                             cardWidth >= 240
-                                            ? 0.54
+                                            ? 0.58
                                             : cardWidth >= 190
-                                            ? 0.48
-                                            : 0.43;
+                                            ? 0.52
+                                            : 0.47;
 
                                         return GridView.builder(
                                           padding: const EdgeInsets.fromLTRB(
@@ -419,7 +426,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                                                   farms[i].biome.id,
                                                 ),
                                                 farm: farms[i],
-                                                theme: forgeTheme,
+                                                theme: theme,
                                                 service: _svc,
                                                 discoveredCreatures: discovered,
                                                 defaultDuration: const Duration(
@@ -446,7 +453,7 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
                     right: 0,
                     child: Center(
                       child: FloatingCloseButton(
-                        theme: forgeTheme,
+                        theme: theme,
                         onTap: () {
                           HapticFeedback.lightImpact();
                           Navigator.of(context).maybePop();
@@ -481,7 +488,7 @@ class _CollectAllBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
-    const lime = Color(0xFFB3FF66);
+    final readyColor = t.success;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: Container(
@@ -489,13 +496,16 @@ class _CollectAllBanner extends StatelessWidget {
         decoration: BoxDecoration(
           color: t.bg2.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: lime.withValues(alpha: 0.35), width: 1.1),
+          border: Border.all(
+            color: readyColor.withValues(alpha: theme.isDark ? 0.35 : 0.22),
+            width: 1.1,
+          ),
         ),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.check_circle_outline_rounded,
-              color: lime,
+              color: readyColor,
               size: 16,
             ),
             const SizedBox(width: 8),
@@ -519,21 +529,21 @@ class _CollectAllBanner extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      lime.withValues(alpha: 0.16),
-                      lime.withValues(alpha: 0.08),
+                      readyColor.withValues(alpha: theme.isDark ? 0.16 : 0.10),
+                      readyColor.withValues(alpha: theme.isDark ? 0.08 : 0.05),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(3),
                   border: Border.all(
-                    color: lime.withValues(alpha: 0.70),
+                    color: readyColor.withValues(alpha: 0.7),
                     width: 1.1,
                   ),
                 ),
-                child: const Text(
+                child: Text(
                   'COLLECT ALL',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: lime,
+                    color: readyColor,
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.1,
@@ -647,13 +657,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     if (job == null) {
       _cachedInstanceId = null;
       if (mounted) {
-        setState(
-          () => _creatureWidget = Icon(
-            widget.farm.biome.icon,
-            size: 28,
-            color: Colors.white.withValues(alpha: 0.55),
-          ),
-        );
+        setState(() => _creatureWidget = null);
       }
       return;
     }
@@ -666,25 +670,13 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     final inst = await db.creatureDao.getInstance(job.creatureInstanceId);
     if (!mounted) return;
     if (inst == null) {
-      setState(
-        () => _creatureWidget = Icon(
-          widget.farm.biome.icon,
-          size: 40,
-          color: Colors.white.withValues(alpha: 0.75),
-        ),
-      );
+      setState(() => _creatureWidget = null);
       return;
     }
     final repo = context.read<CreatureCatalog>();
     final base = repo.getCreatureById(inst.baseId);
     if (base == null || base.spriteData == null) {
-      setState(
-        () => _creatureWidget = Icon(
-          widget.farm.biome.icon,
-          size: 40,
-          color: Colors.white.withValues(alpha: 0.75),
-        ),
-      );
+      setState(() => _creatureWidget = null);
       return;
     }
     setState(
@@ -757,86 +749,77 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 
   Future<void> _handlePickAndStart() async {
     final theme = widget.theme;
-    final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
     final busyIds = widget.farm.activeJob != null
         ? [widget.farm.activeJob!.creatureInstanceId]
         : <String>[];
+    final stamina = context.read<StaminaService>();
+    final picked = await Navigator.of(context).push<CreatureInstance>(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, animation, secondaryAnimation) => AllSpecimensPage(
+          theme: theme,
+          popOnSelect: true,
+          searchHint: 'SELECT SPECIMEN',
+          allowedPrimaryTypes: widget.farm.biome.elementTypes,
+          onWillSelectInstance: (inst) async {
+            if (busyIds.contains(inst.instanceId)) {
+              _showToast(
+                'That specimen is already extracting.',
+                icon: Icons.block_rounded,
+                color: Colors.orange.shade400,
+              );
+              return false;
+            }
 
-    final allInstances = await db.creatureDao.getAllInstances();
-    final eligibleSpeciesIds = <String>{};
-    for (final inst in allInstances) {
-      if (busyIds.contains(inst.instanceId)) continue;
-      final base = repo.getCreatureById(inst.baseId);
-      if (base != null &&
-          base.types.isNotEmpty &&
-          widget.farm.biome.elementTypes.contains(base.types.first)) {
-        eligibleSpeciesIds.add(inst.baseId);
-      }
-    }
-    if (eligibleSpeciesIds.isEmpty) {
-      _showToast(
-        'No eligible creatures for this biome.',
-        icon: Icons.error_outline,
-        color: Colors.red.shade400,
-      );
-      return;
-    }
+            final base = repo.getCreatureById(inst.baseId);
+            if (base == null ||
+                base.types.isEmpty ||
+                !widget.farm.biome.elementTypes.contains(base.types.first)) {
+              _showToast(
+                'Only ${widget.farm.biome.label.toLowerCase()} specimens can work here.',
+                icon: Icons.filter_alt_off_rounded,
+                color: Colors.orange.shade400,
+              );
+              return false;
+            }
 
-    final available = await db.creatureDao.getSpeciesWithInstances();
-    final filteredDiscovered = filterByAvailableInstances(
-      widget.discoveredCreatures,
-      available,
-    );
-    if (!mounted) return;
+            final refreshed = await stamina.refreshAndGet(inst.instanceId);
+            if ((refreshed?.staminaBars ?? 0) >= 1) {
+              return true;
+            }
 
-    final selectedSpeciesId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) {
-          final eligible = filteredDiscovered
-              .where((e) => eligibleSpeciesIds.contains(e.creature.id))
-              .toList();
-          return CreatureSelectionSheet(
-            scrollController: scrollController,
-            discoveredCreatures: eligible,
-            onSelectCreature: (id) => Navigator.pop(context, id),
-            showOnlyAvailableTypes: true,
+            final perBar = stamina.regenPerBar;
+            final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+            final last = refreshed?.staminaLastUtcMs ?? now;
+            final elapsed = now - last;
+            final remMs =
+                perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
+            final mins = (remMs / 60000).ceil();
+            _showToast(
+              'Specimen is resting — next stamina in ~${mins}m',
+              icon: Icons.hourglass_bottom_rounded,
+              color: Colors.orange.shade400,
+            );
+            return false;
+          },
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final tween = Tween(
+            begin: const Offset(0.0, 1.0),
+            end: Offset.zero,
+          ).chain(CurveTween(curve: Curves.easeOutCubic));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
           );
         },
       ),
     );
-    if (selectedSpeciesId == null || !mounted) return;
+    if (picked == null || !mounted) return;
 
-    final species = repo.getCreatureById(selectedSpeciesId);
-    if (species == null) return;
-
-    final instanceId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => BottomSheetShell(
-        title: 'Choose ${species.name}',
-        theme: theme,
-        child: InstancesSheet(
-          species: species,
-          theme: theme,
-          harvestDuration: widget.defaultDuration,
-          busyInstanceIds: busyIds,
-          onTap: (inst) => Navigator.pop(context, inst.instanceId),
-        ),
-      ),
-    );
-    if (instanceId == null || !mounted) return;
-
-    final stamina = context.read<StaminaService>();
-    final inst = await stamina.refreshAndGet(instanceId);
+    final inst = await stamina.refreshAndGet(picked.instanceId);
     if (inst == null) return;
     if (inst.staminaBars == 0) {
       _showToast(
@@ -852,7 +835,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     await widget.service.setActiveElement(widget.farm.biome, creatureTypeId);
     final ok = await widget.service.startJob(
       biome: widget.farm.biome,
-      creatureInstanceId: instanceId,
+      creatureInstanceId: inst.instanceId,
       duration: widget.defaultDuration,
       ratePerMinute: computeHarvestRatePerMinute(
         inst,
@@ -1191,16 +1174,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  String _fmt(Duration? d) {
-    if (d == null) return '—';
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    if (h > 0) return '${h}h ${m}m';
-    if (m > 0) return '${m}m ${s}s';
-    return '${s}s';
-  }
-
   void _showToast(
     String msg, {
     IconData icon = Icons.info_rounded,
@@ -1240,21 +1213,14 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
         return LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 210;
-
-            final statusText = !farm.unlocked
-                ? 'This biome is locked.'
-                : (!farm.hasActive
-                      ? 'No active extraction. Insert a creature to begin.'
-                      : (farm.completed
-                            ? 'Extraction complete. Ready to collect.'
-                            : 'Extracting ${widget.farm.biome.resourceLabel} • ${_fmt(vm.remaining)} left'));
+            final panelHeight = compact ? 126.0 : 104.0;
 
             Widget? badge;
             if (farm.completed) {
               badge = _AlchemyStatusBadge(
                 controller: _statusCtrl,
                 label: 'COMPLETE',
-                color: const Color(0xFFB3FF66),
+                color: t.success,
               );
             } else if (farm.unlocked && !farm.hasActive) {
               badge = _AlchemyStatusBadge(
@@ -1270,16 +1236,18 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(
                   color: farm.completed
-                      ? const Color(0xFFB3FF66).withValues(alpha: 0.42)
+                      ? t.success.withValues(alpha: theme.isDark ? 0.42 : 0.24)
                       : farm.hasActive
-                      ? accent.withValues(alpha: 0.28)
+                      ? accent.withValues(alpha: theme.isDark ? 0.28 : 0.22)
                       : t.borderDim,
                   width: 1.1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.28),
-                    blurRadius: 16,
+                    color: Colors.black.withValues(
+                      alpha: theme.isDark ? 0.28 : 0.05,
+                    ),
+                    blurRadius: theme.isDark ? 16 : 12,
                     offset: const Offset(0, 10),
                   ),
                 ],
@@ -1302,24 +1270,6 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                     ),
                     child: Row(
                       children: [
-                        Container(
-                          width: compact ? 24 : 28,
-                          height: compact ? 24 : 28,
-                          decoration: BoxDecoration(
-                            color: accent.withValues(alpha: 0.14),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: accent.withValues(alpha: 0.45),
-                              width: 1,
-                            ),
-                          ),
-                          child: Icon(
-                            farm.biome.icon,
-                            color: accent,
-                            size: compact ? 13 : 15,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1368,10 +1318,10 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                   Expanded(
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
-                        compact ? 10 : 12,
                         compact ? 8 : 10,
-                        compact ? 10 : 12,
-                        compact ? 10 : 12,
+                        compact ? 4 : 6,
+                        compact ? 8 : 10,
+                        compact ? 6 : 8,
                       ),
                       child: Column(
                         children: [
@@ -1380,7 +1330,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                               children: [
                                 Expanded(
                                   child: AspectRatio(
-                                    aspectRatio: compact ? 0.94 : 0.82,
+                                    aspectRatio: compact ? 1.02 : 0.94,
                                     child: _ChamberView(
                                       tSeconds: _tSeconds,
                                       progress: vm.progress,
@@ -1412,53 +1362,14 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  statusText,
-                                  textAlign: TextAlign.center,
-                                  maxLines: compact ? 3 : 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: t.textSecondary,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: compact ? 9.5 : 10.5,
-                                    height: 1.3,
-                                  ),
-                                ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.fromLTRB(
-                              compact ? 8 : 10,
-                              compact ? 8 : 10,
-                              compact ? 8 : 10,
-                              compact ? 8 : 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: t.bg1.withValues(alpha: 0.84),
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(color: t.borderDim),
-                            ),
-                            child: !farm.unlocked
-                                ? _LockedPanel(
-                                    color: accent,
-                                    theme: theme,
-                                    compact: compact,
-                                    onBack: widget.onUnlock,
-                                  )
-                                : !farm.hasActive
-                                ? _StartPanel(
-                                    color: accent,
-                                    theme: theme,
-                                    biome: farm.biome,
-                                    defaultDuration: widget.defaultDuration,
-                                    compact: compact,
-                                    onPickAndStart: _handlePickAndStart,
-                                  )
-                                : _ActivePanel(
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            height: panelHeight,
+                            child: farm.hasActive
+                                ? _ActivePanel(
                                     color: accent,
                                     theme: theme,
                                     farm: farm,
@@ -1468,6 +1379,36 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                                         ? () => _handleCollect(farm)
                                         : null,
                                     onCancel: () => _handleCancel(theme),
+                                  )
+                                : Container(
+                                    width: double.infinity,
+                                    padding: EdgeInsets.fromLTRB(
+                                      compact ? 8 : 10,
+                                      compact ? 8 : 10,
+                                      compact ? 8 : 10,
+                                      compact ? 8 : 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: t.bg1.withValues(alpha: 0.84),
+                                      borderRadius: BorderRadius.circular(3),
+                                      border: Border.all(color: t.borderDim),
+                                    ),
+                                    child: !farm.unlocked
+                                        ? _LockedPanel(
+                                            color: accent,
+                                            theme: theme,
+                                            compact: compact,
+                                            onBack: widget.onUnlock,
+                                          )
+                                        : _StartPanel(
+                                            color: accent,
+                                            theme: theme,
+                                            biome: farm.biome,
+                                            defaultDuration:
+                                                widget.defaultDuration,
+                                            compact: compact,
+                                            onPickAndStart: _handlePickAndStart,
+                                          ),
                                   ),
                           ),
                         ],
@@ -1523,6 +1464,7 @@ class _StartPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           'Insert a creature to extract resources from this biome.',
@@ -1541,17 +1483,6 @@ class _StartPanel extends StatelessWidget {
           theme: theme,
           compact: compact,
           onTap: onPickAndStart,
-        ),
-        SizedBox(height: compact ? 6 : 8),
-        Text(
-          'Duration: ${defaultDuration.inMinutes}m',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: t.textMuted,
-            fontSize: compact ? 8.5 : 9.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.8,
-          ),
         ),
       ],
     );
@@ -1584,6 +1515,7 @@ class _ActivePanel extends StatelessWidget {
     final rate = j.ratePerMinute;
     final total = rate * duration.inMinutes;
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           'Rate: $rate / min',
@@ -1671,6 +1603,7 @@ class _LockedPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           'Unlock this extractor to begin extraction.',
@@ -1861,9 +1794,9 @@ class _ChamberView extends StatelessWidget {
                         child:
                             creatureWidget ??
                             Icon(
-                              farm.biome.icon,
+                              Icons.science_outlined,
                               size: 28,
-                              color: Colors.white.withValues(alpha: .55),
+                              color: accent.withValues(alpha: 0.55),
                             ),
                       ),
                     ),
@@ -2383,7 +2316,7 @@ class _UnlockDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = biome.primaryColor;
-    final theme = FactionTheme.scorchForge();
+    final theme = context.watch<FactionTheme>();
     final t = ForgeTokens(theme);
     final db = context.read<AlchemonsDatabase>();
     return Dialog(
@@ -2394,6 +2327,13 @@ class _UnlockDialog extends StatelessWidget {
           color: t.bg1.withValues(alpha: 0.97),
           borderRadius: BorderRadius.circular(4),
           border: Border.all(color: t.borderAccent, width: 1.1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: theme.isDark ? 0.3 : 0.07),
+              blurRadius: theme.isDark ? 20 : 14,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
         padding: const EdgeInsets.all(16),
         child: StreamBuilder<Map<String, int>>(
@@ -2413,20 +2353,6 @@ class _UnlockDialog extends StatelessWidget {
                 Row(
                   children: [
                     Container(width: 3, height: 34, color: t.amber),
-                    const SizedBox(width: 12),
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: color.withValues(alpha: 0.45),
-                          width: 1.1,
-                        ),
-                      ),
-                      child: Icon(biome.icon, color: color, size: 18),
-                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -2507,7 +2433,7 @@ class _UnlockDialog extends StatelessWidget {
                         Text(
                           '$have / ${e.value}',
                           style: TextStyle(
-                            color: ok ? const Color(0xFFB3FF66) : t.danger,
+                            color: ok ? t.success : t.danger,
                             fontFamily: 'monospace',
                             fontWeight: FontWeight.w800,
                             fontSize: 10.5,

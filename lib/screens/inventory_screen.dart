@@ -267,6 +267,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         final allItems = snapshot.data ?? [];
         final items = allItems.where((item) {
           if (_isSpaceOnlyInventoryItem(item.key)) return false;
+          if (shouldHideInventoryItem(item.key)) return false;
           if (item.key.startsWith('vial.')) return false;
           final def = registry[item.key];
           if (def == null) return false;
@@ -320,6 +321,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         final allItems = snapshot.data ?? [];
         final keyItems = allItems.where((item) {
           if (_isSpaceOnlyInventoryItem(item.key)) return false;
+          if (shouldHideInventoryItem(item.key)) return false;
           final def = registry[item.key];
           return def != null && def.isKeyItem;
         }).toList();

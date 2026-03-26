@@ -66,7 +66,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 34;
+  int get schemaVersion => 35;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -220,6 +220,11 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
       }
       if (from < 34) {
         await m.addColumn(creatureInstances, creatureInstances.isFavorite);
+      }
+      if (from < 35) {
+        await customUpdate(
+          "DELETE FROM inventory_items WHERE key IN ('item.cosmic_ship', 'item.elemental_creator')",
+        );
       }
     },
   );

@@ -480,6 +480,14 @@ class InvKeys {
       'item.portal_key.${factionName.toLowerCase()}';
 }
 
+const Set<String> kHiddenInventoryUnlockKeys = {
+  InvKeys.elementalCreator,
+  InvKeys.cosmicShip,
+};
+
+bool shouldHideInventoryItem(String key) =>
+    kHiddenInventoryUnlockKeys.contains(key);
+
 Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
   final registry = <String, InventoryItemDef>{
     InvKeys.instantHatch: InventoryItemDef(
@@ -623,17 +631,6 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       icon: Icons.whatshot_rounded,
       canUse: false,
     ),
-    InvKeys.elementalCreator: InventoryItemDef(
-      key: InvKeys.elementalCreator,
-      name: 'Elemental Essence Creator',
-      description:
-          'Consume Alchemons into elemental material to enhance other Alchemons.',
-      icon: Icons.auto_fix_high_rounded,
-      stackable: false,
-      isKeyItem: true,
-      canDispose: false,
-      canUse: false,
-    ),
 
     // ── Portal Keys ─────────────────────────────────────────────────────────
     InvKeys.portalKeyVolcanic: InventoryItemDef(
@@ -707,16 +704,6 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
   }
 
   // ── Cosmic Alchemy items ──
-  registry[InvKeys.cosmicShip] = InventoryItemDef(
-    key: InvKeys.cosmicShip,
-    name: 'Cosmic Ship',
-    description: 'Unlocks access to the Cosmic Alchemy Explorer.',
-    icon: Icons.rocket_launch_rounded,
-    stackable: false,
-    isKeyItem: true,
-    canDispose: false,
-    canUse: false,
-  );
   registry[InvKeys.homePlanetSlots] = InventoryItemDef(
     key: InvKeys.homePlanetSlots,
     name: 'Home Planet Slots',

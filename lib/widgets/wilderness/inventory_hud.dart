@@ -43,6 +43,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
             .where(
               (item) =>
                   !item.key.startsWith('vial.') &&
+                  !shouldHideInventoryItem(item.key) &&
                   !_isSpaceOnlyInventoryItem(item.key),
             )
             .toList();

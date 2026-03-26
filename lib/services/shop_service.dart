@@ -6,6 +6,7 @@ import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/alchemy_glow.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/beauty_radiance.dart';
@@ -109,6 +110,14 @@ class ShopService extends ChangeNotifier {
       default:
         return 1.0;
     }
+  }
+
+  double _specialUnlockFactionMultiplier(ShopOffer offer) {
+    final isAirDiscountedUnlock =
+        offer.id.startsWith('unlock.fusion_slot.') ||
+        offer.id.startsWith('unlock.storage_cap.');
+    if (!isAirDiscountedUnlock) return 1.0;
+    return _factions.airBubbleSlotCostMultiplier;
   }
 
   static Widget? getAlchemyEffectPreview(
@@ -306,7 +315,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      inventoryKey: InvKeys.cosmicShip,
       assetName: 'assets/images/ui/cosmicship.png',
       iconColor: const Color(0xFF00E5FF),
     ),
@@ -354,7 +362,6 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      inventoryKey: InvKeys.elementalCreator,
       assetName: 'assets/images/ui/enhanceicon.png',
     ),
     // --- NEW: Devices (standard per element) ---
@@ -490,7 +497,7 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/breedicon.png',
+      assetName: 'assets/images/ui/extrastorage.png',
     ),
     ShopOffer(
       id: 'unlock.fusion_slot.2',
@@ -502,7 +509,7 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/breedicon.png',
+      assetName: 'assets/images/ui/extrastorage.png',
     ),
     ShopOffer(
       id: 'unlock.fusion_slot.3',
@@ -514,7 +521,7 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/breedicon.png',
+      assetName: 'assets/images/ui/extrastorage.png',
     ),
     ShopOffer(
       id: 'unlock.fusion_slot.4',
@@ -526,7 +533,7 @@ class ShopService extends ChangeNotifier {
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
-      assetName: 'assets/images/ui/breedicon.png',
+      assetName: 'assets/images/ui/extrastorage.png',
     ),
     ShopOffer(
       id: 'unlock.fusion_slot.5',
@@ -535,6 +542,39 @@ class ShopService extends ChangeNotifier {
           'Unlock an additional Alchemy Chamber slot to cultivate more Alchemons simultaneously.',
       icon: Icons.biotech_rounded,
       cost: const {'gold': 500}, // 5th purchase: 500 gold
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+      assetName: 'assets/images/ui/extrastorage.png',
+    ),
+    ShopOffer(
+      id: 'unlock.storage_cap.1',
+      name: 'Cold Storage Upgrade',
+      description: 'Increase cold storage capacity from 5 to 10 specimens.',
+      icon: Icons.inventory_2_rounded,
+      cost: const {'gold': 1},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+      assetName: 'assets/images/ui/breedicon.png',
+    ),
+    ShopOffer(
+      id: 'unlock.storage_cap.2',
+      name: 'Cold Storage Upgrade II',
+      description: 'Increase cold storage capacity from 10 to 15 specimens.',
+      icon: Icons.inventory_2_rounded,
+      cost: const {'gold': 10},
+      reward: const {},
+      rewardType: 'boost',
+      limit: PurchaseLimit.once,
+      assetName: 'assets/images/ui/breedicon.png',
+    ),
+    ShopOffer(
+      id: 'unlock.storage_cap.3',
+      name: 'Cold Storage Upgrade III',
+      description: 'Increase cold storage capacity from 15 to 20 specimens.',
+      icon: Icons.inventory_2_rounded,
+      cost: const {'gold': 50},
       reward: const {},
       rewardType: 'boost',
       limit: PurchaseLimit.once,
@@ -1026,6 +1066,10 @@ class ShopService extends ChangeNotifier {
     final harvesterMult = _harvesterFactionMultiplier(offer);
     factor = (factor * harvesterMult).clamp(0.0, 1.0);
 
+    // 💨 AirDrop faction perk for chamber/storage unlocks.
+    final specialUnlockMult = _specialUnlockFactionMultiplier(offer);
+    factor = (factor * specialUnlockMult).clamp(0.0, 1.0);
+
     if (factor >= 0.999) {
       return Map<String, int>.from(baseCost);
     }
@@ -1183,7 +1227,6 @@ class ShopService extends ChangeNotifier {
         return true;
 
       case elementalCreatorOfferId:
-        await _db.inventoryDao.addItemQty(InvKeys.elementalCreator, qty);
         return true;
 
       case 'effects.alchemy_glow':
@@ -1227,6 +1270,15 @@ class ShopService extends ChangeNotifier {
         for (int i = 0; i < qty; i++) {
           await _db.incubatorDao.purchaseFusionSlot();
         }
+        return true;
+      case 'unlock.storage_cap.1':
+        await ColdStorageService.setCapacity(_db, 10);
+        return true;
+      case 'unlock.storage_cap.2':
+        await ColdStorageService.setCapacity(_db, 15);
+        return true;
+      case 'unlock.storage_cap.3':
+        await ColdStorageService.setCapacity(_db, 20);
         return true;
       // Exchange handled elsewhere
       case 'fx.silver_to_gold.unit':
@@ -1304,7 +1356,6 @@ class ShopService extends ChangeNotifier {
 
       // Cosmic Alchemy
       case 'cosmic.ship':
-        await _db.inventoryDao.addItemQty(InvKeys.cosmicShip, qty);
         await _db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
         return true;
       default:

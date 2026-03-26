@@ -2195,6 +2195,7 @@ class _DailyTreasureChestState extends State<_DailyTreasureChest>
 
   Future<void> _onTap() async {
     if (_isClaimed || _isPlaying || !_ready) return;
+    HapticFeedback.lightImpact();
     setState(() => _isPlaying = true);
 
     // Start lottie — show loot after 1.5 s without waiting for it to finish

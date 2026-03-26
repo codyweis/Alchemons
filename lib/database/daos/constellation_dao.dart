@@ -38,6 +38,13 @@ class ConstellationDao extends DatabaseAccessor<AlchemonsDatabase>
     )..where((t) => t.speciesId.equals(speciesId))).watchSingleOrNull();
   }
 
+  /// Watch the total number of Alchemons bred across all species.
+  Stream<int> watchTotalBredCount() {
+    final sumExp = breedingStatistics.totalBred.sum();
+    final q = selectOnly(breedingStatistics)..addColumns([sumExp]);
+    return q.watchSingle().map((row) => row.read(sumExp) ?? 0);
+  }
+
   /// Increment the breed count for a species
   /// Returns the new count and whether a milestone was reached
   Future<({int newCount, bool milestoneReached})> incrementBreedCount(

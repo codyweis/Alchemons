@@ -345,6 +345,10 @@ class CreaturesScreenState extends State<CreaturesScreen>
             final pct = total == 0
                 ? 0.0
                 : (discoveredCount / total).clamp(0.0, 1.0);
+            final ownedCount = _instanceCounts.values.fold<int>(
+              0,
+              (sum, count) => sum + count,
+            );
 
             final filtered = _filterAndSort(entries, _instanceCounts);
 
@@ -393,6 +397,7 @@ class CreaturesScreenState extends State<CreaturesScreen>
                           percent: pct,
                           discovered: discoveredCount,
                           total: total,
+                          ownedCount: ownedCount,
                         ),
                       ),
                       SliverToBoxAdapter(
@@ -824,81 +829,261 @@ class _SolidHeader extends StatelessWidget {
 // STATS HEADER
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _StatsHeaderSolid extends StatelessWidget {
+class _StatsHeaderSolid extends StatefulWidget {
   final FactionTheme theme;
   final double percent;
   final int discovered;
   final int total;
+  final int ownedCount;
   const _StatsHeaderSolid({
     required this.theme,
     required this.percent,
     required this.discovered,
     required this.total,
+    required this.ownedCount,
+  });
+
+  @override
+  State<_StatsHeaderSolid> createState() => _StatsHeaderSolidState();
+}
+
+class _StatsHeaderSolidState extends State<_StatsHeaderSolid> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ForgeTokens(widget.theme);
+    final db = context.read<AlchemonsDatabase>();
+    final remaining = math.max(0, widget.total - widget.discovered);
+
+    return SectionCard(
+      theme: widget.theme,
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() => _expanded = !_expanded);
+          },
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 54,
+                        height: 54,
+                        child: CustomPaint(
+                          painter: _ArcPainter(
+                            progress: widget.percent,
+                            color: t.amberBright,
+                            trackColor: t.borderMid,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${widget.discovered}',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: t.textPrimary,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'DISCOVERY PROGRESS',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: t.textSecondary,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '${widget.discovered} / ${widget.total}',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: t.textPrimary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ProgressBar(
+                              theme: widget.theme,
+                              value: widget.percent,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Text(
+                                  _expanded
+                                      ? 'TAP TO HIDE EXTENDED STATS'
+                                      : 'TAP TO EXPAND EXTENDED STATS',
+                                  style: TextStyle(
+                                    fontFamily: 'monospace',
+                                    color: t.textMuted,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                const Spacer(),
+                                AnimatedRotation(
+                                  turns: _expanded ? 0.5 : 0.0,
+                                  duration: const Duration(milliseconds: 240),
+                                  curve: Curves.easeOutCubic,
+                                  child: Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: t.textSecondary,
+                                    size: 18,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_expanded) ...[
+                    const SizedBox(height: 12),
+                    Container(height: 1, color: t.borderDim),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ExpandedStatTile(
+                            theme: widget.theme,
+                            label: 'CURRENT SPECIMENS',
+                            value: '${widget.ownedCount}',
+                            accent: t.amberBright,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ExpandedStatTile(
+                            theme: widget.theme,
+                            label: 'REMAINING UNKNOWN',
+                            value: '$remaining',
+                            accent: t.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: StreamBuilder<int>(
+                            stream: db.constellationDao.watchTotalBredCount(),
+                            initialData: 0,
+                            builder: (context, snapshot) {
+                              return _ExpandedStatTile(
+                                theme: widget.theme,
+                                label: 'TOTAL ALCHEMONS BRED',
+                                value: '${snapshot.data ?? 0}',
+                                accent: t.teal,
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: StreamBuilder<int>(
+                            stream: db.creatureDao
+                                .watchPrismaticInstanceCount(),
+                            initialData: 0,
+                            builder: (context, snapshot) {
+                              return _ExpandedStatTile(
+                                theme: widget.theme,
+                                label: 'CURRENT PRISMATICS',
+                                value: '${snapshot.data ?? 0}',
+                                accent: const Color(0xFFE879F9),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExpandedStatTile extends StatelessWidget {
+  final FactionTheme theme;
+  final String label;
+  final String value;
+  final Color accent;
+
+  const _ExpandedStatTile({
+    required this.theme,
+    required this.label,
+    required this.value,
+    required this.accent,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(theme);
-    return SectionCard(
-      theme: theme,
-      padding: const EdgeInsets.all(12),
-      child: Row(
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: t.bg2.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Arc progress indicator — amber fill
-          SizedBox(
-            width: 54,
-            height: 54,
-            child: CustomPaint(
-              painter: _ArcPainter(
-                progress: percent,
-                color: t.amberBright,
-                trackColor: t.borderMid,
-              ),
-              child: Center(
-                child: Text(
-                  '$discovered',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.textPrimary,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: t.textSecondary,
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.0,
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'DISCOVERY PROGRESS',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.textSecondary,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '$discovered / $total',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: t.textPrimary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ProgressBar(theme: theme, value: percent),
-              ],
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: t.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.6,
             ),
           ),
         ],

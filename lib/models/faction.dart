@@ -47,7 +47,7 @@ class Factions {
     FactionPerk(
       'AirDrop',
       'AirDrop',
-      '50% discount on additional extraction chambers',
+      '50% discount on additional extraction chambers and storage upgrades',
     ),
     FactionPerk(
       'VerdantHarvester',

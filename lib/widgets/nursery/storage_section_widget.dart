@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
@@ -55,6 +54,9 @@ class _StorageSectionState extends State<StorageSection> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.watch<FactionTheme>();
+    final t = ForgeTokens(theme);
+
     return StreamBuilder<List<Egg>>(
       stream: context.read<AlchemonsDatabase>().incubatorDao.watchInventory(),
       builder: (context, snap) {
@@ -78,36 +80,114 @@ class _StorageSectionState extends State<StorageSection> {
               widget.primaryColor,
             ),
             const SizedBox(height: 12),
-
-            // Faction filter chips
-            if (allItems.isNotEmpty) ...[
-              _buildFactionFilter(),
-              const SizedBox(height: 12),
-            ],
-
-            // Empty state or grid
-            if (filteredItems.isEmpty)
-              _buildEmptyState()
-            else
-              _buildStorageGrid(filteredItems),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: t.bg2,
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(color: t.borderDim, width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: t.bg0.withValues(alpha: theme.isDark ? 0.22 : 0.05),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildStorageMetaRow(
+                    t: t,
+                    storedCount: filteredItems.length,
+                    hasFilter: _selectedFaction != null,
+                  ),
+                  if (allItems.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _buildFactionFilter(theme: theme, t: t),
+                  ],
+                  const SizedBox(height: 12),
+                  if (filteredItems.isEmpty)
+                    _buildEmptyState(t)
+                  else
+                    _buildStorageGrid(filteredItems),
+                ],
+              ),
+            ),
           ],
         );
       },
     );
   }
 
-  Widget _buildFactionFilter() {
+  Widget _buildStorageMetaRow({
+    required ForgeTokens t,
+    required int storedCount,
+    required bool hasFilter,
+  }) {
+    return Row(
+      children: [
+        Text(
+          hasFilter ? 'FILTERED STORAGE' : 'STORAGE OVERVIEW',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: t.textSecondary,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.6,
+          ),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: t.amberDim.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: t.borderAccent, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.ac_unit_rounded, color: t.amberBright, size: 11),
+              const SizedBox(width: 5),
+              Text(
+                '$storedCount STORED',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: t.amberBright,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFactionFilter({
+    required FactionTheme theme,
+    required ForgeTokens t,
+  }) {
     return SizedBox(
-      height: 32,
+      height: 34,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          _buildFactionChip(null, 'ALL'),
+          _buildFactionChip(null, 'ALL', theme: theme, t: t),
           const SizedBox(width: 8),
           ...ElementalGroup.values.map(
             (group) => Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: _buildFactionChip(group, group.displayName.toUpperCase()),
+              child: _buildFactionChip(
+                group,
+                group.displayName.toUpperCase(),
+                theme: theme,
+                t: t,
+              ),
             ),
           ),
         ],
@@ -115,77 +195,127 @@ class _StorageSectionState extends State<StorageSection> {
     );
   }
 
-  Widget _buildFactionChip(ElementalGroup? group, String label) {
+  Widget _buildFactionChip(
+    ElementalGroup? group,
+    String label, {
+    required FactionTheme theme,
+    required ForgeTokens t,
+  }) {
     final isSelected = _selectedFaction == group;
-    final color = group?.color ?? Colors.black;
+    final rim = t.readableAccent(group?.color ?? t.amberBright);
+    final background = isSelected
+        ? rim.withValues(alpha: theme.isDark ? 0.18 : 0.10)
+        : t.bg3;
+    final border = isSelected
+        ? rim.withValues(alpha: theme.isDark ? 0.70 : 0.45)
+        : t.borderDim;
+    final textColor = isSelected ? rim : t.textSecondary;
+    final swatchColor = isSelected ? rim : rim.withValues(alpha: 0.72);
 
     return GestureDetector(
       onTap: () => setState(() => _selectedFaction = group),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected
-              ? color.withValues(alpha: 1)
-              : color.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? color.withValues(alpha: 0.6)
-                : Colors.white.withValues(alpha: 0.15),
-            width: isSelected ? 2 : 1,
-          ),
+          color: background,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: border, width: 1),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: rim.withValues(alpha: theme.isDark ? 0.16 : 0.08),
+                    blurRadius: 12,
+                    spreadRadius: 0.5,
+                  ),
+                ]
+              : null,
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected
-                ? Colors.white
-                : Colors.white.withValues(alpha: 0.7),
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.5,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: swatchColor,
+                borderRadius: BorderRadius.circular(1.5),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: textColor,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: .15),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: .15)),
+  Widget _buildEmptyState(ForgeTokens t) {
+    final message = _selectedFaction == null
+        ? 'No specimens in cold storage'
+        : 'No ${_selectedFaction!.displayName} specimens in cold storage';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: t.bg3,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: t.borderDim, width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: t.bg0,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: t.borderAccent, width: 1),
+            ),
+            child: Icon(
+              Icons.inventory_2_outlined,
+              color: t.amberBright.withValues(alpha: 0.85),
+              size: 16,
+            ),
           ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.inventory_2_outlined,
-                color: Colors.white.withValues(alpha: .4),
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _selectedFaction == null
-                      ? 'No specimens in cold storage'
-                      : 'No ${_selectedFaction!.displayName} specimens in cold storage',
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message,
                   style: TextStyle(
-                    color: const Color(0xFFB6C0CC),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    color: t.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  'Stored specimens keep cultivating at reduced speed until you move them back into an active chamber.',
+                  style: TextStyle(
+                    color: t.textSecondary,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -526,9 +656,9 @@ class _ProgressBadge extends StatelessWidget {
                       : _fmtShort(rem),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 12,
+                    fontSize: 10,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 0.2,
+                    letterSpacing: 0.1,
                   ),
                 ),
                 Text(
@@ -539,9 +669,9 @@ class _ProgressBadge extends StatelessWidget {
                       : 'remaining',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 9,
+                    fontSize: 7.5,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.4,
+                    letterSpacing: 0.2,
                   ),
                 ),
               ],

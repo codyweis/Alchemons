@@ -10,6 +10,7 @@ import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/services/breeding_engine.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
@@ -290,6 +291,12 @@ class BreedingServiceV2 {
     final free = await db.incubatorDao.firstFreeSlot();
 
     if (free == null) {
+      if (!await ColdStorageService.hasCapacity(db)) {
+        return EggCreationResult.failure(
+          await ColdStorageService.buildFullMessage(db),
+        );
+      }
+
       await db.incubatorDao.enqueueEgg(
         eggId: eggId,
         resultCreatureId: creature.id,

@@ -107,6 +107,7 @@ class ExtractionVialCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onAddToInventory;
   final bool compact; // smaller for grid cells
+  final bool showTags;
 
   const ExtractionVialCard({
     super.key,
@@ -114,6 +115,7 @@ class ExtractionVialCard extends StatelessWidget {
     this.onTap,
     this.onAddToInventory,
     this.compact = false,
+    this.showTags = true,
   });
 
   int _baseParticles(ElementalGroup g) {
@@ -143,8 +145,8 @@ class ExtractionVialCard extends StatelessWidget {
     final (aType, bType) = vial.group.particleTypes;
     final nameTag = vial.group.displayName.trim();
     final rarityTag = vial.rarity.badgeLabel.trim().toUpperCase();
-    final hasNameTag = nameTag.isNotEmpty;
-    final hasRarityTag = rarityTag.isNotEmpty;
+    final hasNameTag = showTags && nameTag.isNotEmpty;
+    final hasRarityTag = showTags && rarityTag.isNotEmpty;
 
     // particle dial — rarity scales both count and speed.
     final particleCount = (_baseParticles(vial.group) * fx.particleMult)
