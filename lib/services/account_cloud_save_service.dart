@@ -97,11 +97,13 @@ class AccountCloudSaveService {
   String _friendlyFirestoreError(FirebaseException error) {
     switch (error.code) {
       case 'permission-denied':
-        return 'Cloud save access was blocked by Firestore rules.';
+        return 'Cloud save access was blocked by Firestore rules. Deploy the latest rules, then try again.';
+      case 'invalid-argument':
+        return 'The account backup is too large for cloud save storage.';
       case 'not-found':
         return 'Cloud save was not found.';
       case 'resource-exhausted':
-        return 'The account backup is too large for Firestore storage.';
+        return 'The account backup is too large for cloud save storage.';
       case 'unavailable':
         return 'Cloud save service is temporarily unavailable.';
       default:

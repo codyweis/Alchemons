@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:archive/archive.dart';
 import 'package:drift/drift.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,7 +15,9 @@ class SaveTransferException implements Exception {
 }
 
 class SaveTransferService {
-  static const String _prefix = 'ALCHEMONS_SAVE_V1:';
+  static const String _prefix = 'ALCHEMONS_SAVE_V2:';
+  static const String _legacyPrefix = 'ALCHEMONS_SAVE_V1:';
+  static const int _maxCloudSaveBytes = 900 * 1024;
   static const Set<String> _protectedPreferenceKeys = {
     'account.device_id.v1',
     'account.pending_transfer_code',
@@ -86,8 +89,14 @@ class SaveTransferService {
       'preferences': preferences,
     };
 
-    final encoded = base64UrlEncode(utf8.encode(jsonEncode(payload)));
-    return '$_prefix$encoded';
+    final saveCode = _encodePayload(payload);
+    final saveCodeBytes = utf8.encode(saveCode).length;
+    if (saveCodeBytes > _maxCloudSaveBytes) {
+      throw const SaveTransferException(
+        'This account backup is too large for cloud save storage.',
+      );
+    }
+    return saveCode;
   }
 
   Future<void> importSaveCode(
@@ -95,13 +104,13 @@ class SaveTransferService {
     required String ownerAccountId,
   }) async {
     final trimmed = rawCode.trim();
-    if (!trimmed.startsWith(_prefix)) {
+    if (!trimmed.startsWith(_prefix) && !trimmed.startsWith(_legacyPrefix)) {
       throw const SaveTransferException('Save code is missing the expected header.');
     }
 
     late final Map<String, dynamic> payload;
     try {
-      final jsonText = utf8.decode(base64Url.decode(trimmed.substring(_prefix.length)));
+      final jsonText = _decodePayload(trimmed);
       payload = jsonDecode(jsonText) as Map<String, dynamic>;
     } catch (_) {
       throw const SaveTransferException('Save code could not be decoded.');
@@ -300,5 +309,23 @@ class SaveTransferService {
       return const Variable<Object>(null);
     }
     return Variable<Object>(value as Object);
+  }
+
+  String _encodePayload(Map<String, dynamic> payload) {
+    final jsonBytes = utf8.encode(jsonEncode(payload));
+    final compressedBytes = GZipEncoder().encodeBytes(jsonBytes, level: 9);
+    final encoded = base64UrlEncode(compressedBytes);
+    return '$_prefix$encoded';
+  }
+
+  String _decodePayload(String rawCode) {
+    if (rawCode.startsWith(_prefix)) {
+      final compressedBytes = base64Url.decode(rawCode.substring(_prefix.length));
+      final jsonBytes = GZipDecoder().decodeBytes(compressedBytes);
+      return utf8.decode(jsonBytes);
+    }
+
+    final legacyBytes = base64Url.decode(rawCode.substring(_legacyPrefix.length));
+    return utf8.decode(Uint8List.fromList(legacyBytes));
   }
 }

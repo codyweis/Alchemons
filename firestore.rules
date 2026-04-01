@@ -85,7 +85,7 @@ service cloud.firestore {
           isCloudSaveShape(request.resource.data);
     }
 
-    function isValidTransferCreate(transferId) {
+    function isValidTransferCreate() {
       return isSignedIn() &&
           isTransferShape(request.resource.data) &&
           request.resource.data.uid == request.auth.uid &&
@@ -126,7 +126,7 @@ service cloud.firestore {
 
     match /account_transfers/{transferId} {
       allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isValidTransferCreate(transferId);
+      allow create: if isValidTransferCreate();
       allow update: if isValidTransferUpdate();
       allow delete: if false;
     }

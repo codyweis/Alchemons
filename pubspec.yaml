@@ -25,6 +25,7 @@ dependencies:
   firebase_core: ^3.15.2
   firebase_auth: ^5.7.0
   cloud_firestore: ^5.6.12
+  archive: ^4.0.7
   sensors_plus: ^7.0.0
   just_audio: ^0.9.36
   in_app_purchase: ^3.2.0
